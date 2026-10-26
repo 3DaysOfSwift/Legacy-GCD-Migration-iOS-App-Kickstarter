@@ -33,6 +33,15 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
   private var analytics: Segment.Analytics?
   private weak var braze: Braze?
 
+  // Never enable demo integration policy in a production build, even with a public config.
+  private var isPublicDemo: Bool {
+    #if DEBUG
+      return KsApi.Secrets.isOSS
+    #else
+      return false
+    #endif
+  }
+
   internal var rootTabBarController: RootTabBarViewController? {
     return self.window?.rootViewController as? RootTabBarViewController
   }
@@ -41,18 +50,19 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    // FBSDK initialization
-    let facebookAppID = Bundle.main.infoDictionary?["FacebookAppID"] as? String
-    AppEnvironment.configureFacebookSDK(
-      appID: facebookAppID,
-      application: application,
-      launchOptions: launchOptions
-    )
+    if !self.isPublicDemo {
+      let facebookAppID = Bundle.main.infoDictionary?["FacebookAppID"] as? String
+      AppEnvironment.configureFacebookSDK(
+        appID: facebookAppID,
+        application: application,
+        launchOptions: launchOptions
+      )
 
-    // Braze expects to be configured immediately, but segment destination plugins are initialized
-    // async. This method bridges that gap.
-    // https://www.braze.com/docs/developer_guide/sdk_integration#swift_step-2-set-up-delayed-initialization-optional
-    Braze.prepareForDelayedInitialization(pushAutomation: self.configuredBrazePushAutomation())
+      // Braze expects to be configured immediately, but segment destination plugins are initialized
+      // async. This method bridges that gap.
+      // https://www.braze.com/docs/developer_guide/sdk_integration#swift_step-2-set-up-delayed-initialization-optional
+      Braze.prepareForDelayedInitialization(pushAutomation: self.configuredBrazePushAutomation())
+    }
 
     UIView.doBadSwizzleStuff()
     UIViewController.doBadSwizzleStuff()
@@ -70,8 +80,16 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
     )
 
     #if DEBUG
-      if KsApi.Secrets.isOSS {
-        AppEnvironment.replaceCurrentEnvironment(apiService: MockService())
+      if self.isPublicDemo {
+        // Only our reserved fixture host is intercepted; no production URL or security policy is changed.
+        UIImageView.ksr_configureDemoImageLoading(protocolClass: DemoImageURLProtocol.self)
+        AppEnvironment.replaceCurrentEnvironment(
+          apiService: MockService.publicDemo(),
+          appTrackingTransparency: DemoTrackingConsent(),
+          pushRegistrationType: DemoPushRegistration.self,
+          remoteConfigClient: nil,
+          statsigClient: nil
+        )
       }
     #endif
 
@@ -224,6 +242,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
     self.viewModel.outputs.configureStatsig
       .observeForUI()
       .observeValues { [weak self] key in
+        guard self?.isPublicDemo == false else { return }
         self?.configureStatsig(with: key)
       }
 
@@ -237,7 +256,8 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     self.viewModel.outputs.synchronizeUbiquitousStore
       .observeForUI()
-      .observeValues {
+      .observeValues { [weak self] in
+        guard self?.isPublicDemo == false else { return }
         _ = AppEnvironment.current.ubiquitousStore.synchronize()
       }
 
@@ -278,7 +298,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     self.viewModel.outputs.configureSegmentWithBraze
       .observeValues { [weak self] writeKey in
-        guard let self else { return }
+        guard let self, !self.isPublicDemo else { return }
 
         let configuration = Analytics.configuredClient(withWriteKey: writeKey)
         let brazeDestination = self.configuredBrazeDestination(for: configuration)
@@ -351,7 +371,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
     // If this is not a Facebook login call, handle the potential deep-link
-    guard !AppEnvironment.current.facebookSDK.handleOpenURL(app, open: url, options: options) else {
+    guard self.isPublicDemo || !AppEnvironment.current.facebookSDK.handleOpenURL(app, open: url, options: options) else {
       return true
     }
 
@@ -436,6 +456,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
   }
 
   private func appTrackingAuthorizationChanged(status: AppTrackingAuthorization) {
+    guard !self.isPublicDemo else { return }
     self.updateFirebaseConsent(status: status)
 
     // We only pass the Segment identifier to Statsig if tracking consent is enabled.
@@ -604,6 +625,33 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
 }
 
 // MARK: - BrazeDelegate
+
+#if DEBUG
+  // These local substitutes report unavailable capabilities without requesting
+  // system permissions or claiming that a demo token was registered remotely.
+  private enum DemoPushRegistration: PushRegistrationType {
+    static func register(for options: UNAuthorizationOptions) -> SignalProducer<Bool, Never> {
+      SignalProducer(value: false)
+    }
+
+    static func hasAuthorizedNotifications() -> SignalProducer<Bool, Never> {
+      SignalProducer(value: false)
+    }
+  }
+
+  private struct DemoTrackingConsent: AppTrackingTransparencyType {
+    var advertisingIdentifier: String? { nil }
+    var authorizationStatus: SignalProducer<AppTrackingAuthorization, Never> {
+      SignalProducer(value: .restricted)
+    }
+
+    func updateAdvertisingIdentifier() {}
+    func shouldRequestAuthorizationStatus() -> Bool { false }
+    func requestAndSetAuthorizationStatus(_ completion: ((AppTrackingAuthorization) -> Void)?) {
+      completion?(.restricted)
+    }
+  }
+#endif
 
 extension AppDelegate: BrazeDelegate {
   // Intercept all URLs from Braze in-app messages or push notifications.

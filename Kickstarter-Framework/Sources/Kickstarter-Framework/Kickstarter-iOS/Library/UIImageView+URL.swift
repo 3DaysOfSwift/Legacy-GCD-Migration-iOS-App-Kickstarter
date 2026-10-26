@@ -6,6 +6,20 @@ import ReactiveSwift
 import UIKit
 
 extension UIImageView {
+  #if DEBUG
+    /// Install the local demo transport in the image clients' own sessions.
+    /// Global URLProtocol registration does not configure an already-created session.
+    public static func ksr_configureDemoImageLoading(protocolClass: URLProtocol.Type) {
+      let configuration = AlamofireImage.ImageDownloader.defaultURLSessionConfiguration()
+      configuration.protocolClasses = [protocolClass] + (configuration.protocolClasses ?? [])
+      UIImageView.af.sharedImageDownloader = AlamofireImage.ImageDownloader(configuration: configuration)
+
+      let kingfisherConfiguration = URLSessionConfiguration.ephemeral
+      kingfisherConfiguration.protocolClasses = [protocolClass] + (kingfisherConfiguration.protocolClasses ?? [])
+      Kingfisher.ImageDownloader.default.sessionConfiguration = kingfisherConfiguration
+    }
+  #endif
+
   public func ksr_setImageWithURL(
     _ url: URL,
     placeholderImage: UIImage? = nil

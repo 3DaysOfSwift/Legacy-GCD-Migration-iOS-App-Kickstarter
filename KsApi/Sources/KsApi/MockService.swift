@@ -7,6 +7,13 @@
   import ReactiveSwift
 
   internal struct MockService: ServiceType {
+    private let demoCatalog: DemoCatalog?
+
+    internal static func publicDemo() -> MockService {
+      let unavailable = ErrorEnvelope.graphError("Accounts and payments are unavailable in this fictional demo.")
+      return MockService(loginError: unavailable, signupError: unavailable, demoCatalog: DemoCatalog())
+    }
+
     internal let apolloClient: ApolloClientType?
     internal let appId: String
     internal let serverConfig: ServerConfigType
@@ -375,8 +382,10 @@
       unwatchProjectMutationResult: Result<WatchProjectResponseEnvelope, ErrorEnvelope>? = nil,
       validateCheckoutResult: Result<ValidateCheckoutEnvelope, ErrorEnvelope>? = nil,
       verifyEmailResult: Result<EmailVerificationResponseEnvelope, ErrorEnvelope>? = nil,
-      watchProjectMutationResult: Result<WatchProjectResponseEnvelope, ErrorEnvelope>? = nil
+      watchProjectMutationResult: Result<WatchProjectResponseEnvelope, ErrorEnvelope>? = nil,
+      demoCatalog: DemoCatalog? = nil
     ) {
+      self.demoCatalog = demoCatalog
       self.appId = appId
       self.serverConfig = serverConfig
       self.oauthToken = oauthToken
@@ -960,7 +969,8 @@
       )
     }
 
-    internal func fetch<Q: GraphQLQuery>(query _: Q) -> SignalProducer<Q.Data, ErrorEnvelope> {
+    internal func fetch<Q: GraphQLQuery>(query: Q) -> SignalProducer<Q.Data, ErrorEnvelope> {
+      if let demoCatalog { return demoResponse { try demoCatalog.graphResponse(for: query) } }
       for (queryType, result) in self.fetchGraphQLResponses ?? [] {
         if queryType == Q.self, let response = result as? Q.Data {
           return SignalProducer(value: response)
@@ -969,7 +979,8 @@
       return SignalProducer(error: ErrorEnvelope.graphError("Unimplemented mock"))
     }
 
-    internal func fetch<Q: GraphQLQuery>(query _: Q) async throws -> Q.Data? {
+    internal func fetch<Q: GraphQLQuery>(query: Q) async throws -> Q.Data? {
+      if let demoCatalog { return try demoCatalog.graphResponse(for: query) }
       for (queryType, result) in self.fetchGraphQLResponses ?? [] {
         if queryType == Q.self, let response = result as? Q.Data {
           return response
@@ -980,6 +991,7 @@
 
     internal func fetchGraphCategories()
       -> SignalProducer<RootCategoriesEnvelope, ErrorEnvelope> {
+      if let demoCatalog { return SignalProducer(value: demoCatalog.categories) }
       guard let client = self.apolloClient else {
         return .empty
       }
@@ -1151,6 +1163,7 @@
 
     internal func fetchDiscovery(paginationUrl: String)
       -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope> {
+      if let demoCatalog { return demoResponse { try demoCatalog.discovery(paginationURL: paginationUrl) } }
       if let error = fetchDiscoveryError {
         return SignalProducer(error: error)
       }
@@ -1169,6 +1182,7 @@
 
     internal func fetchDiscovery(params: DiscoveryParams)
       -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope> {
+      if let demoCatalog { return demoResponse { try demoCatalog.discovery(params) } }
       if let error = fetchDiscoveryError {
         return SignalProducer(error: error)
       }
@@ -1319,7 +1333,8 @@
       return SignalProducer(value: result)
     }
 
-    internal func fetchProject(param _: Param) -> SignalProducer<Project, ErrorEnvelope> {
+    internal func fetchProject(param: Param) -> SignalProducer<Project, ErrorEnvelope> {
+      if let demoCatalog { return demoResponse { try demoCatalog.project(param) } }
       guard let result = self.fetchProjectEnvelopeResult else {
         return .empty
       }
@@ -1334,6 +1349,7 @@
 
     internal func fastFetchProjectPageBase(projectParam: Param)
       -> SignalProducer<Project, ErrorEnvelope> {
+      if let demoCatalog { return demoResponse { try demoCatalog.project(projectParam) } }
       // If a result was set, use the result for mocking.
       if let result = self.fastFetchProjectPageResult {
         let baseProjectResult = result.0
@@ -1361,6 +1377,7 @@
       includeStoryRichText: Bool
     )
       -> SignalProducer<ProjectPageExtraProperties, ErrorEnvelope> {
+      if let demoCatalog { return demoResponse { try demoCatalog.extraProperties(projectParam) } }
       // If a result was set, use the result for mocking.
       if let result = self.fastFetchProjectPageResult {
         let extraPropertiesResult = result.1
@@ -1386,6 +1403,13 @@
 
     internal func fetchProject(projectParam: Param, includeStoryRichText: Bool)
       -> SignalProducer<Project.ProjectPamphletData, ErrorEnvelope> {
+      if let demoCatalog {
+        return demoResponse {
+          let project = try demoCatalog.project(projectParam)
+          let details = try demoCatalog.extraProperties(projectParam)
+          return Project.ProjectPamphletData(project: details.addExtraProperties(toProject: project), backingId: nil)
+        }
+      }
       guard let client = self.apolloClient else {
         return .empty
       }
@@ -1406,6 +1430,14 @@
         RewardsAndPledgeOverTimeEnvelope,
         ErrorEnvelope
       > {
+      if let demoCatalog {
+        return demoResponse {
+          RewardsAndPledgeOverTimeEnvelope(rewards: try demoCatalog.project(.id(projectId)).rewards,
+            isPledgeOverTimeAllowed: false, pledgeOverTimeCollectionPlanChargeExplanation: nil,
+            pledgeOverTimeCollectionPlanChargedAsNPayments: nil, pledgeOverTimeCollectionPlanShortPitch: nil,
+            pledgeOverTimeMinimumExplanation: nil)
+        }
+      }
       guard let client = self.apolloClient else {
         return .empty
       }
@@ -1425,6 +1457,7 @@
     }
 
     internal func fetchProjectRewards(projectId: Int) -> SignalProducer<[Reward], ErrorEnvelope> {
+      if let demoCatalog { return demoResponse { try demoCatalog.project(.id(projectId)).rewards } }
       guard let client = self.apolloClient else {
         return .empty
       }
@@ -1448,6 +1481,7 @@
       sortedForShippingCountryCode _: String?,
       withNoReward _: NoRewardInserter
     ) -> SignalProducer<[Reward], ErrorEnvelope> {
+      if let demoCatalog { return demoResponse { try demoCatalog.project(.id(projectId)).rewards } }
       guard let client = self.apolloClient else {
         return .empty
       }
@@ -1468,6 +1502,7 @@
     internal func fetchProject(
       _ params: DiscoveryParams
     ) -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope> {
+      if let demoCatalog { return demoResponse { try demoCatalog.discovery(params) } }
       if let envelope = self.fetchDiscoveryResponse {
         return SignalProducer(value: envelope)
       }
@@ -1478,7 +1513,8 @@
       return SignalProducer(value: envelope)
     }
 
-    internal func fetchProject_combine(project _: Project) -> AnyPublisher<Project, ErrorEnvelope> {
+    internal func fetchProject_combine(project: Project) -> AnyPublisher<Project, ErrorEnvelope> {
+      if let demoCatalog { return demoPublisher { try demoCatalog.project(.id(project.id)) } }
       fatalError("Sorry, this is unimplemented!")
     }
 
@@ -1895,12 +1931,14 @@
       )
     }
 
-    func fetchDiscovery_combine(params _: DiscoveryParams) -> AnyPublisher<DiscoveryEnvelope, ErrorEnvelope> {
+    func fetchDiscovery_combine(params: DiscoveryParams) -> AnyPublisher<DiscoveryEnvelope, ErrorEnvelope> {
+      if let demoCatalog { return demoPublisher { try demoCatalog.discovery(params) } }
       return Empty(completeImmediately: false).eraseToAnyPublisher()
     }
 
-    func fetchDiscovery_combine(paginationUrl _: String) -> AnyPublisher<DiscoveryEnvelope, ErrorEnvelope> {
-      Empty(completeImmediately: false).eraseToAnyPublisher()
+    func fetchDiscovery_combine(paginationUrl: String) -> AnyPublisher<DiscoveryEnvelope, ErrorEnvelope> {
+      if let demoCatalog { return demoPublisher { try demoCatalog.discovery(paginationURL: paginationUrl) } }
+      return Empty(completeImmediately: false).eraseToAnyPublisher()
     }
 
     func exchangeTokenForOAuthToken(params _: OAuthTokenExchangeParams)
@@ -2042,10 +2080,30 @@
             updateProjectNotificationError: $1.updateProjectNotificationError,
             updateUserSelfError: $1.updateUserSelfError,
             unwatchProjectMutationResult: $1.unwatchProjectMutationResult,
-            watchProjectMutationResult: $1.watchProjectMutationResult
+            watchProjectMutationResult: $1.watchProjectMutationResult,
+            demoCatalog: $1.demoCatalog
           )
         }
       )
+    }
+  }
+
+  /// Cold producers retain the existing caller-owned cancellation/scheduler behavior.
+  private func demoPublisher<Value>(_ response: @escaping () throws -> Value)
+    -> AnyPublisher<Value, ErrorEnvelope> {
+    Deferred { () -> AnyPublisher<Value, ErrorEnvelope> in
+      do { return Just(try response()).setFailureType(to: ErrorEnvelope.self).eraseToAnyPublisher() }
+      catch let error as ErrorEnvelope { return Fail(error: error).eraseToAnyPublisher() }
+      catch { return Fail(error: ErrorEnvelope.couldNotParseJSON).eraseToAnyPublisher() }
+    }.eraseToAnyPublisher()
+  }
+
+  private func demoResponse<Value>(_ response: @escaping () throws -> Value)
+    -> SignalProducer<Value, ErrorEnvelope> {
+    SignalProducer { observer, _ in
+      do { observer.send(value: try response()); observer.sendCompleted() }
+      catch let error as ErrorEnvelope { observer.send(error: error) }
+      catch { observer.send(error: ErrorEnvelope.couldNotParseJSON) }
     }
   }
 
