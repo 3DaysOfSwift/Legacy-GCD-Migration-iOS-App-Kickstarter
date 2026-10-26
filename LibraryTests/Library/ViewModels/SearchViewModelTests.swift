@@ -15,9 +15,41 @@ import XCTest
 internal final class SearchViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  fileprivate lazy var vm: SearchViewModelType = SearchViewModel(
-    searchFeature: SearchFeature(provider: LegacySearchProjectsProvider())
+  private let delay = ManualSearchDelay()
+  private lazy var searchFeature = SearchFeature(
+    provider: AsyncSearchProjectsProvider(), sleep: { [delay] in try await delay.sleep($0) }
   )
+  fileprivate lazy var vm = SearchViewModel(searchFeature: self.searchFeature)
+
+  override func tearDown() {
+    MainActor.assumeIsolated {
+      self.searchFeature.cancelSearch()
+      self.delay.releaseAll()
+    }
+    super.tearDown()
+  }
+
+  /// Advance the injected request clock, then await actual Feature publication.
+  /// The legacy scheduler remains only for unrelated filter lookup fixtures.
+  private func advanceRequests(by interval: DispatchTimeInterval? = nil) async {
+    self.runLookupScheduler()
+    guard self.searchFeature.isLoading else { return }
+    guard await self.delay.waitForSleep() else { return }
+    let searchTask = self.vm.searchTask
+    let pageTask = self.vm.pageTask
+    let finished = self.delay.advance(by: interval?.searchDelaySeconds ?? .infinity)
+    if finished {
+      await searchTask?.value
+      await pageTask?.value
+    }
+  }
+
+  private func runLookupScheduler() { self.scheduler.run() }
+
+  private func fixture(_ name: String) throws -> GraphAPI.SearchQuery.Data {
+    let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: name, withExtension: "json"))
+    return try testGraphObject(fromResource: url)
+  }
 
   fileprivate let changeSearchFieldFocusFocused = TestObserver<Bool, Never>()
   fileprivate let changeSearchFieldFocusAnimated = TestObserver<Bool, Never>()
@@ -60,78 +92,82 @@ internal final class SearchViewModelTests: TestCase {
 
   // Characterise the existing silent-error path before changing its ownership.
   // This is not approval to keep a silent error as the final product design.
-  func testFailedInitialSearchStopsLoadingAndRecoversOnChangedQuery() {
-    withEnvironment(apiService: MockService()) {
+  func testFailedInitialSearchStopsLoadingAndRecoversOnChangedQuery() async throws {
+    await withEnvironment(apiService: MockService()) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: true)
-      self.scheduler.run()
+      await self.advanceRequests()
 
       self.searchLoaderIndicatorIsAnimating.assertLastValue(false)
       self.hasProjects.assertLastValue(false)
+      XCTAssertNil(self.vm.searchTask)
+      XCTAssertNil(self.vm.pageTask)
       self.showEmptyState.assertDidNotEmitValue()
     }
 
-    let responses = [(GraphAPI.SearchQuery.self, GraphAPI.SearchQuery.Data.fiveResults)]
-    withEnvironment(apiService: MockService(fetchGraphQLResponses: responses)) {
+    let responses = [(GraphAPI.SearchQuery.self, try self.fixture("SearchQuery_FiveResults"))]
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: responses)) {
       self.vm.inputs.searchTextChanged("recovery")
-      self.scheduler.run()
+      await self.advanceRequests()
 
       self.hasProjects.assertLastValue(true)
       self.searchLoaderIndicatorIsAnimating.assertLastValue(false)
+      XCTAssertNil(self.vm.searchTask)
+      XCTAssertNil(self.vm.pageTask)
     }
   }
 
-  func testSearchPopularFeatured_RefTag() {
+  func testSearchPopularFeatured_RefTag() async throws {
     let response = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.fiveResults
+      try self.fixture("SearchQuery_FiveResults")
     )]
 
-    withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: true)
-      self.scheduler.advance()
+      await self.advanceRequests()
       self.vm.inputs.tapped(projectAtIndex: 0)
 
       self.goToRefTag.assertValues([RefTag.searchPopularFeatured])
     }
   }
 
-  func testSearchPopular_RefTag() {
+  func testSearchPopular_RefTag() async throws {
     let response = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.fiveResults
+      try self.fixture("SearchQuery_FiveResults")
     )]
 
-    withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: true)
-      self.scheduler.advance()
+      await self.advanceRequests()
       self.vm.inputs.tapped(projectAtIndex: 4)
 
       self.goToRefTag.assertValues([RefTag.searchPopular])
     }
   }
 
-  func testSearchFeatured_RefTag() {
+  func testSearchFeatured_RefTag() async throws {
     let popularResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.fiveResults
+      try self.fixture("SearchQuery_FiveResults")
     )]
 
     let searchResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.differentFiveResults
+      try self.fixture("SearchQuery_AnotherFiveResults")
     )]
 
-    withEnvironment(apiService: MockService(fetchGraphQLResponses: popularResponse)) {
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: popularResponse)) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: true)
-      self.scheduler.advance()
+      await self.advanceRequests()
 
-      withEnvironment(apiService: MockService(fetchGraphQLResponses: searchResponse)) {
+      await withEnvironment(apiService: MockService(fetchGraphQLResponses: searchResponse)) {
         self.vm.inputs.searchTextChanged("robots")
-        self.scheduler.advance()
+        await self.advanceRequests()
         self.vm.inputs.tapped(projectAtIndex: 0)
 
         self.goToRefTag.assertValues([RefTag.searchFeatured])
@@ -139,25 +175,25 @@ internal final class SearchViewModelTests: TestCase {
     }
   }
 
-  func testSearch_RefTag() {
+  func testSearch_RefTag() async throws {
     let popularResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.fiveResults
+      try self.fixture("SearchQuery_FiveResults")
     )]
 
     let searchResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.differentFiveResults
+      try self.fixture("SearchQuery_AnotherFiveResults")
     )]
 
-    withEnvironment(apiService: MockService(fetchGraphQLResponses: popularResponse)) {
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: popularResponse)) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: true)
-      self.scheduler.advance()
+      await self.advanceRequests()
 
-      withEnvironment(apiService: MockService(fetchGraphQLResponses: searchResponse)) {
+      await withEnvironment(apiService: MockService(fetchGraphQLResponses: searchResponse)) {
         self.vm.inputs.searchTextChanged("robots")
-        self.scheduler.advance()
+        await self.advanceRequests()
         self.vm.inputs.tapped(projectAtIndex: 2)
 
         self.goToRefTag.assertValues([RefTag.search])
@@ -165,25 +201,25 @@ internal final class SearchViewModelTests: TestCase {
     }
   }
 
-  func testProjectCardClicked() {
+  func testProjectCardClicked() async throws {
     let popularResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.fiveResults
+      try self.fixture("SearchQuery_FiveResults")
     )]
 
     let searchResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.differentFiveResults
+      try self.fixture("SearchQuery_AnotherFiveResults")
     )]
 
-    withEnvironment(apiService: MockService(fetchGraphQLResponses: popularResponse)) {
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: popularResponse)) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: true)
-      self.scheduler.advance()
+      await self.advanceRequests()
 
-      withEnvironment(apiService: MockService(fetchGraphQLResponses: searchResponse)) {
+      await withEnvironment(apiService: MockService(fetchGraphQLResponses: searchResponse)) {
         self.vm.inputs.searchTextChanged("robots")
-        self.scheduler.advance()
+        await self.advanceRequests()
         self.vm.inputs.tapped(projectAtIndex: 0)
 
         XCTAssertEqual(
@@ -201,7 +237,7 @@ internal final class SearchViewModelTests: TestCase {
     }
   }
 
-  func testClearSearchText_clearsFilters() {
+  func testClearSearchText_clearsFilters() async throws {
     let categories: [KsApi.Category] = [
       .art,
       .filmAndVideo,
@@ -215,10 +251,10 @@ internal final class SearchViewModelTests: TestCase {
       fetchGraphCategoriesResult: .success(categoriesResponse)
     )
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.vm.inputs.viewWillAppear(animated: true)
       self.vm.inputs.searchTextChanged("test")
@@ -265,7 +301,7 @@ internal final class SearchViewModelTests: TestCase {
     }
   }
 
-  func testEmptySearchText_clearsFilters() {
+  func testEmptySearchText_clearsFilters() async throws {
     let categories: [KsApi.Category] = [
       .art,
       .filmAndVideo,
@@ -279,10 +315,10 @@ internal final class SearchViewModelTests: TestCase {
       fetchGraphCategoriesResult: .success(categoriesResponse)
     )
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.vm.inputs.viewWillAppear(animated: true)
       self.vm.inputs.searchTextChanged("test")
@@ -330,7 +366,7 @@ internal final class SearchViewModelTests: TestCase {
     }
   }
 
-  func testChangingSearchText_keepsOriginalFilters() {
+  func testChangingSearchText_keepsOriginalFilters() async throws {
     let categories: [KsApi.Category] = [
       .art,
       .filmAndVideo,
@@ -344,10 +380,10 @@ internal final class SearchViewModelTests: TestCase {
       fetchGraphCategoriesResult: .success(categoriesResponse)
     )
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.vm.inputs.viewWillAppear(animated: true)
       self.vm.inputs.searchTextChanged("test")
@@ -405,14 +441,14 @@ internal final class SearchViewModelTests: TestCase {
     }
   }
 
-  func testSearchLoaderIndicatorIsAnimating() {
+  func testSearchLoaderIndicatorIsAnimating() async throws {
     self.searchLoaderIndicatorIsAnimating.assertDidNotEmitValue()
 
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewWillAppear(animated: true)
     self.searchLoaderIndicatorIsAnimating.assertLastValue(true)
 
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.searchLoaderIndicatorIsAnimating.assertLastValue(false)
 
@@ -420,24 +456,24 @@ internal final class SearchViewModelTests: TestCase {
 
     self.searchLoaderIndicatorIsAnimating.assertLastValue(true)
 
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.searchLoaderIndicatorIsAnimating.assertLastValue(false)
   }
 
   // Tests a standard flow of searching for projects.
-  func testFlow() {
+  func testFlow() async throws {
     let popularResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.fiveResults
+      try self.fixture("SearchQuery_FiveResults")
     )]
 
     let searchResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.differentFiveResults
+      try self.fixture("SearchQuery_AnotherFiveResults")
     )]
 
-    withEnvironment(apiService: MockService(fetchGraphQLResponses: popularResponse)) {
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: popularResponse)) {
       self.vm.inputs.viewDidLoad()
 
       self.hasProjects.assertDidNotEmitValue("No projects before view is visible.")
@@ -446,7 +482,7 @@ internal final class SearchViewModelTests: TestCase {
       self.vm.inputs.viewWillAppear(animated: true)
       self.isPopularTitleVisible.assertLastValue(false, "Title hidden before results have loaded")
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.hasProjects.assertLastValue(true, "Projects emitted immediately after loading.")
       self.isPopularTitleVisible.assertLastValue(true, "Popular title visible upon view appearing.")
@@ -455,7 +491,9 @@ internal final class SearchViewModelTests: TestCase {
         ["Page Viewed"], self.segmentTrackingClient.events,
         "The search view event tracked upon view appearing."
       )
+    }
 
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: searchResponse)) {
       self.vm.inputs.searchTextChanged("skull graphic tee")
 
       self.hasProjects.assertLastValue(false, "Projects clear immediately upon entering search.")
@@ -463,10 +501,8 @@ internal final class SearchViewModelTests: TestCase {
         false,
         "Popular title hide immediately upon entering search."
       )
-    }
 
-    withEnvironment(apiService: MockService(fetchGraphQLResponses: searchResponse)) {
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.hasProjects.assertLastValue(true, "Projects emit after waiting enough time.")
       self.isPopularTitleVisible.assertLastValue(
@@ -485,7 +521,7 @@ internal final class SearchViewModelTests: TestCase {
       )
 
       self.vm.inputs.willDisplayProjectAtRow(7, outOf: 10)
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       XCTAssertEqual(
         ["Page Viewed", "Page Viewed"],
@@ -498,7 +534,7 @@ internal final class SearchViewModelTests: TestCase {
       )
 
       self.vm.inputs.searchTextChanged("")
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.hasProjects.assertLastValue(
         true,
@@ -534,37 +570,37 @@ internal final class SearchViewModelTests: TestCase {
   }
 
   // Tests a flow of searching and updating the sort
-  func test_flow_sort() {
+  func test_flow_sort() async throws {
     let popularResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.fiveResults
+      try self.fixture("SearchQuery_FiveResults")
     )]
 
     let searchResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.differentFiveResults
+      try self.fixture("SearchQuery_AnotherFiveResults")
     )]
 
-    withEnvironment(apiService: MockService(fetchGraphQLResponses: popularResponse)) {
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: popularResponse)) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: true)
 
       self.hasProjects.assertLastValue(false)
       self.isPopularTitleVisible.assertLastValue(false)
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.hasProjects.assertLastValue(true, "Projects emitted immediately upon view appearing.")
       self.isPopularTitleVisible.assertLastValue(true, "Popular title visible upon view appearing.")
       XCTAssertEqual(self.segmentTrackingClient.events.count, 1, "One event after the popular results load.")
+    }
 
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: searchResponse)) {
       self.vm.inputs.searchTextChanged("dogs")
 
       self.hasProjects.assertLastValue(false, "Projects clear immediately upon entering search.")
-    }
 
-    withEnvironment(apiService: MockService(fetchGraphQLResponses: searchResponse)) {
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.hasProjects.assertLastValue(true, "Projects emit after waiting enough time.")
       XCTAssertEqual(
@@ -605,7 +641,7 @@ internal final class SearchViewModelTests: TestCase {
         "Loading spinner should show after new sort option is chosen"
       )
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.hasProjects.assertLastValue(true, "New projects with new sort option should load")
 
@@ -630,15 +666,15 @@ internal final class SearchViewModelTests: TestCase {
   }
 
   // Tests a flow of searching and updating the sort
-  func test_flow_filterByCategory() {
+  func test_flow_filterByCategory() async throws {
     let popularResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.fiveResults
+      try self.fixture("SearchQuery_FiveResults")
     )]
 
     let searchResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.differentFiveResults
+      try self.fixture("SearchQuery_AnotherFiveResults")
     )]
 
     let categoriesResponse = RootCategoriesEnvelope(rootCategories: [
@@ -653,26 +689,26 @@ internal final class SearchViewModelTests: TestCase {
       fetchGraphCategoriesResult: .success(categoriesResponse)
     )
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: true)
 
       self.hasProjects.assertLastValue(false, "Projects should start loading")
       self.isPopularTitleVisible.assertLastValue(false, "Popular title hidden while projects are loading")
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.hasProjects.assertLastValue(true, "Projects emitted immediately upon view appearing.")
       self.isPopularTitleVisible.assertLastValue(true, "Popular title visible upon view appearing.")
       XCTAssertEqual(self.segmentTrackingClient.events.count, 1, "One event after the popular results load.")
+    }
 
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: searchResponse)) {
       self.vm.inputs.searchTextChanged("dogs")
 
       self.hasProjects.assertLastValue(false, "Projects clear immediately upon entering search.")
-    }
 
-    withEnvironment(apiService: MockService(fetchGraphQLResponses: searchResponse)) {
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.hasProjects.assertLastValue(true, "Projects emit after waiting enough time.")
       XCTAssertEqual(
@@ -713,7 +749,7 @@ internal final class SearchViewModelTests: TestCase {
         "Loading spinner should show after new category filter is chosen"
       )
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.hasProjects.assertLastValue(true, "New projects with new category filter should load")
 
@@ -737,13 +773,18 @@ internal final class SearchViewModelTests: TestCase {
     }
   }
 
-  func testShowNoSearchResults() {
-    let popularResponse = [(
+  func testShowNoSearchResults() async throws {
+    let emptyResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.differentFiveResults
+      try self.fixture("SearchQuery_EmptyResults")
     )]
 
-    withEnvironment(apiService: MockService(fetchGraphQLResponses: popularResponse)) {
+    let popularResponse = [(
+      GraphAPI.SearchQuery.self,
+      try self.fixture("SearchQuery_AnotherFiveResults")
+    )]
+
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: popularResponse)) {
       self.vm.inputs.viewDidLoad()
 
       self.hasProjects.assertDidNotEmitValue("No projects before view is visible.")
@@ -759,7 +800,7 @@ internal final class SearchViewModelTests: TestCase {
         "Popular title should be hidden while results are loading"
       )
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.hasProjects.assertLastValue(true, "Projects emitted immediately upon view appearing.")
       self.isPopularTitleVisible.assertLastValue(true, "Popular title visible upon view appearing.")
@@ -777,7 +818,7 @@ internal final class SearchViewModelTests: TestCase {
         "Popular title hide immediately upon entering search."
       )
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.hasProjects.assertLastValue(true, "Projects emit after waiting enough time.")
       self.isPopularTitleVisible.assertLastValue(
@@ -800,12 +841,7 @@ internal final class SearchViewModelTests: TestCase {
         self.segmentTrackingClient.properties(forKey: "discover_search_results_count", as: Int.self)
       )
 
-      let emptyResponse = [(
-        GraphAPI.SearchQuery.self,
-        GraphAPI.SearchQuery.Data.emptyResults
-      )]
-
-      withEnvironment(apiService: MockService(fetchGraphQLResponses: emptyResponse)) {
+      await withEnvironment(apiService: MockService(fetchGraphQLResponses: emptyResponse)) {
         self.hasProjects.assertLastValue(true, "Projects from previous search still shown")
 
         self.vm.inputs.searchTextChanged("abcdefgh")
@@ -817,7 +853,7 @@ internal final class SearchViewModelTests: TestCase {
         self.searchLoaderIndicatorIsAnimating.assertLastValue(true, "Search is loading.")
         self.showEmptyState.assertValues([false], "Search is loading, don't show the empty state.")
 
-        self.scheduler.advance()
+        await self.advanceRequests()
 
         self.hasProjects.assertLastValue(false, "No Projects to emit.")
         self.showEmptyState.assertValues([false, true], "No Projects Found.")
@@ -827,16 +863,16 @@ internal final class SearchViewModelTests: TestCase {
         self.hasProjects.assertLastValue(false)
         self.showEmptyState.assertValues([false, true, false])
 
-        self.scheduler.advance()
+        await self.advanceRequests()
 
         self.hasProjects.assertLastValue(false)
         self.showEmptyState.assertValues([false, true, false, true])
       }
 
-      withEnvironment(apiService: MockService(fetchGraphQLResponses: popularResponse)) {
+      await withEnvironment(apiService: MockService(fetchGraphQLResponses: popularResponse)) {
         self.vm.inputs.searchTextChanged("")
 
-        self.scheduler.advance()
+        await self.advanceRequests()
 
         self.hasProjects.assertLastValue(true, "Popular projects should show")
         self.showEmptyState.assertLastValue(false)
@@ -847,15 +883,15 @@ internal final class SearchViewModelTests: TestCase {
 
   // Confirms that clearing search during an in-flight search doesn't cause search results and popular
   // projects to get mixed up.
-  func testOrderingOfPopularAndDelayedSearches() {
+  func testOrderingOfPopularAndDelayedSearches() async throws {
     let apiDelay = TestCase.interval
     let debounceDelay = TestCase.interval
     let popularResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.differentFiveResults
+      try self.fixture("SearchQuery_AnotherFiveResults")
     )]
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(fetchGraphQLResponses: popularResponse),
       debounceInterval: debounceDelay
     ) {
@@ -868,7 +904,7 @@ internal final class SearchViewModelTests: TestCase {
 
       self.hasProjects.assertLastValue(false, "Popular projects are loading")
 
-      self.scheduler.advance(by: apiDelay)
+      await self.advanceRequests(by: apiDelay)
 
       self.hasProjects.assertLastValue(true, "Popular projects should load")
       guard let popularProjects = projects.values.last else {
@@ -880,7 +916,7 @@ internal final class SearchViewModelTests: TestCase {
 
       self.hasProjects.assertLastValue(false, "Clears projects immediately.")
 
-      self.scheduler.advance(by: debounceDelay.halved())
+      await self.advanceRequests(by: debounceDelay.halved())
 
       self.hasProjects.assertLastValue(false, "Doesn't emit projects after a little time.")
 
@@ -889,7 +925,7 @@ internal final class SearchViewModelTests: TestCase {
       self.hasProjects.assertLastValue(false, "Popular projects start to load")
       self.searchLoaderIndicatorIsAnimating.assertLastValue(true, "Popular projects start to load")
 
-      self.scheduler.run()
+      await self.advanceRequests()
 
       self.hasProjects.assertLastValue(true, "Popular projects loaded.")
       projects.assertLastValue(popularProjects, "Brings back popular projects immediately.")
@@ -900,15 +936,15 @@ internal final class SearchViewModelTests: TestCase {
 
   // Confirms that entering new search terms cancels previously in-flight API requests for projects,
   // and that ultimately only one set of projects is returned.
-  func testCancelingOfSearchResultsWhenEnteringNewSearchTerms() {
+  func testCancelingOfSearchResultsWhenEnteringNewSearchTerms() async throws {
     let apiDelay = DispatchTimeInterval.seconds(2)
     let debounceDelay = DispatchTimeInterval.seconds(1)
     let popularResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.differentFiveResults
+      try self.fixture("SearchQuery_AnotherFiveResults")
     )]
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(fetchGraphQLResponses: popularResponse),
       apiDelayInterval: apiDelay,
       debounceInterval: debounceDelay
@@ -918,7 +954,7 @@ internal final class SearchViewModelTests: TestCase {
 
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: true)
-      self.scheduler.advance(by: apiDelay)
+      await self.advanceRequests(by: apiDelay)
 
       self.hasProjects.assertLastValue(true, "Popular projects load immediately.")
 
@@ -927,7 +963,7 @@ internal final class SearchViewModelTests: TestCase {
       self.hasProjects.assertLastValue(false, "Projects clear after entering search term.")
 
       // wait a little bit of time, but not enough to complete the debounce
-      self.scheduler.advance(by: debounceDelay.halved())
+      await self.advanceRequests(by: debounceDelay.halved())
 
       self.hasProjects.assertLastValue(
         false,
@@ -939,12 +975,12 @@ internal final class SearchViewModelTests: TestCase {
       self.hasProjects.assertLastValue(false, "No new projects load after entering new search term.")
 
       // wait a little bit of time, but not enough to complete the debounce
-      self.scheduler.advance(by: debounceDelay.halved())
+      await self.advanceRequests(by: debounceDelay.halved())
 
       self.hasProjects.assertLastValue(false, "No new projects load after entering new search term.")
 
       // Wait enough time for debounced request to be made, but not enough time for it to finish.
-      self.scheduler.advance(by: debounceDelay.halved())
+      await self.advanceRequests(by: debounceDelay.halved())
 
       self.hasProjects.assertLastValue(
         false, "No projects emit after waiting enough time for API to request to be made"
@@ -958,7 +994,7 @@ internal final class SearchViewModelTests: TestCase {
       )
 
       // wait enough time for API request to be fired.
-      self.scheduler.advance(by: debounceDelay + apiDelay)
+      await self.advanceRequests(by: debounceDelay + apiDelay)
 
       self.hasProjects.assertLastValue(true, "Search projects load after waiting enough time.")
 
@@ -968,7 +1004,7 @@ internal final class SearchViewModelTests: TestCase {
       )
 
       // run out the scheduler
-      self.scheduler.run()
+      await self.advanceRequests()
 
       self.hasProjects.assertLastValue(true, "Nothing new is emitted.")
 
@@ -980,28 +1016,28 @@ internal final class SearchViewModelTests: TestCase {
     }
   }
 
-  func testSlowTyping() {
+  func testSlowTyping() async throws {
     let apiDelay = DispatchTimeInterval.seconds(2)
     let debounceDelay = DispatchTimeInterval.seconds(1)
     let popularResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.differentFiveResults
+      try self.fixture("SearchQuery_AnotherFiveResults")
     )]
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(fetchGraphQLResponses: popularResponse),
       apiDelayInterval: apiDelay,
       debounceInterval: debounceDelay
     ) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: true)
-      self.scheduler.advance(by: apiDelay)
+      await self.advanceRequests(by: apiDelay)
 
       XCTAssertEqual(["Page Viewed"], self.segmentTrackingClient.events)
       XCTAssertEqual([""], self.segmentTrackingClient.properties(forKey: "discover_search_term"))
 
       self.vm.inputs.searchTextChanged("d")
-      self.scheduler.advance(by: apiDelay + debounceDelay)
+      await self.advanceRequests(by: apiDelay + debounceDelay)
 
       XCTAssertEqual(
         ["Page Viewed", "Page Viewed"],
@@ -1010,7 +1046,7 @@ internal final class SearchViewModelTests: TestCase {
       XCTAssertEqual(["", "d"], self.segmentTrackingClient.properties(forKey: "discover_search_term"))
 
       self.vm.inputs.searchTextChanged("do")
-      self.scheduler.advance(by: apiDelay + debounceDelay)
+      await self.advanceRequests(by: apiDelay + debounceDelay)
 
       XCTAssertEqual(
         ["Page Viewed", "Page Viewed", "Page Viewed"],
@@ -1019,7 +1055,7 @@ internal final class SearchViewModelTests: TestCase {
       XCTAssertEqual(["", "d", "do"], self.segmentTrackingClient.properties(forKey: "discover_search_term"))
 
       self.vm.inputs.searchTextChanged("dog")
-      self.scheduler.advance(by: apiDelay + debounceDelay)
+      await self.advanceRequests(by: apiDelay + debounceDelay)
 
       XCTAssertEqual(
         ["Page Viewed", "Page Viewed", "Page Viewed", "Page Viewed"],
@@ -1031,7 +1067,7 @@ internal final class SearchViewModelTests: TestCase {
       )
 
       self.vm.inputs.searchTextChanged("dogs")
-      self.scheduler.advance(by: apiDelay + debounceDelay)
+      await self.advanceRequests(by: apiDelay + debounceDelay)
 
       XCTAssertEqual(
         [
@@ -1050,7 +1086,7 @@ internal final class SearchViewModelTests: TestCase {
     }
   }
 
-  func testSearchPageViewed_BeforeSearching() {
+  func testSearchPageViewed_BeforeSearching() async throws {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewWillAppear(animated: true)
 
@@ -1063,19 +1099,19 @@ internal final class SearchViewModelTests: TestCase {
     XCTAssertEqual(0, segmentClientProps?["discover_search_results_count"] as? Int)
   }
 
-  func testSearchPageViewed_ReturningAfterSearching() {
+  func testSearchPageViewed_ReturningAfterSearching() async throws {
     let searchResponse = [(
       GraphAPI.SearchQuery.self,
-      GraphAPI.SearchQuery.Data.fiveResults
+      try self.fixture("SearchQuery_FiveResults")
     )]
 
-    withEnvironment(apiService: MockService(fetchGraphQLResponses: searchResponse)) {
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: searchResponse)) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: true)
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.vm.inputs.searchTextChanged("maverick")
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.vm.inputs.viewWillAppear(animated: true)
 
@@ -1086,7 +1122,7 @@ internal final class SearchViewModelTests: TestCase {
     }
   }
 
-  func testShowVideoFeedBanner_featureEnabled_showsOnViewWillAppear() {
+  func testShowVideoFeedBanner_featureEnabled_showsOnViewWillAppear() async throws {
     let mockStatsig = MockStatsigWrapper()
     mockStatsig.features = [.videoFeed: true]
 
@@ -1099,7 +1135,7 @@ internal final class SearchViewModelTests: TestCase {
     }
   }
 
-  func testShowVideoFeedBanner_featureDisabled_hiddenOnViewWillAppear() {
+  func testShowVideoFeedBanner_featureDisabled_hiddenOnViewWillAppear() async throws {
     let mockStatsig = MockStatsigWrapper()
     mockStatsig.features = [.videoFeed: false]
 
@@ -1110,7 +1146,7 @@ internal final class SearchViewModelTests: TestCase {
     }
   }
 
-  func testShowVideoFeedBanner_skipRepeats() {
+  func testShowVideoFeedBanner_skipRepeats() async throws {
     let mockStatsig = MockStatsigWrapper()
     mockStatsig.features = [.videoFeed: true]
 
@@ -1124,32 +1160,72 @@ internal final class SearchViewModelTests: TestCase {
   }
 }
 
-internal extension GraphAPI.SearchQuery.Data {
-  static var fiveResults: GraphAPI.SearchQuery.Data {
-    let url = Bundle(for: SearchViewModelTests.self).url(
-      forResource: "SearchQuery_FiveResults",
-      withExtension: "json"
-    )
-    let result: Self = try! testGraphObject(fromResource: url!)
-    return result
+/// Test clock with explicit suspension acknowledgements. No polling or wall-clock sleeps.
+/// Cancellation flags are synchronized because cancellation handlers can run off actor.
+/// Cancelled sleeps deliberately finish only when advanced/cleaned up, also exercising
+/// the Feature's post-await cancellation check.
+@MainActor
+private final class ManualSearchDelay {
+  private struct Sleep {
+    let deadline: TimeInterval
+    let continuation: CheckedContinuation<Void, Error>
+    let cancellation: SearchDelayCancellation
+  }
+  private var now: TimeInterval = 0
+  private var sleeps: [Sleep] = []
+  private var arrivals: [XCTestExpectation] = []
+
+  func sleep(_ seconds: TimeInterval) async throws {
+    let cancellation = SearchDelayCancellation()
+    try await withTaskCancellationHandler {
+      try Task.checkCancellation()
+      try await withCheckedThrowingContinuation { continuation in
+        self.sleeps.append(Sleep(
+          deadline: self.now + seconds, continuation: continuation, cancellation: cancellation
+        ))
+        self.arrivals.forEach { $0.fulfill() }
+        self.arrivals.removeAll()
+      }
+      try Task.checkCancellation()
+    } onCancel: { cancellation.cancel() }
   }
 
-  static var differentFiveResults: GraphAPI.SearchQuery.Data {
-    let url = Bundle(for: SearchViewModelTests.self).url(
-      forResource: "SearchQuery_AnotherFiveResults",
-      withExtension: "json"
-    )
-    let result: Self = try! testGraphObject(fromResource: url!)
-    return result
+  func waitForSleep() async -> Bool {
+    guard !self.sleeps.contains(where: { !$0.cancellation.isCancelled }) else { return true }
+    let arrival = XCTestExpectation(description: "Search awaits result delivery")
+    self.arrivals.append(arrival)
+    let result = await XCTWaiter.fulfillment(of: [arrival], timeout: 2)
+    XCTAssertEqual(result, .completed)
+    return result == .completed
   }
 
-  static var emptyResults: GraphAPI.SearchQuery.Data {
-    let bundle = Bundle(for: SearchViewModelTests.self)
-    let url = bundle.url(
-      forResource: "SearchQuery_EmptyResults",
-      withExtension: "json"
-    )
-    let result: Self = try! testGraphObject(fromResource: url!)
-    return result
+  func advance(by seconds: TimeInterval) -> Bool {
+    let target = seconds.isInfinite ? (self.sleeps.map(\.deadline).max() ?? self.now) : self.now + seconds
+    self.now = target
+    let ready = self.sleeps.filter { $0.deadline <= target || $0.cancellation.isCancelled }
+    self.sleeps.removeAll { $0.deadline <= target || $0.cancellation.isCancelled }
+    ready.forEach { $0.continuation.resume() }
+    return self.sleeps.isEmpty
+  }
+
+  func releaseAll() {
+    let sleeps = self.sleeps
+    self.sleeps.removeAll()
+    sleeps.forEach { $0.continuation.resume(throwing: CancellationError()) }
+  }
+}
+
+private final class SearchDelayCancellation: @unchecked Sendable {
+  private let lock = NSLock()
+  private var cancelled = false
+  var isCancelled: Bool {
+    self.lock.lock()
+    defer { self.lock.unlock() }
+    return self.cancelled
+  }
+  func cancel() {
+    self.lock.lock()
+    self.cancelled = true
+    self.lock.unlock()
   }
 }

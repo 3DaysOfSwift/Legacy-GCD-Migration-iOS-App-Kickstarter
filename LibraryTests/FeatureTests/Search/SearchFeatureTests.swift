@@ -76,19 +76,21 @@ final class SearchFeatureTests: TestCase {
     XCTAssertNil(parameters?.staffPicks)
   }
 
-  func testSuccessfulSearchPublishesDataCountAndLoading() throws {
+  func testSuccessfulSearchPublishesDataCountAndLoading() async throws {
     let provider = ControlledSearchProvider()
-    let searchFeature = SearchFeature(provider: provider)
+    let searchFeature = SearchFeature(provider: provider, sleep: { _ in })
+    defer { provider.releaseAll(); searchFeature.cancelSearch() }
+    var currentTask: Task<Void, Never>?
     let data = try self.fixture("SearchQuery_FiveResults")
 
-    searchFeature.search(parameters: self.parameters("ceramics"))
+    currentTask = searchFeature.requestSearch(parameters: self.parameters("ceramics"))
+    await provider.waitForRequestCount(1)
     XCTAssertTrue(searchFeature.isLoading)
     XCTAssertEqual(provider.requests.count, 1)
     XCTAssertEqual(provider.requests.first?.parameters.query, "ceramics")
-    XCTAssertEqual(provider.requests.first?.debounce, false)
 
     try provider.complete(0, with: data)
-    self.scheduler.run()
+    await currentTask?.value
 
     XCTAssertEqual(searchFeature.projects, data.projects?.nodes?.compactMap { $0 } ?? [])
     XCTAssertEqual(searchFeature.totalCount, 200)
@@ -96,111 +98,280 @@ final class SearchFeatureTests: TestCase {
     XCTAssertNil(searchFeature.searchError)
   }
 
-  func testReplacementClearsResultsAndSuppressesObsoleteCompletion() throws {
+  func testReplacementClearsResultsAndSuppressesObsoleteCompletion() async throws {
     let provider = ControlledSearchProvider()
-    let searchFeature = SearchFeature(provider: provider)
+    let searchFeature = SearchFeature(provider: provider, sleep: { _ in })
+    defer { provider.releaseAll(); searchFeature.cancelSearch() }
+    var currentTask: Task<Void, Never>?
     let oldData = try self.fixture("SearchQuery_FiveResults")
     let newData = try self.fixture("SearchQuery_AnotherFiveResults")
 
-    searchFeature.search(parameters: self.parameters("old"))
-    searchFeature.search(parameters: self.parameters("new"))
+    currentTask = searchFeature.requestSearch(parameters: self.parameters("old"))
+    let oldTask = currentTask
+    await provider.waitForRequestCount(1)
+    currentTask = searchFeature.requestSearch(parameters: self.parameters("new"))
+    await provider.waitForRequestCount(2)
 
     XCTAssertEqual(provider.requests.count, 2)
-    XCTAssertEqual(provider.requests.first?.isDisposed, true)
-    XCTAssertEqual(provider.requests.last?.debounce, true)
 
     try provider.complete(1, with: newData)
-    self.scheduler.run()
+    await currentTask?.value
     let latestProjects = searchFeature.projects
 
-    // A badly behaved transport can finish after its subscription is disposed.
+    // A badly behaved transport can finish after its task is cancelled.
     try provider.complete(0, with: oldData)
-    self.scheduler.run()
+    await oldTask?.value
 
     XCTAssertEqual(searchFeature.parameters?.query, "new")
     XCTAssertEqual(searchFeature.projects, latestProjects)
     XCTAssertEqual(latestProjects, newData.projects?.nodes?.compactMap { $0 } ?? [])
     XCTAssertFalse(searchFeature.isLoading)
 
-    searchFeature.search(parameters: self.parameters("replacement"))
+    currentTask = searchFeature.requestSearch(parameters: self.parameters("replacement"))
+    await provider.waitForRequestCount(3)
     XCTAssertTrue(searchFeature.projects.isEmpty)
     XCTAssertTrue(searchFeature.isLoading)
+    searchFeature.cancelSearch()
+    provider.releaseAll()
+    await currentTask?.value
   }
 
-  func testNextPageAppendsAndEmptyPageEndsPagination() throws {
+  func testNextPageAppendsAndEmptyPageEndsPagination() async throws {
     let provider = ControlledSearchProvider()
-    let searchFeature = SearchFeature(provider: provider)
+    let searchFeature = SearchFeature(provider: provider, sleep: { _ in })
+    defer { provider.releaseAll(); searchFeature.cancelSearch() }
+    var currentTask: Task<Void, Never>?
     let first = try self.fixture("SearchQuery_FiveResults")
     let second = try self.fixture("SearchQuery_AnotherFiveResults")
     let empty = try self.fixture("SearchQuery_EmptyResults")
 
-    searchFeature.search(parameters: self.parameters("art"))
+    currentTask = searchFeature.requestSearch(parameters: self.parameters("art"))
+    await provider.waitForRequestCount(1)
     try provider.complete(0, with: first)
-    self.scheduler.run()
-    searchFeature.loadNextPage()
+    await currentTask?.value
+    currentTask = searchFeature.requestNextPage()
+    await provider.waitForRequestCount(2)
 
     XCTAssertEqual(provider.requests.count, 2)
     XCTAssertEqual(provider.requests.last?.parameters.query, "art")
     XCTAssertEqual(provider.requests.last?.cursor, first.projects?.pageInfo.endCursor)
-    XCTAssertEqual(provider.requests.last?.debounce, false)
 
     try provider.complete(1, with: second)
-    self.scheduler.run()
+    await currentTask?.value
     let expected = (first.projects?.nodes?.compactMap { $0 } ?? [])
       + (second.projects?.nodes?.compactMap { $0 } ?? [])
     XCTAssertEqual(searchFeature.projects, expected)
 
-    searchFeature.loadNextPage()
+    currentTask = searchFeature.requestNextPage()
+    await provider.waitForRequestCount(3)
     try provider.complete(2, with: empty)
-    self.scheduler.run()
-    searchFeature.loadNextPage()
+    await currentTask?.value
+    currentTask = searchFeature.requestNextPage()
 
     XCTAssertEqual(provider.requests.count, 3)
     XCTAssertEqual(searchFeature.projects, expected)
     XCTAssertFalse(searchFeature.isLoading)
   }
 
-  func testFailureRetainsErrorAndChangedQueryRecovers() throws {
+  func testFailureRetainsErrorAndChangedQueryRecovers() async throws {
     let provider = ControlledSearchProvider()
-    let searchFeature = SearchFeature(provider: provider)
-    searchFeature.search(parameters: self.parameters("failed"))
-
+    let searchFeature = SearchFeature(provider: provider, sleep: { _ in })
+    defer { provider.releaseAll(); searchFeature.cancelSearch() }
+    var currentTask: Task<Void, Never>?
+    currentTask = searchFeature.requestSearch(parameters: self.parameters("failed"))
+    await provider.waitForRequestCount(1)
     try provider.fail(0)
-    self.scheduler.run()
+    await currentTask?.value
     XCTAssertNotNil(searchFeature.searchError)
     XCTAssertFalse(searchFeature.isLoading)
     XCTAssertTrue(searchFeature.projects.isEmpty)
 
-    searchFeature.search(parameters: self.parameters("recovered"))
+    currentTask = searchFeature.requestSearch(parameters: self.parameters("recovered"))
+    await provider.waitForRequestCount(2)
     XCTAssertNil(searchFeature.searchError)
     try provider.complete(1, with: self.fixture("SearchQuery_FiveResults"))
-    self.scheduler.run()
+    await currentTask?.value
 
     XCTAssertEqual(searchFeature.projects.count, 5)
     XCTAssertFalse(searchFeature.isLoading)
     XCTAssertNil(searchFeature.searchError)
   }
 
-  func testFailedPagePreservesExistingProjectsAndCanRetry() throws {
+  func testFailedPagePreservesExistingProjectsAndCanRetry() async throws {
     let provider = ControlledSearchProvider()
-    let searchFeature = SearchFeature(provider: provider)
-    searchFeature.search(parameters: self.parameters("art"))
+    let searchFeature = SearchFeature(provider: provider, sleep: { _ in })
+    defer { provider.releaseAll(); searchFeature.cancelSearch() }
+    var currentTask: Task<Void, Never>?
+    currentTask = searchFeature.requestSearch(parameters: self.parameters("art"))
+    await provider.waitForRequestCount(1)
     try provider.complete(0, with: self.fixture("SearchQuery_FiveResults"))
-    self.scheduler.run()
+    await currentTask?.value
     let firstPage = searchFeature.projects
 
-    searchFeature.loadNextPage()
+    currentTask = searchFeature.requestNextPage()
+    await provider.waitForRequestCount(2)
     try provider.fail(1)
-    self.scheduler.run()
+    await currentTask?.value
     XCTAssertEqual(searchFeature.projects, firstPage)
     XCTAssertNotNil(searchFeature.searchError)
     XCTAssertFalse(searchFeature.isLoading)
 
-    searchFeature.loadNextPage()
+    currentTask = searchFeature.requestNextPage()
+    await provider.waitForRequestCount(3)
     try provider.complete(2, with: self.fixture("SearchQuery_AnotherFiveResults"))
-    self.scheduler.run()
+    await currentTask?.value
     XCTAssertEqual(searchFeature.projects.count, 10)
     XCTAssertNil(searchFeature.searchError)
+  }
+
+  func testAwaitableSearchAndPageCommandsShareExecutionUntilPublication() async throws {
+    let provider = ControlledSearchProvider()
+    let feature = SearchFeature(provider: provider, sleep: { _ in })
+    defer { provider.releaseAll(); feature.cancelSearch() }
+    let parameters = self.parameters("shared")
+    let firstEntered = expectation(description: "first waiter entered")
+    let secondEntered = expectation(description: "second waiter entered")
+    var completions = 0
+    let first = Task {
+      firstEntered.fulfill()
+      await feature.search(parameters: parameters)
+      completions += 1
+    }
+    defer { first.cancel() }
+    await fulfillment(of: [firstEntered], timeout: 2)
+    await provider.waitForRequestCount(1)
+    let second = Task {
+      secondEntered.fulfill()
+      await feature.search(parameters: parameters)
+      completions += 1
+    }
+    defer { second.cancel() }
+    await fulfillment(of: [secondEntered], timeout: 2)
+    XCTAssertEqual(provider.requests.count, 1)
+    XCTAssertEqual(completions, 0, "Neither await may return while its shared request is unfinished")
+    try provider.complete(0, with: self.fixture("SearchQuery_FiveResults"))
+    await first.value
+    await second.value
+    XCTAssertEqual(completions, 2)
+    XCTAssertEqual(feature.projects.count, 5)
+
+    let page = Task { await feature.loadNextPage() }
+    defer { page.cancel() }
+    await provider.waitForRequestCount(2)
+    let duplicateEntered = expectation(description: "duplicate page waiter")
+    var duplicateFinished = false
+    let duplicate = Task {
+      duplicateEntered.fulfill()
+      await feature.loadNextPage()
+      duplicateFinished = true
+    }
+    defer { duplicate.cancel() }
+    await fulfillment(of: [duplicateEntered], timeout: 2)
+    XCTAssertEqual(provider.requests.count, 2)
+    XCTAssertFalse(duplicateFinished)
+    try provider.complete(1, with: self.fixture("SearchQuery_AnotherFiveResults"))
+    await page.value
+    await duplicate.value
+    XCTAssertTrue(duplicateFinished)
+    XCTAssertEqual(feature.projects.count, 10, "A shared page is appended exactly once")
+    XCTAssertFalse(feature.isLoading)
+  }
+
+  func testCancelledWaiterDoesNotCancelSharedSearch() async throws {
+    let provider = ControlledSearchProvider()
+    let feature = SearchFeature(provider: provider, sleep: { _ in })
+    defer { provider.releaseAll(); feature.cancelSearch() }
+    let parameters = self.parameters("shared")
+    let first = Task { await feature.search(parameters: parameters) }
+    defer { first.cancel() }
+    await provider.waitForRequestCount(1)
+    let entered = expectation(description: "second waiter")
+    let second = Task {
+      entered.fulfill()
+      await feature.search(parameters: parameters)
+    }
+    defer { second.cancel() }
+    await fulfillment(of: [entered], timeout: 2)
+    second.cancel()
+    try provider.complete(0, with: self.fixture("SearchQuery_FiveResults"))
+    await first.value
+    await second.value
+    XCTAssertEqual(provider.requests.count, 1)
+    XCTAssertEqual(feature.projects.count, 5)
+    XCTAssertNil(feature.searchError)
+  }
+
+  func testQueryReplacementDuringPageCannotAppendOrClearNewerOperation() async throws {
+    let provider = ControlledSearchProvider()
+    let feature = SearchFeature(provider: provider, sleep: { _ in })
+    defer { provider.releaseAll(); feature.cancelSearch() }
+    let initial = feature.requestSearch(parameters: self.parameters("old"))
+    await provider.waitForRequestCount(1)
+    try provider.complete(0, with: self.fixture("SearchQuery_FiveResults"))
+    await initial.value
+    let page = Task { await feature.loadNextPage() }
+    defer { page.cancel() }
+    await provider.waitForRequestCount(2)
+    let replacement = feature.requestSearch(parameters: self.parameters("new"))
+    await provider.waitForRequestCount(3)
+    try provider.complete(1, with: self.fixture("SearchQuery_AnotherFiveResults"))
+    await page.value
+    XCTAssertTrue(feature.isLoading, "Old cleanup cannot clear the replacement's loading state")
+    XCTAssertTrue(feature.projects.isEmpty)
+    let repeatedPage = feature.requestNextPage()
+    XCTAssertEqual(provider.requests.count, 3, "Do not use the old cursor during replacement")
+    try provider.complete(2, with: self.fixture("SearchQuery_FiveResults"))
+    await replacement.value
+    await repeatedPage?.value
+    XCTAssertEqual(feature.projects.count, 5)
+    XCTAssertEqual(feature.parameters?.query, "new")
+  }
+
+  func testOwnerCancellationIgnoresLateResultAndAllowsRetry() async throws {
+    let provider = ControlledSearchProvider()
+    let feature = SearchFeature(provider: provider, sleep: { _ in })
+    defer { provider.releaseAll(); feature.cancelSearch() }
+    let old = feature.requestSearch(parameters: self.parameters("cancel"))
+    await provider.waitForRequestCount(1)
+    feature.cancelSearch()
+    XCTAssertFalse(feature.isLoading)
+    try provider.complete(0, with: self.fixture("SearchQuery_FiveResults"))
+    await old.value
+    XCTAssertTrue(feature.projects.isEmpty)
+    XCTAssertNil(feature.searchError)
+    let retry = feature.requestSearch(parameters: self.parameters("cancel"))
+    await provider.waitForRequestCount(2)
+    try provider.complete(1, with: self.fixture("SearchQuery_FiveResults"))
+    await retry.value
+    XCTAssertEqual(feature.projects.count, 5)
+  }
+
+  func testAlreadyCancelledCallerDoesNotStartRequest() async {
+    let provider = ControlledSearchProvider()
+    let feature = SearchFeature(provider: provider)
+    let caller = Task { await feature.search(parameters: self.parameters("cancelled")) }
+    caller.cancel()
+    await caller.value
+    XCTAssertTrue(provider.requests.isEmpty)
+    XCTAssertNil(feature.parameters)
+    XCTAssertFalse(feature.isLoading)
+  }
+
+  func testNoCursorAndNoInitialRequestAreAwaitableNoOps() async throws {
+    let provider = ControlledSearchProvider()
+    let feature = SearchFeature(provider: provider, sleep: { _ in })
+    defer { provider.releaseAll(); feature.cancelSearch() }
+    await feature.loadNextPage()
+    XCTAssertTrue(provider.requests.isEmpty)
+    let search = Task { await feature.search(parameters: self.parameters("empty")) }
+    defer { search.cancel() }
+    await provider.waitForRequestCount(1)
+    try provider.complete(0, with: self.fixture("SearchQuery_EmptyResults"))
+    await search.value
+    await feature.loadNextPage()
+    XCTAssertEqual(provider.requests.count, 1)
+    XCTAssertTrue(feature.projects.isEmpty)
+    XCTAssertFalse(feature.isLoading)
   }
 
   private func parameters(_ query: String) -> DiscoveryParams {
@@ -222,39 +393,61 @@ private final class ControlledSearchProvider: SearchProjectsProvider {
   final class Request {
     let parameters: DiscoveryParams
     let cursor: String?
-    let debounce: Bool
-    let signal: Signal<GraphAPI.SearchQuery.Data, ErrorEnvelope>
-    let observer: Signal<GraphAPI.SearchQuery.Data, ErrorEnvelope>.Observer
-    var isDisposed = false
+    var continuation: CheckedContinuation<GraphAPI.SearchQuery.Data, Error>?
 
-    init(parameters: DiscoveryParams, cursor: String?, debounce: Bool) {
+    init(
+      parameters: DiscoveryParams, cursor: String?,
+      continuation: CheckedContinuation<GraphAPI.SearchQuery.Data, Error>
+    ) {
       self.parameters = parameters
       self.cursor = cursor
-      self.debounce = debounce
-      (self.signal, self.observer) = Signal.pipe()
+      self.continuation = continuation
     }
   }
 
   private(set) var requests: [Request] = []
+  private var arrivals: [(Int, XCTestExpectation)] = []
 
-  func fetch(
-    parameters: DiscoveryParams,
-    cursor: String?,
-    debounce: Bool
-  ) -> SignalProducer<GraphAPI.SearchQuery.Data, ErrorEnvelope> {
-    let request = Request(parameters: parameters, cursor: cursor, debounce: debounce)
-    self.requests.append(request)
-    return request.signal.producer.on(disposed: { request.isDisposed = true })
+  func fetchPage(
+    parameters: DiscoveryParams, cursor: String?
+  ) async throws -> GraphAPI.SearchQuery.Data {
+    // Intentionally ignore cancellation: the Feature must reject late results.
+    return try await withCheckedThrowingContinuation { continuation in
+      self.requests.append(Request(
+        parameters: parameters, cursor: cursor, continuation: continuation
+      ))
+      let satisfied = self.arrivals.filter { self.requests.count >= $0.0 }
+      self.arrivals.removeAll { self.requests.count >= $0.0 }
+      satisfied.forEach { $0.1.fulfill() }
+    }
+  }
+
+  func waitForRequestCount(_ count: Int) async {
+    guard self.requests.count < count else { return }
+    let arrival = XCTestExpectation(description: "request \(count) admitted")
+    self.arrivals.append((count, arrival))
+    let result = await XCTWaiter.fulfillment(of: [arrival], timeout: 2)
+    XCTAssertEqual(result, .completed)
   }
 
   func complete(_ index: Int, with data: GraphAPI.SearchQuery.Data) throws {
     let request = try XCTUnwrap(self.requests.indices.contains(index) ? self.requests[index] : nil)
-    request.observer.send(value: data)
-    request.observer.sendCompleted()
+    let continuation = try XCTUnwrap(request.continuation)
+    request.continuation = nil
+    continuation.resume(returning: data)
   }
 
   func fail(_ index: Int) throws {
     let request = try XCTUnwrap(self.requests.indices.contains(index) ? self.requests[index] : nil)
-    request.observer.send(error: .couldNotParseJSON)
+    let continuation = try XCTUnwrap(request.continuation)
+    request.continuation = nil
+    continuation.resume(throwing: ErrorEnvelope.couldNotParseJSON)
+  }
+
+  func releaseAll() {
+    for request in self.requests {
+      request.continuation?.resume(throwing: CancellationError())
+      request.continuation = nil
+    }
   }
 }

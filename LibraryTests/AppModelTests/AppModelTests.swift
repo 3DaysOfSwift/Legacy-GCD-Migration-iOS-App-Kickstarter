@@ -28,12 +28,10 @@ final class AppModelTests: XCTestCase {
 private final class NoRequestSearchProvider: SearchProjectsProvider {
   private(set) var requestCount = 0
 
-  func fetch(
-    parameters: DiscoveryParams,
-    cursor: String?,
-    debounce: Bool
-  ) -> SignalProducer<GraphAPI.SearchQuery.Data, ErrorEnvelope> {
+  func fetchPage(
+    parameters: DiscoveryParams, cursor: String?
+  ) async throws -> GraphAPI.SearchQuery.Data {
     self.requestCount += 1
-    return .empty
+    throw CancellationError()
   }
 }

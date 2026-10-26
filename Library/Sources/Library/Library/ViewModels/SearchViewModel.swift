@@ -91,6 +91,9 @@ public protocol SearchViewModelType {
 public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, SearchViewModelOutputs {
   private let searchFeature: SearchFeature
   private let featureBindings = CompositeDisposable()
+  // UIKit retains the shared Feature task rather than spawning wrapper Tasks.
+  internal private(set) var searchTask: Task<Void, Never>?
+  internal private(set) var pageTask: Task<Void, Never>?
 
   public init(searchFeature: SearchFeature? = nil) {
     // Resolve the live default inside MainActor, not in a Swift 5 default argument.
@@ -271,11 +274,17 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
 
     // Bind only after every presentation/analytics observer is installed.
     // These handles belong to this screen, not the app-scoped Feature.
-    self.featureBindings += queryParams.observeValues { [searchFeature] parameters in
-      searchFeature.search(parameters: parameters)
+    self.featureBindings += queryParams.observeValues { [weak self] parameters in
+      self?.searchTask = searchFeature.requestSearch(parameters: parameters)
     }
-    self.featureBindings += isCloseToBottom.observeValues { [searchFeature] in
-      searchFeature.loadNextPage()
+    self.featureBindings += isCloseToBottom.observeValues { [weak self] in
+      self?.pageTask = searchFeature.requestNextPage()
+    }
+    self.featureBindings += searchFeature.loading.observeValues { [weak self] loading in
+      if !loading {
+        self?.searchTask = nil
+        self?.pageTask = nil
+      }
     }
   }
 

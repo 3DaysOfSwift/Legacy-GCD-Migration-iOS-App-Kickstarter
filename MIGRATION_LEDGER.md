@@ -8,8 +8,28 @@ Search is the first selected feature because its existing tests exercise query
 replacement, filters, paging, loading, navigation metadata and analytics.
 The baseline is committed at `192fa9148ebec7409c9245354b206d344edc1e50`.
 Request ownership and filter selection/reset/query composition are extracted.
-Search page transport now uses cancellation-aware async requests. This is not a
-complete Search migration: pagination/debounce still use a reactive adapter.
+Search page transport, result-delay timing and pagination now use Feature-owned
+async tasks. Public search/page commands await publication and cleanup. The live
+UIKit bridge synchronously admits that same operation to preserve immediate UI
+events; it retains the returned task instead of installing a reactive executor.
+
+**Migration status: IN PROGRESS, not complete.** Search is only partially migrated.
+Completed checkpoints below are historical evidence, not app-wide completion.
+
+- Completed: Search request ownership; filter decisions; cancellable Apollo bridge;
+  directly awaitable first-page/pagination commands with shared in-flight work.
+- Next bounded slice: characterise and migrate category/location lookup execution,
+  particularly clearing location text while an older request is still pending.
+  Reuse the existing category cache; preserve the filter sheet.
+- Remaining Search work: replace reactive selection/query projections and screen
+  compatibility edges as appropriate; review the completed Feature against CFA;
+  close outstanding behaviour-contract/manual/snapshot validation gates.
+- Remaining app work: inventories and migration of Explore, Activity/pledges,
+  Profile/authentication and shared state/transport/persistence. Do not create
+  placeholder Features or declare these routes migrated.
+- Completion requires evidence for all in-scope features, lifecycle/task ownership,
+  compatibility and appropriate concurrency/build/test validation—not merely a
+  green Search checkpoint. Before continuing, read this status and the contract.
 
 Current project-request route:
 `SearchViewController → SearchViewModel → AppModel.searchFeature → AsyncSearchProjectsProvider → Service.fetchSearchPage → Apollo`.
@@ -37,7 +57,7 @@ the connected feature slice once baseline results support comparison.
 | Explore / discovery | Discovery controllers / DiscoveryViewModel | AppModel.discoveryFeature / DiscoveryFeatureTests | Legacy; not in this pass |
 | Activity (signed out) | Activity flow | AppModel.activityFeature / ActivityFeatureTests | Legacy; inspect complete flow before migration |
 | Pledged projects and activity (signed in) | Pledged-project/activity flow | Ownership to map with shared pledge state | Legacy; not an empty placeholder Feature |
-| Search | SearchViewController / SearchViewModel | AppModel.searchFeature / SearchFeatureTests | Request/selection ownership extracted; async page transport connected; reactive pagination pending |
+| Search | SearchViewController / SearchViewModel | AppModel.searchFeature / SearchFeatureTests | Awaitable native search/paging and async transport connected; lookup/selection/presentation migration pending |
 | Profile (signed in/out variants) | Profile/account flow | AppModel.profileFeature / ProfileFeatureTests | Legacy; inspect authentication ownership first |
 
 `RootViewModel.generateViewControllers` omits Activity when the floating-tab
@@ -49,11 +69,11 @@ is not permission to duplicate shared user, pledge or project state.
 | Mechanism and source | Existing guarantee or limitation | Planned ownership/replacement | Required protection |
 | --- | --- | --- | --- |
 | `SearchViewModel` combineLatest query/filter signals | Any change rebuilds full request parameters | SearchFeature owns query/filter domain state | BEH-S04/S05; all filters and reset behaviour |
-| `ksr_debounce`, environment scheduler, firstRequest flag | First request has zero debounce; later replacements use configured interval | Explicit cancellable debounce with injected test clock | First-load, rapid/slow typing, cancelled delay |
-| `paginate` outer switchMap | New query disposes prior result stream | Feature-owned latest-request-wins task + generation check | Adverse-order old/new completion, including cancellation-ignoring provider |
-| `paginate` inner switchMap, mutable cursor | Cursor-based append; page requests can replace each other | Feature coalesces equivalent in-flight page loads; query replacement supersedes pages | Pagination overlap/interleaving and no-cursor tests |
-| `paginate` delayed materialised results | Injectable API latency; spinner terminates on error | Provider/test gates + separate Feature operation/error properties | Failure, cleanup and retry tests |
-| `ApolloClient+RAC.fetch` | Ignores Apollo cancellable; disposal suppresses values but does not establish transport cancellation | Cancellation-aware provider below Feature | Transport cancellation and exactly-once completion race tests |
+| Former `ksr_debounce`, environment scheduler, firstRequest flag | First request has zero debounce; later replacements delay successful results, not request admission | Replaced for Search with cancellable result delay and injected test clock | First-load, rapid/slow typing, cancelled delay |
+| Former Search `paginate` outer switchMap | New query replaces prior result stream | Replaced with Feature-owned latest-query task + request identity check | Adverse-order old/new completion, including cancellation-ignoring provider |
+| Former Search `paginate` inner switchMap, mutable cursor | Cursor-based append | Replaced: equivalent in-flight pages share completion; query replacement supersedes pages | Pagination overlap/interleaving and no-cursor tests |
+| Former Search `paginate` delayed materialised results | Injectable API latency; spinner terminates on error | Replaced: injected delay/provider gates + Feature state/error/identity-checked cleanup | Failure, cleanup and retry tests |
+| Former Search `ApolloClient+RAC.fetch` | Ignored Apollo cancellable | Search now uses cancellation-aware provider/bridge; other consumers remain legacy | Transport cancellation and exactly-once completion race tests |
 | `AsyncApolloClient.fetch` | Existing checked-continuation API also ignores cancellable; @unchecked Sendable is pre-existing | Audit before reuse, including GraphQL errors/nil data | No assumption that native-looking async API preserves reactive error policy |
 | Category cache and FetchCategoriesUseCase | Cached category read, conditional remote load | Preserve one authoritative cache/provider owner | Cached/uncached/failure checks |
 | FetchLocationsUseCase switchMap | Replacement for non-empty location query; empty text separately emits [] | Feature-owned latest-location-query operation | Clear-query/late-result race characterisation needed |
@@ -61,9 +81,11 @@ is not permission to duplicate shared user, pledge or project state.
 | Search analytics signal combinations | Visit/query/card events depend on timing and result/page signals | Preserve tested event contract through injected tracking dependency | BEH-S09; local fake, no external events |
 
 AppModel, SearchFeature, its provider and SearchViewModel are MainActor-isolated.
-The async provider retains a Task per subscription and cancels it on disposal.
-ReactiveSwift pagination remains transitional. App-wide queues,
-callbacks, persistence and other features still require their own inventories.
+SearchFeature retains one identified request Task, not a reactive subscription.
+AsyncSearchProjectsProvider only awaits the transport. Search output signals are
+a compatibility projection, never request executors. Generic paginate remains
+for other consumers; app-wide queues, callbacks, persistence and other features
+still require their own inventories.
 
 ## Baseline environment and commands
 
@@ -112,8 +134,10 @@ xcodebuild -project Kickstarter.xcodeproj -quiet -scheme Library-iOS \
 2. Request ownership, filter selection/reset and query composition are now
    connected through SearchFeature. Category/location lookup collaborators remain
    reactive; their existing cache ownership and presentation are preserved.
-3. Replace model execution with directly awaitable commands, explicit latest-query
-   identity, shared equivalent paging, cancellation ownership and tested cleanup.
+3. Native Search execution is now connected and tested (checkpoint below).
+   Next migrate category/location lookup execution; characterise empty-query/late
+   location completion before changing it. Reactive selection and presentation
+   adapters remain explicit follow-on work.
 4. Compare all contract requirements, run relevant regression/snapshot suites
    on their supported runtime, and manually verify search/filter/detail/recovery.
 5. Commit verified milestones and pin the external case-study record. Do not
@@ -246,3 +270,72 @@ async ViewModel/analytics interleaving or real-network cancellation. No full sui
 snapshot comparison, physical device, VoiceOver or complete Swift 6 check claimed.
 No UI implementation files were changed. Local unreviewed draft evidence lives in
 sibling `Migration Evidence/kickstarter-search-filters-async`; no push/publication.
+## Awaitable Search pagination checkpoint (26 October 2026)
+
+Baseline: `0b40a80879803655bd432e5510d7388ce013dbb3` (87 tests).
+This section supersedes earlier checkpoints' statements that Search pagination
+is reactive or that baseline screen tests use LegacySearchProjectsProvider.
+
+- `await search(parameters:)` and `await loadNextPage()` wait for the actual
+  operation, including result delay, state publication and loading cleanup.
+  They do not merely enqueue a signal. Errors remain retained Feature state.
+- Feature owns parameters, cursor, accumulated cards, count, request identity and
+  task. Equivalent in-flight first pages/pages join the same task; new queries
+  explicitly cancel previous tasks. Old completion/cleanup cannot publish over
+  or clear a newer operation. An in-flight first page is joined by page demand;
+  an old cursor is never applied to a new query.
+- Cancellation of one awaiter does not cancel the app-owned shared operation.
+  That waiter still awaits shared completion. New queries, explicit
+  `cancelSearch()`, or Feature deinit own operation cancellation. An already
+  cancelled caller starts no work. This is intentional policy, not automatic
+  disappearance cancellation; completed Search results survive returning.
+- Internal synchronous admission methods return the same task to the existing
+  UIKit callback adapter, preserving immediate clearing/loading. ViewModel retains
+  those handles and clears them when loading finishes; it creates no wrapper
+  task and does not cancel shared Feature work on deinit.
+- Removed Search's reactive provider adapter and LegacySearchProjectsProvider.
+  Native delay preserves first-request/no-debounce and later successful-result
+  delay semantics; failures receive API delay only. Count/page/results/loading
+  event order is protected by the original analytics assertions.
+- Generic `paginate` and its tests remain for other consumers. Category/location
+  lookups, selection/query signal projections and UIKit presentation/analytics
+  adapters remain reactive. No visual files, strings or routes changed.
+
+Verification:
+
+- Baseline: 87 tests passed.
+- awaitable-tests-1/-2 failed compilation: inaccessible ReactiveSwift interval
+  conversion, then selection of its async scheduler overload. Added explicit
+  interval conversion; kept lookup-fixture scheduler draining synchronous.
+- awaitable-tests-3: 93 tests, three failing screen tests (`testFlow`,
+  `test_flow_sort`, `test_flow_filterByCategory`). Those tests installed the
+  next mock after submitting a query, relying on deferred legacy scheduling.
+  Moved fixture installation before admission. No behavioural assertion changed.
+- awaitable-tests-4/-5: 93 passed each. Added task-handle cleanup assertions;
+  removed redundant fixture waits and unnecessary async-environment warnings.
+- Final awaitable-tests-6: **93 passed, zero failures**, exit 0 and xcresult action
+  succeeded. Six incremental warnings (earlier broader run 5 reported 369):
+  not warning-free, and not a full-suite result.
+- Kickstarter iOS Debug Simulator build passed, exit 0; bundle
+  `/private/tmp/kickstarter-search-awaitable-build-1.xcresult`. App installed and
+  launched on the same simulator.
+- Agent smoke: Search discovery; scrolling to later-page Edition 3 cards through
+  Neighbourhood Sounds; Forest query three results; Games one result; clearing
+  resets category/discovery; Zzznomatch empty state; Solar Sketchbook detail and
+  return to Search. No pixel diff, exhaustive sorting or live API check.
+
+Commands use the six-suite async checkpoint selection, fresh bundle names
+`/private/tmp/kickstarter-search-awaitable-tests-N.xcresult`, and
+`-test-timeouts-enabled YES -default-test-execution-time-allowance 60` for runs
+5 onward. Test request/delay arrival gates use two-second XCTest timeouts and
+release pending continuations in cleanup; no arbitrary sleeps or yield polling.
+The original SearchViewModel regressions now run through AsyncSearchProjectsProvider
+and native Feature execution with an explicitly advanced result-delay clock.
+Six additional Feature tests exercise shared await completion, cancelled waiters,
+page/query interleaving, explicit cancellation/retry, already-cancelled callers
+and no-cursor/no-initial-request no-ops. Transport race tests remain enabled.
+
+Evidence is a local unreviewed draft in sibling
+`Migration Evidence/kickstarter-search-awaitable-pagination`. It records failed
+attempts as well as passing checks. No full-suite/snapshot, real-device, VoiceOver,
+live-network, performance or complete Swift 6 validation is claimed.

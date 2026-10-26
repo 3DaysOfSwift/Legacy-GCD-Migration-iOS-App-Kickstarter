@@ -10,7 +10,7 @@ import XCTest
 final class SearchFiltersUseCaseTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private lazy var searchFeature = SearchFeature(provider: LegacySearchProjectsProvider())
+  private lazy var searchFeature = SearchFeature(provider: AsyncSearchProjectsProvider())
   private var useCase: SearchFiltersUseCase!
   private var initialBinding: Disposable?
 

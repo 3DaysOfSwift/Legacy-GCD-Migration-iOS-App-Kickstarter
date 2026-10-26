@@ -6,13 +6,9 @@ import ReactiveSwift
 
 public typealias SearchResult = GraphAPI.SearchQuery.Data.Projects.Node
 
-/// Owns the current project request, result collection, count and pagination.
-///
-/// Retains the legacy reactive paging policy while transport is migrated:
-/// a replacement query or page disposes the prior subscription. The live async
-/// provider forwards that disposal to Task and Apollo cancellation.
-/// Selection/reset policy lives here; sheets and navigation stay in presentation.
-/// Fully awaitable Feature commands and shared equivalent paging remain pending.
+/// Owns filter policy, directly awaitable requests, cursor and accumulated results.
+/// Distinct queries supersede old work; equivalent in-flight requests share completion.
+/// Signals are an output-only compatibility edge for the unchanged UIKit screen.
 @MainActor
 public final class SearchFeature {
   public private(set) var projects: [SearchResult] = []
@@ -21,13 +17,16 @@ public final class SearchFeature {
   public private(set) var searchError: ErrorEnvelope?
   public private(set) var parameters: DiscoveryParams?
 
-  // Compatibility events consumed by the existing UIKit ViewModel. The Feature
-  // is the sole owner of request execution; observers never start another fetch.
-  public let results: Signal<[SearchResult], Never>
-  public let paginatedResults: Signal<[SearchResult], Never>
-  public let resultCount: Signal<Int, Never>
-  public let loading: Signal<Bool, Never>
-  public let pageCount: Signal<Int, Never>
+  private let resultsPipe = Signal<[SearchResult], Never>.pipe()
+  private let pagesPipe = Signal<[SearchResult], Never>.pipe()
+  private let countPipe = Signal<Int, Never>.pipe()
+  private let loadingPipe = Signal<Bool, Never>.pipe()
+  private let pageCountPipe = Signal<Int, Never>.pipe()
+  public var results: Signal<[SearchResult], Never> { self.resultsPipe.output.skipRepeats(==) }
+  public var paginatedResults: Signal<[SearchResult], Never> { self.pagesPipe.output }
+  public var resultCount: Signal<Int, Never> { self.countPipe.output }
+  public var loading: Signal<Bool, Never> { self.loadingPipe.output }
+  public var pageCount: Signal<Int, Never> { self.pageCountPipe.output }
 
   internal let filterSelection: SearchFilterSelection
   private let (filterLoadSignal, filterLoadObserver) = Signal<Void, Never>.pipe()
@@ -37,77 +36,29 @@ public final class SearchFeature {
   public var defaultLocations: Signal<[Location], Never> { self.locationsUseCase.defaultLocations }
   public var suggestedLocations: Signal<[Location], Never> { self.locationsUseCase.suggestedLocations }
 
-  private let (requestSignal, requestObserver) = Signal<DiscoveryParams, Never>.pipe()
-  private let (nextPageSignal, nextPageObserver) = Signal<Void, Never>.pipe()
-  private let subscriptions = CompositeDisposable()
+  private let provider: any SearchProjectsProvider
+  private let sleep: @MainActor (TimeInterval) async throws -> Void
+  private var nextCursor: String?
+  private var completedPageCount = 0
+  private var hasRequested = false
+  private var request: (id: UUID, cursor: String?, task: Task<Void, Never>)?
 
-  public init(provider: any SearchProjectsProvider) {
+  public init(
+    provider: any SearchProjectsProvider,
+    sleep: @escaping @MainActor (TimeInterval) async throws -> Void = { seconds in
+      if seconds.isInfinite {
+        try await Task.sleep(nanoseconds: UInt64.max)
+      } else if seconds > 0 {
+        try await Task.sleep(for: .seconds(seconds))
+      }
+      try Task.checkCancellation()
+    }
+  ) {
+    self.provider = provider
+    self.sleep = sleep
     self.filterSelection = SearchFilterSelection()
     self.categoriesUseCase = FetchCategoriesUseCase(initialSignal: self.filterLoadSignal)
     self.locationsUseCase = FetchLocationsUseCase(initialSignal: self.filterLoadSignal)
-    let stats = MutableProperty(0)
-    let options = MutableProperty<DiscoveryParams?>(nil)
-    options <~ self.requestSignal
-
-    var firstRequest = true
-    let requestFirstPage: (DiscoveryParams)
-      -> SignalProducer<GraphAPI.SearchQuery.Data, ErrorEnvelope> = { parameters in
-        SignalProducer<Void, ErrorEnvelope>(value: ()).switchMap {
-          let request = provider.fetch(
-            parameters: parameters,
-            cursor: nil,
-            debounce: !firstRequest
-          )
-          firstRequest = false
-          return request.observe(on: UIScheduler())
-        }
-      }
-
-    let (paginatedResults, loading, pageCount, errors) = paginate(
-      requestFirstPageWith: self.requestSignal,
-      requestNextPageWhen: self.nextPageSignal,
-      clearOnNewRequest: false,
-      skipRepeats: false,
-      valuesFromEnvelope: { data -> [SearchResult] in
-        stats.value = data.projects?.totalCount ?? 0
-        return data.projects?.nodes?.compact() ?? []
-      },
-      cursorFromEnvelope: { data in
-        guard let pageInfo = data.projects?.pageInfo else { return nil }
-        return pageInfo.hasNextPage ? pageInfo.endCursor : nil
-      },
-      requestFromParams: requestFirstPage,
-      requestFromCursor: { (cursor: String?) -> SignalProducer<GraphAPI.SearchQuery.Data, ErrorEnvelope> in
-        guard let parameters = options.value, let cursor else { return .empty }
-        return provider.fetch(parameters: parameters, cursor: cursor, debounce: false)
-          .observe(on: UIScheduler())
-      }
-    )
-
-    self.resultCount = stats.signal
-    self.paginatedResults = paginatedResults
-    self.loading = loading
-    self.pageCount = pageCount
-    self.results = Signal.merge(self.requestSignal.mapConst([]), paginatedResults).skipRepeats(==)
-
-    // Reactive callbacks are a temporary compatibility boundary. UIScheduler
-    // delivers synchronously on main when already there, preserving legacy
-    // event ordering. Actor assertions make this boundary explicit.
-    self.subscriptions += self.results.observe(on: UIScheduler()).observeValues { [weak self] projects in
-      MainActor.assumeIsolated { self?.projects = projects }
-    }
-    self.subscriptions += self.resultCount.observe(on: UIScheduler()).observeValues { [weak self] count in
-      MainActor.assumeIsolated { self?.totalCount = count }
-    }
-    self.subscriptions += loading.observe(on: UIScheduler()).observeValues { [weak self] loading in
-      MainActor.assumeIsolated {
-        self?.isLoading = loading
-        if loading { self?.searchError = nil }
-      }
-    }
-    self.subscriptions += errors.observe(on: UIScheduler()).observeValues { [weak self] error in
-      MainActor.assumeIsolated { self?.searchError = error }
-    }
   }
 
   /// Default choices and lookup data are loaded only on explicit screen demand.
@@ -170,21 +121,144 @@ public final class SearchFeature {
 
   public func searchLocations(_ query: String) { self.locationsUseCase.searchedForLocations(query) }
 
-  /// Query replacement is intentionally latest-request-wins (BEH-S03).
-  public func search(parameters: DiscoveryParams) {
+  /// Await the complete first-page operation, including delivery timing/publication.
+  /// A cancelled waiter does not cancel work shared by another caller. Distinct
+  /// queries and cancelSearch() are the Feature's explicit cancellation owners.
+  public func search(parameters: DiscoveryParams) async {
+    guard !Task.isCancelled else { return }
+    await self.requestSearch(parameters: parameters).value
+  }
+
+  public func loadNextPage() async {
+    guard !Task.isCancelled else { return }
+    await self.requestNextPage()?.value
+  }
+
+  /// Synchronous UIKit admission preserves immediate clearing/loading. It returns
+  /// the very same Feature-owned task awaited by the public async command; it
+  /// neither installs a second pipeline nor starts work from an observer.
+  @discardableResult
+  internal func requestSearch(parameters: DiscoveryParams) -> Task<Void, Never> {
+    if self.parameters == parameters, let request = self.request, request.cursor == nil {
+      return request.task
+    }
+    self.cancelSearch()
     self.parameters = parameters
+    self.nextCursor = nil
+    self.completedPageCount = 0
+    self.projects = []
+    self.resultsPipe.input.send(value: [])
+    let debounce = self.hasRequested ? AppEnvironment.current.debounceInterval.searchDelaySeconds : 0
+    self.hasRequested = true
+    return self.requestPage(parameters: parameters, cursor: nil, debounce: debounce)
+  }
+
+  @discardableResult
+  internal func requestNextPage() -> Task<Void, Never>? {
+    // While the first page is loading, join it: an old query's cursor must
+    // never escape into the replacement query. Repeated pages also join.
+    if let request = self.request { return request.task }
+    guard let parameters = self.parameters, let cursor = self.nextCursor else { return nil }
+    return self.requestPage(parameters: parameters, cursor: cursor, debounce: 0)
+  }
+
+  /// Explicit owner cancellation, not a side effect of a single waiter leaving.
+  public func cancelSearch() {
+    let previous = self.request
+    self.request = nil
+    previous?.task.cancel()
+    if self.isLoading { self.setLoading(false) }
+  }
+
+  private func requestPage(
+    parameters: DiscoveryParams, cursor: String?, debounce: TimeInterval
+  ) -> Task<Void, Never> {
+    let id = UUID()
+    let apiDelay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
     self.searchError = nil
-    self.requestObserver.send(value: parameters)
+    self.setLoading(true)
+    let task = Task { @MainActor [weak self, provider, sleep] in
+      defer { self?.finishRequest(id: id) }
+      do {
+        try Task.checkCancellation()
+        let response: Result<GraphAPI.SearchQuery.Data, Error>
+        do {
+          response = .success(try await provider.fetchPage(parameters: parameters, cursor: cursor))
+        } catch is CancellationError {
+          return
+        } catch {
+          response = .failure(error)
+        }
+        try Task.checkCancellation()
+        // Legacy debounce delayed successful values, not admission or errors.
+        let resultDelay: TimeInterval
+        switch response {
+        case .success: resultDelay = debounce + apiDelay
+        case .failure: resultDelay = apiDelay
+        }
+        try await sleep(resultDelay)
+        try Task.checkCancellation()
+        guard let self, self.request?.id == id else { return }
+        switch response {
+        case let .success(data):
+          self.publish(data, firstPage: cursor == nil)
+        case let .failure(error):
+          self.searchError = (error as? ErrorEnvelope) ?? .couldNotParseJSON
+        }
+      } catch is CancellationError {
+        // Superseded/explicitly cancelled operations never publish a failure.
+      } catch {
+        guard let self, self.request?.id == id else { return }
+        self.searchError = (error as? ErrorEnvelope) ?? .couldNotParseJSON
+      }
+    }
+    self.request = (id, cursor, task)
+    return task
   }
 
-  /// The paging pipeline decides whether a next cursor exists.
-  public func loadNextPage() {
-    self.nextPageObserver.send(value: ())
+  private func publish(_ data: GraphAPI.SearchQuery.Data, firstPage: Bool) {
+    let incoming = data.projects?.nodes?.compactMap { $0 } ?? []
+    let pageInfo = data.projects?.pageInfo
+    self.nextCursor = !incoming.isEmpty && pageInfo?.hasNextPage == true ? pageInfo?.endCursor : nil
+    self.totalCount = data.projects?.totalCount ?? 0
+    self.countPipe.input.send(value: self.totalCount)
+    self.projects = firstPage ? incoming : self.projects + incoming
+    // Preserve legacy output ordering used by analytics: count, page, results,
+    // then loading=false. Empty terminal pages retain already accumulated cards.
+    if !self.projects.isEmpty {
+      self.completedPageCount += 1
+      self.pageCountPipe.input.send(value: self.completedPageCount)
+    }
+    self.pagesPipe.input.send(value: self.projects)
+    self.resultsPipe.input.send(value: self.projects)
   }
 
-  deinit {
-    self.subscriptions.dispose()
+  private func finishRequest(id: UUID) {
+    guard self.request?.id == id else { return }
+    self.request = nil
+    self.setLoading(false)
   }
+
+  private func setLoading(_ loading: Bool) {
+    self.isLoading = loading
+    self.loadingPipe.input.send(value: loading)
+  }
+
+  deinit { self.request?.task.cancel() }
 }
 
 public enum SearchToggleFilter { case projectsWeLove, savedProjects, following, recommended }
+
+/// Compatibility conversion for the existing environment's configured intervals.
+extension DispatchTimeInterval {
+  internal var searchDelaySeconds: TimeInterval {
+    switch self {
+    case let .seconds(value): return Double(value)
+    case let .milliseconds(value): return Double(value) / 1_000
+    case let .microseconds(value): return Double(value) / 1_000_000
+    case let .nanoseconds(value): return Double(value) / 1_000_000_000
+    case .never: return .infinity
+    @unknown default: return .infinity
+    }
+  }
+}
