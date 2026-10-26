@@ -74,7 +74,6 @@
 		AAF548DF2F2445C0001DB5AC /* KSRAnalyticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAF547F62F2445C0001DB5AC /* KSRAnalyticsTests.swift */; };
 		AAF548E02F2445C0001DB5AC /* TrackingHelpersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAF547F72F2445C0001DB5AC /* TrackingHelpersTests.swift */; };
 		AAF548E12F2445C0001DB5AC /* FetchCategoriesUseCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAF547F92F2445C0001DB5AC /* FetchCategoriesUseCaseTests.swift */; };
-		AAF548E22F2445C0001DB5AC /* FetchLocationsUseCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAF547FB2F2445C0001DB5AC /* FetchLocationsUseCaseTests.swift */; };
 		AAF548E32F2445C0001DB5AC /* SearchFiltersUseCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAF547FD2F2445C0001DB5AC /* SearchFiltersUseCaseTests.swift */; };
 		AAF548E42F2445C0001DB5AC /* SelectedSearchFilters+TestHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAF547FE2F2445C0001DB5AC /* SelectedSearchFilters+TestHelpers.swift */; };
 		AAF548E52F2445C0001DB5AC /* SimilarProjectsUseCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAF548002F2445C0001DB5AC /* SimilarProjectsUseCaseTests.swift */; };
@@ -447,7 +446,6 @@
 		AAF547F62F2445C0001DB5AC /* KSRAnalyticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KSRAnalyticsTests.swift; sourceTree = "<group>"; };
 		AAF547F72F2445C0001DB5AC /* TrackingHelpersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackingHelpersTests.swift; sourceTree = "<group>"; };
 		AAF547F92F2445C0001DB5AC /* FetchCategoriesUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FetchCategoriesUseCaseTests.swift; sourceTree = "<group>"; };
-		AAF547FB2F2445C0001DB5AC /* FetchLocationsUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FetchLocationsUseCaseTests.swift; sourceTree = "<group>"; };
 		AAF547FD2F2445C0001DB5AC /* SearchFiltersUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchFiltersUseCaseTests.swift; sourceTree = "<group>"; };
 		AAF547FE2F2445C0001DB5AC /* SelectedSearchFilters+TestHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SelectedSearchFilters+TestHelpers.swift"; sourceTree = "<group>"; };
 		AAF548002F2445C0001DB5AC /* SimilarProjectsUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimilarProjectsUseCaseTests.swift; sourceTree = "<group>"; };
@@ -989,14 +987,6 @@
 			path = FetchCategories;
 			sourceTree = "<group>";
 		};
-		AAF547FC2F2445C0001DB5AC /* FetchLocations */ = {
-			isa = PBXGroup;
-			children = (
-				AAF547FB2F2445C0001DB5AC /* FetchLocationsUseCaseTests.swift */,
-			);
-			path = FetchLocations;
-			sourceTree = "<group>";
-		};
 		AAF547FF2F2445C0001DB5AC /* SearchFilters */ = {
 			isa = PBXGroup;
 			children = (
@@ -1018,7 +1008,6 @@
 			isa = PBXGroup;
 			children = (
 				AAF547FA2F2445C0001DB5AC /* FetchCategories */,
-				AAF547FC2F2445C0001DB5AC /* FetchLocations */,
 				AAF547FF2F2445C0001DB5AC /* SearchFilters */,
 				AAF548012F2445C0001DB5AC /* SimilarProjects */,
 			);
@@ -1747,7 +1736,6 @@
 				AAF548DF2F2445C0001DB5AC /* KSRAnalyticsTests.swift in Sources */,
 				AAF548E02F2445C0001DB5AC /* TrackingHelpersTests.swift in Sources */,
 				AAF548E12F2445C0001DB5AC /* FetchCategoriesUseCaseTests.swift in Sources */,
-				AAF548E22F2445C0001DB5AC /* FetchLocationsUseCaseTests.swift in Sources */,
 				AAF548E32F2445C0001DB5AC /* SearchFiltersUseCaseTests.swift in Sources */,
 				AAF548E42F2445C0001DB5AC /* SelectedSearchFilters+TestHelpers.swift in Sources */,
 				AAF548E52F2445C0001DB5AC /* SimilarProjectsUseCaseTests.swift in Sources */,

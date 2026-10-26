@@ -1,6 +1,6 @@
 # CFA migration ledger
 
-Author: Matthew Thomas. Updated 26 October 2026.
+Author: Matthew Thomas. Updated 27 October 2026.
 
 ## Scope and first boundary
 
@@ -18,11 +18,12 @@ Completed checkpoints below are historical evidence, not app-wide completion.
 
 - Completed: Search request ownership; filter decisions; cancellable Apollo bridge;
   directly awaitable first-page/pagination commands with shared in-flight work.
-- Current bounded slice: category/location native lookups now pass 114 focused
-  tests and the app build (user-run Terminal verification, results inspected).
-  Manual filter-screen smoke checks remain pending.
-- Next: smoke-test category/location filters, remove the orphaned legacy location
-  use case/tests in a separately verified cleanup, then continue Search selection.
+- Current bounded slice: category/location native lookups passed 114 focused
+  tests and the app build. Installed-app filter smoke checks now passed.
+  Orphan location source/tests and Xcode references are removed; fresh cleanup
+  verification passed all 111 tests and the app build (results inspected 27 October).
+- Next: continue Search selection/query projections, preserving reset event order
+  and request/analytics semantics.
 - Remaining Search work: replace reactive selection/query projections and screen
   compatibility edges as appropriate; review the completed Feature against CFA;
   close outstanding behaviour-contract/manual/snapshot validation gates.
@@ -37,7 +38,9 @@ Current project-request route:
 `SearchViewController → SearchViewModel → AppModel.searchFeature → AsyncSearchProjectsProvider → Service.fetchSearchPage → Apollo`.
 SearchFeature owns selection policy and native category/location lookup tasks;
 AsyncSearchLookupProvider uses the existing Service and KSCache boundaries.
-The current lookup changes have automated test/build verification; manual checks remain pending. SearchFiltersUseCase is now a screen presentation adapter.
+The native lookup changes have automated test/build and bounded manual verification.
+The subsequent orphan cleanup also passed a fresh 111-test run and app build.
+SearchFiltersUseCase is now a screen presentation adapter.
 
 Target route:
 `SearchViewController → SearchViewModel → AppModel.shared.searchFeature → search provider → existing API transport`.
@@ -409,3 +412,38 @@ validation remain outstanding. A passing checkpoint is not migration completion.
 Keep the tested legacy location reference until the next separately verified
 cleanup; its replacement behaviour now has passing equivalent tests.
 The entire migration remains in progress. No push or publication performed.
+
+### Category/location smoke and orphan cleanup (26 October 2026)
+
+Installed Debug demo, iPhone Air / iOS 26.2: Art selection updates results/count;
+default locations appear; Los produces Los Angeles, clear removes suggestions,
+Port produces Portland. Selection survives reopening. Art + Portland shows the
+empty result screen; resetting location restores results while preserving Art.
+Category reset disables Reset. No UIKit layout, navigation or copy changed.
+These checks are bounded interactions, not full snapshot or late-response tests.
+
+Removed the unused FetchLocationsUseCase and its three obsolete tests, plus
+their Xcode references/group. Git retains the deleted files. The 14 passing
+SearchLookupTests cover their outcomes plus cancellation/races. Explore's
+FetchCategoriesUseCase stays because it has active callers.
+
+Fresh cleanup verification exited 74 before compilation: Simulator service and
+SwiftPM/Clang cache access denied. No test/build pass is claimed for this deletion.
+Project plist, script syntax, whitespace and stale-reference checks passed.
+Evidence: sibling Migration Evidence/kickstarter-search-lookup-cleanup.
+Run its verify.zsh from Terminal (eight suites, expected 111 tests, then app build).
+Commit only after verification. Next: reactive selection/query projections with
+reset event order and analytics/request semantics preserved. Migration incomplete.
+
+### Cleanup verification confirmed — 27 October 2026
+
+Matthew Thomas ran verify.zsh in Terminal; results were inspected directly:
+`/private/tmp/kickstarter-search-lookup-cleanup.PQ3So7`.
+The run completed on 26 October at approximately 23:55; confirmation was supplied
+after midnight. Tests: 111 individual Success records, zero failures/skips.
+App buildResult.status: succeeded. Test result reports 1,783 warnings; app build
+reports three (Crashlytics script outputs, absent Frameworks search path, and
+extension/host CFBundleVersion mismatch). No warning-free claim.
+Only progress/evidence documentation changed after the successful run.
+The earlier sandbox-blocked attempt remains recorded, superseded by this result.
+This verifies the bounded orphan cleanup, not whole-Search or whole-app completion.

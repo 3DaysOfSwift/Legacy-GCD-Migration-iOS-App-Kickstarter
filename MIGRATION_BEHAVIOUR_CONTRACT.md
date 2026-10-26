@@ -126,4 +126,34 @@ See the ledger for paths, warning counts and runtime limitations.
 
 No new visual design is authorized. Legacy and replacement lookup tests passed
 together; remove the orphaned legacy location code only in a separately verified
-cleanup. Manual filter smoke, whole-Search and whole-app completion remain open.
+cleanup. Manual filter smoke, whole-Search and whole-app completion remain open
+at that checkpoint; see the subsequent bounded smoke below.
+
+### Subsequent bounded filter smoke — 26 October 2026
+
+Installed public demo, iPhone Air / iOS 26.2: category options loaded; Art
+selection changed results and count; default locations appeared. Los returned
+Los Angeles, clear removed the suggestion, and Port returned Portland.
+Selecting Portland alongside Art showed the empty-results screen with two
+filters. Reopening retained Portland's selected radio/text. Resetting location
+restored results while preserving Art/count 1. Category Reset became disabled
+after clearing its selection.
+
+This covers the visible normal/clear/reopen/reset paths, not injected failures,
+cache persistence, simultaneous waiter cancellation or forced late responses.
+BEH-S14 has bounded manual confirmation; BEH-S15's race guarantee still relies
+on controlled tests. Other automated-only checks remain so.
+No screenshot regression, physical-device or live-API verification is claimed.
+
+The orphan location implementation and its three tests have now been removed
+from the working tree, recoverable from Git. These manual checks use the
+pre-cleanup installed binary. Fresh cleanup build/tests remain blocked by
+execution permissions (exit 74 before compilation), not passed.
+Whole-Search and whole-app migration remain incomplete.
+
+Post-cleanup follow-up confirmed 27 October 2026: the user-run Terminal check
+in /private/tmp/kickstarter-search-lookup-cleanup.PQ3So7 passed all 111 tests
+(zero failures/skips) and the app build. This supersedes the cleanup execution
+blocker above. No Swift or project changes followed that successful run.
+Manual smoke remains bounded to the pre-cleanup binary; broader validation
+and the rest of the migration remain outstanding.
