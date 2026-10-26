@@ -6,11 +6,13 @@ Author: Matthew Thomas. Updated 26 October 2026.
 
 Search is the first selected feature because its existing tests exercise query
 replacement, filters, paging, loading, navigation metadata and analytics.
-This checkpoint establishes the baseline before replacing production logic.
-No Search production implementation has been migrated yet.
+The baseline is committed at `192fa9148ebec7409c9245354b206d344edc1e50`.
+The current checkpoint extracts project-request ownership; it is not a complete
+Search migration or an async execution conversion.
 
-Current route:
-`SearchViewController → SearchViewModel → filter/category/location use cases + paginate → AppEnvironment.apiService → Apollo`.
+Current project-request route:
+`SearchViewController → SearchViewModel → AppModel.searchFeature → LegacySearchProjectsProvider → AppEnvironment.apiService → Apollo`.
+Filter/category/location use cases still live beside presentation in the ViewModel.
 
 Target route:
 `SearchViewController → SearchViewModel → AppModel.shared.searchFeature → search provider → existing API transport`.
@@ -33,7 +35,7 @@ the connected feature slice once baseline results support comparison.
 | Explore / discovery | Discovery controllers / DiscoveryViewModel | AppModel.discoveryFeature / DiscoveryFeatureTests | Legacy; not in this pass |
 | Activity (signed out) | Activity flow | AppModel.activityFeature / ActivityFeatureTests | Legacy; inspect complete flow before migration |
 | Pledged projects and activity (signed in) | Pledged-project/activity flow | Ownership to map with shared pledge state | Legacy; not an empty placeholder Feature |
-| Search | SearchViewController / SearchViewModel | AppModel.searchFeature / SearchFeatureTests | Baseline verified; production still legacy |
+| Search | SearchViewController / SearchViewModel | AppModel.searchFeature / SearchFeatureTests | Request ownership extracted; filters and async execution pending |
 | Profile (signed in/out variants) | Profile/account flow | AppModel.profileFeature / ProfileFeatureTests | Legacy; inspect authentication ownership first |
 
 `RootViewModel.generateViewControllers` omits Activity when the floating-tab
@@ -56,7 +58,8 @@ is not permission to duplicate shared user, pledge or project state.
 | Reachability/feature flag streams | Banner presentation updates; not a search data request | Preserve existing compatibility adapter until separately migrated | BEH-S11 |
 | Search analytics signal combinations | Visit/query/card events depend on timing and result/page signals | Preserve tested event contract through injected tracking dependency | BEH-S09; local fake, no external events |
 
-No new Task or actor has been added at this checkpoint. App-wide queues,
+AppModel, SearchFeature, its provider and SearchViewModel are MainActor-isolated.
+No new Task has been added; ReactiveSwift execution is still transitional. App-wide queues,
 callbacks, persistence and other features still require their own inventories.
 
 ## Baseline environment and commands
@@ -103,11 +106,64 @@ xcodebuild -project Kickstarter.xcodeproj -quiet -scheme Library-iOS \
 1. Non-visual baseline established: 67 tests passed, including initial failure
    and recovery. Characterise additional uncovered interleaving paths alongside
    the replacement; keep failures recorded rather than rewriting expectations.
-2. Connect the Search Feature and AppModel composition, preserving the current
-   controller and filter presentation. Keep legacy compatibility adapters narrow.
+2. Request ownership and AppModel composition are now connected. Next move
+   query/filter domain decisions out of the ViewModel while preserving category
+   cache ownership and the existing controller/filter presentation.
 3. Replace model execution with directly awaitable commands, explicit latest-query
    identity, shared equivalent paging, cancellation ownership and tested cleanup.
 4. Compare all contract requirements, run relevant regression/snapshot suites
    on their supported runtime, and manually verify search/filter/detail/recovery.
 5. Commit verified milestones and pin the external case-study record. Do not
    call the full app migrated while other features or these gates remain open.
+
+## Search request-ownership checkpoint
+
+- Concrete MainActor SearchFeature owns requests, collected projects, count,
+  loading and retained errors. AppModel exposes only this migrated Feature.
+  SearchViewModel accepts a narrow Feature dependency; its live default resolves
+  inside the actor-isolated initializer. Tests build isolated feature graphs.
+- GraphQL query mapping moved into the Model feature folder. The provider resolves
+  the current API environment at request time, preserving account/demo selection.
+- Generic reactive pagination, debounce and event ordering remain in use.
+  Newest-query subscription disposal is preserved; physical Apollo cancellation,
+  shared equivalent page execution and directly awaitable commands are NOT done.
+- UIScheduler is the explicit main-queue compatibility boundary. State observers
+  assert MainActor isolation there. This is not complete Swift 6 safety validation.
+- Composition starts no request. Search remains demand-loaded on its existing
+  lifecycle; no artificial launch task was introduced. Full AppModel lifecycle
+  alignment awaits the app-wide migration.
+- UIKit, storyboard, card equality, navigation and analytics expectations remain
+  unchanged. Errors are retained by the Feature without inventing new error UI.
+
+Verification on 26 October 2026:
+
+1. Test attempt 1 failed compilation: generic cursor inference required an explicit
+   return type. A Swift 5 actor-isolated default-argument warning was also corrected.
+2. Attempt 2 failed compilation: new tests required the existing fixture helper
+   import and testable KsApi access. No assertion was weakened.
+3. Attempt 3 passed: **74 tests, zero failures**, exit 0, xcresult action succeeded.
+   Original 67 regression tests plus six Feature and one AppModel test. This run
+   reports 1,783 warnings across the dependency/project build; not warning-free.
+4. Debug Kickstarter iOS Simulator build passed, exit 0. Not a Release/device build.
+5. Agent smoke-tested discovery, Forest search (three results), empty search,
+   Cancel returning to discovery, Newest sort selection, Paper Cities detail and
+   return to Search. Sort selection was observed, not an ordering comparison.
+   The existing restricted-creator demo banner remains a fixture limitation.
+
+The passing test command is the baseline command above with these extra selections
+and a fresh result bundle:
+
+```sh
+-only-testing:LibraryTests/SearchFeatureTests \
+-only-testing:LibraryTests/AppModelTests \
+-resultBundlePath /private/tmp/kickstarter-search-feature-tests-3.xcresult
+```
+
+App build: same project, Debug destination and derived data; scheme
+`Kickstarter iOS`, action `build CODE_SIGNING_ALLOWED=NO`, result bundle
+`/private/tmp/kickstarter-search-feature-build-1.xcresult`.
+
+Local draft evidence: sibling `Migration Evidence/kickstarter-search-request-ownership`.
+It records failed attempts, passing checks and screenshots; it is not a reviewed
+precedent or part of the app commit. Full suite, snapshots, real devices,
+VoiceOver, live APIs and transport cancellation remain unverified.

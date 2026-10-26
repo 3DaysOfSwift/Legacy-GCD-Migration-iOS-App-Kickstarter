@@ -23,6 +23,8 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		CFA026100000000000000001 /* SearchFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA026100000000000000002 /* SearchFeatureTests.swift */; };
+		CFA026100000000000000005 /* AppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA026100000000000000006 /* AppModelTests.swift */; };
 		01483F222F0DDFF900A1D833 /* (null) in Sources */ = {isa = PBXBuildFile; };
 		015102AE1F1947CB0006C0FC /* (null) in Sources */ = {isa = PBXBuildFile; };
 		01F219561DC12BF7005DD2E4 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 01F219521DC12697005DD2E4 /* LaunchScreen.storyboard */; };
@@ -379,6 +381,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		CFA026100000000000000002 /* SearchFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchFeatureTests.swift; sourceTree = "<group>"; };
+		CFA026100000000000000006 /* AppModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModelTests.swift; sourceTree = "<group>"; };
 		01F219521DC12697005DD2E4 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		194A8E4D2A13FB010099583B /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Frameworks/native-secrets/ios/Firebase-Alpha/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		33AA26C72E39E9BD002DBD60 /* FetchBackingWithIncrementsRefundedQuery.graphql */ = {isa = PBXFileReference; lastKnownFileType = text; path = FetchBackingWithIncrementsRefundedQuery.graphql; sourceTree = "<group>"; };
@@ -810,6 +814,24 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		CFA026100000000000000003 /* Search */ = {
+			isa = PBXGroup;
+			children = (CFA026100000000000000002 /* SearchFeatureTests.swift */,);
+			path = Search;
+			sourceTree = "<group>";
+		};
+		CFA026100000000000000004 /* FeatureTests */ = {
+			isa = PBXGroup;
+			children = (CFA026100000000000000003 /* Search */,);
+			path = FeatureTests;
+			sourceTree = "<group>";
+		};
+		CFA026100000000000000007 /* AppModelTests */ = {
+			isa = PBXGroup;
+			children = (CFA026100000000000000006 /* AppModelTests.swift */,);
+			path = AppModelTests;
+			sourceTree = "<group>";
+		};
 		39AE634C2F6C581800481A76 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -1251,6 +1273,8 @@
 			isa = PBXGroup;
 			children = (
 				AAF548D12F2445C0001DB5AC /* Library */,
+				CFA026100000000000000004 /* FeatureTests */,
+				CFA026100000000000000007 /* AppModelTests */,
 				AAF548D52F2445C0001DB5AC /* Resources */,
 			);
 			path = LibraryTests;
@@ -1857,6 +1881,8 @@
 				AAF549662F2445C0001DB5AC /* RewardTrackingActivitiesCellViewModelTest.swift in Sources */,
 				AAF549672F2445C0001DB5AC /* RewardTrackingDetailsViewModelTest.swift in Sources */,
 				AAF549682F2445C0001DB5AC /* SearchViewModelTests.swift in Sources */,
+				CFA026100000000000000001 /* SearchFeatureTests.swift in Sources */,
+				CFA026100000000000000005 /* AppModelTests.swift in Sources */,
 				AAF549692F2445C0001DB5AC /* SelectCurrencyViewModelTests.swift in Sources */,
 				AAF5496A2F2445C0001DB5AC /* SettingsDeleteOrRequestCellViewModelTests.swift in Sources */,
 				AAF5496B2F2445C0001DB5AC /* SettingsFollowCellViewModelTests.swift in Sources */,

@@ -1,11 +1,9 @@
 import Foundation
-import GraphAPI
 import KsApi
 import Prelude
 import ReactiveSwift
 
 public typealias SearchResultCard = ProjectCardProperties
-public typealias SearchResult = GraphAPI.SearchQuery.Data.Projects.Node
 
 public struct SearchResults {
   public let isProjectsTitleVisible: Bool
@@ -23,6 +21,7 @@ public struct SearchResults {
   }
 }
 
+@MainActor
 public protocol SearchViewModelInputs {
   /// Call when the user enters a new search term.
   func searchTextChanged(_ searchText: String)
@@ -57,6 +56,7 @@ public protocol SearchViewModelInputs {
   func willDisplayProjectAtRow(_ row: Int, outOf totalProjects: Int)
 }
 
+@MainActor
 public protocol SearchViewModelOutputs {
   /// Emits a project ID  and ref tag when the project page should be opened.
   var goToProject: Signal<(ProjectPageParam, RefTag), Never> { get }
@@ -81,13 +81,21 @@ public protocol SearchViewModelOutputs {
   var searchFilters: SearchFilters { get }
 }
 
+@MainActor
 public protocol SearchViewModelType {
   var inputs: SearchViewModelInputs { get }
   var outputs: SearchViewModelOutputs { get }
 }
 
+@MainActor
 public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, SearchViewModelOutputs {
-  public init() {
+  private let searchFeature: SearchFeature
+  private let featureBindings = CompositeDisposable()
+
+  public init(searchFeature: SearchFeature? = nil) {
+    // Resolve the live default inside MainActor, not in a Swift 5 default argument.
+    let searchFeature = searchFeature ?? AppModel.shared.searchFeature
+    self.searchFeature = searchFeature
     self.categoriesUseCase = FetchCategoriesUseCase(
       initialSignal: self.viewDidLoadProperty.signal
     )
@@ -139,84 +147,20 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       )
     }
 
-    // Every time the user changes their query, sort or filters, we set an empty
-    // results set to clear out the page. The user will just see the spinner.
-    let clears = queryParams.mapConst([SearchResult]())
-
-    let requestFirstPageWith: Signal<DiscoveryParams, Never> = queryParams
-
-    let isCloseToBottom = self.willDisplayProjectProperty.signal.skipNil()
-      .map { row, total in
-        row >= total - 3
-      }
-      .skipRepeats()
-      .filter(isTrue)
-      .ignoreValues()
-
-    var firstRequest = true
-    let requestFromOptionsWithDebounce: (DiscoveryParams)
-      -> SignalProducer<GraphAPI.SearchQuery.Data, ErrorEnvelope> = { params in
-        SignalProducer<(), ErrorEnvelope>(value: ())
-          .switchMap {
-            let query = GraphAPI.SearchQuery.from(discoveryParams: params)
-            let request = AppEnvironment.current.apiService.fetch(query: query)
-            // Don't debounce if the page is empty and this is the first request.
-            let debounce = firstRequest ? DispatchTimeInterval.seconds(0) : AppEnvironment.current
-              .debounceInterval
-
-            if firstRequest {
-              firstRequest = false
-            }
-
-            return request
-              .ksr_debounce(
-                debounce, on: AppEnvironment.current.scheduler
-              )
-          }
-      }
-
-    let statsProperty = MutableProperty<Int>(0)
-    let optionsProperty = MutableProperty<DiscoveryParams?>(nil)
-    optionsProperty <~ requestFirstPageWith // Bound to the SearchOptions for the current query
-
-    let (paginatedProjects, isLoading, page, _) = paginate(
-      requestFirstPageWith: requestFirstPageWith,
-      requestNextPageWhen: isCloseToBottom,
-      clearOnNewRequest: false,
-      skipRepeats: false,
-      valuesFromEnvelope: { [statsProperty] (data: GraphAPI.SearchQuery.Data) -> [
-        SearchResult
-      ] in
-        statsProperty.value = data.projects?.totalCount ?? 0
-        return data.projects?.nodes?.compact() ?? []
-      },
-      cursorFromEnvelope: { data in
-        guard let pageInfo = data.projects?.pageInfo else {
-          return nil
-        }
-
-        return pageInfo.hasNextPage ? pageInfo.endCursor : nil
-      },
-      requestFromParams: requestFromOptionsWithDebounce,
-      requestFromCursor: { [optionsProperty] (maybeCursor: String?) -> SignalProducer<
-        GraphAPI.SearchQuery.Data,
-        ErrorEnvelope
-      > in
-        guard let options = optionsProperty.value, let cursor = maybeCursor else {
-          return SignalProducer.empty
-        }
-
-        let query = GraphAPI.SearchQuery.from(discoveryParams: options, withCursor: cursor)
-        return AppEnvironment.current.apiService.fetch(query: query)
-      }
-    )
-
-    let stats = statsProperty.signal
+    let requestFirstPageWith = queryParams
+    let paginatedProjects = searchFeature.paginatedResults
+    let isLoading = searchFeature.loading
+    let page = searchFeature.pageCount
+    let stats = searchFeature.resultCount
+    let searchResults = searchFeature.results
 
     self.searchLoaderIndicatorIsAnimating = isLoading
 
-    let searchResults: Signal<[SearchResult], Never> = Signal.merge(clears, paginatedProjects)
-      .skipRepeats(==)
+    let isCloseToBottom = self.willDisplayProjectProperty.signal.skipNil()
+      .map { row, total in row >= total - 3 }
+      .skipRepeats()
+      .filter(isTrue)
+      .ignoreValues()
 
     // Show the 'Discover projects' title if we're showing 'Discover' results (i.e. no query)
     let isProjectsTitleVisible = Signal.combineLatest(queryText, searchResults)
@@ -362,6 +306,19 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
         projects: projects.map { $0.projectCellModel }
       )
     }.merge(with: emptyResultsOnFirstAppearance)
+
+    // Bind only after every presentation/analytics observer is installed.
+    // These handles belong to this screen, not the app-scoped Feature.
+    self.featureBindings += queryParams.observeValues { [searchFeature] parameters in
+      searchFeature.search(parameters: parameters)
+    }
+    self.featureBindings += isCloseToBottom.observeValues { [searchFeature] in
+      searchFeature.loadNextPage()
+    }
+  }
+
+  deinit {
+    self.featureBindings.dispose()
   }
 
   fileprivate let searchTextChangedProperty = MutableProperty("")

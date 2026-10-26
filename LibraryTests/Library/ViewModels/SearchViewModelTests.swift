@@ -11,10 +11,13 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class SearchViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  fileprivate let vm: SearchViewModelType! = SearchViewModel()
+  fileprivate lazy var vm: SearchViewModelType = SearchViewModel(
+    searchFeature: SearchFeature(provider: LegacySearchProjectsProvider())
+  )
 
   fileprivate let changeSearchFieldFocusFocused = TestObserver<Bool, Never>()
   fileprivate let changeSearchFieldFocusAnimated = TestObserver<Bool, Never>()
@@ -32,25 +35,27 @@ internal final class SearchViewModelTests: TestCase {
   override func setUp() {
     super.setUp()
 
-    self.vm.outputs.goToProject.map { _, refTag in refTag }.observe(self.goToRefTag.observer)
-    self.vm.outputs.searchResults.map { $0.isProjectsTitleVisible }
-      .observe(self.isPopularTitleVisible.observer)
-    self.vm.outputs.searchResults.map { !$0.projects.isEmpty }.skipRepeats(==)
-      .observe(self.hasProjects.observer)
-    self.vm.outputs.searchResults.map { $0.projects.isEmpty }.skipRepeats(==)
-      .observe(self.noProjects.observer)
-    self.vm.outputs.searchLoaderIndicatorIsAnimating.observe(self.searchLoaderIndicatorIsAnimating.observer)
-    self.vm.outputs.showEmptyState.map(second).observe(self.showEmptyState.observer)
-    self.vm.outputs.showEmptyState.map(first).observe(self.showEmptyStateParams.observer)
-    self.vm.outputs.showVideoFeedBanner.observe(self.showVideoFeedBanner.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.goToProject.map { _, refTag in refTag }.observe(self.goToRefTag.observer)
+      self.vm.outputs.searchResults.map { $0.isProjectsTitleVisible }
+        .observe(self.isPopularTitleVisible.observer)
+      self.vm.outputs.searchResults.map { !$0.projects.isEmpty }.skipRepeats(==)
+        .observe(self.hasProjects.observer)
+      self.vm.outputs.searchResults.map { $0.projects.isEmpty }.skipRepeats(==)
+        .observe(self.noProjects.observer)
+      self.vm.outputs.searchLoaderIndicatorIsAnimating.observe(self.searchLoaderIndicatorIsAnimating.observer)
+      self.vm.outputs.showEmptyState.map(second).observe(self.showEmptyState.observer)
+      self.vm.outputs.showEmptyState.map(first).observe(self.showEmptyStateParams.observer)
+      self.vm.outputs.showVideoFeedBanner.observe(self.showVideoFeedBanner.observer)
 
-    self.vm.outputs.searchResults
-      .map { $0.projects.count }
-      .combinePrevious(0)
-      .map { prev, next in next > prev }
-      .observe(self.hasAddedProjects.observer)
+      self.vm.outputs.searchResults
+        .map { $0.projects.count }
+        .combinePrevious(0)
+        .map { prev, next in next > prev }
+        .observe(self.hasAddedProjects.observer)
 
-    self.vm.outputs.showFilters.observe(self.showFilters.observer)
+      self.vm.outputs.showFilters.observe(self.showFilters.observer)
+    }
   }
 
   // Characterise the existing silent-error path before changing its ownership.
