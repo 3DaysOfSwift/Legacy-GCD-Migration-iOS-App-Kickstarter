@@ -17,22 +17,24 @@ internal final class SearchViewModelTests: TestCase {
 
   private let delay = ManualSearchDelay()
   private lazy var searchFeature = SearchFeature(
-    provider: AsyncSearchProjectsProvider(), sleep: { [delay] in try await delay.sleep($0) }
+    provider: AsyncSearchProjectsProvider(), lookupSleep: { _ in }, sleep: { [delay] in try await delay.sleep($0) }
   )
   fileprivate lazy var vm = SearchViewModel(searchFeature: self.searchFeature)
 
   override func tearDown() {
     MainActor.assumeIsolated {
       self.searchFeature.cancelSearch()
+      self.searchFeature.cancelFilterLookups()
       self.delay.releaseAll()
     }
     super.tearDown()
   }
 
   /// Advance the injected request clock, then await actual Feature publication.
-  /// The legacy scheduler remains only for unrelated filter lookup fixtures.
+  /// Lookup commands are independently awaited; no reactive lookup executor remains.
   private func advanceRequests(by interval: DispatchTimeInterval? = nil) async {
-    self.runLookupScheduler()
+    await self.vm.filterOptionsTask?.value
+    await self.vm.locationLookupTask?.value
     guard self.searchFeature.isLoading else { return }
     guard await self.delay.waitForSleep() else { return }
     let searchTask = self.vm.searchTask
@@ -43,8 +45,6 @@ internal final class SearchViewModelTests: TestCase {
       await pageTask?.value
     }
   }
-
-  private func runLookupScheduler() { self.scheduler.run() }
 
   private func fixture(_ name: String) throws -> GraphAPI.SearchQuery.Data {
     let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: name, withExtension: "json"))

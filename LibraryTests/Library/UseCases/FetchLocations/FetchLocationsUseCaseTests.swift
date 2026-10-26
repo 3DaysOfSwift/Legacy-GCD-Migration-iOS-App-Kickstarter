@@ -8,6 +8,8 @@ import ReactiveSwift
 import XCTest
 
 final class FetchLocationsUseCaseTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   private var useCase: FetchLocationsUseCase!
   private let defaultLocations = TestObserver<[KsApi.Location], Never>()
   private let suggestedLocations = TestObserver<[KsApi.Location], Never>()

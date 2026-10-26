@@ -26,7 +26,7 @@ final class SearchFeatureTests: TestCase {
     var parameters: DiscoveryParams?
     let observation = searchFeature.queryParameters(for: query).observeValues { parameters = $0 }
     defer { observation?.dispose() }
-    searchFeature.loadFilterOptions()
+    searchFeature.filterSelection.publishInitialSelection()
     input.send(value: "art")
     searchFeature.selectFilter(.sort(.newest))
     searchFeature.selectFilter(.category(.rootCategory(.art)))
@@ -46,7 +46,7 @@ final class SearchFeatureTests: TestCase {
     var parameters: DiscoveryParams?
     let observation = searchFeature.queryParameters(for: query).observeValues { parameters = $0 }
     defer { observation?.dispose() }
-    searchFeature.loadFilterOptions()
+    searchFeature.filterSelection.publishInitialSelection()
     input.send(value: "art")
     searchFeature.selectFilter(.sort(.newest))
     searchFeature.selectFilter(.category(.rootCategory(.art)))
@@ -68,7 +68,7 @@ final class SearchFeatureTests: TestCase {
     var parameters: DiscoveryParams?
     let observation = searchFeature.queryParameters(for: query).observeValues { parameters = $0 }
     defer { observation?.dispose() }
-    searchFeature.loadFilterOptions()
+    searchFeature.filterSelection.publishInitialSelection()
     input.send(value: "art")
     searchFeature.toggleFilter(.projectsWeLove)
     XCTAssertEqual(parameters?.staffPicks, true)

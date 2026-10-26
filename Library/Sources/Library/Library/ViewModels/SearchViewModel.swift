@@ -94,6 +94,8 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   // UIKit retains the shared Feature task rather than spawning wrapper Tasks.
   internal private(set) var searchTask: Task<Void, Never>?
   internal private(set) var pageTask: Task<Void, Never>?
+  internal private(set) var filterOptionsTask: Task<Void, Never>?
+  internal private(set) var locationLookupTask: Task<Void, Never>?
 
   public init(searchFeature: SearchFeature? = nil) {
     // Resolve the live default inside MainActor, not in a Swift 5 default argument.
@@ -304,7 +306,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   }
 
   public func viewDidLoad() {
-    self.searchFeature.loadFilterOptions()
+    self.filterOptionsTask = self.searchFeature.requestFilterOptions()
   }
 
   fileprivate let viewWillAppearAnimatedProperty = MutableProperty(false)
@@ -344,7 +346,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   }
 
   public func searchedForLocations(_ query: String) {
-    self.searchFeature.searchLocations(query)
+    self.locationLookupTask = self.searchFeature.requestLocations(query)
   }
 
   public var searchFilters: SearchFilters {

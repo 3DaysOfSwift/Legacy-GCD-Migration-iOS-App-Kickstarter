@@ -1,14 +1,15 @@
 import Apollo
+import ApolloAPI
 import Foundation
 import GraphAPI
 
-/// Search-only callback bridge. Other legacy GraphQL operations retain their
+/// Search page/lookup callback bridge. Other legacy GraphQL operations retain their
 /// existing contracts while Search's cancellation/error semantics are verified.
 internal enum SearchQueryRequest {
-  @MainActor static func fetch(
-    start: (@escaping GraphQLResultHandler<GraphAPI.SearchQuery.Data>) -> Cancellable
-  ) async throws -> GraphAPI.SearchQuery.Data {
-    let pending = PendingSearchQuery()
+  @MainActor static func fetch<Data: RootSelectionSet>(
+    start: (@escaping GraphQLResultHandler<Data>) -> Cancellable
+  ) async throws -> Data {
+    let pending = PendingSearchQuery<Data>()
     let data = try await withTaskCancellationHandler {
       try Task.checkCancellation()
       return try await withCheckedThrowingContinuation { continuation in
@@ -43,14 +44,14 @@ internal enum SearchQueryRequest {
 /// resumption runs under the lock (both can re-enter through callbacks).
 /// This narrowly scoped unchecked conformance protects a callback/cancellation
 /// race; it does not declare Apollo payloads or the client globally Sendable.
-internal final class PendingSearchQuery: @unchecked Sendable {
+internal final class PendingSearchQuery<Data: RootSelectionSet>: @unchecked Sendable {
   private let lock = NSLock()
-  private var continuation: CheckedContinuation<GraphAPI.SearchQuery.Data, Error>?
+  private var continuation: CheckedContinuation<Data, Error>?
   private var request: Cancellable?
   private var finished = false
   private var cancelled = false
 
-  func install(_ continuation: CheckedContinuation<GraphAPI.SearchQuery.Data, Error>) -> Bool {
+  func install(_ continuation: CheckedContinuation<Data, Error>) -> Bool {
     self.lock.lock()
     let accepts = !self.finished
     if accepts { self.continuation = continuation }
@@ -68,7 +69,7 @@ internal final class PendingSearchQuery: @unchecked Sendable {
     if cancelImmediately { request.cancel() }
   }
 
-  func complete(_ result: Result<GraphAPI.SearchQuery.Data, Error>) {
+  func complete(_ result: Result<Data, Error>) {
     self.lock.lock()
     guard !self.finished else {
       self.lock.unlock()

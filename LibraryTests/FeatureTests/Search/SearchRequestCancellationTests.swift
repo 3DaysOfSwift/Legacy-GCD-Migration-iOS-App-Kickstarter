@@ -60,7 +60,7 @@ final class SearchRequestCancellationTests: TestCase {
   }
 
   func testCancellationBeforeInvocationDoesNotStartRequest() async {
-    let task = Task { @MainActor in
+    let task = Task<GraphAPI.SearchQuery.Data, Error> { @MainActor in
       try await SearchQueryRequest.fetch { _ in
         XCTFail("An already-cancelled task must not start transport")
         return CancellationProbe()
@@ -89,9 +89,33 @@ final class SearchRequestCancellationTests: TestCase {
     XCTAssertEqual(token.count, 1)
   }
 
+  func testLocationPayloadCancellationCancelsTokenAndRejectsLateCallback() async throws {
+    let started = expectation(description: "location request started")
+    let token = CancellationProbe()
+    var callback: GraphQLResultHandler<GraphAPI.LocationsByTermQuery.Data>?
+    let task = Task { @MainActor in
+      try await SearchQueryRequest.fetch { completion in
+        callback = completion
+        started.fulfill()
+        return token
+      }
+    }
+    defer { task.cancel() }
+    await fulfillment(of: [started], timeout: 2)
+    task.cancel()
+    do {
+      _ = try await task.value
+      XCTFail("Expected cancellation")
+    } catch is CancellationError {
+      XCTAssertEqual(token.count, 1)
+    }
+    callback?(.failure(ProbeError.failed))
+    XCTAssertEqual(token.count, 1)
+  }
+
   func testCancellationBeforeTokenRegistrationCancelsLateToken() async {
     // Exercise the registration race directly without a scheduling-dependent sleep.
-    let pending = PendingSearchQuery()
+    let pending = PendingSearchQuery<GraphAPI.SearchQuery.Data>()
     let token = CancellationProbe()
     do {
       let _: GraphAPI.SearchQuery.Data = try await withCheckedThrowingContinuation { continuation in
@@ -110,7 +134,7 @@ final class SearchRequestCancellationTests: TestCase {
   }
 
   func testCancellationBeforeContinuationRegistrationResumesIt() async {
-    let pending = PendingSearchQuery()
+    let pending = PendingSearchQuery<GraphAPI.SearchQuery.Data>()
     pending.cancel()
     do {
       let _: GraphAPI.SearchQuery.Data = try await withCheckedThrowingContinuation { continuation in

@@ -34,7 +34,7 @@ final class SearchFiltersUseCaseTests: TestCase {
 
     MainActor.assumeIsolated {
     self.initialBinding = self.initialSignal.observeValues { [searchFeature] in
-      searchFeature.loadFilterOptions()
+      searchFeature.filterSelection.publishInitialSelection()
     }
     self.useCase = SearchFiltersUseCase(
       searchFeature: self.searchFeature,

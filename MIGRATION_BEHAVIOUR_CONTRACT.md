@@ -108,3 +108,22 @@ logged-in journey, error-UI injection or exhaustive destination check was run.
 reactive selection/presentation edges, full Search CFA review and broader validation.
 Other app features remain outside this Search contract. Earlier checkpoint notes
 about reactive pagination describe historical states, not the current implementation.
+## Category/location lookup slice — automated verification passed
+
+The initial baseline attempt was environment-blocked before compilation.
+Matthew Thomas subsequently ran verify.zsh in Terminal. The agent inspected both
+xcresult bundles: 114 tests passed (zero failures/skips), and the app build
+succeeded. All 15 new tests passed. No fresh manual screen evidence is claimed.
+See the ledger for paths, warning counts and runtime limitations.
+
+| ID | Plain-English requirement | Legacy evidence | Evidence status | Baseline | Replacement protection | Post-migration result | Manual regression | Difference and approval |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| BEH-S13 | Opening filters reuses nonempty cached categories; an empty cache fetches, and a failed lookup can be retried. | FetchCategoriesUseCaseTests (three cases), existing KSCache key | Confirmed | Fresh run blocked before compilation | SearchLookupTests cache/failure/retry cases | Passed in 114-test run | Pending | Same cache and category delay; no new error UI |
+| BEH-S14 | Default locations appear independently of category loading; location queries return suggestions and clearing immediately empties them. | FetchLocationsUseCaseTests (three cases), query limits 5/10 in source | Confirmed | Fresh run blocked before compilation | SearchLookupTests initial outputs, independent defaults and live fixture mapping | Passed in 114-test run | Pending | Native commands replace reactive execution |
+| BEH-S15 | Clearing or replacing a location query prevents obsolete results and failures from changing the current suggestions or loading state. | Legacy empty-query branch bypasses switchMap cancellation; source-confirmed stale-response route | Confirmed user-requested correction | Source diagnosis; no runtime reproducer run | SearchLookupTests clear/late success, clear/late error, old/new ordering and cleanup tests | Passed in 114-test run | Pending | Intended approved change: user explicitly requested stale responses after clearing be addressed, 26 Oct 2026 |
+| BEH-S16 | Failed nonempty location lookups retain existing suggestions; retry can recover, and whitespace remains a submitted query. | FetchLocationsUseCase materialize/values, nonempty filter | Inferred from source | Fresh run blocked | SearchLookupTests failure/retry, whitespace and cancelled-before-admission cases | Passed in 114-test run | Pending | Preserve silent UI errors; Feature retains errors separately |
+| BEH-S17 | Equivalent pending lookups share one execution and completion; cancelling one waiter does not cancel another caller's shared request. | New explicit Feature overlap policy | Confirmed migration policy | Not an existing tested guarantee | SearchLookupTests shared query/options and cancelled waiter; SearchRequestCancellationTests location payload | Passed in 114-test run | Pending | Same policy as the preceding native Search pagination checkpoint |
+
+No new visual design is authorized. Legacy and replacement lookup tests passed
+together; remove the orphaned legacy location code only in a separately verified
+cleanup. Manual filter smoke, whole-Search and whole-app completion remain open.

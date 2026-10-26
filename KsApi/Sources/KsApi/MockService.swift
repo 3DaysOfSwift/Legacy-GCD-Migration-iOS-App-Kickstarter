@@ -989,6 +989,13 @@
       throw ErrorEnvelope.graphError("Unimplemented mock")
     }
 
+    @MainActor internal func fetchSearchCategories() async throws -> RootCategoriesEnvelope {
+      try Task.checkCancellation()
+      if let demoCatalog { return demoCatalog.categories }
+      guard let result = self.fetchGraphCategoriesResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
     internal func fetchGraphCategories()
       -> SignalProducer<RootCategoriesEnvelope, ErrorEnvelope> {
       if let demoCatalog { return SignalProducer(value: demoCatalog.categories) }

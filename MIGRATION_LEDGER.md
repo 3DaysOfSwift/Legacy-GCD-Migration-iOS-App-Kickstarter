@@ -18,9 +18,11 @@ Completed checkpoints below are historical evidence, not app-wide completion.
 
 - Completed: Search request ownership; filter decisions; cancellable Apollo bridge;
   directly awaitable first-page/pagination commands with shared in-flight work.
-- Next bounded slice: characterise and migrate category/location lookup execution,
-  particularly clearing location text while an older request is still pending.
-  Reuse the existing category cache; preserve the filter sheet.
+- Current bounded slice: category/location native lookups now pass 114 focused
+  tests and the app build (user-run Terminal verification, results inspected).
+  Manual filter-screen smoke checks remain pending.
+- Next: smoke-test category/location filters, remove the orphaned legacy location
+  use case/tests in a separately verified cleanup, then continue Search selection.
 - Remaining Search work: replace reactive selection/query projections and screen
   compatibility edges as appropriate; review the completed Feature against CFA;
   close outstanding behaviour-contract/manual/snapshot validation gates.
@@ -33,8 +35,9 @@ Completed checkpoints below are historical evidence, not app-wide completion.
 
 Current project-request route:
 `SearchViewController → SearchViewModel → AppModel.searchFeature → AsyncSearchProjectsProvider → Service.fetchSearchPage → Apollo`.
-SearchFeature owns selection policy and the legacy category/location lookup
-collaborators. SearchFiltersUseCase is now a screen presentation adapter.
+SearchFeature owns selection policy and native category/location lookup tasks;
+AsyncSearchLookupProvider uses the existing Service and KSCache boundaries.
+The current lookup changes have automated test/build verification; manual checks remain pending. SearchFiltersUseCase is now a screen presentation adapter.
 
 Target route:
 `SearchViewController → SearchViewModel → AppModel.shared.searchFeature → search provider → existing API transport`.
@@ -57,7 +60,7 @@ the connected feature slice once baseline results support comparison.
 | Explore / discovery | Discovery controllers / DiscoveryViewModel | AppModel.discoveryFeature / DiscoveryFeatureTests | Legacy; not in this pass |
 | Activity (signed out) | Activity flow | AppModel.activityFeature / ActivityFeatureTests | Legacy; inspect complete flow before migration |
 | Pledged projects and activity (signed in) | Pledged-project/activity flow | Ownership to map with shared pledge state | Legacy; not an empty placeholder Feature |
-| Search | SearchViewController / SearchViewModel | AppModel.searchFeature / SearchFeatureTests | Awaitable native search/paging and async transport connected; lookup/selection/presentation migration pending |
+| Search | SearchViewController / SearchViewModel | AppModel.searchFeature / SearchFeatureTests | Awaitable native search/paging and async transport connected; native lookups tested; manual checks and selection/presentation migration pending |
 | Profile (signed in/out variants) | Profile/account flow | AppModel.profileFeature / ProfileFeatureTests | Legacy; inspect authentication ownership first |
 
 `RootViewModel.generateViewControllers` omits Activity when the floating-tab
@@ -339,3 +342,70 @@ Evidence is a local unreviewed draft in sibling
 `Migration Evidence/kickstarter-search-awaitable-pagination`. It records failed
 attempts as well as passing checks. No full-suite/snapshot, real-device, VoiceOver,
 live-network, performance or complete Swift 6 validation is claimed.
+## Category/location lookup checkpoint (26 October 2026)
+
+Baseline commit: `eddcbeeef1abc581a22617906dfe7b07c01f1091`.
+
+Implementation:
+- SearchFeature owns categories, defaults and suggestions as separate snapshots,
+  loading flags, errors and identified tasks. Equivalent option/query requests
+  share completion. Distinct queries cancel and invalidate old work.
+- Empty location text is now a superseding command, rejecting late success,
+  failure and cleanup; whitespace remains a non-empty query. Successful previous
+  suggestions stay visible during another non-empty lookup or its failure.
+- Category reads/writes use the existing KSCache key, not another store. Nonempty
+  cache hits publish synchronously; empty caches fetch. Only accepted, uncancelled
+  category results can write the cache.
+- Defaults and categories execute independently. Defaults request five results;
+  suggestions request ten. Category API delay remains independently injectable.
+- Service opts the three Search lookups into the verified Search Apollo bridge,
+  now generic over payload type; legacy API consumers remain unchanged. Native
+  category mapping is shared with the legacy envelope producer.
+- SearchViewModel retains the exact Feature-owned option/location task handles.
+  No screen, storyboard, user-facing string, navigation or styling changed.
+- Fourteen new SearchLookupTests and one location-payload cancellation test are
+  passing in the 114-test run below. They cover stale results/errors, sharing, cancellation,
+  retries, empty/cached categories, independent publication and mock mapping.
+- Legacy category use case remains live for Explore. The now-orphaned legacy
+  location use case and its three tests are deliberately retained until the new
+  coverage passed alongside them. Removal is a separate cleanup requiring a rerun.
+
+Initial verification attempt (superseded by the successful run below):
+- Baseline attempt exited 74 before compilation: Simulator service connection
+  and SwiftPM/Clang cache writes denied by the execution sandbox. Escalation is
+  disabled in this session. No fresh tests or simulator smoke have run.
+- Swift frontend syntax parsing of changed Swift files passed. Project plist
+  validation and `git diff --check` passed. These do NOT establish type checking,
+  a successful build, test execution, correct UI behaviour or Swift 6 safety.
+- The last verified checkpoint remains the prior 93-test run, not these changes.
+- Local draft evidence: sibling `Migration Evidence/kickstarter-search-lookups`.
+  Its `verify.zsh` runs all nine relevant nonvisual suites, then the app build,
+  on iPhone Air/iOS 26.2. New xcresult/log paths are printed at startup.
+- After tests/build pass, smoke-test default locations, type/change/clear a
+  location query, select a category/location, close/reopen filters, and verify
+  Search results/paging still work. Record limitations and commit this slice.
+
+### Successful Terminal verification (26 October 2026, 23:20)
+
+Matthew Thomas ran the prepared verification script in Terminal. The agent read
+the resulting xcresult objects and individual test records directly:
+
+- `/private/tmp/kickstarter-search-lookups.lZhg0s/tests.xcresult`:
+  test action succeeded; **114 tests, all 114 Success, zero failures or skips**.
+  This includes all 14 SearchLookupTests and the new location-payload cancellation
+  test. The test/build result reports 1,798 warnings; not warning-free.
+- `/private/tmp/kickstarter-search-lookups.lZhg0s/build.xcresult`:
+  buildResult.status = succeeded, no errors, three incremental warnings.
+- Runtime: iPhone Air Simulator iOS 26.2, Xcode 26.2, Debug public demo,
+  Swift 5 language mode. Nine selected suites, not the full suite.
+- No Swift implementation or test changes were made after this run; only
+  evidence and progress documentation were updated before committing.
+- The modern xcresult summary command attempted a denied TestReport cache write;
+  the read-only legacy object API successfully provided counts and every test
+  status. No permission workaround or rerun was needed.
+
+Manual filter smoke checks, snapshots, real device/live API and complete Swift 6
+validation remain outstanding. A passing checkpoint is not migration completion.
+Keep the tested legacy location reference until the next separately verified
+cleanup; its replacement behaviour now has passing equivalent tests.
+The entire migration remains in progress. No push or publication performed.

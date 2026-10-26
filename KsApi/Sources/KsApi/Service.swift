@@ -106,6 +106,32 @@ public struct Service: ServiceType {
     }
   }
 
+  @MainActor public func fetchSearchCategories() async throws -> RootCategoriesEnvelope {
+    let data = try await self.fetchSearchLookup(query: GraphAPI.FetchRootCategoriesQuery())
+    return RootCategoriesEnvelope.envelope(from: data)
+  }
+
+  @MainActor public func fetchSearchDefaultLocations() async throws -> [Location] {
+    let data = try await self.fetchSearchLookup(query: GraphAPI.DefaultLocationsQuery(first: 5))
+    return Location.locations(from: data)
+  }
+
+  @MainActor public func fetchSearchLocations(term: String) async throws -> [Location] {
+    let data = try await self.fetchSearchLookup(
+      query: GraphAPI.LocationsByTermQuery(term: .some(term), first: 10)
+    )
+    return Location.locations(from: data)
+  }
+
+  @MainActor private func fetchSearchLookup<Query: GraphQLQuery>(query: Query) async throws -> Query.Data {
+    try await SearchQueryRequest.fetch { completion in
+      GraphQL.shared.client.fetch(
+        query: query, cachePolicy: .fetchIgnoringCacheCompletely,
+        queue: .global(qos: .userInitiated), resultHandler: completion
+      )
+    }
+  }
+
   public func addNewCreditCard(input: CreatePaymentSourceInput)
     -> SignalProducer<CreatePaymentSourceEnvelope, ErrorEnvelope> {
     return GraphQL.shared.client

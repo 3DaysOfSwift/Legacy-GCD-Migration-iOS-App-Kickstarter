@@ -7,6 +7,8 @@ import ReactiveSwift
 import XCTest
 
 final class FetchCategoriesUseCaseTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   private var useCase: FetchCategoriesUseCase!
   private let categories = TestObserver<[KsApi.Category], Never>()
   private let loadingIndicatorIsVisible = TestObserver<Bool, Never>()

@@ -23,6 +23,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		CFA026100000000000000010 /* SearchLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA026100000000000000011 /* SearchLookupTests.swift */; };
 		CFA026100000000000000008 /* SearchRequestCancellationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA026100000000000000009 /* SearchRequestCancellationTests.swift */; };
 		CFA026100000000000000001 /* SearchFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA026100000000000000002 /* SearchFeatureTests.swift */; };
 		CFA026100000000000000005 /* AppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA026100000000000000006 /* AppModelTests.swift */; };
@@ -382,6 +383,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		CFA026100000000000000011 /* SearchLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchLookupTests.swift; sourceTree = "<group>"; };
 		CFA026100000000000000009 /* SearchRequestCancellationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchRequestCancellationTests.swift; sourceTree = "<group>"; };
 		CFA026100000000000000002 /* SearchFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchFeatureTests.swift; sourceTree = "<group>"; };
 		CFA026100000000000000006 /* AppModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModelTests.swift; sourceTree = "<group>"; };
@@ -818,7 +820,7 @@
 /* Begin PBXGroup section */
 		CFA026100000000000000003 /* Search */ = {
 			isa = PBXGroup;
-			children = (CFA026100000000000000002 /* SearchFeatureTests.swift */, CFA026100000000000000009 /* SearchRequestCancellationTests.swift */,);
+			children = (CFA026100000000000000011 /* SearchLookupTests.swift */, CFA026100000000000000002 /* SearchFeatureTests.swift */, CFA026100000000000000009 /* SearchRequestCancellationTests.swift */,);
 			path = Search;
 			sourceTree = "<group>";
 		};
@@ -1884,6 +1886,7 @@
 				AAF549672F2445C0001DB5AC /* RewardTrackingDetailsViewModelTest.swift in Sources */,
 				AAF549682F2445C0001DB5AC /* SearchViewModelTests.swift in Sources */,
 				CFA026100000000000000001 /* SearchFeatureTests.swift in Sources */,
+				CFA026100000000000000010 /* SearchLookupTests.swift in Sources */,
 				CFA026100000000000000008 /* SearchRequestCancellationTests.swift in Sources */,
 				CFA026100000000000000005 /* AppModelTests.swift in Sources */,
 				AAF549692F2445C0001DB5AC /* SelectCurrencyViewModelTests.swift in Sources */,

@@ -12,6 +12,6 @@ public final class AppModel {
 
   public static func live() -> AppModel {
     let searchProvider = AsyncSearchProjectsProvider()
-    return AppModel(searchFeature: SearchFeature(provider: searchProvider))
+    return AppModel(searchFeature: SearchFeature(provider: searchProvider, lookupProvider: AsyncSearchLookupProvider()))
   }
 }

@@ -9,6 +9,11 @@ extension RootCategoriesEnvelope {
     from data: GraphAPI.FetchRootCategoriesQuery
       .Data
   ) -> SignalProducer<RootCategoriesEnvelope, ErrorEnvelope> {
+    SignalProducer(value: Self.envelope(from: data))
+  }
+
+  /// Shared value mapping for reactive legacy callers and native Search lookups.
+  public static func envelope(from data: GraphAPI.FetchRootCategoriesQuery.Data) -> RootCategoriesEnvelope {
     let allCategories = data.rootCategories.map { rootCategory -> Category in
       Category(
         analyticsName: rootCategory.analyticsName,
@@ -21,9 +26,7 @@ extension RootCategoriesEnvelope {
       )
     }
 
-    let envelope = RootCategoriesEnvelope(rootCategories: allCategories)
-
-    return SignalProducer(value: envelope)
+    return RootCategoriesEnvelope(rootCategories: allCategories)
   }
 
   private static func subcategoryConnection(

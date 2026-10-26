@@ -48,6 +48,9 @@ public protocol ServiceType {
 
   /// Search opts into cancellation without changing unrelated query contracts.
   @MainActor func fetchSearchPage(query: GraphAPI.SearchQuery) async throws -> GraphAPI.SearchQuery.Data
+  @MainActor func fetchSearchCategories() async throws -> RootCategoriesEnvelope
+  @MainActor func fetchSearchDefaultLocations() async throws -> [Location]
+  @MainActor func fetchSearchLocations(term: String) async throws -> [Location]
 
   /// Returns a new service with the oauth token replaced.
   func login(_ oauthToken: OauthTokenAuthType) -> Self
