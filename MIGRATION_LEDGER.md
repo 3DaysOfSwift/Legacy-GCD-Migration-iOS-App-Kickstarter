@@ -7,12 +7,13 @@ Author: Matthew Thomas. Updated 26 October 2026.
 Search is the first selected feature because its existing tests exercise query
 replacement, filters, paging, loading, navigation metadata and analytics.
 The baseline is committed at `192fa9148ebec7409c9245354b206d344edc1e50`.
-The current checkpoint extracts project-request ownership; it is not a complete
-Search migration or an async execution conversion.
+Request ownership and filter selection/reset/query composition are extracted.
+This is not a complete Search migration or an async execution conversion.
 
 Current project-request route:
 `SearchViewController → SearchViewModel → AppModel.searchFeature → LegacySearchProjectsProvider → AppEnvironment.apiService → Apollo`.
-Filter/category/location use cases still live beside presentation in the ViewModel.
+SearchFeature owns selection policy and the legacy category/location lookup
+collaborators. SearchFiltersUseCase is now a screen presentation adapter.
 
 Target route:
 `SearchViewController → SearchViewModel → AppModel.shared.searchFeature → search provider → existing API transport`.
@@ -35,7 +36,7 @@ the connected feature slice once baseline results support comparison.
 | Explore / discovery | Discovery controllers / DiscoveryViewModel | AppModel.discoveryFeature / DiscoveryFeatureTests | Legacy; not in this pass |
 | Activity (signed out) | Activity flow | AppModel.activityFeature / ActivityFeatureTests | Legacy; inspect complete flow before migration |
 | Pledged projects and activity (signed in) | Pledged-project/activity flow | Ownership to map with shared pledge state | Legacy; not an empty placeholder Feature |
-| Search | SearchViewController / SearchViewModel | AppModel.searchFeature / SearchFeatureTests | Request ownership extracted; filters and async execution pending |
+| Search | SearchViewController / SearchViewModel | AppModel.searchFeature / SearchFeatureTests | Request and selection ownership extracted; async execution pending |
 | Profile (signed in/out variants) | Profile/account flow | AppModel.profileFeature / ProfileFeatureTests | Legacy; inspect authentication ownership first |
 
 `RootViewModel.generateViewControllers` omits Activity when the floating-tab
@@ -106,9 +107,9 @@ xcodebuild -project Kickstarter.xcodeproj -quiet -scheme Library-iOS \
 1. Non-visual baseline established: 67 tests passed, including initial failure
    and recovery. Characterise additional uncovered interleaving paths alongside
    the replacement; keep failures recorded rather than rewriting expectations.
-2. Request ownership and AppModel composition are now connected. Next move
-   query/filter domain decisions out of the ViewModel while preserving category
-   cache ownership and the existing controller/filter presentation.
+2. Request ownership, filter selection/reset and query composition are now
+   connected through SearchFeature. Category/location lookup collaborators remain
+   reactive; their existing cache ownership and presentation are preserved.
 3. Replace model execution with directly awaitable commands, explicit latest-query
    identity, shared equivalent paging, cancellation ownership and tested cleanup.
 4. Compare all contract requirements, run relevant regression/snapshot suites
@@ -167,3 +168,31 @@ Local draft evidence: sibling `Migration Evidence/kickstarter-search-request-own
 It records failed attempts, passing checks and screenshots; it is not a reviewed
 precedent or part of the app commit. Full suite, snapshots, real devices,
 VoiceOver, live APIs and transport cancellation remain unverified.
+
+## Filter selection checkpoint
+
+SearchFilterSelection owns selection/reset rules and is privately mutated through
+SearchFeature commands. SearchFeature builds query parameters and owns the legacy
+category/location lookup collaborators. SearchFiltersUseCase only translates
+pills/modals and projects selection into the existing SearchFilters UI model.
+The screen's query text remains presentation input; the Feature interprets it.
+The existing category cache is reused, not copied into a second store.
+
+Baseline: e2ec966d87c2f356a90b8fd6328bc3eeb151622d (74 passing tests).
+Focused test runs use the prior five-suite command with fresh result bundles:
+
+- filters-tests-1: 74 tests, 8 failures. Initial query observer placement changed
+  page-view analytics ordering. Corrected production event wiring; old assertions
+  were not weakened.
+- filters-tests-2: original 74 passed.
+- filters-tests-3: 77 tests, two new test expectations failed. Original mapping
+  intentionally encodes an unselected toggle as nil (no filter), not false
+  (exclude matching projects). Corrected the new tests to the existing mapping.
+- filters-tests-4: **77 passed, zero failures**, exit 0. Includes three direct
+  Feature selection/reset tests. Result bundles are under /private/tmp with the
+  prefix kickstarter-search-. Builds remain warning-heavy; no full-suite claim.
+
+No visual files, strings or navigation were changed. A fresh rendered check is
+still pending at this filter-only checkpoint; the following async checkpoint
+will repeat the app build and Simulator journey. Lookup cancellation and the
+generic reactive pagination pipeline are still separate migration work.

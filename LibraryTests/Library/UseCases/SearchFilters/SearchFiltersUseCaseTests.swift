@@ -6,10 +6,13 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class SearchFiltersUseCaseTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
+  private lazy var searchFeature = SearchFeature(provider: LegacySearchProjectsProvider())
   private var useCase: SearchFiltersUseCase!
+  private var initialBinding: Disposable?
 
   private let selectedSort = TestObserver<DiscoveryParams.Sort, Never>()
   private let selectedCategory = TestObserver<KsApi.Category?, Never>()
@@ -29,8 +32,12 @@ final class SearchFiltersUseCaseTests: TestCase {
   override func setUp() {
     super.setUp()
 
+    MainActor.assumeIsolated {
+    self.initialBinding = self.initialSignal.observeValues { [searchFeature] in
+      searchFeature.loadFilterOptions()
+    }
     self.useCase = SearchFiltersUseCase(
-      initialSignal: self.initialSignal,
+      searchFeature: self.searchFeature,
       categories: self.categoriesSignal,
       defaultLocations: self.defaultLocationsSignal,
       suggestedLocations: self.suggestedLocationsSignal
@@ -45,6 +52,7 @@ final class SearchFiltersUseCaseTests: TestCase {
     self.useCase.dataOutputs.selectedGoalBucket.observe(self.selectedGoalBucket.observer)
     self.useCase.dataOutputs.selectedToggles.observe(self.selectedToggles.observer)
     self.useCase.uiOutputs.showFilters.observe(self.showFilters.observer)
+    }
   }
 
   func assert_selectedSort_isDefault() {

@@ -96,56 +96,18 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     // Resolve the live default inside MainActor, not in a Swift 5 default argument.
     let searchFeature = searchFeature ?? AppModel.shared.searchFeature
     self.searchFeature = searchFeature
-    self.categoriesUseCase = FetchCategoriesUseCase(
-      initialSignal: self.viewDidLoadProperty.signal
-    )
-
-    self.locationsUseCase = FetchLocationsUseCase(
-      initialSignal:
-      self.viewDidLoadProperty.signal
-    )
-
     self.searchFiltersUseCase = SearchFiltersUseCase(
-      initialSignal: self.viewDidLoadProperty.signal,
-      categories: self.categoriesUseCase.dataOutputs.categories,
-      defaultLocations: self.locationsUseCase.dataOutputs.defaultLocations,
-      suggestedLocations: self.locationsUseCase.dataOutputs.suggestedLocations
+      searchFeature: searchFeature,
+      categories: searchFeature.categories,
+      defaultLocations: searchFeature.defaultLocations,
+      suggestedLocations: searchFeature.suggestedLocations
     )
-
     let viewWillAppearNotAnimated = self.viewWillAppearAnimatedProperty.signal.filter(isTrue).ignoreValues()
-
-    // What the user has typed in the search bar (or empty, if they've cleared their search).
-    let queryText = Signal
-      .merge(
-        self.searchTextChangedProperty.signal,
-        viewWillAppearNotAnimated.mapConst("").take(first: 1)
-      )
-
-    // DiscoveryParams using the users currently selected query text, sort and filters.
-    let queryParams: Signal<DiscoveryParams, Never> = Signal.combineLatest(
-      queryText,
-      self.searchFiltersUseCase.dataOutputs.selectedSort,
-      self.searchFiltersUseCase.dataOutputs.selectedCategory,
-      self.searchFiltersUseCase.dataOutputs.selectedState,
-      self.searchFiltersUseCase.dataOutputs.selectedPercentRaisedBucket,
-      self.searchFiltersUseCase.dataOutputs.selectedLocation,
-      self.searchFiltersUseCase.dataOutputs.selectedAmountRaisedBucket,
-      self.searchFiltersUseCase.dataOutputs.selectedGoalBucket,
-      self.searchFiltersUseCase.dataOutputs.selectedToggles
+    let queryText = Signal.merge(
+      self.searchTextChangedProperty.signal,
+      viewWillAppearNotAnimated.mapConst("").take(first: 1)
     )
-    .map { query, sort, category, state, percentRaised, location, amountRaised, goal, toggles in
-      DiscoveryParams.withQuery(
-        query,
-        sort: sort,
-        category: category.category,
-        state: state,
-        percentRaised: percentRaised,
-        location: location,
-        amountRaised: amountRaised,
-        goal: goal,
-        toggles: toggles
-      )
-    }
+    let queryParams = searchFeature.queryParameters(for: queryText)
 
     let requestFirstPageWith = queryParams
     let paginatedProjects = searchFeature.paginatedResults
@@ -321,13 +283,10 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.featureBindings.dispose()
   }
 
-  fileprivate let searchTextChangedProperty = MutableProperty("")
+  private let searchTextChangedProperty = MutableProperty("")
   public func searchTextChanged(_ searchText: String) {
     self.searchTextChangedProperty.value = searchText
-
-    if searchText.isEmpty {
-      self.searchFiltersUseCase.inputs.clearedQueryText()
-    }
+    self.searchFeature.updateQuery(searchText)
   }
 
   fileprivate let (tappedProjectIndexSignal, tappedProjectIndexObserver) = Signal<Int, Never>.pipe()
@@ -335,9 +294,8 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.tappedProjectIndexObserver.send(value: index)
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    self.searchFeature.loadFilterOptions()
   }
 
   fileprivate let viewWillAppearAnimatedProperty = MutableProperty(false)
@@ -358,9 +316,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.searchFiltersUseCase.inputs.resetFilters(for: type)
   }
 
-  private let categoriesUseCase: FetchCategoriesUseCase
   private let searchFiltersUseCase: SearchFiltersUseCase
-  private let locationsUseCase: FetchLocationsUseCase
   private let reachabilityProperty = MutableProperty(Reachability.current)
 
   public let goToProject: Signal<(ProjectPageParam, RefTag), Never>
@@ -375,11 +331,11 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   }
 
   public func selectedFilter(_ event: SearchFilterEvent) {
-    self.searchFiltersUseCase.selectedFilter(event)
+    self.searchFeature.selectFilter(event)
   }
 
   public func searchedForLocations(_ query: String) {
-    self.locationsUseCase.searchedForLocations(query)
+    self.searchFeature.searchLocations(query)
   }
 
   public var searchFilters: SearchFilters {

@@ -20,6 +20,62 @@ final class SearchFeatureTests: TestCase {
     XCTAssertNil(searchFeature.searchError)
   }
 
+  func testFilterSelectionBuildsQueryAndChangingTextRetainsSelection() {
+    let searchFeature = SearchFeature(provider: ControlledSearchProvider())
+    let (query, input) = Signal<String, Never>.pipe()
+    var parameters: DiscoveryParams?
+    let observation = searchFeature.queryParameters(for: query).observeValues { parameters = $0 }
+    defer { observation?.dispose() }
+    searchFeature.loadFilterOptions()
+    input.send(value: "art")
+    searchFeature.selectFilter(.sort(.newest))
+    searchFeature.selectFilter(.category(.rootCategory(.art)))
+    searchFeature.selectFilter(.projectsWeLove(true))
+    input.send(value: "books")
+    searchFeature.updateQuery("books")
+
+    XCTAssertEqual(parameters?.query, "books")
+    XCTAssertEqual(parameters?.sort, .newest)
+    XCTAssertEqual(parameters?.category?.id, Category.art.id)
+    XCTAssertEqual(parameters?.staffPicks, true)
+  }
+
+  func testClearingQueryResetsFiltersAndSortButResetAllKeepsSort() {
+    let searchFeature = SearchFeature(provider: ControlledSearchProvider())
+    let (query, input) = Signal<String, Never>.pipe()
+    var parameters: DiscoveryParams?
+    let observation = searchFeature.queryParameters(for: query).observeValues { parameters = $0 }
+    defer { observation?.dispose() }
+    searchFeature.loadFilterOptions()
+    input.send(value: "art")
+    searchFeature.selectFilter(.sort(.newest))
+    searchFeature.selectFilter(.category(.rootCategory(.art)))
+    searchFeature.selectFilter(.projectsWeLove(true))
+    searchFeature.resetFilters(.allFilters)
+    XCTAssertEqual(parameters?.sort, .newest)
+    XCTAssertNil(parameters?.category)
+    XCTAssertNil(parameters?.staffPicks) // Unselected means no API filter, not "exclude".
+
+    input.send(value: "")
+    searchFeature.updateQuery("")
+    XCTAssertEqual(parameters?.sort, .magic)
+    XCTAssertEqual(parameters?.query, "")
+  }
+
+  func testFeatureTogglesFilterWithoutOwningModalPresentation() {
+    let searchFeature = SearchFeature(provider: ControlledSearchProvider())
+    let (query, input) = Signal<String, Never>.pipe()
+    var parameters: DiscoveryParams?
+    let observation = searchFeature.queryParameters(for: query).observeValues { parameters = $0 }
+    defer { observation?.dispose() }
+    searchFeature.loadFilterOptions()
+    input.send(value: "art")
+    searchFeature.toggleFilter(.projectsWeLove)
+    XCTAssertEqual(parameters?.staffPicks, true)
+    searchFeature.toggleFilter(.projectsWeLove)
+    XCTAssertNil(parameters?.staffPicks)
+  }
+
   func testSuccessfulSearchPublishesDataCountAndLoading() throws {
     let provider = ControlledSearchProvider()
     let searchFeature = SearchFeature(provider: provider)

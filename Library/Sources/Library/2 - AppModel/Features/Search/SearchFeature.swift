@@ -28,11 +28,22 @@ public final class SearchFeature {
   public let loading: Signal<Bool, Never>
   public let pageCount: Signal<Int, Never>
 
+  internal let filterSelection: SearchFilterSelection
+  private let (filterLoadSignal, filterLoadObserver) = Signal<Void, Never>.pipe()
+  private let categoriesUseCase: FetchCategoriesUseCase
+  private let locationsUseCase: FetchLocationsUseCase
+  public var categories: Signal<[KsApi.Category], Never> { self.categoriesUseCase.categories }
+  public var defaultLocations: Signal<[Location], Never> { self.locationsUseCase.defaultLocations }
+  public var suggestedLocations: Signal<[Location], Never> { self.locationsUseCase.suggestedLocations }
+
   private let (requestSignal, requestObserver) = Signal<DiscoveryParams, Never>.pipe()
   private let (nextPageSignal, nextPageObserver) = Signal<Void, Never>.pipe()
   private let subscriptions = CompositeDisposable()
 
   public init(provider: any SearchProjectsProvider) {
+    self.filterSelection = SearchFilterSelection()
+    self.categoriesUseCase = FetchCategoriesUseCase(initialSignal: self.filterLoadSignal)
+    self.locationsUseCase = FetchLocationsUseCase(initialSignal: self.filterLoadSignal)
     let stats = MutableProperty(0)
     let options = MutableProperty<DiscoveryParams?>(nil)
     options <~ self.requestSignal
@@ -98,6 +109,66 @@ public final class SearchFeature {
     }
   }
 
+  /// Default choices and lookup data are loaded only on explicit screen demand.
+  public func loadFilterOptions() {
+    self.filterLoadObserver.send(value: ())
+    self.filterSelection.publishInitialSelection()
+  }
+
+  /// Transitional projection for the legacy screen's query signal.
+  /// Selection policy and parameter construction remain owned by the Feature.
+  public func queryParameters(for queryText: Signal<String, Never>) -> Signal<DiscoveryParams, Never> {
+    return Signal.combineLatest(
+      queryText,
+      self.filterSelection.selectedSort,
+      self.filterSelection.selectedCategory,
+      self.filterSelection.selectedState,
+      self.filterSelection.selectedPercentRaisedBucket,
+      self.filterSelection.selectedLocation,
+      self.filterSelection.selectedAmountRaisedBucket,
+      self.filterSelection.selectedGoalBucket,
+      self.filterSelection.selectedToggles
+    )
+    .map { query, sort, category, state, percentRaised, location, amountRaised, goal, toggles in
+      DiscoveryParams.withQuery(
+        query,
+        sort: sort,
+        category: category.category,
+        state: state,
+        percentRaised: percentRaised,
+        location: location,
+        amountRaised: amountRaised,
+        goal: goal,
+        toggles: toggles
+      )
+    }
+
+  }
+
+  public func updateQuery(_ query: String) {
+    if query.isEmpty { self.filterSelection.clearedQueryText() }
+  }
+
+  public func selectFilter(_ event: SearchFilterEvent) {
+    self.filterSelection.selectedFilter(event)
+  }
+
+  public func resetFilters(_ scope: SearchFilterReset) {
+    self.filterSelection.resetFilters(for: scope)
+  }
+
+  public func toggleFilter(_ filter: SearchToggleFilter) {
+    let selection = self.filterSelection
+    switch filter {
+    case .projectsWeLove: self.selectFilter(.projectsWeLove(!selection.projectsWeLoveValue))
+    case .savedProjects: self.selectFilter(.savedProjects(!selection.savedProjectsValue))
+    case .following: self.selectFilter(.following(!selection.followingValue))
+    case .recommended: self.selectFilter(.recommended(!selection.recommendedValue))
+    }
+  }
+
+  public func searchLocations(_ query: String) { self.locationsUseCase.searchedForLocations(query) }
+
   /// Query replacement is intentionally latest-request-wins (BEH-S03).
   public func search(parameters: DiscoveryParams) {
     self.parameters = parameters
@@ -114,3 +185,5 @@ public final class SearchFeature {
     self.subscriptions.dispose()
   }
 }
+
+public enum SearchToggleFilter { case projectsWeLove, savedProjects, following, recommended }
