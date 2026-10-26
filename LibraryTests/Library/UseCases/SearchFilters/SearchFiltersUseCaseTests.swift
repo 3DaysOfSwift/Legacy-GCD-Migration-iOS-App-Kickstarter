@@ -7,6 +7,8 @@ import ReactiveSwift
 import XCTest
 
 final class SearchFiltersUseCaseTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   private var useCase: SearchFiltersUseCase!
 
   private let selectedSort = TestObserver<DiscoveryParams.Sort, Never>()

@@ -8,6 +8,10 @@ import ReactiveSwift
 import XCTest
 
 class TestCase: XCTestCase {
+  /// Snapshot suites keep their pinned reference device. Non-visual suites may
+  /// explicitly opt out without changing any behaviour assertions.
+  internal var requiresSnapshotReferenceSimulator: Bool { true }
+
   internal static let interval = DispatchTimeInterval.milliseconds(1)
 
   internal let apiService = MockService()
@@ -81,7 +85,9 @@ class TestCase: XCTestCase {
       uuidType: self.uuidType
     )
 
-    self.preferredSimulatorCheck()
+    if self.requiresSnapshotReferenceSimulator {
+      self.preferredSimulatorCheck()
+    }
   }
 
   override func tearDown() {

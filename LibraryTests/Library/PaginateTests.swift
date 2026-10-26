@@ -6,6 +6,8 @@ import ReactiveSwift
 import XCTest
 
 final class PaginateTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   let (newRequest, newRequestObserver) = Signal<Int, Never>.pipe()
   let (nextPage, nextPageObserver) = Signal<(), Never>.pipe()
   let requestFromParams: (Int) -> SignalProducer<[Int], Never> = { p in .init(value: [p]) }

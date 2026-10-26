@@ -12,6 +12,8 @@ import ReactiveSwift
 import XCTest
 
 internal final class SearchViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   fileprivate let vm: SearchViewModelType! = SearchViewModel()
 
   fileprivate let changeSearchFieldFocusFocused = TestObserver<Bool, Never>()
@@ -49,6 +51,29 @@ internal final class SearchViewModelTests: TestCase {
       .observe(self.hasAddedProjects.observer)
 
     self.vm.outputs.showFilters.observe(self.showFilters.observer)
+  }
+
+  // Characterise the existing silent-error path before changing its ownership.
+  // This is not approval to keep a silent error as the final product design.
+  func testFailedInitialSearchStopsLoadingAndRecoversOnChangedQuery() {
+    withEnvironment(apiService: MockService()) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewWillAppear(animated: true)
+      self.scheduler.run()
+
+      self.searchLoaderIndicatorIsAnimating.assertLastValue(false)
+      self.hasProjects.assertLastValue(false)
+      self.showEmptyState.assertDidNotEmitValue()
+    }
+
+    let responses = [(GraphAPI.SearchQuery.self, GraphAPI.SearchQuery.Data.fiveResults)]
+    withEnvironment(apiService: MockService(fetchGraphQLResponses: responses)) {
+      self.vm.inputs.searchTextChanged("recovery")
+      self.scheduler.run()
+
+      self.hasProjects.assertLastValue(true)
+      self.searchLoaderIndicatorIsAnimating.assertLastValue(false)
+    }
   }
 
   func testSearchPopularFeatured_RefTag() {
