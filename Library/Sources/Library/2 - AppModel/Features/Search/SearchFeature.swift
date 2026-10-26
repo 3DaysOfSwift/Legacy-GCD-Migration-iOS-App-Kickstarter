@@ -8,10 +8,11 @@ public typealias SearchResult = GraphAPI.SearchQuery.Data.Projects.Node
 
 /// Owns the current project request, result collection, count and pagination.
 ///
-/// This first architecture checkpoint intentionally retains the legacy reactive
-/// paging policy: a replacement query or page disposes the prior subscription.
-/// It does not yet promise cancellation of the underlying Apollo request.
-/// Filter selection/presentation extraction and awaitable execution are next.
+/// Retains the legacy reactive paging policy while transport is migrated:
+/// a replacement query or page disposes the prior subscription. The live async
+/// provider forwards that disposal to Task and Apollo cancellation.
+/// Selection/reset policy lives here; sheets and navigation stay in presentation.
+/// Fully awaitable Feature commands and shared equivalent paging remain pending.
 @MainActor
 public final class SearchFeature {
   public private(set) var projects: [SearchResult] = []

@@ -72,7 +72,7 @@ public struct ErrorEnvelope {
   /**
    A general error that JSON could not be parsed.
    */
-  internal static let couldNotParseJSON = ErrorEnvelope(
+  public static let couldNotParseJSON = ErrorEnvelope(
     errorMessages: [],
     ksrCode: .JSONParsingFailed,
     httpCode: 400,

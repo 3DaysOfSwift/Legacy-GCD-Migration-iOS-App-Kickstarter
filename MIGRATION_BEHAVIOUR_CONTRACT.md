@@ -4,7 +4,8 @@ Author: Matthew Thomas. Baseline captured 26 October 2026 at
 `5ad48326904a4033e1b06ab21cb0942c51b077fe` (public-demo preparation).
 Original upstream: `5f5463cfb830413d253efed45bfcec0322c9f152`.
 
-This contract covers Search. The current pass extracts request ownership only. It is not a complete app contract, nor proof
+This contract covers Search. Ownership, filters and async page transport have
+incremental checkpoints recorded below. It is not a complete app contract, nor proof
 that authentication, payments or live APIs work. UIKit presentation is retained.
 Test names below refer to `LibraryTests/Library/ViewModels/SearchViewModelTests.swift`
 unless another suite is named. The ledger records exact commands and results.
@@ -54,3 +55,27 @@ The Feature now retains errors separately from successful empty results. The
 legacy ViewModel still has no new error presentation. Direct tests cover failed
 first-page recovery, failed-page retry, cursor termination and obsolete
 subscription completion suppression; they do not establish transport cancellation.
+
+## Filter and async transport checkpoint (26 October 2026)
+
+The table above retains the request-ownership checkpoint's historical results.
+The current focused run passes 87 tests. Three direct Feature tests now protect
+BEH-S04/S05 query composition, reset-all retaining sort, empty-query resetting
+sort, and toggle changes. The original presentation/analytics expectations remain
+unchanged; a temporary analytics ordering regression was corrected in production
+wiring before the filter commit (details in the ledger).
+
+Ten additional tests protect Search's async transport and compatibility adapter:
+exactly-once completion, cancellation before/during registration, cancellation
+before invocation, GraphQL error precedence, nil/transport error mapping, mock
+failure/recovery, Feature delivery, and query replacement cancelling its token
+while ignoring late completion. This adds controlled transport evidence for
+BEH-S03/S12, not a live-network or exhaustive async-screen verification claim.
+Original baseline suites retain the legacy deterministic provider.
+
+Fresh agent Simulator smoke on the async demo route observed discovery, Forest
+returning three matches, Games narrowing to one, query clearing resetting category
+and returning discovery, and the no-match message for Zzznomatch. This supports
+BEH-S01/S04/S05/S07. No visual implementation changed; no pixel comparison was run.
+Pagination/debounce, lookup cancellation and fully awaitable Feature commands
+remain outstanding. Other manual gates in the table remain bounded as stated.

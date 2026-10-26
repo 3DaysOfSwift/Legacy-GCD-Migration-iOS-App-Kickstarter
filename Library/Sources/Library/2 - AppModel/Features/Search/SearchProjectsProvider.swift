@@ -2,8 +2,8 @@ import GraphAPI
 import KsApi
 import ReactiveSwift
 
-/// Transport seam for Search's architecture pass. The following execution pass
-/// will replace this reactive contract with a cancellation-aware async operation.
+/// Temporary compatibility edge for the legacy pagination/analytics graph.
+/// The live AsyncSearchProjectsProvider performs cancellation-aware async work.
 @MainActor
 public protocol SearchProjectsProvider {
   func fetch(
@@ -13,8 +13,8 @@ public protocol SearchProjectsProvider {
   ) -> SignalProducer<GraphAPI.SearchQuery.Data, ErrorEnvelope>
 }
 
-/// Keeps the existing API selection and test scheduler semantics during extraction.
-/// Resolve the environment at request time so account/demo changes are respected.
+/// Historical adapter retained for the synchronous baseline regression suites.
+/// AppModel uses AsyncSearchProjectsProvider; async integration tests exercise it.
 @MainActor
 public final class LegacySearchProjectsProvider: SearchProjectsProvider {
   public init() {}

@@ -95,6 +95,17 @@ public struct Service: ServiceType {
     return try await client.fetch(query).data
   }
 
+  @MainActor public func fetchSearchPage(query: GraphAPI.SearchQuery) async throws -> GraphAPI.SearchQuery.Data {
+    try await SearchQueryRequest.fetch { completion in
+      GraphQL.shared.client.fetch(
+        query: query,
+        cachePolicy: .fetchIgnoringCacheCompletely,
+        queue: .global(qos: .userInitiated),
+        resultHandler: completion
+      )
+    }
+  }
+
   public func addNewCreditCard(input: CreatePaymentSourceInput)
     -> SignalProducer<CreatePaymentSourceEnvelope, ErrorEnvelope> {
     return GraphQL.shared.client

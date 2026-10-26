@@ -46,6 +46,9 @@ public protocol ServiceType {
   /// Fetches a GraphQL query with async/await and returns the data.
   func fetch<Q: GraphQLQuery>(query: Q) async throws -> Q.Data?
 
+  /// Search opts into cancellation without changing unrelated query contracts.
+  @MainActor func fetchSearchPage(query: GraphAPI.SearchQuery) async throws -> GraphAPI.SearchQuery.Data
+
   /// Returns a new service with the oauth token replaced.
   func login(_ oauthToken: OauthTokenAuthType) -> Self
 

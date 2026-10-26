@@ -8,10 +8,11 @@ Search is the first selected feature because its existing tests exercise query
 replacement, filters, paging, loading, navigation metadata and analytics.
 The baseline is committed at `192fa9148ebec7409c9245354b206d344edc1e50`.
 Request ownership and filter selection/reset/query composition are extracted.
-This is not a complete Search migration or an async execution conversion.
+Search page transport now uses cancellation-aware async requests. This is not a
+complete Search migration: pagination/debounce still use a reactive adapter.
 
 Current project-request route:
-`SearchViewController → SearchViewModel → AppModel.searchFeature → LegacySearchProjectsProvider → AppEnvironment.apiService → Apollo`.
+`SearchViewController → SearchViewModel → AppModel.searchFeature → AsyncSearchProjectsProvider → Service.fetchSearchPage → Apollo`.
 SearchFeature owns selection policy and the legacy category/location lookup
 collaborators. SearchFiltersUseCase is now a screen presentation adapter.
 
@@ -36,7 +37,7 @@ the connected feature slice once baseline results support comparison.
 | Explore / discovery | Discovery controllers / DiscoveryViewModel | AppModel.discoveryFeature / DiscoveryFeatureTests | Legacy; not in this pass |
 | Activity (signed out) | Activity flow | AppModel.activityFeature / ActivityFeatureTests | Legacy; inspect complete flow before migration |
 | Pledged projects and activity (signed in) | Pledged-project/activity flow | Ownership to map with shared pledge state | Legacy; not an empty placeholder Feature |
-| Search | SearchViewController / SearchViewModel | AppModel.searchFeature / SearchFeatureTests | Request and selection ownership extracted; async execution pending |
+| Search | SearchViewController / SearchViewModel | AppModel.searchFeature / SearchFeatureTests | Request/selection ownership extracted; async page transport connected; reactive pagination pending |
 | Profile (signed in/out variants) | Profile/account flow | AppModel.profileFeature / ProfileFeatureTests | Legacy; inspect authentication ownership first |
 
 `RootViewModel.generateViewControllers` omits Activity when the floating-tab
@@ -60,7 +61,8 @@ is not permission to duplicate shared user, pledge or project state.
 | Search analytics signal combinations | Visit/query/card events depend on timing and result/page signals | Preserve tested event contract through injected tracking dependency | BEH-S09; local fake, no external events |
 
 AppModel, SearchFeature, its provider and SearchViewModel are MainActor-isolated.
-No new Task has been added; ReactiveSwift execution is still transitional. App-wide queues,
+The async provider retains a Task per subscription and cancels it on disposal.
+ReactiveSwift pagination remains transitional. App-wide queues,
 callbacks, persistence and other features still require their own inventories.
 
 ## Baseline environment and commands
@@ -196,3 +198,51 @@ No visual files, strings or navigation were changed. A fresh rendered check is
 still pending at this filter-only checkpoint; the following async checkpoint
 will repeat the app build and Simulator journey. Lookup cancellation and the
 generic reactive pagination pipeline are still separate migration work.
+
+## Cancellation-aware Search transport checkpoint
+
+Filter checkpoint: `00ffa766990859699f64c1f482aef4f4a0ff39f0`.
+The live AppModel now selects AsyncSearchProjectsProvider. Its async fetchPage
+calls the Search-specific Service.fetchSearchPage requirement. Production Service
+uses SearchQueryRequest to bridge Apollo's cancellable; existing mocks use a
+default async implementation. Unrelated GraphQL operations are unchanged.
+
+- A subscription owns one retained Task. Replacement/disposal cancels it; the
+  production bridge cancels Apollo's token and resumes the await with cancellation.
+- PendingSearchQuery uses a narrowly documented NSLock-protected unchecked
+  Sendable boundary. Terminal completion is exactly once, including cancellation
+  before continuation/token registration and duplicate/late callbacks. Cancellation,
+  continuation resumption and token release occur outside the lock.
+- GraphQL errors still take precedence over partial data; missing data and
+  transport errors retain the legacy Search parse-error mapping. Cancellation is
+  interruption, not a new user-visible error.
+- The existing debounce operator delays results rather than request admission.
+  Its behaviour and pagination/analytics pipeline remain unchanged. Feature
+  commands are not yet directly awaitable and equivalent pages do not yet share
+  completion. Category/location requests retain their legacy implementation.
+
+Verification, 26 October 2026, Xcode 26.2, iPhone Air Simulator iOS 26.2:
+
+- async-tests-1: 86 passed, zero failures. Added the end-to-end replacement/token
+  cancellation test; async-tests-2: 87 passed, zero failures.
+- After moving token release outside the lock, async-tests-3: **87 passed, zero
+  failures**, exit 0; xcresult action succeeded. The incremental run reports two
+  warnings; earlier broader dependency recompilation reported 2,331 warnings.
+- Use the five-suite filter command plus
+  `-only-testing:LibraryTests/SearchRequestCancellationTests`, with result bundle
+  `/private/tmp/kickstarter-search-async-tests-3.xcresult`. Same Debug configuration,
+  derived data and simulator; shareable destination spelling is
+  `platform=iOS Simulator,name=iPhone Air,OS=26.2` (local identifier omitted).
+- Kickstarter iOS Debug Simulator build passed, exit 0, result bundle
+  `/private/tmp/kickstarter-search-async-build-1.xcresult`; app installed/launched.
+- Agent smoke: discovery cards; Forest query returns three results; Games category
+  narrows to one; clearing resets category and discovery; Zzznomatch displays the
+  existing no-results message. Existing sheet/cards/tab presentation retained.
+
+Coverage boundary: original ViewModel/filter/pagination suites still use the
+legacy deterministic provider. New tests exercise the async provider through the
+Feature and controlled transport callbacks/tokens. They do not establish every
+async ViewModel/analytics interleaving or real-network cancellation. No full suite,
+snapshot comparison, physical device, VoiceOver or complete Swift 6 check claimed.
+No UI implementation files were changed. Local unreviewed draft evidence lives in
+sibling `Migration Evidence/kickstarter-search-filters-async`; no push/publication.
