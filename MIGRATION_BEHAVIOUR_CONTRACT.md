@@ -213,3 +213,30 @@ Post-change verification confirmed 27 October 2026:
 tests with zero failures/skips and a successful app build. SEARCH-ADAPTER-01
 through SEARCH-ADAPTER-07 therefore have passing focused post-change protection.
 Manual UI and broader validation gaps above remain; migration is not complete.
+
+## Completion analytics compatibility — pending verification, 27 October 2026
+
+BEH-S09 describes the normal successful-page path. It is not a guarantee that
+every pagination/error sequence emits no event: the legacy zero-count and
+buffered-pairing behaviour below qualifies that wording. Do not silently fix
+these potential analytics defects during an architecture-preserving migration.
+
+| ID | Source-inferred legacy requirement | New protection | Status |
+| --- | --- | --- | --- |
+| SEARCH-ADAPTER-08 | Each empty non-discovery response emits zero-count analytics. | testEmptySearchesTrackZeroOncePerResponse | New test; runtime pending |
+| SEARCH-ADAPTER-09 | Empty terminal pagination emits zero-count analytics while accumulated cards remain. | testEmptyTerminalPageTracksZeroWithoutDiscardingCards | New test; runtime pending |
+| SEARCH-ADAPTER-10 | Unpaired empty/error settlements persist across queries; a later first-page ordinal may track before cards/loading=false publish. | testRecoveryAfterEmptyAndFailedQueriesPreservesAnalyticsPublicationTiming | New test; runtime pending |
+
+The replacement explicitly owns the FIFO pairing and retains the independent
+zero-count path. It uses current query/filter values when tracking, suppresses
+discovery completion events, and does not change requests or UI. Three scenarios
+are inferred from old source, not yet confirmed by differential runtime testing.
+The 124-test/app-build baseline is acb105498d; that pass does not validate this
+patch. The new 127-test check and app build await a Terminal run; local execution
+was permission-blocked before compilation. No new manual/snapshot result.
+
+Post-change follow-up: /private/tmp/kickstarter-search-completion-analytics.dVAhV6
+contains 127 successful tests (zero failures/skips) and a successful app build.
+SEARCH-ADAPTER-08 through -10 now have passing replacement protection. Their
+legacy semantics remain source-inferred, not old-code differential confirmation.
+No additional UI/snapshot/live-API/full-suite verification is claimed.

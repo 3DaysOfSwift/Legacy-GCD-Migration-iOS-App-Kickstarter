@@ -246,6 +246,93 @@ internal final class SearchViewModelTests: TestCase {
 
   // Characterise the existing silent-error path. This is not approval to keep
   // a silent error as the final product design.
+  func testEmptySearchesTrackZeroOncePerResponse() async throws {
+    let response = [(GraphAPI.SearchQuery.self, try self.fixture("SearchQuery_EmptyResults"))]
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewWillAppear(animated: true)
+      await self.advanceRequests()
+      self.vm.inputs.searchTextChanged("missing")
+      await self.advanceRequests()
+      self.vm.inputs.searchTextChanged("still missing")
+      await self.advanceRequests()
+
+      XCTAssertEqual(
+        self.segmentTrackingClient.properties(forKey: "discover_search_term"),
+        ["", "missing", "still missing"]
+      )
+      XCTAssertEqual(
+        self.segmentTrackingClient.properties(forKey: "discover_search_results_count", as: Int.self),
+        [0, 0, 0]
+      )
+    }
+  }
+
+  func testEmptyTerminalPageTracksZeroWithoutDiscardingCards() async throws {
+    let populated = [(GraphAPI.SearchQuery.self, try self.fixture("SearchQuery_FiveResults"))]
+    let empty = [(GraphAPI.SearchQuery.self, try self.fixture("SearchQuery_EmptyResults"))]
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: populated)) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewWillAppear(animated: true)
+      await self.advanceRequests()
+      self.vm.inputs.searchTextChanged("art")
+      await self.advanceRequests()
+    }
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: empty)) {
+      self.vm.inputs.willDisplayProjectAtRow(2, outOf: 5)
+      await self.advanceRequests()
+      XCTAssertEqual(self.searchFeature.projects.count, 5)
+      XCTAssertEqual(
+        self.segmentTrackingClient.properties(forKey: "discover_search_results_count", as: Int.self),
+        [0, 200, 0]
+      )
+      XCTAssertEqual(
+        self.segmentTrackingClient.properties(forKey: "discover_search_term"), ["", "art", "art"]
+      )
+    }
+  }
+
+  func testRecoveryAfterEmptyAndFailedQueriesPreservesAnalyticsPublicationTiming() async throws {
+    let empty = [(GraphAPI.SearchQuery.self, try self.fixture("SearchQuery_EmptyResults"))]
+    let populated = [(GraphAPI.SearchQuery.self, try self.fixture("SearchQuery_FiveResults"))]
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: empty)) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewWillAppear(animated: true)
+      await self.advanceRequests()
+      self.vm.inputs.searchTextChanged("empty")
+      await self.advanceRequests()
+    }
+    await withEnvironment(apiService: MockService()) {
+      self.vm.inputs.searchTextChanged("failed")
+      await self.advanceRequests()
+      XCTAssertEqual(self.segmentTrackingClient.events.count, 2)
+    }
+
+    // Legacy empty/error settlements wait for a page notification. A later
+    // successful first page consumes one before cards/loading=false publish.
+    var analyticsAtPagePublication: [Int] = []
+    var loadingAtPagePublication: [Bool] = []
+    let observation = self.searchFeature.pageCount.observeValues { [weak self] _ in
+      guard let self else { return }
+      analyticsAtPagePublication.append(self.segmentTrackingClient.events.count)
+      loadingAtPagePublication.append(self.searchFeature.isLoading)
+    }
+    defer { observation?.dispose() }
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: populated)) {
+      self.vm.inputs.searchTextChanged("recovered")
+      await self.advanceRequests()
+      XCTAssertEqual(analyticsAtPagePublication, [3])
+      XCTAssertEqual(loadingAtPagePublication, [true])
+      XCTAssertEqual(
+        self.segmentTrackingClient.properties(forKey: "discover_search_term"), ["", "empty", "recovered"]
+      )
+      XCTAssertEqual(
+        self.segmentTrackingClient.properties(forKey: "discover_search_results_count", as: Int.self),
+        [0, 0, 200]
+      )
+    }
+  }
+
   func testFailedInitialSearchStopsLoadingAndRecoversOnChangedQuery() async throws {
     await withEnvironment(apiService: MockService()) {
       self.vm.inputs.viewDidLoad()

@@ -91,6 +91,7 @@ public protocol SearchViewModelType {
 public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, SearchViewModelOutputs {
   private let searchFeature: SearchFeature
   private let featureBindings = CompositeDisposable()
+  private let completionAnalytics: SearchCompletionAnalytics
   // UIKit retains the shared Feature task rather than spawning wrapper Tasks.
   internal private(set) var searchTask: Task<Void, Never>?
   internal private(set) var pageTask: Task<Void, Never>?
@@ -114,7 +115,6 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     let requestFirstPageWith = queryParams
     let paginatedProjects = searchFeature.paginatedResults
     let isLoading = searchFeature.loading
-    let page = searchFeature.pageCount
     let stats = searchFeature.resultCount
     let searchResults = searchFeature.results
 
@@ -154,39 +154,12 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
 
     self.goToProject = self.projectNavigationPipe.output
 
-    // Tracking
-
-    // This represents search results count whenever the search page is viewed.
-    // An initial value is emitted on first visit.
-    let viewWillAppearSearchResultsCount = Signal.merge(
-      stats,
-      self.initialAppearanceCountPipe.output
+    // Register analytics before presentation: a zero count or buffered page
+    // settlement can track before the corresponding cards are published.
+    self.completionAnalytics = SearchCompletionAnalytics(
+      counts: stats, pages: searchFeature.pageCount,
+      results: paginatedProjects, loading: isLoading
     )
-
-    let hasResults = Signal.combineLatest(paginatedProjects, isLoading)
-      .filter(second >>> isFalse)
-      .map(first)
-      .map { !$0.isEmpty }
-
-    let firstPageResults = Signal.zip(hasResults, page)
-      .filter { _, page in page == 1 }
-      .map(first)
-
-    // This represents search results count only when a search is performed
-    // and there is a response from the API for the query.
-    let newQuerySearchResultsCount = Signal.merge(
-      viewWillAppearSearchResultsCount.filter { $0 == 0 },
-      viewWillAppearSearchResultsCount.takeWhen(firstPageResults)
-    )
-
-    Signal.combineLatest(queryText, requestFirstPageWith)
-      .takePairWhen(newQuerySearchResultsCount)
-      .map(unpack)
-      .filter { query, _, _ in !query.isEmpty }
-      .observeValues { _, params, stats in
-        AppEnvironment.current.ksrAnalytics
-          .trackProjectSearchView(params: params, results: stats)
-      }
 
     self.searchResults = Signal.combineLatest(
       isProjectsTitleVisible,
@@ -205,8 +178,11 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.featureBindings += searchResults.observeValues { [weak self] results in
       self?.displayedResults = results
     }
-    self.featureBindings += viewWillAppearSearchResultsCount.observeValues { [weak self] count in
+    self.featureBindings += stats.observeValues { [weak self] count in
       self?.appearanceResultsCount = count
+    }
+    self.featureBindings += self.completionAnalytics.countsToTrack.observeValues { [weak self] count in
+      self?.trackResultCompletion(count: count)
     }
     self.featureBindings += queryParams.observeValues { [weak self] parameters in
       // Install the analytics snapshot before admission publishes loading/clearing.
@@ -235,7 +211,6 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   private var wasCloseToBottom: Bool?
   private let queryTextPipe = Signal<String, Never>.pipe()
   private let appearancePipe = Signal<Void, Never>.pipe()
-  private let initialAppearanceCountPipe = Signal<Int, Never>.pipe()
   private let initialResultsPipe = Signal<SearchResults, Never>.pipe()
   private let projectNavigationPipe = Signal<(ProjectPageParam, RefTag), Never>.pipe()
 
@@ -292,7 +267,8 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
 
     self.appearancePipe.input.send(value: ())
     if isFirstAnimatedAppearance {
-      self.initialAppearanceCountPipe.input.send(value: 0)
+      self.appearanceResultsCount = 0
+      self.completionAnalytics.recordCount(0)
     }
     if animated { self.trackAppearance() }
     if isFirstAnimatedAppearance {
@@ -309,6 +285,12 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     AppEnvironment.current.ksrAnalytics.trackProjectSearchView(
       params: parameters, results: query.isEmpty ? 0 : count
     )
+  }
+
+  private func trackResultCompletion(count: Int) {
+    guard let query = self.queryText, !query.isEmpty,
+          let parameters = self.latestQueryParameters else { return }
+    AppEnvironment.current.ksrAnalytics.trackProjectSearchView(params: parameters, results: count)
   }
 
   public func willDisplayProjectAtRow(_ row: Int, outOf totalRows: Int) {
@@ -354,6 +336,69 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
 
   public var inputs: SearchViewModelInputs { return self }
   public var outputs: SearchViewModelOutputs { return self }
+}
+
+/// Owns only the legacy analytics pairing, not search state or request lifetime.
+/// A settlement is an emitted result collection while not loading, or loading
+/// becoming false after any result collection. Empty/error settlements may wait
+/// for a later page ordinal. Do not reset this queue on query changes: the legacy
+/// zip retained it, and changing that behaviour needs a separate product decision.
+@MainActor
+private final class SearchCompletionAnalytics {
+  private let bindings = CompositeDisposable()
+  private let countsPipe = Signal<Int, Never>.pipe()
+  var countsToTrack: Signal<Int, Never> { self.countsPipe.output }
+  private var latestCount: Int?
+  private var hasPublishedResults = false
+  private var isLoading: Bool?
+  private var pendingPages: [Int] = []
+  private var unpairedSettlements = 0
+
+  init(
+    counts: Signal<Int, Never>, pages: Signal<Int, Never>,
+    results: Signal<[SearchResult], Never>, loading: Signal<Bool, Never>
+  ) {
+    self.bindings += counts.observeValues { [weak self] in self?.recordCount($0) }
+    self.bindings += pages.observeValues { [weak self] in self?.recordPage($0) }
+    self.bindings += results.observeValues { [weak self] _ in
+      self?.hasPublishedResults = true
+      self?.recordSettlementIfReady()
+    }
+    self.bindings += loading.observeValues { [weak self] loading in
+      self?.isLoading = loading
+      self?.recordSettlementIfReady()
+    }
+  }
+
+  func recordCount(_ count: Int) {
+    self.latestCount = count
+    if count == 0 { self.countsPipe.input.send(value: count) }
+  }
+
+  private func recordPage(_ page: Int) {
+    guard self.unpairedSettlements > 0 else {
+      self.pendingPages.append(page)
+      return
+    }
+    self.unpairedSettlements -= 1
+    self.trackIfFirstPage(page)
+  }
+
+  private func recordSettlementIfReady() {
+    guard self.hasPublishedResults, self.isLoading == false else { return }
+    guard !self.pendingPages.isEmpty else {
+      self.unpairedSettlements += 1
+      return
+    }
+    self.trackIfFirstPage(self.pendingPages.removeFirst())
+  }
+
+  private func trackIfFirstPage(_ page: Int) {
+    guard page == 1, let count = self.latestCount else { return }
+    self.countsPipe.input.send(value: count)
+  }
+
+  deinit { self.bindings.dispose() }
 }
 
 /// Calculates a ref tag from the search query, the list of displayed projects, and the project

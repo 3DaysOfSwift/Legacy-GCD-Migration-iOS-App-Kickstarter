@@ -22,8 +22,9 @@ Completed checkpoints below are historical evidence, not app-wide completion.
   query/lifecycle/analytics characterisation tests; 123 tests and app build passed.
 - Latest verified slice: explicit query/lifecycle inputs, pagination threshold,
   and appearance/card-click analytics; 124 tests and app build passed.
-- Next: characterise/remove result-completion analytics pairing and remaining
-  parameter/presentation adapters; manual UI checks remain outstanding.
+- Latest verified analytics slice: explicit result-completion pairing, including
+  three empty/error/pagination regression tests; 127 tests and app build passed.
+- Next: remaining parameter/presentation adapters; manual UI checks outstanding.
 - Remaining Search work: replace reactive selection/query projections and screen
   compatibility edges as appropriate; review the completed Feature against CFA;
   close outstanding behaviour-contract/manual/snapshot validation gates.
@@ -545,3 +546,42 @@ after this run. This supersedes the permission-blocked attempt above.
 The automated checkpoint is ready to commit. No new manual UI, snapshot,
 physical-device, live-API or full-suite validation was performed. These remain
 separate completion gates, not facts inferred from the focused test run.
+
+## Explicit result-completion analytics — 27 October 2026
+
+Verified baseline: acb105498d341705f5d909fe4fc1563e9e7d3d1c.
+Replaced the result-completion combineLatest/zip/takeWhen chain with a private
+SearchCompletionAnalytics compatibility helper in SearchViewModel.swift.
+It owns only notification pairing and counts; the Feature retains domain state,
+requests, cancellation and pagination. No new Task, transport, UI or dependency.
+
+Zero counts publish separately, including an empty terminal page retaining cards.
+Page ordinals pair FIFO with settlement notifications, even across query changes.
+Empty/error notifications can remain buffered and cause a later first-page event
+before card publication/loading=false. This source-inferred legacy behaviour is
+preserved rather than silently changed to one event per successful request.
+ViewModel analytics uses the current query/filter snapshot at emission time.
+
+Three new end-to-end tests cover repeated empty searches, empty terminal paging,
+and event ordering on recovery after empty/failed queries. Existing 124 tests
+remain unchanged. The new cases have not yet run against either implementation.
+BEH-S09's broad wording is qualified by SEARCH-ADAPTER-08 through -10.
+
+Swift syntax, project plist, verification-script syntax and whitespace checks
+passed. Fresh verification exited 74 before compilation due to Simulator/cache
+permissions: /private/tmp/kickstarter-search-completion-analytics.x5EiiS.
+No post-change test/build pass is claimed. Matthew Thomas has been asked to run
+sibling Migration Evidence/kickstarter-search-completion-analytics/verify.zsh
+(expected 127 tests, then app build). Keep this code stable during that run.
+Evidence remains a local draft. Migration remains IN PROGRESS.
+
+### Completion-analytics verification confirmed
+
+Matthew Thomas ran the script in Terminal. Direct inspection of
+/private/tmp/kickstarter-search-completion-analytics.dVAhV6 confirms 127 individual
+Success records, zero failures/skips, including all three new cases. App
+buildResult.status succeeded. The test build reports 1,589 warnings and the app
+build three; no warning-free claim. No Swift files changed after this run.
+This supersedes the permission-blocked result, not the remaining manual or wider
+migration gates. The new cases passed the replacement; an old-code differential
+run has not been performed. Proceed to the filter presentation adapter.
