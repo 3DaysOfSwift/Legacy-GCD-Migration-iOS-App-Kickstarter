@@ -1,5 +1,38 @@
 # Kickstarter migration behaviour contract
 
+## Explore async ownership checkpoint — 27 October 2026
+
+Before: 55 existing Explore logic tests passed on commit
+237d929d8c5c1e714935ccd959048e628e93ea07. After: those same assertions passed
+through DiscoveryFeature's native async route; the combined run passed 202 tests,
+zero failures/skips, and the app built. Results:
+/private/tmp/kickstarter-discovery-async.vlaCu9.
+
+| Requirement | Protection and result |
+| --- | --- |
+| Four retained sorts keep independent results and requests | New four-feed adverse-order test; existing sort/lifecycle tests passed |
+| First-page loading, pull refresh, filter clearing and empty states keep existing presentation | All DiscoveryPageViewModelTests assertions retained; scheduler-only draining replaced with awaiting Feature task completion |
+| Pagination appends in order without duplicates; empty page ends pagination | Existing testPaginating plus direct cursor/deduplication/termination test passed |
+| Refresh retains cards until success and replaces pending pagination | Direct old-page-late regression passed; existing refresh/loading tests passed |
+| Failures stop loading without inventing empty success; paging can retry | Feature retains errors separately; failed-page/same-cursor retry test passed; no new error UI |
+| Equivalent in-flight callers share completion; superseded work cannot publish | Direct sharing, late-filter response and cancellation tests passed |
+| Activity samples keep seen-ID storage and navigation behaviour | Existing activity/seen/clear/navigation assertions passed; new sample replacement/error/isolation tests passed |
+| Session/filter/reachability/analytics presentation remains unchanged | Existing login, blocked-user, onboarding, banner and event assertions passed |
+| Public demo remains usable without private API keys | Native MockService demo route test and running Simulator cards/detail observed |
+
+The agent observed Magic, Popular, Newest and Ending Soon demo feeds, opened
+Paper Cities from Ending Soon, then closed detail and observed the same selected
+feed/cards. This is a bounded smoke check, not screenshot comparison, live-network
+verification or authentication coverage. Manual pull-refresh was inconclusive
+(the gesture opened a card), so only its automated coverage is claimed.
+
+The remaining Explore filter/recommendation and lifecycle admission policy still
+lives in compatibility view models and is the next boundary. URLSession provides
+native cancellation, but no live-server cancellation experiment was performed.
+Swift 5 mode remains; full strict-concurrency and app-wide exit gates are open.
+
+## Search checkpoint history
+
 Latest confirmation (27 October): 189 tests passed, zero failures/skips, and app
 build succeeded in /private/tmp/kickstarter-query-admission.7z1aJ3. This supersedes
 the pending Search close-out and Explore logic-baseline notes below. The first

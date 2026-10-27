@@ -7,6 +7,72 @@ import ReactiveSwift
 extension Service {
   private static let session = URLSession(configuration: .default)
 
+  public func discoveryPage(params: DiscoveryParams) async throws -> DiscoveryEnvelope {
+    let properties = Route.discover(params).requestProperties
+    guard let url = URL(string: properties.path, relativeTo: self.serverConfig.apiBaseUrl as URL) else {
+      throw ErrorEnvelope.couldNotParseErrorEnvelopeJSON
+    }
+    return try await self.discoveryResponse(for: self.preparedRequest(
+      forURL: url, method: properties.method, query: properties.query
+    ))
+  }
+
+  public func discoveryPage(paginationURL: String) async throws -> DiscoveryEnvelope {
+    guard let url = URL(string: paginationURL) else { throw ErrorEnvelope.invalidPaginationUrl }
+    return try await self.discoveryResponse(for: self.preparedRequest(forURL: url))
+  }
+
+  public func discoveryActivitySample() async throws -> ActivityEnvelope? {
+    let categories: [Activity.Category] = [
+      .backing, .cancellation, .failure, .follow, .launch, .shipped, .success, .update
+    ]
+    let properties = Route.activities(categories: categories, count: 1).requestProperties
+    guard let url = URL(string: properties.path, relativeTo: self.serverConfig.apiBaseUrl as URL) else {
+      throw ErrorEnvelope.couldNotParseErrorEnvelopeJSON
+    }
+    let envelope: ActivityEnvelope = try await self.discoveryResponse(for: self.preparedRequest(
+      forURL: url, method: properties.method, query: properties.query
+    ))
+    return envelope
+  }
+
+  /// Native async transport using the existing session, authentication and error contract.
+  /// URLSession owns cancellation of its data task; no reactive executor or callback bridge.
+  private func discoveryResponse<Model: Decodable>(for request: URLRequest) async throws -> Model {
+    try Task.checkCancellation()
+    let data: Data
+    let response: URLResponse
+    do {
+      (data, response) = try await Self.session.data(for: request)
+    } catch {
+      try Task.checkCancellation()
+      throw ErrorEnvelope.couldNotParseErrorEnvelopeJSON
+    }
+    try Task.checkCancellation()
+    return try Self.decodeDiscoveryResponse(data, response: response)
+  }
+
+  internal static func decodeDiscoveryResponse<Model: Decodable>(
+    _ data: Data, response: URLResponse
+  ) throws -> Model {
+    guard let response = response as? HTTPURLResponse else {
+      throw ErrorEnvelope.couldNotParseErrorEnvelopeJSON
+    }
+    let headers = response.allHeaderFields as? [String: String]
+    guard (200..<300).contains(response.statusCode),
+          headers?["Content-Type"]?.hasPrefix("application/json") == true else {
+      guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+        throw ErrorEnvelope.couldNotParseErrorEnvelopeJSON
+      }
+      let envelope: ErrorEnvelope
+      do { envelope = try ErrorEnvelope.decodeJSONDictionary(json) }
+      catch { throw ErrorEnvelope.couldNotDecodeJSON(error) }
+      throw envelope
+    }
+    do { return try JSONDecoder().decode(Model.self, from: data) }
+    catch { throw ErrorEnvelope.couldNotDecodeJSON(error) }
+  }
+
   func request<Model: Decodable>(_ route: Route)
     -> SignalProducer<Model, ErrorEnvelope> {
     let properties = route.requestProperties

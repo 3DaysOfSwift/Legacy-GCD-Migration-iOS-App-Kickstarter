@@ -4,6 +4,7 @@ import ReactiveExtensions
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol DiscoveryPageViewModelInputs {
   /// Call when the Config has been updated in the AppEnvironment
   func configUpdated()
@@ -68,6 +69,7 @@ public protocol DiscoveryPageViewModelInputs {
   func willDisplayRow(_ row: Int, outOf totalRows: Int)
 }
 
+@MainActor
 public protocol DiscoveryPageViewModelOutputs {
   /// Emits a list of activities to be displayed in the sample.
   var activitiesForSample: Signal<[Activity], Never> { get }
@@ -125,14 +127,23 @@ public protocol DiscoveryPageViewModelOutputs {
   var showVideoFeedBanner: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol DiscoveryPageViewModelType {
   var inputs: DiscoveryPageViewModelInputs { get }
   var outputs: DiscoveryPageViewModelOutputs { get }
 }
 
+@MainActor
 public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, DiscoveryPageViewModelInputs,
   DiscoveryPageViewModelOutputs {
-  public init() {
+  private let discoveryFeature: DiscoveryFeature
+  private let featureBindings = CompositeDisposable()
+  internal private(set) var pageTask: Task<Void, Never>?
+  internal private(set) var activityTask: Task<Void, Never>?
+
+  public init(discoveryFeature: DiscoveryFeature? = nil) {
+    let discoveryFeature = discoveryFeature ?? AppModel.shared.discoveryFeature
+    self.discoveryFeature = discoveryFeature
     let currentUser = Signal.merge(
       self.userSessionStartedProperty.signal,
       self.userSessionEndedProperty.signal,
@@ -184,19 +195,13 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
       firstPageParams.takeWhen(self.blockedUserProperty.signal)
     )
 
-    let paginatedProjects: Signal<[Project], Never>
-    let isLoading: Signal<Bool, Never>
-    (paginatedProjects, isLoading, _, _) = paginate(
-      requestFirstPageWith: requestFirstPageWith,
-      requestNextPageWhen: isCloseToBottom,
-      clearOnNewRequest: false,
-      skipRepeats: false,
-      valuesFromEnvelope: { $0.projects },
-      cursorFromEnvelope: { $0.urls.api.moreProjects },
-      requestFromParams: { AppEnvironment.current.apiService.fetchDiscovery(params: $0) },
-      requestFromCursor: { AppEnvironment.current.apiService.fetchDiscovery(paginationUrl: $0) },
-      concater: { ($0 + $1).distincts() }
-    )
+    let selectedSort = self.sortProperty
+    let paginatedProjects = discoveryFeature.projects
+      .filter { $0.0 == selectedSort.value }
+      .map { $0.1 }
+    let isLoading = discoveryFeature.loading
+      .filter { $0.0 == selectedSort.value }
+      .map { $0.1 }
 
     let projects = Signal.merge(
       paginatedProjects,
@@ -251,13 +256,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
       paramsChanged.skip(first: 1).ignoreValues()
     )
 
-    let fetchActivityEvent = self.viewDidAppearProperty.signal
-      .filter { _ in AppEnvironment.current.currentUser != nil }
-      .switchMap { _ in
-        AppEnvironment.current.apiService.fetchActivities(count: 1)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .materialize()
-      }
 
     let activitySampleTapped = self.tappedActivity.signal.skipNil()
       .filter { $0.category != .update }
@@ -285,8 +283,9 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
         return SignalProducer(value: (project, update))
       }
 
-    let activities = fetchActivityEvent.values()
-      .map { $0.activities }
+    let activities = discoveryFeature.activities
+      .filter { $0.0 == selectedSort.value }
+      .map { $0.1 }
       .skipRepeats(==)
       .map { $0.filter { activity in hasNotSeen(activity: activity) } }
       .on(value: { activities in saveSeen(activities: activities) })
@@ -365,14 +364,29 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.goToLoginSignup = self.signupLoginButtonTappedProperty.signal
       .mapConst(LoginIntent.discoveryOnboarding)
 
+    // These observers only admit commands. The Feature owns and retains the work.
+    self.featureBindings += requestFirstPageWith.observeValues { [weak self] parameters in
+      guard let self, let sort = self.sortProperty.value else { return }
+      self.pageTask = discoveryFeature.requestRefresh(sort: sort, parameters: parameters, force: true)
+    }
+    self.featureBindings += isCloseToBottom.observeValues { [weak self] in
+      guard let self, let sort = self.sortProperty.value else { return }
+      self.pageTask = discoveryFeature.requestNextPage(sort: sort)
+    }
+    self.featureBindings += self.viewDidAppearProperty.signal.observeValues { [weak self] in
+      guard let self, let sort = self.sortProperty.value,
+            AppEnvironment.current.currentUser != nil else { return }
+      self.activityTask = discoveryFeature.requestActivitySample(sort: sort)
+    }
+
     // MARK: - Tracking
 
-    Signal.combineLatest(requestFirstPageWith, self.viewWillAppearProperty.signal)
+    self.featureBindings += Signal.combineLatest(requestFirstPageWith, self.viewWillAppearProperty.signal)
       .observeValues { params, _ in
         AppEnvironment.current.ksrAnalytics.trackDiscovery(params: params)
       }
 
-    paramsChanged
+    self.featureBindings += paramsChanged
       .takePairWhen(self.tappedProject.signal.skipNil())
       .observeValues { params, project in
 
@@ -385,6 +399,8 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
         )
       }
   }
+
+  deinit { self.featureBindings.dispose() }
 
   fileprivate let (configUpdatedSignal, configUpdatedObserver) = Signal<Void, Never>.pipe()
   public func configUpdated() {

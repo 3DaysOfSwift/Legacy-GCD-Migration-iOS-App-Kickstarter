@@ -185,6 +185,10 @@ public protocol ServiceType {
   /// Fetch the full discovery envelope with specified discovery params.
   func fetchDiscovery(params: DiscoveryParams) -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope>
 
+  func discoveryPage(params: DiscoveryParams) async throws -> DiscoveryEnvelope
+  func discoveryPage(paginationURL: String) async throws -> DiscoveryEnvelope
+  func discoveryActivitySample() async throws -> ActivityEnvelope?
+
   /// Fetch friends for a user.
   func fetchFriends() -> SignalProducer<FindFriendsEnvelope, ErrorEnvelope>
 

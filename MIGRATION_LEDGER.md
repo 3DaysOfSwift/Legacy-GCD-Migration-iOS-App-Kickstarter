@@ -4,6 +4,35 @@ Author: Matthew Thomas. Updated 27 October 2026.
 
 ## Latest verified checkpoint
 
+Explore async ownership is now verified: 202 focused Search/Explore tests passed,
+zero failures/skips, followed by a successful app build. Results:
+/private/tmp/kickstarter-discovery-async.vlaCu9. This includes all 55 pre-existing
+Explore logic tests (assertions preserved), 13 new Discovery Feature/transport
+tests, and the Search regression suites. The first Explore integration run passed
+66 tests in /private/tmp/kickstarter-discovery-integration-01.xcresult.
+
+DiscoveryFeature is composed in AppModel and owns independent Magic/Popular/
+Newest/Ending Soon request identities, result/cursor/error state, refresh,
+pagination and activity-sample tasks. The existing Service now exposes native
+URLSession async methods using its existing session/authentication/error decoding;
+the legacy methods remain for unmigrated callers. No second cache or session
+owner was introduced. Equivalent work shares completion; forced refresh replaces
+pending work; stale completions cannot append or stop a newer request.
+
+Agent Simulator smoke on the built demo observed all four feeds, Paper Cities
+detail from Ending Soon, and return to the same selected feed/cards. A drag
+intended as pull-to-refresh opened the card instead, so manual refresh is NOT
+claimed verified. Automated refresh/pagination tests passed. No visual source,
+target identifier, storage format or production analytics configuration changed.
+
+Next integrated boundary: remaining Explore filter/recommendation and lifecycle
+admission policy, including signed-in activity identity; then project routes.
+Retained presentation/navigation/analytics signals are not themselves unfinished
+request executors. Manual full journeys, snapshots, live APIs, complete compiler
+isolation audit and the rest of the app remain open.
+
+### Previous verified Search checkpoint
+
 Search close-out and Explore's unchanged logic baseline passed 189 tests with
 zero failures/skips, followed by a successful app build on iPhone Air / iOS 26.2.
 Results: /private/tmp/kickstarter-query-admission.7z1aJ3. The earlier 188-test run
@@ -20,21 +49,21 @@ do not ask the developer to run routine verification commands.
 
 ## Progress dashboard — 27 October 2026
 
-**Overall: early in the app-wide migration; Search is the first feature in progress.**
-One migrated Feature is currently composed in AppModel: searchFeature.
-No top-level product area has passed every migration exit gate yet. The latest
-verified baseline is 849495b7afbce637b4083b1e88cdf1cd1998d81d: 130 focused tests,
-zero failures/skips and a successful app build. These are Search-focused results,
-not 130 migrated screens or a percentage of the full application.
+**Overall: Search has a verified automated checkpoint; Explore is actively migrating.**
+AppModel now composes searchFeature and discoveryFeature. No top-level product
+area has passed every manual/snapshot/strict-concurrency exit gate. The verified
+pre-Explore baseline is 237d929d8c5c1e714935ccd959048e628e93ea07: 189 focused tests
+and an app build. The connected Explore implementation passed its first 66-test
+integration run; the broader regression run is recorded in the checkpoint below.
+Test counts are coverage evidence, not a percentage of the full application.
 
 | Area / milestone | Evidence-backed status | Remaining exit criteria |
 | --- | --- | --- |
 | Runnable public-demo baseline and evidence capture | Working baseline established | Keep synthetic data distinct from live-service validation |
 | Search request ownership, transport, cancellation and pagination | Implemented; focused tests passed | Final concurrency/compiler audit and broader integration |
 | Search filter policy and category/location lookups | Implemented; focused tests and bounded earlier UI smoke | Repeat relevant UI journeys on final Search build |
-| Search lifecycle, analytics and filter presentation | Implemented; 130-test checkpoint passed | Final integrated tests and UI checks; retain output-only UI compatibility |
-| Search query admission and obsolete API removal | Implementation consolidated; runtime-unverified | One 133-test check including readiness, reset order, duplicate requests and second screen |
-| Explore / discovery | Legacy; entry points inspected, not migrated | Behaviour baseline, ownership, async work, pagination, tests and UI parity |
+| Search lifecycle, analytics, query admission and filters | Consolidated automated checkpoint verified, including GraphQL filter identity regression | Bounded final UI smoke, snapshots and strict-concurrency audit; retain output-only compatibility |
+| Explore / discovery | Connected DiscoveryFeature owns four feed states, native async requests, pagination and activity-sample requests | Combined regression, UI parity, remaining selection/lifecycle policy and final ownership audit |
 | Project details, media, updates/comments and related routes | Legacy; only initial source reconnaissance | Map independent/shared state, preserve destinations, migrate in bounded features |
 | Account/session, Profile, settings and authentication | Legacy; not migrated | One shared session owner, persistence/security contract, authenticated/signed-out tests |
 | Activity, pledged projects and transactional flows | Legacy; not migrated | Shared backing state, ordering/idempotency, cancellation, retry and storage guarantees |
@@ -46,17 +75,15 @@ number of green unit tests is not a work-completion measure.
 
 ### Remaining execution plan
 
-1. **Verify the consolidated Search close-out before migrating another feature.**
-   Explicit query admission and obsolete projection removal are implemented;
-   readiness/reset/duplicate coverage now targets the live ViewModel route.
-   Retain output-only result/banner/UI bridges; do not introduce further cosmetic
-   reactive rewrites as completion prerequisites. Run the focused suite/app build,
-   then manual discovery → typing/clearing → filters/location → paging → detail/
-   return journeys and relevant snapshots. Record unresolved gaps explicitly.
-2. **Explore/discovery next.** Baseline DiscoveryViewModel/DiscoveryPageViewModel,
-   sort/category/personalisation, paginated requests and activity snippets. Reuse
-   proven request/cancellation lessons, not Search's mutable collection or a new
-   generic framework. Add a concrete discovery Feature when the flow is mapped.
+1. **Search automated close-out is verified.** Retain result/banner/UI compatibility
+   adapters; no further cosmetic reactive rewrites are prerequisites. Continue
+   broader UI/snapshot/concurrency checks without confusing these with unfinished
+   Search request ownership.
+2. **Complete Explore/discovery.** Its 55 existing logic tests passed unchanged
+   assertions on the new async Feature route. Four independent feeds, native
+   URLSession transport, refresh/pagination and activity snippets are connected.
+   Finish the integrated regression/UI checks and move remaining filter/lifecycle
+   admission policy into the same Feature before taking on project routes.
 3. **Project routes.** Map project detail fetching, prelaunch, media, rewards,
    creator information, comments and updates. Separate navigation/presentation
    from shared project state. Exact sub-feature boundaries follow that inventory,
@@ -86,10 +113,11 @@ Preserve UI, identifiers and stored data throughout; no redesign is implied.
 
 ### Source evidence for this scope
 
-AppModel currently stores only searchFeature. RootViewModel.generateViewControllers
+AppModel currently stores searchFeature and discoveryFeature. RootViewModel.generateViewControllers
 selects discovery, search and profile, plus signed-in pledged-project/activity or
 signed-out activity when the floating-tab flag is off. DiscoveryPageViewModel
-and ActivitiesViewModel still call reactive paginate and apiService; ProjectPageViewModel
+now forwards page and activity commands to DiscoveryFeature; ActivitiesViewModel
+still calls reactive paginate and apiService; ProjectPageViewModel
 still contains reactive fetching. Profile/account and many additional routes are
 not connected through migrated AppModel Features.
 

@@ -10,11 +10,28 @@ import ReactiveSwift
 import UIKit
 import XCTest
 
+@MainActor
 internal final class DiscoveryPageViewModelTests: TestCase {
   // Logic/output assertions only; visual suites retain their reference-device gate.
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  fileprivate var vm: DiscoveryPageViewModelType = DiscoveryPageViewModel()
+  private let feature = DiscoveryFeature(provider: AsyncDiscoveryProvider(), sleep: { _ in })
+  fileprivate lazy var vm = DiscoveryPageViewModel(discoveryFeature: self.feature)
+
+  private func advanceRequests() async {
+    await self.scheduler.advance()
+    await self.vm.pageTask?.value
+    await self.vm.activityTask?.value
+  }
+
+  override func tearDown() {
+    MainActor.assumeIsolated {
+      for sort in [DiscoveryParams.Sort.magic, .popular, .newest, .endingSoon] {
+        self.feature.cancel(sort: sort)
+      }
+    }
+    super.tearDown()
+  }
 
   fileprivate let activitiesForSample = TestObserver<[Activity], Never>()
   fileprivate let asyncReloadData = TestObserver<(), Never>()
@@ -44,6 +61,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
   internal override func setUp() {
     super.setUp()
 
+    MainActor.assumeIsolated {
     self.vm.outputs.activitiesForSample.observe(self.activitiesForSample.observer)
     self.vm.outputs.asyncReloadData.observe(self.asyncReloadData.observer)
     self.vm.outputs.contentInset.observe(self.contentInset.observer)
@@ -78,14 +96,15 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       .map { prev, next in next < prev }
       .observe(self.hasRemovedProjects.observer)
     self.vm.outputs.projectsAreLoadingAnimated.map { $0.0 }.observe(self.projectsAreLoading.observer)
+    }
   }
 
-  func testPaginating() {
+  func testPaginating() async {
     let params = DiscoveryParams.defaults
       |> \.sort .~ .magic
 
     self.vm.inputs.configureWith(sort: .magic)
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.projectsLoadedDiscoveryParams.assertDidNotEmitValue()
     self.hasAddedProjects.assertDidNotEmitValue("No projects load at first.")
@@ -100,7 +119,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.projectsAreLoading.assertValues([true], "Projects start loading on viewWillAppear")
 
     self.vm.inputs.viewDidAppear()
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.projectsLoadedDiscoveryParams.assertValues([params])
     self.asyncReloadData.assertValueCount(1, "Reload data when projects are first added.")
@@ -122,7 +141,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
     // Scroll down a bit and advance scheduler
     self.vm.inputs.willDisplayRow(2, outOf: 10)
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.hasAddedProjects.assertValues([true], "No projects are added.")
     self.hasRemovedProjects.assertValues([false], "No projects are removed.")
@@ -135,7 +154,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
     // Scroll down to the bottom of the view and advanced scheduler
     self.vm.inputs.willDisplayRow(9, outOf: 10)
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.projectsLoadedDiscoveryParams.assertValues([params, params])
     self.hasAddedProjects.assertValues([true, true], "More projects are added from pagination.")
@@ -152,7 +171,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
     // Make scroll area increase in size, advanced scheduler
     self.vm.inputs.willDisplayRow(9, outOf: 20)
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.projectsLoadedDiscoveryParams.assertValues([params, params])
     self.hasAddedProjects.assertValues([true, true], "No projects are added.")
@@ -175,7 +194,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.hasRemovedProjects.assertValues([false, false, true], "Projects are removed right away.")
 
     // Advance scheduler so that the API request is made
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     let updatedParams = params
       |> DiscoveryParams.lens.category .~ Category.art
@@ -203,7 +222,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.vm.inputs.willDisplayRow(18, outOf: 20)
     self.vm.inputs.willDisplayRow(19, outOf: 20)
     self.vm.inputs.willDisplayRow(20, outOf: 20)
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.projectsLoadedDiscoveryParams
       .assertValues([params, params, updatedParams, updatedParams, updatedParams])
@@ -231,30 +250,30 @@ internal final class DiscoveryPageViewModelTests: TestCase {
   /**
    Tests how changing filters affects loading projects when the view is visible and hidden.
    */
-  func testViewLifecycle() {
+  func testViewLifecycle() async {
     // Configure and load up view model
     self.vm.inputs.configureWith(sort: .magic)
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.viewDidAppear()
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.hasAddedProjects.assertValues([])
 
     // Select initial filter
     self.vm.inputs.selectedFilter(.defaults)
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.hasAddedProjects.assertValues([true], "Projects load after the filter is changed.")
 
     // Navigate away from page
     self.vm.inputs.viewDidDisappear(animated: true)
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.hasAddedProjects.assertValues([true], "Nothing changes when navigating away from view.")
 
     // Change filter
     self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.staffPicks .~ true)
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.hasAddedProjects.assertValues(
       [true, false],
@@ -263,7 +282,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
     // Change filter again
     self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.starred .~ true)
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.hasAddedProjects.assertValues(
       [true, false],
@@ -272,7 +291,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
     // Come back to page
     self.vm.inputs.viewDidAppear()
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.hasAddedProjects.assertValues(
       [true, false, true], "Projects load once the view appears again."
@@ -281,7 +300,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     // Navigate away and back
     self.vm.inputs.viewDidDisappear(animated: true)
     self.vm.inputs.viewDidAppear()
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.hasAddedProjects.assertValues(
       [true, false, true],
@@ -289,49 +308,49 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     )
   }
 
-  func testProjectsLoaded_Success() {
+  func testProjectsLoaded_Success() async {
     let params = DiscoveryParams.defaults
       |> \.sort .~ .magic
 
     self.vm.inputs.configureWith(sort: .magic)
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.viewDidAppear()
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.hasAddedProjects.assertValues([])
     self.projectsLoadedDiscoveryParams.assertValues([])
 
     self.vm.inputs.selectedFilter(.defaults)
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.hasAddedProjects.assertValues([true], "Projects load after the filter is changed.")
     self.projectsLoadedDiscoveryParams.assertValues([params])
   }
 
-  func testContentInset_Success() {
+  func testContentInset_Success() async {
     self.vm.inputs.configureWith(sort: .magic)
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.viewDidAppear()
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.contentInset.assertValues([UIEdgeInsets.zero])
   }
 
-  func testGoToProject() {
+  func testGoToProject() async {
     let project = Project.template
     let discoveryEnvelope = .template
       |> DiscoveryEnvelope.lens.projects .~ (
         (0...2).map { id in .template |> Project.lens.id .~ (100 + id) }
       )
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(fetchDiscoveryResponse: discoveryEnvelope)
     ) {
       self.vm.inputs.configureWith(sort: .magic)
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.viewDidAppear()
       self.vm.inputs.selectedFilter(.defaults)
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.vm.inputs.tapped(project: project)
 
@@ -441,7 +460,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testGoToProjectUpdate() {
+  func testGoToProjectUpdate() async {
     let update = Update.template
 
     let activity = .template
@@ -453,7 +472,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.goToProjectUpdate.assertValues([update])
   }
 
-  func testShowActivitySample() {
+  func testShowActivitySample() async {
     let activity1 = .template
       |> Activity.lens.id .~ 111
 
@@ -462,11 +481,11 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
 
-    withEnvironment(apiService: MockService(fetchActivitiesResponse: [activity1])) {
+    await withEnvironment(apiService: MockService(fetchActivitiesResponse: [activity1])) {
       self.vm.inputs.configureWith(sort: .magic)
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.viewDidAppear()
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.activitiesForSample.assertValues([[activity1]], "Activity sample is shown.")
 
@@ -489,10 +508,10 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
       self.activitiesForSample.assertValues([[activity1], []], "Activity sample is still hidden.")
 
-      withEnvironment(apiService: MockService(fetchActivitiesResponse: [activity2])) {
+      await withEnvironment(apiService: MockService(fetchActivitiesResponse: [activity2])) {
         self.vm.inputs.viewWillAppear()
         self.vm.inputs.viewDidAppear()
-        self.scheduler.advance()
+        await self.advanceRequests()
 
         self.activitiesForSample.assertValues(
           [[activity1], [], [activity2]],
@@ -502,17 +521,17 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testActivitySampleWithLifecycle() {
+  func testActivitySampleWithLifecycle() async {
     let activity = Activity.template
 
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
 
-    withEnvironment(apiService: MockService(fetchActivitiesResponse: [activity])) {
+    await withEnvironment(apiService: MockService(fetchActivitiesResponse: [activity])) {
       self.vm.inputs.configureWith(sort: .magic)
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.viewDidAppear()
       self.vm.inputs.selectedFilter(.defaults)
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.activitiesForSample.assertValues([[activity]], "Activity sample is shown.")
 
@@ -546,17 +565,17 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testClearActivitiesWhenLoggedOut() {
+  func testClearActivitiesWhenLoggedOut() async {
     let activity = .template
       |> Activity.lens.id .~ 111
 
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
 
-    withEnvironment(apiService: MockService(fetchActivitiesResponse: [activity])) {
+    await withEnvironment(apiService: MockService(fetchActivitiesResponse: [activity])) {
       self.vm.inputs.configureWith(sort: .magic)
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.viewDidAppear()
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.activitiesForSample.assertValues([[activity]], "Activity sample is shown.")
     }
@@ -573,7 +592,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     )
   }
 
-  func testRefreshProjects_ModalLogin() {
+  func testRefreshProjects_ModalLogin() async {
     let projectEnv = .template
       |> DiscoveryEnvelope.lens.projects .~ (1...7).map { .template |> Project.lens.id .~ $0 }
 
@@ -582,20 +601,20 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.vm.inputs.viewDidAppear()
     self.vm.inputs.selectedFilter(.defaults)
 
-    self.scheduler.advance()
+    await self.advanceRequests()
     self.hasAddedProjects.assertValues([true], "Projects added for logged out user.")
 
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
+    await withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "cafebeef", user: User.template))
       self.vm.inputs.userSessionStarted()
       self.hasAddedProjects.assertValues([true], "Previous projects not cleared.")
 
-      self.scheduler.advance()
+      await self.advanceRequests()
       self.hasAddedProjects.assertValues([true, true], "New projects added for logged in user.")
     }
   }
 
-  func testRefreshProjects_TabLogin() {
+  func testRefreshProjects_TabLogin() async {
     let projectEnv = .template
       |> DiscoveryEnvelope.lens.projects .~ (1...7).map { .template |> Project.lens.id .~ $0 }
 
@@ -604,20 +623,20 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.vm.inputs.viewDidAppear()
     self.vm.inputs.selectedFilter(.defaults)
 
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.hasAddedProjects.assertValues([true], "Projects added for logged out user.")
 
     self.vm.inputs.viewDidDisappear(animated: false)
 
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
+    await withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "cafebeef", user: User.template))
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.viewDidAppear()
       self.vm.inputs.userSessionStarted()
       self.hasAddedProjects.assertValues([true], "Previous projects not cleared.")
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.hasAddedProjects.assertValues([true, true], "New projects added for logged in user.")
     }
@@ -625,7 +644,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
   // MARK: - Onboarding
 
-  func testShowOnboarding_LoggedOutOnMagic() {
+  func testShowOnboarding_LoggedOutOnMagic() async {
     self.vm.inputs.configureWith(sort: .magic)
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.viewDidAppear()
@@ -634,7 +653,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.showOnboarding.assertValues([true])
   }
 
-  func testShowOnboarding_LoggedOutOnNonMagic() {
+  func testShowOnboarding_LoggedOutOnNonMagic() async {
     self.vm.inputs.configureWith(sort: .popular)
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.viewDidAppear()
@@ -643,8 +662,8 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.showOnboarding.assertValues([false])
   }
 
-  func testShowOnboarding_LoggedIn() {
-    withEnvironment(currentUser: .template) {
+  func testShowOnboarding_LoggedIn() async {
+    await withEnvironment(currentUser: .template) {
       self.vm.inputs.configureWith(sort: .magic)
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.viewDidAppear()
@@ -654,7 +673,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testShowOnboarding_LoggedOut_OnMagic_HasTagId() {
+  func testShowOnboarding_LoggedOut_OnMagic_HasTagId() async {
     self.vm.inputs.configureWith(sort: .magic)
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.viewDidAppear()
@@ -668,7 +687,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
   // MARK: - Scroll to top
 
-  func testScrollsToTop() {
+  func testScrollsToTop() async {
     self.vm.inputs.configureWith(sort: .magic)
 
     self.setScrollsToTop.assertValueCount(0)
@@ -682,7 +701,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.setScrollsToTop.assertValues([true, false])
   }
 
-  func testEmptyStates() {
+  func testEmptyStates() async {
     let projectEnv = .template
       |> DiscoveryEnvelope.lens.projects .~ [Project]()
 
@@ -692,14 +711,14 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.vm.inputs.configureWith(sort: .magic)
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.viewDidAppear()
-    self.scheduler.advance()
+    await self.advanceRequests()
 
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
+    await withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
       self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.starred .~ true)
 
       self.showEmptyState.assertValueCount(0)
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.showEmptyState.assertValues([.starred])
       self.hideEmptyState.assertValueCount(1)
@@ -709,29 +728,29 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
       self.hideEmptyState.assertValueCount(2)
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.showEmptyState.assertValues([.starred, .recommended])
 
       // switch to non-empty state
-      withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnvWithProjects)) {
+      await withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnvWithProjects)) {
         self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.social .~ true)
 
         self.hideEmptyState.assertValueCount(3)
 
-        self.scheduler.advance()
+        await self.advanceRequests()
 
         self.showEmptyState.assertValues(
           [.starred, .recommended], "Show empty state does not emit."
         )
 
         // switch back to empty state
-        withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
+        await withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
           self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.social .~ false)
 
           self.hideEmptyState.assertValueCount(6)
 
-          self.scheduler.advance()
+          await self.advanceRequests()
 
           self.showEmptyState.assertValues([.starred, .recommended])
 
@@ -739,7 +758,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
           self.hideEmptyState.assertValueCount(7)
 
-          self.scheduler.advance()
+          await self.advanceRequests()
 
           self.showEmptyState.assertValues([.starred, .recommended, .socialDisabled])
         }
@@ -747,7 +766,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testEmptyStates_Social() {
+  func testEmptyStates_Social() async {
     let projectEnv = .template
       |> DiscoveryEnvelope.lens.projects .~ [Project]()
 
@@ -757,28 +776,28 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.vm.inputs.configureWith(sort: .magic)
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.viewDidAppear()
-    self.scheduler.advance()
+    await self.advanceRequests()
 
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
+    await withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
 
       self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.social .~ true)
 
       self.showEmptyState.assertValueCount(0)
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.showEmptyState.assertValues([.socialDisabled], "Emits .socialDisabled for nil social.")
       self.hideEmptyState.assertValueCount(1)
 
-      withEnvironment(currentUser: antisocialUser) {
+      await withEnvironment(currentUser: antisocialUser) {
         self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.recommended .~ true)
-        self.scheduler.advance()
+        await self.advanceRequests()
 
         self.hideEmptyState.assertValueCount(2)
 
         self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.social .~ true)
-        self.scheduler.advance()
+        await self.advanceRequests()
 
         self.showEmptyState.assertValues(
           [.socialDisabled, .recommended, .socialDisabled],
@@ -789,10 +808,10 @@ internal final class DiscoveryPageViewModelTests: TestCase {
         self.vm.inputs.viewDidDisappear(animated: true)
 
         // User enables social on the pushed Friends screen, then navigates back.
-        withEnvironment(currentUser: socialUser) {
+        await withEnvironment(currentUser: socialUser) {
           self.vm.inputs.viewWillAppear()
           self.vm.inputs.viewDidAppear()
-          self.scheduler.advance()
+          await self.advanceRequests()
 
           self.showEmptyState.assertValues(
             [.socialDisabled, .recommended, .socialDisabled, .socialNoPledges],
@@ -804,12 +823,12 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testProjectsLoad_IfPulledToRefresh() {
+  func testProjectsLoad_IfPulledToRefresh() async {
     let playlist = (0...10).map { idx in .template |> Project.lens.id .~ (idx + 42) }
     let projectEnv = .template
       |> DiscoveryEnvelope.lens.projects .~ playlist
 
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
+    await withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
       self.vm.inputs.configureWith(sort: .magic)
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.viewDidAppear()
@@ -817,37 +836,37 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
       self.projectsAreLoading.assertValueCount(1)
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.projectsAreLoading.assertValueCount(2)
 
       self.vm.inputs.pulledToRefresh()
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.projectsAreLoading.assertValueCount(6)
     }
   }
 
-  func testProjectsDontLoad_IfPulledToRefreshWithError() {
-    withEnvironment(apiService: MockService(fetchDiscoveryError: .couldNotParseErrorEnvelopeJSON)) {
+  func testProjectsDontLoad_IfPulledToRefreshWithError() async {
+    await withEnvironment(apiService: MockService(fetchDiscoveryError: .couldNotParseErrorEnvelopeJSON)) {
       self.vm.inputs.configureWith(sort: .magic)
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.selectedFilter(.defaults)
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.projectsAreLoading.assertValueCount(1)
 
       self.vm.inputs.pulledToRefresh()
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.projectsAreLoading.assertValueCount(1)
     }
   }
 
-  func testProjectAreLoadingAnimated() {
+  func testProjectAreLoadingAnimated() async {
     let playlist = (0...10).map { idx in .template |> Project.lens.id .~ (idx + 42) }
     let projectEnv = .template
       |> DiscoveryEnvelope.lens.projects .~ playlist
@@ -856,7 +875,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     let projectEnv2 = .template
       |> DiscoveryEnvelope.lens.projects .~ playlist2
 
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
+    await withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
       self.vm.inputs.configureWith(sort: .magic)
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.viewDidAppear()
@@ -871,7 +890,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
         "Shouldn't animate on first load."
       )
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       XCTAssertEqual(
         false, self.projectsAreLoadingAnimated.values.last?.0,
@@ -882,8 +901,8 @@ internal final class DiscoveryPageViewModelTests: TestCase {
         "Shouldn't animate on first load."
       )
 
-      withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv2)) {
-        self.scheduler.advance()
+      await withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv2)) {
+        await self.advanceRequests()
 
         self.vm.inputs.pulledToRefresh()
 
@@ -896,7 +915,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
           "Should animate if projects are loading after pulling to refresh."
         )
 
-        self.scheduler.advance()
+        await self.advanceRequests()
 
         XCTAssertEqual(
           false, self.projectsAreLoadingAnimated.values.last?.0,
@@ -910,7 +929,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testNotifyDelegateContentOffsetChanged() {
+  func testNotifyDelegateContentOffsetChanged() async {
     self.notifyDelegateContentOffsetChanged.assertDidNotEmitValue()
 
     let discoveryEnvelope = .template
@@ -918,7 +937,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
         (0...2).map { id in .template |> Project.lens.id .~ (100 + id) }
       )
 
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: discoveryEnvelope)) {
+    await withEnvironment(apiService: MockService(fetchDiscoveryResponse: discoveryEnvelope)) {
       self.vm.inputs.configureWith(sort: .magic)
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.viewDidAppear()
@@ -931,7 +950,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
         "Does not emit while projects are loading"
       )
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.notifyDelegateContentOffsetChanged.assertValues([.init(x: 0, y: 100)])
 
@@ -946,7 +965,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
   // MARK: Personalization Section
 
-  func testShowPersonalization_LoggedOut() {
+  func testShowPersonalization_LoggedOut() async {
     let mockKeyValueStore = MockKeyValueStore()
       |> \.hasCompletedCategoryPersonalizationFlow .~ true
       |> \.hasDismissedPersonalizationCard .~ false
@@ -954,7 +973,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     let defaultFilter = DiscoveryParams.defaults
       |> DiscoveryParams.lens.includePOTD .~ true
 
-    withEnvironment(
+    await withEnvironment(
       currentUser: nil,
       userDefaults: mockKeyValueStore
     ) {
@@ -969,14 +988,14 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testShowPersonalization_LoggedIn() {
+  func testShowPersonalization_LoggedIn() async {
     let mockKeyValueStore = MockKeyValueStore()
       |> \.hasCompletedCategoryPersonalizationFlow .~ true
       |> \.hasDismissedPersonalizationCard .~ false
 
     let defaultFilter = DiscoveryParams.recommendedDefaults
 
-    withEnvironment(
+    await withEnvironment(
       currentUser: User.template,
       userDefaults: mockKeyValueStore
     ) {
@@ -993,14 +1012,14 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testShowPersonalization() {
+  func testShowPersonalization() async {
     let mockKeyValueStore = MockKeyValueStore()
       |> \.hasCompletedCategoryPersonalizationFlow .~ true
       |> \.hasDismissedPersonalizationCard .~ false
 
     let defaultFilter = DiscoveryParams.recommendedDefaults
 
-    withEnvironment(
+    await withEnvironment(
       currentUser: User.template,
       userDefaults: mockKeyValueStore
     ) {
@@ -1013,14 +1032,14 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testShowPersonalization_When_HasCompletedCategorySelection_IsFalse() {
+  func testShowPersonalization_When_HasCompletedCategorySelection_IsFalse() async {
     let mockKeyValueStore = MockKeyValueStore()
       |> \.hasCompletedCategoryPersonalizationFlow .~ false
       |> \.hasDismissedPersonalizationCard .~ false
 
     let defaultFilter = DiscoveryParams.recommendedDefaults
 
-    withEnvironment(
+    await withEnvironment(
       currentUser: User.template,
       userDefaults: mockKeyValueStore
     ) {
@@ -1033,14 +1052,14 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testShowPersonalization_When_HasDismissedPersonalizationCell_IsTrue() {
+  func testShowPersonalization_When_HasDismissedPersonalizationCell_IsTrue() async {
     let mockKeyValueStore = MockKeyValueStore()
       |> \.hasCompletedCategoryPersonalizationFlow .~ true
       |> \.hasDismissedPersonalizationCard .~ true
 
     let defaultFilter = DiscoveryParams.recommendedDefaults
 
-    withEnvironment(
+    await withEnvironment(
       currentUser: User.template,
       userDefaults: mockKeyValueStore
     ) {
@@ -1053,14 +1072,14 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testDismissPersonalizationCell() {
+  func testDismissPersonalizationCell() async {
     let mockKeyValueStore = MockKeyValueStore()
       |> \.hasCompletedCategoryPersonalizationFlow .~ true
       |> \.hasDismissedPersonalizationCard .~ false
 
     let defaultFilter = DiscoveryParams.recommendedDefaults
 
-    withEnvironment(
+    await withEnvironment(
       currentUser: User.template,
       userDefaults: mockKeyValueStore
     ) {
@@ -1079,7 +1098,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testGoToCuratedProjects() {
+  func testGoToCuratedProjects() async {
     let mockKeyValueStore = MockKeyValueStore()
       |> \.hasCompletedCategoryPersonalizationFlow .~ true
       |> \.hasDismissedPersonalizationCard .~ false
@@ -1089,7 +1108,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
     let defaultFilter = DiscoveryParams.recommendedDefaults
 
-    withEnvironment(
+    await withEnvironment(
       currentUser: User.template,
       userDefaults: mockKeyValueStore
     ) {
@@ -1118,7 +1137,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testShowPersonalization_WhenOnboardingCompleted() {
+  func testShowPersonalization_WhenOnboardingCompleted() async {
     let mockKeyValueStore = MockKeyValueStore()
       |> \.hasCompletedCategoryPersonalizationFlow .~ false // Hasn't completed personalization flow yet
       |> \.hasDismissedPersonalizationCard .~ false
@@ -1126,7 +1145,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     let defaultFilter = DiscoveryParams.defaults
       |> DiscoveryParams.lens.includePOTD .~ true
 
-    withEnvironment(
+    await withEnvironment(
       currentUser: nil,
       userDefaults: mockKeyValueStore
     ) {
@@ -1145,7 +1164,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testDiscoverySort_Magic() {
+  func testDiscoverySort_Magic() async {
     self.vm.inputs.configureWith(sort: .magic)
     self.vm.inputs.selectedFilter(.recommendedDefaults)
     self.vm.inputs.viewWillAppear()
@@ -1156,7 +1175,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     XCTAssertEqual("magic", segmentClientProps?["discover_sort"] as? String)
   }
 
-  func testDiscoverySort_Popular() {
+  func testDiscoverySort_Popular() async {
     self.vm.inputs.configureWith(sort: .popular)
     self.vm.inputs.selectedFilter(.recommendedDefaults)
     self.vm.inputs.viewWillAppear()
@@ -1167,7 +1186,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     XCTAssertEqual("popular", segmentClientProps?["discover_sort"] as? String)
   }
 
-  func testDiscoverySort_Newest() {
+  func testDiscoverySort_Newest() async {
     self.vm.inputs.configureWith(sort: .newest)
     self.vm.inputs.selectedFilter(.recommendedDefaults)
     self.vm.inputs.viewWillAppear()
@@ -1178,7 +1197,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     XCTAssertEqual("newest", segmentClientProps?["discover_sort"] as? String)
   }
 
-  func testDiscoverySort_EndingSoon() {
+  func testDiscoverySort_EndingSoon() async {
     self.vm.inputs.configureWith(sort: .endingSoon)
     self.vm.inputs.selectedFilter(.recommendedDefaults)
     self.vm.inputs.viewWillAppear()
@@ -1189,12 +1208,12 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     XCTAssertEqual("ending_soon", segmentClientProps?["discover_sort"] as? String)
   }
 
-  func testBlockedUserNotification_RefreshesProjects() {
+  func testBlockedUserNotification_RefreshesProjects() async {
     let playlist = (0...10).map { idx in .template |> Project.lens.id .~ (idx + 42) }
     let projectEnv = .template
       |> DiscoveryEnvelope.lens.projects .~ playlist
 
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
+    await withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
       self.vm.inputs.configureWith(sort: .magic)
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.viewDidAppear()
@@ -1202,23 +1221,23 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
       self.projectsAreLoading.assertValueCount(1)
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.projectsAreLoading.assertValueCount(2)
 
       self.vm.inputs.blockedUser()
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.projectsAreLoading.assertValueCount(4)
     }
   }
 
-  func testShowVideoFeedBanner_featureEnabled_showsOnViewWillAppear() {
+  func testShowVideoFeedBanner_featureEnabled_showsOnViewWillAppear() async {
     let mockStatsig = MockStatsigWrapper()
     mockStatsig.features = [.videoFeed: true]
 
-    withEnvironment(statsigClient: mockStatsig) {
+    await withEnvironment(statsigClient: mockStatsig) {
       self.showVideoFeedBanner.assertDidNotEmitValue()
 
       self.vm.inputs.viewWillAppear()
@@ -1227,22 +1246,22 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testShowVideoFeedBanner_featureDisabled_hiddenOnViewWillAppear() {
+  func testShowVideoFeedBanner_featureDisabled_hiddenOnViewWillAppear() async {
     let mockStatsig = MockStatsigWrapper()
     mockStatsig.features = [.videoFeed: false]
 
-    withEnvironment(statsigClient: mockStatsig) {
+    await withEnvironment(statsigClient: mockStatsig) {
       self.vm.inputs.viewWillAppear()
 
       self.showVideoFeedBanner.assertLastValue(false, "Banner hidden when feature flag is off.")
     }
   }
 
-  func testShowVideoFeedBanner_featureEnabled_showsOnConfigUpdated() {
+  func testShowVideoFeedBanner_featureEnabled_showsOnConfigUpdated() async {
     let mockStatsig = MockStatsigWrapper()
     mockStatsig.features = [.videoFeed: true]
 
-    withEnvironment(statsigClient: mockStatsig) {
+    await withEnvironment(statsigClient: mockStatsig) {
       self.showVideoFeedBanner.assertDidNotEmitValue()
 
       self.vm.inputs.configUpdated()
@@ -1254,11 +1273,11 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testShowVideoFeedBanner_skipRepeats() {
+  func testShowVideoFeedBanner_skipRepeats() async {
     let mockStatsig = MockStatsigWrapper()
     mockStatsig.features = [.videoFeed: true]
 
-    withEnvironment(statsigClient: mockStatsig) {
+    await withEnvironment(statsigClient: mockStatsig) {
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.viewWillAppear()

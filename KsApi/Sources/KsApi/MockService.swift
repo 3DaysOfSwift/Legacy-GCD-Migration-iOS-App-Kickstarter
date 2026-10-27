@@ -1168,6 +1168,39 @@
       }
     }
 
+    internal func discoveryPage(params: DiscoveryParams) async throws -> DiscoveryEnvelope {
+      try Task.checkCancellation()
+      if let demoCatalog { return try demoCatalog.discovery(params) }
+      if let error = self.fetchDiscoveryError { throw error }
+      return self.fetchDiscoveryResponse ?? (
+        .template |> DiscoveryEnvelope.lens.projects .~ (1...4).map { index in
+          .template |> Project.lens.id .~ (index + params.hashValue)
+        }
+      )
+    }
+
+    internal func discoveryPage(paginationURL: String) async throws -> DiscoveryEnvelope {
+      try Task.checkCancellation()
+      if let demoCatalog { return try demoCatalog.discovery(paginationURL: paginationURL) }
+      if let error = self.fetchDiscoveryError { throw error }
+      return self.fetchDiscoveryResponse ?? (
+        .template
+          |> DiscoveryEnvelope.lens.projects .~ (1...4).map { index in
+            .template |> Project.lens.id .~ (index + paginationURL.hashValue)
+          }
+          |> DiscoveryEnvelope.lens.urls.api.moreProjects .~ (paginationURL + "+1")
+      )
+    }
+
+    internal func discoveryActivitySample() async throws -> ActivityEnvelope? {
+      try Task.checkCancellation()
+      if let error = self.fetchActivitiesError { throw error }
+      guard let activities = self.fetchActivitiesResponse else { return nil }
+      return ActivityEnvelope(activities: activities, urls: .init(api: .init(
+        moreActivities: "http://\(Secrets.Api.Endpoint.production)/gimme/more"
+      )))
+    }
+
     internal func fetchDiscovery(paginationUrl: String)
       -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope> {
       if let demoCatalog { return demoResponse { try demoCatalog.discovery(paginationURL: paginationUrl) } }
