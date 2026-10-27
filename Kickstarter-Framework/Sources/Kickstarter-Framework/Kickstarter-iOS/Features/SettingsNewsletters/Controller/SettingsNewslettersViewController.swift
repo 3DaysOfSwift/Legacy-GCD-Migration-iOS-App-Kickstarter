@@ -48,7 +48,6 @@ internal final class SettingsNewslettersViewController: UIViewController {
     self.viewModel.outputs.currentUser
       .observeForUI()
       .observeValues { [weak self] user in
-        AppEnvironment.updateCurrentUser(user)
         self?.dataSource.load(newsletters: Newsletter.allCases, user: user)
         self?.tableView.reloadData()
       }

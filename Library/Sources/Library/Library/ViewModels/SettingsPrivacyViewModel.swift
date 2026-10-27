@@ -4,6 +4,7 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol SettingsPrivacyViewModelInputs {
   func didCancelSocialOptOut()
   func didConfirmSocialOptOut()
@@ -12,6 +13,7 @@ public protocol SettingsPrivacyViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol SettingsPrivacyViewModelOutputs {
   var focusScreenReaderOnFollowingCell: Signal<Void, Never> { get }
   var reloadData: Signal<User, Never> { get }
@@ -20,20 +22,20 @@ public protocol SettingsPrivacyViewModelOutputs {
   var updateCurrentUser: Signal<User, Never> { get }
 }
 
+@MainActor
 public protocol SettingsPrivacyViewModelType {
   var inputs: SettingsPrivacyViewModelInputs { get }
   var outputs: SettingsPrivacyViewModelOutputs { get }
 }
 
+@MainActor
 public final class SettingsPrivacyViewModel: SettingsPrivacyViewModelType,
   SettingsPrivacyViewModelInputs, SettingsPrivacyViewModelOutputs {
-  public init() {
+  public init(feature: SettingsFeature? = nil) {
+    let feature = feature ?? AppModel.shared.settingsFeature
     let initialUser = self.viewDidLoadProperty.signal
       .flatMap { _ in
-        AppEnvironment.current.apiService.fetchUserSelf()
-          .wrapInOptional()
-          .prefix(value: AppEnvironment.current.currentUser)
-          .demoteErrors()
+        feature.userResult().wrapInOptional().demoteErrors()
       }
       .skipNil()
 
@@ -58,9 +60,15 @@ public final class SettingsPrivacyViewModel: SettingsPrivacyViewModelType,
         }
       }
 
-    let updateEvent = Signal.merge(updatedUser, self.updateUserProperty.signal.skipNil())
-      .switchMap {
-        AppEnvironment.current.apiService.updateUserSelf($0)
+    let edits = Signal.merge(
+      initialUser.takePairWhen(userAttributeChanged)
+        .map { user, edit in (user, [SettingsFeature.Change(edit.0, edit.1)]) },
+      self.updateUserProperty.signal.skipNil()
+        .map { ($0, [SettingsFeature.Change(.privacy(.following), $0.social)]) }
+    )
+    let updateEvent = edits
+      .switchMap { user, changes in
+        feature.saveResult(changes, from: user)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
       }

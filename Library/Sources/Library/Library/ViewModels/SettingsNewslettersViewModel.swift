@@ -2,29 +2,31 @@ import KsApi
 import Prelude
 import ReactiveSwift
 
+@MainActor
 public protocol SettingsNewslettersViewModelInputs {
   func didUpdate(user: User)
   func viewDidLoad()
 }
 
+@MainActor
 public protocol SettingsNewslettersViewModelOutputs {
   var currentUser: Signal<User, Never> { get }
 }
 
+@MainActor
 public protocol SettingsNewslettersViewModelType {
   var inputs: SettingsNewslettersViewModelInputs { get }
   var outputs: SettingsNewslettersViewModelOutputs { get }
 }
 
+@MainActor
 public final class SettingsNewslettersViewModel: SettingsNewslettersViewModelType,
   SettingsNewslettersViewModelInputs, SettingsNewslettersViewModelOutputs {
-  public init() {
+  public init(feature: SettingsFeature? = nil) {
+    let feature = feature ?? AppModel.shared.settingsFeature
     let initialUser = self.viewDidLoadProperty.signal
       .flatMap {
-        AppEnvironment.current.apiService.fetchUserSelf()
-          .wrapInOptional()
-          .prefix(value: AppEnvironment.current.currentUser)
-          .demoteErrors()
+        feature.userResult().wrapInOptional().demoteErrors()
       }
       .skipNil()
       .skipRepeats()

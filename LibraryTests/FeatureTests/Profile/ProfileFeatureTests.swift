@@ -13,6 +13,38 @@ private typealias User = KsApi.User
 @MainActor
 final class ProfileFeatureTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
+
+  func testPreferenceSaveInvalidatesHeaderAlreadyWaitingInPresentationDelay() async throws {
+    let provider = ControlledHeaderProvider()
+    let delay = AccountRequestGate<Void>()
+    defer { provider.users.releaseAll(); provider.graphs.releaseAll(); delay.releaseAll() }
+    var commits = 0
+    let session = SessionFeature(
+      makeProvider: { provider },
+      currentUser: { .template },
+      updateUser: { _ in commits += 1 }
+    )
+    let feature = ProfileFeature(
+      sessionFeature: session,
+      makeProvider: { ControlledProfileProvider() },
+      sleep: { _ in try await delay.request() }
+    )
+    var combined = 0
+    feature.combinedUserValues.observeValues { _ in combined += 1 }
+    let request = feature.requestHeader()
+    await provider.users.waitFor(1)
+    await provider.graphs.waitFor(1)
+    try provider.users.finish(0, .success(.template))
+    try provider.graphs.finish(0, .success(.template))
+    await delay.waitFor(2)
+    session.invalidateReads()
+    try delay.finish(0, .success(()))
+    try delay.finish(1, .success(()))
+    await request.value
+    XCTAssertEqual(commits, 0)
+    XCTAssertEqual(combined, 0)
+  }
+
   private func projects(_ count: Int) -> [ProjectCardProperties] {
     let mock = GraphAPI.ProjectCardFragment.mockProjectsConnectionQuery(numberOfProjects: count)
     let data = GraphAPI.FetchMyBackedProjectsQuery.Data.from(mock)

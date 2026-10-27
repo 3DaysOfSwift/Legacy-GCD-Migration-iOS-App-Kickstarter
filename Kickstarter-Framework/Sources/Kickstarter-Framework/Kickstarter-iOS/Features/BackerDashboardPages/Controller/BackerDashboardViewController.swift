@@ -182,8 +182,7 @@ internal final class BackerDashboardViewController: UIViewController {
 
     self.viewModel.outputs.updateCurrentUserInEnvironment
       .observeForUI()
-      .observeValues { [weak self] user in
-        AppEnvironment.updateCurrentUser(user)
+      .observeValues { [weak self] _ in
         self?.viewModel.inputs.currentUserUpdatedInEnvironment()
       }
   }

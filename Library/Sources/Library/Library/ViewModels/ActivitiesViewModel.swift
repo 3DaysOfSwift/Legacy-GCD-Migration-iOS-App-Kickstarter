@@ -263,6 +263,7 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
     guard sessionFeature.currentUser != nil else { return }
     let userID = sessionFeature.currentUser?.id
     let generation = sessionFeature.generation
+    let readGeneration = sessionFeature.readGeneration
     let projection = operation == .clearActivity ? self.badgeProjection : self.userProjection
     if projection?.userID == userID, projection?.generation == generation { return }
     let token = UUID()
@@ -278,8 +279,14 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
         }
       }
       do {
-        let user = try await request.value
-        guard sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+        var user = try await request.value
+        guard sessionFeature.isCurrent(userID: userID, generation: generation),
+              operation == .clearActivity || sessionFeature.readGeneration == readGeneration else { return }
+        if operation == .clearActivity, var current = sessionFeature.currentUser {
+          current.unseenActivityCount = user.unseenActivityCount
+          user = current
+        }
+        sessionFeature.commitUser(user, userID: userID, generation: generation)
         self?.userPipe.input.send(value: user)
       } catch {
         // Legacy presentation intentionally has no user-refresh error output.

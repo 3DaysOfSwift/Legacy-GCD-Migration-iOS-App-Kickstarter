@@ -2,6 +2,7 @@ import KsApi
 import Prelude
 import ReactiveSwift
 
+@MainActor
 public protocol SettingsNewslettersCellViewModelInputs {
   func allNewslettersSwitchTapped(on: Bool)
   func configureWith(value: User)
@@ -9,6 +10,7 @@ public protocol SettingsNewslettersCellViewModelInputs {
   func newslettersSwitchTapped(on: Bool)
 }
 
+@MainActor
 public protocol SettingsNewslettersCellViewModelOutputs {
   var showOptInPrompt: Signal<String, Never> { get }
   var subscribeToAllSwitchIsOn: Signal<Bool?, Never> { get }
@@ -17,14 +19,17 @@ public protocol SettingsNewslettersCellViewModelOutputs {
   var updateCurrentUser: Signal<User, Never> { get }
 }
 
+@MainActor
 public protocol SettingsNewslettersCellViewModelType {
   var inputs: SettingsNewslettersCellViewModelInputs { get }
   var outputs: SettingsNewslettersCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class SettingsNewsletterCellViewModel: SettingsNewslettersCellViewModelType,
   SettingsNewslettersCellViewModelInputs, SettingsNewslettersCellViewModelOutputs {
-  public init() {
+  public init(feature: SettingsFeature? = nil) {
+    let feature = feature ?? AppModel.shared.settingsFeature
     let newsletter = self.newsletterProperty.signal.skipNil()
 
     let initialUser = self.initialUserProperty.signal.skipNil()
@@ -43,24 +48,15 @@ public final class SettingsNewsletterCellViewModel: SettingsNewslettersCellViewM
         (UserAttribute.newsletter(newsletter), isOn)
       }
 
-    let updatedUser = initialUser
-      .switchMap { user in
-        userAttributeChanged.scan(user) { user, attributeAndOn in
-          let (attribute, on) = attributeAndOn
-          return user |> attribute.keyPath .~ on
-        }
-      }
-
-    let updateUserAllOn = initialUser
-      .takePairWhen(self.allNewslettersSwitchProperty.signal.skipNil())
-      .map { user, on in
-        user
-          |> \.newsletters .~ User.NewsletterSubscriptions.all(on: on)
-      }
-
-    let updateEvent = Signal.merge(updatedUser, updateUserAllOn)
-      .switchMap { user in
-        AppEnvironment.current.apiService.updateUserSelf(user)
+    let edits = Signal.merge(
+      initialUser.takePairWhen(userAttributeChanged)
+        .map { user, edit in (user, [SettingsFeature.Change(edit.0, edit.1)]) },
+      initialUser.takePairWhen(self.allNewslettersSwitchProperty.signal.skipNil())
+        .map { user, on in (user, SettingsFeature.Change.allNewsletters(on)) }
+    )
+    let updateEvent = edits
+      .switchMap { user, changes in
+        feature.saveResult(changes, from: user)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
       }
@@ -70,16 +66,7 @@ public final class SettingsNewsletterCellViewModel: SettingsNewslettersCellViewM
         env.errorMessages.first ?? Strings.profile_settings_error()
       }
 
-    let initialUserOnError = initialUser
-      .takeWhen(self.unableToSaveError)
-
-    self.updateCurrentUser = Signal.merge(
-      initialUser,
-      updatedUser,
-      updateUserAllOn,
-      initialUserOnError
-    )
-    .takeWhen(updateEvent.values().ignoreValues())
+    self.updateCurrentUser = updateEvent.values()
 
     self.subscribeToAllSwitchIsOn = initialUser
       .map(userIsSubscribedToAll(user:))

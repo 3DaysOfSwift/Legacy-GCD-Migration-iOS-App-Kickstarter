@@ -180,8 +180,7 @@ internal final class ActivitiesViewController: UITableViewController {
       }
 
     self.viewModel.outputs.updateUserInEnvironment
-      .observeValues { user in
-        AppEnvironment.updateCurrentUser(user)
+      .observeValues { _ in
         NotificationCenter.default.post(.init(name: .ksr_userUpdated))
       }
 

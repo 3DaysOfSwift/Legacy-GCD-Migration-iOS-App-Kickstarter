@@ -4,6 +4,48 @@ Author: Matthew Thomas. Updated 27 October 2026.
 
 ## Latest verified checkpoint
 
+### Settings preference reads/writes and account-safe persistence — 27 October 2026
+
+AppModel now composes SettingsFeature with the shared SessionFeature. Six
+settings ViewModels use native async account reads and ordered preference writes:
+privacy/following/recommendations, notification toggles/digest frequency, and
+newsletters including subscribe-all. Existing UIKit controls and navigation remain.
+
+Changed intents queue; equivalent pending tails share. On/off/on retains order.
+Edits apply to the authoritative session user at dispatch, not an old cell
+snapshot. Confirmed preference fields commit before the next queued save starts.
+There is no second user cache. Disposed observation/cancelled waiters do not
+abandon admitted writes; failures remain failures and retries are explicit.
+Signed-out, wrong-account and obsolete-session commands cannot dispatch or publish.
+
+Settings, Profile and Activity persistence now goes through SessionFeature,
+not deferred controller callbacks. Read revision checks extend through Profile's
+presentation delay; badge completion merges its count into the latest user.
+Recommendations keep optimistic switch feedback but persist only confirmed
+preferences, eliminating speculative whole-user writes and rollback overwrites.
+AppEnvironment remains the credential/current-user store; its keys are unchanged.
+
+55 original settings tests passed before production edits. Original expectations
+are retained, with explicit signed-in fixtures and async waits. Thirteen new
+SettingsFeature tests and a delayed-Profile regression protect the new boundary.
+Final integrated verification: 606 Library + seven framework + 29 API = 642
+passed, zero failures/skips; app build succeeded with two existing warnings.
+Results: /private/tmp/kickstarter-settings-preferences.famRTj.
+An earlier unchanged integrated run passed 605 tests but aborted in
+DiscoveryPageViewModelTests/testActivitySampleWithLifecycle. The crash stack
+entered XCTest/Swift task deallocation; its root cause is not established.
+The full rerun passed without modifying source. Compile/test-harness corrections
+and the abort are retained in sibling Migration Evidence/kickstarter-settings-preferences.
+
+Remaining shared-endpoint writers: ThanksViewModel's games-newsletter signup and
+AppDelegateViewModel's notification-setting deep link still use updateUserSelf.
+Route these through SettingsFeature before claiming app-wide preference-write
+serialization. Project-specific notifications, email/password/account deletion,
+authentication/credential ownership, messaging and payment/backing workflows
+also remain. Full-suite, strict-concurrency, authenticated device/visual gates
+are still open; no live account writes or populated-screen parity are claimed.
+App-wide migration remains IN PROGRESS; this is a bounded verified checkpoint.
+
 ### Activity/Profile loading and shared account reads — 27 October 2026
 
 AppModel now composes ActivityFeature, ProfileFeature and one shared SessionFeature.

@@ -8,8 +8,16 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class SettingsNewsletterCellViewModelTests: TestCase {
-  let vm = SettingsNewsletterCellViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = SettingsFeature(
+    sessionFeature: SessionFeature(makeProvider: {
+      AsyncSessionProvider(service: AppEnvironment.current.apiService)
+    }),
+    makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var vm = SettingsNewsletterCellViewModel(feature: self.feature)
 
   let showOptInPrompt = TestObserver<String, Never>()
   let subscribeToAllSwitchIsOn = TestObserver<Bool?, Never>()
@@ -19,14 +27,23 @@ internal final class SettingsNewsletterCellViewModelTests: TestCase {
 
   internal override func setUp() {
     super.setUp()
-    self.vm.outputs.showOptInPrompt.observe(self.showOptInPrompt.observer)
-    self.vm.outputs.subscribeToAllSwitchIsOn.observe(self.subscribeToAllSwitchIsOn.observer)
-    self.vm.outputs.switchIsOn.observe(self.switchIsOn.observer)
-    self.vm.outputs.unableToSaveError.observe(self.unableToSaveError.observer)
-    self.vm.outputs.updateCurrentUser.observe(self.updateCurrentUser.observer)
+    MainActor.assumeIsolated {
+      // Settings is a signed-in flow; the original fixtures omitted authentication.
+      AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
+      self.vm.outputs.showOptInPrompt.observe(self.showOptInPrompt.observer)
+      self.vm.outputs.subscribeToAllSwitchIsOn.observe(self.subscribeToAllSwitchIsOn.observer)
+      self.vm.outputs.switchIsOn.observe(self.switchIsOn.observer)
+      self.vm.outputs.unableToSaveError.observe(self.unableToSaveError.observer)
+      self.vm.outputs.updateCurrentUser.observe(self.updateCurrentUser.observer)
+    }
   }
 
-  func test_SubscribeToAll_Toggled() {
+  override func tearDown() async throws {
+    await self.feature.waitForOperations()
+    try await super.tearDown()
+  }
+
+  func test_SubscribeToAll_Toggled() async {
     let user = User.template
       |> \.newsletters .~ User.NewsletterSubscriptions.all(on: true)
 
@@ -36,7 +53,7 @@ internal final class SettingsNewsletterCellViewModelTests: TestCase {
     self.subscribeToAllSwitchIsOn.assertValue(true)
   }
 
-  func test_SubscribeToAll_Untoggled_IfAtLeastOneNewsletterIsUntoggled() {
+  func test_SubscribeToAll_Untoggled_IfAtLeastOneNewsletterIsUntoggled() async {
     let user = User.template
       |> \.newsletters.arts .~ nil
 
@@ -46,39 +63,39 @@ internal final class SettingsNewsletterCellViewModelTests: TestCase {
     self.subscribeToAllSwitchIsOn.assertValue(false)
   }
 
-  func test_ArtsNewsletters_Toggled() {
+  func test_ArtsNewsletters_Toggled() async {
     self.assertValue(for: .arts)
   }
 
-  func test_ProjectsWeLoveNewsletters_Toggled() {
+  func test_ProjectsWeLoveNewsletters_Toggled() async {
     self.assertValue(for: .weekly)
   }
 
-  func test_NewsAndEventsNewsletters_Toggled() {
+  func test_NewsAndEventsNewsletters_Toggled() async {
     self.assertValue(for: .promo)
   }
 
-  func test_GamesNewsletters_Toggled() {
+  func test_GamesNewsletters_Toggled() async {
     self.assertValue(for: .games)
   }
 
-  func test_HappeningNewsletters_Toggled() {
+  func test_HappeningNewsletters_Toggled() async {
     self.assertValue(for: .happening)
   }
 
-  func test_InventNewsletters_Toggled() {
+  func test_InventNewsletters_Toggled() async {
     self.assertValue(for: .invent)
   }
 
-  func test_FilmsNewsletters_Toggled() {
+  func test_FilmsNewsletters_Toggled() async {
     self.assertValue(for: .films)
   }
 
-  func test_PublishingNewsletters_Toggled() {
+  func test_PublishingNewsletters_Toggled() async {
     self.assertValue(for: .publishing)
   }
 
-  func test_AlumniNewsletters_Toggled() {
+  func test_AlumniNewsletters_Toggled() async {
     self.assertValue(for: .alumni)
   }
 
@@ -103,8 +120,8 @@ internal final class SettingsNewsletterCellViewModelTests: TestCase {
     self.switchIsOn.assertValues([false, true, false])
   }
 
-  func testOptInPromptNotShown() {
-    withEnvironment(countryCode: "US") {
+  func testOptInPromptNotShown() async {
+    await withEnvironment(countryCode: "US") {
       let user = User.template
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: user))
 
@@ -113,8 +130,8 @@ internal final class SettingsNewsletterCellViewModelTests: TestCase {
     }
   }
 
-  func testShowOptInPrompt() {
-    withEnvironment(config: Config.deConfig) {
+  func testShowOptInPrompt() async {
+    await withEnvironment(config: Config.deConfig) {
       let user = User.template
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: user))
 
@@ -128,7 +145,7 @@ internal final class SettingsNewsletterCellViewModelTests: TestCase {
     }
   }
 
-  func testUpdateError() {
+  func testUpdateError() async {
     let error = ErrorEnvelope(
       errorMessages: ["Unable to save."],
       ksrCode: .UnknownCode,
@@ -136,7 +153,7 @@ internal final class SettingsNewsletterCellViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(updateUserSelfError: error)) {
+    await withEnvironment(apiService: MockService(updateUserSelfError: error)) {
       let user = User.template
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: user))
 
@@ -151,7 +168,9 @@ internal final class SettingsNewsletterCellViewModelTests: TestCase {
       self.vm.inputs.configureWith(value: user1)
       self.switchIsOn.assertValues([false, true], "Newsletter immediately turned on on tap.")
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+
+      await self.scheduler.advance()
 
       self.vm.inputs.allNewslettersSwitchTapped(on: false)
       self.unableToSaveError.assertValueCount(1, "Updating user errored.")
@@ -160,7 +179,7 @@ internal final class SettingsNewsletterCellViewModelTests: TestCase {
     }
   }
 
-  func testUpdateUser() {
+  func testUpdateUser() async {
     let user = User.template
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: user))
 
@@ -170,13 +189,17 @@ internal final class SettingsNewsletterCellViewModelTests: TestCase {
 
     self.vm.inputs.newslettersSwitchTapped(on: true)
 
-    self.scheduler.advance()
+    await self.feature.waitForOperations()
+
+    await self.scheduler.advance()
 
     self.updateCurrentUser.assertValueCount(1, "User should be updated.")
 
     self.vm.inputs.newslettersSwitchTapped(on: false)
 
-    self.scheduler.advance()
+    await self.feature.waitForOperations()
+
+    await self.scheduler.advance()
 
     self.updateCurrentUser.assertValueCount(2, "User should be updated.")
   }

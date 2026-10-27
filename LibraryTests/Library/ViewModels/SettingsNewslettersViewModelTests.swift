@@ -8,17 +8,34 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class SettingsNewslettersViewModelTests: TestCase {
-  let vm = SettingsNewslettersViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = SettingsFeature(
+    sessionFeature: SessionFeature(makeProvider: {
+      AsyncSessionProvider(service: AppEnvironment.current.apiService)
+    }),
+    makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var vm = SettingsNewslettersViewModel(feature: self.feature)
 
   let currentUser = TestObserver<User, Never>()
 
   internal override func setUp() {
     super.setUp()
-    self.vm.outputs.currentUser.observe(self.currentUser.observer)
+    MainActor.assumeIsolated {
+      // Settings is a signed-in flow; the original fixtures omitted authentication.
+      AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
+      self.vm.outputs.currentUser.observe(self.currentUser.observer)
+    }
   }
 
-  func testCurrentUserEmits_OnViewDidLoad() {
+  override func tearDown() async throws {
+    await self.feature.waitForOperations()
+    try await super.tearDown()
+  }
+
+  func testCurrentUserEmits_OnViewDidLoad() async {
     let user = User.template
 
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: user))
@@ -29,7 +46,7 @@ internal final class SettingsNewslettersViewModelTests: TestCase {
     self.currentUser.assertValueCount(1, "currentUser should emit after viewDidLoad.")
   }
 
-  func testCurrentUserEmits_WhenDelegateIsCalled() {
+  func testCurrentUserEmits_WhenDelegateIsCalled() async {
     let user = User.template
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: user))
 

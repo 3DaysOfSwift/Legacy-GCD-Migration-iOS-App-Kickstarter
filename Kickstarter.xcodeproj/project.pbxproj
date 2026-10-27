@@ -23,6 +23,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		CFA028000000000000000001 /* SettingsFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA028000000000000000002 /* SettingsFeatureTests.swift */; };
 		CFA027600000000000000001 /* SessionFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027600000000000000002 /* SessionFeatureTests.swift */; };
 		CFA027700000000000000001 /* ActivityFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027700000000000000002 /* ActivityFeatureTests.swift */; };
 		CFA027800000000000000001 /* ProfileFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027800000000000000002 /* ProfileFeatureTests.swift */; };
@@ -391,6 +392,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		CFA028000000000000000002 /* SettingsFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFeatureTests.swift; sourceTree = "<group>"; };
 		CFA027600000000000000002 /* SessionFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionFeatureTests.swift; sourceTree = "<group>"; };
 		CFA027700000000000000002 /* ActivityFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityFeatureTests.swift; sourceTree = "<group>"; };
 		CFA027800000000000000002 /* ProfileFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileFeatureTests.swift; sourceTree = "<group>"; };
@@ -834,6 +836,7 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		CFA028000000000000000003 /* Settings */ = {isa = PBXGroup; children = (CFA028000000000000000002 /* SettingsFeatureTests.swift */,); path = Settings; sourceTree = "<group>"; };
 		CFA027600000000000000003 /* Session */ = {isa = PBXGroup; children = (CFA027600000000000000002 /* SessionFeatureTests.swift */,); path = Session; sourceTree = "<group>"; };
 		CFA027700000000000000003 /* Activity */ = {isa = PBXGroup; children = (CFA027700000000000000002 /* ActivityFeatureTests.swift */,); path = Activity; sourceTree = "<group>"; };
 		CFA027800000000000000003 /* Profile */ = {isa = PBXGroup; children = (CFA027800000000000000002 /* ProfileFeatureTests.swift */,); path = Profile; sourceTree = "<group>"; };
@@ -866,7 +869,7 @@
 		};
 		CFA026100000000000000004 /* FeatureTests */ = {
 			isa = PBXGroup;
-			children = (CFA026100000000000000003 /* Search */, CFA027100000000000000003 /* Discovery */, CFA027200000000000000003 /* ProjectDetails */, CFA027300000000000000003 /* Rewards */, CFA027400000000000000003 /* Discussion */, CFA027500000000000000003 /* ProjectMedia */, CFA027600000000000000003 /* Session */, CFA027700000000000000003 /* Activity */, CFA027800000000000000003 /* Profile */,);
+			children = (CFA028000000000000000003 /* Settings */, CFA026100000000000000003 /* Search */, CFA027100000000000000003 /* Discovery */, CFA027200000000000000003 /* ProjectDetails */, CFA027300000000000000003 /* Rewards */, CFA027400000000000000003 /* Discussion */, CFA027500000000000000003 /* ProjectMedia */, CFA027600000000000000003 /* Session */, CFA027700000000000000003 /* Activity */, CFA027800000000000000003 /* Profile */,);
 			path = FeatureTests;
 			sourceTree = "<group>";
 		};
@@ -1925,6 +1928,7 @@
 				CFA027600000000000000001 /* SessionFeatureTests.swift in Sources */,
 				CFA027700000000000000001 /* ActivityFeatureTests.swift in Sources */,
 				CFA027800000000000000001 /* ProfileFeatureTests.swift in Sources */,
+				CFA028000000000000000001 /* SettingsFeatureTests.swift in Sources */,
 				CFA027900000000000000001 /* AccountRequestGate.swift in Sources */,
 				CFA026100000000000000010 /* SearchLookupTests.swift in Sources */,
 				CFA026100000000000000008 /* SearchRequestCancellationTests.swift in Sources */,

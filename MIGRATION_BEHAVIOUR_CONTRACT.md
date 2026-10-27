@@ -1,5 +1,37 @@
 # Kickstarter migration behaviour contract
 
+## Settings preferences and shared account persistence — 27 October 2026
+
+- Preserve switch values, immediate visual feedback, rollback/error messages,
+  German newsletter opt-in prompts, digest picker behavior and navigation.
+- Preserve the user-self PUT route/encoding and existing account storage keys.
+- Apply changed fields to the current session user when a queued write dispatches.
+  Only equivalent pending tails share; distinct on/off/on intents remain ordered.
+- Persist confirmed preferences before the next save. Screen disposal or caller
+  cancellation does not abandon an admitted write; no automatic retry is added.
+- Reject signed-out, mismatched-account and old-generation commands, including
+  old failures after logout/login to the same ID. Invalid requests cannot reset
+  another account's valid queue.
+- Recommendations remain visually optimistic, but speculative values are no
+  longer persisted as a full User. Failed writes leave authoritative state intact.
+- Remove delayed controller persistence for migrated settings/Profile/Activity.
+  Guard Profile responses through presentation delays and merge badge counts
+  into the latest session user. Retain the existing UI notifications.
+- The public fictional demo rejects preference writes; no synthetic success.
+
+Baseline: 55 original settings tests passed. After: 642 integrated tests passed,
+zero failures/skips, and the app built in
+/private/tmp/kickstarter-settings-preferences.famRTj.
+Thirteen SettingsFeature cases plus a delayed-Profile regression were added.
+An earlier run had one test-process abort (605 passed); the identical full rerun
+passed. Root cause of that intermittent XCTest/Swift runtime abort is unresolved.
+
+Thanks newsletter signup and AppDelegate notification deep links remain legacy
+writers of the same endpoint; app-wide write serialization is not complete.
+Other account/authentication, messaging/project-notification and payment workflows
+remain open. No live account mutation, authenticated visual/device sign-off,
+full-suite pass or strict-concurrency completion is implied.
+
 ## Activity/Profile and shared account reads — 27 October 2026
 
 - Preserve Activity's descending deduplicated history, refresh retention, empty

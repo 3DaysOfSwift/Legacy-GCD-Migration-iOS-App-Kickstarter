@@ -180,6 +180,7 @@ public protocol ServiceType {
   @MainActor func activityPage(cursor: String?) async throws -> ActivityEnvelope
   @MainActor func unansweredSurveys() async throws -> [SurveyResponse]
   @MainActor func sessionUser() async throws -> User
+  @MainActor func saveAccountPreferences(_ user: User) async throws -> User
   @MainActor func sessionGraphUser() async throws -> User
   @MainActor func clearActivityIndicator() async throws -> Int
   @MainActor func profileBackedProjects(cursor: String?) async throws -> GraphAPI.FetchMyBackedProjectsQuery

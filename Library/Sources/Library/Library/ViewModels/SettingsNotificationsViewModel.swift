@@ -4,6 +4,7 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol SettingsNotificationsViewModelInputs {
   func didSelectRow(cellType: SettingsNotificationCellType)
   func didSelectEmailFrequency(frequency: EmailFrequency)
@@ -13,6 +14,7 @@ public protocol SettingsNotificationsViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol SettingsNotificationsViewModelOutputs {
   var goToManageProjectNotifications: Signal<Void, Never> { get }
   var pickerViewIsHidden: Signal<Bool, Never> { get }
@@ -21,6 +23,7 @@ public protocol SettingsNotificationsViewModelOutputs {
   var unableToSaveError: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol SettingsNotificationsViewModelType {
   var inputs: SettingsNotificationsViewModelInputs { get }
   var outputs: SettingsNotificationsViewModelOutputs { get }
@@ -28,15 +31,14 @@ public protocol SettingsNotificationsViewModelType {
   func shouldSelectRow(for cellType: SettingsNotificationCellType) -> Bool
 }
 
+@MainActor
 public final class SettingsNotificationsViewModel: SettingsNotificationsViewModelType,
   SettingsNotificationsViewModelInputs, SettingsNotificationsViewModelOutputs {
-  public init() {
+  public init(feature: SettingsFeature? = nil) {
+    let feature = feature ?? AppModel.shared.settingsFeature
     let initialUser = self.viewDidLoadProperty.signal
       .flatMap {
-        AppEnvironment.current.apiService.fetchUserSelf()
-          .wrapInOptional()
-          .prefix(value: AppEnvironment.current.currentUser)
-          .demoteErrors()
+        feature.userResult().wrapInOptional().demoteErrors()
       }.skipNil()
 
     let userAttributeChanged = self.emailFrequencyProperty.signal
@@ -46,17 +48,9 @@ public final class SettingsNotificationsViewModel: SettingsNotificationsViewMode
         return (UserAttribute.notification(.creatorDigest), digestValue)
       }
 
-    let updatedUser = initialUser.signal
-      .switchMap { user in
-        userAttributeChanged.scan(user) { user, attributeAndOn in
-          let (attribute, on) = attributeAndOn
-          return user |> attribute.keyPath .~ on
-        }
-      }
-
-    let updateEvent = updatedUser
-      .switchMap {
-        AppEnvironment.current.apiService.updateUserSelf($0)
+    let updateEvent = initialUser.takePairWhen(userAttributeChanged)
+      .switchMap { user, edit in
+        feature.saveResult([SettingsFeature.Change(edit.0, edit.1)], from: user)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
       }

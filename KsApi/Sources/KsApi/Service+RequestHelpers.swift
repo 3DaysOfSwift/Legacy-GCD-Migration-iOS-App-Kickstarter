@@ -26,6 +26,10 @@ extension Service {
     try await self.discussionResponse(route: .userSelf)
   }
 
+  @MainActor public func saveAccountPreferences(_ user: User) async throws -> User {
+    try await self.discussionResponse(route: .updateUserSelf(user))
+  }
+
   @MainActor public func discussionProject(param: Param) async throws -> Project {
     try await self.discussionResponse(route: .project(param))
   }

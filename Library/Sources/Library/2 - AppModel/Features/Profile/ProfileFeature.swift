@@ -63,7 +63,13 @@ public final class ProfileFeature {
   private let makeProvider: () -> any ProfileProvider
   private let sleep: (TimeInterval) async throws -> Void
   private var pages: [ProfileProjectsType: Route] = [:]
-  private var headerRequest: (userID: Int?, generation: Int, token: UUID, task: Task<Void, Never>)?
+  private var headerRequest: (
+    userID: Int?,
+    generation: Int,
+    readGeneration: Int,
+    token: UUID,
+    task: Task<Void, Never>
+  )?
   public private(set) var userError: Error?
   public private(set) var graphUserError: Error?
   private let userPipe = Signal<User, Never>.pipe()
@@ -121,9 +127,11 @@ public final class ProfileFeature {
     guard userID != nil else { self.reset(); return Task {} }
     let generation = self.sessionFeature.generation
     if !replacing, let request = self.headerRequest, request.userID == userID,
-       request.generation == generation { return request.task }
+       request.generation == generation,
+       request.readGeneration == self.sessionFeature.readGeneration { return request.task }
     self.headerRequest?.task.cancel()
     if replacing { self.sessionFeature.invalidateReads() }
+    let readGeneration = self.sessionFeature.readGeneration
     let token = UUID()
     let userTask = self.sessionFeature.request(.user)
     let graphTask = self.sessionFeature.request(.graphUser)
@@ -139,6 +147,7 @@ public final class ProfileFeature {
         graph: false,
         userID: userID,
         generation: generation,
+        readGeneration: readGeneration,
         delay: delay
       )
       async let graph = self.publishHeader(
@@ -146,27 +155,32 @@ public final class ProfileFeature {
         graph: true,
         userID: userID,
         generation: generation,
+        readGeneration: readGeneration,
         delay: delay
       )
       let (restUser, graphUser) = await (user, graph)
       guard !Task.isCancelled, self.headerRequest?.token == token,
             self.sessionFeature.isCurrent(userID: userID, generation: generation),
+            self.sessionFeature.readGeneration == readGeneration,
             var merged = restUser, let graphUser else { return }
       merged.stats.starredProjectsCount = graphUser.stats.starredProjectsCount
+      self.sessionFeature.commitUser(merged, userID: userID, generation: generation)
       self.combinedUserPipe.input.send(value: merged)
     }
-    self.headerRequest = (userID, generation, token, task)
+    self.headerRequest = (userID, generation, readGeneration, token, task)
     return task
   }
 
   private func publishHeader(
-    _ task: Task<User, Error>, graph: Bool, userID: Int?, generation: Int, delay: TimeInterval
+    _ task: Task<User, Error>, graph: Bool, userID: Int?, generation: Int,
+    readGeneration: Int, delay: TimeInterval
   ) async -> User? {
     do {
       let user = try await task.value
       try await self.sleep(delay)
       try Task.checkCancellation()
-      guard self.sessionFeature.isCurrent(userID: userID, generation: generation) else { return nil }
+      guard self.sessionFeature.isCurrent(userID: userID, generation: generation),
+            self.sessionFeature.readGeneration == readGeneration else { return nil }
       if graph { self.graphUserPipe.input.send(value: user) }
       else { self.userPipe.input.send(value: user) }
       return user
@@ -174,7 +188,7 @@ public final class ProfileFeature {
       guard !Task.isCancelled, !(error is CancellationError), self.sessionFeature.isCurrent(
         userID: userID,
         generation: generation
-      ) else { return nil }
+      ), self.sessionFeature.readGeneration == readGeneration else { return nil }
       if graph { self.graphUserError = error } else { self.userError = error }
       return nil
     }

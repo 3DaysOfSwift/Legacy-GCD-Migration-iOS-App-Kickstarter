@@ -2,12 +2,14 @@ import KsApi
 import Prelude
 import ReactiveSwift
 
+@MainActor
 public protocol SettingsNotificationCellViewModelInputs {
   func didTapPushNotificationsButton(selected: Bool)
   func didTapEmailNotificationsButton(selected: Bool)
   func configure(with cellValue: SettingsNotificationCellValue)
 }
 
+@MainActor
 public protocol SettingsNotificationCellViewModelOutputs {
   var enableButtonAnimation: Signal<Bool, Never> { get }
   var emailNotificationsButtonAccessibilityLabel: Signal<String, Never> { get }
@@ -21,15 +23,18 @@ public protocol SettingsNotificationCellViewModelOutputs {
   var updateCurrentUser: Signal<User, Never> { get }
 }
 
+@MainActor
 public protocol SettingsNotificationCellViewModelType {
   var inputs: SettingsNotificationCellViewModelInputs { get }
   var outputs: SettingsNotificationCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class SettingsNotificationCellViewModel: SettingsNotificationCellViewModelInputs,
   SettingsNotificationCellViewModelOutputs,
   SettingsNotificationCellViewModelType {
-  public init() {
+  public init(feature: SettingsFeature? = nil) {
+    let feature = feature ?? AppModel.shared.settingsFeature
     let initialUser = self.initialUserProperty.signal.skipNil()
 
     let cellType = self.cellTypeProperty.signal.skipNil().skipRepeats()
@@ -80,21 +85,10 @@ public final class SettingsNotificationCellViewModel: SettingsNotificationCellVi
         return (notification, enabled)
       }
 
-    let updatedUser = initialUser
-      .takePairWhen(userAttributeChanged)
-      .map { user, notificationAndOn -> User? in
-        let (notification, on) = notificationAndOn
-
-        guard let notificationType = notification else {
-          return nil
-        }
-
-        return user |> UserAttribute.notification(notificationType).keyPath .~ on
-      }.skipNil()
-
-    let updateEvent = updatedUser
-      .switchMap {
-        AppEnvironment.current.apiService.updateUserSelf($0)
+    let updateEvent = initialUser.takePairWhen(userAttributeChanged)
+      .switchMap { user, edit -> SignalProducer<Signal<User, ErrorEnvelope>.Event, Never> in
+        guard let notification = edit.0 else { return .empty }
+        return feature.saveResult([SettingsFeature.Change(.notification(notification), edit.1)], from: user)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
       }

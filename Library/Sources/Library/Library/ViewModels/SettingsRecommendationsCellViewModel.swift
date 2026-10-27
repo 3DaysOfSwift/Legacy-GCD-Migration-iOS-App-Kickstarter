@@ -4,11 +4,13 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol SettingsRecommendationsCellViewModelInputs {
   func configureWith(user: User)
   func recommendationsTapped(on: Bool)
 }
 
+@MainActor
 public protocol SettingsRecommendationsCellViewModelOutputs {
   var postNotification: Signal<Notification, Never> { get }
   var recommendationsOn: Signal<Bool, Never> { get }
@@ -16,14 +18,17 @@ public protocol SettingsRecommendationsCellViewModelOutputs {
   var updateCurrentUser: Signal<User, Never> { get }
 }
 
+@MainActor
 public protocol SettingsRecommendationsCellViewModelType {
   var inputs: SettingsRecommendationsCellViewModelInputs { get }
   var outputs: SettingsRecommendationsCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class SettingsRecommendationsCellViewModel: SettingsRecommendationsCellViewModelType,
   SettingsRecommendationsCellViewModelInputs, SettingsRecommendationsCellViewModelOutputs {
-  public init() {
+  public init(feature: SettingsFeature? = nil) {
+    let feature = feature ?? AppModel.shared.settingsFeature
     let initialUser = self.configureWithProperty.signal
       .skipNil()
 
@@ -40,9 +45,9 @@ public final class SettingsRecommendationsCellViewModel: SettingsRecommendations
         }
       }
 
-    let updateEvent = updatedUser
-      .switchMap {
-        AppEnvironment.current.apiService.updateUserSelf($0)
+    let updateEvent = initialUser.takePairWhen(userAttributeChanged)
+      .switchMap { user, edit in
+        feature.saveResult([SettingsFeature.Change(edit.0, edit.1)], from: user)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
       }

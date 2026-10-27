@@ -938,6 +938,15 @@
       return self.fetchUserSelfResponse ?? .template
     }
 
+    @MainActor public func saveAccountPreferences(_ user: User) async throws -> User {
+      try Task.checkCancellation()
+      if self.demoCatalog != nil {
+        throw ErrorEnvelope.graphError("Accounts and payments are unavailable in this fictional demo.")
+      }
+      if let error = self.updateUserSelfError { throw error }
+      return user
+    }
+
     @MainActor public func sessionGraphUser() async throws -> User {
       try Task.checkCancellation()
       guard let result = self.fetchGraphUserSelfResult else { throw ErrorEnvelope.couldNotParseJSON }

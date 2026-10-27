@@ -1,14 +1,22 @@
 @testable import KsApi
 @testable import KsApiTestHelpers
-import Library
+@testable import Library
 @testable import LibraryTestHelpers
 import Prelude
 import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class SettingsNotificationCellViewModelTests: TestCase {
-  private let vm = SettingsNotificationCellViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = SettingsFeature(
+    sessionFeature: SessionFeature(makeProvider: {
+      AsyncSessionProvider(service: AppEnvironment.current.apiService)
+    }),
+    makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var vm = SettingsNotificationCellViewModel(feature: self.feature)
 
   private let enableButtonAnimation = TestObserver<Bool, Never>()
   private let emailNotificationsButtonAccessibilityLabel = TestObserver<String, Never>()
@@ -24,22 +32,30 @@ final class SettingsNotificationCellViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
-
-    self.vm.outputs.enableButtonAnimation.observe(self.enableButtonAnimation.observer)
-    self.vm.outputs.emailNotificationsButtonAccessibilityLabel
-      .observe(self.emailNotificationsButtonAccessibilityLabel.observer)
-    self.vm.outputs.emailNotificationsEnabled.observe(self.emailNotificationsEnabled.observer)
-    self.vm.outputs.emailNotificationButtonIsHidden.observe(self.emailNotificationButtonIsHidden.observer)
-    self.vm.outputs.pushNotificationsButtonAccessibilityLabel
-      .observe(self.pushNotificationsButtonAccessibilityLabel.observer)
-    self.vm.outputs.pushNotificationButtonIsHidden.observe(self.pushNotificationButtonIsHidden.observer)
-    self.vm.outputs.projectCountText.observe(self.projectCountText.observer)
-    self.vm.pushNotificationsEnabled.observe(self.pushNotificationsEnabled.observer)
-    self.vm.unableToSaveError.observe(self.unableToSaveError.observer)
-    self.vm.updateCurrentUser.observe(self.updateCurrentUser.observer)
+    MainActor.assumeIsolated {
+      // Settings is a signed-in flow; the original fixtures omitted authentication.
+      AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
+      self.vm.outputs.enableButtonAnimation.observe(self.enableButtonAnimation.observer)
+      self.vm.outputs.emailNotificationsButtonAccessibilityLabel
+        .observe(self.emailNotificationsButtonAccessibilityLabel.observer)
+      self.vm.outputs.emailNotificationsEnabled.observe(self.emailNotificationsEnabled.observer)
+      self.vm.outputs.emailNotificationButtonIsHidden.observe(self.emailNotificationButtonIsHidden.observer)
+      self.vm.outputs.pushNotificationsButtonAccessibilityLabel
+        .observe(self.pushNotificationsButtonAccessibilityLabel.observer)
+      self.vm.outputs.pushNotificationButtonIsHidden.observe(self.pushNotificationButtonIsHidden.observer)
+      self.vm.outputs.projectCountText.observe(self.projectCountText.observer)
+      self.vm.pushNotificationsEnabled.observe(self.pushNotificationsEnabled.observer)
+      self.vm.unableToSaveError.observe(self.unableToSaveError.observer)
+      self.vm.updateCurrentUser.observe(self.updateCurrentUser.observer)
+    }
   }
 
-  func testEnableButtonAnimation_turnedOn() {
+  override func tearDown() async throws {
+    await self.feature.waitForOperations()
+    try await super.tearDown()
+  }
+
+  func testEnableButtonAnimation_turnedOn() async {
     let user = User.template
     let value = SettingsNotificationCellValue(cellType: .projectUpdates, user: user)
 
@@ -48,7 +64,7 @@ final class SettingsNotificationCellViewModelTests: TestCase {
     self.enableButtonAnimation.assertValue(true)
   }
 
-  func testEnableButtonAnimation_turnedOff() {
+  func testEnableButtonAnimation_turnedOff() async {
     let user = User.template
     let value = SettingsNotificationCellValue(cellType: .emailFrequency, user: user)
 
@@ -57,7 +73,7 @@ final class SettingsNotificationCellViewModelTests: TestCase {
     self.enableButtonAnimation.assertValue(false)
   }
 
-  func testEmailNotificationButtonAccessibilityLabel_disabled() {
+  func testEmailNotificationButtonAccessibilityLabel_disabled() async {
     let notificationType = SettingsNotificationCellViewModel.notificationFor(
       cellType: .projectUpdates,
       notificationType: .email
@@ -81,7 +97,7 @@ final class SettingsNotificationCellViewModelTests: TestCase {
     )
   }
 
-  func testEmailNotificationButtonAccessibilityLabel_enabled() {
+  func testEmailNotificationButtonAccessibilityLabel_enabled() async {
     let notificationType = SettingsNotificationCellViewModel.notificationFor(
       cellType: .projectUpdates,
       notificationType: .email
@@ -105,7 +121,7 @@ final class SettingsNotificationCellViewModelTests: TestCase {
     )
   }
 
-  func testPushNotificationButtonAccessibilityLabel_disabled() {
+  func testPushNotificationButtonAccessibilityLabel_disabled() async {
     let notificationType = SettingsNotificationCellViewModel.notificationFor(
       cellType: .projectUpdates,
       notificationType: .push
@@ -129,7 +145,7 @@ final class SettingsNotificationCellViewModelTests: TestCase {
     )
   }
 
-  func testPushNotificationButtonAccessibilityLabel_enabled() {
+  func testPushNotificationButtonAccessibilityLabel_enabled() async {
     let notificationType = SettingsNotificationCellViewModel.notificationFor(
       cellType: .projectUpdates,
       notificationType: .push
@@ -153,7 +169,7 @@ final class SettingsNotificationCellViewModelTests: TestCase {
     )
   }
 
-  func testEmailNotificationsEnabled() {
+  func testEmailNotificationsEnabled() async {
     let notificationType = SettingsNotificationCellViewModel.notificationFor(
       cellType: .projectUpdates,
       notificationType: .email
@@ -174,7 +190,7 @@ final class SettingsNotificationCellViewModelTests: TestCase {
     self.emailNotificationsEnabled.assertValues([true], "Email notifications are enabled")
   }
 
-  func testEmailNotificationsDisabled() {
+  func testEmailNotificationsDisabled() async {
     let notificationType = SettingsNotificationCellViewModel.notificationFor(
       cellType: .projectUpdates,
       notificationType: .email
@@ -195,7 +211,7 @@ final class SettingsNotificationCellViewModelTests: TestCase {
     self.emailNotificationsEnabled.assertValues([false], "Email notifications are disabled")
   }
 
-  func testPushNotificationsEnabled() {
+  func testPushNotificationsEnabled() async {
     let notificationType = SettingsNotificationCellViewModel.notificationFor(
       cellType: .projectUpdates,
       notificationType: .push
@@ -216,7 +232,7 @@ final class SettingsNotificationCellViewModelTests: TestCase {
     self.pushNotificationsEnabled.assertValues([true], "Push notifications are enabled")
   }
 
-  func testPushNotificationsDisabled() {
+  func testPushNotificationsDisabled() async {
     let notificationType = SettingsNotificationCellViewModel.notificationFor(
       cellType: .projectUpdates,
       notificationType: .push
@@ -237,7 +253,7 @@ final class SettingsNotificationCellViewModelTests: TestCase {
     self.pushNotificationsEnabled.assertValues([false], "Push notifications are disabled")
   }
 
-  func testEmailNotificationEnabled_NoValue() {
+  func testEmailNotificationEnabled_NoValue() async {
     let user = User.template
     // Should have no Notification value
     let value = SettingsNotificationCellValue(cellType: .emailFrequency, user: user)
@@ -247,7 +263,7 @@ final class SettingsNotificationCellViewModelTests: TestCase {
     self.emailNotificationsEnabled.assertValueCount(0)
   }
 
-  func testPushNotificationsEnabled_NoValue() {
+  func testPushNotificationsEnabled_NoValue() async {
     let user = User.template
     // Should have no Notification value
     let value = SettingsNotificationCellValue(cellType: .emailFrequency, user: user)
@@ -264,7 +280,7 @@ final class SettingsNotificationCellViewModelTests: TestCase {
     self.pushNotificationsEnabled.assertValueCount(0, "pushNotificationsEnabled should not fire")
   }
 
-  func testHideEmailNotificationsButton() {
+  func testHideEmailNotificationsButton() async {
     let user = User.template
 
     // Should have no Notification
@@ -282,7 +298,7 @@ final class SettingsNotificationCellViewModelTests: TestCase {
       .assertValues([true, false], "Should show email notifications button")
   }
 
-  func testHidePushNotificationButton() {
+  func testHidePushNotificationButton() async {
     let user = User.template
 
     // Should have no Notification
@@ -300,14 +316,14 @@ final class SettingsNotificationCellViewModelTests: TestCase {
       .assertValues([true, false], "Should show email notifications button")
   }
 
-  func testManageProjectNotificationsButtonAccesibilityHint() {
+  func testManageProjectNotificationsButtonAccesibilityHint() async {
     let user = User.template |> \.stats.backedProjectsCount .~ 5
     let value = SettingsNotificationCellValue(cellType: .projectNotifications, user: user)
 
     self.vm.inputs.configure(with: value)
   }
 
-  func testProjectTextCount() {
+  func testProjectTextCount() async {
     let user = User.template |> \.stats.backedProjectsCount .~ 5
     let value = SettingsNotificationCellValue(cellType: .projectNotifications, user: user)
 
@@ -316,7 +332,7 @@ final class SettingsNotificationCellViewModelTests: TestCase {
     self.projectCountText.assertValue("5")
   }
 
-  func testUnabletoSaveError() {
+  func testUnabletoSaveError() async {
     let error = ErrorEnvelope(
       errorMessages: ["Something bad happened"],
       ksrCode: nil,
@@ -329,7 +345,7 @@ final class SettingsNotificationCellViewModelTests: TestCase {
     let user = User.template |> UserAttribute.notification(.updates).keyPath .~ true
     let value = SettingsNotificationCellValue(cellType: .projectUpdates, user: user)
 
-    withEnvironment(apiService: mockService, currentUser: user) {
+    await withEnvironment(apiService: mockService, currentUser: user) {
       self.vm.configure(with: value)
 
       self.emailNotificationsEnabled.assertValue(true)
@@ -339,7 +355,8 @@ final class SettingsNotificationCellViewModelTests: TestCase {
       self.emailNotificationsEnabled
         .assertValues([true, false], "Selected value changes to reflect update")
 
-      scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.unableToSaveError.assertValue("Something bad happened")
       self.updateCurrentUser.assertDidNotEmitValue()
@@ -348,7 +365,7 @@ final class SettingsNotificationCellViewModelTests: TestCase {
     }
   }
 
-  func testUpdateCurrentUser_Success() {
+  func testUpdateCurrentUser_Success() async {
     let mockService = MockService()
     let user = User.template
       |> UserAttribute.notification(.updates).keyPath .~ true
@@ -356,14 +373,15 @@ final class SettingsNotificationCellViewModelTests: TestCase {
 
     let value = SettingsNotificationCellValue(cellType: .projectUpdates, user: user)
 
-    withEnvironment(apiService: mockService, currentUser: user) {
+    await withEnvironment(apiService: mockService, currentUser: user) {
       self.vm.configure(with: value)
       self.emailNotificationsEnabled.assertValue(true)
       self.pushNotificationsEnabled.assertValue(true)
 
       self.vm.inputs.didTapEmailNotificationsButton(selected: true)
 
-      scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.updateCurrentUser.assertValueCount(1, "User was updated")
 
@@ -372,7 +390,8 @@ final class SettingsNotificationCellViewModelTests: TestCase {
 
       self.vm.inputs.didTapPushNotificationsButton(selected: true)
 
-      scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.updateCurrentUser.assertValueCount(2, "User was updated")
 

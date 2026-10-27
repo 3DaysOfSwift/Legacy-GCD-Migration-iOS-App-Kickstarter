@@ -48,7 +48,6 @@ internal final class SettingsPrivacyViewController: UITableViewController {
     self.viewModel.outputs.updateCurrentUser
       .observeForUI()
       .observeValues { [weak self] user in
-        AppEnvironment.updateCurrentUser(user)
         NotificationCenter.default.post(Notification(name: .ksr_userUpdated))
         self?.dataSource.load(user: user)
       }

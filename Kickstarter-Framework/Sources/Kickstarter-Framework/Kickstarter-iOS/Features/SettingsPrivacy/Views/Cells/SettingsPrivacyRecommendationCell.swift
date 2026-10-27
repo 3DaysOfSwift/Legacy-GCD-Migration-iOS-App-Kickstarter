@@ -57,10 +57,6 @@ internal final class SettingsPrivacyRecommendationCell: UITableViewCell, ValueCe
       .observeForUI()
       .observeValues { NotificationCenter.default.post($0) }
 
-    self.viewModel.outputs.updateCurrentUser
-      .observeForUI()
-      .observeValues { user in AppEnvironment.updateCurrentUser(user) }
-
     self.recommendationsSwitch.rac.on = self.viewModel.outputs.recommendationsOn
   }
 

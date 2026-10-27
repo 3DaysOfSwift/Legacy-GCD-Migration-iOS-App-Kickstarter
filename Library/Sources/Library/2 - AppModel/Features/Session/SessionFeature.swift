@@ -32,18 +32,22 @@ public final class SessionFeature {
 
   private let makeProvider: () -> any SessionProvider
   private let readUser: () -> User?
+  private let writeUser: (User) -> Void
   private var revision = 0
   private var readRevision = 0
   private var requests: [Identity: Task<User, Error>] = [:]
   public var currentUser: User? { self.readUser() }
   public var generation: Int { self.revision }
+  public var readGeneration: Int { self.readRevision }
 
   public init(
     makeProvider: @escaping () -> any SessionProvider,
-    currentUser: @escaping () -> User? = { AppEnvironment.current.currentUser }
+    currentUser: @escaping () -> User? = { AppEnvironment.current.currentUser },
+    updateUser: @escaping (User) -> Void = { AppEnvironment.updateCurrentUser($0) }
   ) {
     self.makeProvider = makeProvider
     self.readUser = currentUser
+    self.writeUser = updateUser
   }
 
   /// Login/logout is an explicit boundary, including returning to the same ID.
@@ -62,6 +66,13 @@ public final class SessionFeature {
 
   public func isCurrent(userID: Int?, generation: Int) -> Bool {
     self.currentUser?.id == userID && self.revision == generation
+  }
+
+  /// Persistence stays behind the existing current-user store. A stale response
+  /// must never recreate a logged-out account or update a replacement account.
+  public func commitUser(_ user: User, userID: Int?, generation: Int) {
+    guard userID == user.id, self.isCurrent(userID: userID, generation: generation) else { return }
+    self.writeUser(user)
   }
 
   public func refresh(_ operation: Operation = .user) async throws -> User {
