@@ -13,6 +13,13 @@ extension ProjectAndBackingEnvelope {
   static func envelopeProducer(
     from data: GraphAPI.FetchBackingQuery.Data
   ) -> SignalProducer<ProjectAndBackingEnvelope, ErrorEnvelope> {
+    guard let envelope = Self.envelope(from: data) else {
+      return SignalProducer(error: .couldNotParseJSON)
+    }
+    return SignalProducer(value: envelope)
+  }
+
+  static func envelope(from data: GraphAPI.FetchBackingQuery.Data) -> ProjectAndBackingEnvelope? {
     let addOns = data.backing?.addOns?.nodes?
       .compactMap { $0 }
       .compactMap { node -> Reward? in
@@ -52,9 +59,9 @@ extension ProjectAndBackingEnvelope {
         video: nil
       )
     else {
-      return SignalProducer(error: .couldNotParseJSON)
+      return nil
     }
 
-    return SignalProducer(value: ProjectAndBackingEnvelope(project: project, backing: backing))
+    return ProjectAndBackingEnvelope(project: project, backing: backing)
   }
 }

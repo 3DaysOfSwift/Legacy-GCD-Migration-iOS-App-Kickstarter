@@ -23,6 +23,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		CFA027200000000000000001 /* ProjectDetailsFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027200000000000000002 /* ProjectDetailsFeatureTests.swift */; };
 		CFA027100000000000000001 /* DiscoveryFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027100000000000000002 /* DiscoveryFeatureTests.swift */; };
 		CFA026100000000000000010 /* SearchLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA026100000000000000011 /* SearchLookupTests.swift */; };
 		CFA026100000000000000008 /* SearchRequestCancellationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA026100000000000000009 /* SearchRequestCancellationTests.swift */; };
@@ -383,6 +384,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		CFA027200000000000000002 /* ProjectDetailsFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailsFeatureTests.swift; sourceTree = "<group>"; };
 		CFA027100000000000000002 /* DiscoveryFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryFeatureTests.swift; sourceTree = "<group>"; };
 		CFA026100000000000000011 /* SearchLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchLookupTests.swift; sourceTree = "<group>"; };
 		CFA026100000000000000009 /* SearchRequestCancellationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchRequestCancellationTests.swift; sourceTree = "<group>"; };
@@ -818,6 +820,12 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		CFA027200000000000000003 /* ProjectDetails */ = {
+			isa = PBXGroup;
+			children = (CFA027200000000000000002 /* ProjectDetailsFeatureTests.swift */,);
+			path = ProjectDetails;
+			sourceTree = "<group>";
+		};
 		CFA027100000000000000003 /* Discovery */ = {
 			isa = PBXGroup;
 			children = (CFA027100000000000000002 /* DiscoveryFeatureTests.swift */,);
@@ -832,7 +840,7 @@
 		};
 		CFA026100000000000000004 /* FeatureTests */ = {
 			isa = PBXGroup;
-			children = (CFA026100000000000000003 /* Search */, CFA027100000000000000003 /* Discovery */,);
+			children = (CFA026100000000000000003 /* Search */, CFA027100000000000000003 /* Discovery */, CFA027200000000000000003 /* ProjectDetails */,);
 			path = FeatureTests;
 			sourceTree = "<group>";
 		};
@@ -1883,6 +1891,7 @@
 				AAF549682F2445C0001DB5AC /* SearchViewModelTests.swift in Sources */,
 				CFA026100000000000000001 /* SearchFeatureTests.swift in Sources */,
 				CFA027100000000000000001 /* DiscoveryFeatureTests.swift in Sources */,
+				CFA027200000000000000001 /* ProjectDetailsFeatureTests.swift in Sources */,
 				CFA026100000000000000010 /* SearchLookupTests.swift in Sources */,
 				CFA026100000000000000008 /* SearchRequestCancellationTests.swift in Sources */,
 				CFA026100000000000000005 /* AppModelTests.swift in Sources */,

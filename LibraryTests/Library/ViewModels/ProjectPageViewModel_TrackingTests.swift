@@ -11,25 +11,38 @@ import XCTest
 /// Contains just the tracking-related tests for `ProjectPageViewModel`.
 /// The rest of the tests are in `ProjectPageViewModelTests`.
 /// This was split up because the test files were getting intractably long.
+@MainActor
 final class ProjectPageViewModel_TrackingTests: TestCase {
-  fileprivate var vm: ProjectPageViewModelType!
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  fileprivate var vm: ProjectPageViewModel!
+
+  override func tearDown() {
+    MainActor.assumeIsolated {
+      self.vm?.loadingTask?.cancel()
+      self.vm = nil
+    }
+    super.tearDown()
+  }
 
   internal override func setUp() {
     super.setUp()
-
-    self.vm = ProjectPageViewModel()
+    MainActor.assumeIsolated {
+      self.vm = ProjectPageViewModel(projectDetailsFeature: ProjectPageViewModelTests.isolatedFeature())
+    }
   }
 
   // Tests that ref tags and referral credit cookies are tracked and saved like we expect.
-  func testTracksRefTag() {
+  func testTracksRefTag() async {
     let project = Project.template
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: project) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
       self.vm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.category))
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewDidAppear(animated: false)
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       XCTAssertEqual(
         ["Page Viewed"],
@@ -56,12 +69,18 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
       )
 
       // Start up another view model with the same project
-      let newVm: ProjectPageViewModelType = ProjectPageViewModel()
+      let newVm: ProjectPageViewModel = ProjectPageViewModel(
+        projectDetailsFeature: ProjectPageViewModelTests
+          .isolatedFeature()
+      )
       newVm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.recommended))
       newVm.inputs.viewDidLoad()
       newVm.inputs.viewDidAppear(animated: true)
+      await newVm.loadingTask?.value
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       XCTAssertEqual(
         [
@@ -86,15 +105,17 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
   }
 
   // Tests that ref tags for similar projects and referral credit cookies are tracked and saved like we expect.
-  func testTracksRefTag_SimilarProjects() {
+  func testTracksRefTag_SimilarProjects() async {
     let project = Project.template
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: project) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
       self.vm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.similarProjects))
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewDidAppear(animated: false)
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       XCTAssertEqual(
         ["Page Viewed"],
@@ -116,12 +137,18 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
       )
 
       // Start up another view model with the same project
-      let newVm: ProjectPageViewModelType = ProjectPageViewModel()
+      let newVm: ProjectPageViewModel = ProjectPageViewModel(
+        projectDetailsFeature: ProjectPageViewModelTests
+          .isolatedFeature()
+      )
       newVm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.recommended))
       newVm.inputs.viewDidLoad()
       newVm.inputs.viewDidAppear(animated: true)
+      await newVm.loadingTask?.value
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       XCTAssertEqual(
         [
@@ -145,13 +172,15 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
     }
   }
 
-  func testProjectPageViewed_Tracking_OnError() {
+  func testProjectPageViewed_Tracking_OnError() async {
     let service = MockService(fetchProjectPamphletResult: .failure(.couldNotParseJSON))
 
-    withEnvironment(apiService: service) {
+    await withEnvironment(apiService: service) {
       self.vm.configureAndLoad(.init(left: .template))
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       XCTAssertEqual(
         [],
@@ -161,13 +190,15 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
     }
   }
 
-  func testProjectPageViewed_OnViewDidAppear() {
-    ProjectPageViewModelTests.mockNetworkRequests {
+  func testProjectPageViewed_OnViewDidAppear() async {
+    await ProjectPageViewModelTests.mockNetworkRequests {
       XCTAssertEqual([], self.segmentTrackingClient.events)
 
       self.vm.configureAndLoad(.init(left: .template))
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       XCTAssertEqual(["Page Viewed"], self.segmentTrackingClient.events)
 
@@ -177,14 +208,16 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
     }
   }
 
-  func testProjectPageViewed_OnViewDidAppear_LoadedWithParam() {
-    ProjectPageViewModelTests.mockNetworkRequests {
+  func testProjectPageViewed_OnViewDidAppear_LoadedWithParam() async {
+    await ProjectPageViewModelTests.mockNetworkRequests {
       XCTAssertEqual([], self.segmentTrackingClient.events)
 
       let param = ProjectPageParamBox(param: .id(1), initialProject: nil)
       self.vm.configureAndLoad(Either.right(param))
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       XCTAssertEqual(["Page Viewed"], self.segmentTrackingClient.events)
 
@@ -194,63 +227,71 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
     }
   }
 
-  func testMockCookieStorageSet_SeparateSchedulers() {
+  func testMockCookieStorageSet_SeparateSchedulers() async {
     let project = Project.template
     let scheduler1 = TestScheduler(startDate: MockDate().date)
     let scheduler2 = TestScheduler(startDate: scheduler1.currentDate.addingTimeInterval(1))
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: project) {
-      withEnvironment(
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
+      await withEnvironment(
         scheduler: scheduler1
       ) {
-        let newVm: ProjectPageViewModelType = ProjectPageViewModel()
+        let newVm: ProjectPageViewModel =
+          ProjectPageViewModel(projectDetailsFeature: ProjectPageViewModelTests.isolatedFeature())
         newVm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.category))
         newVm.inputs.viewDidLoad()
         newVm.inputs.viewDidAppear(animated: true)
+        await newVm.loadingTask?.value
 
-        scheduler1.advance()
+        await scheduler1.advance()
 
         XCTAssertEqual(1, self.cookieStorage.cookies?.count, "A single cookie has been set.")
       }
 
-      withEnvironment(
+      await withEnvironment(
         scheduler: scheduler2
       ) {
-        let newVm: ProjectPageViewModelType = ProjectPageViewModel()
+        let newVm: ProjectPageViewModel =
+          ProjectPageViewModel(projectDetailsFeature: ProjectPageViewModelTests.isolatedFeature())
         newVm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.recommended))
         newVm.inputs.viewDidLoad()
         newVm.inputs.viewDidAppear(animated: true)
+        await newVm.loadingTask?.value
 
-        scheduler2.advance()
+        await scheduler2.advance()
 
         XCTAssertEqual(2, self.cookieStorage.cookies?.count, "Two cookies are set on separate schedulers.")
       }
     }
   }
 
-  func testMockCookieStorageSet_SameScheduler() {
+  func testMockCookieStorageSet_SameScheduler() async {
     let project = Project.template
     let scheduler1 = TestScheduler(startDate: MockDate().date)
 
-    ProjectPageViewModelTests.mockNetworkRequests {
-      withEnvironment(scheduler: scheduler1) {
-        let newVm: ProjectPageViewModelType = ProjectPageViewModel()
+    await ProjectPageViewModelTests.mockNetworkRequests {
+      await withEnvironment(scheduler: scheduler1) {
+        let newVm: ProjectPageViewModel =
+          ProjectPageViewModel(projectDetailsFeature: ProjectPageViewModelTests.isolatedFeature())
         newVm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.category))
         newVm.inputs.viewDidLoad()
         newVm.inputs.viewDidAppear(animated: true)
+        await newVm.loadingTask?.value
 
-        scheduler1.advance()
+        await scheduler1.advance()
 
         XCTAssertEqual(1, self.cookieStorage.cookies?.count, "A single cookie has been set.")
       }
 
-      withEnvironment(scheduler: scheduler1) {
-        let newVm: ProjectPageViewModelType = ProjectPageViewModel()
+      await withEnvironment(scheduler: scheduler1) {
+        let newVm: ProjectPageViewModel =
+          ProjectPageViewModel(projectDetailsFeature: ProjectPageViewModelTests.isolatedFeature())
         newVm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.recommended))
         newVm.inputs.viewDidLoad()
         newVm.inputs.viewDidAppear(animated: true)
+        await newVm.loadingTask?.value
 
-        scheduler1.advance()
+        await scheduler1.advance()
 
         XCTAssertEqual(
           1, self.cookieStorage.cookies?.count,
@@ -260,11 +301,11 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
     }
   }
 
-  func testTracksRefTag_WithBadData() {
+  func testTracksRefTag_WithBadData() async {
     let project = Project.template
     let projectPamphletData = Project.ProjectPamphletData(project: .template, backingId: nil)
 
-    withEnvironment(apiService: MockService(
+    await withEnvironment(apiService: MockService(
       fetchProjectPamphletResult: .success(projectPamphletData),
       fetchProjectFriendsResult: .success([.template]),
       fetchProjectRewardsResult: .success([.template])
@@ -275,7 +316,9 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewDidAppear(animated: false)
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       XCTAssertEqual(
         ["Page Viewed"],
@@ -302,12 +345,18 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
       )
 
       // Start up another view model with the same project
-      let newVm: ProjectPageViewModelType = ProjectPageViewModel()
+      let newVm: ProjectPageViewModel = ProjectPageViewModel(
+        projectDetailsFeature: ProjectPageViewModelTests
+          .isolatedFeature()
+      )
       newVm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.recommended))
       newVm.inputs.viewDidLoad()
       newVm.inputs.viewDidAppear(animated: true)
+      await newVm.loadingTask?.value
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       XCTAssertEqual(
         [
@@ -331,7 +380,7 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
     }
   }
 
-  func testTrackingDoesNotOccurOnLoad() {
+  func testTrackingDoesNotOccurOnLoad() async {
     let project = Project.template
 
     self.vm.inputs.configureWith(
@@ -339,12 +388,14 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
     )
     self.vm.inputs.viewDidLoad()
 
-    self.scheduler.advance()
+    await self.vm.loadingTask?.value
+
+    await self.scheduler.advance()
 
     XCTAssertEqual([], self.segmentTrackingClient.events)
   }
 
-  func testTrackingProjectPageViewed_LoggedIn_AdvertisingConsentNotAllowed_EventsNotTracked() {
+  func testTrackingProjectPageViewed_LoggedIn_AdvertisingConsentNotAllowed_EventsNotTracked() async {
     let segmentClient = MockTrackingClient()
     let appTrackingTransparency = MockAppTrackingTransparency()
     appTrackingTransparency.shouldRequestAuthStatus = false
@@ -355,8 +406,8 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
       appTrackingTransparency: appTrackingTransparency
     )
 
-    ProjectPageViewModelTests.mockNetworkRequests {
-      withEnvironment(
+    await ProjectPageViewModelTests.mockNetworkRequests {
+      await withEnvironment(
         currentUser: User.template,
         ksrAnalytics: ksrAnalytics
       ) {
@@ -364,14 +415,16 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
         self.vm.inputs.viewDidLoad()
         self.vm.inputs.viewDidAppear(animated: false)
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         XCTAssertEqual(segmentClient.events, [])
       }
     }
   }
 
-  func testTrackingProjectPageViewed_LoggedIn_AdvertisingConsentAllowed_EventsTracked() {
+  func testTrackingProjectPageViewed_LoggedIn_AdvertisingConsentAllowed_EventsTracked() async {
     let segmentClient = MockTrackingClient()
     let ksrAnalytics = KSRAnalytics(
       config: .template,
@@ -380,8 +433,8 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
       appTrackingTransparency: MockAppTrackingTransparency()
     )
 
-    ProjectPageViewModelTests.mockNetworkRequests {
-      withEnvironment(
+    await ProjectPageViewModelTests.mockNetworkRequests {
+      await withEnvironment(
         currentUser: User.template,
         ksrAnalytics: ksrAnalytics
       ) {
@@ -389,7 +442,9 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
         self.vm.inputs.viewDidLoad()
         self.vm.inputs.viewDidAppear(animated: false)
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         XCTAssertEqual(segmentClient.events, ["Page Viewed"])
 
@@ -404,7 +459,7 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
     }
   }
 
-  func testTrackingProjectPageViewed_LoggedOut() {
+  func testTrackingProjectPageViewed_LoggedOut() async {
     let config = Config.template
       |> \.countryCode .~ "GB"
 
@@ -416,8 +471,8 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
       appTrackingTransparency: MockAppTrackingTransparency()
     )
 
-    ProjectPageViewModelTests.mockNetworkRequests {
-      withEnvironment(
+    await ProjectPageViewModelTests.mockNetworkRequests {
+      await withEnvironment(
         currentUser: nil,
         ksrAnalytics: ksrAnalytics
       ) {
@@ -425,7 +480,9 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
         self.vm.inputs.viewDidLoad()
         self.vm.inputs.viewDidAppear(animated: false)
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         XCTAssertEqual(segmentClient.events, ["Page Viewed"])
 
@@ -441,7 +498,7 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
     }
   }
 
-  func testTrackUserBlockedFromProject_EventsEmitted() {
+  func testTrackUserBlockedFromProject_EventsEmitted() async {
     let segmentClient = MockTrackingClient()
     let ksrAnalytics = KSRAnalytics(
       config: .template,
@@ -450,27 +507,31 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
       appTrackingTransparency: MockAppTrackingTransparency()
     )
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(
         blockUserResult: .success(EmptyResponseEnvelope())
       ),
       currentUser: User.template,
       ksrAnalytics: ksrAnalytics
     ) {
-      ProjectPageViewModelTests.mockNetworkRequests {
+      await ProjectPageViewModelTests.mockNetworkRequests {
         self.vm.inputs.configureWith(projectOrParam: .left(.template), refInfo: RefInfo(.discovery))
         self.vm.inputs.viewDidLoad()
 
         self.vm.inputs.viewDidAppear(animated: false)
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
       }
 
       XCTAssertEqual(segmentClient.events, ["Page Viewed"])
 
       self.vm.inputs.blockUser(id: 111)
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       XCTAssertEqual(segmentClient.events, ["Page Viewed", "CTA Clicked", "CTA Clicked"])
 

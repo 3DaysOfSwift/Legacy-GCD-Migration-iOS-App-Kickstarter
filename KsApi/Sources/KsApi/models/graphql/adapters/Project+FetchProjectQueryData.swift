@@ -6,8 +6,8 @@ import ReactiveSwift
 
 extension Project {
   public struct ProjectPamphletData: Decodable {
-    let project: Project
-    let backingId: Int?
+    public let project: Project
+    public let backingId: Int?
   }
 
   static func projectProducer(

@@ -96,7 +96,7 @@ public struct Service: ServiceType {
   }
 
   @MainActor public func fetchSearchPage(query: GraphAPI.SearchQuery) async throws -> GraphAPI.SearchQuery.Data {
-    try await SearchQueryRequest.fetch { completion in
+    try await CancellableGraphQLRequest.fetch { completion in
       GraphQL.shared.client.fetch(
         query: query,
         cachePolicy: .fetchIgnoringCacheCompletely,
@@ -124,7 +124,7 @@ public struct Service: ServiceType {
   }
 
   @MainActor private func fetchSearchLookup<Query: GraphQLQuery>(query: Query) async throws -> Query.Data {
-    try await SearchQueryRequest.fetch { completion in
+    try await CancellableGraphQLRequest.fetch { completion in
       GraphQL.shared.client.fetch(
         query: query, cachePolicy: .fetchIgnoringCacheCompletely,
         queue: .global(qos: .userInitiated), resultHandler: completion

@@ -52,6 +52,14 @@ public protocol ServiceType {
   @MainActor func fetchSearchDefaultLocations() async throws -> [Location]
   @MainActor func fetchSearchLocations(term: String) async throws -> [Location]
 
+  /// Cancellation-aware project-detail operations. Legacy callers keep their existing APIs.
+  @MainActor func projectDetails(param: Param, includeStoryRichText: Bool) async throws -> Project.ProjectPamphletData
+  @MainActor func projectDetailsBacking(id: Int) async throws -> ProjectAndBackingEnvelope
+  @MainActor func projectDetailsRewards(projectID: Int) async throws -> [Reward]
+  @MainActor func projectDetailsBase(param: Param) async throws -> Project
+  @MainActor func projectDetailsExtras(param: Param, includeStoryRichText: Bool) async throws -> ProjectPageExtraProperties
+  @MainActor func enrollProjectSecretReward(token: String, param: Param) async throws
+
   /// Returns a new service with the oauth token replaced.
   func login(_ oauthToken: OauthTokenAuthType) -> Self
 

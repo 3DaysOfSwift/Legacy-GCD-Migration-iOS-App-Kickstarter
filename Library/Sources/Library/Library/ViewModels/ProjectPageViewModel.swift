@@ -42,6 +42,7 @@ extension Param: ProjectPageParam {
   public var initialProject: (any ProjectPamphletMainCellConfiguration)? { nil }
 }
 
+@MainActor
 public protocol ProjectPageViewModelInputs {
   /// Call when didSelectRowAt is called on a `ProjectFAQAskAQuestionCell`
   func askAQuestionCellTapped()
@@ -127,6 +128,7 @@ public protocol ProjectPageViewModelInputs {
   func similarProjectTapped(project: ProjectCardProperties)
 }
 
+@MainActor
 public protocol ProjectPageViewModelOutputs {
   /// Emits a tuple of a `NavigationSection`, `Project` and `RefTag?` to configure the data source
   var configureDataSource: Signal<
@@ -233,41 +235,30 @@ public protocol ProjectPageViewModelOutputs {
   var navigateToSimilarProject: Signal<ProjectCardProperties, Never> { get }
 }
 
+@MainActor
 public protocol ProjectPageViewModelType {
   var inputs: ProjectPageViewModelInputs { get }
   var outputs: ProjectPageViewModelOutputs { get }
 }
 
+@MainActor
 public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageViewModelInputs,
   ProjectPageViewModelOutputs {
-  public init() {
+  private let projectDetailsFeature: ProjectDetailsFeature
+  private let projectRoute = UUID()
+  private let featureBindings = CompositeDisposable()
+  internal private(set) var loadingTask: Task<Void, Never>?
+
+  public init(projectDetailsFeature: ProjectDetailsFeature? = nil) {
+    let projectDetailsFeature = projectDetailsFeature ?? AppModel.shared.projectDetailsFeature
+    self.projectDetailsFeature = projectDetailsFeature
     let isLoading = MutableProperty(false)
 
     self.navigateBackToProjectPage = self.didBackProjectProperty.signal.ignoreValues()
 
-    let freshProjectAndRefTagEvent = self.configDataProperty.signal
-      .skipNil()
-      .takeWhen(Signal.merge(
-        self.viewDidLoadProperty.signal.ignoreValues(),
-        self.userSessionStartedProperty.signal.ignoreValues(),
-        self.didBackProjectProperty.signal.ignoreValues(),
-        self.managePledgeViewControllerFinishedWithMessageProperty.signal.ignoreValues(),
-        self.pledgeRetryButtonTappedProperty.signal.ignoreValues()
-      ))
-      .switchMap { projectOrParam, refInfo, secretRewardToken in
-        fetchProject(
-          projectOrParam: projectOrParam,
-          afterAddingSecretRewardToken: secretRewardToken
-        )
-        .on(
-          starting: { isLoading.value = true },
-          terminated: { isLoading.value = false }
-        )
-        .map { project in
-          (project, refInfo?.refTag.map(cleanUp(refTag:)))
-        }
-        .materialize()
-      }
+    // Output-only adapter: the Feature owns execution and completion.
+    let completion = Signal<Signal<(Project, RefTag?), ErrorEnvelope>.Event, Never>.pipe()
+    let freshProjectAndRefTagEvent = completion.output
 
     let freshProjectAndRefTag: Signal<(Project, RefTag?), Never> = freshProjectAndRefTagEvent.values()
 
@@ -702,7 +693,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
     ctaButtonTappedWithType
       .filter(shouldGoToManagePledge(with:))
-      .observeValues { _ in self.viewPledgeUseCase.goToPledgeViewTapped() }
+      .observeValues { [weak self] _ in self?.viewPledgeUseCase.goToPledgeViewTapped() }
 
     // MARK: Similar Projects
 
@@ -713,6 +704,44 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
       .observeValues { [weak self] projectID in
         self?.similarProjectsUseCase.inputs.projectIDLoaded(projectID: projectID)
       }
+
+    let route = self.projectRoute
+    var requestRefTag: RefTag?
+    self.featureBindings += projectDetailsFeature.loading
+      .filter { $0.0 == route }
+      .observeValues { isLoading.value = $0.1 }
+    self.featureBindings += projectDetailsFeature.completions
+      .filter { $0.0 == route }
+      .observeValues { _, result in
+        switch result {
+        case let .success(project): completion.input.send(value: .value((project, requestRefTag)))
+        case let .failure(error): completion.input.send(value: .failed(error))
+        }
+      }
+    let loadRequests = Signal.merge(
+      self.viewDidLoadProperty.signal.mapConst(false),
+      self.userSessionStartedProperty.signal.mapConst(true),
+      self.didBackProjectProperty.signal.mapConst(true),
+      self.managePledgeViewControllerFinishedWithMessageProperty.signal.mapConst(true),
+      self.pledgeRetryButtonTappedProperty.signal.mapConst(false)
+    )
+    self.featureBindings += loadRequests.observeValues { [weak self] force in
+      guard let self, let (projectOrParam, refInfo, token) = self.configDataProperty.value else { return }
+      requestRefTag = refInfo?.refTag.map(cleanUp(refTag:))
+      self.loadingTask = projectDetailsFeature.requestLoad(
+        route: route, param: projectOrParam.param.param, secretRewardToken: token, force: force
+      )
+    }
+  }
+
+  deinit {
+    self.loadingTask?.cancel()
+    self.featureBindings.dispose()
+    // Deinitialization may occur outside actor isolation. This bounded cleanup
+    // owns no network work and removes the route from the longer-lived Feature.
+    let feature = self.projectDetailsFeature
+    let route = self.projectRoute
+    Task { @MainActor in feature.release(route: route) }
   }
 
   fileprivate let askAQuestionCellTappedProperty = MutableProperty(())
@@ -920,46 +949,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   private let rewardsUseCase: RewardsUseCase
 }
 
-private func fetchProject(
-  projectOrParam: Either<Project, any ProjectPageParam>,
-  afterAddingSecretRewardToken token: String?
-) -> SignalProducer<Project, ErrorEnvelope> {
-  // TODO: We're posting this mutation more frequently than we need to.
-  // Instead of on every fetch, this should be moved out to only happen on `viewDidLoad`
-  // and session login.
-  return RewardsUseCase.addUserToSecretRewardGroupIfNeeded(
-    project: projectOrParam.param,
-    secretRewardToken: token
-  )
-  .then(
-    fetchProject(
-      projectOrParam: projectOrParam
-    )
-  )
-}
-
-private func fetchProject(
-  projectOrParam: Either<Project, any ProjectPageParam>
-)
-  -> SignalProducer<Project, ErrorEnvelope> {
-  let param = projectOrParam.param
-  let fetcher = ProjectPageFetcher(withService: AppEnvironment.current.apiService)
-
-  let experiment = InstantPledgeButtonExperiment()
-  if experiment.boolValue(forKey: .instant_pledge_enabled) == true {
-    return fetcher.fastFetchProjectPage(
-      projectParam: param.param,
-      includeStoryRichText: featureProjectStoryRichTextEnabled()
-    )
-    .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-  }
-
-  return fetcher.fetchProjectPage(
-    projectParam: param.param,
-    includeStoryRichText: featureProjectStoryRichTextEnabled()
-  )
-  .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-}
 
 private func shouldGoToManagePledge(with ctaType: PledgeStateCTAType) -> Bool {
   switch ctaType {

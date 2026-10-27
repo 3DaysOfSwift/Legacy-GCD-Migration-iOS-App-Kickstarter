@@ -76,6 +76,8 @@
     fileprivate let facebookConnectError: ErrorEnvelope?
 
     fileprivate let fetchGraphQLResponses: [(any GraphQLQuery.Type, any GraphAPI.SelectionSet)]?
+    /// Explicitly pending legacy requests for tests that isolate another workflow.
+    fileprivate let pendingLegacyGraphQLQueries: [any GraphQLQuery.Type]
 
     fileprivate let fetchActivitiesResponse: [Activity]?
     fileprivate let fetchActivitiesError: ErrorEnvelope?
@@ -289,6 +291,7 @@
       facebookConnectResponse: User? = nil,
       facebookConnectError: ErrorEnvelope? = nil,
       fetchGraphQLResponses: [(any GraphQLQuery.Type, any GraphAPI.SelectionSet)]? = nil,
+      pendingLegacyGraphQLQueries: [any GraphQLQuery.Type] = [],
       fetchActivitiesResponse: [Activity]? = nil,
       fetchActivitiesError: ErrorEnvelope? = nil,
       fetchBackingResponse: Backing = .template,
@@ -445,6 +448,7 @@
       self.facebookConnectError = facebookConnectError
 
       self.fetchGraphQLResponses = fetchGraphQLResponses
+      self.pendingLegacyGraphQLQueries = pendingLegacyGraphQLQueries
 
       self.fetchActivitiesResponse = fetchActivitiesResponse ?? [
         .template,
@@ -971,6 +975,7 @@
 
     internal func fetch<Q: GraphQLQuery>(query: Q) -> SignalProducer<Q.Data, ErrorEnvelope> {
       if let demoCatalog { return demoResponse { try demoCatalog.graphResponse(for: query) } }
+      if self.pendingLegacyGraphQLQueries.contains(where: { $0 == Q.self }) { return .never }
       for (queryType, result) in self.fetchGraphQLResponses ?? [] {
         if queryType == Q.self, let response = result as? Q.Data {
           return SignalProducer(value: response)
@@ -1386,6 +1391,61 @@
         return SignalProducer(error: error)
       }
     }
+
+    // Async fixture access mirrors the legacy project-detail results without
+    // creating a reactive execution graph or contacting a live service.
+    @MainActor public func projectDetails(param: Param, includeStoryRichText: Bool) async throws -> Project.ProjectPamphletData {
+      try Task.checkCancellation()
+      if let demoCatalog {
+        let project = try demoCatalog.project(param)
+        let extras = try demoCatalog.extraProperties(param)
+        return Project.ProjectPamphletData(project: extras.addExtraProperties(toProject: project), backingId: nil)
+      }
+      guard let result = self.fetchProjectPamphletEnvelopeResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
+    @MainActor public func projectDetailsBacking(id: Int) async throws -> ProjectAndBackingEnvelope {
+      try Task.checkCancellation()
+      guard let result = self.fetchProjectAndBackingResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
+    @MainActor public func projectDetailsRewards(projectID: Int) async throws -> [Reward] {
+      try Task.checkCancellation()
+      if let demoCatalog { return try demoCatalog.project(.id(projectID)).rewards }
+      guard let result = self.fetchProjectRewardsEnvelopeResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
+    @MainActor public func projectDetailsBase(param: Param) async throws -> Project {
+      try Task.checkCancellation()
+      if let demoCatalog { return try demoCatalog.project(param) }
+      if let result = self.fastFetchProjectPageResult { return try result.0.get() }
+      let data = try await self.fetch(query: GraphAPI.FastFetchProjectPageBaseQuery(
+        projectId: .someOrNil(param.id), slug: .someOrNil(param.slug)
+      ))
+      guard let data, let project = Project.project(from: data) else { throw ErrorEnvelope.couldNotParseJSON }
+      return project
+    }
+
+    @MainActor public func projectDetailsExtras(param: Param, includeStoryRichText: Bool) async throws -> ProjectPageExtraProperties {
+      try Task.checkCancellation()
+      if let demoCatalog { return try demoCatalog.extraProperties(param) }
+      if let result = self.fastFetchProjectPageResult { return try result.1.get() }
+      let data = try await self.fetch(query: GraphAPI.FastFetchProjectPageExtendedPropertiesQuery(
+        projectId: .someOrNil(param.id), slug: .someOrNil(param.slug), storyRichText: includeStoryRichText
+      ))
+      guard let data, let extras = ProjectPageExtraProperties.extraProperties(from: data) else { throw ErrorEnvelope.couldNotParseJSON }
+      return extras
+    }
+
+    @MainActor public func enrollProjectSecretReward(token: String, param: Param) async throws {
+      try Task.checkCancellation()
+      guard let result = self.addUserToSecretRewardGroup else { throw ErrorEnvelope.couldNotParseJSON }
+      _ = try result.get()
+    }
+
 
     internal func fastFetchProjectPageBase(projectParam: Param)
       -> SignalProducer<Project, ErrorEnvelope> {

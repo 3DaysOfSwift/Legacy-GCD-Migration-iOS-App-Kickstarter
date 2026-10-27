@@ -3,13 +3,13 @@ import ApolloAPI
 import Foundation
 import GraphAPI
 
-/// Search page/lookup callback bridge. Other legacy GraphQL operations retain their
-/// existing contracts while Search's cancellation/error semantics are verified.
-internal enum SearchQueryRequest {
+/// Shared bridge for migrated Search and Project-detail Apollo operations.
+/// The pinned Apollo callback APIs have no native cancellation-aware async form.
+internal enum CancellableGraphQLRequest {
   @MainActor static func fetch<Data: RootSelectionSet>(
     start: (@escaping GraphQLResultHandler<Data>) -> Cancellable
   ) async throws -> Data {
-    let pending = PendingSearchQuery<Data>()
+    let pending = PendingGraphQLRequest<Data>()
     let data = try await withTaskCancellationHandler {
       try Task.checkCancellation()
       return try await withCheckedThrowingContinuation { continuation in
@@ -44,7 +44,7 @@ internal enum SearchQueryRequest {
 /// resumption runs under the lock (both can re-enter through callbacks).
 /// This narrowly scoped unchecked conformance protects a callback/cancellation
 /// race; it does not declare Apollo payloads or the client globally Sendable.
-internal final class PendingSearchQuery<Data: RootSelectionSet>: @unchecked Sendable {
+internal final class PendingGraphQLRequest<Data: RootSelectionSet>: @unchecked Sendable {
   private let lock = NSLock()
   private var continuation: CheckedContinuation<Data, Error>?
   private var request: Cancellable?

@@ -15,7 +15,7 @@ final class SearchRequestCancellationTests: TestCase {
   func testSynchronousSuccessAndDuplicateCallbackCompleteOnce() async throws {
     let expected = try self.fixture()
     let token = CancellationProbe()
-    let actual = try await SearchQueryRequest.fetch { completion in
+    let actual = try await CancellableGraphQLRequest.fetch { completion in
       completion(.success(self.response(expected)))
       completion(.failure(ProbeError.failed))
       return token
@@ -27,7 +27,7 @@ final class SearchRequestCancellationTests: TestCase {
   func testGraphQLErrorTakesPrecedenceOverPartialData() async throws {
     let data = try self.fixture()
     do {
-      _ = try await SearchQueryRequest.fetch { completion in
+      _ = try await CancellableGraphQLRequest.fetch { completion in
         completion(.success(GraphQLResult(
           data: data, extensions: nil,
           errors: [GraphQLError(["message": "Denied"])], source: .server, dependentKeys: nil
@@ -46,7 +46,7 @@ final class SearchRequestCancellationTests: TestCase {
       .success(self.response(nil)), .failure(ProbeError.failed)
     ] {
       do {
-        _ = try await SearchQueryRequest.fetch { completion in
+        _ = try await CancellableGraphQLRequest.fetch { completion in
           completion(response)
           return CancellationProbe()
         }
@@ -61,7 +61,7 @@ final class SearchRequestCancellationTests: TestCase {
 
   func testCancellationBeforeInvocationDoesNotStartRequest() async {
     let task = Task<GraphAPI.SearchQuery.Data, Error> { @MainActor in
-      try await SearchQueryRequest.fetch { _ in
+      try await CancellableGraphQLRequest.fetch { _ in
         XCTFail("An already-cancelled task must not start transport")
         return CancellationProbe()
       }
@@ -75,7 +75,7 @@ final class SearchRequestCancellationTests: TestCase {
     let token = CancellationProbe()
     var callback: GraphQLResultHandler<GraphAPI.SearchQuery.Data>?
     let task = Task { @MainActor in
-      try await SearchQueryRequest.fetch { completion in
+      try await CancellableGraphQLRequest.fetch { completion in
         callback = completion
         started.fulfill()
         return token
@@ -94,7 +94,7 @@ final class SearchRequestCancellationTests: TestCase {
     let token = CancellationProbe()
     var callback: GraphQLResultHandler<GraphAPI.LocationsByTermQuery.Data>?
     let task = Task { @MainActor in
-      try await SearchQueryRequest.fetch { completion in
+      try await CancellableGraphQLRequest.fetch { completion in
         callback = completion
         started.fulfill()
         return token
@@ -115,7 +115,7 @@ final class SearchRequestCancellationTests: TestCase {
 
   func testCancellationBeforeTokenRegistrationCancelsLateToken() async {
     // Exercise the registration race directly without a scheduling-dependent sleep.
-    let pending = PendingSearchQuery<GraphAPI.SearchQuery.Data>()
+    let pending = PendingGraphQLRequest<GraphAPI.SearchQuery.Data>()
     let token = CancellationProbe()
     do {
       let _: GraphAPI.SearchQuery.Data = try await withCheckedThrowingContinuation { continuation in
@@ -134,7 +134,7 @@ final class SearchRequestCancellationTests: TestCase {
   }
 
   func testCancellationBeforeContinuationRegistrationResumesIt() async {
-    let pending = PendingSearchQuery<GraphAPI.SearchQuery.Data>()
+    let pending = PendingGraphQLRequest<GraphAPI.SearchQuery.Data>()
     pending.cancel()
     do {
       let _: GraphAPI.SearchQuery.Data = try await withCheckedThrowingContinuation { continuation in
@@ -210,7 +210,7 @@ final class SearchRequestCancellationTests: TestCase {
     let firstToken = CancellationProbe(onCancel: { firstCancelled.fulfill() })
     var callbacks: [GraphQLResultHandler<GraphAPI.SearchQuery.Data>] = []
     let provider = AsyncSearchProjectsProvider { _, _ in
-      try await SearchQueryRequest.fetch { completion in
+      try await CancellableGraphQLRequest.fetch { completion in
         callbacks.append(completion)
         if callbacks.count == 1 {
           firstStarted.fulfill()

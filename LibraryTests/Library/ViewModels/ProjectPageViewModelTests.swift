@@ -14,12 +14,22 @@ import XCTest
 /// Contains the input/output tests for the `ProjectPageViewModel`.
 /// Tracking-related tests are in their own file, `ProjectPageViewModel_TrackingTests`.
 /// This test class would benefit from being split up even more, due to its length.
+@MainActor
 final class ProjectPageViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private let releaseBundle = MockBundle(
     bundleIdentifier: KickstarterBundleIdentifier.release.rawValue,
     lang: "en"
   )
-  fileprivate var vm: ProjectPageViewModelType!
+  fileprivate var vm: ProjectPageViewModel!
+
+  override func tearDown() {
+    MainActor.assumeIsolated {
+      self.vm?.loadingTask?.cancel()
+      self.vm = nil
+    }
+    super.tearDown()
+  }
 
   private let projectWithEmptyProperties = Project.template
     |> \.extendedProjectProperties .~ ExtendedProjectProperties(
@@ -83,128 +93,142 @@ final class ProjectPageViewModelTests: TestCase {
 
   internal override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated {
+      self.vm = ProjectPageViewModel(projectDetailsFeature: ProjectPageViewModelTests.isolatedFeature())
 
-    self.vm = ProjectPageViewModel()
+      self.vm.outputs.configureDataSource.map(first)
+        .observe(self.configureDataSourceNavigationSection.observer)
+      self.vm.outputs.configureDataSource.map(second)
+        .observe(self.configureDataSourceProject.observer)
+      self.vm.outputs.configureChildViewControllersWithProject.map(first)
+        .observe(self.configureChildViewControllersWithProject.observer)
+      self.vm.outputs.configureChildViewControllersWithProject.map(second)
+        .observe(self.configureChildViewControllersWithRefTag.observer)
 
-    self.vm.outputs.configureDataSource.map(first)
-      .observe(self.configureDataSourceNavigationSection.observer)
-    self.vm.outputs.configureDataSource.map(second)
-      .observe(self.configureDataSourceProject.observer)
-    self.vm.outputs.configureChildViewControllersWithProject.map(first)
-      .observe(self.configureChildViewControllersWithProject.observer)
-    self.vm.outputs.configureChildViewControllersWithProject.map(second)
-      .observe(self.configureChildViewControllersWithRefTag.observer)
+      self.vm.outputs.configurePledgeCTAView
+        .observe(self.configurePledgeCTAView.observer)
 
-    self.vm.outputs.configurePledgeCTAView
-      .observe(self.configurePledgeCTAView.observer)
+      self.vm.outputs.configureProjectNavigationSelectorView
+        .observe(self.configureProjectNavigationSelectorView.observer)
 
-    self.vm.outputs.configureProjectNavigationSelectorView
-      .observe(self.configureProjectNavigationSelectorView.observer)
-
-    self.vm.outputs.didBlockUser.observe(self.didBlockUser.observer)
-    self.vm.outputs.didBlockUserError.observe(self.didBlockUserError.observer)
-    self.vm.outputs.dismissManagePledgeAndShowMessageBannerWithMessage
-      .observe(self.dismissManagePledgeAndShowMessageBannerWithMessage.observer)
-    self.vm.outputs.goToComments.observe(self.goToComments.observer)
-    self.vm.outputs.goToLoginWithIntent.observe(self.goToLoginWithIntent.observer)
-    self.vm.outputs.goToManagePledge.map(first).observe(self.goToManagePledgeProjectParam.observer)
-    self.vm.outputs.goToManagePledge.map(second).observe(self.goToManagePledgeBackingParam.observer)
-    self.vm.outputs.goToPledgeManagementPledgeView.observe(self.goToPledgeManagementViewPledge.observer)
-    self.vm.outputs.goToPledgeManager.observe(self.goToPledgeManager.observer)
-    self.vm.outputs.goToReportProject.observe(self.goToReportProject.observer)
-    self.vm.outputs.goToRewards.map(first).observe(self.goToRewardsProject.observer)
-    self.vm.outputs.goToRewards.map(second).observe(self.goToRewardsRefTag.observer)
-    self.vm.outputs.goToUpdates.observe(self.goToUpdates.observer)
-    self.vm.outputs.goToURL.observe(self.goToURL.observer)
-    self.vm.outputs.pauseMedia.observe(self.pauseMedia.observer)
-    self.vm.outputs.navigateBackToProjectPage.observe(self.navigateBackToProjectPage.observer)
-    self.vm.outputs.presentMessageDialog.observe(self.presentMessageDialog.observer)
-    self.vm.outputs.precreateAudioVideoURLs.observe(self.precreateAudioVideoURLs.observer)
-    self.vm.outputs.precreateAudioVideoURLsOnFirstLoad.observe(self.precreateAudioVideoURLsFirstLoad.observer)
-    self.vm.outputs.prefetchImageURLs.observe(self.prefetchImageURLs.observer)
-    self.vm.outputs.prefetchImageURLsOnFirstLoad.observe(self.prefetchImageURLsFirstLoad.observer)
-    self.vm.outputs.projectFlagged.observe(self.projectFlagged.observer)
-    self.vm.outputs.reloadCampaignData.observe(self.reloadCampaignData.observer)
-    self.vm.outputs.showHelpWebViewController.observe(self.showHelpWebViewController.observer)
-    self.vm.outputs.showProjectPageTabWithData.map { $0.0 }
-      .observe(self.showProjectPageTabWithDataNavigationSection.observer)
-    self.vm.outputs.showProjectPageTabWithData.map { $0.1 }
-      .observe(self.showProjectPageTabWithDataProject.observer)
-    self.vm.outputs.showProjectPageTabWithData.map { $0.4 }
-      .observe(self.showProjectPageTabWithDataImageURLS.observer)
-    self.vm.outputs.showProjectPageTabWithData.map { $0.6 }
-      .observe(self.showProjectPageTabWithDataContentView.observer)
-    self.vm.outputs.updateFAQsInDataSource.map { $0.0 }
-      .observe(self.updateFAQsInDataSourceProject.observer)
-    self.vm.outputs.updateFAQsInDataSource.map { $0.2 }
-      .observe(self.updateFAQsInDataSourceIsExpandedValues.observer)
-    self.vm.outputs.updateWatchProjectWithPrelaunchProjectState.map { $0 }
-      .observe(self.updateWatchProjectWithPrelaunchProjectState.observer)
+      self.vm.outputs.didBlockUser.observe(self.didBlockUser.observer)
+      self.vm.outputs.didBlockUserError.observe(self.didBlockUserError.observer)
+      self.vm.outputs.dismissManagePledgeAndShowMessageBannerWithMessage
+        .observe(self.dismissManagePledgeAndShowMessageBannerWithMessage.observer)
+      self.vm.outputs.goToComments.observe(self.goToComments.observer)
+      self.vm.outputs.goToLoginWithIntent.observe(self.goToLoginWithIntent.observer)
+      self.vm.outputs.goToManagePledge.map(first).observe(self.goToManagePledgeProjectParam.observer)
+      self.vm.outputs.goToManagePledge.map(second).observe(self.goToManagePledgeBackingParam.observer)
+      self.vm.outputs.goToPledgeManagementPledgeView.observe(self.goToPledgeManagementViewPledge.observer)
+      self.vm.outputs.goToPledgeManager.observe(self.goToPledgeManager.observer)
+      self.vm.outputs.goToReportProject.observe(self.goToReportProject.observer)
+      self.vm.outputs.goToRewards.map(first).observe(self.goToRewardsProject.observer)
+      self.vm.outputs.goToRewards.map(second).observe(self.goToRewardsRefTag.observer)
+      self.vm.outputs.goToUpdates.observe(self.goToUpdates.observer)
+      self.vm.outputs.goToURL.observe(self.goToURL.observer)
+      self.vm.outputs.pauseMedia.observe(self.pauseMedia.observer)
+      self.vm.outputs.navigateBackToProjectPage.observe(self.navigateBackToProjectPage.observer)
+      self.vm.outputs.presentMessageDialog.observe(self.presentMessageDialog.observer)
+      self.vm.outputs.precreateAudioVideoURLs.observe(self.precreateAudioVideoURLs.observer)
+      self.vm.outputs.precreateAudioVideoURLsOnFirstLoad
+        .observe(self.precreateAudioVideoURLsFirstLoad.observer)
+      self.vm.outputs.prefetchImageURLs.observe(self.prefetchImageURLs.observer)
+      self.vm.outputs.prefetchImageURLsOnFirstLoad.observe(self.prefetchImageURLsFirstLoad.observer)
+      self.vm.outputs.projectFlagged.observe(self.projectFlagged.observer)
+      self.vm.outputs.reloadCampaignData.observe(self.reloadCampaignData.observer)
+      self.vm.outputs.showHelpWebViewController.observe(self.showHelpWebViewController.observer)
+      self.vm.outputs.showProjectPageTabWithData.map { $0.0 }
+        .observe(self.showProjectPageTabWithDataNavigationSection.observer)
+      self.vm.outputs.showProjectPageTabWithData.map { $0.1 }
+        .observe(self.showProjectPageTabWithDataProject.observer)
+      self.vm.outputs.showProjectPageTabWithData.map { $0.4 }
+        .observe(self.showProjectPageTabWithDataImageURLS.observer)
+      self.vm.outputs.showProjectPageTabWithData.map { $0.6 }
+        .observe(self.showProjectPageTabWithDataContentView.observer)
+      self.vm.outputs.updateFAQsInDataSource.map { $0.0 }
+        .observe(self.updateFAQsInDataSourceProject.observer)
+      self.vm.outputs.updateFAQsInDataSource.map { $0.2 }
+        .observe(self.updateFAQsInDataSourceIsExpandedValues.observer)
+      self.vm.outputs.updateWatchProjectWithPrelaunchProjectState.map { $0 }
+        .observe(self.updateWatchProjectWithPrelaunchProjectState.observer)
+    }
   }
 
-  func testConfigureChildViewControllersWithProject_ConfiguredWithProject() {
+  func testConfigureChildViewControllersWithProject_ConfiguredWithProject() async {
     let stubProject = self.projectWithEmptyProperties
     let project = Project.template
     let refTag = RefTag.category
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: project) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
       self.vm.configureAndLoad(.left(stubProject), refTag: refTag)
 
       self.configureChildViewControllersWithProject.assertDidNotEmitValue()
       self.configureChildViewControllersWithRefTag.assertDidNotEmitValue()
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertValues([project])
       self.configureChildViewControllersWithRefTag.assertValues([refTag])
 
       self.vm.inputs.didBackProject()
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertValues([project, project])
       self.configureChildViewControllersWithRefTag.assertValues([refTag, refTag])
 
       self.vm.inputs.managePledgeViewControllerFinished(with: nil)
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertValues([project, project, project])
       self.configureChildViewControllersWithRefTag.assertValues([refTag, refTag, refTag])
     }
   }
 
-  func testConfigureChildViewControllersWithProject_ConfiguredWithParam() {
+  func testConfigureChildViewControllersWithProject_ConfiguredWithParam() async {
     let project = .template |> Project.lens.id .~ 42
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: project) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
       self.vm.configureAndLoad(.right(Param.id(project.id)), refTag: nil)
 
       self.configureChildViewControllersWithProject.assertValues([])
       self.configureChildViewControllersWithRefTag.assertValues([])
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertValues([project])
       self.configureChildViewControllersWithRefTag.assertValues([nil])
 
       self.vm.inputs.didBackProject()
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertValues([project, project])
       self.configureChildViewControllersWithRefTag.assertValues([nil, nil])
 
       self.vm.inputs.managePledgeViewControllerFinished(with: nil)
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertValues([project, project, project])
       self.configureChildViewControllersWithRefTag.assertValues([nil, nil, nil])
     }
   }
 
-  func testConfigureProjectPageViewControllerDataSourceNavigationSection() {
+  func testConfigureProjectPageViewControllerDataSourceNavigationSection() async {
     self.vm.inputs
       .configureWith(projectOrParam: .left(self.projectWithEmptyProperties), refInfo: RefInfo(.category))
 
@@ -215,7 +239,7 @@ final class ProjectPageViewModelTests: TestCase {
     self.configureDataSourceNavigationSection.assertValues([.overview])
   }
 
-  func testConfigureProjectPageViewControllerDataSourceProject() {
+  func testConfigureProjectPageViewControllerDataSourceProject() async {
     self.vm.inputs
       .configureWith(projectOrParam: .left(self.projectWithEmptyProperties), refInfo: RefInfo(.category))
 
@@ -226,7 +250,7 @@ final class ProjectPageViewModelTests: TestCase {
     self.configureDataSourceProject.assertDidEmitValue()
   }
 
-  func testConfigureProjectPageViewControllerDataSourceProject_US_ProjectCurrency_US_ProjectCountry() {
+  func testConfigureProjectPageViewControllerDataSourceProject_US_ProjectCurrency_US_ProjectCountry() async {
     let USCurrencyProject = self.projectWithEmptyProperties
       |> Project.lens.country .~ .us
       |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
@@ -234,7 +258,7 @@ final class ProjectPageViewModelTests: TestCase {
     let backing = Backing.template
       |> Backing.lens.id .~ 543
 
-    ProjectPageViewModelTests.mockNetworkRequests(
+    await ProjectPageViewModelTests.mockNetworkRequests(
       project: USCurrencyProject,
       backing: backing
     ) {
@@ -250,7 +274,9 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.configureDataSourceProject.assertValueCount(1)
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       XCTAssertEqual(
         self.configureDataSourceProject.lastValue?.left?.stats.projectCurrency,
@@ -263,10 +289,13 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testDidBlockUser_EmitsOnSuccess() {
+  func testDidBlockUser_EmitsOnSuccess() async {
     let envelope = EmptyResponseEnvelope()
 
-    withEnvironment(apiService: MockService(blockUserResult: .success(envelope)), currentUser: .template) {
+    await withEnvironment(
+      apiService: MockService(blockUserResult: .success(envelope)),
+      currentUser: .template
+    ) {
       self.vm.inputs
         .configureWith(projectOrParam: .left(self.projectWithEmptyProperties), refInfo: RefInfo(.category))
 
@@ -277,14 +306,16 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.blockUser(id: User.template.id)
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       self.didBlockUser.assertValueCount(1)
       self.didBlockUserError.assertValueCount(0)
     }
   }
 
-  func testDidBlockUserError_EmitsOnFailure() {
+  func testDidBlockUserError_EmitsOnFailure() async {
     let error = ErrorEnvelope(
       errorMessages: ["block user request error"],
       ksrCode: .GraphQLError,
@@ -292,7 +323,7 @@ final class ProjectPageViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(blockUserResult: .failure(error)), currentUser: .template) {
+    await withEnvironment(apiService: MockService(blockUserResult: .failure(error)), currentUser: .template) {
       self.vm.inputs
         .configureWith(projectOrParam: .left(self.projectWithEmptyProperties), refInfo: RefInfo(.category))
 
@@ -303,14 +334,17 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.blockUser(id: User.template.id)
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       self.didBlockUser.assertValueCount(0)
       self.didBlockUserError.assertValueCount(1)
     }
   }
 
-  func testConfigureProjectPageViewControllerDataSourceProject_NonUS_ProjectCurrency_US_ProjectCountry() {
+  func testConfigureProjectPageViewControllerDataSourceProject_NonUS_ProjectCurrency_US_ProjectCountry(
+  ) async {
     let USCurrencyProject = self.projectWithEmptyProperties
       |> Project.lens.country .~ .us
       |> Project.lens.stats.projectCurrency .~ Project.Country.mx.currencyCode
@@ -318,7 +352,7 @@ final class ProjectPageViewModelTests: TestCase {
     let backing = Backing.template
       |> Backing.lens.id .~ 543
 
-    ProjectPageViewModelTests.mockNetworkRequests(
+    await ProjectPageViewModelTests.mockNetworkRequests(
       project: USCurrencyProject,
       rewards: [Reward.template],
       backing: backing
@@ -335,7 +369,9 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.configureDataSourceProject.assertValueCount(1)
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       XCTAssertEqual(
         self.configureDataSourceProject.lastValue?.left?.stats.projectCurrency,
@@ -348,8 +384,9 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testConfigureProjectNavigationSelectorView_ExtendedPropertiesEmpty_CreatesNavigationSelector_Success() {
-    ProjectPageViewModelTests.mockNetworkRequests(project: Project.template) {
+  func testConfigureProjectNavigationSelectorView_ExtendedPropertiesEmpty_CreatesNavigationSelector_Success(
+  ) async {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: Project.template) {
       self.vm.inputs
         .configureWith(projectOrParam: .left(self.projectWithEmptyProperties), refInfo: RefInfo(.category))
 
@@ -357,15 +394,17 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       self.configureProjectNavigationSelectorView.assertDidEmitValue()
     }
   }
 
   func testConfigureProjectNavigationSelectorView_ExtendedProjectPropertiesNil_CreatesNavigationSelector_Success(
-  ) {
-    ProjectPageViewModelTests.mockNetworkRequests(project: .template) {
+  ) async {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: .template) {
       self.vm.inputs.configureWith(
         projectOrParam: .left(self.projectWithEmptyProperties),
         refInfo: RefInfo(.category)
@@ -375,17 +414,19 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       self.configureProjectNavigationSelectorView.assertDidEmitValue()
     }
   }
 
-  func testConfiguredProject_WithNoBacking_Successfully() {
+  func testConfiguredProject_WithNoBacking_Successfully() async {
     let project = Project.template
     let refTag = RefTag.category
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: project, backing: nil) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project, backing: nil) {
       self.vm.inputs.configureWith(
         projectOrParam: .left(self.projectWithEmptyProperties),
         refInfo: RefInfo(refTag)
@@ -393,17 +434,19 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewDidAppear(animated: false)
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertValues([project])
     }
   }
 
-  func testConfiguredProject_WithNoBacking_Unsuccessfully() {
+  func testConfiguredProject_WithNoBacking_Unsuccessfully() async {
     let project = Project.template
     let refTag = RefTag.category
 
-    ProjectPageViewModelTests.mockNetworkRequests(
+    await ProjectPageViewModelTests.mockNetworkRequests(
       project: project,
       backing: nil
     ) {
@@ -414,17 +457,19 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewDidAppear(animated: false)
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertValues([project])
     }
   }
 
-  func testConfiguredProject_WithBacking_Succcessfully() {
+  func testConfiguredProject_WithBacking_Succcessfully() async {
     let project = Project.template
     let refTag = RefTag.category
 
-    ProjectPageViewModelTests.mockNetworkRequests(
+    await ProjectPageViewModelTests.mockNetworkRequests(
       project: project,
       rewards: [Reward.template],
       backing: Backing.template
@@ -439,7 +484,9 @@ final class ProjectPageViewModelTests: TestCase {
       let projectWithBacking = project |> \.personalization.backing .~ .template
         |> \.personalization.isBacking .~ true
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       XCTAssertEqual(
         self.configureChildViewControllersWithProject.values.last!.personalization.backing,
@@ -452,15 +499,16 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testGoToComments() {
-    ProjectPageViewModelTests.mockNetworkRequests {
+  func testGoToComments() async {
+    await ProjectPageViewModelTests.mockNetworkRequests {
       self.vm.inputs.configureWith(
         projectOrParam: .left(self.projectWithEmptyProperties),
         refInfo: RefInfo(.discovery)
       )
 
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.goToComments.assertDidNotEmitValue()
 
@@ -470,16 +518,17 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testGoToReportProject() {
+  func testGoToReportProject() async {
     let project = Project.template
-    ProjectPageViewModelTests.mockNetworkRequests(project: project) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
       self.vm.inputs.configureWith(
         projectOrParam: .left(self.projectWithEmptyProperties),
         refInfo: RefInfo(.discovery)
       )
 
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.goToReportProject.assertDidNotEmitValue()
 
@@ -491,12 +540,13 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testGoToRewards_withUserLoggedIn() {
-    withEnvironment(config: .template, currentUser: .template, mainBundle: self.releaseBundle) {
+  func testGoToRewards_withUserLoggedIn() async {
+    await withEnvironment(config: .template, currentUser: .template, mainBundle: self.releaseBundle) {
       let project = Project.template
-      ProjectPageViewModelTests.mockNetworkRequests(project: project) {
+      await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
         self.vm.configureAndLoad(.left(self.projectWithEmptyProperties))
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+        await self.scheduler.advance()
 
         self.goToRewardsProject.assertDidNotEmitValue()
         self.goToRewardsRefTag.assertDidNotEmitValue()
@@ -531,13 +581,14 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testGoToRewards_withUserLoggedOut() {
+  func testGoToRewards_withUserLoggedOut() async {
     let project = Project.template
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: project) {
-      withEnvironment(config: .template, currentUser: nil, mainBundle: self.releaseBundle) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
+      await withEnvironment(config: .template, currentUser: nil, mainBundle: self.releaseBundle) {
         self.vm.configureAndLoad(.left(self.projectWithEmptyProperties))
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+        await self.scheduler.advance()
 
         self.goToRewardsProject.assertDidNotEmitValue()
         self.goToRewardsRefTag.assertDidNotEmitValue()
@@ -572,7 +623,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func test_loadingFromParameter_loadsAllData() {
+  func test_loadingFromParameter_loadsAllData() async {
     let project = Project.template
 
     // Rewards are fetched by rewards fetch, not the project fetch
@@ -582,17 +633,19 @@ final class ProjectPageViewModelTests: TestCase {
     let param = ProjectPageParamBox(param: .id(project.id), initialProject: nil)
     let initialData = Either<Project, any ProjectPageParam>.right(param)
 
-    ProjectPageViewModelTests.mockNetworkRequests(
+    await ProjectPageViewModelTests.mockNetworkRequests(
       project: projectFull,
       rewards: [Reward.noReward, Reward.template],
       backing: Backing.template
     ) {
-      withEnvironment(currentUser: .template) {
+      await withEnvironment(currentUser: .template) {
         self.vm.configureAndLoad(initialData)
 
         self.configureChildViewControllersWithProject.assertDidNotEmitValue()
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.configureChildViewControllersWithProject.assertDidEmitValue()
         guard let loadedProject = self.configureChildViewControllersWithProject.lastValue else {
@@ -607,7 +660,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func test_loadingFromParameter_withSecretRewards_loadsAllData() {
+  func test_loadingFromParameter_withSecretRewards_loadsAllData() async {
     let project = Project.template
 
     let projectFull = Project.template
@@ -616,8 +669,8 @@ final class ProjectPageViewModelTests: TestCase {
     let param = ProjectPageParamBox(param: .id(project.id), initialProject: nil)
     let initialData = Either<Project, any ProjectPageParam>.right(param)
 
-    withEnvironment(currentUser: .template) {
-      ProjectPageViewModelTests.mockNetworkRequests(
+    await withEnvironment(currentUser: .template) {
+      await ProjectPageViewModelTests.mockNetworkRequests(
         project: projectFull,
         rewards: [Reward.noReward, Reward.secretRewardTemplate, Reward.template],
         backing: Backing.template
@@ -626,7 +679,9 @@ final class ProjectPageViewModelTests: TestCase {
 
         self.configureChildViewControllersWithProject.assertDidNotEmitValue()
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.configureChildViewControllersWithProject.assertDidEmitValue()
         guard let loadedProject = self.configureChildViewControllersWithProject.lastValue else {
@@ -641,7 +696,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func test_loadingFromParameter_oneRequestFails_triggersError() {
+  func test_loadingFromParameter_oneRequestFails_triggersError() async {
     let project = Project.template
 
     let projectFull = Project.template
@@ -658,21 +713,23 @@ final class ProjectPageViewModelTests: TestCase {
     let param = ProjectPageParamBox(param: .id(project.id), initialProject: nil)
     let initialData = Either<Project, any ProjectPageParam>.right(param)
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       self.vm.configureAndLoad(initialData)
 
       self.configureChildViewControllersWithProject.assertDidNotEmitValue()
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+
+      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertDidNotEmitValue()
     }
   }
 
-  func testSecretRewards_GoToRewards() {
+  func testSecretRewards_GoToRewards() async {
     let project = Project.template
-    ProjectPageViewModelTests.mockNetworkRequests(project: project) {
-      withEnvironment(
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
+      await withEnvironment(
         config: .template,
         currentUser: .template,
         mainBundle: self.releaseBundle
@@ -686,7 +743,9 @@ final class ProjectPageViewModelTests: TestCase {
         self.goToRewardsRefTag.assertDidNotEmitValue()
         self.goToLoginWithIntent.assertDidNotEmitValue()
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.vm.inputs.pledgeCTAButtonTapped(with: .pledge)
 
@@ -697,9 +756,9 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testSecretRewards_GoToLogin() {
-    ProjectPageViewModelTests.mockNetworkRequests(project: .template) {
-      withEnvironment(
+  func testSecretRewards_GoToLogin() async {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: .template) {
+      await withEnvironment(
         config: .template,
         currentUser: nil,
         mainBundle: self.releaseBundle
@@ -709,7 +768,9 @@ final class ProjectPageViewModelTests: TestCase {
           secretRewardToken: "secret-reward-token"
         )
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.goToRewardsProject.assertDidNotEmitValue()
         self.goToRewardsRefTag.assertDidNotEmitValue()
@@ -727,8 +788,8 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testUpdateWatchProjectWithPrelaunchState() {
-    withEnvironment(config: .template, mainBundle: self.releaseBundle) {
+  func testUpdateWatchProjectWithPrelaunchState() async {
+    await withEnvironment(config: .template, mainBundle: self.releaseBundle) {
       let project = Project.template
         |> \.displayPrelaunch .~ true
         |> \.watchesCount .~ 10
@@ -747,8 +808,8 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testGoToManageViewPledge_ManagingPledge() {
-    withEnvironment(config: .template) {
+  func testGoToManageViewPledge_ManagingPledge() async {
+    await withEnvironment(config: .template) {
       let reward = Project.cosmicSurgery.rewards.first!
       let backing = Backing.template
         |> Backing.lens.reward .~ reward
@@ -758,10 +819,12 @@ final class ProjectPageViewModelTests: TestCase {
         |> Project.lens.personalization.backing .~ backing
         |> Project.lens.personalization.isBacking .~ true
 
-      ProjectPageViewModelTests.mockNetworkRequests(project: project, backing: backing) {
+      await ProjectPageViewModelTests.mockNetworkRequests(project: project, backing: backing) {
         self.vm.configureAndLoad(.left(self.projectWithEmptyProperties))
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.goToManagePledgeProjectParam.assertDidNotEmitValue()
         self.goToManagePledgeBackingParam.assertDidNotEmitValue()
@@ -776,8 +839,8 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testGoToManageViewPledge_ViewingPledge() {
-    withEnvironment(config: .template, currentUser: .template) {
+  func testGoToManageViewPledge_ViewingPledge() async {
+    await withEnvironment(config: .template, currentUser: .template) {
       let reward = Project.cosmicSurgery.rewards.first!
       let backing = Backing.template
         |> Backing.lens.reward .~ reward
@@ -788,10 +851,12 @@ final class ProjectPageViewModelTests: TestCase {
         |> Project.lens.personalization.backing .~ backing
         |> Project.lens.personalization.isBacking .~ true
 
-      ProjectPageViewModelTests.mockNetworkRequests(project: project, backing: backing) {
+      await ProjectPageViewModelTests.mockNetworkRequests(project: project, backing: backing) {
         self.vm.configureAndLoad(.left(self.projectWithEmptyProperties))
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.goToManagePledgeProjectParam.assertDidNotEmitValue()
         self.goToManagePledgeBackingParam.assertDidNotEmitValue()
@@ -806,7 +871,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testGoToPledgeManagementWebview_ManagingPledge() {
+  func testGoToPledgeManagementWebview_ManagingPledge() async {
     let reward = Project.cosmicSurgery.rewards.first!
     let backing = Backing.templateMadeWithPledgeManagment
       |> Backing.lens.reward .~ reward
@@ -816,13 +881,15 @@ final class ProjectPageViewModelTests: TestCase {
       |> Project.lens.personalization.backing .~ backing
       |> Project.lens.personalization.isBacking .~ true
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: project, backing: backing) {
-      withEnvironment(config: .template) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project, backing: backing) {
+      await withEnvironment(config: .template) {
         let backingDetailsPageURL = backing.backingDetailsPageRoute
 
         self.vm.configureAndLoad(.left(self.projectWithEmptyProperties))
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.goToManagePledgeProjectParam.assertDidNotEmitValue()
         self.goToManagePledgeBackingParam.assertDidNotEmitValue()
@@ -837,8 +904,8 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testGoToPledgeManagementWebview_ViewingPledge() {
-    withEnvironment(config: .template, currentUser: .template) {
+  func testGoToPledgeManagementWebview_ViewingPledge() async {
+    await withEnvironment(config: .template, currentUser: .template) {
       let reward = Project.cosmicSurgery.rewards.first!
       let backing = Backing.templateMadeWithPledgeManagment
         |> Backing.lens.reward .~ reward
@@ -851,10 +918,12 @@ final class ProjectPageViewModelTests: TestCase {
 
       let backingDetailsPageURL = backing.backingDetailsPageRoute
 
-      ProjectPageViewModelTests.mockNetworkRequests(project: project, backing: backing) {
+      await ProjectPageViewModelTests.mockNetworkRequests(project: project, backing: backing) {
         self.vm.configureAndLoad(.left(self.projectWithEmptyProperties))
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.goToManagePledgeProjectParam.assertDidNotEmitValue()
         self.goToManagePledgeBackingParam.assertDidNotEmitValue()
@@ -869,16 +938,17 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testGoToPledgeManager() {
+  func testGoToPledgeManager() async {
     let project = Project.netNewBacker
 
     let redemptionPageUrl =
       AppEnvironment.current.apiService.serverConfig.webBaseUrl.absoluteString +
       project.redemptionPageUrl
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: project) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
       self.vm.configureAndLoad(.left(self.projectWithEmptyProperties))
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.goToPledgeManager.assertDidNotEmitValue()
 
@@ -888,12 +958,13 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testGoToUpdates() {
-    ProjectPageViewModelTests.mockNetworkRequests {
+  func testGoToUpdates() async {
+    await ProjectPageViewModelTests.mockNetworkRequests {
       self.vm.inputs.configureWith(projectOrParam: .left(.template), refInfo: RefInfo(.discovery))
 
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.goToUpdates.assertDidNotEmitValue()
 
@@ -903,15 +974,15 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testConfigurePledgeCTAView_FetchProjectSuccess() {
+  func testConfigurePledgeCTAView_FetchProjectSuccess() async {
     let project = Project.template
     let projectFull = Project.template
       |> \.id .~ 2
 
-    ProjectPageViewModelTests.mockNetworkRequests(
+    await ProjectPageViewModelTests.mockNetworkRequests(
       project: projectFull
     ) {
-      withEnvironment(
+      await withEnvironment(
         apiDelayInterval: .seconds(1),
         config: .template,
         mainBundle: self.releaseBundle
@@ -922,19 +993,20 @@ final class ProjectPageViewModelTests: TestCase {
 
         self.configurePledgeCTAView.assertValues([.loading])
 
-        self.scheduler.run()
+        await self.vm.loadingTask?.value
+        await self.scheduler.run()
 
         self.configurePledgeCTAView.assertValues([.loading, .project(projectFull)])
       }
     }
   }
 
-  func testConfigurePledgeCTAView_FetchProjectFailure() {
+  func testConfigurePledgeCTAView_FetchProjectFailure() async {
     let config = Config.template
     let project = Project.template
     let mockService = MockService(fetchProjectPamphletResult: .failure(.couldNotParseJSON))
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService,
       apiDelayInterval: .seconds(1),
       config: config,
@@ -946,20 +1018,21 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.configurePledgeCTAView.assertValues([.loading])
 
-      self.scheduler.run()
+      await self.vm.loadingTask?.value
+      await self.scheduler.run()
 
       self.configurePledgeCTAView.assertValues([.loading, .error(.couldNotParseJSON)])
     }
   }
 
-  func testConfigurePledgeCTAView_ReloadsUponBackProject() {
+  func testConfigurePledgeCTAView_ReloadsUponBackProject() async {
     let config = Config.template
     let project = Project.template
     let projectFull = Project.template
       |> Project.lens.rewardData.rewards .~ []
 
-    withEnvironment(config: config, mainBundle: self.releaseBundle) {
-      ProjectPageViewModelTests.mockNetworkRequests(project: projectFull, backing: nil) {
+    await withEnvironment(config: config, mainBundle: self.releaseBundle) {
+      await ProjectPageViewModelTests.mockNetworkRequests(project: projectFull, backing: nil) {
         self.configurePledgeCTAView.assertDidNotEmitValue()
 
         self.vm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.discovery))
@@ -968,12 +1041,14 @@ final class ProjectPageViewModelTests: TestCase {
 
         self.configurePledgeCTAView.assertValues([.loading])
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.configurePledgeCTAView.assertValues([.loading, .project(projectFull)])
       }
 
-      ProjectPageViewModelTests.mockNetworkRequests(project: projectFull, backing: Backing.template) {
+      await ProjectPageViewModelTests.mockNetworkRequests(project: projectFull, backing: Backing.template) {
         self.vm.inputs.didBackProject()
 
         self.configurePledgeCTAView.assertValues([
@@ -982,7 +1057,9 @@ final class ProjectPageViewModelTests: TestCase {
           .loading
         ])
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         let projectWithBacking = project |> \.personalization.backing .~ .template
           |> \.personalization.isBacking .~ true
@@ -997,7 +1074,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testConfigurePledgeCTAView_ReloadsUponUpdatePledge() {
+  func testConfigurePledgeCTAView_ReloadsUponUpdatePledge() async {
     let config = Config.template
     let project = Project.template
     let backingFull = Backing.template |> Backing.lens.amount .~ 10.0
@@ -1009,8 +1086,8 @@ final class ProjectPageViewModelTests: TestCase {
       |> Project.lens.personalization.backing .~ updatedBacking
       |> Project.lens.personalization.isBacking .~ true
 
-    withEnvironment(config: config, mainBundle: self.releaseBundle) {
-      ProjectPageViewModelTests.mockNetworkRequests(
+    await withEnvironment(config: config, mainBundle: self.releaseBundle) {
+      await ProjectPageViewModelTests.mockNetworkRequests(
         project: projectFull,
         backing: backingFull
       ) {
@@ -1021,12 +1098,14 @@ final class ProjectPageViewModelTests: TestCase {
 
         self.configurePledgeCTAView.assertValues([.loading])
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.configurePledgeCTAView.assertValues([.loading, .project(projectFull)])
       }
 
-      ProjectPageViewModelTests.mockNetworkRequests(
+      await ProjectPageViewModelTests.mockNetworkRequests(
         project: updatedProject,
         backing: updatedBacking
       ) {
@@ -1038,7 +1117,9 @@ final class ProjectPageViewModelTests: TestCase {
           .loading
         ])
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.configurePledgeCTAView.assertValues([
           .loading,
@@ -1050,7 +1131,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testConfigurePledgeCTAView_ReloadsUponRetryButtonTappedEvent() {
+  func testConfigurePledgeCTAView_ReloadsUponRetryButtonTappedEvent() async {
     let config = Config.template
     let project = Project.template
     let projectFull = Project.template
@@ -1059,8 +1140,8 @@ final class ProjectPageViewModelTests: TestCase {
     let projectFull2 = Project.template
       |> \.id .~ 3
 
-    withEnvironment(config: config) {
-      ProjectPageViewModelTests.mockNetworkRequests(project: projectFull) {
+    await withEnvironment(config: config) {
+      await ProjectPageViewModelTests.mockNetworkRequests(project: projectFull) {
         self.configurePledgeCTAView.assertDidNotEmitValue()
 
         self.vm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.discovery))
@@ -1068,12 +1149,14 @@ final class ProjectPageViewModelTests: TestCase {
 
         self.configurePledgeCTAView.assertValues([.loading])
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.configurePledgeCTAView.assertValues([.loading, .project(projectFull)])
       }
 
-      ProjectPageViewModelTests.mockNetworkRequests(project: projectFull2) {
+      await ProjectPageViewModelTests.mockNetworkRequests(project: projectFull2) {
         self.vm.inputs.pledgeRetryButtonTapped()
 
         self.configurePledgeCTAView.assertValues([
@@ -1082,7 +1165,9 @@ final class ProjectPageViewModelTests: TestCase {
           .loading
         ])
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.configurePledgeCTAView.assertValues([
           .loading,
@@ -1094,11 +1179,12 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testManagePledgeViewControllerFinished() {
-    ProjectPageViewModelTests.mockNetworkRequests {
+  func testManagePledgeViewControllerFinished() async {
+    await ProjectPageViewModelTests.mockNetworkRequests {
       self.vm.inputs.configureWith(projectOrParam: .left(Project.template), refInfo: RefInfo(.discovery))
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.dismissManagePledgeAndShowMessageBannerWithMessage.assertDidNotEmitValue()
 
@@ -1108,11 +1194,12 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testnavigateBackToProjectPage() {
-    ProjectPageViewModelTests.mockNetworkRequests {
+  func testnavigateBackToProjectPage() async {
+    await ProjectPageViewModelTests.mockNetworkRequests {
       self.vm.inputs.configureWith(projectOrParam: .left(.template), refInfo: nil)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.navigateBackToProjectPage.assertDidNotEmitValue()
 
@@ -1122,11 +1209,12 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testOutput_PresentMessageDialog() {
-    ProjectPageViewModelTests.mockNetworkRequests {
+  func testOutput_PresentMessageDialog() async {
+    await ProjectPageViewModelTests.mockNetworkRequests {
       self.vm.inputs.configureWith(projectOrParam: .left(.template), refInfo: nil)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.presentMessageDialog.assertDidNotEmitValue()
 
@@ -1136,34 +1224,37 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testOutput_ProjectFlagged_False() {
-    ProjectPageViewModelTests.mockNetworkRequests {
+  func testOutput_ProjectFlagged_False() async {
+    await ProjectPageViewModelTests.mockNetworkRequests {
       self.vm.inputs.configureWith(projectOrParam: .left(.template), refInfo: nil)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.projectFlagged.assertValues([false])
     }
   }
 
-  func testOutput_ProjectFlagged_True() {
+  func testOutput_ProjectFlagged_True() async {
     var project = Project.template
     project.flagging = true
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: project) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
       self.vm.inputs.configureWith(projectOrParam: .left(self.projectWithEmptyProperties), refInfo: nil)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.projectFlagged.assertValues([true])
     }
   }
 
-  func testOutput_ShowHelpWebViewController() {
-    ProjectPageViewModelTests.mockNetworkRequests {
+  func testOutput_ShowHelpWebViewController() async {
+    await ProjectPageViewModelTests.mockNetworkRequests {
       self.vm.inputs.configureWith(projectOrParam: .left(.template), refInfo: nil)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.showHelpWebViewController.assertDidNotEmitValue()
 
@@ -1178,11 +1269,11 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testOutput_showProjectPageTabWithDataNavigationSection() {
+  func testOutput_showProjectPageTabWithDataNavigationSection() async {
     let overviewSection = NavigationSection.overview.rawValue
     let environmentalCommitmentsSection = NavigationSection.environmentalCommitments.rawValue
 
-    ProjectPageViewModelTests.mockNetworkRequests {
+    await ProjectPageViewModelTests.mockNetworkRequests {
       self.vm.inputs
         .configureWith(projectOrParam: .left(self.projectWithEmptyProperties), refInfo: RefInfo(.category))
 
@@ -1192,7 +1283,8 @@ final class ProjectPageViewModelTests: TestCase {
       self.showProjectPageTabWithDataNavigationSection.assertDidNotEmitValue()
 
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.showProjectPageTabWithDataNavigationSection.assertDidNotEmitValue()
 
@@ -1206,17 +1298,18 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testOutput_showProjectPageTabWithDataProject() {
+  func testOutput_showProjectPageTabWithDataProject() async {
     let overviewSection = NavigationSection.overview.rawValue
     let environmentalCommitmentsSection = NavigationSection.environmentalCommitments.rawValue
 
-    ProjectPageViewModelTests.mockNetworkRequests {
+    await ProjectPageViewModelTests.mockNetworkRequests {
       self.vm.inputs
         .configureWith(projectOrParam: .left(self.projectWithEmptyProperties), refInfo: RefInfo(.category))
       self.showProjectPageTabWithDataProject.assertDidNotEmitValue()
 
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.showProjectPageTabWithDataProject.assertDidNotEmitValue()
       self.vm.inputs.projectNavigationSelectorViewDidSelect(index: overviewSection)
@@ -1229,12 +1322,12 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testOutput_showProjectPageTabWithDataProject_ReloadsAfterUserSessionStarted() {
+  func testOutput_showProjectPageTabWithDataProject_ReloadsAfterUserSessionStarted() async {
     let overviewSection = NavigationSection.overview.rawValue
     let environmentalCommitmentsSection = NavigationSection.environmentalCommitments.rawValue
 
-    withEnvironment(currentUser: nil) {
-      ProjectPageViewModelTests.mockNetworkRequests {
+    await withEnvironment(currentUser: nil) {
+      await ProjectPageViewModelTests.mockNetworkRequests {
         self.vm.inputs
           .configureWith(projectOrParam: .left(self.projectWithEmptyProperties), refInfo: RefInfo(.category))
 
@@ -1242,7 +1335,9 @@ final class ProjectPageViewModelTests: TestCase {
 
         self.vm.inputs.viewDidLoad()
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.showProjectPageTabWithDataProject.assertDidNotEmitValue()
 
@@ -1254,7 +1349,7 @@ final class ProjectPageViewModelTests: TestCase {
 
         self.showProjectPageTabWithDataProject.assertDidEmitValue()
 
-        withEnvironment(currentUser: .template) {
+        await withEnvironment(currentUser: .template) {
           self.vm.inputs.userSessionStarted()
 
           self.showProjectPageTabWithDataProject.assertDidEmitValue()
@@ -1263,18 +1358,19 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testOutputForEmptyImageURLS_showProjectPageTabWithDataProject() {
+  func testOutputForEmptyImageURLS_showProjectPageTabWithDataProject() async {
     let overviewSection = NavigationSection.overview.rawValue
     let campaignSection = NavigationSection.campaign.rawValue
 
-    ProjectPageViewModelTests.mockNetworkRequests {
+    await ProjectPageViewModelTests.mockNetworkRequests {
       self.vm.inputs
         .configureWith(projectOrParam: .left(self.projectWithEmptyProperties), refInfo: RefInfo(.category))
 
       self.showProjectPageTabWithDataImageURLS.assertDidNotEmitValue()
 
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.showProjectPageTabWithDataImageURLS.assertDidNotEmitValue()
       self.vm.inputs.projectNavigationSelectorViewDidSelect(index: overviewSection)
@@ -1288,7 +1384,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testOutputForNonEmptyImageURLS_showProjectPageTabWithDataProject() {
+  func testOutputForNonEmptyImageURLS_showProjectPageTabWithDataProject() async {
     let overviewSection = NavigationSection.overview.rawValue
     let campaignSection = NavigationSection.campaign.rawValue
     let expectedUrl = URL(string: "https://image.com")!
@@ -1310,14 +1406,15 @@ final class ProjectPageViewModelTests: TestCase {
         projectNotice: nil
       )
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: nonEmptyProjectProperties) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: nonEmptyProjectProperties) {
       self.vm.inputs
         .configureWith(projectOrParam: .left(self.projectWithEmptyProperties), refInfo: RefInfo(.category))
 
       self.showProjectPageTabWithDataImageURLS.assertDidNotEmitValue()
 
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.showProjectPageTabWithDataImageURLS.assertDidNotEmitValue()
       self.vm.inputs.projectNavigationSelectorViewDidSelect(index: overviewSection)
@@ -1331,7 +1428,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testOutputForNonEmptyImageURLS_UpdatedPrepareImageIndexPath() {
+  func testOutputForNonEmptyImageURLS_UpdatedPrepareImageIndexPath() async {
     let campaignSection = NavigationSection.campaign.rawValue
     let expectedUrl = URL(string: "https://image.com")!
     let expectedIndexPath = IndexPath(row: 0, section: campaignSection)
@@ -1356,15 +1453,17 @@ final class ProjectPageViewModelTests: TestCase {
         projectNotice: nil
       )
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: projectFull) {
-      withEnvironment(config: config) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: projectFull) {
+      await withEnvironment(config: config) {
         self.vm.inputs.configureWith(
           projectOrParam: .left(self.projectWithEmptyProperties),
           refInfo: RefInfo(.discovery)
         )
         self.vm.inputs.viewDidLoad()
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.vm.inputs.projectNavigationSelectorViewDidSelect(index: campaignSection)
 
@@ -1376,7 +1475,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testOutputForNonEmptyAudioVideoURLS_UpdatedPrepareAudioVideoIndexPath() {
+  func testOutputForNonEmptyAudioVideoURLS_UpdatedPrepareAudioVideoIndexPath() async {
     let campaignSection = NavigationSection.campaign.rawValue
     let expectedTime = CMTime(
       seconds: 123.4,
@@ -1403,15 +1502,17 @@ final class ProjectPageViewModelTests: TestCase {
         projectNotice: nil
       )
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: projectFull) {
-      withEnvironment(config: config) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: projectFull) {
+      await withEnvironment(config: config) {
         self.vm.inputs.configureWith(
           projectOrParam: .left(self.projectWithEmptyProperties),
           refInfo: RefInfo(.discovery)
         )
         self.vm.inputs.viewDidLoad()
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.vm.inputs.projectNavigationSelectorViewDidSelect(index: campaignSection)
 
@@ -1434,7 +1535,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testOutputForNonEmptyAudioVideoURLS_UpdatedPrefetchAudioVideoURLsOnFirstLoad() {
+  func testOutputForNonEmptyAudioVideoURLS_UpdatedPrefetchAudioVideoURLsOnFirstLoad() async {
     let campaignSection = NavigationSection.campaign.rawValue
     let expectedTime = CMTime(
       seconds: 123.4,
@@ -1462,15 +1563,17 @@ final class ProjectPageViewModelTests: TestCase {
         projectNotice: nil
       )
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: projectFull) {
-      withEnvironment(config: config) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: projectFull) {
+      await withEnvironment(config: config) {
         self.vm.inputs.configureWith(
           projectOrParam: .left(self.projectWithEmptyProperties),
           refInfo: RefInfo(.discovery)
         )
         self.vm.inputs.viewDidLoad()
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.vm.inputs.projectNavigationSelectorViewDidSelect(index: campaignSection)
 
@@ -1487,7 +1590,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testOutputForNonEmptyImageURLS_UpdatedPrefetchImageURLsOnFirstLoad() {
+  func testOutputForNonEmptyImageURLS_UpdatedPrefetchImageURLsOnFirstLoad() async {
     let campaignSection = NavigationSection.campaign.rawValue
     let expectedUrl = URL(string: "https://image.com")!
     let expectedImageViewElement = ImageViewElement(
@@ -1512,15 +1615,17 @@ final class ProjectPageViewModelTests: TestCase {
         projectNotice: nil
       )
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: projectFull) {
-      withEnvironment(config: config) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: projectFull) {
+      await withEnvironment(config: config) {
         self.vm.inputs.configureWith(
           projectOrParam: .left(self.projectWithEmptyProperties),
           refInfo: RefInfo(.discovery)
         )
         self.vm.inputs.viewDidLoad()
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.vm.inputs.projectNavigationSelectorViewDidSelect(index: campaignSection)
 
@@ -1537,7 +1642,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testOutput_UpdateFAQsInDataSourceProject() {
+  func testOutput_UpdateFAQsInDataSourceProject() async {
     let faqs = [
       ProjectFAQ(
         answer: "answer 1",
@@ -1576,7 +1681,7 @@ final class ProjectPageViewModelTests: TestCase {
         projectNotice: nil
       )
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: project) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
       self.vm.inputs.configureWith(
         projectOrParam: .left(self.projectWithEmptyProperties),
         refInfo: RefInfo(.category)
@@ -1585,7 +1690,8 @@ final class ProjectPageViewModelTests: TestCase {
       self.updateFAQsInDataSourceProject.assertDidNotEmitValue()
 
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.updateFAQsInDataSourceProject.assertDidNotEmitValue()
 
@@ -1595,7 +1701,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testOutput_UpdateFAQsInDataSourceIsExpandedValues() {
+  func testOutput_UpdateFAQsInDataSourceIsExpandedValues() async {
     let faqs = [
       ProjectFAQ(
         answer: "answer 1",
@@ -1634,7 +1740,7 @@ final class ProjectPageViewModelTests: TestCase {
         projectNotice: nil
       )
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: project) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
       self.vm.inputs.configureWith(
         projectOrParam: .left(self.projectWithEmptyProperties),
         refInfo: RefInfo(.category)
@@ -1643,7 +1749,8 @@ final class ProjectPageViewModelTests: TestCase {
       self.updateFAQsInDataSourceIsExpandedValues.assertDidNotEmitValue()
 
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.updateFAQsInDataSourceIsExpandedValues.assertDidNotEmitValue()
 
@@ -1658,7 +1765,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testOutput_PauseMediaWhenAppIsBackgrounded_Success() {
+  func testOutput_PauseMediaWhenAppIsBackgrounded_Success() async {
     let project = Project.template
       |> \.extendedProjectProperties .~ ExtendedProjectProperties(
         environmentalCommitments: [],
@@ -1670,14 +1777,15 @@ final class ProjectPageViewModelTests: TestCase {
         projectNotice: nil
       )
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: project) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
       self.vm.inputs.configureWith(
         projectOrParam: .left(self.projectWithEmptyProperties),
         refInfo: RefInfo(.category)
       )
 
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.pauseMedia.assertDidNotEmitValue()
 
@@ -1687,7 +1795,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testReloadCampaignData_WhenOrientationChangedOnlyForCampaignTab_Success() {
+  func testReloadCampaignData_WhenOrientationChangedOnlyForCampaignTab_Success() async {
     let faqSection = NavigationSection.faq.rawValue
     let campaignSection = NavigationSection.campaign.rawValue
 
@@ -1702,14 +1810,15 @@ final class ProjectPageViewModelTests: TestCase {
         projectNotice: nil
       )
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: project) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
       self.vm.inputs.configureWith(
         projectOrParam: .left(self.projectWithEmptyProperties),
         refInfo: RefInfo(.category)
       )
 
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.reloadCampaignData.assertDidNotEmitValue()
 
@@ -1731,7 +1840,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testSelectCampaignImageLink_WhenURLAvailable_ReturnsURL_Success() {
+  func testSelectCampaignImageLink_WhenURLAvailable_ReturnsURL_Success() async {
     let url = URL(string: "https://www.kickstarter.com")!
 
     let project = Project.template
@@ -1745,14 +1854,15 @@ final class ProjectPageViewModelTests: TestCase {
         projectNotice: nil
       )
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: project) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
       self.vm.inputs.configureWith(
         projectOrParam: .left(self.projectWithEmptyProperties),
         refInfo: RefInfo(.category)
       )
 
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.goToURL.assertDidNotEmitValue()
 
@@ -1762,7 +1872,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testPrefetchImageURLsOnFirstLoad_LoadingViaParam_Success() {
+  func testPrefetchImageURLsOnFirstLoad_LoadingViaParam_Success() async {
     // Given a mock API that returns a project with an image in its HTML content
     let imageUrl = URL(string: "https://placecats.com/millie/300/150")!
     let projectWithImageElement = Project.template
@@ -1785,7 +1895,7 @@ final class ProjectPageViewModelTests: TestCase {
     let prefetchImageElementsOnFirstLoad = TestObserver<[ImageViewElement], Never>()
     self.vm.outputs.prefetchImageURLsOnFirstLoad.observe(prefetchImageElementsOnFirstLoad.observer)
 
-    ProjectPageViewModelTests.mockNetworkRequests(project: projectWithImageElement) {
+    await ProjectPageViewModelTests.mockNetworkRequests(project: projectWithImageElement) {
       // When we configure with a project ID parameter and load the view
       self.vm.inputs.configureWith(projectOrParam: .right(Param.id(42)), refInfo: nil)
       self.vm.inputs.viewDidLoad()
@@ -1793,7 +1903,8 @@ final class ProjectPageViewModelTests: TestCase {
       prefetchImageElementsOnFirstLoad.assertDidNotEmitValue()
 
       // When the API response is processed
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       // Then the prefetch signal emits with the correct image element
       XCTAssertEqual(prefetchImageElementsOnFirstLoad.values.count, 1, "Should emit image elements once")
@@ -1810,8 +1921,8 @@ final class ProjectPageViewModelTests: TestCase {
 
   // MARK: - selectedContentView
 
-  func testselectedContentView_defaultsToTableViewOnViewDidLoad() {
-    Self.mockNetworkRequests(project: self.projectWithEmptyProperties) {
+  func testselectedContentView_defaultsToTableViewOnViewDidLoad() async {
+    await Self.mockNetworkRequests(project: self.projectWithEmptyProperties) {
       self.vm.inputs.configureWith(
         projectOrParam: .left(self.projectWithEmptyProperties),
         refInfo: RefInfo(.category)
@@ -1820,18 +1931,19 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.inputs.projectNavigationSelectorViewDidSelect(
         index: NavigationSection.campaign.rawValue
       )
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.showProjectPageTabWithDataContentView.assertValues([.tableView])
     }
   }
 
-  func testSelectedContentView_featureFlagOff_campaignSection_returnsTableView() {
+  func testSelectedContentView_featureFlagOff_campaignSection_returnsTableView() async {
     let mockStatsig = MockStatsigWrapper()
     mockStatsig.features = [.projectStoryRichText: false]
 
-    Self.mockNetworkRequests(project: self.projectWithRichText) {
-      withEnvironment(statsigClient: mockStatsig) {
+    await Self.mockNetworkRequests(project: self.projectWithRichText) {
+      await withEnvironment(statsigClient: mockStatsig) {
         self.vm.inputs.configureWith(
           projectOrParam: .left(self.projectWithRichText),
           refInfo: RefInfo(.category)
@@ -1840,7 +1952,8 @@ final class ProjectPageViewModelTests: TestCase {
         self.vm.inputs.projectNavigationSelectorViewDidSelect(
           index: NavigationSection.campaign.rawValue
         )
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+        await self.scheduler.advance()
 
         self.showProjectPageTabWithDataContentView.assertLastValue(
           .tableView,
@@ -1850,7 +1963,7 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testLoadingPage_whenInstantPledgeExperimentIsOn_UsesFastFetch() {
+  func testLoadingPage_whenInstantPledgeExperimentIsOn_UsesFastFetch() async {
     let mockStatsigClient = MockStatsigWrapper()
 
     let mockExperiment = MockExperiment<InstantPledgeButtonExperiment>(
@@ -1862,15 +1975,17 @@ final class ProjectPageViewModelTests: TestCase {
     let experiment = InstantPledgeButtonExperiment()
     mockStatsigClient.overrideExperiment(experiment, withMock: mockExperiment)
 
-    withEnvironment(statsigClient: mockStatsigClient) {
-      ProjectPageViewModelTests.mockNetworkRequests_newQuery {
+    await withEnvironment(statsigClient: mockStatsigClient) {
+      await ProjectPageViewModelTests.mockNetworkRequests_newQuery {
         self.vm.configureAndLoad(.right(Param.id(1)))
 
         self.configureChildViewControllersWithProject.assertDidNotEmitValue()
         self.configureDataSourceProject.assertDidNotEmitValue()
         self.configurePledgeCTAView.assertValues([.loading])
 
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+
+        await self.scheduler.advance()
 
         self.configureChildViewControllersWithProject.assertValueCount(1)
         self.configureDataSourceProject.assertValueCount(1)
@@ -1879,12 +1994,12 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testselectedContentView_featureFlagOn_noRichText_campaignSection_returnsTableView() {
+  func testselectedContentView_featureFlagOn_noRichText_campaignSection_returnsTableView() async {
     let mockStatsig = MockStatsigWrapper()
     mockStatsig.features = [.projectStoryRichText: true]
 
-    Self.mockNetworkRequests(project: self.projectWithEmptyProperties) {
-      withEnvironment(statsigClient: mockStatsig) {
+    await Self.mockNetworkRequests(project: self.projectWithEmptyProperties) {
+      await withEnvironment(statsigClient: mockStatsig) {
         self.vm.inputs.configureWith(
           projectOrParam: .left(self.projectWithEmptyProperties),
           refInfo: RefInfo(.category)
@@ -1893,7 +2008,8 @@ final class ProjectPageViewModelTests: TestCase {
         self.vm.inputs.projectNavigationSelectorViewDidSelect(
           index: NavigationSection.campaign.rawValue
         )
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+        await self.scheduler.advance()
 
         self.showProjectPageTabWithDataContentView.assertLastValue(
           .tableView,
@@ -1903,12 +2019,12 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testselectedContentView_featureFlagOn_hasRichText_campaignSection_returnsRichTextView() {
+  func testselectedContentView_featureFlagOn_hasRichText_campaignSection_returnsRichTextView() async {
     let mockStatsig = MockStatsigWrapper()
     mockStatsig.features = [.projectStoryRichText: true]
 
-    Self.mockNetworkRequests(project: self.projectWithRichText) {
-      withEnvironment(statsigClient: mockStatsig) {
+    await Self.mockNetworkRequests(project: self.projectWithRichText) {
+      await withEnvironment(statsigClient: mockStatsig) {
         self.vm.inputs.configureWith(
           projectOrParam: .left(self.projectWithRichText),
           refInfo: RefInfo(.category)
@@ -1917,7 +2033,8 @@ final class ProjectPageViewModelTests: TestCase {
         self.vm.inputs.projectNavigationSelectorViewDidSelect(
           index: NavigationSection.campaign.rawValue
         )
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+        await self.scheduler.advance()
 
         self.showProjectPageTabWithDataContentView.assertValueCount(1)
         guard case .richTextView = self.showProjectPageTabWithDataContentView.values[0] else {
@@ -1927,26 +2044,29 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testselectedContentView_switchingFromCampaignToOverview_returnsTableView() {
+  func testselectedContentView_switchingFromCampaignToOverview_returnsTableView() async {
     let mockStatsig = MockStatsigWrapper()
     mockStatsig.features = [.projectStoryRichText: true]
 
-    Self.mockNetworkRequests(project: self.projectWithRichText) {
-      withEnvironment(statsigClient: mockStatsig) {
+    await Self.mockNetworkRequests(project: self.projectWithRichText) {
+      await withEnvironment(statsigClient: mockStatsig) {
         self.vm.inputs.configureWith(
           projectOrParam: .left(self.projectWithRichText),
           refInfo: RefInfo(.category)
         )
         self.vm.inputs.viewDidLoad()
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+        await self.scheduler.advance()
         self.vm.inputs.projectNavigationSelectorViewDidSelect(
           index: NavigationSection.campaign.rawValue
         )
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+        await self.scheduler.advance()
         self.vm.inputs.projectNavigationSelectorViewDidSelect(
           index: NavigationSection.overview.rawValue
         )
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+        await self.scheduler.advance()
 
         self.showProjectPageTabWithDataContentView.assertValueCount(2)
         guard case .richTextView = self.showProjectPageTabWithDataContentView.values[0] else {
@@ -1957,12 +2077,12 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
-  func testselectedContentView_skipRepeats_doesNotReemitSameValue() {
+  func testselectedContentView_skipRepeats_doesNotReemitSameValue() async {
     let mockStatsig = MockStatsigWrapper()
     mockStatsig.features = [.projectStoryRichText: true]
 
-    Self.mockNetworkRequests(project: self.projectWithRichText) {
-      withEnvironment(statsigClient: mockStatsig) {
+    await Self.mockNetworkRequests(project: self.projectWithRichText) {
+      await withEnvironment(statsigClient: mockStatsig) {
         self.vm.inputs.configureWith(
           projectOrParam: .left(self.projectWithRichText),
           refInfo: RefInfo(.category)
@@ -1974,7 +2094,8 @@ final class ProjectPageViewModelTests: TestCase {
         self.vm.inputs.projectNavigationSelectorViewDidSelect(
           index: NavigationSection.campaign.rawValue
         )
-        self.scheduler.advance()
+        await self.vm.loadingTask?.value
+        await self.scheduler.advance()
 
         self.showProjectPageTabWithDataContentView.assertValueCount(
           1,
@@ -1984,14 +2105,49 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
+  func testSimilarProjectFailureStillUpdatesAnAlreadySelectedCampaign() async {
+    let project = self.projectWithEmptyProperties
+    let service = MockService(
+      fetchProjectPamphletResult: .success(Project.ProjectPamphletData(project: project, backingId: nil)),
+      fetchProjectRewardsResult: .success([Reward.template])
+    )
+    await withEnvironment(apiService: service) {
+      let updated = expectation(description: "Related-project failure presented")
+      let observation = self.vm.outputs.showProjectPageTabWithData.observeValues { data in
+        if case .error = data.5 {
+          XCTAssertEqual(data.0, .campaign)
+          XCTAssertEqual(data.1.id, project.id)
+          XCTAssertEqual(data.6, .tableView)
+          updated.fulfill()
+        }
+      }
+      defer { observation?.dispose() }
+      self.vm.configureAndLoad(.left(project))
+      self.vm.inputs.projectNavigationSelectorViewDidSelect(index: NavigationSection.campaign.rawValue)
+      await self.vm.loadingTask?.value
+      await fulfillment(of: [updated], timeout: 2)
+    }
+  }
+
   // MARK: - Functions
+
+  // Project-loading assertions do not advance the independent recommendations
+  // request. Async tests yield the run loop; the old synchronous tests did not.
+  // Model that pending dependency explicitly instead of accidentally delivering
+  // an "Unimplemented mock" error while checking the project-page notification.
+  static func isolatedFeature() -> ProjectDetailsFeature {
+    ProjectDetailsFeature(
+      makeProvider: { AsyncProjectDetailsProvider(service: AppEnvironment.current.apiService) },
+      sleep: { _ in try Task.checkCancellation() }
+    )
+  }
 
   static func mockNetworkRequests(
     project: Project = Project.template,
     rewards: [Reward] = [Reward.noReward, Reward.template],
     backing: Backing? = nil,
-    action: () -> Void
-  ) {
+    action: () async -> Void
+  ) async {
     if let backing {
       let projectPamphletData = Project.ProjectPamphletData(project: project, backingId: backing.id)
       let projectAndBacking = ProjectAndBackingEnvelope(project: project, backing: backing)
@@ -1999,6 +2155,7 @@ final class ProjectPageViewModelTests: TestCase {
       AppEnvironment.pushEnvironment(
         apiService: MockService(
           addUserToSecretRewardGroup: .success(EmptyResponseEnvelope()),
+          pendingLegacyGraphQLQueries: [GraphAPI.FetchSimilarProjectsQuery.self],
           fetchProjectAndBackingResult: .success(projectAndBacking),
           fetchProjectPamphletResult: .success(projectPamphletData),
           fetchProjectRewardsResult: .success(rewards),
@@ -2011,13 +2168,14 @@ final class ProjectPageViewModelTests: TestCase {
       AppEnvironment.pushEnvironment(
         apiService: MockService(
           addUserToSecretRewardGroup: .success(EmptyResponseEnvelope()),
+          pendingLegacyGraphQLQueries: [GraphAPI.FetchSimilarProjectsQuery.self],
           fetchProjectPamphletResult: .success(projectPamphletData),
           fetchProjectRewardsResult: .success(rewards)
         )
       )
     }
 
-    action()
+    await action()
 
     AppEnvironment.popEnvironment()
   }
@@ -2026,8 +2184,8 @@ final class ProjectPageViewModelTests: TestCase {
     project: Project = Project.template,
     rewards: [Reward] = [Reward.noReward, Reward.template],
     backing: Backing? = nil,
-    action: () -> Void
-  ) {
+    action: () async -> Void
+  ) async {
     var baseResult = project
     baseResult.rewardData.rewards = rewards
     baseResult.personalization.backing = backing
@@ -2042,6 +2200,7 @@ final class ProjectPageViewModelTests: TestCase {
     )
 
     let mockService = MockService(
+      pendingLegacyGraphQLQueries: [GraphAPI.FetchSimilarProjectsQuery.self],
       fastFetchProjectPage: (
         .success(baseResult),
         .success(extraResult)
@@ -2050,11 +2209,12 @@ final class ProjectPageViewModelTests: TestCase {
 
     AppEnvironment.pushEnvironment(apiService: mockService)
 
-    action()
+    await action()
     AppEnvironment.popEnvironment()
   }
 }
 
+@MainActor
 extension ProjectPageViewModelType {
   /// Convenience method which calls `configureWith`, `viewDidLoad` and `viewDidAppear`.
   func configureAndLoad(

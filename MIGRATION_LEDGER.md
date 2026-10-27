@@ -4,6 +4,46 @@ Author: Matthew Thomas. Updated 27 October 2026.
 
 ## Latest verified checkpoint
 
+Project-detail loading is now connected through ProjectDetailsFeature in AppModel.
+293 combined Search/Explore/Project-detail/composition tests passed with zero
+failures/skips, followed by a successful app build:
+/private/tmp/kickstarter-project-details.90zCaO.
+An additional 11 existing API fetcher/backing-decoder tests passed in
+/private/tmp/kickstarter-project-details-api.xcresult. Runtime: iPhone Air, iOS 26.2,
+Xcode 26.2, Swift 5 language mode. This is not full-app or strict-concurrency sign-off.
+
+The Feature owns per-route snapshots, loading/error state and request identity.
+Standard loading preserves enrollment → project → optional backing → rewards;
+the fast experiment runs base/extras as structured parallel children. Equivalent
+in-flight loads share completion; post-mutation refresh replaces pending reads.
+Account changes/cancellation prevent late publication. Each stacked project page
+has an independent scope, released when its view model is destroyed.
+
+The existing cancellable Apollo bridge is now CancellableGraphQLRequest and is
+shared with Search; no reactive producer is wrapped to implement async loading.
+The public legacy ProjectPageFetcher API remains for compatibility/reference
+tests, but the running project page no longer calls it. Remaining reactive
+project-page execution includes related projects, user blocking and pledge/media
+adapters, not the migrated detail/backing/rewards dependency chain.
+
+Baseline: all 75 existing page/analytics tests passed. Their assertions remain.
+Async tests exposed previously undrained recommendation mock errors; explicit
+pending fixtures isolate the old assertion boundary, with a separate test proving
+recommendation errors still update the selected campaign. Twelve Feature tests
+cover ordering, sharing, failure/retry, parallel dependencies, account changes,
+independent routes, forced refresh and stale results. Evidence and compile/test
+corrections are recorded in sibling Migration Evidence/kickstarter-project-details.
+
+Simulator smoke on the verified build: Pocket Observatory overview loaded;
+Campaign and FAQ opened; Rewards showed the demo supporter edition; returning
+preserved the FAQ page. No pledge/payment submitted. No UI source changed.
+
+Next connected boundary: rewards-screen loading/pagination and related-project
+requests, then remaining project interactions. Preserve transaction ordering;
+payments, authentication and app-wide completion remain separate open milestones.
+
+### Previous Explore checkpoint
+
 Final Explore continuation: 205 focused tests passed, zero failures/skips, and
 the app built in /private/tmp/kickstarter-discovery-async.RzwK5t. DiscoveryFeature
 now owns selected filter state and recommendation defaults as well as async work.
@@ -72,12 +112,11 @@ do not ask the developer to run routine verification commands.
 
 ## Progress dashboard — 27 October 2026
 
-**Overall: Search has a verified automated checkpoint; Explore is actively migrating.**
-AppModel now composes searchFeature and discoveryFeature. No top-level product
-area has passed every manual/snapshot/strict-concurrency exit gate. The verified
-pre-Explore baseline is 237d929d8c5c1e714935ccd959048e628e93ea07: 189 focused tests
-and an app build. The connected Explore implementation passed its first 66-test
-integration run; the broader regression run is recorded in the checkpoint below.
+**Overall: Search, Explore and project-detail loading have verified implementation checkpoints.**
+AppModel composes searchFeature, discoveryFeature and projectDetailsFeature.
+No top-level product area has passed every manual/snapshot/strict-concurrency exit
+gate. The latest combined checkpoint passed 293 tests plus an app build; 11
+additional API compatibility tests passed. Bounded Simulator journeys are recorded above.
 Test counts are coverage evidence, not a percentage of the full application.
 
 | Area / milestone | Evidence-backed status | Remaining exit criteria |
@@ -87,7 +126,8 @@ Test counts are coverage evidence, not a percentage of the full application.
 | Search filter policy and category/location lookups | Implemented; focused tests and bounded earlier UI smoke | Repeat relevant UI journeys on final Search build |
 | Search lifecycle, analytics, query admission and filters | Consolidated automated checkpoint verified, including GraphQL filter identity regression | Bounded final UI smoke, snapshots and strict-concurrency audit; retain output-only compatibility |
 | Explore / discovery | Connected Feature owns filters/defaults, four feed states, async requests, pagination and activity samples; 205-test combined checkpoint and bounded smoke passed | Full snapshots, signed-in/live journeys, accessibility/device checks and compiler isolation audit |
-| Project details, media, updates/comments and related routes | Legacy; only initial source reconnaissance | Map independent/shared state, preserve destinations, migrate in bounded features |
+| Project-detail loading, backing and rewards dependencies | Connected Feature and cancellation-aware API operations; existing page/analytics assertions and new concurrency tests passed | Live authenticated validation, full UI/compiler audit |
+| Rewards screen, related projects, media, updates/comments and other project interactions | Legacy execution remains | Migrate connected reads next; preserve transaction ordering and navigation |
 | Account/session, Profile, settings and authentication | Legacy; not migrated | One shared session owner, persistence/security contract, authenticated/signed-out tests |
 | Activity, pledged projects and transactional flows | Legacy; not migrated | Shared backing state, ordering/idempotency, cancellation, retry and storage guarantees |
 | App-wide integration and support flows | Not completed | Root/lifecycle/deep links, notifications, reachability, shared transport/storage, wider tests |

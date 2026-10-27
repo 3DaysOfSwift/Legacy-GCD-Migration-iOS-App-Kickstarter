@@ -1,5 +1,29 @@
 # Kickstarter migration behaviour contract
 
+## Project-detail loading checkpoint — 27 October 2026
+
+Before: 75 existing page/tracking tests passed at bc6a50a01. After: all original
+assertions retained, plus 12 Feature tests and one recommendations-rendering
+regression; 293 combined tests and app build passed. Existing API fixture/decoder
+contracts: 11 additional tests passed. No failures or skips in either final run.
+
+| Requirement | Protection |
+| --- | --- |
+| Secret-reward enrollment precedes reads and failure prevents downstream work | Controlled enrollment gate and failure/retry tests |
+| Standard project → optional backing → rewards ordering | Feature trace assertions, no partial-project publication |
+| Backing merge retains project metadata; no-reward stays first | Direct Feature assertions plus existing API fixture contracts |
+| Fast base/extras begin concurrently and either failure fails the page | Controlled parallel dependency tests; throwing task group cancels siblings |
+| Repeated equivalent requests share; mutation refresh supersedes | Sharing and forced-refresh adverse completion tests |
+| Independent project routes do not cross-cancel | Two-route cancellation/release test |
+| Account changes and late responses cannot publish stale state | Controlled account/replacement tests |
+| Existing preview, CTA, media, navigation and analytics outputs remain | 75 original assertions retained through async test adapters |
+| Unrelated recommendations may still update a selected page | Explicit recommendations-error rendering regression; pending fixtures isolate other tests |
+
+Agent smoke: Pocket Observatory overview → Campaign → FAQ → Rewards (demo
+supporter edition) → same FAQ page. No payment, real account or enrollment used.
+This does not verify the legacy rewards-screen executor, live APIs, snapshot
+equivalence, full accessibility, device performance or app-wide completion.
+
 ## Explore async ownership checkpoint — 27 October 2026
 
 Final continuation: 205 tests passed with zero failures/skips and the app built
