@@ -8,7 +8,9 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class SimilarProjectsUseCaseTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private var useCase: SimilarProjectsUseCase!
   private let projectTappedObserver = TestObserver<ProjectCardProperties, Never>()
   private let similarProjectsObserver = TestObserver<SimilarProjectsState, Never>()
@@ -16,41 +18,46 @@ final class SimilarProjectsUseCaseTests: TestCase {
 
   override func setUp() {
     super.setUp()
-
-    // Create mock data for similar projects
-    let mockProjectNodes: [GraphAPI.FetchSimilarProjectsQuery.Data.Projects.Node?] = [
-      self.createMockProjectNode(id: 1, name: "Project 1"),
-      self.createMockProjectNode(id: 2, name: "Project 2"),
-      self.createMockProjectNode(id: 3, name: "Project 3"),
-      self.createMockProjectNode(id: 4, name: "Project 4")
-    ]
-
-    // Create mock project data
-    let mockProjects = GraphAPI.FetchSimilarProjectsQuery.Data.Projects(nodes: mockProjectNodes)
-
-    // Create mock query data
-    let mockData = GraphAPI.FetchSimilarProjectsQuery.Data(projects: mockProjects)
-
-    self.mockService = MockService(
-      fetchGraphQLResponses: [
-        (GraphAPI.FetchSimilarProjectsQuery.self, mockData)
+    MainActor.assumeIsolated {
+      // Create mock data for similar projects
+      let mockProjectNodes: [GraphAPI.FetchSimilarProjectsQuery.Data.Projects.Node?] = [
+        self.createMockProjectNode(id: 1, name: "Project 1"),
+        self.createMockProjectNode(id: 2, name: "Project 2"),
+        self.createMockProjectNode(id: 3, name: "Project 3"),
+        self.createMockProjectNode(id: 4, name: "Project 4")
       ]
-    )
 
-    // Initialize the use case with our mock service
-    self.useCase = SimilarProjectsUseCase()
-    self.useCase.navigateToProject.observe(self.projectTappedObserver.observer)
-    self.useCase.similarProjects.producer.start(self.similarProjectsObserver.observer)
+      // Create mock project data
+      let mockProjects = GraphAPI.FetchSimilarProjectsQuery.Data.Projects(nodes: mockProjectNodes)
+
+      // Create mock query data
+      let mockData = GraphAPI.FetchSimilarProjectsQuery.Data(projects: mockProjects)
+
+      self.mockService = MockService(
+        fetchGraphQLResponses: [
+          (GraphAPI.FetchSimilarProjectsQuery.self, mockData)
+        ]
+      )
+
+      // Initialize the use case with our mock service
+      self.useCase = SimilarProjectsUseCase(projectDetailsFeature: ProjectDetailsFeature(
+        makeProvider: { AsyncProjectDetailsProvider(service: AppEnvironment.current.apiService) }
+      ))
+      self.useCase.navigateToProject.observe(self.projectTappedObserver.observer)
+      self.useCase.similarProjects.producer.start(self.similarProjectsObserver.observer)
+    }
   }
 
   override func tearDown() {
-    self.useCase = nil
-    self.mockService = nil
+    MainActor.assumeIsolated {
+      self.useCase = nil
+      self.mockService = nil
+    }
     super.tearDown()
   }
 
-  func testInitialState() {
-    withEnvironment(apiService: self.mockService) {
+  func testInitialState() async {
+    await withEnvironment(apiService: self.mockService) {
       // The useCase should start with a loading state
       XCTAssertEqual(1, self.similarProjectsObserver.values.count)
 
@@ -62,8 +69,8 @@ final class SimilarProjectsUseCaseTests: TestCase {
     }
   }
 
-  func testProjectIDLoaded_emitsLoadedState() {
-    withEnvironment(apiService: self.mockService) {
+  func testProjectIDLoaded_emitsLoadedState() async {
+    await withEnvironment(apiService: self.mockService) {
       // Verify we're in loading state
       XCTAssertEqual(1, self.similarProjectsObserver.values.count)
       if case .loading = self.similarProjectsObserver.values[0] {
@@ -74,6 +81,7 @@ final class SimilarProjectsUseCaseTests: TestCase {
 
       // When loading a project ID
       self.useCase.projectIDLoaded(projectID: "1")
+      await self.useCase.loadingTask?.value
 
       // Verify we received loaded state with projects
       XCTAssertEqual(2, self.similarProjectsObserver.values.count)
@@ -86,10 +94,11 @@ final class SimilarProjectsUseCaseTests: TestCase {
     }
   }
 
-  func testProjectTapped_emitsNavigateToProject() {
-    withEnvironment(apiService: self.mockService) {
+  func testProjectTapped_emitsNavigateToProject() async {
+    await withEnvironment(apiService: self.mockService) {
       // When loading a project ID
       self.useCase.projectIDLoaded(projectID: "1")
+      await self.useCase.loadingTask?.value
       guard
         case let .loaded(projects) = similarProjectsObserver.values[1],
         let project = projects.first
@@ -108,7 +117,7 @@ final class SimilarProjectsUseCaseTests: TestCase {
 
   // MARK: - SimilarProject Parsing Tests
 
-  func testSimilarProjectParsing_ValidData_Success() throws {
+  func testSimilarProjectParsing_ValidData_Success() async throws {
     // Create a valid ProjectCardFragment with all required fields
     let validProjectFragment = self.createMockProjectNode()
 
@@ -144,7 +153,7 @@ final class SimilarProjectsUseCaseTests: TestCase {
     XCTAssertEqual(similarProject.pledged?.amount, 7_500)
   }
 
-  func testSimilarProjectParsing_InvalidData_ReturnsNil() {
+  func testSimilarProjectParsing_InvalidData_ReturnsNil() async {
     // Test with missing image URL
     let missingImageFragment = self.createMockProjectNode(imageURL: nil)
 
@@ -166,7 +175,7 @@ final class SimilarProjectsUseCaseTests: TestCase {
 
   // MARK: - ProjectPamphletMainCellProperties Tests
 
-  func testProjectPamphletMainCellProperties_DirectProperties() {
+  func testProjectPamphletMainCellProperties_DirectProperties() async {
     // Create a mock project node with specific values
     let mockNode = self.createMockProjectNode(
       id: 456,
@@ -196,7 +205,7 @@ final class SimilarProjectsUseCaseTests: TestCase {
     XCTAssertEqual(properties.webURL, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
   }
 
-  func testProjectPamphletMainCellProperties_DerivedProperties() {
+  func testProjectPamphletMainCellProperties_DerivedProperties() async {
     // Create a mock project node with specific values for testing derived properties
     let mockNode = self.createMockProjectNode(
       id: 789,
@@ -226,7 +235,7 @@ final class SimilarProjectsUseCaseTests: TestCase {
     XCTAssertFalse(properties.needsConversion) // Same currency, no conversion needed
   }
 
-  func testProjectPamphletMainCellProperties_GoalMet() {
+  func testProjectPamphletMainCellProperties_GoalMet() async {
     // Test when goal is met (pledged >= goal)
     let goalMetNode = self.createMockProjectNode(
       goal: 10_000,
@@ -254,7 +263,7 @@ final class SimilarProjectsUseCaseTests: TestCase {
     XCTAssertTrue(goalExceededProperties.goalMet)
   }
 
-  func testProjectPamphletMainCellProperties_CurrencyConversion() {
+  func testProjectPamphletMainCellProperties_CurrencyConversion() async {
     // Create a mock project with different currency
     let mockNode = self.createMockProjectNode()
     let properties = mockNode
@@ -276,7 +285,7 @@ final class SimilarProjectsUseCaseTests: TestCase {
     XCTAssertTrue(properties.omitUSCurrencyCode)
   }
 
-  func testProjectPamphletMainCellProperties_ZeroPledgeHandling() {
+  func testProjectPamphletMainCellProperties_ZeroPledgeHandling() async {
     let zeroPledgeNode = self.createMockProjectNode(
       goal: 1_000,
       pledged: 0

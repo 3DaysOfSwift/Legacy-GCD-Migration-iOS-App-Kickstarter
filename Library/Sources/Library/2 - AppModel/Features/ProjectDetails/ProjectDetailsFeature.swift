@@ -6,6 +6,7 @@ import ReactiveSwift
 /// The API substitution boundary; one instance captures the service for a whole load.
 @MainActor
 public protocol ProjectDetailsProvider {
+  func relatedProjects(projectID: String) async throws -> [ProjectCardProperties]
   func enroll(token: String, param: Param) async throws
   func project(param: Param, richText: Bool) async throws -> Project.ProjectPamphletData
   func backing(id: Int) async throws -> ProjectAndBackingEnvelope
@@ -19,6 +20,13 @@ public struct AsyncProjectDetailsProvider: ProjectDetailsProvider {
   private let service: any ServiceType
 
   public init(service: any ServiceType) { self.service = service }
+  public func relatedProjects(projectID: String) async throws -> [ProjectCardProperties] {
+    let response = try await self.service.relatedProjects(projectID: projectID)
+    return (response.projects?.nodes ?? []).compactMap { node in
+      node.flatMap { ProjectCardProperties($0.fragments.projectCardFragment) }
+    }
+  }
+
   public func enroll(token: String, param: Param) async throws {
     try await self.service.enrollProjectSecretReward(token: token, param: param)
   }
@@ -50,6 +58,81 @@ public struct AsyncProjectDetailsProvider: ProjectDetailsProvider {
 /// it. Cancellation invalidates publication even if a provider completes late.
 @MainActor
 public final class ProjectDetailsFeature {
+  public struct RelatedSnapshot {
+    public fileprivate(set) var projects: [ProjectCardProperties] = []
+    public fileprivate(set) var isLoading = false
+    public fileprivate(set) var error: ErrorEnvelope?
+  }
+
+  private final class RelatedPage {
+    var snapshot = RelatedSnapshot()
+    var request: (id: UUID, projectID: String, userID: Int?, task: Task<Void, Never>)?
+  }
+
+  private var relatedPages: [UUID: RelatedPage] = [:]
+  private let relatedPipe = Signal<(UUID, Result<[ProjectCardProperties], ErrorEnvelope>), Never>.pipe()
+  public var relatedCompletions: Signal<(UUID, Result<[ProjectCardProperties], ErrorEnvelope>), Never> {
+    self.relatedPipe.output
+  }
+
+  public func relatedSnapshot(for route: UUID) -> RelatedSnapshot {
+    self.relatedPages[route]?.snapshot ?? RelatedSnapshot()
+  }
+
+  public func loadRelated(route: UUID, projectID: String) async {
+    guard !Task.isCancelled else { return }
+    await self.requestRelated(route: route, projectID: projectID).value
+  }
+
+  /// Recommendations are independent of the project's required dependencies.
+  /// Equivalent requests share work; a changed project replaces only this route.
+  @discardableResult
+  public func requestRelated(route: UUID, projectID: String) -> Task<Void, Never> {
+    let userID = AppEnvironment.current.currentUser?.id
+    let page = self.relatedPages[route] ?? RelatedPage()
+    self.relatedPages[route] = page
+    if let request = page.request, request.projectID == projectID, request.userID == userID {
+      return request.task
+    }
+    page.request?.task.cancel()
+    let requestID = UUID()
+    let provider = self.makeProvider()
+    page.snapshot.isLoading = true
+    page.snapshot.error = nil
+    let task = Task { [weak self] in
+      defer {
+        if page.request?.id == requestID {
+          page.request = nil
+          page.snapshot.isLoading = false
+        }
+      }
+      do {
+        try Self.checkSession(userID)
+        let projects = try await provider.relatedProjects(projectID: projectID)
+        try Self.checkSession(userID)
+        guard let self, self.relatedPages[route]?.request?.id == requestID else { return }
+        page.snapshot.projects = projects
+        self.relatedPipe.input.send(value: (route, .success(projects)))
+      } catch is CancellationError {
+        // Keep cancellation distinct from the existing visible error state.
+      } catch {
+        guard !Task.isCancelled, userID == AppEnvironment.current.currentUser?.id,
+              let self, self.relatedPages[route]?.request?.id == requestID else { return }
+        let failure = (error as? ErrorEnvelope) ?? ErrorEnvelope.couldNotParseJSON
+        page.snapshot.error = failure
+        self.relatedPipe.input.send(value: (route, .failure(failure)))
+      }
+    }
+    page.request = (requestID, projectID, userID, task)
+    return task
+  }
+
+  public func releaseRelated(route: UUID) {
+    let page = self.relatedPages.removeValue(forKey: route)
+    page?.request?.task.cancel()
+    page?.request = nil
+  }
+
   public struct Snapshot {
     public fileprivate(set) var project: Project?
     public fileprivate(set) var isLoading = false

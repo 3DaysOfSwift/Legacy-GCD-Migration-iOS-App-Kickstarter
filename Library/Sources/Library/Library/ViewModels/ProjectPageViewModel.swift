@@ -252,6 +252,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   public init(projectDetailsFeature: ProjectDetailsFeature? = nil) {
     let projectDetailsFeature = projectDetailsFeature ?? AppModel.shared.projectDetailsFeature
     self.projectDetailsFeature = projectDetailsFeature
+    self.similarProjectsUseCase = SimilarProjectsUseCase(projectDetailsFeature: projectDetailsFeature)
     let isLoading = MutableProperty(false)
 
     self.navigateBackToProjectPage = self.didBackProjectProperty.signal.ignoreValues()
@@ -930,7 +931,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
   // MARK: - Similar Projects
 
-  private let similarProjectsUseCase = SimilarProjectsUseCase()
+  private let similarProjectsUseCase: SimilarProjectsUseCase
 
   public func similarProjectTapped(project: ProjectCardProperties) {
     self.similarProjectsUseCase.projectTapped(project: project)

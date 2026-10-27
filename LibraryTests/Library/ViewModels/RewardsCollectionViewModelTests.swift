@@ -9,28 +9,62 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class RewardsCollectionViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
+  func testFailedCountryRefreshKeepsSuccessfulCardsAndTheirShippingContextThenRetries() async {
+    let rewards = [Reward.noReward, Reward.shipsToUSAReward]
+    let project = Project.template |> Project.lens.rewardData.rewards .~ rewards
+    let locations = TestObserver<String?, Never>()
+    let observation = self.vm.outputs.reloadDataWithValues
+      .map { $0.last?.currentShippingLocation?.country }.observe(locations.observer)
+    defer { observation?.dispose() }
+    await withEnvironment(apiService: MockService(fetchProjectRewardsResult: .success(rewards))) {
+      self.vm.configure(with: project, refTag: nil, context: .createPledge, secretRewardToken: nil)
+      self.vm.viewDidLoad()
+      self.vm.shippingLocationSelected(.usa)
+      await self.vm.loadingTask?.value
+      locations.assertValues(["US"])
+      await withEnvironment(apiService: MockService(
+        fetchProjectRewardsResult: .failure(.couldNotParseJSON)
+      )) {
+        self.vm.shippingLocationSelected(.australia)
+        await self.vm.loadingTask?.value
+        self.reloadDataWithValues.assertValues([rewards, rewards])
+        locations.assertValues(["US", "US"], "A failed refresh must not relabel US cards as Australian")
+      }
+      self.vm.shippingLocationSelected(nil)
+      await self.vm.loadingTask?.value
+      locations.assertValues(["US", "US", nil])
+    }
+  }
+
   private let reloadDataWithValues = TestObserver<[Reward], Never>()
   private let scrollToRewardIndex = TestObserver<Int, Never>()
   private let goToCustomizeYourReward = TestObserver<PledgeViewData, Never>()
   private let showPlaceholderRewardCards = TestObserver<Int, Never>()
 
-  private let vm = RewardsCollectionViewModel()
+  private let vm = RewardsCollectionViewModel(rewardsFeature: RewardsFeature(
+    makeProvider: { AsyncRewardsProvider(service: AppEnvironment.current.apiService) },
+    sleep: { _ in try Task.checkCancellation() }
+  ))
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated {
+      self.vm.outputs.reloadDataWithValues.map { $0.map { $0.reward } }
+        .observe(self.reloadDataWithValues.observer)
 
-    self.vm.outputs.reloadDataWithValues.map { $0.map { $0.reward } }
-      .observe(self.reloadDataWithValues.observer)
+      self.vm.outputs.scrollToRewardIndexPath.map { $0.row }.observe(self.scrollToRewardIndex.observer)
 
-    self.vm.outputs.scrollToRewardIndexPath.map { $0.row }.observe(self.scrollToRewardIndex.observer)
+      self.vm.outputs.goToCustomizeYourReward.observe(self.goToCustomizeYourReward.observer)
 
-    self.vm.outputs.goToCustomizeYourReward.observe(self.goToCustomizeYourReward.observer)
-
-    self.vm.outputs.showPlaceholderRewardCards.observe(self.showPlaceholderRewardCards.observer)
+      self.vm.outputs.showPlaceholderRewardCards.observe(self.showPlaceholderRewardCards.observer)
+    }
   }
 
-  func testRewardsFiltered() {
+  func testRewardsFiltered() async {
     let availableReward = Reward.template
       |> Reward.lens.isAvailable .~ true
 
@@ -64,7 +98,7 @@ final class RewardsCollectionViewModelTests: TestCase {
 
     let mockService = MockService(fetchProjectRewardsResult: .success(rewards))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.configure(with: testProject, refTag: nil, context: .createPledge, secretRewardToken: "34342")
       self.vm.viewDidLoad()
 
@@ -75,7 +109,8 @@ final class RewardsCollectionViewModelTests: TestCase {
 
       self.vm.shippingLocationSelected(Location.australia)
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.reloadDataWithValues.assertLastValue([
         Reward.noReward,
@@ -89,7 +124,7 @@ final class RewardsCollectionViewModelTests: TestCase {
     }
   }
 
-  func test_scrollsToFirstSecretReward_whenSecretRewardTokenIsProvided() {
+  func test_scrollsToFirstSecretReward_whenSecretRewardTokenIsProvided() async {
     let availableReward = Reward.template
       |> Reward.lens.isAvailable .~ true
     let notAvailableReward = Reward.template
@@ -107,7 +142,7 @@ final class RewardsCollectionViewModelTests: TestCase {
 
     let mockService = MockService(fetchProjectRewardsResult: .success(rewards))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.configure(with: testProject, refTag: nil, context: .createPledge, secretRewardToken: "34342")
       self.vm.shippingLocationSelected(nil)
 
@@ -118,14 +153,15 @@ final class RewardsCollectionViewModelTests: TestCase {
       self.scrollToRewardIndex
         .assertDidNotEmitValue("Shouldn't scroll to secret reward until rewards are fetched")
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.reloadDataWithValues.assertLastValue(rewards)
       self.scrollToRewardIndex.assertValues([1])
     }
   }
 
-  func test_autoscrollsToBackedReward_whenProjectIsBacked() {
+  func test_autoscrollsToBackedReward_whenProjectIsBacked() async {
     let availableReward = Reward.template
       |> Reward.lens.isAvailable .~ true
     let notAvailableReward = Reward.template
@@ -150,7 +186,7 @@ final class RewardsCollectionViewModelTests: TestCase {
 
     let mockService = MockService(fetchProjectRewardsResult: .success(rewards))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.configure(with: testProject, refTag: nil, context: .createPledge, secretRewardToken: nil)
 
       self.vm.shippingLocationSelected(nil)
@@ -162,14 +198,15 @@ final class RewardsCollectionViewModelTests: TestCase {
       self.scrollToRewardIndex
         .assertDidNotEmitValue("Shouldn't scroll to backed reward until rewards are fetched")
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.reloadDataWithValues.assertValues([rewards])
       self.scrollToRewardIndex.assertValues([2])
     }
   }
 
-  func test_doesNotScroll_whenNoBackedRewardAndNoSecretRewardToken() {
+  func test_doesNotScroll_whenNoBackedRewardAndNoSecretRewardToken() async {
     let availableReward = Reward.template
       |> Reward.lens.isAvailable .~ true
     let notAvailableReward = Reward.template
@@ -187,21 +224,22 @@ final class RewardsCollectionViewModelTests: TestCase {
 
     let mockService = MockService(fetchProjectRewardsResult: .success(rewards))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.configure(with: testProject, refTag: nil, context: .createPledge, secretRewardToken: nil)
       self.vm.shippingLocationSelected(nil)
 
       self.vm.viewDidLoad()
       self.vm.viewDidLayoutSubviews()
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.reloadDataWithValues.assertValues([rewards])
       self.scrollToRewardIndex.assertDidNotEmitValue()
     }
   }
 
-  func test_selectLocation_outputsShippingRule_forRewardWithShipping() {
+  func test_selectLocation_outputsShippingRule_forRewardWithShipping() async {
     let location1 = Location(
       country: "Country 1",
       displayableName: "Country 1",
@@ -252,14 +290,15 @@ final class RewardsCollectionViewModelTests: TestCase {
 
     let mockService = MockService(fetchProjectRewardsResult: .success(rewards))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.configure(with: testProject, refTag: nil, context: .createPledge, secretRewardToken: nil)
       self.vm.inputs.shippingLocationSelected(nil)
 
       self.vm.viewDidLoad()
       self.vm.viewDidLayoutSubviews()
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
       self.reloadDataWithValues.assertDidEmitValue()
       self.goToCustomizeYourReward.assertDidNotEmitValue()
 
@@ -278,7 +317,7 @@ final class RewardsCollectionViewModelTests: TestCase {
     }
   }
 
-  func test_selectLocation_outputsNilShippingRule_forRewardWithoutShipping() {
+  func test_selectLocation_outputsNilShippingRule_forRewardWithoutShipping() async {
     let shippingRule1 = ShippingRule(
       cost: 10,
       id: 1,
@@ -315,14 +354,15 @@ final class RewardsCollectionViewModelTests: TestCase {
 
     let mockService = MockService(fetchProjectRewardsResult: .success(rewards))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.configure(with: testProject, refTag: nil, context: .createPledge, secretRewardToken: nil)
       self.vm.inputs.shippingLocationSelected(nil)
 
       self.vm.viewDidLoad()
       self.vm.viewDidLayoutSubviews()
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
       self.reloadDataWithValues.assertDidEmitValue()
 
       self.vm.inputs.shippingLocationSelected(Location.usa)
@@ -340,7 +380,7 @@ final class RewardsCollectionViewModelTests: TestCase {
     }
   }
 
-  func test_selectLocation_outputsNilShippingRule_forProjectWithNoShippableRewards() {
+  func test_selectLocation_outputsNilShippingRule_forProjectWithNoShippableRewards() async {
     let noReward = Reward.noReward
     let digitalReward = Reward.digitalReward
 
@@ -358,7 +398,7 @@ final class RewardsCollectionViewModelTests: TestCase {
 
     let mockService = MockService(fetchProjectRewardsResult: .success(rewards))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.configure(with: testProject, refTag: nil, context: .createPledge, secretRewardToken: nil)
       // If there are no shippable rewards, the location element will be hidden.
       // The shipping location view will output `nil` immediately if there are no shippable rewards.
@@ -367,7 +407,8 @@ final class RewardsCollectionViewModelTests: TestCase {
       self.vm.viewDidLoad()
       self.vm.viewDidLayoutSubviews()
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
       self.reloadDataWithValues.assertDidEmitValue()
 
       self.vm.inputs.rewardSelected(with: localShippingReward.id)
@@ -384,7 +425,7 @@ final class RewardsCollectionViewModelTests: TestCase {
     }
   }
 
-  func test_projectWithShippableRewards_showsLoadingState_whileRewardsLoad() {
+  func test_projectWithShippableRewards_showsLoadingState_whileRewardsLoad() async {
     let onlyShipsToUSAReward = Reward.shipsToUSAReward
 
     let rewards = [
@@ -397,7 +438,7 @@ final class RewardsCollectionViewModelTests: TestCase {
 
     let mockService = MockService(fetchProjectRewardsResult: .success(rewards))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       // The initial state of the page
       self.vm.configure(with: project, refTag: nil, context: .createPledge, secretRewardToken: nil)
       self.vm.viewDidLoad()
@@ -415,7 +456,8 @@ final class RewardsCollectionViewModelTests: TestCase {
       self.showPlaceholderRewardCards.assertValueCount(1, "Should still be loading")
 
       // Wait for the network fetch
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
       self.reloadDataWithValues.assertValueCount(
         1,
         "Selecting shipping location should fetch and load cards, with new shipping location"
@@ -432,7 +474,8 @@ final class RewardsCollectionViewModelTests: TestCase {
       self.reloadDataWithValues.assertValueCount(1)
 
       // Wait for a fetch to load the new rewards
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
       self.reloadDataWithValues.assertValueCount(
         2,
         "Changing selected shipping location should re-fetch new cards"
@@ -441,7 +484,7 @@ final class RewardsCollectionViewModelTests: TestCase {
     }
   }
 
-  func test_projectWithNoShippableRewards_showsLoadingState_andFetchesRewards() {
+  func test_projectWithNoShippableRewards_showsLoadingState_andFetchesRewards() async {
     let digitalReward = Reward.digitalReward
 
     let rewards = [
@@ -454,7 +497,7 @@ final class RewardsCollectionViewModelTests: TestCase {
 
     let mockService = MockService(fetchProjectRewardsResult: .success(rewards))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.configure(with: project, refTag: nil, context: .createPledge, secretRewardToken: nil)
       self.vm.viewDidLoad()
 
@@ -471,7 +514,8 @@ final class RewardsCollectionViewModelTests: TestCase {
       self.showPlaceholderRewardCards.assertValueCount(1, "Should still be loading")
 
       // Wait for a network fetch to load the rewards
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
       self.reloadDataWithValues.assertLastValue(rewards, "Should have fetched rewards")
       self.showPlaceholderRewardCards.assertValueCount(1, "Should no longer be loading")
     }

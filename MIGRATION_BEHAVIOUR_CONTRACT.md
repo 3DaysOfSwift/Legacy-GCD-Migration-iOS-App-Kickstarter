@@ -1,5 +1,27 @@
 # Kickstarter migration behaviour contract
 
+## Rewards and related-project reads — 27 October 2026
+
+- The shipping-sorted rewards API returns one complete list, not cursor pages.
+  Preserve its query, server ordering, shipping metadata and synthetic No Reward
+  placement experiment. Filter future rewards in the owning Feature.
+- A changed shipping location supersedes that screen's read; equivalent in-flight
+  requests share. Separate reward/project routes do not cancel each other.
+  Cancellation and account changes suppress late results and errors.
+- Keep cached reward cards bound to their last successful location after failure;
+  retain the existing placeholder and retry-through-location-change behavior.
+- Preserve secret/backed-reward scroll, selected reward, shipping rule, navigation,
+  footer count, existing CTA decisions and analytics. No payment mutation changed.
+- Recommendations load independently of required detail/backing/reward data.
+  Preserve initial loading, loaded/empty/error presentation and card navigation.
+
+Verification: 324 combined tests and app build passed in
+/private/tmp/kickstarter-rewards-related.VmZxNu; two sorted-reward decoder tests
+passed in /private/tmp/kickstarter-rewards-sorted-decoder.xcresult.
+Agent smoke observed overview → Rewards → overview → Campaign. Public demo
+does not supply recommendation cards; their rendering still needs visual/live
+validation. No full-app or strict-concurrency completion claim.
+
 ## Project-detail loading checkpoint — 27 October 2026
 
 Before: 75 existing page/tracking tests passed at bc6a50a01. After: all original

@@ -1,14 +1,13 @@
 import Foundation
-import GraphAPI
 import KsApi
 import ReactiveSwift
 
-public protocol SimilarProjectsUseCaseType {
+@MainActor public protocol SimilarProjectsUseCaseType {
   var inputs: SimilarProjectsUseCaseInputs { get }
   var outputs: SimilarProjectsUseCaseOutputs { get }
 }
 
-public protocol SimilarProjectsUseCaseInputs {
+@MainActor public protocol SimilarProjectsUseCaseInputs {
   /// Call when a user taps on a similar project.
   /// Triggers navigation to the selected project's details.
   ///
@@ -22,7 +21,7 @@ public protocol SimilarProjectsUseCaseInputs {
   func projectIDLoaded(projectID: String)
 }
 
-public protocol SimilarProjectsUseCaseOutputs {
+@MainActor public protocol SimilarProjectsUseCaseOutputs {
   /// The current state of similar projects.
   var similarProjects: Property<SimilarProjectsState> { get }
 
@@ -32,34 +31,36 @@ public protocol SimilarProjectsUseCaseOutputs {
 }
 
 /// A Use Case for fetching similar projects and navigating to them when the user taps them.
-public final class SimilarProjectsUseCase: SimilarProjectsUseCaseType, SimilarProjectsUseCaseInputs,
+@MainActor public final class SimilarProjectsUseCase: SimilarProjectsUseCaseType,
+  SimilarProjectsUseCaseInputs,
   SimilarProjectsUseCaseOutputs {
   // MARK: - Initialization
 
-  init() {
-    self.navigateToProject = self.projectTappedSignal
+  private let projectDetailsFeature: ProjectDetailsFeature
+  private let route = UUID()
+  private var observation: Disposable?
+  internal private(set) var loadingTask: Task<Void, Never>?
 
-    self.projectIDLoadedSignal
-      .flatMap(.latest, self.fetchProjects(projectID:))
-      .observeForUI()
-      .observeValues { [weak self] state in
-        self?.similarProjectsProperty.value = state
+  init(projectDetailsFeature: ProjectDetailsFeature? = nil) {
+    let feature = projectDetailsFeature ?? AppModel.shared.projectDetailsFeature
+    self.projectDetailsFeature = feature
+    self.navigateToProject = self.projectTappedSignal
+    self.observation = feature.relatedCompletions.observeValues { [weak self] route, result in
+      guard let self, self.route == route else { return }
+      self.loadingTask = nil
+      switch result {
+      case let .success(projects): self.similarProjectsProperty.value = .loaded(projects: projects)
+      case let .failure(error): self.similarProjectsProperty.value = .error(error: error)
       }
+    }
   }
 
-  // MARK: - Data loading
-
-  private func fetchProjects(projectID: String) -> SignalProducer<SimilarProjectsState, Never> {
-    AppEnvironment.current.apiService.fetch(query: GraphAPI.FetchSimilarProjectsQuery(projectID: projectID))
-      .map { response in response.projects?.nodes ?? [] }
-      .map { nodes in nodes
-        .compactMap { node in node?.fragments.projectCardFragment }
-        .compactMap { fragment in ProjectCardProperties(fragment) }
-      }
-      .map { projects in .loaded(projects: projects) }
-      .flatMapError { error in
-        SignalProducer(value: SimilarProjectsState.error(error: error))
-      }
+  deinit {
+    self.loadingTask?.cancel()
+    self.observation?.dispose()
+    let feature = self.projectDetailsFeature
+    let route = self.route
+    Task { @MainActor in feature.releaseRelated(route: route) }
   }
 
   // MARK: - Inputs
@@ -69,9 +70,8 @@ public final class SimilarProjectsUseCase: SimilarProjectsUseCaseType, SimilarPr
     self.projectTappedObserver.send(value: project)
   }
 
-  private let (projectIDLoadedSignal, projectIDLoadedObserver) = Signal<String, Never>.pipe()
   public func projectIDLoaded(projectID: String) {
-    self.projectIDLoadedObserver.send(value: projectID)
+    self.loadingTask = self.projectDetailsFeature.requestRelated(route: self.route, projectID: projectID)
   }
 
   // MARK: - Outputs

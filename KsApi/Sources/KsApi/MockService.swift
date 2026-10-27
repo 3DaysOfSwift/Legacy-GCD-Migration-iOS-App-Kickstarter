@@ -1418,6 +1418,26 @@
       return try result.get()
     }
 
+    @MainActor public func sortedProjectRewards(
+      projectID: Int, country: String?, inserter: any NoRewardInserter
+    ) async throws -> [Reward] {
+      // Legacy fixtures already contain the synthetic no-reward entry.
+      try await self.projectDetailsRewards(projectID: projectID)
+    }
+
+    @MainActor public func relatedProjects(projectID: String) async throws -> GraphAPI.FetchSimilarProjectsQuery.Data {
+      try Task.checkCancellation()
+      if self.pendingLegacyGraphQLQueries.contains(where: { $0 == GraphAPI.FetchSimilarProjectsQuery.self }) {
+        // The fixture deliberately suspends this independent dependency.
+        // Cancellation releases it when its route is destroyed.
+        try await Task.sleep(nanoseconds: UInt64.max)
+        throw CancellationError()
+      }
+      guard let data = try await self.fetch(query: GraphAPI.FetchSimilarProjectsQuery(projectID: projectID))
+      else { throw ErrorEnvelope.couldNotParseJSON }
+      return data
+    }
+
     @MainActor public func projectDetailsBase(param: Param) async throws -> Project {
       try Task.checkCancellation()
       if let demoCatalog { return try demoCatalog.project(param) }

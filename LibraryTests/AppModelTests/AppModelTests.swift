@@ -18,12 +18,14 @@ final class AppModelTests: XCTestCase {
     let first = AppModel(
       searchFeature: firstFeature,
       discoveryFeature: DiscoveryFeature(provider: NoRequestDiscoveryProvider()),
-      projectDetailsFeature: firstDetails
+      projectDetailsFeature: firstDetails,
+      rewardsFeature: RewardsFeature(makeProvider: { AsyncRewardsProvider(service: MockService()) })
     )
     let second = AppModel(
       searchFeature: secondFeature,
       discoveryFeature: DiscoveryFeature(provider: NoRequestDiscoveryProvider()),
-      projectDetailsFeature: secondDetails
+      projectDetailsFeature: secondDetails,
+      rewardsFeature: RewardsFeature(makeProvider: { AsyncRewardsProvider(service: MockService()) })
     )
 
     XCTAssertTrue(first.searchFeature === firstFeature)
@@ -33,6 +35,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(first.projectDetailsFeature === firstDetails)
     XCTAssertTrue(second.projectDetailsFeature === secondDetails)
     XCTAssertFalse(first.projectDetailsFeature === second.projectDetailsFeature)
+    XCTAssertFalse(first.rewardsFeature === second.rewardsFeature)
     XCTAssertTrue(first.discoveryFeature.snapshot(for: .magic).projects.isEmpty)
     XCTAssertEqual(firstProvider.requestCount, 0)
     XCTAssertEqual(secondProvider.requestCount, 0)

@@ -2,6 +2,21 @@ import Apollo
 import GraphAPI
 
 extension Service {
+  @MainActor public func sortedProjectRewards(
+    projectID: Int, country: String?, inserter: any NoRewardInserter
+  ) async throws -> [Reward] {
+    let data = try await self.projectDetailsQuery(GraphAPI.FetchSortedProjectRewardsByIdQuery(
+      projectId: projectID,
+      location: GraphQLEnum.caseOrNil(country.flatMap(GraphAPI.CountryCode.init(rawValue:)))
+    ))
+    return Project.projectRewards(from: data, withNoReward: inserter)
+  }
+
+  @MainActor public func relatedProjects(projectID: String) async throws -> GraphAPI.FetchSimilarProjectsQuery
+    .Data {
+    try await self.projectDetailsQuery(GraphAPI.FetchSimilarProjectsQuery(projectID: projectID))
+  }
+
   @MainActor public func projectDetails(param: Param, includeStoryRichText: Bool) async throws -> Project
     .ProjectPamphletData {
     let data = try await self.projectDetailsQuery(GraphAPI.FetchProjectByParamQuery(

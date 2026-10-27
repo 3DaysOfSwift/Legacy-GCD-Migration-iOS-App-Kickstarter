@@ -5,6 +5,7 @@ import Prelude
 import XCTest
 
 final class NoRewardInserterTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   func testNoRewardFirstInserter_insertsRewardFirst() {
     let inserter = NoRewardFirst()
 

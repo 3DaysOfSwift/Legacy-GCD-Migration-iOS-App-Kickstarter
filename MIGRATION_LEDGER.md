@@ -4,6 +4,43 @@ Author: Matthew Thomas. Updated 27 October 2026.
 
 ## Latest verified checkpoint
 
+Rewards-screen and related-project reads now use CFA-owned async execution.
+324 combined Search/Explore/Project-detail/Rewards/composition tests passed,
+zero failures/skips, followed by a successful app build:
+/private/tmp/kickstarter-rewards-related.VmZxNu.
+Two existing sorted-reward decoder tests also passed:
+/private/tmp/kickstarter-rewards-sorted-decoder.xcresult.
+Six existing NoRewardInserterTests passed separately in
+/private/tmp/kickstarter-no-reward-insertion.xcresult (zero failures/skips).
+
+RewardsFeature owns independent screen routes, in-flight sharing, latest-country
+replacement, account identity, visibility filtering and No Reward insertion
+policy. The existing API returns a complete sorted list: no cursor, pageInfo or
+next-page UI action exists. No new pagination contract was invented.
+ProjectDetailsFeature owns independent related-project requests; the former
+use case is now a presentation/navigation adapter, not a reactive executor.
+Both use the existing cancellation-aware Apollo bridge and captured service.
+
+An additional failed-country-refresh regression preserves the last successful
+cards with their original shipping context instead of relabelling them with the
+failed request's country. Existing scroll, selection and analytics assertions
+remain. Only nonvisual suites opt out of the snapshot reference-device guard.
+The initial baseline guard trap and intermediate compiler corrections are
+retained in sibling Migration Evidence/kickstarter-rewards-related.
+
+Final demo smoke: Pocket Observatory overview → Rewards (supporter edition,
+$25, one reward) → overview → Campaign. No transaction submitted. Public demo
+does not implement related-project cards; fixture tests cover loaded cards,
+navigation and errors, but no visual recommendation-card claim is made.
+No controller/layout/branding/identifier changed. Strict concurrency, live API,
+full accessibility/snapshot/device validation and app-wide migration remain open.
+
+Next connected boundary: shipping-location loading and remaining project
+interactions (creator/media/comments/updates), followed by shared session and
+transactional flows. This checkpoint completes these reads, not the whole app.
+
+### Previous project-detail checkpoint
+
 Project-detail loading is now connected through ProjectDetailsFeature in AppModel.
 293 combined Search/Explore/Project-detail/composition tests passed with zero
 failures/skips, followed by a successful app build:
@@ -115,8 +152,8 @@ do not ask the developer to run routine verification commands.
 **Overall: Search, Explore and project-detail loading have verified implementation checkpoints.**
 AppModel composes searchFeature, discoveryFeature and projectDetailsFeature.
 No top-level product area has passed every manual/snapshot/strict-concurrency exit
-gate. The latest combined checkpoint passed 293 tests plus an app build; 11
-additional API compatibility tests passed. Bounded Simulator journeys are recorded above.
+gate. The latest combined checkpoint passed 324 tests plus an app build; eight
+additional reward insertion/decoder tests passed. Bounded Simulator journeys are recorded above.
 Test counts are coverage evidence, not a percentage of the full application.
 
 | Area / milestone | Evidence-backed status | Remaining exit criteria |
@@ -127,7 +164,8 @@ Test counts are coverage evidence, not a percentage of the full application.
 | Search lifecycle, analytics, query admission and filters | Consolidated automated checkpoint verified, including GraphQL filter identity regression | Bounded final UI smoke, snapshots and strict-concurrency audit; retain output-only compatibility |
 | Explore / discovery | Connected Feature owns filters/defaults, four feed states, async requests, pagination and activity samples; 205-test combined checkpoint and bounded smoke passed | Full snapshots, signed-in/live journeys, accessibility/device checks and compiler isolation audit |
 | Project-detail loading, backing and rewards dependencies | Connected Feature and cancellation-aware API operations; existing page/analytics assertions and new concurrency tests passed | Live authenticated validation, full UI/compiler audit |
-| Rewards screen, related projects, media, updates/comments and other project interactions | Legacy execution remains | Migrate connected reads next; preserve transaction ordering and navigation |
+| Rewards-screen loading and related-project requests | CFA async owners connected; combined regression/build and bounded rewards smoke passed | Related-card visual/live validation; shipping-location loader and broader compiler/UI audit |
+| Media, updates/comments and other project interactions | Legacy execution remains | Migrate connected reads next; preserve transaction ordering and navigation |
 | Account/session, Profile, settings and authentication | Legacy; not migrated | One shared session owner, persistence/security contract, authenticated/signed-out tests |
 | Activity, pledged projects and transactional flows | Legacy; not migrated | Shared backing state, ordering/idempotency, cancellation, retry and storage guarantees |
 | App-wide integration and support flows | Not completed | Root/lifecycle/deep links, notifications, reachability, shared transport/storage, wider tests |

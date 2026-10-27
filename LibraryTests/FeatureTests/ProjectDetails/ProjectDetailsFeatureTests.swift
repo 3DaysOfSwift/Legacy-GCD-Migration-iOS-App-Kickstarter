@@ -8,6 +8,85 @@ import XCTest
 final class ProjectDetailsFeatureTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
+  func testRelatedSharingAndReplacementRejectsLateFailure() async throws {
+    let provider = ControlledProjectDetailsProvider()
+    provider.pauseRelated = true
+    defer { provider.releaseAll() }
+    let feature = self.feature(provider)
+    let route = UUID()
+    let first = feature.requestRelated(route: route, projectID: "1")
+    let shared = feature.requestRelated(route: route, projectID: "1")
+    await provider.waitFor("related:1")
+    XCTAssertEqual(provider.calls, ["related:1"])
+    let second = feature.requestRelated(route: route, projectID: "2")
+    await provider.waitFor("related:2")
+    try provider.finishRelated(1, error: nil)
+    await second.value
+    try provider.finishRelated(0, error: .graphError("obsolete"))
+    await first.value
+    await shared.value
+    XCTAssertTrue(first.isCancelled)
+    XCTAssertNil(feature.relatedSnapshot(for: route).error)
+    XCTAssertFalse(feature.relatedSnapshot(for: route).isLoading)
+  }
+
+  func testRelatedFailureAndEmptySuccessAreDistinctAndRetryable() async {
+    let provider = ControlledProjectDetailsProvider()
+    let feature = self.feature(provider)
+    let route = UUID()
+    provider.failAt = "related:1"
+    await feature.loadRelated(route: route, projectID: "1")
+    XCTAssertNotNil(feature.relatedSnapshot(for: route).error)
+    XCTAssertFalse(feature.relatedSnapshot(for: route).isLoading)
+    provider.failAt = nil
+    await feature.loadRelated(route: route, projectID: "1")
+    XCTAssertNil(feature.relatedSnapshot(for: route).error)
+    XCTAssertTrue(feature.relatedSnapshot(for: route).projects.isEmpty)
+  }
+
+  func testRelatedRoutesReleaseIndependently() async throws {
+    let provider = ControlledProjectDetailsProvider()
+    provider.pauseRelated = true
+    defer { provider.releaseAll() }
+    let feature = self.feature(provider)
+    let firstRoute = UUID(), secondRoute = UUID()
+    let first = feature.requestRelated(route: firstRoute, projectID: "1")
+    let second = feature.requestRelated(route: secondRoute, projectID: "1")
+    await provider.waitFor("related:1", count: 2)
+    feature.releaseRelated(route: firstRoute)
+    try provider.finishRelated(0, error: .graphError("released"))
+    try provider.finishRelated(1, error: .graphError("current"))
+    await first.value
+    await second.value
+    XCTAssertTrue(first.isCancelled)
+    XCTAssertFalse(second.isCancelled)
+    XCTAssertNil(feature.relatedSnapshot(for: firstRoute).error)
+    XCTAssertNotNil(feature.relatedSnapshot(for: secondRoute).error)
+  }
+
+  func testRelatedAccountChangeDoesNotShareOrPublishOldRequest() async throws {
+    let provider = ControlledProjectDetailsProvider()
+    provider.pauseRelated = true
+    defer { provider.releaseAll() }
+    let feature = self.feature(provider)
+    let route = UUID()
+    let anonymous = feature.requestRelated(route: route, projectID: "1")
+    await provider.waitFor("related:1")
+    AppEnvironment.pushEnvironment(currentUser: User.template)
+    defer { AppEnvironment.popEnvironment() }
+    do {
+      let signedIn = feature.requestRelated(route: route, projectID: "1")
+      await provider.waitFor("related:1", count: 2)
+      try provider.finishRelated(0, error: .graphError("anonymous"))
+      await anonymous.value
+      XCTAssertTrue(feature.relatedSnapshot(for: route).isLoading)
+      XCTAssertNil(feature.relatedSnapshot(for: route).error)
+      try provider.finishRelated(1, error: nil)
+      await signedIn.value
+      XCTAssertFalse(feature.relatedSnapshot(for: route).isLoading)
+    }
+  }
+
   private func feature(
     _ provider: ControlledProjectDetailsProvider,
     fast: Bool = false
@@ -226,6 +305,25 @@ final class ProjectDetailsFeatureTests: TestCase {
 
 @MainActor
 private final class ControlledProjectDetailsProvider: ProjectDetailsProvider {
+  var pauseRelated = false
+  private var related: [CheckedContinuation<[ProjectCardProperties], Error>?] = []
+
+  func relatedProjects(projectID: String) async throws -> [ProjectCardProperties] {
+    try self.record("related:\(projectID)")
+    if self.pauseRelated {
+      return try await withCheckedThrowingContinuation { self.related.append($0) }
+    }
+    return []
+  }
+
+  func finishRelated(_ index: Int, error: ErrorEnvelope?) throws {
+    guard self.related.indices.contains(index) else { XCTFail("Missing related request"); return }
+    let continuation = try XCTUnwrap(self.related[index])
+    self.related[index] = nil
+    if let error { continuation.resume(throwing: error) }
+    else { continuation.resume(returning: []) }
+  }
+
   var calls: [String] = []
   var richTextValues: [Bool] = []
   var backingID: Int?
@@ -309,6 +407,8 @@ private final class ControlledProjectDetailsProvider: ProjectDetailsProvider {
   }
 
   func releaseAll() {
+    for continuation in self.related { continuation?.resume(throwing: CancellationError()) }
+    self.related.removeAll()
     self.enrollment?.resume(throwing: CancellationError()); self.enrollment = nil
     self.baseContinuation?.resume(throwing: CancellationError()); self.baseContinuation = nil
     for continuation in self.projects { continuation?.resume(throwing: CancellationError()) }

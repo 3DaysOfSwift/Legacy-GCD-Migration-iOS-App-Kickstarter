@@ -1,4 +1,3 @@
-import Experimentation
 import KsApi
 import Prelude
 import ReactiveSwift
@@ -9,7 +8,7 @@ public enum RewardsCollectionViewContext {
   case managePledge
 }
 
-public protocol RewardsCollectionViewModelInputs {
+@MainActor public protocol RewardsCollectionViewModelInputs {
   func configure(
     with project: Project,
     refTag: RefTag?,
@@ -28,7 +27,7 @@ public protocol RewardsCollectionViewModelInputs {
   func viewWillAppear()
 }
 
-public protocol RewardsCollectionViewModelOutputs {
+@MainActor public protocol RewardsCollectionViewModelOutputs {
   var configureRewardsCollectionViewFooterWithCount: Signal<Int, Never> { get }
   var flashScrollIndicators: Signal<Void, Never> { get }
   var goToAddOnSelection: Signal<PledgeViewData, Never> { get }
@@ -44,14 +43,21 @@ public protocol RewardsCollectionViewModelOutputs {
   func selectedReward() -> Reward?
 }
 
-public protocol RewardsCollectionViewModelType {
+@MainActor public protocol RewardsCollectionViewModelType {
   var inputs: RewardsCollectionViewModelInputs { get }
   var outputs: RewardsCollectionViewModelOutputs { get }
 }
 
-public final class RewardsCollectionViewModel: RewardsCollectionViewModelType,
+@MainActor public final class RewardsCollectionViewModel: RewardsCollectionViewModelType,
   RewardsCollectionViewModelInputs, RewardsCollectionViewModelOutputs {
-  public init() {
+  private let rewardsFeature: RewardsFeature
+  private let route = UUID()
+  private let observations = CompositeDisposable()
+  internal private(set) var loadingTask: Task<Void, Never>?
+
+  public init(rewardsFeature: RewardsFeature? = nil) {
+    let feature = rewardsFeature ?? AppModel.shared.rewardsFeature
+    self.rewardsFeature = feature
     let configData = self.configDataProperty.signal
       .skipNil()
       .takeWhen(self.viewDidLoadProperty.signal)
@@ -72,31 +78,16 @@ public final class RewardsCollectionViewModel: RewardsCollectionViewModelType,
     // The selected shipping location.
     // Can be nil if the project has no shippable rewards.
     // TODO: If we passed in ShippableCountries to the location selector, we could call this faster.
+    let isLoadingProperty = MutableProperty(true)
     let selectedShippingLocation: Signal<Location?, Never> = self.shippingLocationSelectedSignal
       .signal
       .skipRepeats()
+      .on(value: { _ in isLoadingProperty.value = true })
 
-    let isLoadingProperty = MutableProperty(true)
-
-    // Fetch the sorted rewards when a shipping country code is selected
-    let fetchedRewards = project
-      .combineLatest(with: selectedShippingLocation)
-      .on(value: { _ in
-        isLoadingProperty.value = true
-      })
-      .flatMap { project, location in
-        fetchRewards(
-          forProject: project,
-          sortedForShippingLocation: location
-        )
-        .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-        .materialize()
-        .values()
-        .on(completed: {
-          isLoadingProperty.value = false
-        })
-      }
-      .map(filteredRewards)
+    // Output-only adapter; the Feature owns requests, visibility and cancellation.
+    let fetchedRewards = feature.completions
+      .filter { [route = self.route] in $0.0 == route }
+      .map { $0.1 }
 
     self.scrollToRewardIndexPath = Signal.combineLatest(
       project,
@@ -122,14 +113,13 @@ public final class RewardsCollectionViewModel: RewardsCollectionViewModelType,
       .combineLatestAndFilterOn(isLoading)
       .map { $0.rewards.count }
 
-    self.reloadDataWithValues = Signal.combineLatest(
-      project,
-      fetchedRewards,
-      selectedShippingLocation
+    self.reloadDataWithValues = project.combineLatest(
+      with: selectedShippingLocation.takePairWhen(fetchedRewards)
     )
     .combineLatestAndFilterOn(isLoading.signal.negate())
-    .map { project, rewards, location in
-      rewards.map { reward in
+    .map { project, locationAndRewards in
+      let (location, rewards) = locationAndRewards
+      return rewards.map { reward in
         RewardCardViewData(
           project: project,
           reward: reward,
@@ -366,6 +356,25 @@ public final class RewardsCollectionViewModel: RewardsCollectionViewModelType,
             )
           )
       }
+
+    self.observations += feature.loading.observeValues { [weak self] route, isLoading in
+      guard let self, route == self.route else { return }
+      if !isLoading { self.loadingTask = nil }
+      isLoadingProperty.value = isLoading
+    }
+    self.observations += project.combineLatest(with: selectedShippingLocation)
+      .observeValues { [weak self] project, location in
+        guard let self else { return }
+        self.loadingTask = feature.requestLoad(route: self.route, project: project, location: location)
+      }
+  }
+
+  deinit {
+    self.loadingTask?.cancel()
+    self.observations.dispose()
+    let feature = self.rewardsFeature
+    let route = self.route
+    Task { @MainActor in feature.release(route: route) }
   }
 
   private let configDataProperty = MutableProperty<(
@@ -525,25 +534,6 @@ private func backingAndShippingTotal(for project: Project, and reward: Reward) -
   return (backing, shippingTotal)
 }
 
-private func filteredRewards(
-  _ rewards: [Reward]
-) -> [Reward] {
-  return rewards.filter { shouldShowReward($0) }
-}
-
-private func shouldShowReward(
-  _ reward: Reward
-) -> Bool {
-  // Check if the reward isn't available yet.
-  // These are usually filtered out by the backend, but may be visible if you're the project creator.
-  // We filter these out so that creators aren't concerned that backers may see them.
-  if !isStartDateBeforeToday(for: reward) {
-    return false
-  }
-
-  return true
-}
-
 private func shippingRule(forReward reward: Reward, selectedLocation location: Location?) -> ShippingRule? {
   guard let selectedLocation = location else {
     return nil
@@ -585,38 +575,4 @@ private extension Signal where Error == Never {
       .filter { _, test in test == true }
       .map { value, _ in value }
   }
-}
-
-// MARK: Experiments
-
-private func shouldMoveNoReward_afterLastAvailableReward() -> Bool {
-  let experiment = MoveNoRewardOptionExperiment()
-  guard let shouldMove = experiment.boolValue(forKey: .show_no_reward_after_available_rewards) else {
-    return false
-  }
-
-  return shouldMove
-}
-
-private func fetchRewards(
-  forProject project: Project,
-  sortedForShippingLocation location: Location?
-) -> SignalProducer<[Reward], ErrorEnvelope> {
-  let inserter: NoRewardInserter
-
-  if shouldMoveNoReward_afterLastAvailableReward() {
-    inserter = NoRewardAfterLastAvailableReward(
-      shippingLocation: location,
-      project: project
-    )
-  } else {
-    inserter = NoRewardFirst()
-  }
-
-  return AppEnvironment.current.apiService
-    .fetchProjectRewards(
-      projectId: project.id,
-      sortedForShippingCountryCode: location?.country,
-      withNoReward: inserter
-    )
 }

@@ -3,6 +3,25 @@
 The real Xcode target is LibraryTests in Kickstarter.xcodeproj, using scheme
 Library-iOS. The package test stub is not the migration regression suite.
 
+## Latest checkpoint — 27 October 2026
+
+324 combined Search, Explore, project-detail, Rewards and composition tests pass;
+six existing NoRewardInserterTests and two KsApi sorted-reward decoder tests also
+pass. See MIGRATION_LEDGER.md for exact result bundles and the sibling migration
+evidence verification script. These counts are not full-app coverage.
+
+FeatureTests/Rewards/RewardsFeatureTests.swift covers ordering, visibility,
+shipping insertion policy, request sharing/replacement, failure/retry, cancellation,
+independent routes and account changes. ProjectDetailsFeatureTests adds related
+request ownership tests. Existing per-view-model tests retain their presentation
+assertions and await owned tasks. New test membership is in LibraryTests in the
+Xcode project; production Library/KsApi sources use package file discovery.
+RewardsCollectionViewModelTests, SimilarProjectsUseCaseTests and
+NoRewardInserterTests are nonvisual and individually opt out of the snapshot-only
+reference-device restriction. Visual suites retain that restriction.
+
+## Initial Search checkpoint (historical)
+
 Search checkpoint suites:
 
 - SearchViewModelTests: original presentation, navigation, analytics and lifecycle
@@ -19,7 +38,7 @@ Search checkpoint suites:
   exactly-once callback completion, error mapping and replacement suppression.
 
 MIGRATION_LEDGER.md records commands, failed attempts and passing checkpoints.
-The current targeted selection passes 93 tests on iPhone Air, iOS 26.2. These
+That initial targeted selection passed 93 tests on iPhone Air, iOS 26.2. These
 non-visual suites opt out of the snapshot reference-device guard where needed;
 visual suites retain it. No original behavioural assertion was removed. Existing
 JSON fixtures are reused with throwing unwraps in the touched Search suites.
@@ -34,5 +53,5 @@ relied on deferred scheduler execution to swap the environment after submitting.
 This is not a full-suite, snapshot, real-device, live-network, performance or
 complete Swift 6 result. Controlled transport tests prove cancellation forwarding
 and obsolete-delivery rejection, not real-network timing. Simulator smoke covers
-the public demo route. Category/location lookup execution and remaining reactive
-selection/presentation adapters still require migration and their own tests.
+the public demo route. Later lookup, selection and presentation checkpoints are
+recorded in MIGRATION_LEDGER.md; do not treat this historical note as current work.
