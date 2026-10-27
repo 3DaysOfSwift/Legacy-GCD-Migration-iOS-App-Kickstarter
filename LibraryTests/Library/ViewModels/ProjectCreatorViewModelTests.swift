@@ -8,8 +8,13 @@ import ReactiveSwift
 import WebKit
 import XCTest
 
+@MainActor
 final class ProjectCreatorViewModelTests: TestCase {
-  fileprivate let vm: ProjectCreatorViewModelType = ProjectCreatorViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  fileprivate let vm: ProjectCreatorViewModelType =
+    ProjectCreatorViewModel(projectDetailsFeature: ProjectDetailsFeature(
+      makeProvider: { AsyncProjectDetailsProvider(service: MockService()) }
+    ))
 
   fileprivate let goBackToProject = TestObserver<(), Never>()
   fileprivate let goToLoginTout = TestObserver<LoginIntent, Never>()
@@ -20,16 +25,17 @@ final class ProjectCreatorViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
-
-    self.vm.outputs.goBackToProject.observe(self.goBackToProject.observer)
-    self.vm.outputs.goToLoginTout.observe(self.goToLoginTout.observer)
-    self.vm.outputs.goToMessageDialog.map(second).observe(self.goToMessageDialogContext.observer)
-    self.vm.outputs.goToMessageDialog.map(first).observe(self.goToMessageDialogSubject.observer)
-    self.vm.outputs.goToSafariBrowser.observe(self.goToSafariBrowser.observer)
-    self.vm.outputs.loadWebViewRequest.observe(self.loadWebViewRequest.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.goBackToProject.observe(self.goBackToProject.observer)
+      self.vm.outputs.goToLoginTout.observe(self.goToLoginTout.observer)
+      self.vm.outputs.goToMessageDialog.map(second).observe(self.goToMessageDialogContext.observer)
+      self.vm.outputs.goToMessageDialog.map(first).observe(self.goToMessageDialogSubject.observer)
+      self.vm.outputs.goToSafariBrowser.observe(self.goToSafariBrowser.observer)
+      self.vm.outputs.loadWebViewRequest.observe(self.loadWebViewRequest.observer)
+    }
   }
 
-  func testGoToLoginTout_LoggedOut() {
+  func testGoToLoginTout_LoggedOut() throws {
     let project = Project.template
     self.vm.inputs.configureWith(project: project)
     self.vm.inputs.viewDidLoad()
@@ -39,7 +45,7 @@ final class ProjectCreatorViewModelTests: TestCase {
     self.goToLoginTout.assertValueCount(0)
 
     let messagesRequest = URLRequest(
-      url: URL(string: "https://www.kickstarter.com/projects/a/b/messages/new")!
+      url: try XCTUnwrap(URL(string: "https://www.kickstarter.com/projects/a/b/messages/new"))
     )
     let policy = self.vm.inputs.decidePolicy(
       forNavigationAction: WKNavigationActionData(
@@ -56,7 +62,7 @@ final class ProjectCreatorViewModelTests: TestCase {
     self.goToLoginTout.assertValues([.messageCreator])
   }
 
-  func testGoToLoginTout_LoggedIn() {
+  func testGoToLoginTout_LoggedIn() throws {
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
 
     let project = Project.template
@@ -66,7 +72,7 @@ final class ProjectCreatorViewModelTests: TestCase {
     self.goToLoginTout.assertValueCount(0)
 
     let messagesRequest = URLRequest(
-      url: URL(string: "https://www.kickstarter.com/projects/a/b/messages/new")!
+      url: try XCTUnwrap(URL(string: "https://www.kickstarter.com/projects/a/b/messages/new"))
     )
     let policy = self.vm.inputs.decidePolicy(
       forNavigationAction: WKNavigationActionData(
@@ -81,7 +87,7 @@ final class ProjectCreatorViewModelTests: TestCase {
     self.goToLoginTout.assertValueCount(0)
   }
 
-  func testGoToMessageDialog() {
+  func testGoToMessageDialog() throws {
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
 
     let project = Project.template
@@ -92,7 +98,7 @@ final class ProjectCreatorViewModelTests: TestCase {
     self.goToMessageDialogSubject.assertValues([])
 
     let creatorBioRequest = URLRequest(
-      url: URL(string: "https://www.kickstarter.com/projects/a/b/creator_bio")!
+      url: try XCTUnwrap(URL(string: "https://www.kickstarter.com/projects/a/b/creator_bio"))
     )
     var policy = self.vm.inputs.decidePolicy(
       forNavigationAction: WKNavigationActionData(
@@ -108,7 +114,7 @@ final class ProjectCreatorViewModelTests: TestCase {
     self.goToMessageDialogSubject.assertValues([])
 
     let messagesRequest = URLRequest(
-      url: URL(string: "https://www.kickstarter.com/projects/a/b/messages/new")!
+      url: try XCTUnwrap(URL(string: "https://www.kickstarter.com/projects/a/b/messages/new"))
     )
     policy = self.vm.inputs.decidePolicy(
       forNavigationAction: WKNavigationActionData(
@@ -124,7 +130,7 @@ final class ProjectCreatorViewModelTests: TestCase {
     self.goToMessageDialogSubject.assertValues([.project(id: project.id, name: project.name)])
   }
 
-  func testGoBackToProjectDoesNotEmit_whenRequestURL_IsEqualToProjectURL() {
+  func testGoBackToProjectDoesNotEmit_whenRequestURL_IsEqualToProjectURL() throws {
     let project = Project.template
     self.vm.inputs.configureWith(project: project)
     self.vm.inputs.viewDidLoad()
@@ -132,7 +138,7 @@ final class ProjectCreatorViewModelTests: TestCase {
     self.goBackToProject.assertDidNotEmitValue()
 
     let projectRequest = URLRequest(
-      url: URL(string: "https://www.kickstarter.com/projects/creator/a-fun-project")!
+      url: try XCTUnwrap(URL(string: "https://www.kickstarter.com/projects/creator/a-fun-project"))
     )
     _ = self.vm.inputs.decidePolicy(
       forNavigationAction: WKNavigationActionData(
@@ -145,7 +151,7 @@ final class ProjectCreatorViewModelTests: TestCase {
     self.goBackToProject.assertDidEmitValue()
   }
 
-  func testGoBackToProjectDoesNotEmit_whenRequestURL_IsNotEqualToProjectURL() {
+  func testGoBackToProjectDoesNotEmit_whenRequestURL_IsNotEqualToProjectURL() throws {
     let project = Project.template
     self.vm.inputs.configureWith(project: project)
     self.vm.inputs.viewDidLoad()
@@ -153,7 +159,7 @@ final class ProjectCreatorViewModelTests: TestCase {
     self.goBackToProject.assertDidNotEmitValue()
 
     let linkRequest = URLRequest(
-      url: URL(string: "https://www.kickstarter.com/projects/creator/about")!
+      url: try XCTUnwrap(URL(string: "https://www.kickstarter.com/projects/creator/about"))
     )
     _ = self.vm.inputs.decidePolicy(
       forNavigationAction: WKNavigationActionData(
@@ -166,7 +172,7 @@ final class ProjectCreatorViewModelTests: TestCase {
     self.goBackToProject.assertDidNotEmitValue()
   }
 
-  func testGoToSafariBrowser() {
+  func testGoToSafariBrowser() throws {
     let project = Project.template
     self.vm.inputs.configureWith(project: project)
     self.vm.inputs.viewDidLoad()
@@ -174,7 +180,7 @@ final class ProjectCreatorViewModelTests: TestCase {
     self.goToSafariBrowser.assertValues([])
 
     let creatorBioRequest = URLRequest(
-      url: URL(string: "https://www.kickstarter.com/projects/a/b/creator_bio")!
+      url: try XCTUnwrap(URL(string: "https://www.kickstarter.com/projects/a/b/creator_bio"))
     )
     var policy = self.vm.inputs.decidePolicy(
       forNavigationAction: WKNavigationActionData(
@@ -189,7 +195,7 @@ final class ProjectCreatorViewModelTests: TestCase {
     self.goToSafariBrowser.assertValues([])
 
     let googleRequest = URLRequest(
-      url: URL(string: "http://www.google.com")!
+      url: try XCTUnwrap(URL(string: "http://www.google.com"))
     )
     policy = self.vm.inputs.decidePolicy(
       forNavigationAction: WKNavigationActionData(
@@ -201,13 +207,13 @@ final class ProjectCreatorViewModelTests: TestCase {
     )
     XCTAssertEqual(.cancel, policy)
 
-    self.goToSafariBrowser.assertValues([URL(string: "http://www.google.com")!])
+    self.goToSafariBrowser.assertValues([try XCTUnwrap(URL(string: "http://www.google.com"))])
   }
 
-  func testLoadWebViewRequest() {
+  func testLoadWebViewRequest() throws {
     let project = Project.template
     let creatorBioRequest = AppEnvironment.current.apiService.preparedRequest(
-      forURL: URL(string: "\(project.urls.web.project)/creator_bio")!
+      forURL: try XCTUnwrap(URL(string: "\(project.urls.web.project)/creator_bio"))
     )
 
     self.vm.inputs.configureWith(project: project)
@@ -216,7 +222,7 @@ final class ProjectCreatorViewModelTests: TestCase {
     self.loadWebViewRequest.assertValues([creatorBioRequest])
 
     let googleRequest = URLRequest(
-      url: URL(string: "https://www.google.com")!
+      url: try XCTUnwrap(URL(string: "https://www.google.com"))
     )
     let policy = self.vm.inputs.decidePolicy(
       forNavigationAction: WKNavigationActionData(

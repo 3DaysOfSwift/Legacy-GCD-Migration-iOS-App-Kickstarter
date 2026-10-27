@@ -1,5 +1,28 @@
 # Kickstarter migration behaviour contract
 
+## Shipping destinations and creator interactions — 27 October 2026
+
+| ID | Preserved requirement | Protection and result |
+| --- | --- | --- |
+| SHIP-01 | Digital rewards make no shipping request and select nil; empty fetched destinations are a distinct successful result | Existing ViewModel and new Feature tests pass |
+| SHIP-02 | Prefer valid backing location, then configured country, then US, then first destination | Existing nine shipping tests plus direct priority/fallback tests pass |
+| SHIP-03 | Loading shows shimmer; error uses the existing localized message; picker select/cancel and 300 ms dismissal remain | Existing ViewModel assertions pass |
+| SHIP-04 | Equivalent reads share; changed inputs supersede; independent selectors do not cross-cancel | Controlled suspension and adverse-completion tests pass |
+| SHIP-05 | Cancellation/account change cannot deliver obsolete destinations; failure preserves previous data and retry recovers | Direct Feature tests pass |
+| CREATOR-01 | Biography requests retain service preparation and message authorization reflects the current account | Feature and seven existing creator ViewModel tests pass |
+| CREATOR-02 | Creator links preserve return-to-project, login, message and external-browser navigation | Existing creator assertions pass; updates/pledge-web adapters also regression-tested |
+
+377 combined tests and app build passed:
+/private/tmp/kickstarter-shipping-interactions.82bZbI.
+Five location API tests also passed. Agent smoke observed overview/rewards/return
+and creator-screen open/return. The demo is digital: no rendered shipping picker,
+live creator content or transaction completion is claimed.
+The nine shipping tests passed before migration. Creator baseline was blocked by
+invalid synthetic WebKit object lifetime, not a navigation assertion failure.
+The corrected fixtures preserve all navigation assertions and actual-event data.
+New overlap tests strengthen obsolete-read protection without changing payment,
+storage or visible design. No full-app, live-service or strict-concurrency claim.
+
 ## Rewards and related-project reads — 27 October 2026
 
 - The shipping-sorted rewards API returns one complete list, not cursor pages.

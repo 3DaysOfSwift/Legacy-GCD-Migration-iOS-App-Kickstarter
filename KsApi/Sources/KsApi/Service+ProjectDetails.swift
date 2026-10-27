@@ -2,6 +2,11 @@ import Apollo
 import GraphAPI
 
 extension Service {
+  @MainActor public func shippingLocations(projectID: Int) async throws -> [Location] {
+    let data = try await self.projectDetailsQuery(GraphAPI.ShippableLocationsForProjectQuery(id: projectID))
+    return Location.locations(from: data)
+  }
+
   @MainActor public func sortedProjectRewards(
     projectID: Int, country: String?, inserter: any NoRewardInserter
   ) async throws -> [Reward] {

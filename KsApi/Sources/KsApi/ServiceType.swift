@@ -58,6 +58,7 @@ public protocol ServiceType {
   @MainActor func projectDetailsRewards(projectID: Int) async throws -> [Reward]
   @MainActor func sortedProjectRewards(projectID: Int, country: String?, inserter: any NoRewardInserter) async throws -> [Reward]
   @MainActor func relatedProjects(projectID: String) async throws -> GraphAPI.FetchSimilarProjectsQuery.Data
+  @MainActor func shippingLocations(projectID: Int) async throws -> [Location]
   @MainActor func projectDetailsBase(param: Param) async throws -> Project
   @MainActor func projectDetailsExtras(param: Param, includeStoryRichText: Bool) async throws -> ProjectPageExtraProperties
   @MainActor func enrollProjectSecretReward(token: String, param: Param) async throws

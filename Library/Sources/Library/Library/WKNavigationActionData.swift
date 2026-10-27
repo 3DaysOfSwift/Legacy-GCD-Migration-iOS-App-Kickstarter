@@ -1,7 +1,7 @@
 import WebKit
 
 public struct WKNavigationActionData {
-  public let navigationAction: WKNavigationAction
+  public let navigationAction: WKNavigationAction?
   public let navigationType: WKNavigationType
   public let request: URLRequest
   public let targetFrame: WKFrameInfoData?
@@ -19,7 +19,9 @@ public struct WKNavigationActionData {
     sourceFrame _: WKFrameInfoData,
     targetFrame: WKFrameInfoData?
   ) {
-    self.navigationAction = WKNavigationAction()
+    // Synthetic navigation data has no WebKit-owned action. Constructing an
+    // empty WKNavigationAction is not a valid substitute for a real event.
+    self.navigationAction = nil
     self.navigationType = navigationType
     self.request = request
     self.targetFrame = targetFrame
@@ -27,7 +29,7 @@ public struct WKNavigationActionData {
 }
 
 public struct WKFrameInfoData {
-  public let frameInfo: WKFrameInfo
+  public let frameInfo: WKFrameInfo?
   public let mainFrame: Bool
 
   public init(frameInfo: WKFrameInfo) {
@@ -36,7 +38,7 @@ public struct WKFrameInfoData {
   }
 
   public init(mainFrame: Bool, request _: URLRequest) {
-    self.frameInfo = WKFrameInfo()
+    self.frameInfo = nil
     self.mainFrame = mainFrame
   }
 }

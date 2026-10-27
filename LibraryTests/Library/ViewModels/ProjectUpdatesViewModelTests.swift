@@ -9,6 +9,7 @@ import WebKit
 import XCTest
 
 final class ProjectUpdatesViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   fileprivate let vm: ProjectUpdatesViewModelType = ProjectUpdatesViewModel()
 
   fileprivate let goToSafariBrowser = TestObserver<URL, Never>()

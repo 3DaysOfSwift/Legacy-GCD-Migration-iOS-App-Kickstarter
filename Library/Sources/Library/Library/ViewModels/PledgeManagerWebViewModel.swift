@@ -259,7 +259,7 @@ private func isStripeNavigationAction(_ actionData: WKNavigationActionData) -> B
   if let host = actionData.request.url?.host, isStripeHost(host) {
     return true
   }
-  if let securityOriginHost = actionData.navigationAction.targetFrame?.securityOrigin.host,
+  if let securityOriginHost = actionData.navigationAction?.targetFrame?.securityOrigin.host,
      isStripeHost(securityOriginHost) {
     return true
   }

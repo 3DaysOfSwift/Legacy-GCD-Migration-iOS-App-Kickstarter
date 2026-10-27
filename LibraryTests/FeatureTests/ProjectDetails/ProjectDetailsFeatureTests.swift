@@ -8,6 +8,32 @@ import XCTest
 final class ProjectDetailsFeatureTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
+  func testCreatorMessageAuthorizationUsesCurrentSession() {
+    let feature = self.feature(ControlledProjectDetailsProvider())
+    XCTAssertTrue(feature.creatorMessageRequiresAuthentication)
+    XCTAssertNil(feature.creatorMessageSubject(projectID: 42, projectName: "Creator project"))
+    withEnvironment(currentUser: User.template) {
+      XCTAssertFalse(feature.creatorMessageRequiresAuthentication)
+      XCTAssertEqual(
+        feature.creatorMessageSubject(projectID: 42, projectName: "Creator project"),
+        .project(id: 42, name: "Creator project")
+      )
+    }
+    XCTAssertNil(feature.creatorMessageSubject(projectID: 42, projectName: "Creator project"))
+  }
+
+  func testCreatorRequestPreparationAndMessageClassification() throws {
+    let feature = self.feature(ControlledProjectDetailsProvider())
+    let request = try XCTUnwrap(feature.creatorBiographyRequest(
+      projectURL: "https://www.kickstarter.com/projects/creator/project"
+    ))
+    XCTAssertEqual(request.url?.path, "/projects/creator/project/creator_bio")
+    XCTAssertTrue(AppEnvironment.current.apiService.isPrepared(request: request))
+    XCTAssertFalse(feature.isCreatorMessage(request: request))
+    let messageURL = try XCTUnwrap(URL(string: "https://www.kickstarter.com/projects/a/b/messages/new"))
+    XCTAssertTrue(feature.isCreatorMessage(request: URLRequest(url: messageURL)))
+  }
+
   func testRelatedSharingAndReplacementRejectsLateFailure() async throws {
     let provider = ControlledProjectDetailsProvider()
     provider.pauseRelated = true

@@ -10,8 +10,13 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class PledgeShippingLocationViewModelTests: TestCase {
-  private let vm: PledgeShippingLocationViewModelType = PledgeShippingLocationViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let vm = PledgeShippingLocationViewModel(rewardsFeature: RewardsFeature(
+    makeProvider: { AsyncRewardsProvider(service: AppEnvironment.current.apiService) },
+    sleep: { _ in try Task.checkCancellation() }
+  ))
 
   private let adaptableStackViewIsHidden = TestObserver<Bool, Never>()
   private let dismissShippingLocations = TestObserver<Void, Never>()
@@ -25,22 +30,23 @@ final class PledgeShippingLocationViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
-
-    self.vm.outputs.adaptableStackViewIsHidden.observe(self.adaptableStackViewIsHidden.observer)
-    self.vm.outputs.dismissShippingLocations.observe(self.dismissShippingLocations.observer)
-    self.vm.outputs.shimmerLoadingViewIsHidden.observe(self.shimmerLoadingViewIsHidden.observer)
-    self.vm.outputs.presentShippingLocations.map { $0.0 }
-      .observe(self.presentShippingLocationsAllLocations.observer)
-    self.vm.outputs.presentShippingLocations.map { $0.1 }
-      .observe(self.presentShippingLocationsSelectedLocation.observer)
-    self.vm.outputs.notifyDelegateOfSelectedShippingLocation
-      .observe(self.notifyDelegateOfSelectedShippingLocation.observer)
-    self.vm.outputs.shippingLocationButtonTitle.observe(self.shippingLocationButtonTitle.observer)
-    self.vm.outputs.shippingRulesError.observe(self.shippingRulesError.observer)
-    self.vm.outputs.shippingLocationViewHidden.observe(self.shippingLocationViewHidden.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.adaptableStackViewIsHidden.observe(self.adaptableStackViewIsHidden.observer)
+      self.vm.outputs.dismissShippingLocations.observe(self.dismissShippingLocations.observer)
+      self.vm.outputs.shimmerLoadingViewIsHidden.observe(self.shimmerLoadingViewIsHidden.observer)
+      self.vm.outputs.presentShippingLocations.map { $0.0 }
+        .observe(self.presentShippingLocationsAllLocations.observer)
+      self.vm.outputs.presentShippingLocations.map { $0.1 }
+        .observe(self.presentShippingLocationsSelectedLocation.observer)
+      self.vm.outputs.notifyDelegateOfSelectedShippingLocation
+        .observe(self.notifyDelegateOfSelectedShippingLocation.observer)
+      self.vm.outputs.shippingLocationButtonTitle.observe(self.shippingLocationButtonTitle.observer)
+      self.vm.outputs.shippingRulesError.observe(self.shippingRulesError.observer)
+      self.vm.outputs.shippingLocationViewHidden.observe(self.shippingLocationViewHidden.observer)
+    }
   }
 
-  func testDefaultShippingRule_ProjectCountryEqualsProjectCurrencyCountry_US() {
+  func testDefaultShippingRule_ProjectCountryEqualsProjectCurrencyCountry_US() async {
     let mockService = MockService(fetchGraphQLResponses: [
       (ShippableLocationsForProjectQuery.self, threeShippableCountries)
     ])
@@ -50,7 +56,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.rewardData.rewards .~ [reward]
 
-    withEnvironment(apiService: mockService, countryCode: "US") {
+    await withEnvironment(apiService: mockService, countryCode: "US") {
       self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
       self.vm.inputs.viewDidLoad()
 
@@ -60,7 +66,8 @@ final class PledgeShippingLocationViewModelTests: TestCase {
       self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
       self.shippingLocationButtonTitle.assertValues([])
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.adaptableStackViewIsHidden.assertValues([true, false])
       self.shimmerLoadingViewIsHidden.assertValues([false, true])
@@ -74,7 +81,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
     }
   }
 
-  func testDefaultShippingRule_US_ProjectCountry_NonUSProjectCurrencyCountry_US_UserLocation() {
+  func testDefaultShippingRule_US_ProjectCountry_NonUSProjectCurrencyCountry_US_UserLocation() async {
     let mockService = MockService(fetchGraphQLResponses: [
       (ShippableLocationsForProjectQuery.self, threeShippableCountries)
     ])
@@ -88,7 +95,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
       |> Project.lens.country .~ Project.Country.us
       |> Project.lens.rewardData.rewards .~ projectRewards
 
-    withEnvironment(apiService: mockService, countryCode: "US") {
+    await withEnvironment(apiService: mockService, countryCode: "US") {
       self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
 
       self.vm.inputs.viewDidLoad()
@@ -99,7 +106,8 @@ final class PledgeShippingLocationViewModelTests: TestCase {
       self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
       self.shippingLocationButtonTitle.assertValues([])
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.adaptableStackViewIsHidden.assertValues([true, false])
       self.shimmerLoadingViewIsHidden.assertValues([false, true])
@@ -113,7 +121,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
     }
   }
 
-  func testDefaultShippingRule_ProjectCountryEqualsProjectCurrencyCountry_US_DefaultsToPreselected() {
+  func testDefaultShippingRule_ProjectCountryEqualsProjectCurrencyCountry_US_DefaultsToPreselected() async {
     let mockService = MockService(fetchGraphQLResponses: [
       (ShippableLocationsForProjectQuery.self, threeShippableCountries)
     ])
@@ -128,7 +136,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
           |> Backing.lens.locationId .~ Location.australia.id
       )
 
-    withEnvironment(apiService: mockService, countryCode: "US") {
+    await withEnvironment(apiService: mockService, countryCode: "US") {
       self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
       self.vm.inputs.viewDidLoad()
 
@@ -138,7 +146,8 @@ final class PledgeShippingLocationViewModelTests: TestCase {
       self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
       self.shippingLocationButtonTitle.assertValues([])
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.adaptableStackViewIsHidden.assertValues([true, false])
       self.shimmerLoadingViewIsHidden.assertValues([false, true])
@@ -152,7 +161,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
     }
   }
 
-  func testDefaultShippingRule_ProjectHasNoShippableRewards_DefaultsToNil() {
+  func testDefaultShippingRule_ProjectHasNoShippableRewards_DefaultsToNil() async {
     let reward = Reward.digitalReward
 
     let project = Project.template
@@ -160,7 +169,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
 
     // Note that this test has no mockService.
     // We shouldn't hit the network if the project has no shippable rewards.
-    withEnvironment(countryCode: "US") {
+    await withEnvironment(countryCode: "US") {
       self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
       self.vm.inputs.viewDidLoad()
 
@@ -173,7 +182,8 @@ final class PledgeShippingLocationViewModelTests: TestCase {
       self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
       self.shippingLocationButtonTitle.assertValues([])
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.adaptableStackViewIsHidden.assertValues([true, false])
       self.shimmerLoadingViewIsHidden.assertValues([false, true])
@@ -190,7 +200,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
     }
   }
 
-  func testShippingRulesSelection() {
+  func testShippingRulesSelection() async {
     let mockService = MockService(fetchGraphQLResponses: [
       (ShippableLocationsForProjectQuery.self, threeShippableCountries)
     ])
@@ -199,13 +209,14 @@ final class PledgeShippingLocationViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.rewardData.rewards .~ [reward]
 
-    withEnvironment(apiService: mockService, countryCode: "US") {
+    await withEnvironment(apiService: mockService, countryCode: "US") {
       self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
       self.vm.inputs.viewDidLoad()
 
       self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.notifyDelegateOfSelectedShippingLocation.assertValues([Location.usa])
 
@@ -221,7 +232,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
 
       self.vm.inputs.shippingLocationUpdated(to: Location.australia)
 
-      self.scheduler.advance(by: .milliseconds(300))
+      await self.scheduler.advance(by: .milliseconds(300))
 
       self.dismissShippingLocations.assertValueCount(1)
       self.notifyDelegateOfSelectedShippingLocation.assertValues([
@@ -231,7 +242,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
     }
   }
 
-  func testShippingRulesCancelation() {
+  func testShippingRulesCancelation() async {
     let mockService = MockService(fetchGraphQLResponses: [
       (ShippableLocationsForProjectQuery.self, threeShippableCountries)
     ])
@@ -242,7 +253,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.rewardData.rewards .~ [reward]
 
-    withEnvironment(apiService: mockService, countryCode: "US") {
+    await withEnvironment(apiService: mockService, countryCode: "US") {
       self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
       self.vm.inputs.viewDidLoad()
 
@@ -250,7 +261,8 @@ final class PledgeShippingLocationViewModelTests: TestCase {
 
       self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.notifyDelegateOfSelectedShippingLocation.assertValues([defaultShippingLocation])
 
@@ -265,7 +277,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
     }
   }
 
-  func testShippingRulesError_ProjectCountryEqualsProjectCurrencyCountry_US() {
+  func testShippingRulesError_ProjectCountryEqualsProjectCurrencyCountry_US() async {
     let reward = Reward.template
       |> Reward.lens.shipping.enabled .~ true
 
@@ -273,13 +285,14 @@ final class PledgeShippingLocationViewModelTests: TestCase {
       |> Project.lens.rewardData.rewards .~ [reward]
 
     // Leaving the mock unimplemented gives us an ErrorEnvelope, which is what we want to test
-    withEnvironment {
+    await withEnvironment {
       self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
       self.vm.inputs.viewDidLoad()
 
       self.shippingRulesError.assertValues([])
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.adaptableStackViewIsHidden.assertValues([true, false])
       self.shimmerLoadingViewIsHidden.assertValues([false, true])
@@ -289,7 +302,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
     }
   }
 
-  func testShippingLocationFromBackingIsDefault_ProjectCountryEqualsProjectCurrencyCountry_US() {
+  func testShippingLocationFromBackingIsDefault_ProjectCountryEqualsProjectCurrencyCountry_US() async {
     let mockService = MockService(fetchGraphQLResponses: [
       (ShippableLocationsForProjectQuery.self, threeShippableCountries)
     ])
@@ -312,7 +325,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
       )
       |> Project.lens.rewardData.rewards .~ projectRewards
 
-    withEnvironment(apiService: mockService, countryCode: "US") {
+    await withEnvironment(apiService: mockService, countryCode: "US") {
       self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
       self.vm.inputs.viewDidLoad()
 
@@ -321,7 +334,8 @@ final class PledgeShippingLocationViewModelTests: TestCase {
       self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
       self.shippingLocationButtonTitle.assertValues([])
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.adaptableStackViewIsHidden.assertValues([true, false])
       self.shimmerLoadingViewIsHidden.assertValues([false, true])
@@ -332,12 +346,12 @@ final class PledgeShippingLocationViewModelTests: TestCase {
       self.shippingLocationButtonTitle.assertValues(["Canada"])
       self.shippingRulesError.assertDidNotEmitValue()
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.scheduler.advance(by: .seconds(1))
     }
   }
 
   func testShippingLocationFromBackingIsDefault_ProjectCountryEqualsProjectCurrencyCountry_US_NewRewardDoesNotHaveSelectedRule(
-  ) {
+  ) async {
     let shippingDataWithoutCanada = GraphAPI.ShippableLocationsForProjectQuery.Data(
       project: GraphAPI.ShippableLocationsForProjectQuery.Data.Project(
         shippableCountriesExpanded: [
@@ -381,7 +395,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
       )
       |> Project.lens.rewardData.rewards .~ projectRewards
 
-    withEnvironment(apiService: mockService, countryCode: "US") {
+    await withEnvironment(apiService: mockService, countryCode: "US") {
       self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
       self.vm.inputs.viewDidLoad()
 
@@ -390,7 +404,8 @@ final class PledgeShippingLocationViewModelTests: TestCase {
       self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
       self.shippingLocationButtonTitle.assertValues([])
 
-      self.scheduler.advance()
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
 
       self.adaptableStackViewIsHidden.assertValues([true, false])
       self.shimmerLoadingViewIsHidden.assertValues([false, true])

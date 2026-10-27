@@ -9,6 +9,7 @@ import WebKit
 import XCTest
 
 final class PledgeManagerWebViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   fileprivate let vm: PledgeManagerWebViewModelType = PledgeManagerWebViewModel()
 
   fileprivate let dismissViewController = TestObserver<Void, Never>()
@@ -333,7 +334,7 @@ private func navigationData(_ url: String) -> WKNavigationActionData {
   return WKNavigationActionData(
     navigationType: .other,
     request: request,
-    sourceFrame: WKFrameInfoData(frameInfo: WKFrameInfo()),
+    sourceFrame: WKFrameInfoData(mainFrame: true, request: request),
     targetFrame: nil
   )
 }

@@ -4,6 +4,47 @@ Author: Matthew Thomas. Updated 27 October 2026.
 
 ## Latest verified checkpoint
 
+Shipping-location loading and creator interaction policy now use the existing
+RewardsFeature and ProjectDetailsFeature owners. 377 combined tests passed,
+zero failures/skips, followed by an app build in
+/private/tmp/kickstarter-shipping-interactions.82bZbI.
+Five existing location model/GraphQL adapter tests also passed in
+/private/tmp/kickstarter-shipping-locations-api.xcresult (zero failures/skips).
+Agent smoke observed demo overview → Rewards ($25 supporter edition, one reward)
+→ overview → Creator → overview. No transaction submitted. The digital demo does
+not exercise the shipping picker, and live creator-page content was not verified;
+fixture tests protect shipping selection/error and creator messaging behavior.
+
+The shipping request captures its service, shares equivalent in-flight work,
+replaces changed project/backing inputs and rejects obsolete/account-mismatched
+responses. Each selector has an independent lifetime. Default selection remains
+backing → server-configured country → US → first destination → nil. Digital
+rewards avoid the API; failures remain errors and retain prior successful state.
+The ViewModel keeps shimmer, localized errors, picker presentation and its
+300 ms selection-dismissal debounce. No controller or layout changed.
+
+Creator biography request preparation and current-session message authorization
+now belong to ProjectDetailsFeature. WebKit policy/navigation remains synchronous
+presentation work; no artificial async task was added.
+
+Baseline shipping: nine existing tests passed. Seven creator tests crashed in
+synthetic WebKit frame deallocation. Plain test data no longer fabricates native
+WKFrameInfo/WKNavigationAction objects; actual WebKit events are still retained.
+The underlying event/frame properties are optional for synthetic data; the sole
+production event consumer retains its target-frame security-origin check through
+optional access. Expanded tests exposed another raw WKFrameInfo in the pledge-web
+helper; it now uses the plain-data initializer. Creator, updates and pledge-web
+assertions all pass unchanged. A new default-country test fixture was corrected
+to configure the server country, not device country. Failures are retained in
+sibling Migration Evidence/kickstarter-shipping-interactions.
+
+Remaining project boundaries: update/comment loading, media and block/watch
+interactions, then shared session and transactional flows. Existing tests of a
+legacy adapter do not mean that adapter has been migrated. App-wide migration,
+strict-concurrency and full live/device/visual validation remain IN PROGRESS.
+
+### Previous rewards and related-project checkpoint
+
 Rewards-screen and related-project reads now use CFA-owned async execution.
 324 combined Search/Explore/Project-detail/Rewards/composition tests passed,
 zero failures/skips, followed by a successful app build:

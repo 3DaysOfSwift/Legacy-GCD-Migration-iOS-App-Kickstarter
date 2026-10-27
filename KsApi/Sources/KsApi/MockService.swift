@@ -1425,6 +1425,13 @@
       try await self.projectDetailsRewards(projectID: projectID)
     }
 
+    @MainActor public func shippingLocations(projectID: Int) async throws -> [Location] {
+      try Task.checkCancellation()
+      guard let data = try await self.fetch(query: GraphAPI.ShippableLocationsForProjectQuery(id: projectID))
+      else { throw ErrorEnvelope.couldNotParseJSON }
+      return Location.locations(from: data)
+    }
+
     @MainActor public func relatedProjects(projectID: String) async throws -> GraphAPI.FetchSimilarProjectsQuery.Data {
       try Task.checkCancellation()
       if self.pendingLegacyGraphQLQueries.contains(where: { $0 == GraphAPI.FetchSimilarProjectsQuery.self }) {

@@ -31,7 +31,7 @@ extension Project: HasProjectCreatorProperties {
 
 public typealias ProjectCreatorConfiguration = HasProjectCreatorProperties & HasProjectWebURL
 
-public protocol ProjectCreatorViewModelInputs {
+@MainActor public protocol ProjectCreatorViewModelInputs {
   /// Call with the project given to the view.
   func configureWith(project: any ProjectCreatorConfiguration)
 
@@ -43,7 +43,7 @@ public protocol ProjectCreatorViewModelInputs {
   func viewDidLoad()
 }
 
-public protocol ProjectCreatorViewModelOutputs {
+@MainActor public protocol ProjectCreatorViewModelOutputs {
   /// Emits when we should return to project page.
   var goBackToProject: Signal<(), Never> { get }
 
@@ -60,14 +60,19 @@ public protocol ProjectCreatorViewModelOutputs {
   var loadWebViewRequest: Signal<URLRequest, Never> { get }
 }
 
-public protocol ProjectCreatorViewModelType {
+@MainActor public protocol ProjectCreatorViewModelType {
   var inputs: ProjectCreatorViewModelInputs { get }
   var outputs: ProjectCreatorViewModelOutputs { get }
 }
 
-public final class ProjectCreatorViewModel: ProjectCreatorViewModelType, ProjectCreatorViewModelInputs,
+@MainActor public final class ProjectCreatorViewModel: ProjectCreatorViewModelType,
+  ProjectCreatorViewModelInputs,
   ProjectCreatorViewModelOutputs {
-  public init() {
+  private let projectDetailsFeature: ProjectDetailsFeature
+
+  public init(projectDetailsFeature: ProjectDetailsFeature? = nil) {
+    let projectDetailsFeature = projectDetailsFeature ?? AppModel.shared.projectDetailsFeature
+    self.projectDetailsFeature = projectDetailsFeature
     let navigationAction = self.navigationAction.signal.skipNil()
     let project = Signal.combineLatest(self.projectProperty.signal.skipNil(), self.viewDidLoadProperty.signal)
       .map(first)
@@ -76,26 +81,24 @@ public final class ProjectCreatorViewModel: ProjectCreatorViewModelType, Project
 
     let messageCreatorRequest = navigationAction
       .filter { $0.navigationType == .linkActivated }
-      .filter { isMessageCreator(request: $0.request) }
+      .filter { projectDetailsFeature.isCreatorMessage(request: $0.request) }
       .map { $0.request }
 
-    self.loadWebViewRequest = properties.map {
-      URL(string: $0.projectWebURL)?.appendingPathComponent("creator_bio")
+    self.loadWebViewRequest = properties.compactMap {
+      projectDetailsFeature.creatorBiographyRequest(projectURL: $0.projectWebURL)
     }
-    .skipNil()
-    .map { AppEnvironment.current.apiService.preparedRequest(forURL: $0) }
 
     self.decidedPolicy <~ navigationAction
       .map { $0.navigationType == .other ? .allow : .cancel }
 
     self.goToLoginTout = messageCreatorRequest.ignoreValues()
-      .filter { AppEnvironment.current.currentUser == nil }
+      .filter { projectDetailsFeature.creatorMessageRequiresAuthentication }
       .map { .messageCreator }
 
     self.goToMessageDialog = properties
       .takeWhen(messageCreatorRequest)
-      .filter { _ in AppEnvironment.current.currentUser != nil }
-      .map { (MessageSubject.project(id: $0.id, name: $0.name), .projectPage) }
+      .compactMap { projectDetailsFeature.creatorMessageSubject(projectID: $0.id, projectName: $0.name) }
+      .map { ($0, .projectPage) }
 
     self.goBackToProject = Signal.combineLatest(properties, navigationAction)
       .filter { $1.navigationType == .linkActivated }
@@ -106,7 +109,7 @@ public final class ProjectCreatorViewModel: ProjectCreatorViewModelType, Project
 
     self.goToSafariBrowser = Signal.combineLatest(properties, navigationAction)
       .filter { $1.navigationType == .linkActivated }
-      .filter { !isMessageCreator(request: $1.request) }
+      .filter { !projectDetailsFeature.isCreatorMessage(request: $1.request) }
       .filter { properties, navigation in
         properties.projectWebURL != navigation.request.url?.absoluteString
       }
@@ -139,9 +142,4 @@ public final class ProjectCreatorViewModel: ProjectCreatorViewModelType, Project
 
   public var inputs: ProjectCreatorViewModelInputs { return self }
   public var outputs: ProjectCreatorViewModelOutputs { return self }
-}
-
-private func isMessageCreator(request: URLRequest) -> Bool {
-  if let nav = Navigation.match(request), case .project(_, .messageCreator, _, _) = nav { return true }
-  return false
 }

@@ -3,7 +3,30 @@
 The real Xcode target is LibraryTests in Kickstarter.xcodeproj, using scheme
 Library-iOS. The package test stub is not the migration regression suite.
 
-## Latest checkpoint — 27 October 2026
+## Latest checkpoint — shipping and creator interactions
+
+377 combined tests passed with zero failures/skips, followed by an app build
+in /private/tmp/kickstarter-shipping-interactions.82bZbI.
+Five KsApi LocationTests/Location_LocationFragmentTests passed separately in
+/private/tmp/kickstarter-shipping-locations-api.xcresult.
+Run the sibling Migration Evidence/kickstarter-shipping-interactions/verify.zsh
+for the complete selection on iPhone Air, iOS 26.2.
+
+RewardsFeatureTests now cover destination priority, no-network digital rewards,
+empty success, failure/retry, selection, duplicate reads, late replacement,
+independent routes, cancellation and account changes. ProjectDetailsFeatureTests
+cover creator request preparation and current-session messaging authorization.
+Existing shipping/creator/navigation assertions remain in their one-ViewModel
+test files. Updates and pledge-web logic suites are included to protect the
+shared WebKit event-data boundary; only these nonvisual suites opt out of the
+snapshot reference-device guard. Visual suites retain that guard.
+
+Initial baseline and expanded-run WebKit fixture crashes, plus a corrected
+server-country fixture, are recorded in the evidence case. No assertions were
+removed or skipped to obtain the passing run. This is not full-suite coverage,
+live transactions, strict concurrency, snapshot equivalence or device sign-off.
+
+## Previous rewards checkpoint — 27 October 2026
 
 324 combined Search, Explore, project-detail, Rewards and composition tests pass;
 six existing NoRewardInserterTests and two KsApi sorted-reward decoder tests also
