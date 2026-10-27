@@ -141,6 +141,16 @@ extension GraphAPI.SearchQuery {
 }
 
 extension DiscoveryParams {
+  /// Legacy equality compares REST query parameters, which omit these GraphQL filters.
+  /// Sharing a Search request must account for every filter sent by SearchQuery.from.
+  func hasSameSearchInputs(as other: DiscoveryParams) -> Bool {
+    self == other
+      && self.percentRaised == other.percentRaised
+      && self.amountRaised == other.amountRaised
+      && self.goal == other.goal
+      && self.location?.graphID == other.location?.graphID
+  }
+
   static var popular: DiscoveryParams {
     var params = DiscoveryParams.defaults
     params.sort = .popular

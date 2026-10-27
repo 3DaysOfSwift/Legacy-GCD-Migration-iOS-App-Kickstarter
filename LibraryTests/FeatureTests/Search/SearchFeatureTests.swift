@@ -218,6 +218,45 @@ final class SearchFeatureTests: TestCase {
     await currentTask?.value
   }
 
+  func testGraphQLOnlyFilterChangesReplaceInFlightSearchAndRejectOldResults() async throws {
+    let initial = self.parameters("art")
+    var raised = initial
+    raised.percentRaised = .bucket_2
+    var pledged = initial
+    pledged.amountRaised = .bucket_3
+    var goal = initial
+    goal.goal = .bucket_4
+    var location = initial
+    location.location = Location(
+      country: "US", displayableName: "Somerville, MA", id: 1,
+      localizedName: "Somerville, MA", name: "Somerville, MA"
+    )
+    let oldData = try self.fixture("SearchQuery_FiveResults")
+    let newData = try self.fixture("SearchQuery_AnotherFiveResults")
+
+    for changed in [raised, pledged, goal, location] {
+      let provider = ControlledSearchProvider()
+      let feature = SearchFeature(provider: provider, sleep: { _ in })
+      defer { feature.cancelSearch(); provider.releaseAll() }
+      let old = feature.requestSearch(parameters: initial)
+      await provider.waitForRequestCount(1)
+      let replacement = feature.requestSearch(parameters: changed)
+      XCTAssertNotEqual(old, replacement, "A GraphQL-only filter is a distinct request")
+      await provider.waitForRequestCount(2)
+      XCTAssertEqual(feature.requestSearch(parameters: changed), replacement)
+      try provider.complete(1, with: newData)
+      await replacement.value
+      try provider.complete(0, with: oldData)
+      await old.value
+      XCTAssertEqual(feature.projects, newData.projects?.nodes?.compactMap { $0 } ?? [])
+      XCTAssertEqual(feature.parameters?.percentRaised, changed.percentRaised)
+      XCTAssertEqual(feature.parameters?.amountRaised, changed.amountRaised)
+      XCTAssertEqual(feature.parameters?.goal, changed.goal)
+      XCTAssertEqual(feature.parameters?.location?.graphID, changed.location?.graphID)
+      XCTAssertFalse(feature.isLoading)
+    }
+  }
+
   func testNextPageAppendsAndEmptyPageEndsPagination() async throws {
     let provider = ControlledSearchProvider()
     let searchFeature = SearchFeature(provider: provider, sleep: { _ in })

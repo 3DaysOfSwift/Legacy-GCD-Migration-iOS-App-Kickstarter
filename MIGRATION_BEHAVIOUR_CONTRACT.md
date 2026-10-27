@@ -1,5 +1,13 @@
 # Kickstarter migration behaviour contract
 
+Latest confirmation (27 October): 189 tests passed, zero failures/skips, and app
+build succeeded in /private/tmp/kickstarter-query-admission.7z1aJ3. This supersedes
+the pending Search close-out and Explore logic-baseline notes below. The first
+run exposed an actual sharing defect, now fixed: funding buckets and location
+must participate in Search request identity even though legacy REST equality
+omits them. All four now have cancellation/late-result regression coverage.
+Manual/snapshot, strict-concurrency and app-wide completion remain outstanding.
+
 Author: Matthew Thomas. Baseline captured 26 October 2026 at
 `5ad48326904a4033e1b06ab21cb0942c51b077fe` (public-demo preparation).
 Original upstream: `5f5463cfb830413d253efed45bfcec0322c9f152`.

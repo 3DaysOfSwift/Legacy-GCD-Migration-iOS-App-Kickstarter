@@ -313,7 +313,8 @@ public final class SearchFeature {
   /// neither installs a second pipeline nor starts work from an observer.
   @discardableResult
   internal func requestSearch(parameters: DiscoveryParams) -> Task<Void, Never> {
-    if self.parameters == parameters, let request = self.request, request.cursor == nil {
+    if self.parameters?.hasSameSearchInputs(as: parameters) == true,
+       let request = self.request, request.cursor == nil {
       return request.task
     }
     self.cancelSearch()

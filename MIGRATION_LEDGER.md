@@ -2,6 +2,22 @@
 
 Author: Matthew Thomas. Updated 27 October 2026.
 
+## Latest verified checkpoint
+
+Search close-out and Explore's unchanged logic baseline passed 189 tests with
+zero failures/skips, followed by a successful app build on iPhone Air / iOS 26.2.
+Results: /private/tmp/kickstarter-query-admission.7z1aJ3. The earlier 188-test run
+found one genuine request-identity bug: legacy DiscoveryParams equality omits
+four GraphQL filters. Search now adds those fields to its request-sharing check;
+global legacy equality is unchanged. One regression test exercises replacement,
+sharing and stale-result rejection for all four fields. No test was weakened.
+
+Search's automated implementation checkpoint is verified. Manual/snapshot and
+complete strict-concurrency validation remain open; this is not app completion.
+Explore is now the active implementation boundary. Historical pending notes below
+are superseded by this result. Session auto-review now permits local Xcode tests;
+do not ask the developer to run routine verification commands.
+
 ## Progress dashboard — 27 October 2026
 
 **Overall: early in the app-wide migration; Search is the first feature in progress.**
