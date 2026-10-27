@@ -18,14 +18,22 @@ extension PostCommentEnvelope {
     from data: GraphAPI.PostCommentMutation
       .Data
   ) -> SignalProducer<Comment, ErrorEnvelope> {
+    do {
+      return SignalProducer(value: try self.comment(from: data))
+    } catch {
+      return SignalProducer(error: .couldNotParseJSON)
+    }
+  }
+
+  static func comment(from data: GraphAPI.PostCommentMutation.Data) throws -> Comment {
     guard let commentFragment = data.createComment?.comment?.fragments.commentFragment,
           let comment = Comment.comment(
             from: commentFragment.fragments.commentBaseFragment,
             replyCount: commentFragment.replies?.totalCount
           ) else {
-      return SignalProducer(error: ErrorEnvelope.couldNotParseJSON)
+      throw ErrorEnvelope.couldNotParseJSON
     }
 
-    return SignalProducer(value: comment)
+    return comment
   }
 }

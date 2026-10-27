@@ -194,8 +194,8 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
         return (project, commentableId, parentId, user, text)
       }
       .flatMap(
-        .concurrent(limit: CommentsViewModel.concurrentCommentLimit),
-        CommentsViewModel.postCommentProducer
+        .concurrent(limit: DiscussionFeature.concurrentCommentLimit),
+        feature.postCommentProducer
       )
 
     let currentlyRetrying = MutableProperty<Set<String>>([])
@@ -214,12 +214,14 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
         (comment, commentableId, comment.parentId)
       }
       .flatMap(
-        .concurrent(limit: CommentsViewModel.concurrentCommentLimit),
-        CommentsViewModel.retryCommentProducer
+        .concurrent(limit: DiscussionFeature.concurrentCommentLimit),
+        feature.retryCommentProducer
       )
       // Once we've emitted a value here the comment has been retried and can be removed.
-      .on(value: { [currentlyRetrying] _, id in
-        currentlyRetrying.value.remove(id)
+      .on(value: { [currentlyRetrying] comment, id in
+        if comment.status == .success || comment.status == .failed {
+          currentlyRetrying.value.remove(id)
+        }
       })
 
     self.loadRepliesAndProjectIntoDataSource = replyPages.map { ($0.1, $0.2) }.skipRepeats { $0.0 == $1.0 }
@@ -237,12 +239,12 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
       .takeWhen(self.dataSourceLoadedProperty.signal)
 
     let blockUserEvent = self.blockUserProperty.signal
-      .map(BlockUserInput.init(blockUserId:))
-      .switchMap { input in
-        AppEnvironment.current.apiService
-          .blockUser(input: input)
+      .switchMap { id in
+        let userID = AppEnvironment.current.currentUser?.id
+        return feature.blockUserResult(id: id)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
+          .filter { _ in AppEnvironment.current.currentUser?.id == userID }
       }
 
     self.didBlockUser = blockUserEvent.values().ignoreValues()
@@ -366,6 +368,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   func waitForLoads() async {
     await self.contextTask?.value
     await self.loadingTask?.value
+    await self.feature.waitForMutations()
   }
 
   public var inputs: CommentRepliesViewModelInputs { return self }

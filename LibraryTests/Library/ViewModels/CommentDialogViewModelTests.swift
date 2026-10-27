@@ -7,8 +7,12 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class CommentDialogViewModelTests: TestCase {
-  internal let vm: CommentDialogViewModelType = CommentDialogViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  internal let vm = CommentDialogViewModel(feature: DiscussionFeature(makeProvider: {
+    AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
+  }))
 
   internal let bodyTextViewText = TestObserver<String, Never>()
   internal var postButtonEnabled = TestObserver<Bool, Never>()
@@ -21,18 +25,20 @@ internal final class CommentDialogViewModelTests: TestCase {
   internal override func setUp() {
     super.setUp()
 
-    self.vm.outputs.bodyTextViewText.observe(self.bodyTextViewText.observer)
-    self.vm.outputs.postButtonEnabled.observe(self.postButtonEnabled.observer)
-    self.vm.outputs.notifyPresenterDialogWantsDismissal
-      .observe(self.notifyPresenterDialogWantsDismissal.observer)
-    self.vm.outputs.loadingViewIsHidden.observe(self.loadingViewIsHidden.observer)
-    self.vm.outputs.notifyPresenterCommentWasPostedSuccesfully
-      .observe(self.notifyPresenterCommentWasPostedSuccesfully.observer)
-    self.vm.errors.presentError.observe(self.presentError.observer)
-    self.vm.outputs.showKeyboard.observe(self.showKeyboard.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.bodyTextViewText.observe(self.bodyTextViewText.observer)
+      self.vm.outputs.postButtonEnabled.observe(self.postButtonEnabled.observer)
+      self.vm.outputs.notifyPresenterDialogWantsDismissal
+        .observe(self.notifyPresenterDialogWantsDismissal.observer)
+      self.vm.outputs.loadingViewIsHidden.observe(self.loadingViewIsHidden.observer)
+      self.vm.outputs.notifyPresenterCommentWasPostedSuccesfully
+        .observe(self.notifyPresenterCommentWasPostedSuccesfully.observer)
+      self.vm.errors.presentError.observe(self.presentError.observer)
+      self.vm.outputs.showKeyboard.observe(self.showKeyboard.observer)
+    }
   }
 
-  func testBodyTextViewText_WithoutRecipient() {
+  func testBodyTextViewText_WithoutRecipient() async {
     self.vm.inputs
       .configureWith(project: .template, update: nil, recipientName: nil, context: .projectComments)
     self.vm.inputs.viewWillAppear()
@@ -40,7 +46,7 @@ internal final class CommentDialogViewModelTests: TestCase {
     self.bodyTextViewText.assertValueCount(0)
   }
 
-  func testBodyTextViewText_WithRecipient() {
+  func testBodyTextViewText_WithRecipient() async {
     let author = ActivityCommentAuthor.template
     self.vm.inputs.configureWith(
       project: .template,
@@ -53,8 +59,11 @@ internal final class CommentDialogViewModelTests: TestCase {
     self.bodyTextViewText.assertValues(["@\(author.name): "])
   }
 
-  internal func testPostingFlow_Project() {
-    withEnvironment(apiService: MockService(postCommentResult: .success(.template)), currentUser: .template) {
+  internal func testPostingFlow_Project() async {
+    await withEnvironment(
+      apiService: MockService(postCommentResult: .success(.template)),
+      currentUser: .template
+    ) {
       self.vm.inputs
         .configureWith(project: .template, update: nil, recipientName: nil, context: .projectComments)
       self.vm.inputs.viewWillAppear()
@@ -81,7 +90,8 @@ internal final class CommentDialogViewModelTests: TestCase {
 
       self.vm.inputs.postButtonPressed()
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForMutations()
+      await self.scheduler.advance(by: .seconds(1))
 
       self.loadingViewIsHidden.assertValues(
         [true, false, true],
@@ -109,8 +119,11 @@ internal final class CommentDialogViewModelTests: TestCase {
     }
   }
 
-  internal func testPostingFlow_Update() {
-    withEnvironment(apiService: MockService(postCommentResult: .success(.template)), currentUser: .template) {
+  internal func testPostingFlow_Update() async {
+    await withEnvironment(
+      apiService: MockService(postCommentResult: .success(.template)),
+      currentUser: .template
+    ) {
       self.vm.inputs.configureWith(
         project: .template, update: .template, recipientName: nil,
         context: .updateComments
@@ -139,7 +152,8 @@ internal final class CommentDialogViewModelTests: TestCase {
 
       self.vm.inputs.postButtonPressed()
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForMutations()
+      await self.scheduler.advance(by: .seconds(1))
 
       self.loadingViewIsHidden.assertValues(
         [true, false, true],
@@ -167,8 +181,8 @@ internal final class CommentDialogViewModelTests: TestCase {
     }
   }
 
-  internal func testPostingErrorFlow() {
-    withEnvironment(
+  internal func testPostingErrorFlow() async {
+    await withEnvironment(
       apiService: MockService(postCommentResult: .failure(.couldNotParseJSON)),
       currentUser: .template
     ) {
@@ -179,7 +193,8 @@ internal final class CommentDialogViewModelTests: TestCase {
 
       self.vm.inputs.postButtonPressed()
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForMutations()
+      await self.scheduler.advance(by: .seconds(1))
 
       self.presentError.assertValues(["Something went wrong, please try again."], "Error message is emitted.")
       self.loadingViewIsHidden.assertValues(
@@ -200,8 +215,8 @@ internal final class CommentDialogViewModelTests: TestCase {
     }
   }
 
-  internal func testPostingErrorFlow_WithMissingErrorMessage() {
-    withEnvironment(
+  internal func testPostingErrorFlow_WithMissingErrorMessage() async {
+    await withEnvironment(
       apiService: MockService(postCommentResult: .failure(.couldNotParseJSON)),
       currentUser: .template
     ) {
@@ -212,7 +227,8 @@ internal final class CommentDialogViewModelTests: TestCase {
 
       self.vm.inputs.postButtonPressed()
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForMutations()
+      await self.scheduler.advance(by: .seconds(1))
 
       self.presentError
         .assertValueCount(
@@ -224,7 +240,7 @@ internal final class CommentDialogViewModelTests: TestCase {
     }
   }
 
-  internal func testCancellingFlow() {
+  internal func testCancellingFlow() async {
     self.vm.inputs
       .configureWith(project: .template, update: nil, recipientName: nil, context: .projectComments)
     self.vm.inputs.viewWillAppear()
@@ -235,7 +251,7 @@ internal final class CommentDialogViewModelTests: TestCase {
     XCTAssertEqual([], self.segmentTrackingClient.events)
   }
 
-  func testShowKeyboard() {
+  func testShowKeyboard() async {
     self.vm.inputs
       .configureWith(project: .template, update: nil, recipientName: nil, context: .projectComments)
     self.vm.inputs.viewWillAppear()

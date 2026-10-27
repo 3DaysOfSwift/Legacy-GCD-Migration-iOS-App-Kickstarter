@@ -121,7 +121,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
   func testDidBlockUser_EmitsOnSuccess() async {
     let envelope = EmptyResponseEnvelope()
 
-    await withEnvironment(apiService: MockService(blockUserResult: .success(envelope)), currentUser: .template) {
+    await withEnvironment(
+      apiService: MockService(blockUserResult: .success(envelope)),
+      currentUser: .template
+    ) {
       self.vm.inputs
         .configureWith(
           comment: .template,
@@ -139,7 +142,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       self.vm.inputs.blockUser(id: "\(User.template.id)")
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -174,7 +180,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       self.vm.inputs.blockUser(id: "\(User.template.id)")
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -213,7 +222,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       self.vm.inputs.blockUser(id: "111")
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -421,7 +433,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([])
       self.loadRepliesAndProjectIntoDataSourceTotalCount.assertValues([])
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -429,10 +444,15 @@ internal final class CommentRepliesViewModelTests: TestCase {
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([envelope.replies])
       self.loadRepliesAndProjectIntoDataSourceTotalCount.assertValues([envelope.totalCount])
 
-      await withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(updatedEnvelope))) {
+      await withEnvironment(
+        apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(updatedEnvelope))
+      ) {
         self.vm.inputs.paginateOrErrorCellWasTapped()
 
+        await self.vm.waitForLoads()
+
         await self.scheduler.advance()
+        await self.vm.waitForLoads()
         await self.vm.waitForLoads()
         await self.scheduler.advance()
 
@@ -480,7 +500,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
       self.loadRepliesAndProjectIntoDataSourceTotalCount.assertValues([])
       self.showPaginationErrorState.assertDidNotEmitValue()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -495,7 +518,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
       ) {
         self.vm.inputs.paginateOrErrorCellWasTapped()
 
+        await self.vm.waitForLoads()
+
         await self.scheduler.advance()
+        await self.vm.waitForLoads()
         await self.vm.waitForLoads()
         await self.scheduler.advance()
 
@@ -512,7 +538,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
         ) {
           self.vm.inputs.paginateOrErrorCellWasTapped()
 
+          await self.vm.waitForLoads()
+
           await self.scheduler.advance()
+          await self.vm.waitForLoads()
           await self.vm.waitForLoads()
           await self.scheduler.advance()
 
@@ -547,14 +576,20 @@ internal final class CommentRepliesViewModelTests: TestCase {
         )
       self.vm.inputs.viewDidLoad()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([envelope.replies])
       self.vm.inputs.dataSourceLoaded()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -582,14 +617,20 @@ internal final class CommentRepliesViewModelTests: TestCase {
         )
       self.vm.inputs.viewDidLoad()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([envelope.replies])
       self.vm.inputs.dataSourceLoaded()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -663,7 +704,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
         Comment.replyRootCommentTemplate.id
       )
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -693,7 +737,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
         )
       self.vm.inputs.viewDidLoad()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -719,7 +766,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
         "Failable temporary reply is emitted first."
       )
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -760,7 +810,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
           "Comment is replaced with one with a retrying status."
         )
 
+        await self.vm.waitForLoads()
+
         await self.scheduler.advance(by: .seconds(1))
+        await self.vm.waitForLoads()
         await self.vm.waitForLoads()
         await self.scheduler.advance()
 
@@ -773,7 +826,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
           "Comment is replaced with one with a retry success status after elapsed time."
         )
 
+        await self.vm.waitForLoads()
+
         await self.scheduler.advance(by: .seconds(3))
+        await self.vm.waitForLoads()
         await self.vm.waitForLoads()
         await self.scheduler.advance()
 
@@ -806,7 +862,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
         )
       self.vm.inputs.viewDidLoad()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -832,7 +891,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
         "Failable temporary reply is emitted first."
       )
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -865,7 +927,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
           "Reply is replaced with one with a retrying status."
         )
 
+        await self.vm.waitForLoads()
+
         await self.scheduler.advance(by: .seconds(1))
+        await self.vm.waitForLoads()
         await self.vm.waitForLoads()
         await self.scheduler.advance()
 
@@ -897,7 +962,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
         )
       self.vm.inputs.viewDidLoad()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -907,7 +975,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
       self.showPaginationErrorState.assertDidEmitValue()
       self.showPaginationErrorState.assertValueCount(1)
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -918,7 +989,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
       await withEnvironment(apiService: mockService2) {
         self.vm.inputs.retryFirstPage()
 
+        await self.vm.waitForLoads()
+
         await self.scheduler.advance()
+        await self.vm.waitForLoads()
         await self.vm.waitForLoads()
         await self.scheduler.advance()
 

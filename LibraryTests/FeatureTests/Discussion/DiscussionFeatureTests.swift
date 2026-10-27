@@ -1,17 +1,244 @@
 import Foundation
-import ReactiveSwift
 @testable import KsApi
 @testable import Library
 @testable import LibraryTestHelpers
 import Prelude
+import ReactiveSwift
 import XCTest
 
 @MainActor
 final class DiscussionFeatureTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
+  func testAccountSwitchDuringRetryDelayDoesNotSubmitUnderNewAccount() async {
+    let provider = ControlledDiscussionProvider()
+    let feature = self.feature(provider)
+    await withEnvironment(currentUser: .template) {
+      let subscription = feature.retryCommentProducer(
+        erroredComment: Comment.template.updatingStatus(to: .failed),
+        commentableId: "project", parentId: nil
+      ).start()
+      defer { subscription.dispose() }
+      await withEnvironment(currentUser: nil) {
+        await self.scheduler.advance(by: .seconds(1))
+        await feature.waitForMutations()
+        XCTAssertTrue(provider.postInputs.isEmpty)
+      }
+    }
+  }
+
+  func testAccountSwitchDuringPostStatusDelaySuppressesOldPresentation() async {
+    let provider = ControlledDiscussionProvider()
+    let feature = self.feature(provider)
+    var values: [Comment] = []
+    await withEnvironment(currentUser: .template) {
+      let subscription = feature.postCommentProducer(
+        project: .template, commentableId: "project", parentId: nil, user: .template, body: "old"
+      ).startWithValues { values.append($0.0) }
+      defer { subscription.dispose() }
+      await feature.waitForMutations()
+      await withEnvironment(currentUser: nil) {
+        await self.scheduler.advance(by: .seconds(1))
+        XCTAssertEqual(values.count, 1, "No confirmed old-session value delivered after the status delay")
+      }
+    }
+  }
+
+  func testCancelledWaiterDoesNotCancelSharedPost() async throws {
+    let provider = ControlledDiscussionProvider()
+    provider.pauseWrites = true
+    defer { provider.releaseAll() }
+    let feature = self.feature(provider)
+    let original = feature.requestPost(
+      operationID: "shared",
+      body: "text",
+      commentableID: "project",
+      parentID: nil
+    )
+    await provider.waitForPosts(1)
+    let entered = expectation(description: "Second caller entered")
+    let waiter = Task {
+      entered.fulfill()
+      return try await feature.post(
+        operationID: "shared",
+        body: "text",
+        commentableID: "project",
+        parentID: nil
+      )
+    }
+    defer { waiter.cancel() }
+    await fulfillment(of: [entered], timeout: 2)
+    waiter.cancel()
+    provider.finishAllPosts()
+    _ = try await original.value
+    if case .failure(is CancellationError) = await waiter.result {}
+    else { XCTFail("Cancelled waiter returned success") }
+    XCTAssertEqual(provider.postInputs.count, 1)
+  }
+
   private func feature(_ provider: ControlledDiscussionProvider) -> DiscussionFeature {
     DiscussionFeature(makeProvider: { provider }, sleep: { _ in try Task.checkCancellation() })
+  }
+
+  func testEquivalentPostsShareButDistinctAttemptsAndChangedBodiesDoNot() async throws {
+    let provider = ControlledDiscussionProvider()
+    provider.pauseWrites = true
+    defer { provider.releaseAll() }
+    let feature = self.feature(provider)
+    let first = feature.requestPost(
+      operationID: "attempt",
+      body: "first",
+      commentableID: "project",
+      parentID: nil
+    )
+    let duplicate = feature.requestPost(
+      operationID: "attempt",
+      body: "first",
+      commentableID: "project",
+      parentID: nil
+    )
+    let changed = feature.requestPost(
+      operationID: "attempt",
+      body: "changed",
+      commentableID: "project",
+      parentID: nil
+    )
+    let intentionalRepeat = feature.requestPost(
+      operationID: "another",
+      body: "first",
+      commentableID: "project",
+      parentID: "root"
+    )
+    await provider.waitForPosts(3)
+    XCTAssertEqual(provider.postInputs.map(\.body).sorted(), ["changed", "first", "first"])
+    XCTAssertEqual(provider.postInputs.compactMap(\.parentId), ["root"])
+    provider.finishAllPosts()
+    let original = try await first.value
+    let shared = try await duplicate.value
+    _ = try await changed.value
+    _ = try await intentionalRepeat.value
+    XCTAssertEqual(original, shared)
+    XCTAssertEqual(provider.postInputs.count, 3)
+  }
+
+  func testSixthPostQueuesWithoutLosingDistinctCommandsAndFailureReleasesSlot() async throws {
+    let provider = ControlledDiscussionProvider()
+    provider.pauseWrites = true
+    defer { provider.releaseAll() }
+    let feature = self.feature(provider)
+    let tasks = (0..<6).map {
+      feature.requestPost(operationID: "\($0)", body: "\($0)", commentableID: "project", parentID: nil)
+    }
+    await provider.waitForPosts(5)
+    XCTAssertEqual(provider.postInputs.count, 5)
+    try provider.finishPost(0, result: .failure(ErrorEnvelope.couldNotParseJSON))
+    await provider.waitForPosts(6)
+    XCTAssertEqual(provider.postInputs.last?.body, "5")
+    provider.finishAllPosts()
+    for task in tasks { _ = await task.result }
+    XCTAssertEqual(Set(provider.postInputs.map(\.body)).count, 6)
+  }
+
+  func testFailedPostCanBeExplicitlyRetriedAndIsNeverAutomaticallyRetried() async throws {
+    let provider = ControlledDiscussionProvider()
+    provider.fail = true
+    let feature = self.feature(provider)
+    let failed = feature.requestPost(
+      operationID: "retry",
+      body: "kept text",
+      commentableID: "update",
+      parentID: "root"
+    )
+    if case .success = await failed.result { XCTFail("Expected failed write") }
+    XCTAssertEqual(provider.postInputs.count, 1)
+    provider.fail = false
+    let comment = try await feature.post(
+      operationID: "retry",
+      body: "kept text",
+      commentableID: "update",
+      parentID: "root"
+    )
+    XCTAssertEqual(comment, .template)
+    XCTAssertEqual(provider.postInputs.map(\.body), ["kept text", "kept text"])
+    XCTAssertEqual(provider.postInputs.map(\.commentableId), ["update", "update"])
+  }
+
+  func testDisposingPresentationAndReleasingReadRouteDoNotCancelAdmittedPost() async throws {
+    let provider = ControlledDiscussionProvider()
+    provider.pauseWrites = true
+    defer { provider.releaseAll() }
+    let feature = self.feature(provider)
+    var values: [Comment] = []
+    let subscription = feature.postCommentProducer(
+      project: .template, commentableId: "project", parentId: nil, user: .template, body: "durable"
+    ).startWithValues { values.append($0.0) }
+    await provider.waitForPosts(1)
+    subscription.dispose()
+    feature.release(route: UUID())
+    try provider.finishPost(0, result: .success(.template))
+    await feature.waitForMutations()
+    XCTAssertEqual(values.count, 1, "Only the immediate optimistic value reaches a disposed screen")
+    XCTAssertEqual(provider.postInputs.count, 1)
+  }
+
+  func testAccountChangeRejectsPostCompletionAndQueuedWritesBeforeDispatch() async throws {
+    let provider = ControlledDiscussionProvider()
+    provider.pauseWrites = true
+    defer { provider.releaseAll() }
+    let feature = self.feature(provider)
+    await withEnvironment(currentUser: .template) {
+      let tasks = (0..<6).map {
+        feature.requestPost(operationID: "\($0)", body: "\($0)", commentableID: "project", parentID: nil)
+      }
+      await provider.waitForPosts(5)
+      await withEnvironment(currentUser: nil) {
+        provider.finishAllPosts()
+        for task in tasks {
+          switch await task.result {
+          case .failure(is CancellationError): break
+          default: XCTFail("Old-session writes cannot report success")
+          }
+        }
+        XCTAssertEqual(provider.postInputs.count, 5, "Queued old-session post never reaches the transport")
+      }
+    }
+  }
+
+  func testBlockDuplicatesShareAndOtherTargetsRemainIndependent() async throws {
+    let provider = ControlledDiscussionProvider()
+    provider.pauseWrites = true
+    defer { provider.releaseAll() }
+    let feature = self.feature(provider)
+    let first = feature.requestBlockUser(id: "one")
+    let duplicate = feature.requestBlockUser(id: "one")
+    let other = feature.requestBlockUser(id: "two")
+    await provider.waitForBlocks(2)
+    XCTAssertEqual(Set(provider.blockIDs), ["one", "two"])
+    provider.finishAllBlocks()
+    _ = try await first.value
+    _ = try await duplicate.value
+    _ = try await other.value
+    XCTAssertEqual(provider.blockIDs.count, 2)
+  }
+
+  func testBlockFailureClearsOwnershipForRetryAndAccountChangeSuppressesDelivery() async throws {
+    let provider = ControlledDiscussionProvider()
+    let feature = self.feature(provider)
+    provider.fail = true
+    if case .success = await feature.requestBlockUser(id: "target").result { XCTFail("Expected error") }
+    provider.fail = false
+    _ = try await feature.blockUser(id: "target")
+    XCTAssertEqual(provider.blockIDs, ["target", "target"])
+    provider.pauseWrites = true
+    defer { provider.releaseAll() }
+    await withEnvironment(currentUser: .template) {
+      let task = feature.requestBlockUser(id: "late")
+      await provider.waitForBlocks(3)
+      await withEnvironment(currentUser: nil) {
+        provider.finishAllBlocks()
+        if case .failure(is CancellationError) = await task.result {} else { XCTFail("Stale block success") }
+      }
+    }
   }
 
   func testProjectPaginationUsesReturnedCursorAndStopsAfterEmptyPage() async {
@@ -207,6 +434,79 @@ final class DiscussionFeatureTests: TestCase {
 
 @MainActor
 private final class ControlledDiscussionProvider: DiscussionProvider {
+  var pauseWrites = false
+  var postInputs: [PostCommentInput] = []
+  var blockIDs: [String] = []
+  private var pendingPosts: [CheckedContinuation<Comment, Error>?] = []
+  private var pendingBlocks: [CheckedContinuation<EmptyResponseEnvelope, Error>?] = []
+  private var postWaits: [(Int, XCTestExpectation)] = []
+  private var blockWaits: [(Int, XCTestExpectation)] = []
+
+  func post(input: PostCommentInput) async throws -> Comment {
+    self.postInputs.append(input)
+    if self.pauseWrites {
+      return try await withCheckedThrowingContinuation { continuation in
+        self.pendingPosts.append(continuation)
+        for (count, expectation) in self.postWaits
+          where count == self.postInputs.count { expectation.fulfill() }
+      }
+    }
+    if self.fail { throw ErrorEnvelope.couldNotParseJSON }
+    return .template
+  }
+
+  func block(id: String) async throws -> EmptyResponseEnvelope {
+    self.blockIDs.append(id)
+    if self.pauseWrites {
+      return try await withCheckedThrowingContinuation { continuation in
+        self.pendingBlocks.append(continuation)
+        for (count, expectation) in self.blockWaits
+          where count == self.blockIDs.count { expectation.fulfill() }
+      }
+    }
+    if self.fail { throw ErrorEnvelope.couldNotParseJSON }
+    return EmptyResponseEnvelope()
+  }
+
+  func waitForPosts(_ count: Int) async {
+    if self.postInputs.count >= count { return }
+    let expectation = XCTestExpectation(description: "Comment mutation admission")
+    self.postWaits.append((count, expectation))
+    let result = await XCTWaiter().fulfillment(of: [expectation], timeout: 2)
+    XCTAssertEqual(result, .completed)
+  }
+
+  func waitForBlocks(_ count: Int) async {
+    if self.blockIDs.count >= count { return }
+    let expectation = XCTestExpectation(description: "Block mutation admission")
+    self.blockWaits.append((count, expectation))
+    let result = await XCTWaiter().fulfillment(of: [expectation], timeout: 2)
+    XCTAssertEqual(result, .completed)
+  }
+
+  func finishPost(_ index: Int, result: Result<Comment, Error>) throws {
+    guard self.pendingPosts.indices.contains(index) else { XCTFail("Missing post"); return }
+    let continuation = try XCTUnwrap(self.pendingPosts[index])
+    self.pendingPosts[index] = nil
+    continuation.resume(with: result)
+  }
+
+  func finishAllPosts() {
+    for index in self.pendingPosts.indices {
+      let continuation = self.pendingPosts[index]
+      self.pendingPosts[index] = nil
+      continuation?.resume(returning: .template)
+    }
+  }
+
+  func finishAllBlocks() {
+    for index in self.pendingBlocks.indices {
+      let continuation = self.pendingBlocks[index]
+      self.pendingBlocks[index] = nil
+      continuation?.resume(returning: EmptyResponseEnvelope())
+    }
+  }
+
   struct Request { let slug: String?; let updateID: String?; let cursor: String? }
   var envelope = CommentsEnvelope.singleCommentTemplate
   var replyEnvelope = CommentRepliesEnvelope.singleReplyTemplate
@@ -292,6 +592,10 @@ private final class ControlledDiscussionProvider: DiscussionProvider {
   }
 
   func releaseAll() {
+    for continuation in self.pendingPosts { continuation?.resume(throwing: CancellationError()) }
+    for continuation in self.pendingBlocks { continuation?.resume(throwing: CancellationError()) }
+    self.pendingPosts.removeAll()
+    self.pendingBlocks.removeAll()
     for continuation in self.pending { continuation?.resume(throwing: CancellationError()) }
     for continuation in self.pendingUpdates { continuation?.resume(throwing: CancellationError()) }
     self.pending.removeAll()

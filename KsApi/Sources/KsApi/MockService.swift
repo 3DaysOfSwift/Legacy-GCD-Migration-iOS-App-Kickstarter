@@ -877,6 +877,18 @@
       return try result.get()
     }
 
+    @MainActor public func submitDiscussionComment(input: PostCommentInput) async throws -> Comment {
+      try Task.checkCancellation()
+      guard let result = self.postCommentResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
+    @MainActor public func blockDiscussionUser(id: String) async throws -> EmptyResponseEnvelope {
+      try Task.checkCancellation()
+      guard let result = self.blockUserResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
     @MainActor public func discussionReplies(id: String, cursor: String?) async throws -> CommentRepliesEnvelope {
       try Task.checkCancellation()
       guard let result = self.fetchCommentRepliesEnvelopeResult else { throw ErrorEnvelope.couldNotParseJSON }

@@ -172,6 +172,8 @@ public protocol ServiceType {
   ) async throws -> CommentsEnvelope
   @MainActor func discussionReplies(id: String, cursor: String?) async throws -> CommentRepliesEnvelope
   @MainActor func discussionProject(param: Param) async throws -> Project
+  @MainActor func submitDiscussionComment(input: PostCommentInput) async throws -> Comment
+  @MainActor func blockDiscussionUser(id: String) async throws -> EmptyResponseEnvelope
   @MainActor func projectUpdate(id: Int, project: Param) async throws -> Update
   @MainActor func reportVideoEvent(project: any HasProjectWebURL, completed: Bool) async throws -> VoidEnvelope
 

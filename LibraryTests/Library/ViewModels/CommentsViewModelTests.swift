@@ -156,7 +156,10 @@ internal final class CommentsViewModelTests: TestCase {
   func testDidBlockUser_EmitsOnSuccess() async {
     let envelope = EmptyResponseEnvelope()
 
-    await withEnvironment(apiService: MockService(blockUserResult: .success(envelope)), currentUser: .template) {
+    await withEnvironment(
+      apiService: MockService(blockUserResult: .success(envelope)),
+      currentUser: .template
+    ) {
       self.vm.inputs.configureWith(project: .template, update: nil)
 
       self.vm.inputs.viewDidLoad()
@@ -166,7 +169,10 @@ internal final class CommentsViewModelTests: TestCase {
 
       self.vm.inputs.blockUser(id: "\(User.template.id)")
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -193,7 +199,10 @@ internal final class CommentsViewModelTests: TestCase {
 
       self.vm.inputs.blockUser(id: "\(User.template.id)")
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -222,7 +231,10 @@ internal final class CommentsViewModelTests: TestCase {
 
       self.vm.inputs.blockUser(id: "111")
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -260,13 +272,19 @@ internal final class CommentsViewModelTests: TestCase {
       self.vm.inputs.configureWith(project: .template, update: nil)
       self.vm.inputs.viewDidLoad()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
       self.showHelpWebViewController.assertDidNotEmitValue()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -433,7 +451,10 @@ internal final class CommentsViewModelTests: TestCase {
       self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
       self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -466,7 +487,10 @@ internal final class CommentsViewModelTests: TestCase {
       self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
       self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -497,7 +521,10 @@ internal final class CommentsViewModelTests: TestCase {
       self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
       self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -521,7 +548,10 @@ internal final class CommentsViewModelTests: TestCase {
       self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
       self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -541,7 +571,10 @@ internal final class CommentsViewModelTests: TestCase {
         self.loadCommentsAndProjectIntoDataSourceProject
           .assertValues([project], "No new projects are emitted")
 
+        await self.vm.waitForLoads()
+
         await self.scheduler.advance()
+        await self.vm.waitForLoads()
         await self.vm.waitForLoads()
         await self.scheduler.advance()
 
@@ -571,7 +604,10 @@ internal final class CommentsViewModelTests: TestCase {
       self.beginOrEndRefreshing.assertValues([true])
       self.configureFooterViewWithState.assertValues([.hidden])
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -598,7 +634,10 @@ internal final class CommentsViewModelTests: TestCase {
         self.beginOrEndRefreshing.assertValues([true, false, true])
         self.configureFooterViewWithState.assertValues([.hidden, .activity])
 
+        await self.vm.waitForLoads()
+
         await self.scheduler.advance()
+        await self.vm.waitForLoads()
         await self.vm.waitForLoads()
         await self.scheduler.advance()
 
@@ -638,7 +677,10 @@ internal final class CommentsViewModelTests: TestCase {
       self.beginOrEndRefreshing.assertValues([true])
       self.configureFooterViewWithState.assertValues([.hidden])
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -654,7 +696,9 @@ internal final class CommentsViewModelTests: TestCase {
         |> \.slug .~ nil
         |> \.updateID .~ "1"
 
-      await withEnvironment(apiService: MockService(fetchUpdateCommentsEnvelopeResult: .success(updatedEnvelope))) {
+      await withEnvironment(
+        apiService: MockService(fetchUpdateCommentsEnvelopeResult: .success(updatedEnvelope))
+      ) {
         self.vm.inputs.willDisplayRow(3, outOf: 4)
 
         self.loadCommentsAndProjectIntoDataSourceComments.assertValues(
@@ -665,7 +709,10 @@ internal final class CommentsViewModelTests: TestCase {
         self.beginOrEndRefreshing.assertValues([true, false, true])
         self.configureFooterViewWithState.assertValues([.hidden, .activity])
 
+        await self.vm.waitForLoads()
+
         await self.scheduler.advance()
+        await self.vm.waitForLoads()
         await self.vm.waitForLoads()
         await self.scheduler.advance()
 
@@ -703,7 +750,10 @@ internal final class CommentsViewModelTests: TestCase {
       self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
       self.beginOrEndRefreshing.assertValues([true], "loading begins")
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -732,7 +782,10 @@ internal final class CommentsViewModelTests: TestCase {
       self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
       self.beginOrEndRefreshing.assertDidNotEmitValue()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -755,7 +808,10 @@ internal final class CommentsViewModelTests: TestCase {
       self.vm.inputs.configureWith(project: .template, update: nil)
       self.vm.inputs.viewDidLoad()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -786,7 +842,10 @@ internal final class CommentsViewModelTests: TestCase {
         "The amount of comments in the data source doesn't change."
       )
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -816,7 +875,10 @@ internal final class CommentsViewModelTests: TestCase {
       self.vm.inputs.configureWith(project: .template, update: nil)
       self.vm.inputs.viewDidLoad()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -841,7 +903,10 @@ internal final class CommentsViewModelTests: TestCase {
         "Failable temporary comment is emitted first."
       )
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -874,7 +939,10 @@ internal final class CommentsViewModelTests: TestCase {
       self.vm.inputs.configureWith(project: .template, update: nil)
       self.vm.inputs.viewDidLoad()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -899,7 +967,10 @@ internal final class CommentsViewModelTests: TestCase {
         "Failable temporary comment is emitted first."
       )
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -944,7 +1015,10 @@ internal final class CommentsViewModelTests: TestCase {
           "Comment is replaced with one with a retrying status."
         )
 
+        await self.vm.waitForLoads()
+
         await self.scheduler.advance(by: .seconds(1))
+        await self.vm.waitForLoads()
         await self.vm.waitForLoads()
         await self.scheduler.advance()
 
@@ -958,7 +1032,10 @@ internal final class CommentsViewModelTests: TestCase {
           "Comment is replaced with one with a retrySuccess status after elapsed time."
         )
 
+        await self.vm.waitForLoads()
+
         await self.scheduler.advance(by: .seconds(3))
+        await self.vm.waitForLoads()
         await self.vm.waitForLoads()
         await self.scheduler.advance()
 
@@ -983,7 +1060,10 @@ internal final class CommentsViewModelTests: TestCase {
       self.vm.inputs.configureWith(project: .template, update: nil)
       self.vm.inputs.viewDidLoad()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -1008,7 +1088,10 @@ internal final class CommentsViewModelTests: TestCase {
         "Failable temporary comment is emitted first."
       )
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -1045,7 +1128,10 @@ internal final class CommentsViewModelTests: TestCase {
           "Comment is replaced with one with a retrying status."
         )
 
+        await self.vm.waitForLoads()
+
         await self.scheduler.advance(by: .seconds(1))
+        await self.vm.waitForLoads()
         await self.vm.waitForLoads()
         await self.scheduler.advance()
 
@@ -1077,7 +1163,10 @@ internal final class CommentsViewModelTests: TestCase {
       self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
       self.cellSeparatorHidden.assertDidNotEmitValue()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -1105,7 +1194,10 @@ internal final class CommentsViewModelTests: TestCase {
       self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
       self.cellSeparatorHidden.assertDidNotEmitValue()
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -1142,7 +1234,10 @@ internal final class CommentsViewModelTests: TestCase {
 
       self.configureFooterViewWithState.assertValues([.hidden])
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -1151,7 +1246,10 @@ internal final class CommentsViewModelTests: TestCase {
       await withEnvironment(apiService: MockService(fetchProjectCommentsEnvelopeResult: .success(envelope))) {
         self.vm.inputs.commentTableViewFooterViewDidTapRetry()
 
+        await self.vm.waitForLoads()
+
         await self.scheduler.advance()
+        await self.vm.waitForLoads()
         await self.vm.waitForLoads()
         await self.scheduler.advance()
 
@@ -1171,7 +1269,10 @@ internal final class CommentsViewModelTests: TestCase {
 
       self.configureFooterViewWithState.assertValues([.hidden])
 
+      await self.vm.waitForLoads()
+
       await self.scheduler.advance()
+      await self.vm.waitForLoads()
       await self.vm.waitForLoads()
       await self.scheduler.advance()
 
@@ -1188,7 +1289,10 @@ internal final class CommentsViewModelTests: TestCase {
           [.hidden, .activity], "Activity is shown during paging."
         )
 
+        await self.vm.waitForLoads()
+
         await self.scheduler.advance()
+        await self.vm.waitForLoads()
         await self.vm.waitForLoads()
         await self.scheduler.advance()
 
@@ -1208,7 +1312,10 @@ internal final class CommentsViewModelTests: TestCase {
             [.hidden, .activity, .hidden, .activity], "Activity is shown during paging."
           )
 
+          await self.vm.waitForLoads()
+
           await self.scheduler.advance()
+          await self.vm.waitForLoads()
           await self.vm.waitForLoads()
           await self.scheduler.advance()
 
@@ -1227,7 +1334,10 @@ internal final class CommentsViewModelTests: TestCase {
               "Activity is shown during paging."
             )
 
+            await self.vm.waitForLoads()
+
             await self.scheduler.advance()
+            await self.vm.waitForLoads()
             await self.vm.waitForLoads()
             await self.scheduler.advance()
 

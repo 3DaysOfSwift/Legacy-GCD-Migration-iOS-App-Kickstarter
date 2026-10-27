@@ -1,5 +1,22 @@
 # Kickstarter migration behaviour contract
 
+## Discussion mutations — 27 October 2026
+
+| ID | Preserved requirement | Protection |
+| --- | --- | --- |
+| DISC-W01 | Show a temporary comment immediately, replace by stable ID, retain failed text | Original Comments/Replies/Dialog assertions pass |
+| DISC-W02 | Explicit retry shows retrying, retry-success for three seconds, then confirmed comment; failure returns original failed comment | Original timed tests pass; duplicate attempt sharing is Feature-tested |
+| DISC-W03 | Distinct posts are not discarded; at most five execute concurrently | Controlled six-post admission/failure test |
+| DISC-W04 | Block success posts the existing notification and analytics; failure remains visible | Original two-screen tests pass; Feature sharing/independence/failure tests |
+| DISC-W05 | Screen disposal must not imply rollback of an admitted remote mutation | Disposed-subscriber/route-release test; existing Apollo adapter also did not cancel remote writes |
+| DISC-W06 | Account changes cannot dispatch delayed old text or publish obsolete results | Controlled queued writes, retry/status delay and blocking tests |
+| DISC-W07 | Cancelling one caller does not cancel shared mutation work; no automatic retry | Controlled waiter cancellation and failure/retry tests |
+
+499 tests and app build passed in /private/tmp/kickstarter-discussion-writes.FuQBU3.
+Existing optimistic dialog dismissal is preserved, not corrected as an incidental
+redesign. Live-service/visual/device mutation checks remain unexecuted; no real
+comment or block was submitted. This bounded checkpoint is not app-wide sign-off.
+
 ## Discussion reads and playback counters — 27 October 2026
 
 - Preserve project-first configuration, update-only project context and current

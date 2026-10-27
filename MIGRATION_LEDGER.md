@@ -4,6 +4,41 @@ Author: Matthew Thomas. Updated 27 October 2026.
 
 ## Latest verified checkpoint
 
+### Discussion posting, retry and blocking — 27 October 2026
+
+Comments, replies and the legacy comment dialog now execute mutations through
+DiscussionFeature and native async Service operations. Stable attempt identity
+shares duplicate calls; distinct posts use five concurrent slots with FIFO
+admission. Failed attempts can be explicitly retried; uncertain writes never
+retry automatically. Screen disposal stops delivery but does not cancel an
+admitted mutation. Block targets execute independently. Account changes suppress
+obsolete results and stop queued/delayed old-account work before dispatch.
+
+Optimistic replacement IDs, failed text, one-second transitions, three-second
+retry-success display, block notifications and analytics remain. Reactive
+producers are retained only as UIKit presentation adapters, not network owners.
+The dialog's existing early optimistic dismissal remains a documented legacy
+behavior. No ViewModel-to-ViewModel helper calls remain in this slice.
+
+499 tests passed: 472 integrated Library, seven framework update-detail and
+20 API tests, zero failures/skips. App build succeeded with two existing warnings.
+Results: /private/tmp/kickstarter-discussion-writes.FuQBU3.
+Ten new controlled Feature tests cover sharing, capacity, independent writes,
+failure/retry, lifetime, account changes and cancelled waiters. The baseline
+passed 61 tests; eight dialog tests initially crashed at the inherited snapshot
+device guard, then all eight passed after a nonvisual-suite-only opt-out.
+No original assertion removed. No live comment/block submitted or visual parity
+claimed. Evidence: sibling Migration Evidence/kickstarter-discussion-writes.
+
+Remaining plan, in order: video-feed read/save/watch ownership; remaining
+Activity/Profile and session/account domains; pledge/payment/backing workflows;
+then app-wide ownership inventory, concurrency diagnostics, full regression and
+representative device/integration validation. Six concrete Features now exist,
+but that is not a completion percentage: unconverted transactional domains are
+substantial. App-wide migration remains IN PROGRESS.
+
+### Previous discussion reads and playback counters
+
 Discussion read execution and project-video counters now have concrete AppModel
 owners: DiscussionFeature and ProjectMediaFeature. 454 integrated tests passed
 with zero failures/skips, followed by a successful app build:

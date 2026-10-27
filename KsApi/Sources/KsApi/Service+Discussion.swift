@@ -7,6 +7,26 @@ public enum DiscussionResponseError: Error {
 }
 
 extension Service {
+  @MainActor public func submitDiscussionComment(input: PostCommentInput) async throws -> Comment {
+    let data: GraphAPI.PostCommentMutation.Data = try await CancellableGraphQLRequest.fetch { completion in
+      GraphQL.shared.client.perform(
+        mutation: GraphAPI.PostCommentMutation(input: GraphAPI.PostCommentInput.from(input)),
+        queue: .global(qos: .userInitiated), resultHandler: completion
+      )
+    }
+    return try PostCommentEnvelope.comment(from: data)
+  }
+
+  @MainActor public func blockDiscussionUser(id: String) async throws -> EmptyResponseEnvelope {
+    let _: GraphAPI.BlockUserMutation.Data = try await CancellableGraphQLRequest.fetch { completion in
+      GraphQL.shared.client.perform(
+        mutation: GraphAPI.BlockUserMutation(input: GraphAPI.BlockUserInput(blockUserId: id)),
+        queue: .global(qos: .userInitiated), resultHandler: completion
+      )
+    }
+    return EmptyResponseEnvelope()
+  }
+
   @MainActor public func discussionComments(
     slug: String?, updateID: String?, cursor: String?
   ) async throws -> CommentsEnvelope {

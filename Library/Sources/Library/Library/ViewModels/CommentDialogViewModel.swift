@@ -9,6 +9,7 @@ public struct CommentDialogData {
   public let context: KSRAnalytics.CommentDialogContext
 }
 
+@MainActor
 public protocol CommentDialogViewModelInputs {
   /// Call when the view appears.
   func viewWillAppear()
@@ -34,6 +35,7 @@ public protocol CommentDialogViewModelInputs {
   func cancelButtonPressed()
 }
 
+@MainActor
 public protocol CommentDialogViewModelOutputs {
   /// Emits a string that should be put into the body text view.
   var bodyTextViewText: Signal<String, Never> { get }
@@ -58,17 +60,20 @@ public protocol CommentDialogViewModelOutputs {
   var showKeyboard: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol CommentDialogViewModelErrors {
   /// Emits a string error description when there has been an error posting a comment.
   var presentError: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol CommentDialogViewModelType {
   var inputs: CommentDialogViewModelInputs { get }
   var outputs: CommentDialogViewModelOutputs { get }
   var errors: CommentDialogViewModelErrors { get }
 }
 
+@MainActor
 public final class CommentDialogViewModel: CommentDialogViewModelType,
   CommentDialogViewModelInputs,
   CommentDialogViewModelOutputs, CommentDialogViewModelErrors {
@@ -122,7 +127,11 @@ public final class CommentDialogViewModel: CommentDialogViewModelType,
   public var outputs: CommentDialogViewModelOutputs { return self }
   public var errors: CommentDialogViewModelErrors { return self }
 
-  public init() {
+  private let discussionFeature: DiscussionFeature
+
+  public init(feature: DiscussionFeature? = nil) {
+    let feature = feature ?? AppModel.shared.discussionFeature
+    self.discussionFeature = feature
     let isLoading = MutableProperty(false)
 
     let configurationData = self.configurationDataProperty.signal.skipNil()
@@ -168,7 +177,8 @@ public final class CommentDialogViewModel: CommentDialogViewModelType,
         body,
         project: project,
         commentableId: commentableId,
-        from: currentUser
+        from: currentUser,
+        feature: feature
       )
       .on(
         starting: {
@@ -212,6 +222,10 @@ public final class CommentDialogViewModel: CommentDialogViewModelType,
       .skipNil()
       .map { "@\($0): " }
   }
+
+  func waitForMutations() async {
+    await self.discussionFeature.waitForMutations()
+  }
 }
 
 /**
@@ -220,14 +234,16 @@ public final class CommentDialogViewModel: CommentDialogViewModelType,
  - Replies are posted as comments on main thread with `@User` tagged.
  */
 
+@MainActor
 private func postComment(
   _ body: String,
   project: Project,
   commentableId: String,
-  from user: User
+  from user: User,
+  feature: DiscussionFeature
 )
   -> SignalProducer<Comment, ErrorEnvelope> {
-  return CommentsViewModel.postCommentProducer(
+  return feature.postCommentProducer(
     project: project,
     commentableId: commentableId,
     parentId: nil,
