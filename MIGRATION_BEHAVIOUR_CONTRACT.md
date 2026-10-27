@@ -1,5 +1,29 @@
 # Kickstarter migration behaviour contract
 
+## Discussion reads and playback counters — 27 October 2026
+
+- Preserve project-first configuration, update-only project context and current
+  composer/keyboard/navigation behavior. Posting, retry and blocking stay legacy.
+- Preserve returned page identity/cursors, backward replies and the empty-page
+  stop condition. Missing envelopes complete silently; errors remain errors.
+- Refresh clears as before. Reply retry after an initial failure must not emit
+  an extra clear before the first successful reply count. Existing assertion passes.
+- Separate route lifetimes, share equivalent in-flight reads, replace explicit
+  refresh/changed navigation, and reject canceled/account-mismatched completions.
+- Keep update WebKit policy, cached-project navigation, ref tags and silent lookup
+  errors. No controller, layout or resource was redesigned.
+- Video start/completion are independent events, not latest-wins reads. Preserve
+  the playback threshold and once-per-screen triggers; never automatically retry
+  a counter write with an unknown remote outcome. Playback UI remains unchanged.
+
+454 integrated tests passed, zero failures/skips, and app build succeeded in
+/private/tmp/kickstarter-discussion-media.ga9kgf. The 71-test baseline passed;
+one post-change reply emission mismatch was corrected without weakening assertions.
+Seven update-detail and 19 API tests also passed with zero failures/skips.
+Agent smoke observed overview → Campaign → overview; the demo does not expose
+populated discussion/video flows. Those are fixture-tested, not visually verified.
+This is not live-service, visual parity, full-app or strict-concurrency sign-off.
+
 ## Shipping destinations and creator interactions — 27 October 2026
 
 | ID | Preserved requirement | Protection and result |

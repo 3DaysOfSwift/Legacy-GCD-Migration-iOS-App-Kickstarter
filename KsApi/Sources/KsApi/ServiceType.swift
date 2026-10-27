@@ -166,6 +166,15 @@ public protocol ServiceType {
   func fetchBacking(forProject project: Project, forUser user: User)
     -> SignalProducer<Backing, ErrorEnvelope>
 
+  /// Native discussion reads and independent playback-counter events.
+  @MainActor func discussionComments(
+    slug: String?, updateID: String?, cursor: String?
+  ) async throws -> CommentsEnvelope
+  @MainActor func discussionReplies(id: String, cursor: String?) async throws -> CommentRepliesEnvelope
+  @MainActor func discussionProject(param: Param) async throws -> Project
+  @MainActor func projectUpdate(id: Int, project: Param) async throws -> Update
+  @MainActor func reportVideoEvent(project: any HasProjectWebURL, completed: Bool) async throws -> VoidEnvelope
+
   /// Fetch comments for a project with a slug, cursor and limit.
   func fetchProjectComments(
     slug: String,

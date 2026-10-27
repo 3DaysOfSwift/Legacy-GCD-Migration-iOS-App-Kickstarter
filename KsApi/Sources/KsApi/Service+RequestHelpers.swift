@@ -7,6 +7,38 @@ import ReactiveSwift
 extension Service {
   private static let session = URLSession(configuration: .default)
 
+  @MainActor public func discussionProject(param: Param) async throws -> Project {
+    try await self.discussionResponse(route: .project(param))
+  }
+
+  @MainActor public func projectUpdate(id: Int, project: Param) async throws -> Update {
+    try await self.discussionResponse(route: .update(updateId: id, projectParam: project))
+  }
+
+  @MainActor public func reportVideoEvent(
+    project: any HasProjectWebURL, completed: Bool
+  ) async throws -> VoidEnvelope {
+    do {
+      return try await self.discussionResponse(
+        route: completed
+          ? .incrementVideoCompletion(project: project) : .incrementVideoStart(project: project)
+      )
+    } catch let error as ErrorEnvelope where error.ksrCode == .ErrorEnvelopeJSONParsingFailed {
+      // These legacy counters may return an empty response after accepting the event.
+      return VoidEnvelope()
+    }
+  }
+
+  private func discussionResponse<Model: Decodable>(route: Route) async throws -> Model {
+    let properties = route.requestProperties
+    guard let url = URL(string: properties.path, relativeTo: self.serverConfig.apiBaseUrl as URL) else {
+      throw ErrorEnvelope.couldNotParseErrorEnvelopeJSON
+    }
+    return try await self.discoveryResponse(for: self.preparedRequest(
+      forURL: url, method: properties.method, query: properties.query
+    ))
+  }
+
   public func discoveryPage(params: DiscoveryParams) async throws -> DiscoveryEnvelope {
     let properties = Route.discover(params).requestProperties
     guard let url = URL(string: properties.path, relativeTo: self.serverConfig.apiBaseUrl as URL) else {

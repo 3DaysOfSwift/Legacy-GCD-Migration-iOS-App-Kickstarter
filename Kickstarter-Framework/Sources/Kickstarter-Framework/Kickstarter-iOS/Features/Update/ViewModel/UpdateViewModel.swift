@@ -10,6 +10,7 @@ private struct UpdateData {
   fileprivate let update: Update
 }
 
+@MainActor
 internal protocol UpdateViewModelInputs {
   /// Call with the project and update given to the controller.
   func configureWith(project: Project, update: Update)
@@ -22,6 +23,7 @@ internal protocol UpdateViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 internal protocol UpdateViewModelOutputs {
   /// Emits when we should go to comments for the update.
   var goToComments: Signal<Update, Never> { get }
@@ -39,13 +41,26 @@ internal protocol UpdateViewModelOutputs {
   var webViewLoadRequest: Signal<URLRequest, Never> { get }
 }
 
+@MainActor
 internal protocol UpdateViewModelType {
   var inputs: UpdateViewModelInputs { get }
   var outputs: UpdateViewModelOutputs { get }
 }
 
+@MainActor
 internal final class UpdateViewModel: UpdateViewModelType, UpdateViewModelInputs, UpdateViewModelOutputs {
-  internal init() {
+  private let feature: DiscussionFeature
+  private let route = UUID()
+  private let disposables = CompositeDisposable()
+  private var updateTask: Task<Void, Never>?
+  private var projectTask: Task<Void, Never>?
+  private let projectNavigation = Signal<(WKNavigationActionData, Project, RefTag), Never>.pipe()
+  private var pendingProjectNavigation: (WKNavigationActionData, RefTag)?
+
+  internal init(feature: DiscussionFeature? = nil) {
+    let feature = feature ?? AppModel.shared.discussionFeature
+    self.feature = feature
+    let route = self.route
     let configurationData = self.configurationDataProperty.signal.skipNil()
 
     let initialUpdate = configurationData.map { $0.update }
@@ -71,15 +86,8 @@ internal final class UpdateViewModel: UpdateViewModelType, UpdateViewModelInputs
       anotherUpdateLoadRequest
     )
 
-    let anotherUpdate = anotherUpdateLoadRequest
-      .map(Navigation.Project.updateWithRequest)
-      .skipNil()
-      .switchMap { project, update in
-        AppEnvironment.current.apiService
-          .fetchUpdate(updateId: update, projectParam: project)
-          .demoteErrors()
-      }
-
+    let updateRequests = anotherUpdateLoadRequest.map(Navigation.Project.updateWithRequest).skipNil()
+    let anotherUpdate = feature.updateValues.filter { $0.0 == route }.map { $0.1 }
     let currentUpdate = Signal.merge(initialUpdate, anotherUpdate)
 
     self.title = Signal.combineLatest(currentUpdate, self.viewDidLoadProperty.signal.take(first: 1))
@@ -112,24 +120,7 @@ internal final class UpdateViewModel: UpdateViewModelType, UpdateViewModelInputs
       .map { action in (action, Navigation.Project.withRequest(action.request)) }
       .filter(second >>> isNotNil)
 
-    let projectAndRefTag = project
-      .takePairWhen(goToProject)
-      .map(unpack)
-      .switchMap { project, action, projectParamAndRefTag
-        -> SignalProducer<(WKNavigationActionData, Project, RefTag), Never> in
-        guard let (projectParam, refTag) = projectParamAndRefTag else { return .empty }
-
-        let producer: SignalProducer<Project, Never>
-
-        if projectParam == .id(project.id) || projectParam == .slug(project.slug) {
-          producer = SignalProducer(value: project)
-        } else {
-          producer = AppEnvironment.current.apiService.fetchProject(param: projectParam)
-            .demoteErrors()
-        }
-
-        return producer.map { (action, $0, refTag ?? RefTag.update) }
-      }
+    let projectAndRefTag = self.projectNavigation.output
 
     self.goToComments = goToComments
     self.goToProject = projectAndRefTag.filter { _, project, _ in project.displayPrelaunch != .some(true) }
@@ -142,6 +133,27 @@ internal final class UpdateViewModel: UpdateViewModelType, UpdateViewModelInputs
     self.goToSafariBrowser = Signal.merge(externalNavigationAction, goToPrelaunchPage)
       .map { action in action.request.url }
       .skipNil()
+    self.disposables += feature.projectValues.filter { $0.0 == route }
+      .observeValues { [weak self] _, project in
+        guard let self, let (action, refTag) = self.pendingProjectNavigation else { return }
+        self.pendingProjectNavigation = nil
+        self.projectNavigation.input.send(value: (action, project, refTag))
+      }
+    self.disposables += project.takePairWhen(goToProject).map(unpack)
+      .observeValues { [weak self] project, action, params in
+        guard let self, let (param, refTag) = params else { return }
+        self.pendingProjectNavigation = nil
+        if param == .id(project.id) || param == .slug(project.slug) {
+          feature.cancelProject(route: route)
+          self.projectNavigation.input.send(value: (action, project, refTag ?? .update))
+        } else {
+          self.pendingProjectNavigation = (action, refTag ?? .update)
+          self.projectTask = feature.requestProject(route: route, param: param)
+        }
+      }
+    self.disposables += updateRequests.observeValues { [weak self] project, id in
+      self?.updateTask = feature.requestUpdate(route: route, id: id, project: project)
+    }
   }
 
   fileprivate let configurationDataProperty = MutableProperty<UpdateData?>(nil)
@@ -167,6 +179,20 @@ internal final class UpdateViewModel: UpdateViewModelType, UpdateViewModelInputs
   internal let goToSafariBrowser: Signal<URL, Never>
   internal let title: Signal<String, Never>
   internal let webViewLoadRequest: Signal<URLRequest, Never>
+
+  deinit {
+    self.updateTask?.cancel()
+    self.projectTask?.cancel()
+    self.disposables.dispose()
+    let feature = self.feature
+    let route = self.route
+    Task { @MainActor in feature.release(route: route) }
+  }
+
+  func waitForLoads() async {
+    await self.updateTask?.value
+    await self.projectTask?.value
+  }
 
   internal var inputs: UpdateViewModelInputs { return self }
   internal var outputs: UpdateViewModelOutputs { return self }

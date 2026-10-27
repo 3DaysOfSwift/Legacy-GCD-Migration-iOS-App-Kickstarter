@@ -4,6 +4,7 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol CommentRepliesViewModelInputs {
   /// Call when block user is tapped
   func blockUser(id: String)
@@ -48,6 +49,7 @@ public protocol CommentRepliesViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol CommentRepliesViewModelOutputs {
   /// Emits data to configure comment composer view.
   var configureCommentComposerViewWithData: Signal<CommentComposerViewData, Never> { get }
@@ -77,15 +79,26 @@ public protocol CommentRepliesViewModelOutputs {
   var didBlockUserError: Signal<(), Never> { get }
 }
 
+@MainActor
 public protocol CommentRepliesViewModelType {
   var inputs: CommentRepliesViewModelInputs { get }
   var outputs: CommentRepliesViewModelOutputs { get }
 }
 
+@MainActor
 public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   CommentRepliesViewModelInputs,
   CommentRepliesViewModelOutputs {
-  public init() {
+  private let feature: DiscussionFeature
+  private let route = UUID()
+  private let disposables = CompositeDisposable()
+  private(set) var loadingTask: Task<Void, Never>?
+  private(set) var contextTask: Task<Void, Never>?
+
+  public init(feature: DiscussionFeature? = nil) {
+    let feature = feature ?? AppModel.shared.discussionFeature
+    self.feature = feature
+    let route = self.route
     let rootCommentProject = Signal.combineLatest(
       self.commentProjectProperty.signal.skipNil(),
       self.viewDidLoadProperty.signal
@@ -145,39 +158,8 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
       rootComment.takeWhen(self.retryFirstPageProperty.signal)
     )
 
-    let totalCountProperty = MutableProperty<Int>(0)
-
-    // TODO: Handle isLoading from here
-    let (replies, _, _, error) = paginate(
-      requestFirstPageWith: requestFirstPageWith,
-      requestNextPageWhen: self.paginateOrErrorCellWasTappedProperty.signal,
-      clearOnNewRequest: true,
-      valuesFromEnvelope: { [totalCountProperty] envelope -> [Comment] in
-        totalCountProperty.value = envelope.totalCount
-        return envelope.replies
-      },
-      cursorFromEnvelope: { envelope in
-        (envelope.comment, envelope.cursor)
-      },
-      requestFromParams: { comment in
-        AppEnvironment.current.apiService
-          .fetchCommentReplies(
-            id: comment.id,
-            cursor: nil,
-            limit: CommentRepliesEnvelope.paginationLimit
-          )
-      },
-      requestFromCursor: { comment, cursor in
-        AppEnvironment.current.apiService
-          .fetchCommentReplies(
-            id: comment.id,
-            cursor: cursor,
-            limit: CommentRepliesEnvelope.paginationLimit
-          )
-      },
-      // only return new pages, we'll concat them ourselves
-      concater: { _, value in value }
-    )
+    let replyPages = feature.pageValues.filter { $0.0 == route }
+    let error = feature.errors.filter { $0.0 == route }.map { $0.1 }
 
     let commentComposerDidSubmitText = self.commentComposerDidSubmitTextProperty.signal.skipNil()
 
@@ -240,7 +222,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
         currentlyRetrying.value.remove(id)
       })
 
-    self.loadRepliesAndProjectIntoDataSource = replies.withLatestFrom(totalCountProperty.signal)
+    self.loadRepliesAndProjectIntoDataSource = replyPages.map { ($0.1, $0.2) }.skipRepeats { $0.0 == $1.0 }
       .combineLatest(with: project)
 
     let failableOrRetriedComment = Signal.merge(retryingComment, failableCommentWithReplacementId)
@@ -297,6 +279,12 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
             targetUserId: "\(blockedUserId)"
           )
       }
+    self.disposables += requestFirstPageWith.observeValues { [weak self] comment in
+      self?.loadingTask = feature.requestFirstPage(route: route, source: .replies(comment.id), refresh: true)
+    }
+    self.disposables += self.paginateOrErrorCellWasTappedProperty.signal.observeValues { [weak self] in
+      self?.loadingTask = feature.requestNextPage(route: route)
+    }
   }
 
   private let blockUserProperty = MutableProperty<String>("")
@@ -363,6 +351,22 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   public let showPaginationErrorState: Signal<(), Never>
   public var didBlockUser: Signal<(), Never>
   public var didBlockUserError: Signal<(), Never>
+
+  deinit {
+    self.loadingTask?.cancel()
+    self.contextTask?.cancel()
+    self.disposables.dispose()
+    let feature = self.feature
+    let route = self.route
+    Task { @MainActor in
+      feature.release(route: route)
+    }
+  }
+
+  func waitForLoads() async {
+    await self.contextTask?.value
+    await self.loadingTask?.value
+  }
 
   public var inputs: CommentRepliesViewModelInputs { return self }
   public var outputs: CommentRepliesViewModelOutputs { return self }

@@ -9,8 +9,12 @@ import ReactiveSwift
 import WebKit
 import XCTest
 
+@MainActor
 final class UpdateViewModelTests: TestCase {
-  fileprivate let vm: UpdateViewModelType = UpdateViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  fileprivate let vm = UpdateViewModel(feature: DiscussionFeature(makeProvider: {
+    AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
+  }))
 
   fileprivate let project = .template |> Project.lens.id .~ 1
   fileprivate let update = .template
@@ -24,16 +28,17 @@ final class UpdateViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
-
-    self.vm.outputs.goToComments.observe(self.goToComments.observer)
-    self.vm.outputs.goToProject.map { $0.0 }.observe(self.goToProject.observer)
-    self.vm.outputs.goToSafariBrowser.observe(self.goToSafariBrowser.observer)
-    self.vm.outputs.title.observe(self.title.observer)
-    self.vm.outputs.webViewLoadRequest.map { $0.url?.absoluteString }
-      .observe(self.webViewLoadRequest.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.goToComments.observe(self.goToComments.observer)
+      self.vm.outputs.goToProject.map { $0.0 }.observe(self.goToProject.observer)
+      self.vm.outputs.goToSafariBrowser.observe(self.goToSafariBrowser.observer)
+      self.vm.outputs.title.observe(self.title.observer)
+      self.vm.outputs.webViewLoadRequest.map { $0.url?.absoluteString }
+        .observe(self.webViewLoadRequest.observer)
+    }
   }
 
-  func testUpdateUrlLoads() {
+  func testUpdateUrlLoads() async {
     self.vm.inputs.configureWith(project: self.project, update: self.update)
     self.vm.inputs.viewDidLoad()
 
@@ -43,16 +48,18 @@ final class UpdateViewModelTests: TestCase {
     )
   }
 
-  func testTitle() {
+  func testTitle() async {
     self.vm.inputs.configureWith(project: self.project, update: self.update)
     self.vm.inputs.viewDidLoad()
+
+    await self.vm.waitForLoads()
 
     self.title.assertValues(
       [Strings.activity_project_update_update_count(update_count: String(self.update.sequence))]
     )
   }
 
-  func testGoToAnotherUpdate() {
+  func testGoToAnotherUpdate() async {
     let prevUpdate = .template
       |> Update.lens.id .~ 42
       |> Update.lens.sequence .~ 42
@@ -64,7 +71,7 @@ final class UpdateViewModelTests: TestCase {
     self.vm.inputs.configureWith(project: self.project, update: self.update)
     self.vm.inputs.viewDidLoad()
 
-    withEnvironment(apiService: MockService(fetchUpdateResponse: prevUpdate)) {
+    await withEnvironment(apiService: MockService(fetchUpdateResponse: prevUpdate)) {
       let request = URLRequest(url: prevUpdateUrl)
       let navigationAction = WKNavigationActionData(
         navigationType: .linkActivated,
@@ -77,6 +84,8 @@ final class UpdateViewModelTests: TestCase {
 
       XCTAssertEqual(WKNavigationActionPolicy.cancel.rawValue, policy.rawValue)
 
+      await self.vm.waitForLoads()
+
       self.goToSafariBrowser.assertDidNotEmitValue("New update request should not load in Safari browser.")
 
       let query = "client_id=\(self.apiService.serverConfig.apiClientAuth.clientId)&currency=USD"
@@ -87,6 +96,8 @@ final class UpdateViewModelTests: TestCase {
         ]
       )
 
+      await self.vm.waitForLoads()
+
       self.title.assertValues(
         [
           Strings.activity_project_update_update_count(update_count: String(self.update.sequence)),
@@ -96,7 +107,7 @@ final class UpdateViewModelTests: TestCase {
     }
   }
 
-  func testGoToProject() {
+  func testGoToProject() async {
     let anotherProject = .template |> Project.lens.id .~ 42
     let anotherProjectUrl = URL(string: anotherProject.urls.web.project)
       .flatMap { $0.deletingLastPathComponent() }
@@ -105,7 +116,7 @@ final class UpdateViewModelTests: TestCase {
     self.vm.inputs.configureWith(project: self.project, update: self.update)
     self.vm.inputs.viewDidLoad()
 
-    withEnvironment(apiService: MockService(fetchProjectResult: .success(anotherProject))) {
+    await withEnvironment(apiService: MockService(fetchProjectResult: .success(anotherProject))) {
       let request = URLRequest(url: anotherProjectUrl)
       let navigationAction = WKNavigationActionData(
         navigationType: .linkActivated,
@@ -118,6 +129,8 @@ final class UpdateViewModelTests: TestCase {
 
       XCTAssertEqual(WKNavigationActionPolicy.cancel.rawValue, policy.rawValue)
 
+      await self.vm.waitForLoads()
+
       self.goToProject.assertValues([anotherProject])
       self.goToComments.assertValueCount(0)
     }
@@ -128,7 +141,7 @@ final class UpdateViewModelTests: TestCase {
     )
   }
 
-  func testGoToComments() {
+  func testGoToComments() async {
     self.vm.inputs.configureWith(project: self.project, update: self.update)
     self.vm.inputs.viewDidLoad()
 
@@ -148,11 +161,13 @@ final class UpdateViewModelTests: TestCase {
       self.vm.inputs.decidePolicyFor(navigationAction: navigationAction).rawValue
     )
     self.goToComments.assertValues([self.update])
+    await self.vm.waitForLoads()
     self.goToProject.assertDidNotEmitValue()
+    await self.vm.waitForLoads()
     self.goToSafariBrowser.assertDidNotEmitValue()
   }
 
-  func testGoToSafariBrowser() {
+  func testGoToSafariBrowser() async {
     self.vm.inputs.configureWith(project: self.project, update: self.update)
     self.vm.inputs.viewDidLoad()
 
@@ -169,6 +184,7 @@ final class UpdateViewModelTests: TestCase {
       self.vm.inputs.decidePolicyFor(navigationAction: navigationAction).rawValue
     )
     self.webViewLoadRequest.assertValueCount(1)
+    await self.vm.waitForLoads()
     self.goToSafariBrowser.assertDidNotEmitValue()
 
     let outsideUrl = URL(string: "http://www.wikipedia.com")!
@@ -186,14 +202,16 @@ final class UpdateViewModelTests: TestCase {
       self.vm.inputs.decidePolicyFor(navigationAction: navigationAction).rawValue
     )
     self.goToComments.assertValueCount(0)
+    await self.vm.waitForLoads()
     self.goToProject.assertValueCount(0)
     self.webViewLoadRequest.assertValueCount(1)
+    await self.vm.waitForLoads()
     self.goToSafariBrowser.assertValues([outsideUrl])
 
     XCTAssertEqual([], self.segmentTrackingClient.events)
   }
 
-  func testGoToSafariBrowser_PrelaunchProject() {
+  func testGoToSafariBrowser_PrelaunchProject() async {
     let prelaunchProject = Project.template
       |> Project.lens.id .~ 10
       |> Project.lens.displayPrelaunch .~ true
@@ -204,7 +222,7 @@ final class UpdateViewModelTests: TestCase {
     self.vm.inputs.configureWith(project: self.project, update: self.update)
     self.vm.inputs.viewDidLoad()
 
-    withEnvironment(apiService: MockService(fetchProjectResult: .success(prelaunchProject))) {
+    await withEnvironment(apiService: MockService(fetchProjectResult: .success(prelaunchProject))) {
       guard let google = URL(string: "https://www.google.com") else {
         XCTFail("Should have a URL")
         return
@@ -224,11 +242,14 @@ final class UpdateViewModelTests: TestCase {
         self.vm.inputs.decidePolicyFor(navigationAction: navigationAction1).rawValue
       )
 
-      self.scheduler.run()
+      await self.scheduler.run()
+
+      await self.vm.waitForLoads()
 
       self.goToProject.assertDidNotEmitValue()
       self.goToComments.assertDidNotEmitValue()
       self.webViewLoadRequest.assertValueCount(1, "Initial update load request")
+      await self.vm.waitForLoads()
       self.goToSafariBrowser.assertValues([])
 
       XCTAssertEqual([], self.segmentTrackingClient.events)
@@ -248,11 +269,14 @@ final class UpdateViewModelTests: TestCase {
         self.vm.inputs.decidePolicyFor(navigationAction: navigationAction2).rawValue
       )
 
-      self.scheduler.run()
+      await self.scheduler.run()
+
+      await self.vm.waitForLoads()
 
       self.goToProject.assertDidNotEmitValue()
       self.goToComments.assertDidNotEmitValue()
       self.webViewLoadRequest.assertValueCount(1, "Initial update load request")
+      await self.vm.waitForLoads()
       self.goToSafariBrowser.assertValues([prelaunchProjectURL])
 
       XCTAssertEqual([], self.segmentTrackingClient.events)

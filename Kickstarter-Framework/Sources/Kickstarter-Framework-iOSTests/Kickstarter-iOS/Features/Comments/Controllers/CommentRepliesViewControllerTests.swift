@@ -7,6 +7,7 @@ import Prelude
 import SnapshotTesting
 import XCTest
 
+@MainActor
 final class CommentRepliesViewControllerTests: TestCase {
   override func setUp() {
     super.setUp()

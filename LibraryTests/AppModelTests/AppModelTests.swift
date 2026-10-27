@@ -19,13 +19,21 @@ final class AppModelTests: XCTestCase {
       searchFeature: firstFeature,
       discoveryFeature: DiscoveryFeature(provider: NoRequestDiscoveryProvider()),
       projectDetailsFeature: firstDetails,
-      rewardsFeature: RewardsFeature(makeProvider: { AsyncRewardsProvider(service: MockService()) })
+      rewardsFeature: RewardsFeature(makeProvider: { AsyncRewardsProvider(service: MockService()) }),
+      discussionFeature: DiscussionFeature(makeProvider: { AsyncDiscussionProvider(service: MockService()) }),
+      projectMediaFeature: ProjectMediaFeature(makeProvider: {
+        AsyncProjectMediaProvider(service: MockService())
+      })
     )
     let second = AppModel(
       searchFeature: secondFeature,
       discoveryFeature: DiscoveryFeature(provider: NoRequestDiscoveryProvider()),
       projectDetailsFeature: secondDetails,
-      rewardsFeature: RewardsFeature(makeProvider: { AsyncRewardsProvider(service: MockService()) })
+      rewardsFeature: RewardsFeature(makeProvider: { AsyncRewardsProvider(service: MockService()) }),
+      discussionFeature: DiscussionFeature(makeProvider: { AsyncDiscussionProvider(service: MockService()) }),
+      projectMediaFeature: ProjectMediaFeature(makeProvider: {
+        AsyncProjectMediaProvider(service: MockService())
+      })
     )
 
     XCTAssertTrue(first.searchFeature === firstFeature)
@@ -36,6 +44,8 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(second.projectDetailsFeature === secondDetails)
     XCTAssertFalse(first.projectDetailsFeature === second.projectDetailsFeature)
     XCTAssertFalse(first.rewardsFeature === second.rewardsFeature)
+    XCTAssertFalse(first.discussionFeature === second.discussionFeature)
+    XCTAssertFalse(first.projectMediaFeature === second.projectMediaFeature)
     XCTAssertTrue(first.discoveryFeature.snapshot(for: .magic).projects.isEmpty)
     XCTAssertEqual(firstProvider.requestCount, 0)
     XCTAssertEqual(secondProvider.requestCount, 0)

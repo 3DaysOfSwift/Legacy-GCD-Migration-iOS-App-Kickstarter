@@ -7,6 +7,7 @@ import ReactiveSwift
 private let playRate = 1.0
 private let pauseRate = 0.0
 
+@MainActor
 public protocol VideoViewModelInputs {
   /// Call to configure cell with project value.
   func configureWith(project: any VideoViewConfiguration)
@@ -36,6 +37,7 @@ public protocol VideoViewModelInputs {
   func viewWillDisappear()
 }
 
+@MainActor
 public protocol VideoViewModelOutputs {
   /// Emits when should add a boundary observer for the 85% completion time.
   var addCompletionObserver: Signal<CMTime, Never> { get }
@@ -77,13 +79,24 @@ public protocol VideoViewModelOutputs {
   var videoViewHidden: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol VideoViewModelType {
   var inputs: VideoViewModelInputs { get }
   var outputs: VideoViewModelOutputs { get }
 }
 
+@MainActor
 public final class VideoViewModel: VideoViewModelInputs, VideoViewModelOutputs, VideoViewModelType {
-  public init() {
+  private let feature: ProjectMediaFeature
+  private let route = UUID()
+  private let disposables = CompositeDisposable()
+  private var startTask: Task<Void, Never>?
+  private var completionTask: Task<Void, Never>?
+
+  public init(feature: ProjectMediaFeature? = nil) {
+    let feature = feature ?? AppModel.shared.projectMediaFeature
+    self.feature = feature
+    let route = self.route
     let project = Signal.combineLatest(
       self.projectProperty.signal.skipNil(),
       self.viewDidLoadProperty.signal
@@ -148,19 +161,10 @@ public final class VideoViewModel: VideoViewModelInputs, VideoViewModelOutputs, 
 
     self.seekToBeginning = reachedEndOfVideo.ignoreValues()
 
-    self.incrementVideoCompletion = Signal.combineLatest(project, videoCompleted)
-      .map(first)
-      .switchMap {
-        AppEnvironment.current.apiService.incrementVideoCompletion(for: $0)
-          .demoteErrors()
-      }
-
-    self.incrementVideoStart = Signal.combineLatest(project, videoStarted)
-      .map(first)
-      .switchMap {
-        AppEnvironment.current.apiService.incrementVideoStart(forProject: $0)
-          .demoteErrors()
-      }
+    self.incrementVideoCompletion = feature.completions
+      .filter { $0.0 == route && $0.1 }.map { $0.2 }
+    self.incrementVideoStart = feature.completions
+      .filter { $0.0 == route && !$0.1 }.map { $0.2 }
 
     self.videoViewHidden = self.projectImageHidden.map(negate)
 
@@ -193,6 +197,14 @@ public final class VideoViewModel: VideoViewModelInputs, VideoViewModelOutputs, 
         videoPosition: lround(currentPlayTime.seconds)
       )
     }
+    self.disposables += Signal.combineLatest(project, videoCompleted).map(first)
+      .observeValues { [weak self] project in
+        self?.completionTask = feature.requestReport(route: route, project: project, completed: true)
+      }
+    self.disposables += Signal.combineLatest(project, videoStarted).map(first)
+      .observeValues { [weak self] project in
+        self?.startTask = feature.requestReport(route: route, project: project, completed: false)
+      }
   }
 
   fileprivate let crossedCompletionThresholdProperty = MutableProperty(())
@@ -254,6 +266,20 @@ public final class VideoViewModel: VideoViewModelInputs, VideoViewModelOutputs, 
   public let projectImageURL: Signal<URL?, Never>
   public let seekToBeginning: Signal<Void, Never>
   public var videoViewHidden: Signal<Bool, Never>
+
+  deinit {
+    self.startTask?.cancel()
+    self.completionTask?.cancel()
+    self.disposables.dispose()
+    let feature = self.feature
+    let route = self.route
+    Task { @MainActor in feature.release(route: route) }
+  }
+
+  func waitForReports() async {
+    await self.startTask?.value
+    await self.completionTask?.value
+  }
 
   public var inputs: VideoViewModelInputs { return self }
   public var outputs: VideoViewModelOutputs { return self }

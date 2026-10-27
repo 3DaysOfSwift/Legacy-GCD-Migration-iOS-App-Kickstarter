@@ -3,7 +3,30 @@
 The real Xcode target is LibraryTests in Kickstarter.xcodeproj, using scheme
 Library-iOS. The package test stub is not the migration regression suite.
 
-## Latest checkpoint — shipping and creator interactions
+## Latest checkpoint — discussion reads and project media
+
+454 combined tests passed with zero failures/skips, followed by the app build:
+/private/tmp/kickstarter-discussion-media.ga9kgf. Run the sibling
+Migration Evidence/kickstarter-discussion-media/verify.zsh for that selection.
+
+DiscussionFeatureTests covers page identity/cursors, empty-page termination,
+missing-envelope silence, sharing, replacement, independent routes, failed-page
+retry, cancellation and account changes. ProjectMediaFeatureTests protects
+independent counters, duplicate sharing, route cancellation, account changes and
+silent failures. Controlled requests acknowledge admission with bounded waits;
+continuations are always released. Existing comments/replies/update/video
+assertions are retained in their individual ViewModel suites and await owned work.
+
+Seven framework UpdateViewModelTests and 19 KsApi discussion/update/service tests
+also passed with zero failures/skips. The separate Kickstarter-Framework-iOS scheme now points at the real package
+targets rather than deleted Xcode targets. Its UpdateViewModelTests protect
+update/project/comment/Safari navigation. Search/comments/replies controller snapshot
+test classes are explicitly MainActor to compile against the migrated adapters;
+their snapshot guards and assertions remain untouched. Compilation does
+not claim their visual tests passed. See the evidence for separate framework/API
+results and retained intermediate failures. Full-app migration remains ongoing.
+
+## Previous checkpoint — shipping and creator interactions
 
 377 combined tests passed with zero failures/skips, followed by an app build
 in /private/tmp/kickstarter-shipping-interactions.82bZbI.

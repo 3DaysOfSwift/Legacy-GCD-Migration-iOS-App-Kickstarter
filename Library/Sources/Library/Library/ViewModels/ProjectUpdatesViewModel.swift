@@ -4,6 +4,7 @@ import Prelude
 import ReactiveSwift
 import WebKit
 
+@MainActor
 public protocol ProjectUpdatesViewModelInputs {
   /// Call to set whether Mail can be composed.
   func canSendEmail(_ canSend: Bool)
@@ -28,6 +29,7 @@ public protocol ProjectUpdatesViewModelInputs {
   func webViewDidStartProvisionalNavigation()
 }
 
+@MainActor
 public protocol ProjectUpdatesViewModelOutputs {
   /// Emits when we should open a safari browser with the URL.
   var goToSafariBrowser: Signal<URL, Never> { get }
@@ -54,14 +56,27 @@ public protocol ProjectUpdatesViewModelOutputs {
   var webViewLoadRequest: Signal<URLRequest, Never> { get }
 }
 
+@MainActor
 public protocol ProjectUpdatesViewModelType {
   var inputs: ProjectUpdatesViewModelInputs { get }
   var outputs: ProjectUpdatesViewModelOutputs { get }
 }
 
+@MainActor
 public final class ProjectUpdatesViewModel: ProjectUpdatesViewModelType, ProjectUpdatesViewModelInputs,
   ProjectUpdatesViewModelOutputs {
-  public init() {
+  private let feature: DiscussionFeature
+  private let route = UUID()
+  private let commentsRoute = UUID()
+  private let disposables = CompositeDisposable()
+  private(set) var loadingTask: Task<Void, Never>?
+  private(set) var contextTask: Task<Void, Never>?
+
+  public init(feature: DiscussionFeature? = nil) {
+    let feature = feature ?? AppModel.shared.discussionFeature
+    self.feature = feature
+    let route = self.route
+    let commentsRoute = self.commentsRoute
     let navigationAction = self.navigationAction.signal.skipNil()
 
     let canMakePhoneCall = self.canMakePhoneCallProperty.signal.skipNil()
@@ -87,10 +102,6 @@ public final class ProjectUpdatesViewModel: ProjectUpdatesViewModelType, Project
       .filter { isGoToUpdateRequest(request: $0.request) }
       .map { projectUpdateParams(fromRequest: $0.request) }
       .skipNil()
-      .switchMap { projectParam, updateId in
-        AppEnvironment.current.apiService.fetchUpdate(updateId: updateId, projectParam: projectParam)
-          .demoteErrors()
-      }
 
     self.decidedPolicy <~ navigationAction
       .map { action in
@@ -146,13 +157,9 @@ public final class ProjectUpdatesViewModel: ProjectUpdatesViewModelType, Project
       .filter { canSend, _ in !canSend }
       .map { _ in noEmailError() }
 
-    self.goToUpdate = project.takePairWhen(goToUpdateRequest)
+    self.goToUpdate = project.takePairWhen(feature.updateValues.filter { $0.0 == route }.map { $0.1 })
 
-    self.goToUpdateComments = goToCommentsRequest
-      .switchMap { projectParam, updateId in
-        AppEnvironment.current.apiService.fetchUpdate(updateId: updateId, projectParam: projectParam)
-          .demoteErrors()
-      }
+    self.goToUpdateComments = feature.updateValues.filter { $0.0 == commentsRoute }.map { $0.1 }
 
     self.isActivityIndicatorHidden = Signal.merge(
       self.webViewDidFinishNavigationProperty.signal.mapConst(true),
@@ -171,6 +178,12 @@ public final class ProjectUpdatesViewModel: ProjectUpdatesViewModelType, Project
           sectionContext: .updates
         )
       }
+    self.disposables += goToUpdateRequest.observeValues { [weak self] project, id in
+      self?.loadingTask = feature.requestUpdate(route: route, id: id, project: project)
+    }
+    self.disposables += goToCommentsRequest.observeValues { [weak self] project, id in
+      self?.contextTask = feature.requestUpdate(route: commentsRoute, id: id, project: project)
+    }
   }
 
   fileprivate let canSendEmailProperty = MutableProperty<Bool?>(nil)
@@ -221,6 +234,24 @@ public final class ProjectUpdatesViewModel: ProjectUpdatesViewModelType, Project
   public let showMailCompose: Signal<String, Never>
   public let showNoEmailError: Signal<UIAlertController, Never>
   public let webViewLoadRequest: Signal<URLRequest, Never>
+
+  deinit {
+    self.loadingTask?.cancel()
+    self.contextTask?.cancel()
+    self.disposables.dispose()
+    let feature = self.feature
+    let route = self.route
+    let commentsRoute = self.commentsRoute
+    Task { @MainActor in
+      feature.release(route: route)
+      feature.release(route: commentsRoute)
+    }
+  }
+
+  func waitForLoads() async {
+    await self.contextTask?.value
+    await self.loadingTask?.value
+  }
 
   public var inputs: ProjectUpdatesViewModelInputs { return self }
   public var outputs: ProjectUpdatesViewModelOutputs { return self }

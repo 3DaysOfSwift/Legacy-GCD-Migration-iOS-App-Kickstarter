@@ -4,6 +4,48 @@ Author: Matthew Thomas. Updated 27 October 2026.
 
 ## Latest verified checkpoint
 
+Discussion read execution and project-video counters now have concrete AppModel
+owners: DiscussionFeature and ProjectMediaFeature. 454 integrated tests passed
+with zero failures/skips, followed by a successful app build:
+`/private/tmp/kickstarter-discussion-media.ga9kgf`.
+
+The boundary includes project/update comment pages, backward reply pagination,
+update links in the update list/detail screens, project-context lookups and
+independent video start/completion reports. Providers use native async REST and
+the existing cancellation-aware Apollo bridge. Features retain request identity,
+cursors, tasks and account checks; screen routes release independently.
+Equivalent pending reads share, refresh/changed inputs supersede only their route,
+and canceled or obsolete responses cannot publish. Counter writes never
+automatically retry an uncertain server outcome.
+
+Existing UI, WebKit policy, keyboard/navigation, playback threshold, analytics,
+optimistic posting/retry/blocking and branding remain unchanged. A missing
+GraphQL envelope still finishes silently, distinct from a valid empty page.
+The existing reply retry test caught an extra clear before the first successful
+reply count; the Feature now preserves the original emission order. All original
+assertions remain. Baseline: 71 existing ViewModel tests passed. Intermediate
+compiler/test-harness corrections and the one failed retry assertion are retained
+in sibling Migration Evidence/kickstarter-discussion-media.
+
+Seven update-detail navigation tests passed in
+/private/tmp/kickstarter-discussion-update-detail-third.xcresult; 19 discussion,
+update and service decoder tests passed in
+/private/tmp/kickstarter-discussion-api.xcresult. Both have zero failures/skips.
+The framework scheme's stale deleted-target references now point at its package
+targets. Search/comments/replies controller test classes are MainActor so the
+package compiles against isolated ViewModels; their snapshot guards remain.
+Agent smoke observed demo overview → Campaign → overview. This demo route exposes
+no populated discussion/update/video flow, so no visual parity or live-counter
+claim is made. No comment, block, watch or payment mutation was submitted.
+
+Remaining: comment posting/retry and blocking ownership, video-feed loading and
+watch/save operations, then shared session/account and transactional flows.
+Activity/Profile and other legacy domains remain open. These reads do not
+complete the app-wide migration; strict concurrency, full live/device/visual
+validation and transaction verification remain separate gates.
+
+### Previous shipping and creator checkpoint
+
 Shipping-location loading and creator interaction policy now use the existing
 RewardsFeature and ProjectDetailsFeature owners. 377 combined tests passed,
 zero failures/skips, followed by an app build in

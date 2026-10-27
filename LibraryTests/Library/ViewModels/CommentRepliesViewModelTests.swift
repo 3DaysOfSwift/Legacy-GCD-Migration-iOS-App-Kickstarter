@@ -8,8 +8,12 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class CommentRepliesViewModelTests: TestCase {
-  private let vm: CommentRepliesViewModelType = CommentRepliesViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let vm = CommentRepliesViewModel(feature: DiscussionFeature(makeProvider: {
+    AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
+  }, sleep: { _ in try Task.checkCancellation() }))
 
   private let configureCommentComposerBecomeFirstResponder = TestObserver<Bool, Never>()
   private let configureCommentComposerViewURL = TestObserver<URL?, Never>()
@@ -29,46 +33,47 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated {
+      self.vm.outputs.configureCommentComposerViewWithData.map(\.becomeFirstResponder)
+        .observe(self.configureCommentComposerBecomeFirstResponder.observer)
+      self.vm.outputs.configureCommentComposerViewWithData.map(\.avatarURL)
+        .observe(self.configureCommentComposerViewURL.observer)
+      self.vm.outputs.configureCommentComposerViewWithData.map(\.canPostComment)
+        .observe(self.configureCommentComposerViewCanPostComment.observer)
+      self.vm.outputs.loadCommentIntoDataSource.observe(self.loadCommentIntoDataSourceComment.observer)
+      self.vm.outputs.didBlockUser.observe(self.didBlockUser.observer)
+      self.vm.outputs.didBlockUserError.observe(self.didBlockUserError.observer)
+      self.vm.outputs.loadFailableReplyIntoDataSource.map(first)
+        .observe(self.loadFailableReplyIntoDataSource.observer)
 
-    self.vm.outputs.configureCommentComposerViewWithData.map(\.becomeFirstResponder)
-      .observe(self.configureCommentComposerBecomeFirstResponder.observer)
-    self.vm.outputs.configureCommentComposerViewWithData.map(\.avatarURL)
-      .observe(self.configureCommentComposerViewURL.observer)
-    self.vm.outputs.configureCommentComposerViewWithData.map(\.canPostComment)
-      .observe(self.configureCommentComposerViewCanPostComment.observer)
-    self.vm.outputs.loadCommentIntoDataSource.observe(self.loadCommentIntoDataSourceComment.observer)
-    self.vm.outputs.didBlockUser.observe(self.didBlockUser.observer)
-    self.vm.outputs.didBlockUserError.observe(self.didBlockUserError.observer)
-    self.vm.outputs.loadFailableReplyIntoDataSource.map(first)
-      .observe(self.loadFailableReplyIntoDataSource.observer)
+      self.vm.outputs.loadFailableReplyIntoDataSource.map(second)
+        .observe(self.loadFailableCommentIDIntoDataSource.observer)
 
-    self.vm.outputs.loadFailableReplyIntoDataSource.map(second)
-      .observe(self.loadFailableCommentIDIntoDataSource.observer)
+      self.vm.outputs.loadFailableReplyIntoDataSource.map(third)
+        .observe(self.loadFailableProjectIntoDataSource.observer)
 
-    self.vm.outputs.loadFailableReplyIntoDataSource.map(third)
-      .observe(self.loadFailableProjectIntoDataSource.observer)
-
-    self.vm.outputs.loadRepliesAndProjectIntoDataSource.map(second)
-      .observe(self.loadRepliesAndProjectIntoDataSourceProject.observer)
-    self.vm.outputs.loadRepliesAndProjectIntoDataSource
-      .map(first)
-      .map { replies, _ in replies }
-      .observe(self.loadRepliesAndProjectIntoDataSourceReplies.observer)
-    self.vm.outputs.loadRepliesAndProjectIntoDataSource
-      .map(first)
-      .map { _, totalCount in totalCount }
-      .observe(self.loadRepliesAndProjectIntoDataSourceTotalCount.observer)
-    self.vm.outputs.resetCommentComposer.observe(self.resetCommentComposer.observer)
-    self.vm.outputs.scrollToReply.observe(self.scrollToReply.observer)
-    self.vm.outputs.showPaginationErrorState.observe(self.showPaginationErrorState.observer)
+      self.vm.outputs.loadRepliesAndProjectIntoDataSource.map(second)
+        .observe(self.loadRepliesAndProjectIntoDataSourceProject.observer)
+      self.vm.outputs.loadRepliesAndProjectIntoDataSource
+        .map(first)
+        .map { replies, _ in replies }
+        .observe(self.loadRepliesAndProjectIntoDataSourceReplies.observer)
+      self.vm.outputs.loadRepliesAndProjectIntoDataSource
+        .map(first)
+        .map { _, totalCount in totalCount }
+        .observe(self.loadRepliesAndProjectIntoDataSourceTotalCount.observer)
+      self.vm.outputs.resetCommentComposer.observe(self.resetCommentComposer.observer)
+      self.vm.outputs.scrollToReply.observe(self.scrollToReply.observer)
+      self.vm.outputs.showPaginationErrorState.observe(self.showPaginationErrorState.observer)
+    }
   }
 
-  func testDataSource_WithComment_HasComment() {
+  func testDataSource_WithComment_HasComment() async {
     self.loadCommentIntoDataSourceComment.assertDidNotEmitValue()
 
     let rootComment = Comment.template
 
-    withEnvironment {
+    await withEnvironment {
       self.vm.inputs.configureWith(
         comment: rootComment,
         project: .template,
@@ -85,12 +90,12 @@ internal final class CommentRepliesViewModelTests: TestCase {
     }
   }
 
-  func testOutput_ConfigureCommentComposerViewWithData_IsLoggedOut_HasNoCommentComposer() {
+  func testOutput_ConfigureCommentComposerViewWithData_IsLoggedOut_HasNoCommentComposer() async {
     self.configureCommentComposerViewURL.assertDidNotEmitValue()
     self.configureCommentComposerViewCanPostComment.assertDidNotEmitValue()
     self.configureCommentComposerBecomeFirstResponder.assertDidNotEmitValue()
 
-    withEnvironment(currentUser: nil) {
+    await withEnvironment(currentUser: nil) {
       self.vm.inputs
         .configureWith(
           comment: .template,
@@ -113,10 +118,10 @@ internal final class CommentRepliesViewModelTests: TestCase {
     }
   }
 
-  func testDidBlockUser_EmitsOnSuccess() {
+  func testDidBlockUser_EmitsOnSuccess() async {
     let envelope = EmptyResponseEnvelope()
 
-    withEnvironment(apiService: MockService(blockUserResult: .success(envelope)), currentUser: .template) {
+    await withEnvironment(apiService: MockService(blockUserResult: .success(envelope)), currentUser: .template) {
       self.vm.inputs
         .configureWith(
           comment: .template,
@@ -134,14 +139,16 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       self.vm.inputs.blockUser(id: "\(User.template.id)")
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.vm.waitForLoads()
+      await self.scheduler.advance()
 
       self.didBlockUser.assertValueCount(1)
       self.didBlockUserError.assertValueCount(0)
     }
   }
 
-  func testDidBlockUserError_EmitsOnFailure() {
+  func testDidBlockUserError_EmitsOnFailure() async {
     let error = ErrorEnvelope(
       errorMessages: ["block user request error"],
       ksrCode: .GraphQLError,
@@ -149,7 +156,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(blockUserResult: .failure(error)), currentUser: .template) {
+    await withEnvironment(apiService: MockService(blockUserResult: .failure(error)), currentUser: .template) {
       self.vm.inputs
         .configureWith(
           comment: .template,
@@ -167,14 +174,16 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       self.vm.inputs.blockUser(id: "\(User.template.id)")
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.vm.waitForLoads()
+      await self.scheduler.advance()
 
       self.didBlockUser.assertValueCount(0)
       self.didBlockUserError.assertValueCount(1)
     }
   }
 
-  func testTrackUserBlockedFromComment_EventsEmitted() {
+  func testTrackUserBlockedFromComment_EventsEmitted() async {
     let segmentClient = MockTrackingClient()
     let ksrAnalytics = KSRAnalytics(
       config: .template,
@@ -183,7 +192,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
       appTrackingTransparency: MockAppTrackingTransparency()
     )
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(blockUserResult: .success(EmptyResponseEnvelope())),
       currentUser: .template,
       ksrAnalytics: ksrAnalytics
@@ -204,7 +213,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       self.vm.inputs.blockUser(id: "111")
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.vm.waitForLoads()
+      await self.scheduler.advance()
 
       XCTAssertEqual(segmentClient.events, ["CTA Clicked", "CTA Clicked"])
 
@@ -221,13 +232,14 @@ internal final class CommentRepliesViewModelTests: TestCase {
     }
   }
 
-  func testOutput_ConfigureCommentComposerViewWithData_IsLoggedIn_IsBacking_False_HasBlockedCommentComposer() {
+  func testOutput_ConfigureCommentComposerViewWithData_IsLoggedIn_IsBacking_False_HasBlockedCommentComposer(
+  ) async {
     let user = User.template |> \.id .~ 12_345
 
     self.configureCommentComposerViewURL.assertDidNotEmitValue()
     self.configureCommentComposerViewCanPostComment.assertDidNotEmitValue()
 
-    withEnvironment(currentUser: user) {
+    await withEnvironment(currentUser: user) {
       self.vm.inputs
         .configureWith(
           comment: .template,
@@ -249,7 +261,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
     }
   }
 
-  func testOutput_ConfigureCommentComposerViewWithData_IsLoggedIn_IsBacking_True_HasCommentComposer() {
+  func testOutput_ConfigureCommentComposerViewWithData_IsLoggedIn_IsBacking_True_HasCommentComposer() async {
     let project = Project.template
       |> \.personalization.isBacking .~ true
 
@@ -258,7 +270,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
     self.configureCommentComposerViewURL.assertDidNotEmitValue()
     self.configureCommentComposerViewCanPostComment.assertDidNotEmitValue()
 
-    withEnvironment(currentUser: user) {
+    await withEnvironment(currentUser: user) {
       self.vm.inputs
         .configureWith(
           comment: .template,
@@ -280,7 +292,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
   }
 
   func testOutput_ConfigureCommentComposerViewWithData_IsLoggedIn_IsCreatorOrCollaborator_True_HasCommentComposer(
-  ) {
+  ) async {
     let project = Project.template
       |> \.personalization.isBacking .~ false
       |> Project.lens.memberData.permissions .~ [.post, .viewPledges, .comment]
@@ -288,7 +300,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
     self.configureCommentComposerViewURL.assertDidNotEmitValue()
     self.configureCommentComposerViewCanPostComment.assertDidNotEmitValue()
 
-    withEnvironment(currentUser: .template) {
+    await withEnvironment(currentUser: .template) {
       self.vm.inputs
         .configureWith(
           comment: .template,
@@ -309,7 +321,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
     }
   }
 
-  func testOutput_ConfigureCommentComposerViewWithData_IsFromReplyComment_HasShownKeyboard() {
+  func testOutput_ConfigureCommentComposerViewWithData_IsFromReplyComment_HasShownKeyboard() async {
     let project = Project.template
       |> \.personalization.isBacking .~ false
       |> Project.lens.memberData.permissions .~ [.post, .viewPledges, .comment]
@@ -317,7 +329,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
     self.configureCommentComposerViewURL.assertDidNotEmitValue()
     self.configureCommentComposerViewCanPostComment.assertDidNotEmitValue()
 
-    withEnvironment(currentUser: .template) {
+    await withEnvironment(currentUser: .template) {
       self.vm.inputs
         .configureWith(
           comment: .template,
@@ -342,7 +354,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
     }
   }
 
-  func testOutput_ConfigureCommentComposerViewWithData_IsFromViewReplies_HasNotShownKeyboard() {
+  func testOutput_ConfigureCommentComposerViewWithData_IsFromViewReplies_HasNotShownKeyboard() async {
     let project = Project.template
       |> \.personalization.isBacking .~ false
       |> Project.lens.memberData.permissions .~ [.post, .viewPledges, .comment]
@@ -350,7 +362,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
     self.configureCommentComposerViewURL.assertDidNotEmitValue()
     self.configureCommentComposerViewCanPostComment.assertDidNotEmitValue()
 
-    withEnvironment(currentUser: .template) {
+    await withEnvironment(currentUser: .template) {
       self.vm.inputs
         .configureWith(
           comment: .template,
@@ -375,7 +387,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
     }
   }
 
-  func testOutput_LoadRepliesProjectAndTotalCountIntoDataSource_PaginationSuccessful() {
+  func testOutput_LoadRepliesProjectAndTotalCountIntoDataSource_PaginationSuccessful() async {
     let project = Project.template
     let envelope = CommentRepliesEnvelope.successfulRepliesTemplate
     let updatedEnvelope = CommentRepliesEnvelope(
@@ -394,7 +406,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
       totalCount: 14
     )
 
-    withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(envelope))) {
+    await withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(envelope))) {
       self.vm.inputs.configureWith(
         comment: .template,
         project: project,
@@ -409,16 +421,20 @@ internal final class CommentRepliesViewModelTests: TestCase {
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([])
       self.loadRepliesAndProjectIntoDataSourceTotalCount.assertValues([])
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.vm.waitForLoads()
+      await self.scheduler.advance()
 
       self.loadRepliesAndProjectIntoDataSourceProject.assertValues([project])
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([envelope.replies])
       self.loadRepliesAndProjectIntoDataSourceTotalCount.assertValues([envelope.totalCount])
 
-      withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(updatedEnvelope))) {
+      await withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(updatedEnvelope))) {
         self.vm.inputs.paginateOrErrorCellWasTapped()
 
-        self.scheduler.advance()
+        await self.scheduler.advance()
+        await self.vm.waitForLoads()
+        await self.scheduler.advance()
 
         self.loadRepliesAndProjectIntoDataSourceProject.assertValues([project, project])
         self.loadRepliesAndProjectIntoDataSourceReplies
@@ -429,7 +445,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
     }
   }
 
-  func testOutput_LoadRepliesProjectAndTotalCountIntoDataSource_PaginationFailedThenSuccesful() {
+  func testOutput_LoadRepliesProjectAndTotalCountIntoDataSource_PaginationFailedThenSuccesful() async {
     let project = Project.template
     let envelope = CommentRepliesEnvelope.successfulRepliesTemplate
     let updatedEnvelope = CommentRepliesEnvelope(
@@ -448,7 +464,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
       totalCount: 14
     )
 
-    withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(envelope))) {
+    await withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(envelope))) {
       self.vm.inputs.configureWith(
         comment: .template,
         project: project,
@@ -464,7 +480,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
       self.loadRepliesAndProjectIntoDataSourceTotalCount.assertValues([])
       self.showPaginationErrorState.assertDidNotEmitValue()
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.vm.waitForLoads()
+      await self.scheduler.advance()
 
       self.loadRepliesAndProjectIntoDataSourceProject.assertValues([project])
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([envelope.replies])
@@ -472,12 +490,14 @@ internal final class CommentRepliesViewModelTests: TestCase {
       self.showPaginationErrorState.assertDidNotEmitValue()
       self.showPaginationErrorState.assertValueCount(0)
 
-      withEnvironment(
+      await withEnvironment(
         apiService: MockService(fetchCommentRepliesEnvelopeResult: .failure(.couldNotParseJSON))
       ) {
         self.vm.inputs.paginateOrErrorCellWasTapped()
 
-        self.scheduler.advance()
+        await self.scheduler.advance()
+        await self.vm.waitForLoads()
+        await self.scheduler.advance()
 
         self.loadRepliesAndProjectIntoDataSourceProject.assertValues([project])
         self.loadRepliesAndProjectIntoDataSourceReplies
@@ -487,12 +507,14 @@ internal final class CommentRepliesViewModelTests: TestCase {
         self.showPaginationErrorState.assertDidEmitValue()
         self.showPaginationErrorState.assertValueCount(1)
 
-        withEnvironment(
+        await withEnvironment(
           apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(updatedEnvelope))
         ) {
           self.vm.inputs.paginateOrErrorCellWasTapped()
 
-          self.scheduler.advance()
+          await self.scheduler.advance()
+          await self.vm.waitForLoads()
+          await self.scheduler.advance()
 
           self.loadRepliesAndProjectIntoDataSourceProject.assertValues([project, project])
           self.loadRepliesAndProjectIntoDataSourceReplies
@@ -505,14 +527,14 @@ internal final class CommentRepliesViewModelTests: TestCase {
     }
   }
 
-  func testOutput_ScrollToReply_Emits() {
+  func testOutput_ScrollToReply_Emits() async {
     let envelope = CommentRepliesEnvelope.singleReplyTemplate
     let mockService = MockService(fetchCommentRepliesEnvelopeResult: .success(envelope))
     let project = Project.template
       |> \.personalization.isBacking .~ false
       |> Project.lens.memberData.permissions .~ [.post, .viewPledges, .comment]
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       self.scrollToReply.assertDidNotEmitValue()
 
       self.vm.inputs
@@ -525,25 +547,29 @@ internal final class CommentRepliesViewModelTests: TestCase {
         )
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.vm.waitForLoads()
+      await self.scheduler.advance()
 
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([envelope.replies])
       self.vm.inputs.dataSourceLoaded()
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.vm.waitForLoads()
+      await self.scheduler.advance()
 
       self.scrollToReply.assertValue(envelope.replies[0].id)
     }
   }
 
-  func testOutput_ScrollToReply_DoesNotEmit() {
+  func testOutput_ScrollToReply_DoesNotEmit() async {
     let envelope = CommentRepliesEnvelope.singleReplyTemplate
     let mockService = MockService(fetchCommentRepliesEnvelopeResult: .success(envelope))
     let project = Project.template
       |> \.personalization.isBacking .~ false
       |> Project.lens.memberData.permissions .~ [.post, .viewPledges, .comment]
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       self.scrollToReply.assertDidNotEmitValue()
 
       self.vm.inputs
@@ -556,25 +582,29 @@ internal final class CommentRepliesViewModelTests: TestCase {
         )
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.vm.waitForLoads()
+      await self.scheduler.advance()
 
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([envelope.replies])
       self.vm.inputs.dataSourceLoaded()
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.vm.waitForLoads()
+      await self.scheduler.advance()
 
       self.scrollToReply.assertDidNotEmitValue()
     }
   }
 
-  func testOutput_SubmitText_FromCommentComposer_ResetsCommentComposerTextInput() {
+  func testOutput_SubmitText_FromCommentComposer_ResetsCommentComposerTextInput() async {
     let project = Project.template
       |> \.personalization.isBacking .~ false
       |> Project.lens.memberData.permissions .~ [.post, .viewPledges, .comment]
 
     self.resetCommentComposer.assertDidNotEmitValue()
 
-    withEnvironment(currentUser: .template) {
+    await withEnvironment(currentUser: .template) {
       self.vm.inputs
         .configureWith(
           comment: .template,
@@ -593,7 +623,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
     }
   }
 
-  func testOutput_SubmitText_FromCommentComposer_ReturnsFailableCommentAndSuccessfulComment() {
+  func testOutput_SubmitText_FromCommentComposer_ReturnsFailableCommentAndSuccessfulComment() async {
     let project = Project.template
       |> \.personalization.isBacking .~ false
       |> Project.lens.memberData.permissions .~ [.post, .viewPledges, .comment]
@@ -606,7 +636,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
     self.loadFailableProjectIntoDataSource.assertDidNotEmitValue()
     self.loadFailableCommentIDIntoDataSource.assertDidNotEmitValue()
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       self.vm.inputs.configureWith(
         comment: .replyRootCommentTemplate,
         project: project,
@@ -633,7 +663,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
         Comment.replyRootCommentTemplate.id
       )
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForLoads()
+      await self.scheduler.advance()
 
       self.loadFailableReplyIntoDataSource.assertValueCount(2)
       self.loadFailableReplyIntoDataSource.assertLastValue(.replyTemplate)
@@ -642,7 +674,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
     }
   }
 
-  func testRetryCommentFlow_Success() {
+  func testRetryCommentFlow_Success() async {
     let envelope = CommentRepliesEnvelope.singleReplyTemplate
 
     let mockService1 = MockService(
@@ -650,7 +682,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
       postCommentResult: .failure(.couldNotParseJSON)
     )
 
-    withEnvironment(apiService: mockService1, currentUser: .template) {
+    await withEnvironment(apiService: mockService1, currentUser: .template) {
       self.vm.inputs
         .configureWith(
           comment: .template,
@@ -661,7 +693,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
         )
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForLoads()
+      await self.scheduler.advance()
 
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([envelope.replies])
 
@@ -685,7 +719,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
         "Failable temporary reply is emitted first."
       )
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForLoads()
+      await self.scheduler.advance()
 
       let expectedFailedComment = expectedFailableReply
         |> \.status .~ .failed
@@ -705,7 +741,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
         postCommentResult: .success(expectedSuccessfulPostedComment)
       )
 
-      withEnvironment(apiService: mockService2) {
+      await withEnvironment(apiService: mockService2) {
         // Tap on the failed comment to retry
         self.vm.inputs.didSelectComment(expectedFailedComment)
 
@@ -724,7 +760,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
           "Comment is replaced with one with a retrying status."
         )
 
-        self.scheduler.advance(by: .seconds(1))
+        await self.scheduler.advance(by: .seconds(1))
+        await self.vm.waitForLoads()
+        await self.scheduler.advance()
 
         let expectedRetryingSuccessComment = expectedFailedComment
           |> \.status .~ .retrySuccess
@@ -735,7 +773,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
           "Comment is replaced with one with a retry success status after elapsed time."
         )
 
-        self.scheduler.advance(by: .seconds(3))
+        await self.scheduler.advance(by: .seconds(3))
+        await self.vm.waitForLoads()
+        await self.scheduler.advance()
 
         // comment posts and is successful
         XCTAssertEqual(
@@ -747,7 +787,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
     }
   }
 
-  func testRetryCommentFlow_Error() {
+  func testRetryCommentFlow_Error() async {
     let envelope = CommentRepliesEnvelope.singleReplyTemplate
 
     let mockService1 = MockService(
@@ -755,7 +795,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
       postCommentResult: .failure(.couldNotParseJSON)
     )
 
-    withEnvironment(apiService: mockService1, currentUser: .template) {
+    await withEnvironment(apiService: mockService1, currentUser: .template) {
       self.vm.inputs
         .configureWith(
           comment: .template,
@@ -766,7 +806,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
         )
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForLoads()
+      await self.scheduler.advance()
 
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([envelope.replies])
 
@@ -790,7 +832,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
         "Failable temporary reply is emitted first."
       )
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.scheduler.advance(by: .seconds(1))
+      await self.vm.waitForLoads()
+      await self.scheduler.advance()
 
       let expectedFailedReply = expectedFailableReply
         |> \.status .~ .failed
@@ -807,7 +851,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
         postCommentResult: .failure(.couldNotParseJSON)
       )
 
-      withEnvironment(apiService: mockService2) {
+      await withEnvironment(apiService: mockService2) {
         // Tap on the failed comment to retry
         self.vm.inputs.didSelectComment(expectedFailedReply)
 
@@ -821,7 +865,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
           "Reply is replaced with one with a retrying status."
         )
 
-        self.scheduler.advance(by: .seconds(1))
+        await self.scheduler.advance(by: .seconds(1))
+        await self.vm.waitForLoads()
+        await self.scheduler.advance()
 
         // retry fails so original failed comment placed back
         XCTAssertEqual(
@@ -833,14 +879,14 @@ internal final class CommentRepliesViewModelTests: TestCase {
     }
   }
 
-  func testRetryFirstPage_Success() {
+  func testRetryFirstPage_Success() async {
     let envelope = CommentRepliesEnvelope.successfulRepliesTemplate
 
     let mockService1 = MockService(
       fetchCommentRepliesEnvelopeResult: .failure(.couldNotParseJSON)
     )
 
-    withEnvironment(apiService: mockService1, currentUser: .template) {
+    await withEnvironment(apiService: mockService1, currentUser: .template) {
       self.vm.inputs
         .configureWith(
           comment: .template,
@@ -851,7 +897,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
         )
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.vm.waitForLoads()
+      await self.scheduler.advance()
 
       self.loadRepliesAndProjectIntoDataSourceProject.assertValues([])
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([])
@@ -859,16 +907,20 @@ internal final class CommentRepliesViewModelTests: TestCase {
       self.showPaginationErrorState.assertDidEmitValue()
       self.showPaginationErrorState.assertValueCount(1)
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.vm.waitForLoads()
+      await self.scheduler.advance()
 
       let mockService2 = MockService(
         fetchCommentRepliesEnvelopeResult: .success(envelope)
       )
 
-      withEnvironment(apiService: mockService2) {
+      await withEnvironment(apiService: mockService2) {
         self.vm.inputs.retryFirstPage()
 
-        self.scheduler.advance()
+        await self.scheduler.advance()
+        await self.vm.waitForLoads()
+        await self.scheduler.advance()
 
         self.loadRepliesAndProjectIntoDataSourceProject.assertValues([.template])
         self.loadRepliesAndProjectIntoDataSourceReplies

@@ -8,6 +8,7 @@ import Prelude
 import SnapshotTesting
 import XCTest
 
+@MainActor
 internal final class SearchViewContollerTests: TestCase {
   override func setUp() {
     super.setUp()

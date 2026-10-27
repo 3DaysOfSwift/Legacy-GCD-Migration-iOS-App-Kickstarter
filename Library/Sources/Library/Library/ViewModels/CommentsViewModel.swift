@@ -4,6 +4,7 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol CommentsViewModelInputs {
   /// Call when block user is tapped
   func blockUser(id: String)
@@ -40,6 +41,7 @@ public protocol CommentsViewModelInputs {
   func willDisplayRow(_ row: Int, outOf totalRows: Int)
 }
 
+@MainActor
 public protocol CommentsViewModelOutputs {
   /// Emits a boolean that determines if comments are currently loading.
   var beginOrEndRefreshing: Signal<Bool, Never> { get }
@@ -75,17 +77,28 @@ public protocol CommentsViewModelOutputs {
   var didBlockUserError: Signal<(), Never> { get }
 }
 
+@MainActor
 public protocol CommentsViewModelType {
   var inputs: CommentsViewModelInputs { get }
   var outputs: CommentsViewModelOutputs { get }
 }
 
+@MainActor
 public final class CommentsViewModel: CommentsViewModelType,
   CommentsViewModelInputs,
   CommentsViewModelOutputs {
   // MARK: Initializers
 
-  public init() {
+  private let feature: DiscussionFeature
+  private let route = UUID()
+  private let disposables = CompositeDisposable()
+  private(set) var loadingTask: Task<Void, Never>?
+  private(set) var contextTask: Task<Void, Never>?
+
+  public init(feature: DiscussionFeature? = nil) {
+    let feature = feature ?? AppModel.shared.discussionFeature
+    self.feature = feature
+    let route = self.route
     let projectOrUpdate = Signal.combineLatest(
       self.projectAndUpdateProperty.signal.skipNil(),
       self.viewDidLoadProperty.signal
@@ -99,15 +112,12 @@ public final class CommentsViewModel: CommentsViewModelType,
     let currentUser = self.viewDidLoadProperty.signal
       .map { _ in AppEnvironment.current.currentUser }
 
-    let initialProject = projectOrUpdate
-      .flatMap { projectOrUpdate in
-        projectOrUpdate.ifLeft(
-          SignalProducer.init(value:),
-          ifRight: {
-            AppEnvironment.current.apiService.fetchProject(param: .id($0.projectId)).demoteErrors()
-          }
-        )
-      }
+    let initialProject = Signal.merge(
+      projectOrUpdate.compactMap { value -> Project? in
+        value.ifLeft({ $0 }, ifRight: { _ in nil })
+      },
+      feature.projectValues.filter { $0.0 == route }.map { $0.1 }
+    )
 
     self.configureCommentComposerViewWithData = Signal
       .combineLatest(initialProject, currentUser.signal, self.viewDidLoadProperty.signal.ignoreValues())
@@ -167,17 +177,10 @@ public final class CommentsViewModel: CommentsViewModelType,
       requestFirstPageWith.mapConst(false),
       requestNextPage.mapConst(true)
     )
-    let (comments, isLoading, _, errors) = paginate(
-      requestFirstPageWith: requestFirstPageWith,
-      requestNextPageWhen: requestNextPage,
-      clearOnNewRequest: true,
-      valuesFromEnvelope: { $0.comments },
-      cursorFromEnvelope: { ($0.slug, $0.cursor, $0.updateID) },
-      requestFromParams: commentsFirstPage,
-      requestFromCursor: commentsNextPage,
-      // only return new pages, we'll concat them ourselves
-      concater: { _, value in value }
-    )
+    let comments = feature.pageValues.filter { $0.0 == route }.map { $0.1 }.skipRepeats()
+    let isLoading = feature.loading.filter { $0.0 == route }.map { $0.1 }
+    let errors = feature.errors.filter { $0.0 == route }.map { $0.1 }
+
     let commentsWithRetryingComment = currentComments
       .takePairWhen(self.retryingComment.signal.skipNil())
       .map(unpack)
@@ -408,6 +411,21 @@ public final class CommentsViewModel: CommentsViewModelType,
             targetUserId: "\(blockedUserId)"
           )
       }
+    self.disposables += projectOrUpdate.observeValues { [weak self] value in
+      value.ifLeft({ _ in feature.cancelProject(route: route) }, ifRight: { update in
+        self?.contextTask = feature.requestProject(route: route, param: .id(update.projectId))
+      })
+    }
+    self.disposables += requestFirstPageWith.observeValues { [weak self] value in
+      let source = value.ifLeft(
+        { DiscussionFeature.Source.project($0.slug) },
+        ifRight: { .update(String($0.id)) }
+      )
+      self?.loadingTask = feature.requestFirstPage(route: route, source: source, refresh: true)
+    }
+    self.disposables += requestNextPage.observeValues { [weak self] in
+      self?.loadingTask = feature.requestNextPage(route: route)
+    }
   }
 
   // Properties to assist with injecting these values into the existing data streams.
@@ -484,6 +502,22 @@ public final class CommentsViewModel: CommentsViewModelType,
   public let didBlockUser: Signal<(), Never>
   public var didBlockUserError: Signal<(), Never>
 
+  deinit {
+    self.loadingTask?.cancel()
+    self.contextTask?.cancel()
+    self.disposables.dispose()
+    let feature = self.feature
+    let route = self.route
+    Task { @MainActor in
+      feature.release(route: route)
+    }
+  }
+
+  func waitForLoads() async {
+    await self.contextTask?.value
+    await self.loadingTask?.value
+  }
+
   public var inputs: CommentsViewModelInputs { return self }
   public var outputs: CommentsViewModelOutputs { return self }
 }
@@ -507,39 +541,6 @@ private func commentsReplacingCommentById(
   return mutableComments
 }
 
-private func commentsFirstPage(from projectOrUpdate: Either<Project, Update>)
-  -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
-  return projectOrUpdate.ifLeft { project in
-    AppEnvironment.current.apiService.fetchProjectComments(
-      slug: project.slug,
-      cursor: nil,
-      limit: nil
-    )
-  } ifRight: {
-    AppEnvironment.current.apiService
-      .fetchUpdateComments(
-        id: $0.id.description,
-        cursor: nil,
-        limit: nil
-      )
-  }
-}
-
-private func commentsNextPage(
-  from projectSlug: String?,
-  cursor: String?,
-  updateID: String?
-) -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
-  if let projectSlug = projectSlug {
-    return AppEnvironment.current.apiService
-      .fetchProjectComments(slug: projectSlug, cursor: cursor, limit: nil)
-  } else {
-    guard let id = updateID else { return .empty }
-    return AppEnvironment.current.apiService
-      .fetchUpdateComments(id: id, cursor: cursor, limit: nil)
-  }
-}
-
 extension CommentsViewModel {
   // MARK: Properties
 
@@ -547,7 +548,9 @@ extension CommentsViewModel {
 
   // MARK: Helpers
 
-  static func retryCommentProducer(
+  // Shared by the still-legacy comment dialog transaction path. These helpers
+  // do not access actor-isolated screen state; their migration is separate.
+  nonisolated static func retryCommentProducer(
     erroredComment comment: Comment,
     commentableId: String,
     parentId: String?
@@ -584,7 +587,7 @@ extension CommentsViewModel {
     .map { replacementComment in (replacementComment, comment.id) }
   }
 
-  static func postCommentProducer(
+  nonisolated static func postCommentProducer(
     project: Project,
     commentableId: String,
     parentId: String?,

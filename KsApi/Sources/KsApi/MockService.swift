@@ -870,6 +870,37 @@
       return client.performWithResult(mutation: mutation, result: self.clearUserUnseenActivityResult)
     }
 
+    @MainActor public func discussionComments(slug: String?, updateID: String?, cursor: String?) async throws -> CommentsEnvelope {
+      try Task.checkCancellation()
+      let result = slug != nil ? self.fetchProjectCommentsEnvelopeResult : self.fetchUpdateCommentsEnvelopeResult
+      guard let result else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
+    @MainActor public func discussionReplies(id: String, cursor: String?) async throws -> CommentRepliesEnvelope {
+      try Task.checkCancellation()
+      guard let result = self.fetchCommentRepliesEnvelopeResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
+    @MainActor public func discussionProject(param: Param) async throws -> Project {
+      try Task.checkCancellation()
+      if let demoCatalog { return try demoCatalog.project(param) }
+      guard let result = self.fetchProjectEnvelopeResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
+    @MainActor public func projectUpdate(id: Int, project: Param) async throws -> Update {
+      try Task.checkCancellation()
+      return self.fetchUpdateResponse |> Update.lens.id .~ id
+    }
+
+    @MainActor public func reportVideoEvent(project: any HasProjectWebURL, completed: Bool) async throws -> VoidEnvelope {
+      try Task.checkCancellation()
+      if let error = completed ? self.incrementVideoCompletionError : self.incrementVideoStartError { throw error }
+      return VoidEnvelope()
+    }
+
     func fetchProjectComments(
       slug: String,
       cursor: String?,

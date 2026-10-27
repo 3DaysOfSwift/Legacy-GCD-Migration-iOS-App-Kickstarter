@@ -8,9 +8,12 @@ import ReactiveSwift
 import WebKit
 import XCTest
 
+@MainActor
 final class ProjectUpdatesViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  fileprivate let vm: ProjectUpdatesViewModelType = ProjectUpdatesViewModel()
+  fileprivate let vm = ProjectUpdatesViewModel(feature: DiscussionFeature(makeProvider: {
+    AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
+  }, sleep: { _ in try Task.checkCancellation() }))
 
   fileprivate let goToSafariBrowser = TestObserver<URL, Never>()
   fileprivate let goToUpdateId = TestObserver<Int, Never>()
@@ -23,17 +26,19 @@ final class ProjectUpdatesViewModelTests: TestCase {
 
   internal override func setUp() {
     super.setUp()
-    self.vm.outputs.goToSafariBrowser.observe(self.goToSafariBrowser.observer)
-    self.vm.outputs.goToUpdate.map { _, update in update.id }.observe(self.goToUpdateId.observer)
-    self.vm.outputs.goToUpdateComments.map { $0.id }.observe(self.goToUpdateCommentId.observer)
-    self.vm.outputs.isActivityIndicatorHidden.observe(self.isActivityIndicatorHidden.observer)
-    self.vm.outputs.makePhoneCall.observe(self.makePhoneCall.observer)
-    self.vm.outputs.showMailCompose.observe(self.showMailCompose.observer)
-    self.vm.outputs.showNoEmailError.observe(self.showNoEmailError.observer)
-    self.vm.outputs.webViewLoadRequest.observe(self.webViewLoadRequest.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.goToSafariBrowser.observe(self.goToSafariBrowser.observer)
+      self.vm.outputs.goToUpdate.map { _, update in update.id }.observe(self.goToUpdateId.observer)
+      self.vm.outputs.goToUpdateComments.map { $0.id }.observe(self.goToUpdateCommentId.observer)
+      self.vm.outputs.isActivityIndicatorHidden.observe(self.isActivityIndicatorHidden.observer)
+      self.vm.outputs.makePhoneCall.observe(self.makePhoneCall.observer)
+      self.vm.outputs.showMailCompose.observe(self.showMailCompose.observer)
+      self.vm.outputs.showNoEmailError.observe(self.showNoEmailError.observer)
+      self.vm.outputs.webViewLoadRequest.observe(self.webViewLoadRequest.observer)
+    }
   }
 
-  func testGoToSafariBrowser() {
+  func testGoToSafariBrowser() async {
     let project = Project.template
     self.vm.inputs.configureWith(project: project)
     self.vm.inputs.viewDidLoad()
@@ -52,7 +57,7 @@ final class ProjectUpdatesViewModelTests: TestCase {
     self.goToSafariBrowser.assertValues([googleURL])
   }
 
-  func testGoToUpdate() {
+  func testGoToUpdate() async {
     let project = Project.template
       |> (Project.lens.urls.web .. Project.UrlsEnvelope.WebEnvelope.lens.updates)
       .~ "https://www.kickstarter.com/projects/milk/duds/posts"
@@ -72,6 +77,8 @@ final class ProjectUpdatesViewModelTests: TestCase {
       self.vm.inputs.decidePolicy(forNavigationAction: navigationAction).rawValue
     )
 
+    await self.vm.waitForLoads()
+
     self.goToUpdateId.assertValues([updateId])
 
     self.isActivityIndicatorHidden.assertValues([])
@@ -81,7 +88,7 @@ final class ProjectUpdatesViewModelTests: TestCase {
     self.isActivityIndicatorHidden.assertValues([false, true])
   }
 
-  func testGoToUpdateComments() {
+  func testGoToUpdateComments() async {
     let project = Project.template
       |> (Project.lens.urls.web .. Project.UrlsEnvelope.WebEnvelope.lens.updates)
       .~ "https://www.kickstarter.com/projects/smh/lol/posts"
@@ -101,10 +108,12 @@ final class ProjectUpdatesViewModelTests: TestCase {
       self.vm.inputs.decidePolicy(forNavigationAction: navigationAction).rawValue
     )
 
+    await self.vm.waitForLoads()
+
     self.goToUpdateCommentId.assertValues([updateId])
   }
 
-  func testShowMailComposeEmits_WhenEmailLinkIsTapped() {
+  func testShowMailComposeEmits_WhenEmailLinkIsTapped() async {
     let navigationAction = self.navigationAction(with: URL(string: "mailto:dead@beef.com")!)
 
     self.vm.inputs.canSendEmail(true)
@@ -113,7 +122,7 @@ final class ProjectUpdatesViewModelTests: TestCase {
     self.showMailCompose.assertValues(["dead@beef.com"])
   }
 
-  func testShowEmailErrorEmits_WhenEmailLinkIsTapped_AndCantSendEmail() {
+  func testShowEmailErrorEmits_WhenEmailLinkIsTapped_AndCantSendEmail() async {
     let navigationAction = self.navigationAction(with: URL(string: "mailto:dead@beef.com")!)
 
     self.vm.inputs.canSendEmail(false)
@@ -122,7 +131,7 @@ final class ProjectUpdatesViewModelTests: TestCase {
     self.showNoEmailError.assertDidEmitValue()
   }
 
-  func testMakePhoneCallEmits_WhenPhoneLinkIsTapped() {
+  func testMakePhoneCallEmits_WhenPhoneLinkIsTapped() async {
     let phoneUrl = URL(string: "tel://5551234567")!
     let navigationAction = self.navigationAction(with: phoneUrl)
 
@@ -131,7 +140,7 @@ final class ProjectUpdatesViewModelTests: TestCase {
     self.makePhoneCall.assertValues([phoneUrl])
   }
 
-  func testWebViewLoadRequests() {
+  func testWebViewLoadRequests() async {
     let project = Project.template
       |> (Project.lens.urls.web .. Project.UrlsEnvelope.WebEnvelope.lens.updates)
       .~ "https://www.kickstarter.com/projects/shrimp/ijc/posts"
@@ -146,7 +155,7 @@ final class ProjectUpdatesViewModelTests: TestCase {
     self.webViewLoadRequest.assertValues([updatesIndexRequest])
   }
 
-  func testIFrameRequest() {
+  func testIFrameRequest() async {
     let project = Project.template
       |> (Project.lens.urls.web .. Project.UrlsEnvelope.WebEnvelope.lens.updates)
       .~ "https://www.kickstarter.com/projects/shrimp/ijc/posts"

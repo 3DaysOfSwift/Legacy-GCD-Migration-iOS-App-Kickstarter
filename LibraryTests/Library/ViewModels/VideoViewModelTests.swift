@@ -8,8 +8,12 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class VideoViewModelTests: TestCase {
-  internal let vm = VideoViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  internal let vm = VideoViewModel(feature: ProjectMediaFeature(makeProvider: {
+    AsyncProjectMediaProvider(service: AppEnvironment.current.apiService)
+  }))
   internal let addCompletionObserver = TestObserver<CMTime, Never>()
   internal let configurePlayerWithURL = TestObserver<String, Never>()
   internal let incrementVideoCompletion = TestObserver<VoidEnvelope, Never>()
@@ -32,22 +36,24 @@ internal final class VideoViewModelTests: TestCase {
 
   internal override func setUp() {
     super.setUp()
-    self.vm.outputs.addCompletionObserver.observe(self.addCompletionObserver.observer)
-    self.vm.outputs.configurePlayerWithURL.map { $0.absoluteString }
-      .observe(self.configurePlayerWithURL.observer)
-    self.vm.outputs.incrementVideoCompletion.observe(self.incrementVideoCompletion.observer)
-    self.vm.outputs.incrementVideoStart.observe(self.incrementVideoStart.observer)
-    self.vm.outputs.pauseVideo.observe(self.pauseVideo.observer)
-    self.vm.outputs.playVideo.observe(self.playVideo.observer)
-    self.vm.outputs.playButtonHidden.observe(self.playButtonHidden.observer)
-    self.vm.outputs.projectImageHidden.observe(self.projectImageHidden.observer)
-    self.vm.outputs.projectImageURL.map { $0?.absoluteString }.observe(self.projectImageURL.observer)
-    self.vm.outputs.opacityForViews.observe(self.opacityForViews.observer)
-    self.vm.outputs.seekToBeginning.observe(self.seekToBeginning.observer)
-    self.vm.outputs.videoViewHidden.observe(self.videoViewHidden.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.addCompletionObserver.observe(self.addCompletionObserver.observer)
+      self.vm.outputs.configurePlayerWithURL.map { $0.absoluteString }
+        .observe(self.configurePlayerWithURL.observer)
+      self.vm.outputs.incrementVideoCompletion.observe(self.incrementVideoCompletion.observer)
+      self.vm.outputs.incrementVideoStart.observe(self.incrementVideoStart.observer)
+      self.vm.outputs.pauseVideo.observe(self.pauseVideo.observer)
+      self.vm.outputs.playVideo.observe(self.playVideo.observer)
+      self.vm.outputs.playButtonHidden.observe(self.playButtonHidden.observer)
+      self.vm.outputs.projectImageHidden.observe(self.projectImageHidden.observer)
+      self.vm.outputs.projectImageURL.map { $0?.absoluteString }.observe(self.projectImageURL.observer)
+      self.vm.outputs.opacityForViews.observe(self.opacityForViews.observer)
+      self.vm.outputs.seekToBeginning.observe(self.seekToBeginning.observer)
+      self.vm.outputs.videoViewHidden.observe(self.videoViewHidden.observer)
+    }
   }
 
-  func testAddCompletionObserver() {
+  func testAddCompletionObserver() async {
     self.vm.inputs.configureWith(project: Project.template)
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewDidAppear()
@@ -61,7 +67,7 @@ internal final class VideoViewModelTests: TestCase {
     )
   }
 
-  func testConfigureVideoWithURL_setsHighURL_WhenHlsIsNil() {
+  func testConfigureVideoWithURL_setsHighURL_WhenHlsIsNil() async {
     let video = .template
       |> Project.Video.lens.hls .~ nil
       |> Project.Video.lens.high .~ "https://sickskatevid.mp4"
@@ -75,7 +81,7 @@ internal final class VideoViewModelTests: TestCase {
     self.configurePlayerWithURL.assertValues([video.high], "Video url emitted.")
   }
 
-  func testConfigureVideoWithURL_setsHlsURL_WhenHlsIsNotNil() {
+  func testConfigureVideoWithURL_setsHlsURL_WhenHlsIsNotNil() async {
     let video = .template
       |> Project.Video.lens.hls .~ "https://sickskatevid.m3u8"
       |> Project.Video.lens.high .~ "https://sickskatevid.mp4"
@@ -89,8 +95,8 @@ internal final class VideoViewModelTests: TestCase {
     self.configurePlayerWithURL.assertValues([video.hls!], "Video url emitted.")
   }
 
-  func testIncrementVideoStats() {
-    withEnvironment(apiService: MockService()) {
+  func testIncrementVideoStats() async {
+    await withEnvironment(apiService: MockService()) {
       self.vm.inputs.configureWith(project: Project.template)
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewDidAppear()
@@ -99,21 +105,26 @@ internal final class VideoViewModelTests: TestCase {
       self.vm.inputs.durationChanged(toNew: self.duration)
       self.vm.inputs.rateChanged(toNew: self.playRate, atTime: self.startTime)
 
+      await self.vm.waitForReports()
+
       self.incrementVideoStart.assertValueCount(1, "Incremented video start count.")
 
       self.vm.inputs.rateChanged(toNew: self.pauseRate, atTime: self.duration)
+      await self.vm.waitForReports()
       self.incrementVideoCompletion.assertValueCount(1, "Incremented video complete count.")
 
       self.vm.inputs.rateChanged(toNew: self.pauseRate, atTime: self.startTime)
       self.vm.inputs.rateChanged(toNew: self.playRate, atTime: self.startTime)
+      await self.vm.waitForReports()
       self.incrementVideoStart.assertValueCount(1, "Video start count not incremented again.")
 
       self.vm.inputs.rateChanged(toNew: self.pauseRate, atTime: self.duration)
+      await self.vm.waitForReports()
       self.incrementVideoCompletion.assertValueCount(1, "Video complete count not incremented again.")
     }
   }
 
-  func testPauseVideoWhenViewDidDisappear() {
+  func testPauseVideoWhenViewDidDisappear() async {
     self.vm.inputs.configureWith(project: Project.template)
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewDidAppear()
@@ -141,7 +152,7 @@ internal final class VideoViewModelTests: TestCase {
     self.pauseVideo.assertValueCount(1, "Video pauses when view disappears.")
   }
 
-  func testProjectImageAndOverlayVisibility() {
+  func testProjectImageAndOverlayVisibility() async {
     self.vm.inputs.configureWith(project: Project.template)
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewDidAppear()
@@ -169,7 +180,7 @@ internal final class VideoViewModelTests: TestCase {
     self.videoViewHidden.assertValues([true, false, true])
   }
 
-  func testProjectImageEmits() {
+  func testProjectImageEmits() async {
     let project = Project.template
 
     self.vm.inputs.configureWith(project: project)
@@ -181,7 +192,7 @@ internal final class VideoViewModelTests: TestCase {
     self.videoViewHidden.assertValues([true])
   }
 
-  func testProjectWithNoVideo() {
+  func testProjectWithNoVideo() async {
     let project = .template
       |> Project.lens.video .~ nil
 
@@ -196,7 +207,7 @@ internal final class VideoViewModelTests: TestCase {
     self.videoViewHidden.assertValues([true])
   }
 
-  func testSeekPlayerToBeginning() {
+  func testSeekPlayerToBeginning() async {
     self.vm.inputs.configureWith(project: Project.template)
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewDidAppear()
@@ -211,7 +222,7 @@ internal final class VideoViewModelTests: TestCase {
     self.seekToBeginning.assertValueCount(1)
   }
 
-  func testTrackVideoPlayback() {
+  func testTrackVideoPlayback() async {
     self.vm.inputs.configureWith(project: Project.template)
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewDidAppear()
@@ -258,7 +269,7 @@ internal final class VideoViewModelTests: TestCase {
     XCTAssertEqual(0, self.segmentTrackingClient.properties.last?["video_position"] as? Int)
   }
 
-  func testTrackVideoCompletionViaScrubbing() {
+  func testTrackVideoCompletionViaScrubbing() async {
     self.vm.inputs.configureWith(project: Project.template)
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewDidAppear()
@@ -273,7 +284,7 @@ internal final class VideoViewModelTests: TestCase {
     self.vm.inputs.rateChanged(toNew: self.playRate, atTime: self.completedThreshold)
   }
 
-  func testViewTransition() {
+  func testViewTransition() async {
     self.vm.inputs.configureWith(project: Project.template)
 
     self.opacityForViews.assertValueCount(0)

@@ -8,17 +8,23 @@ public final class AppModel {
   public let discoveryFeature: DiscoveryFeature
   public let projectDetailsFeature: ProjectDetailsFeature
   public let rewardsFeature: RewardsFeature
+  public let discussionFeature: DiscussionFeature
+  public let projectMediaFeature: ProjectMediaFeature
 
   public init(
     searchFeature: SearchFeature,
     discoveryFeature: DiscoveryFeature,
     projectDetailsFeature: ProjectDetailsFeature,
-    rewardsFeature: RewardsFeature
+    rewardsFeature: RewardsFeature,
+    discussionFeature: DiscussionFeature,
+    projectMediaFeature: ProjectMediaFeature
   ) {
     self.searchFeature = searchFeature
     self.discoveryFeature = discoveryFeature
     self.projectDetailsFeature = projectDetailsFeature
     self.rewardsFeature = rewardsFeature
+    self.discussionFeature = discussionFeature
+    self.projectMediaFeature = projectMediaFeature
   }
 
   public static func live() -> AppModel {
@@ -31,6 +37,12 @@ public final class AppModel {
       }),
       rewardsFeature: RewardsFeature(makeProvider: {
         AsyncRewardsProvider(service: AppEnvironment.current.apiService)
+      }),
+      discussionFeature: DiscussionFeature(makeProvider: {
+        AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
+      }),
+      projectMediaFeature: ProjectMediaFeature(makeProvider: {
+        AsyncProjectMediaProvider(service: AppEnvironment.current.apiService)
       })
     )
   }

@@ -23,6 +23,8 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		CFA027400000000000000001 /* DiscussionFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027400000000000000002 /* DiscussionFeatureTests.swift */; };
+		CFA027500000000000000001 /* ProjectMediaFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027500000000000000002 /* ProjectMediaFeatureTests.swift */; };
 		CFA027300000000000000001 /* RewardsFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027300000000000000002 /* RewardsFeatureTests.swift */; };
 		CFA027200000000000000001 /* ProjectDetailsFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027200000000000000002 /* ProjectDetailsFeatureTests.swift */; };
 		CFA027100000000000000001 /* DiscoveryFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027100000000000000002 /* DiscoveryFeatureTests.swift */; };
@@ -385,6 +387,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		CFA027400000000000000002 /* DiscussionFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscussionFeatureTests.swift; sourceTree = "<group>"; };
+		CFA027500000000000000002 /* ProjectMediaFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectMediaFeatureTests.swift; sourceTree = "<group>"; };
 		CFA027300000000000000002 /* RewardsFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewardsFeatureTests.swift; sourceTree = "<group>"; };
 		CFA027200000000000000002 /* ProjectDetailsFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailsFeatureTests.swift; sourceTree = "<group>"; };
 		CFA027100000000000000002 /* DiscoveryFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryFeatureTests.swift; sourceTree = "<group>"; };
@@ -822,6 +826,8 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		CFA027400000000000000003 /* Discussion */ = {isa = PBXGroup; children = (CFA027400000000000000002 /* DiscussionFeatureTests.swift */,); path = Discussion; sourceTree = "<group>"; };
+		CFA027500000000000000003 /* ProjectMedia */ = {isa = PBXGroup; children = (CFA027500000000000000002 /* ProjectMediaFeatureTests.swift */,); path = ProjectMedia; sourceTree = "<group>"; };
 		CFA027300000000000000003 /* Rewards */ = {
 			isa = PBXGroup;
 			children = (CFA027300000000000000002 /* RewardsFeatureTests.swift */,);
@@ -848,7 +854,7 @@
 		};
 		CFA026100000000000000004 /* FeatureTests */ = {
 			isa = PBXGroup;
-			children = (CFA026100000000000000003 /* Search */, CFA027100000000000000003 /* Discovery */, CFA027200000000000000003 /* ProjectDetails */, CFA027300000000000000003 /* Rewards */,);
+			children = (CFA026100000000000000003 /* Search */, CFA027100000000000000003 /* Discovery */, CFA027200000000000000003 /* ProjectDetails */, CFA027300000000000000003 /* Rewards */, CFA027400000000000000003 /* Discussion */, CFA027500000000000000003 /* ProjectMedia */,);
 			path = FeatureTests;
 			sourceTree = "<group>";
 		};
@@ -1901,6 +1907,8 @@
 				CFA027100000000000000001 /* DiscoveryFeatureTests.swift in Sources */,
 				CFA027200000000000000001 /* ProjectDetailsFeatureTests.swift in Sources */,
 				CFA027300000000000000001 /* RewardsFeatureTests.swift in Sources */,
+				CFA027400000000000000001 /* DiscussionFeatureTests.swift in Sources */,
+				CFA027500000000000000001 /* ProjectMediaFeatureTests.swift in Sources */,
 				CFA026100000000000000010 /* SearchLookupTests.swift in Sources */,
 				CFA026100000000000000008 /* SearchRequestCancellationTests.swift in Sources */,
 				CFA026100000000000000005 /* AppModelTests.swift in Sources */,
