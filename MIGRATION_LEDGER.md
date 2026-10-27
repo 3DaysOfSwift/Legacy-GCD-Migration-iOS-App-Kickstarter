@@ -25,6 +25,8 @@ Completed checkpoints below are historical evidence, not app-wide completion.
 - Latest verified analytics slice: explicit result-completion pairing, including
   three empty/error/pagination regression tests; 127 tests and app build passed.
 - Next: remaining parameter/presentation adapters; manual UI checks outstanding.
+- Latest verified presentation slice: direct filter-pill commands and lookup
+  subscriptions with explicit ownership; 130 tests and app build passed.
 - Remaining Search work: replace reactive selection/query projections and screen
   compatibility edges as appropriate; review the completed Feature against CFA;
   close outstanding behaviour-contract/manual/snapshot validation gates.
@@ -585,3 +587,43 @@ build three; no warning-free claim. No Swift files changed after this run.
 This supersedes the permission-blocked result, not the remaining manual or wider
 migration gates. The new cases passed the replacement; an old-code differential
 run has not been performed. Proceed to the filter presentation adapter.
+
+## Filter presentation adapter — verification pending
+
+Baseline: 015444a6eb452beeabdcc4519d45b9d1e675b913 (127 tests and app build).
+SearchFiltersUseCase no longer copies lookup arrays into three MutableProperty
+instances. Feature outputs update the existing SearchFilters model directly,
+preserving observeForUI delivery, empty replacements and duplicate notifications.
+Pill taps directly toggle the Feature or publish the existing modal mapping.
+The selection projection, initial-publication barrier and query admission remain
+unchanged; this is not yet removal of the remaining parameter adapter.
+
+The adapter now retains/disposes four observations. A presentation model retained
+beyond its adapter no longer receives updates; this is an explicit owner-lifetime
+cleanup, not an active-screen UI change. Three new tests cover refresh/clear
+retaining selection, repeated-value notifications and release cleanup.
+No new types, tasks, dependencies or UI files. Swift parsing, plist, whitespace
+and script syntax checks passed. No post-change runtime pass yet. Matthew Thomas
+is running sibling Migration Evidence/kickstarter-filter-presentation/verify.zsh
+(expected 130 tests and app build). Keep source stable until it finishes.
+Remaining query, UI/manual and app-wide migration gates remain open.
+
+### Filter presentation verification confirmed
+
+Direct inspection of Matthew Thomas's Terminal run in
+/private/tmp/kickstarter-filter-presentation.iBVlAx confirms 130 individual
+Success records, zero failures/skips, including all three new tests. The app
+buildResult.status succeeded. Both test-build and app-build report three warnings.
+No Swift source changed after this run. No manual/snapshot/full-suite pass.
+The new observer-release guarantee is now runtime-protected.
+
+Next query-adapter constraints from source review: parameter publication must
+precede request admission, because cancellation/loading can emit analytics
+synchronously; empty text publishes before the ten reset fields and final sort;
+initial query admission waits for every selection output; identical assignments
+remain observable. Repeated initialisation and a new ViewModel attached to an
+already-used Feature need explicit tests before replacing this barrier.
+Do not introduce a second owner for shared selection or coalesce notifications
+as an incidental cleanup. Keep existing UI projection until its contract is met.
+Session-level Simulator/cache access still prevents autonomous verification.
+This access limitation is not a migration completion or code-failure claim.

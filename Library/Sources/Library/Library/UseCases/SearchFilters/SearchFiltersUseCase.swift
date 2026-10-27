@@ -33,7 +33,7 @@ public protocol SearchFiltersUseCaseUIOutputs {
 
 @MainActor
 public protocol SearchFiltersUseCaseDataOutputs {
-  /// The currently selected sort option. Defaults to `.popular`. Default value only sent after `initialSignal` occurs.
+  /// The currently selected sort option. Defaults to `.magic`. Published when filter options are initialised.
   var selectedSort: Signal<DiscoveryParams.Sort, Never> { get }
   /// The currently selected category. Defaults to nil. Default value only sent after `initialSignal` occurs.
   var selectedCategory: Signal<SearchFiltersCategory, Never> { get }
@@ -54,9 +54,8 @@ public protocol SearchFiltersUseCaseDataOutputs {
 @MainActor
 public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFiltersUseCaseInputs,
   SearchFiltersUseCaseUIOutputs, SearchFiltersUseCaseDataOutputs {
-  /// @param initialSignal - An initial signal pulse. Must be sent once for default values of `selectedSort` and `selectedCategory` to emit.
-  /// @param categories - A list of possible filter categories. Must be sent for `showCategoryFilters` and `selectedSortOption` to work.
-
+  /// Adapts Feature selection and lookup outputs for the existing filter UI.
+  /// Initial selection publication remains an explicit Feature command.
   public init(
     searchFeature: SearchFeature,
     categories: Signal<[KsApi.Category], Never>,
@@ -65,10 +64,6 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
   ) {
     self.searchFeature = searchFeature
     let selection = searchFeature.filterSelection
-    self.categoriesProperty <~ categories
-    self.defaultLocationsProperty <~ defaultLocations
-    self.suggestedLocationsProperty <~ suggestedLocations
-
     self.selectedSort = selection.selectedSort
     self.selectedCategory = selection.selectedCategory
     self.selectedState = selection.selectedState
@@ -84,7 +79,7 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
         selectedSort: selection.selectedSortValue
       ),
       category: SearchFilters.CategoryOptions(
-        categories: self.categoriesProperty.value,
+        categories: [],
         selectedCategory: selection.selectedCategoryValue
       ),
       projectState: SearchFilters.ProjectStateOptions(
@@ -95,8 +90,8 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
         buckets: DiscoveryParams.PercentRaisedBucket.allCases
       ),
       location: SearchFilters.LocationOptions(
-        defaultLocations: self.defaultLocationsProperty.value,
-        suggestedLocations: self.suggestedLocationsProperty.value
+        defaultLocations: [],
+        suggestedLocations: []
       ),
       amountRaised: SearchFilters.AmountRaisedOptions(
         buckets: DiscoveryParams.AmountRaisedBucket.allCases
@@ -112,21 +107,9 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
       )
     )
 
-    let tappedTogglePill = self.tappedFilterTypeSignal.filter { $0.isToggle }
-    let tappedModalPill = self.tappedFilterTypeSignal.filter { !$0.isToggle }
+    self.showFilters = self.showFiltersPipe.output
 
-    self.showFilters = tappedModalPill
-      .map { pill in
-        let modalType = filterModal(toShowForPill: pill)
-        return modalType
-      }
-
-    tappedTogglePill
-      .observeValues { [weak self] pill in
-        self?.toggleFilter(ofType: pill)
-      }
-
-    Signal.combineLatest(
+    self.bindings += Signal.combineLatest(
       self.dataOutputs.selectedSort,
       self.dataOutputs.selectedCategory,
       self.dataOutputs.selectedState,
@@ -152,41 +135,39 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
       )
     }
 
-    self.categoriesProperty
-      .signal
+    self.bindings += categories
       .observeForUI()
       .observeValues { [weak searchFilters] categories in
         searchFilters?.update(withCategories: categories)
       }
 
-    self.defaultLocationsProperty
-      .signal
+    self.bindings += defaultLocations
       .observeForUI()
       .observeValues { [weak searchFilters] locations in
         searchFilters?.update(withDefaultSearchLocations: locations)
       }
 
-    self.suggestedLocationsProperty
-      .signal
+    self.bindings += suggestedLocations
       .observeForUI()
       .observeValues { [weak searchFilters] locations in
         searchFilters?.update(withSuggestedLocations: locations)
       }
   }
 
-  fileprivate let (tappedFilterTypeSignal, tappedFilterTypeObserver) = Signal<
-    SearchFilterPill.FilterType,
-    Never
-  >
-  .pipe()
+  deinit { self.bindings.dispose() }
+
+  private let showFiltersPipe = Signal<SearchFilterModalType, Never>.pipe()
+
   public func tappedButton(forFilterType type: SearchFilterPill.FilterType) {
-    self.tappedFilterTypeObserver.send(value: type)
+    if type.isToggle {
+      self.toggleFilter(ofType: type)
+    } else {
+      self.showFiltersPipe.input.send(value: filterModal(toShowForPill: type))
+    }
   }
 
   private let searchFeature: SearchFeature
-  private let categoriesProperty = MutableProperty<[KsApi.Category]>([])
-  private let defaultLocationsProperty = MutableProperty<[KsApi.Location]>([])
-  private let suggestedLocationsProperty = MutableProperty<[KsApi.Location]>([])
+  private let bindings = CompositeDisposable()
 
   nonisolated internal static let defaultSortOption = DiscoveryParams.Sort.magic
 

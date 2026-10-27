@@ -4,6 +4,7 @@
 @testable import LibraryTestHelpers
 import ReactiveExtensions_TestHelpers
 import ReactiveSwift
+import Combine
 import XCTest
 
 @MainActor
@@ -255,6 +256,65 @@ final class SearchFiltersUseCaseTests: TestCase {
     }
 
     self.assert_selectedLocation_isDefault()
+  }
+
+  func testLookupRefreshAndClearPreserveSelectedFilters() {
+    self.initialObserver.send(value: ())
+    let location = threeLocations[0]
+    self.useCase.inputs.selectedFilter(.category(.rootCategory(.art)))
+    self.useCase.inputs.selectedFilter(.location(location))
+    let filters = self.useCase.uiOutputs.searchFilters
+
+    self.categoriesObserver.send(value: [.art, .illustration])
+    self.defaultLocationsObserver.send(value: threeLocations)
+    self.suggestedLocationsObserver.send(value: [location])
+    XCTAssertEqual(filters.category.categories, [.art, .illustration])
+    XCTAssertEqual(filters.location.defaultLocations, threeLocations)
+    XCTAssertEqual(filters.location.suggestedLocations, [location])
+
+    self.categoriesObserver.send(value: [])
+    self.suggestedLocationsObserver.send(value: [])
+    XCTAssertTrue(filters.category.categories.isEmpty)
+    XCTAssertTrue(filters.location.suggestedLocations.isEmpty)
+    XCTAssertEqual(filters.location.defaultLocations, threeLocations)
+    XCTAssertEqual(filters.category.selectedCategory, .rootCategory(.art))
+    XCTAssertEqual(filters.location.selectedLocation, location)
+    XCTAssertEqual(filters.filterCount, 2)
+    XCTAssertEqual(self.searchFeature.queryParameters(for: "art").location, location)
+  }
+
+  func testRepeatedLookupOutputsRetainPresentationNotifications() {
+    let filters = self.useCase.uiOutputs.searchFilters
+    var notifications = 0
+    let observation = filters.objectWillChange.sink { notifications += 1 }
+    defer { observation.cancel() }
+
+    self.categoriesObserver.send(value: [.art])
+    self.categoriesObserver.send(value: [.art])
+    self.defaultLocationsObserver.send(value: [])
+    self.suggestedLocationsObserver.send(value: [])
+
+    XCTAssertEqual(notifications, 4, "Do not silently deduplicate legacy presentation updates")
+    XCTAssertEqual(filters.category.categories, [.art])
+  }
+
+  func testReleasedAdapterStopsUpdatingRetainedPresentationModel() {
+    self.initialObserver.send(value: ())
+    let filters = self.useCase.uiOutputs.searchFilters
+    weak var weakAdapter = self.useCase
+    self.useCase = nil
+    XCTAssertNil(weakAdapter)
+
+    self.categoriesObserver.send(value: [.art])
+    self.defaultLocationsObserver.send(value: threeLocations)
+    self.suggestedLocationsObserver.send(value: threeLocations)
+    self.searchFeature.selectFilter(.category(.rootCategory(.art)))
+
+    XCTAssertTrue(filters.category.categories.isEmpty)
+    XCTAssertTrue(filters.location.defaultLocations.isEmpty)
+    XCTAssertTrue(filters.location.suggestedLocations.isEmpty)
+    XCTAssertEqual(filters.category.selectedCategory, .none)
+    XCTAssertEqual(self.searchFeature.queryParameters(for: "art").category, .art)
   }
 
   func test_tappedAmountRaised_showsAmountRaised() {

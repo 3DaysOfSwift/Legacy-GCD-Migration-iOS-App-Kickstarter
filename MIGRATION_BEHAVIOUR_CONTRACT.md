@@ -240,3 +240,24 @@ contains 127 successful tests (zero failures/skips) and a successful app build.
 SEARCH-ADAPTER-08 through -10 now have passing replacement protection. Their
 legacy semantics remain source-inferred, not old-code differential confirmation.
 No additional UI/snapshot/live-API/full-suite verification is claimed.
+
+## Filter presentation lifetime — pending verification
+
+- Lookup refresh/empty suggestions must replace option lists without clearing
+  selected category/location or other filter values. Protected by
+  testLookupRefreshAndClearPreserveSelectedFilters (new).
+- Repeated lookup arrays must retain existing presentation notifications:
+  testRepeatedLookupOutputsRetainPresentationNotifications (new).
+- Observations belong to SearchFiltersUseCase. Releasing it detaches even if a
+  caller retains SearchFilters: testReleasedAdapterStopsUpdatingRetainedPresentationModel
+  (new owner-lifetime guarantee, not an active-screen behavioural redesign).
+- Existing modal mapping, toggle/no-modal behaviour, logged-in/out pills, reset
+  and selection tests remain unchanged. observeForUI scheduling remains.
+
+Static checks passed; the 130-test runtime check and app build are pending.
+No new UI layout, copy, storage, identifier or navigation changes.
+
+Post-change confirmation: the Terminal run in
+/private/tmp/kickstarter-filter-presentation.iBVlAx passed 130 tests with zero
+failures/skips, including these three cases, and the app build. Both builds
+report three warnings. Active-screen manual and snapshot validation remain open.
