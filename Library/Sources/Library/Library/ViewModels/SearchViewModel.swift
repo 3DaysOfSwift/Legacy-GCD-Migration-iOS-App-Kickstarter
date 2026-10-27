@@ -107,11 +107,8 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       defaultLocations: searchFeature.defaultLocations,
       suggestedLocations: searchFeature.suggestedLocations
     )
-    let viewWillAppearNotAnimated = self.viewWillAppearAnimatedProperty.signal.filter(isTrue).ignoreValues()
-    let queryText = Signal.merge(
-      self.searchTextChangedProperty.signal,
-      viewWillAppearNotAnimated.mapConst("").take(first: 1)
-    )
+    // Output notification only: query input and first appearance are explicit commands.
+    let queryText = self.queryTextPipe.output
     let queryParams = searchFeature.queryParameters(for: queryText)
 
     let requestFirstPageWith = queryParams
@@ -122,12 +119,6 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     let searchResults = searchFeature.results
 
     self.searchLoaderIndicatorIsAnimating = isLoading
-
-    let isCloseToBottom = self.willDisplayProjectProperty.signal.skipNil()
-      .map { row, total in row >= total - 3 }
-      .skipRepeats()
-      .filter(isTrue)
-      .ignoreValues()
 
     // Show the 'Discover projects' title if we're showing 'Discover' results (i.e. no query)
     let isProjectsTitleVisible = Signal.combineLatest(queryText, searchResults)
@@ -155,39 +146,13 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.reachabilityProperty <~ Reachability.signalProducer
 
     self.showVideoFeedBanner = Signal.merge(
-      self.viewWillAppearAnimatedProperty.signal.ignoreValues(),
+      self.appearancePipe.output,
       self.reachabilityProperty.signal.ignoreValues()
     )
     .map { featureVideoFeedEnabled() && Reachability.current != .none }
     .skipRepeats()
 
-    self.goToProject = Signal.combineLatest(searchResults, queryText)
-      .takePairWhen(self.tappedProjectIndexSignal)
-      .map { ($0.0, $0.1, $1) } // ((a, b) c) -> (a, b, c)
-      .map { projects, query, index in
-
-        let emptyResult: (ProjectPageParam, RefTag)? = nil
-
-        guard index >= 0, index < projects.count else {
-          assert(false, "Tapped card out of bounds.")
-          return emptyResult
-        }
-
-        let project = projects[index]
-        let graphQLID = project.fragments.backerDashboardProjectCellFragment.projectId
-
-        guard let projectId = decompose(id: graphQLID),
-              let cardProperties = ProjectCardProperties(project.fragments.projectCardFragment)
-        else {
-          return emptyResult
-        }
-
-        let refTag = refTag(query: query, projects: projects, project: project)
-
-        let param = cardProperties.projectPageParam
-        return (param, refTag)
-      }
-      .skipNil()
+    self.goToProject = self.projectNavigationPipe.output
 
     // Tracking
 
@@ -195,16 +160,8 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     // An initial value is emitted on first visit.
     let viewWillAppearSearchResultsCount = Signal.merge(
       stats,
-      viewWillAppearNotAnimated.mapConst(0).take(first: 1)
+      self.initialAppearanceCountPipe.output
     )
-
-    Signal.combineLatest(queryText, queryParams, viewWillAppearSearchResultsCount)
-      .takeWhen(viewWillAppearNotAnimated)
-      .observeValues { query, params, searchResults in
-        let results = query.isEmpty ? 0 : searchResults
-        AppEnvironment.current.ksrAnalytics
-          .trackProjectSearchView(params: params, results: results)
-      }
 
     let hasResults = Signal.combineLatest(paginatedProjects, isLoading)
       .filter(second >>> isFalse)
@@ -231,37 +188,6 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
           .trackProjectSearchView(params: params, results: stats)
       }
 
-    Signal.combineLatest(requestFirstPageWith, searchResults)
-      .takePairWhen(self.tappedProjectIndexSignal)
-      .map { ($0.0, $0.1, $1) } // ((a, b), c) -> (a, b, c)
-      .observeValues { params, results, index in
-
-        guard index >= 0, index < results.count else {
-          assert(false, "Tapped card out of bounds.")
-          return
-        }
-
-        let projectAnalytics = results[index].fragments.projectAnalyticsFragment
-
-        AppEnvironment.current.ksrAnalytics.trackProjectCardClicked(
-          page: .search,
-          project: projectAnalytics,
-          typeContext: .results,
-          location: .searchResults,
-          params: params
-        )
-      }
-
-    let emptyResultsOnFirstAppearance = viewWillAppearNotAnimated
-      .take(first: 1)
-      .mapConst(
-        SearchResults(
-          isProjectsTitleVisible: false,
-          count: 0,
-          projects: []
-        )
-      )
-
     self.searchResults = Signal.combineLatest(
       isProjectsTitleVisible,
       stats,
@@ -272,15 +198,20 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
         count: resultCount,
         projects: projects.map { $0.projectCellModel }
       )
-    }.merge(with: emptyResultsOnFirstAppearance)
+    }.merge(with: self.initialResultsPipe.output)
 
     // Bind only after every presentation/analytics observer is installed.
     // These handles belong to this screen, not the app-scoped Feature.
-    self.featureBindings += queryParams.observeValues { [weak self] parameters in
-      self?.searchTask = searchFeature.requestSearch(parameters: parameters)
+    self.featureBindings += searchResults.observeValues { [weak self] results in
+      self?.displayedResults = results
     }
-    self.featureBindings += isCloseToBottom.observeValues { [weak self] in
-      self?.pageTask = searchFeature.requestNextPage()
+    self.featureBindings += viewWillAppearSearchResultsCount.observeValues { [weak self] count in
+      self?.appearanceResultsCount = count
+    }
+    self.featureBindings += queryParams.observeValues { [weak self] parameters in
+      // Install the analytics snapshot before admission publishes loading/clearing.
+      self?.latestQueryParameters = parameters
+      self?.searchTask = searchFeature.requestSearch(parameters: parameters)
     }
     self.featureBindings += searchFeature.loading.observeValues { [weak self] loading in
       if !loading {
@@ -294,29 +225,97 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.featureBindings.dispose()
   }
 
-  private let searchTextChangedProperty = MutableProperty("")
+  // These are presentation snapshots, not duplicate Feature domain state. Nil
+  // preserves the old signal prerequisites (no query/results/count emitted yet).
+  private var queryText: String?
+  private var displayedResults: [SearchResult]?
+  private var latestQueryParameters: DiscoveryParams?
+  private var appearanceResultsCount: Int?
+  private var hasAppearedAnimated = false
+  private var wasCloseToBottom: Bool?
+  private let queryTextPipe = Signal<String, Never>.pipe()
+  private let appearancePipe = Signal<Void, Never>.pipe()
+  private let initialAppearanceCountPipe = Signal<Int, Never>.pipe()
+  private let initialResultsPipe = Signal<SearchResults, Never>.pipe()
+  private let projectNavigationPipe = Signal<(ProjectPageParam, RefTag), Never>.pipe()
+
   public func searchTextChanged(_ searchText: String) {
-    self.searchTextChangedProperty.value = searchText
+    self.publishQueryText(searchText)
+    // Typed empty text resets filters after query publication. Initial discovery
+    // text deliberately does not: an appearance is not a user's clear command.
     self.searchFeature.updateQuery(searchText)
   }
 
-  fileprivate let (tappedProjectIndexSignal, tappedProjectIndexObserver) = Signal<Int, Never>.pipe()
+  private func publishQueryText(_ query: String) {
+    self.queryText = query
+    self.queryTextPipe.input.send(value: query)
+  }
+
   public func tapped(projectAtIndex index: Int) {
-    self.tappedProjectIndexObserver.send(value: index)
+    guard let query = self.queryText, let projects = self.displayedResults else { return }
+    guard projects.indices.contains(index) else {
+      assert(false, "Tapped card out of bounds.")
+      return
+    }
+
+    let project = projects[index]
+    let graphQLID = project.fragments.backerDashboardProjectCellFragment.projectId
+    if decompose(id: graphQLID) != nil,
+       let card = ProjectCardProperties(project.fragments.projectCardFragment) {
+      self.projectNavigationPipe.input.send(value: (
+        card.projectPageParam, refTag(query: query, projects: projects, project: project)
+      ))
+    }
+
+    // A malformed navigation ID did not suppress legacy click analytics.
+    if let parameters = self.latestQueryParameters {
+      AppEnvironment.current.ksrAnalytics.trackProjectCardClicked(
+        page: .search,
+        project: project.fragments.projectAnalyticsFragment,
+        typeContext: .results,
+        location: .searchResults,
+        params: parameters
+      )
+    }
   }
 
   public func viewDidLoad() {
     self.filterOptionsTask = self.searchFeature.requestFilterOptions()
   }
 
-  fileprivate let viewWillAppearAnimatedProperty = MutableProperty(false)
   public func viewWillAppear(animated: Bool) {
-    self.viewWillAppearAnimatedProperty.value = animated
+    let isFirstAnimatedAppearance = animated && !self.hasAppearedAnimated
+    if isFirstAnimatedAppearance {
+      self.hasAppearedAnimated = true
+      self.publishQueryText("")
+    }
+
+    self.appearancePipe.input.send(value: ())
+    if isFirstAnimatedAppearance {
+      self.initialAppearanceCountPipe.input.send(value: 0)
+    }
+    if animated { self.trackAppearance() }
+    if isFirstAnimatedAppearance {
+      self.initialResultsPipe.input.send(value: SearchResults(
+        isProjectsTitleVisible: false, count: 0, projects: []
+      ))
+    }
   }
 
-  fileprivate let willDisplayProjectProperty = MutableProperty<(row: Int, total: Int)?>(nil)
+  private func trackAppearance() {
+    guard let query = self.queryText,
+          let parameters = self.latestQueryParameters,
+          let count = self.appearanceResultsCount else { return }
+    AppEnvironment.current.ksrAnalytics.trackProjectSearchView(
+      params: parameters, results: query.isEmpty ? 0 : count
+    )
+  }
+
   public func willDisplayProjectAtRow(_ row: Int, outOf totalRows: Int) {
-    self.willDisplayProjectProperty.value = (row, totalRows)
+    let isCloseToBottom = row >= totalRows - 3
+    guard self.wasCloseToBottom != isCloseToBottom else { return }
+    self.wasCloseToBottom = isCloseToBottom
+    if isCloseToBottom { self.pageTask = self.searchFeature.requestNextPage() }
   }
 
   public func tappedButton(forFilterType type: SearchFilterPill.FilterType) {

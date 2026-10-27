@@ -90,7 +90,7 @@ internal final class SearchViewModelTests: TestCase {
     }
   }
 
-  // Characterise the existing silent-error path before changing its ownership.
+  // Characterise lifecycle and analytics before changing their adapter.
   func testNonAnimatedAppearanceDoesNotStartDiscoveryOrTrackPage() async {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewWillAppear(animated: false)
@@ -212,7 +212,40 @@ internal final class SearchViewModelTests: TestCase {
     }
   }
 
-  // This is not approval to keep a silent error as the final product design.
+  func testPaginationRequiresAnotherThresholdCrossingAfterPageCompletes() async throws {
+    let response = [(GraphAPI.SearchQuery.self, try self.fixture("SearchQuery_FiveResults"))]
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewWillAppear(animated: true)
+      await self.advanceRequests()
+
+      self.vm.inputs.willDisplayProjectAtRow(0, outOf: 5)
+      XCTAssertNil(self.vm.pageTask)
+      self.vm.inputs.willDisplayProjectAtRow(2, outOf: 5)
+      guard let firstPageTask = self.vm.pageTask else {
+        XCTFail("Crossing the pagination threshold should retain a page task")
+        return
+      }
+      self.vm.inputs.willDisplayProjectAtRow(3, outOf: 5)
+      XCTAssertEqual(self.vm.pageTask, firstPageTask)
+      await self.advanceRequests()
+      XCTAssertEqual(self.searchFeature.projects.count, 10)
+      XCTAssertNil(self.vm.pageTask)
+
+      // Staying near the bottom must not immediately start another page.
+      self.vm.inputs.willDisplayProjectAtRow(9, outOf: 10)
+      XCTAssertNil(self.vm.pageTask)
+      self.vm.inputs.willDisplayProjectAtRow(0, outOf: 10)
+      self.vm.inputs.willDisplayProjectAtRow(7, outOf: 10)
+      XCTAssertNotNil(self.vm.pageTask)
+      await self.advanceRequests()
+      XCTAssertEqual(self.searchFeature.projects.count, 15)
+      XCTAssertEqual(self.segmentTrackingClient.events, ["Page Viewed"])
+    }
+  }
+
+  // Characterise the existing silent-error path. This is not approval to keep
+  // a silent error as the final product design.
   func testFailedInitialSearchStopsLoadingAndRecoversOnChangedQuery() async throws {
     await withEnvironment(apiService: MockService()) {
       self.vm.inputs.viewDidLoad()

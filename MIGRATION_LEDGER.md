@@ -20,8 +20,10 @@ Completed checkpoints below are historical evidence, not app-wide completion.
   directly awaitable first-page/pagination commands with shared in-flight work.
 - Last verified checkpoint: selection state/direct query construction and six
   query/lifecycle/analytics characterisation tests; 123 tests and app build passed.
-- Next bounded slice: explicit query/lifecycle inputs and appearance/card-click
-  analytics. Result-completion analytics pairing remains for a separate pass.
+- Latest verified slice: explicit query/lifecycle inputs, pagination threshold,
+  and appearance/card-click analytics; 124 tests and app build passed.
+- Next: characterise/remove result-completion analytics pairing and remaining
+  parameter/presentation adapters; manual UI checks remain outstanding.
 - Remaining Search work: replace reactive selection/query projections and screen
   compatibility edges as appropriate; review the completed Feature against CFA;
   close outstanding behaviour-contract/manual/snapshot validation gates.
@@ -496,3 +498,50 @@ a failed query adds no completion event; card clicks include current filters.
 The misleading old variable name "viewWillAppearNotAnimated" actually filters
 true. Preserve that behaviour rather than silently correcting it.
 The earlier permission-blocked runs remain historical evidence, not regressions.
+
+## Explicit Search input/lifecycle adapter — 27 October 2026
+
+Route unchanged: SearchViewController → SearchViewModel → SearchFeature → providers.
+SearchViewModel owns presentation query text and emitted-data snapshots, first
+animated appearance, pagination threshold crossing, navigation and analytics
+adaptation. SearchFeature still owns filter policy, async work/cancellation and
+shared domain state. No new type, task, storage, identifier, transport or UI file.
+
+Removed three input MutableProperty values, the tapped-index pipe, two tuple-heavy
+navigation/click chains and the appearance analytics chain. Input methods now use
+ordinary state and synchronous commands. Output-only query/appearance/navigation
+pipes remain for the unchanged UI. First appearance and typed clearing remain
+distinct commands; neither repeated appearance nor a row still near the bottom
+starts fresh work. Observer handles are retained/disposed by the ViewModel.
+
+The six characterisation tests remain unchanged in substance. Added
+testPaginationRequiresAnotherThresholdCrossingAfterPageCompletes, covering the
+three-row threshold, duplicate notification, task retention, threshold re-entry,
+accumulated cards and no extra discovery page-view analytics.
+
+Static checks passed: Swift parsing, project plist, script syntax, whitespace.
+Fresh post-change verification exited 74 before compilation: Simulator/cache
+permissions denied. Results: /private/tmp/kickstarter-search-lifecycle-adapter.WAFG2l.
+No post-change runtime/manual pass claimed. Run sibling Migration Evidence/
+kickstarter-search-lifecycle-adapter/verify.zsh (expected 124 tests and app build).
+Changes remain uncommitted until verified; baseline commit is 925b2a36e.
+
+Remaining: result-completion analytics still uses zip(hasResults, page), parameter
+projection still combines query and selection outputs and drives request admission,
+and filter/UI/reachability presentation adapters remain reactive. This pass does
+not claim all query or analytics plumbing is migrated. Characterise buffered
+page/result pairing, zero-count pages, errors and supersession before replacing it.
+Whole-Search and whole-app migration remain in progress.
+
+### Adapter verification confirmed — 27 October 2026
+
+Matthew Thomas ran verify.zsh in Terminal. Direct inspection of
+`/private/tmp/kickstarter-search-lifecycle-adapter.OvyAOX` confirms 124 individual
+Success records, zero failures/skips, including the new threshold-crossing test.
+App buildResult.status succeeded. The test build reports 567 warnings and the
+app build reports three; no warning-free claim. No production/test source changed
+after this run. This supersedes the permission-blocked attempt above.
+
+The automated checkpoint is ready to commit. No new manual UI, snapshot,
+physical-device, live-API or full-suite validation was performed. These remain
+separate completion gates, not facts inferred from the focused test run.

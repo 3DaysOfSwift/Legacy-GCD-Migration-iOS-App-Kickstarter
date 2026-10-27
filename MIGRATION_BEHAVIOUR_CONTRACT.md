@@ -196,3 +196,20 @@ is superseded for selection state only; UI/snapshot checks remain outstanding.
 | SEARCH-ADAPTER-06 | Card navigation preserves ref tags and click analytics include current query/filter parameters. | testCardClickAfterFilterChangeTracksCurrentParameters and existing ref-tag tests | Confirmed |
 
 Post-change results for the upcoming adapter implementation are not yet available.
+
+Adapter implementation now uses explicit input/lifecycle state and direct
+appearance/card analytics. The six requirements above remain protected by the
+same passing baseline tests; their post-change runtime results remain pending.
+SEARCH-ADAPTER-07: reaching the final three rows requests a page once per threshold
+crossing, including after a completed page; returning away from that threshold
+allows a subsequent page. Protected by
+testPaginationRequiresAnotherThresholdCrossingAfterPageCompletes (new, unverified)
+and existing paging flow tests. No layout/navigation/copy changes intended.
+Manual first appearance, return from detail, text/clear/filter changes, pagination
+and banner checks remain required. Static parsing does not prove these outcomes.
+
+Post-change verification confirmed 27 October 2026:
+`/private/tmp/kickstarter-search-lifecycle-adapter.OvyAOX` contains 124 successful
+tests with zero failures/skips and a successful app build. SEARCH-ADAPTER-01
+through SEARCH-ADAPTER-07 therefore have passing focused post-change protection.
+Manual UI and broader validation gaps above remain; migration is not complete.
