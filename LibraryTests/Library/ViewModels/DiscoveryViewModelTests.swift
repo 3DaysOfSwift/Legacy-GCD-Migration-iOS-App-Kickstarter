@@ -9,11 +9,14 @@ import ReactiveSwift
 import UIKit
 import XCTest
 
+@MainActor
 internal final class DiscoveryViewModelTests: TestCase {
   // Logic/output assertions only; visual suites retain their reference-device gate.
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  fileprivate let vm: DiscoveryViewModelType = DiscoveryViewModel()
+  fileprivate lazy var vm: DiscoveryViewModelType = DiscoveryViewModel(
+    discoveryFeature: DiscoveryFeature(provider: AsyncDiscoveryProvider())
+  )
 
   fileprivate let configureDataSource = TestObserver<[DiscoveryParams.Sort], Never>()
   fileprivate let configureNavigationHeader = TestObserver<DiscoveryParams, Never>()
@@ -32,6 +35,7 @@ internal final class DiscoveryViewModelTests: TestCase {
 
   internal override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated {
     self.vm.outputs.loadFilterIntoDataSource.observe(self.loadFilterIntoDataSource.observer)
     self.vm.outputs.configurePagerDataSource.observe(self.configureDataSource.observer)
     self.vm.outputs.navigateToSort.map { $0.0 }.observe(self.navigateToSort.observer)
@@ -39,6 +43,7 @@ internal final class DiscoveryViewModelTests: TestCase {
     self.vm.outputs.selectSortPage.observe(self.selectSortPage.observer)
     self.vm.outputs.updateSortPagerStyle.observe(self.updateSortPagerStyle.observer)
     self.vm.outputs.configureNavigationHeader.observe(self.configureNavigationHeader.observer)
+    }
   }
 
   func testConfigureDataSource() {

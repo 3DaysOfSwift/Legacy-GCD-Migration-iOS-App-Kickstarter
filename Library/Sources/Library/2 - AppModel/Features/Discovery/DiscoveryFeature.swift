@@ -41,6 +41,7 @@ public final class DiscoveryFeature {
 
   private final class Page {
     var snapshot = PageSnapshot()
+    var userID: Int?
     var cursor: String?
     var request: (id: UUID, cursor: String?, task: Task<Void, Never>)?
     var activityRequest: (id: UUID, task: Task<Void, Never>)?
@@ -52,10 +53,26 @@ public final class DiscoveryFeature {
   private let projectsPipe = Signal<(DiscoveryParams.Sort, [Project]), Never>.pipe()
   private let loadingPipe = Signal<(DiscoveryParams.Sort, Bool), Never>.pipe()
   private let activitiesPipe = Signal<(DiscoveryParams.Sort, [Activity]), Never>.pipe()
+  private let filtersPipe = Signal<DiscoveryParams, Never>.pipe()
+  public private(set) var selectedParameters: DiscoveryParams?
 
   public var projects: Signal<(DiscoveryParams.Sort, [Project]), Never> { self.projectsPipe.output }
   public var loading: Signal<(DiscoveryParams.Sort, Bool), Never> { self.loadingPipe.output }
   public var activities: Signal<(DiscoveryParams.Sort, [Activity]), Never> { self.activitiesPipe.output }
+  public var filterChanges: Signal<DiscoveryParams, Never> { self.filtersPipe.output }
+
+  public static func initialParameters(for user: User?) -> DiscoveryParams {
+    guard user?.optedOutOfRecommendations == false else {
+      return DiscoveryParams.defaults |> DiscoveryParams.lens.includePOTD .~ true
+    }
+    return DiscoveryParams.recommendedDefaults
+  }
+
+  /// Selection is domain state; screen readiness still decides when to publish it.
+  public func selectFilter(_ parameters: DiscoveryParams) {
+    self.selectedParameters = parameters
+    self.filtersPipe.input.send(value: parameters)
+  }
 
   public init(
     provider: any DiscoveryProvider,
@@ -98,8 +115,10 @@ public final class DiscoveryFeature {
     var parameters = parameters
     parameters.sort = sort
     if !force, let request = page.request, request.cursor == nil,
+       page.userID == AppEnvironment.current.currentUser?.id,
        page.snapshot.parameters == parameters { return request.task }
     page.request?.task.cancel()
+    page.userID = AppEnvironment.current.currentUser?.id
     page.snapshot.parameters = parameters
     page.cursor = nil
     page.snapshot.hasMore = false
@@ -109,6 +128,7 @@ public final class DiscoveryFeature {
   @discardableResult
   internal func requestNextPage(sort: DiscoveryParams.Sort) -> Task<Void, Never>? {
     let page = self.page(for: sort)
+    guard page.userID == AppEnvironment.current.currentUser?.id else { return nil }
     if let request = page.request { return request.task }
     guard let parameters = page.snapshot.parameters, let cursor = page.cursor,
           page.snapshot.hasMore else { return nil }
@@ -119,6 +139,7 @@ public final class DiscoveryFeature {
     sort: DiscoveryParams.Sort, page: Page, parameters: DiscoveryParams, cursor: String?
   ) -> Task<Void, Never> {
     let id = UUID()
+    let requestedUserID = AppEnvironment.current.currentUser?.id
     let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
     page.snapshot.isLoading = true
     page.snapshot.error = nil
@@ -132,6 +153,7 @@ public final class DiscoveryFeature {
       }
       do {
         try Task.checkCancellation()
+        guard AppEnvironment.current.currentUser?.id == requestedUserID else { return }
         let response: Result<DiscoveryEnvelope, Error>
         do { response = .success(try await provider.page(parameters: parameters, cursor: cursor)) }
         catch is CancellationError { return }
@@ -139,14 +161,16 @@ public final class DiscoveryFeature {
         try Task.checkCancellation()
         try await sleep(delay)
         try Task.checkCancellation()
-        guard let self, page.request?.id == id else { return }
+        guard let self, page.request?.id == id,
+              AppEnvironment.current.currentUser?.id == requestedUserID else { return }
         let envelope = try response.get()
         page.snapshot.projects = ((cursor == nil ? [] : page.snapshot.projects) + envelope.projects).distincts()
         page.cursor = envelope.urls.api.moreProjects
         page.snapshot.hasMore = !envelope.projects.isEmpty
         self.projectsPipe.input.send(value: (sort, page.snapshot.projects))
       } catch {
-        guard page.request?.id == id, !Task.isCancelled, !(error is CancellationError) else { return }
+        guard page.request?.id == id, !Task.isCancelled, !(error is CancellationError),
+              AppEnvironment.current.currentUser?.id == requestedUserID else { return }
         page.snapshot.error = (error as? ErrorEnvelope) ?? .couldNotParseJSON
       }
     }
@@ -160,21 +184,25 @@ public final class DiscoveryFeature {
     let page = self.page(for: sort)
     page.activityRequest?.task.cancel()
     let id = UUID()
+    let requestedUserID = AppEnvironment.current.currentUser?.id
     let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
     page.snapshot.activityError = nil
     let task = Task { @MainActor [weak self, provider, sleep] in
       defer { if page.activityRequest?.id == id { page.activityRequest = nil } }
       do {
         try Task.checkCancellation()
+        guard AppEnvironment.current.currentUser?.id == requestedUserID else { return }
         guard let envelope = try await provider.activitySample() else { return }
         try await sleep(delay)
         try Task.checkCancellation()
-        guard let self, page.activityRequest?.id == id else { return }
+        guard let self, page.activityRequest?.id == id,
+              AppEnvironment.current.currentUser?.id == requestedUserID else { return }
         page.snapshot.activitySample = envelope.activities
         self.activitiesPipe.input.send(value: (sort, envelope.activities))
       } catch {
         // Legacy sample failures leave the existing sample unchanged.
-        guard page.activityRequest?.id == id, !Task.isCancelled, !(error is CancellationError) else { return }
+        guard page.activityRequest?.id == id, !Task.isCancelled, !(error is CancellationError),
+              AppEnvironment.current.currentUser?.id == requestedUserID else { return }
         page.snapshot.activityError = (error as? ErrorEnvelope) ?? .couldNotParseJSON
       }
     }

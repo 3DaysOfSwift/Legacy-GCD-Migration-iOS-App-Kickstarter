@@ -2,6 +2,21 @@
 
 ## Explore async ownership checkpoint — 27 October 2026
 
+Final continuation: 205 tests passed with zero failures/skips and the app built
+in /private/tmp/kickstarter-discovery-async.RzwK5t. Selected filter state and
+recommendation defaults now belong to DiscoveryFeature; all existing controller
+output/analytics assertions still pass. Public filter selection does not eagerly
+fetch hidden feeds. View models retain screen readiness/navigation timing.
+
+Same filters under a different account no longer share in-flight work or reuse
+an older account's cursor. A late project/activity response from the previous
+account cannot publish. Direct regression tests cover both cases. Existing cached
+card display behaviour is unchanged; this is not a full session/privacy audit.
+
+Final Simulator smoke observed Games selection, Forest Trails and the selected
+Games header, then All Projects restoring Pocket Observatory. No visual source
+was changed. Other manual/strict-concurrency limitations below remain open.
+
 Before: 55 existing Explore logic tests passed on commit
 237d929d8c5c1e714935ccd959048e628e93ea07. After: those same assertions passed
 through DiscoveryFeature's native async route; the combined run passed 202 tests,
@@ -26,8 +41,8 @@ feed/cards. This is a bounded smoke check, not screenshot comparison, live-netwo
 verification or authentication coverage. Manual pull-refresh was inconclusive
 (the gesture opened a card), so only its automated coverage is claimed.
 
-The remaining Explore filter/recommendation and lifecycle admission policy still
-lives in compatibility view models and is the next boundary. URLSession provides
+The final continuation above moved filter/recommendation policy into the Feature.
+Screen readiness and navigation remain compatibility-view-model responsibilities. URLSession provides
 native cancellation, but no live-server cancellation experiment was performed.
 Swift 5 mode remains; full strict-concurrency and app-wide exit gates are open.
 

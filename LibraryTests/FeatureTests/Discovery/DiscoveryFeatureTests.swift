@@ -244,6 +244,62 @@ final class DiscoveryFeatureTests: TestCase {
     let next = try await service.discoveryPage(paginationURL: envelope.urls.api.moreProjects)
     XCTAssertFalse(next.projects.isEmpty)
   }
+
+  func testRecommendationDefaultsAndFilterSelectionBelongToFeatureWithoutFetching() {
+    let provider = ControlledDiscoveryProvider()
+    let feature = DiscoveryFeature(provider: provider)
+    let optedIn = User.template |> User.lens.optedOutOfRecommendations .~ false
+    let optedOut = User.template |> User.lens.optedOutOfRecommendations .~ true
+    XCTAssertEqual(DiscoveryFeature.initialParameters(for: nil).includePOTD, true)
+    XCTAssertEqual(DiscoveryFeature.initialParameters(for: optedOut).includePOTD, true)
+    XCTAssertEqual(DiscoveryFeature.initialParameters(for: optedIn), .recommendedDefaults)
+    let parameters = DiscoveryParams.defaults |> DiscoveryParams.lens.category .~ .art
+    feature.selectFilter(parameters)
+    XCTAssertEqual(feature.selectedParameters, parameters)
+    XCTAssertTrue(provider.requests.isEmpty, "Selection must not eagerly fetch hidden feeds")
+  }
+
+  func testDelayedProjectsFromPreviousAccountCannotPublish() async throws {
+    let provider = ControlledDiscoveryProvider()
+    defer { provider.releaseAll() }
+    let feature = DiscoveryFeature(provider: provider, sleep: { _ in })
+    let firstUser = User.template |> User.lens.id .~ 1
+    let secondUser = User.template |> User.lens.id .~ 2
+    await withEnvironment(currentUser: firstUser) {
+      let old = feature.requestRefresh(sort: .magic, parameters: .defaults)
+      await provider.waitForCount(1)
+      await withEnvironment(currentUser: secondUser) {
+        XCTAssertNil(feature.requestNextPage(sort: .magic), "Do not reuse another account's cursor/task")
+        let new = feature.requestRefresh(sort: .magic, parameters: .defaults)
+        XCTAssertNotEqual(old, new, "Same filters under another account are not equivalent work")
+        await provider.waitForCount(2)
+        do { try provider.complete(0, ids: [1]) } catch { XCTFail("\(error)") }
+        await old.value
+        XCTAssertTrue(feature.snapshot(for: .magic).projects.isEmpty)
+        XCTAssertTrue(feature.snapshot(for: .magic).isLoading)
+        XCTAssertNil(feature.snapshot(for: .magic).error)
+        do { try provider.complete(1, ids: [2]) } catch { XCTFail("\(error)") }
+        await new.value
+        XCTAssertEqual(feature.snapshot(for: .magic).projects.map(\.id), [2])
+      }
+    }
+  }
+
+  func testDelayedActivityFromPreviousAccountCannotPublish() async {
+    let provider = ControlledActivityProvider()
+    defer { provider.releaseAll() }
+    let feature = DiscoveryFeature(provider: provider, sleep: { _ in })
+    await withEnvironment(currentUser: User.template |> User.lens.id .~ 1) {
+      let old = feature.requestActivitySample(sort: .magic)
+      await provider.waitForCount(1)
+      await withEnvironment(currentUser: User.template |> User.lens.id .~ 2) {
+        do { try provider.complete(0, id: 1) } catch { XCTFail("\(error)") }
+        await old.value
+        XCTAssertTrue(feature.snapshot(for: .magic).activitySample.isEmpty)
+        XCTAssertNil(feature.snapshot(for: .magic).activityError)
+      }
+    }
+  }
 }
 
 @MainActor

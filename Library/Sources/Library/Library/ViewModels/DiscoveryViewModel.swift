@@ -4,6 +4,7 @@ import ReactiveExtensions
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol DiscoveryViewModelInputs {
   /// Call when Recommendations setting changes on Settings > Account > Privacy > Recommendations.
   func didChangeRecommendationsSetting()
@@ -36,6 +37,7 @@ public protocol DiscoveryViewModelInputs {
   func willTransition(toPage nextPage: Int)
 }
 
+@MainActor
 public protocol DiscoveryViewModelOutputs {
   /// Emits params to configure the navigation header.
   var configureNavigationHeader: Signal<DiscoveryParams, Never> { get }
@@ -65,23 +67,21 @@ public protocol DiscoveryViewModelOutputs {
   var updateSortPagerStyle: Signal<Int?, Never> { get }
 }
 
+@MainActor
 public protocol DiscoveryViewModelType {
   var inputs: DiscoveryViewModelInputs { get }
   var outputs: DiscoveryViewModelOutputs { get }
 }
 
+@MainActor
 public final class DiscoveryViewModel: DiscoveryViewModelType, DiscoveryViewModelInputs,
   DiscoveryViewModelOutputs {
-  internal static func initialParams() -> DiscoveryParams {
-    guard AppEnvironment.current.currentUser?.optedOutOfRecommendations == .some(false) else {
-      return DiscoveryParams.defaults
-        |> DiscoveryParams.lens.includePOTD .~ true
-    }
+  private let discoveryFeature: DiscoveryFeature
+  private let bindings = CompositeDisposable()
 
-    return DiscoveryParams.recommendedDefaults
-  }
-
-  public init() {
+  public init(discoveryFeature: DiscoveryFeature? = nil) {
+    let discoveryFeature = discoveryFeature ?? AppModel.shared.discoveryFeature
+    self.discoveryFeature = discoveryFeature
     let remoteConfigReadyOrContinue = Signal.merge(
       self.remoteConfigClientConfiguredProperty.signal,
       self.viewDidLoadProperty.signal.ignoreValues(),
@@ -100,14 +100,10 @@ public final class DiscoveryViewModel: DiscoveryViewModelType, DiscoveryViewMode
       self.didChangeRecommendationsSettingProperty.signal
         .takeWhen(self.viewWillAppearProperty.signal)
     )
-    .map(DiscoveryViewModel.initialParams)
+    .map { DiscoveryFeature.initialParameters(for: AppEnvironment.current.currentUser) }
     .skipRepeats()
 
-    let currentParams = Signal.merge(
-      initialParams,
-      self.filterWithParamsProperty.signal.skipNil()
-    )
-    .skipRepeats()
+    let currentParams = discoveryFeature.filterChanges.skipRepeats()
 
     let dataSourceConfiguredAndCurrentParams = Signal.combineLatest(
       configureWithSorts.ksr_debounce(.nanoseconds(0), on: AppEnvironment.current.scheduler),
@@ -163,13 +159,14 @@ public final class DiscoveryViewModel: DiscoveryViewModelType, DiscoveryViewMode
       swipeToSort
     )
 
-    Signal.combineLatest(
+    self.bindings += Signal.combineLatest(
       currentParams,
       currentSortedPage,
       prevSortedPage
     )
     .filter { $0.1.rawValue != $0.2.rawValue }
-    .observeValues { currentParams, currentSortedPage, prevSortedPage in
+    .observeValues { [weak self] currentParams, currentSortedPage, prevSortedPage in
+      guard let self else { return }
       AppEnvironment
         .current
         .ksrAnalytics
@@ -179,7 +176,12 @@ public final class DiscoveryViewModel: DiscoveryViewModelType, DiscoveryViewMode
           discoverySortContext: self.getDiscoverySortTypeContext(from: currentSortedPage)
         )
     }
+    self.bindings += initialParams.observeValues { parameters in
+      discoveryFeature.selectFilter(parameters)
+    }
   }
+
+  deinit { self.bindings.dispose() }
 
   /// convert DiscoveryParams.Sort to TypeContext.DiscoverySortContext
   private func getDiscoverySortTypeContext(
@@ -206,6 +208,7 @@ public final class DiscoveryViewModel: DiscoveryViewModelType, DiscoveryViewMode
 
   fileprivate let filterWithParamsProperty = MutableProperty<DiscoveryParams?>(nil)
   public func filter(withParams params: DiscoveryParams) {
+    self.discoveryFeature.selectFilter(params)
     self.filterWithParamsProperty.value = params
   }
 

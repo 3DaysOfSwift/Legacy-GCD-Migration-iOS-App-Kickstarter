@@ -4,6 +4,30 @@ Author: Matthew Thomas. Updated 27 October 2026.
 
 ## Latest verified checkpoint
 
+Final Explore continuation: 205 focused tests passed, zero failures/skips, and
+the app built in /private/tmp/kickstarter-discovery-async.RzwK5t. DiscoveryFeature
+now owns selected filter state and recommendation defaults as well as async work.
+The existing view models retain screen readiness, visibility/navigation and
+presentation ordering; those UI adapters are not separate domain executors.
+
+Project requests include account identity when deciding whether work can be
+shared. Another account cannot join an old request or reuse its cursor; late
+project/activity responses are ignored after an account change. These guards
+do not constitute a shared-session migration or a complete authentication audit.
+Three new tests cover recommendation/selection policy and account changes.
+
+On the final demo build, the agent selected Games and observed Forest Trails
+with the All Games Projects header, then restored All Projects and observed
+Pocket Observatory again. Earlier four-feed/detail-return smoke remains valid
+for that checkpoint. No pixel comparison, manual pagination/refresh, live API
+or full signed-in journey is claimed.
+
+Next implementation boundary is project-detail loading and its dependency
+chain, inventoried below. Explore has a verified automated implementation
+checkpoint; full visual/accessibility/device/compiler gates remain open.
+
+### Explore async ownership checkpoint
+
 Explore async ownership is now verified: 202 focused Search/Explore tests passed,
 zero failures/skips, followed by a successful app build. Results:
 /private/tmp/kickstarter-discovery-async.vlaCu9. This includes all 55 pre-existing
@@ -25,8 +49,7 @@ intended as pull-to-refresh opened the card instead, so manual refresh is NOT
 claimed verified. Automated refresh/pagination tests passed. No visual source,
 target identifier, storage format or production analytics configuration changed.
 
-Next integrated boundary: remaining Explore filter/recommendation and lifecycle
-admission policy, including signed-in activity identity; then project routes.
+The filter/recommendation and account-context continuation is verified above.
 Retained presentation/navigation/analytics signals are not themselves unfinished
 request executors. Manual full journeys, snapshots, live APIs, complete compiler
 isolation audit and the rest of the app remain open.
@@ -63,7 +86,7 @@ Test counts are coverage evidence, not a percentage of the full application.
 | Search request ownership, transport, cancellation and pagination | Implemented; focused tests passed | Final concurrency/compiler audit and broader integration |
 | Search filter policy and category/location lookups | Implemented; focused tests and bounded earlier UI smoke | Repeat relevant UI journeys on final Search build |
 | Search lifecycle, analytics, query admission and filters | Consolidated automated checkpoint verified, including GraphQL filter identity regression | Bounded final UI smoke, snapshots and strict-concurrency audit; retain output-only compatibility |
-| Explore / discovery | Connected DiscoveryFeature owns four feed states, native async requests, pagination and activity-sample requests | Combined regression, UI parity, remaining selection/lifecycle policy and final ownership audit |
+| Explore / discovery | Connected Feature owns filters/defaults, four feed states, async requests, pagination and activity samples; 205-test combined checkpoint and bounded smoke passed | Full snapshots, signed-in/live journeys, accessibility/device checks and compiler isolation audit |
 | Project details, media, updates/comments and related routes | Legacy; only initial source reconnaissance | Map independent/shared state, preserve destinations, migrate in bounded features |
 | Account/session, Profile, settings and authentication | Legacy; not migrated | One shared session owner, persistence/security contract, authenticated/signed-out tests |
 | Activity, pledged projects and transactional flows | Legacy; not migrated | Shared backing state, ordering/idempotency, cancellation, retry and storage guarantees |
@@ -79,11 +102,12 @@ number of green unit tests is not a work-completion measure.
    adapters; no further cosmetic reactive rewrites are prerequisites. Continue
    broader UI/snapshot/concurrency checks without confusing these with unfinished
    Search request ownership.
-2. **Complete Explore/discovery.** Its 55 existing logic tests passed unchanged
+2. **Explore/discovery implementation checkpoint verified.** Its 55 existing logic tests passed unchanged
    assertions on the new async Feature route. Four independent feeds, native
    URLSession transport, refresh/pagination and activity snippets are connected.
-   Finish the integrated regression/UI checks and move remaining filter/lifecycle
-   admission policy into the same Feature before taking on project routes.
+   Selection/default policy is now in the same Feature; UI readiness/navigation
+   stays screen-local. Continue integration/visual gates while moving on to the
+   connected project-detail boundary.
 3. **Project routes.** Map project detail fetching, prelaunch, media, rewards,
    creator information, comments and updates. Separate navigation/presentation
    from shared project state. Exact sub-feature boundaries follow that inventory,
@@ -110,6 +134,24 @@ estimate. Each feature exits only with its behaviour contract, authoritative
 ownership, directly awaitable model work, cancellation/overlap protection,
 passing appropriate build/tests and explicit manual/integration evidence.
 Preserve UI, identifiers and stored data throughout; no redesign is implied.
+
+### Project-detail entry inventory — next connected boundary
+
+ProjectPageViewModel has 62 existing input/output tests, with tracking in
+ProjectPageViewModel_TrackingTests. Its load graph is triggered by first load,
+login, successful backing, manage-pledge return and retry. Initial cached project
+preview is distinct from the fresh result; preserve that distinction.
+
+ProjectPageFetcher has two paths: the instant-pledge flag selects parallel base
+and extended-property fetches joined into one project; otherwise project loading
+conditionally fetches a backing before rewards and retains the no-reward option.
+RewardsUseCase.addUserToSecretRewardGroupIfNeeded precedes those reads, and source
+already warns that it may run too frequently. Do not silently reorder, repeat or
+remove that mutation as a concurrency optimisation. Rich-text flags, errors,
+loading, retry, ref tags and analytics must be characterised together.
+
+These are source observations, not a migrated Project Feature or a new runtime
+baseline. No project-detail implementation or test expectations were changed.
 
 ### Source evidence for this scope
 
