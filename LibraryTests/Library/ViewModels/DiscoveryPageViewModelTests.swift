@@ -24,13 +24,13 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     await self.vm.activityTask?.value
   }
 
-  override func tearDown() {
-    MainActor.assumeIsolated {
-      for sort in [DiscoveryParams.Sort.magic, .popular, .newest, .endingSoon] {
-        self.feature.cancel(sort: sort)
-      }
+  override func tearDown() async throws {
+    for sort in [DiscoveryParams.Sort.magic, .popular, .newest, .endingSoon] {
+      self.feature.cancel(sort: sort)
     }
-    super.tearDown()
+    await self.vm.pageTask?.value
+    await self.vm.activityTask?.value
+    try await super.tearDown()
   }
 
   fileprivate let activitiesForSample = TestObserver<[Activity], Never>()
@@ -562,6 +562,8 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       self.vm.inputs.viewDidAppear()
 
       self.activitiesForSample.assertValues([[activity], []], "Activity sample is cleared.")
+      // Finish lifecycle-triggered requests before restoring this test's service.
+      await self.advanceRequests()
     }
   }
 

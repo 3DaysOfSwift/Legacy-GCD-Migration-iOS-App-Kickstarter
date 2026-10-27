@@ -181,6 +181,8 @@ public protocol ServiceType {
   @MainActor func unansweredSurveys() async throws -> [SurveyResponse]
   @MainActor func sessionUser() async throws -> User
   @MainActor func saveAccountPreferences(_ user: User) async throws -> User
+  @MainActor func authenticate(email: String, password: String, code: String?) async throws -> AccessTokenEnvelope
+  @MainActor func authenticate(facebookAccessToken: String, code: String?) async throws -> AccessTokenEnvelope
   @MainActor func sessionGraphUser() async throws -> User
   @MainActor func clearActivityIndicator() async throws -> Int
   @MainActor func profileBackedProjects(cursor: String?) async throws -> GraphAPI.FetchMyBackedProjectsQuery

@@ -4,6 +4,7 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol LoginViewModelInputs {
   /// String value of email textfield text
   func emailChanged(_ email: String?)
@@ -39,6 +40,7 @@ public protocol LoginViewModelInputs {
   func traitCollectionDidChange()
 }
 
+@MainActor
 public protocol LoginViewModelOutputs {
   /// Emits when to dismiss a textfield keyboard
   var dismissKeyboard: Signal<(), Never> { get }
@@ -49,7 +51,7 @@ public protocol LoginViewModelOutputs {
   /// Bool value whether form is valid
   var isFormValid: Signal<Bool, Never> { get }
 
-  /// Emits an access token envelope that can be used to update the environment.
+  /// Emits confirmation of a session already persisted by AuthenticationFeature.
   var logIntoEnvironment: Signal<AccessTokenEnvelope, Never> { get }
 
   /// Emits when the password textfield should become the first responder
@@ -71,13 +73,16 @@ public protocol LoginViewModelOutputs {
   var tfaChallenge: Signal<(email: String, password: String), Never> { get }
 }
 
+@MainActor
 public protocol LoginViewModelType {
   var inputs: LoginViewModelInputs { get }
   var outputs: LoginViewModelOutputs { get }
 }
 
+@MainActor
 public final class LoginViewModel: LoginViewModelType, LoginViewModelInputs, LoginViewModelOutputs {
-  public init() {
+  public init(authenticationFeature: AuthenticationFeature? = nil) {
+    let authenticationFeature = authenticationFeature ?? AppModel.shared.authenticationFeature
     let emailAndPassword = Signal.combineLatest(
       self.emailChangedProperty.signal.skipNil(),
       self.passwordChangedProperty.signal.skipNil()
@@ -96,7 +101,7 @@ public final class LoginViewModel: LoginViewModelType, LoginViewModelInputs, Log
     let loginEvent = emailAndPassword
       .takeWhen(tryLogin)
       .switchMap { email, password in
-        AppEnvironment.current.apiService.login(email: email, password: password, code: nil)
+        authenticationFeature.result(.email(email, password: password))
           .materialize()
       }
 

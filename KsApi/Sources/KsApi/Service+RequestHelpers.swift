@@ -30,6 +30,18 @@ extension Service {
     try await self.discussionResponse(route: .updateUserSelf(user))
   }
 
+  @MainActor public func authenticate(
+    email: String, password: String, code: String?
+  ) async throws -> AccessTokenEnvelope {
+    try await self.discussionResponse(route: .login(email: email, password: password, code: code))
+  }
+
+  @MainActor public func authenticate(
+    facebookAccessToken: String, code: String?
+  ) async throws -> AccessTokenEnvelope {
+    try await self.discussionResponse(route: .facebookLogin(facebookAccessToken: facebookAccessToken, code: code))
+  }
+
   @MainActor public func discussionProject(param: Param) async throws -> Project {
     try await self.discussionResponse(route: .project(param))
   }

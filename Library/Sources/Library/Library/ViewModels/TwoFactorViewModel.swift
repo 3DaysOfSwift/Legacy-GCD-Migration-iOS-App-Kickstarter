@@ -4,6 +4,7 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol TwoFactorViewModelInputs {
   /// Call when code textfield is updated
   func codeChanged(_ code: String?)
@@ -30,6 +31,7 @@ public protocol TwoFactorViewModelInputs {
   func viewWillAppear()
 }
 
+@MainActor
 public protocol TwoFactorViewModelOutputs {
   /// Emits when the code text field is the first responder.
   var codeTextFieldBecomeFirstResponder: Signal<(), Never> { get }
@@ -40,7 +42,7 @@ public protocol TwoFactorViewModelOutputs {
   /// Emits whether a request is loading or not
   var isLoading: Signal<Bool, Never> { get }
 
-  /// Emits an access token envelope that can be used to update the environment.
+  /// Emits confirmation of a session already persisted by AuthenticationFeature.
   var logIntoEnvironment: Signal<AccessTokenEnvelope, Never> { get }
 
   /// Emits when a login success notification should be posted.
@@ -53,11 +55,13 @@ public protocol TwoFactorViewModelOutputs {
   var showError: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol TwoFactorViewModelType {
   var inputs: TwoFactorViewModelInputs { get }
   var outputs: TwoFactorViewModelOutputs { get }
 }
 
+@MainActor
 public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewModelInputs,
   TwoFactorViewModelOutputs {
   // A simple type to hold all the data needed to login.
@@ -75,7 +79,8 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
     }
   }
 
-  public init() {
+  public init(authenticationFeature: AuthenticationFeature? = nil) {
+    let authenticationFeature = authenticationFeature ?? AppModel.shared.authenticationFeature
     let isLoading = MutableProperty(false)
 
     let loginData = SignalProducer.combineLatest(
@@ -91,7 +96,7 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
     let loginEvent = loginData
       .takeWhen(self.submitPressedProperty.signal)
       .switchMap { data in
-        login(data, apiService: AppEnvironment.current.apiService, isLoading: isLoading)
+        login(data, authenticationFeature: authenticationFeature, isLoading: isLoading)
           .materialize()
       }
 
@@ -102,7 +107,7 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
     self.resendSuccess = resendData
       .takeWhen(self.resendPressedProperty.signal)
       .switchMap { data in
-        login(data, apiService: AppEnvironment.current.apiService, isLoading: isLoading)
+        login(data, authenticationFeature: authenticationFeature, isLoading: isLoading, resend: true)
           .materialize()
           .errors()
           .filter { error in error.ksrCode == .TfaRequired }
@@ -191,17 +196,23 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
   public var outputs: TwoFactorViewModelOutputs { return self }
 }
 
+@MainActor
 private func login(
   _ tfaData: TwoFactorViewModel.TfaData,
-  apiService: ServiceType,
-  isLoading: MutableProperty<Bool>
+  authenticationFeature: AuthenticationFeature,
+  isLoading: MutableProperty<Bool>,
+  resend: Bool = false
 ) -> SignalProducer<AccessTokenEnvelope, ErrorEnvelope> {
   let login: SignalProducer<AccessTokenEnvelope, ErrorEnvelope>
 
   if let email = tfaData.email, let password = tfaData.password {
-    login = apiService.login(email: email, password: password, code: tfaData.code)
+    login = authenticationFeature.result(
+      .email(email, password: password),
+      code: tfaData.code,
+      resend: resend
+    )
   } else if let facebookToken = tfaData.facebookToken {
-    login = apiService.login(facebookAccessToken: facebookToken, code: tfaData.code)
+    login = authenticationFeature.result(.facebook(facebookToken), code: tfaData.code, resend: resend)
   } else {
     login = .empty
   }

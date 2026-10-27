@@ -69,8 +69,8 @@ internal final class TwoFactorViewController: UIViewController {
     self.submitButton.rac.enabled = self.viewModel.outputs.isFormValid
 
     self.viewModel.outputs.logIntoEnvironment
-      .observeValues { [weak self] env in
-        AppEnvironment.login(env)
+      .observeValues { [weak self] _ in
+        // AuthenticationFeature has already committed the verified session.
         self?.viewModel.inputs.environmentLoggedIn()
       }
 

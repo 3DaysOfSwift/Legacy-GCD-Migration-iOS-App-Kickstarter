@@ -1,5 +1,30 @@
 # Kickstarter migration behaviour contract
 
+## Email login and two-factor authentication — 28 October 2026
+
+- Preserve email/password and Facebook two-factor routes, request encoding,
+  token/error decoding, validation, loading, resend messages and navigation.
+- Commit successful login once through SessionFeature using the existing
+  credential/current-user store before delivering presentation confirmation.
+- Share equivalent pending attempts. Changed credentials/code replace the older
+  attempt within that operation; verify request and session identity after await.
+- Keep resend independent of submitted verification. Resend never creates a
+  session, including an unexpected successful token response.
+- Disposed/cancelled callers cannot commit. Disposing one shared caller does
+  not cancel another. Same-user logout/login still invalidates prior attempts.
+- Preserve failure delivery and explicit retry; public demo authentication fails
+  rather than reporting synthetic success. No live authentication is performed.
+
+Baseline: 21 unchanged Login/TwoFactor tests. Final: 815 integrated tests passed,
+zero failures/skips, app build succeeded. Ten Feature and two decoder cases added.
+Results: /private/tmp/kickstarter-authentication.juTwNe.
+Evidence: sibling Migration Evidence/kickstarter-authentication, including the
+reproduced Discovery lifecycle abort, test-lifetime cleanup and ten passing repeats.
+Exact runtime-abort root cause remains unproven; failures are not erased by retry.
+
+Initial Facebook/Apple/signup/OAuth/reset-password and other account flows remain
+legacy. No whole-app, live-service, physical-device or visual sign-off is implied.
+
 ## Newsletter/deep-link preference entry points — 27 October 2026
 
 - Preserve the post-pledge Games newsletter prompt, German opt-in text, silent

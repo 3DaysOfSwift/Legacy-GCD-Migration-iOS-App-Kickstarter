@@ -8,9 +8,16 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class LoginViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  fileprivate let vm: LoginViewModelType = LoginViewModel()
+  private let authenticationFeature = AuthenticationFeature(
+    sessionFeature: SessionFeature(makeProvider: {
+      AsyncSessionProvider(service: AppEnvironment.current.apiService)
+    }),
+    makeProvider: { AsyncAuthenticationProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var vm: LoginViewModelType = LoginViewModel(authenticationFeature: self.authenticationFeature)
   fileprivate let emailTextFieldBecomeFirstResponder = TestObserver<(), Never>()
   fileprivate let passwordTextFieldBecomeFirstResponder = TestObserver<(), Never>()
   fileprivate let isFormValid = TestObserver<Bool, Never>()
@@ -24,7 +31,15 @@ final class LoginViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated { self.bindOutputs() }
+  }
 
+  override func tearDown() async throws {
+    await self.authenticationFeature.waitForOperations()
+    try await super.tearDown()
+  }
+
+  private func bindOutputs() {
     self.vm.outputs.emailTextFieldBecomeFirstResponder
       .observe(self.emailTextFieldBecomeFirstResponder.observer)
     self.vm.outputs.passwordTextFieldBecomeFirstResponder
@@ -40,7 +55,7 @@ final class LoginViewModelTests: TestCase {
     self.vm.outputs.showHidePasswordButtonToggled.observe(self.showHidePassword.observer)
   }
 
-  func testLoginFlow() {
+  func testLoginFlow() async {
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.viewDidLoad()
 
@@ -64,6 +79,7 @@ final class LoginViewModelTests: TestCase {
     self.isFormValid.assertValues([false, true], "Form is valid")
 
     self.vm.inputs.passwordTextFieldDoneEditing()
+    await self.authenticationFeature.waitForOperations()
 
     XCTAssertEqual(["Page Viewed", "CTA Clicked"], self.segmentTrackingClient.events)
 
@@ -88,7 +104,7 @@ final class LoginViewModelTests: TestCase {
     self.tfaChallenge.assertValueCount(0, "TFA challenge did not happen")
   }
 
-  func testBecomefirstResponder() {
+  func testBecomefirstResponder() async {
     self.vm.inputs.viewDidLoad()
     self.emailTextFieldBecomeFirstResponder.assertValueCount(1, "Email starts as first responder.")
     self.passwordTextFieldBecomeFirstResponder.assertDidNotEmitValue("Not first responder yet.")
@@ -98,11 +114,12 @@ final class LoginViewModelTests: TestCase {
     self.passwordTextFieldBecomeFirstResponder.assertValueCount(1, "Password becomes first responder.")
 
     self.vm.inputs.passwordTextFieldDoneEditing()
+    await self.authenticationFeature.waitForOperations()
     self.emailTextFieldBecomeFirstResponder.assertValueCount(1, "Does not emit another value.")
     self.passwordTextFieldBecomeFirstResponder.assertValueCount(1, "Does not emit another value.")
   }
 
-  func testLoginError() {
+  func testLoginError() async {
     let error = ErrorEnvelope(
       errorMessages: ["Unable to log in."],
       ksrCode: .InvalidXauthLogin,
@@ -110,11 +127,12 @@ final class LoginViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(loginError: error)) {
+    await withEnvironment(apiService: MockService(loginError: error)) {
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.emailChanged("user@example.com")
       self.vm.inputs.passwordChanged("helloooooo")
       self.vm.inputs.loginButtonPressed()
+      await self.authenticationFeature.waitForOperations()
 
       self.logIntoEnvironment.assertValueCount(0, "Did not log into environment.")
 
@@ -123,7 +141,7 @@ final class LoginViewModelTests: TestCase {
     }
   }
 
-  func testLoginError_WithNoErrorMessage() {
+  func testLoginError_WithNoErrorMessage() async {
     let error = ErrorEnvelope(
       errorMessages: [],
       ksrCode: .InvalidXauthLogin,
@@ -131,11 +149,12 @@ final class LoginViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(loginError: error)) {
+    await withEnvironment(apiService: MockService(loginError: error)) {
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.emailChanged("user@example.com")
       self.vm.inputs.passwordChanged("helloooooo")
       self.vm.inputs.loginButtonPressed()
+      await self.authenticationFeature.waitForOperations()
 
       self.logIntoEnvironment.assertValueCount(0, "Did not log into environment.")
 
@@ -144,7 +163,7 @@ final class LoginViewModelTests: TestCase {
     }
   }
 
-  func testTfaChallenge() {
+  func testTfaChallenge() async {
     let error = ErrorEnvelope(
       errorMessages: ["Two Factor Authenticaion is required."],
       ksrCode: .TfaRequired,
@@ -152,11 +171,12 @@ final class LoginViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(loginError: error)) {
+    await withEnvironment(apiService: MockService(loginError: error)) {
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.emailChanged("user@example.com")
       self.vm.inputs.passwordChanged("helloooooo")
       self.vm.inputs.loginButtonPressed()
+      await self.authenticationFeature.waitForOperations()
 
       self.logIntoEnvironment.assertValueCount(0, "Did not log into environment.")
 
@@ -169,7 +189,7 @@ final class LoginViewModelTests: TestCase {
     }
   }
 
-  func testShowPassword() {
+  func testShowPassword() async {
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.showHidePasswordButtonTapped()
@@ -177,7 +197,7 @@ final class LoginViewModelTests: TestCase {
     self.showHidePassword.assertValue(true)
   }
 
-  func testHidePassword() {
+  func testHidePassword() async {
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.showHidePasswordButtonTapped()
@@ -188,7 +208,7 @@ final class LoginViewModelTests: TestCase {
     self.showHidePassword.assertLastValue(false, "Password not shown")
   }
 
-  func testShowPasswordForTraitCollectionDidChange() {
+  func testShowPasswordForTraitCollectionDidChange() async {
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.showHidePasswordButtonTapped()

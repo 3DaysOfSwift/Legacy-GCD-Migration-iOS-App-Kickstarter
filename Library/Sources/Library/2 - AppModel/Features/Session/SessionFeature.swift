@@ -33,6 +33,7 @@ public final class SessionFeature {
   private let makeProvider: () -> any SessionProvider
   private let readUser: () -> User?
   private let writeUser: (User) -> Void
+  private let login: (AccessTokenEnvelope) -> Void
   private var revision = 0
   private var readRevision = 0
   private var requests: [Identity: Task<User, Error>] = [:]
@@ -43,11 +44,13 @@ public final class SessionFeature {
   public init(
     makeProvider: @escaping () -> any SessionProvider,
     currentUser: @escaping () -> User? = { AppEnvironment.current.currentUser },
-    updateUser: @escaping (User) -> Void = { AppEnvironment.updateCurrentUser($0) }
+    updateUser: @escaping (User) -> Void = { AppEnvironment.updateCurrentUser($0) },
+    login: @escaping (AccessTokenEnvelope) -> Void = { AppEnvironment.login($0) }
   ) {
     self.makeProvider = makeProvider
     self.readUser = currentUser
     self.writeUser = updateUser
+    self.login = login
   }
 
   /// Login/logout is an explicit boundary, including returning to the same ID.
@@ -73,6 +76,16 @@ public final class SessionFeature {
   public func commitUser(_ user: User, userID: Int?, generation: Int) {
     guard userID == user.id, self.isCurrent(userID: userID, generation: generation) else { return }
     self.writeUser(user)
+  }
+
+  /// Commit credentials and user together through the existing store, only if
+  /// the session that initiated authentication still owns this completion.
+  public func establishSession(
+    _ envelope: AccessTokenEnvelope, userID: Int?, generation: Int
+  ) throws {
+    guard self.isCurrent(userID: userID, generation: generation) else { throw CancellationError() }
+    self.sessionChanged()
+    self.login(envelope)
   }
 
   public func refresh(_ operation: Operation = .user) async throws -> User {

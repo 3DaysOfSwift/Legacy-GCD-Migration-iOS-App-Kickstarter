@@ -5,6 +5,7 @@ public final class AppModel {
   public static let shared = AppModel.live()
 
   public let sessionFeature: SessionFeature
+  public let authenticationFeature: AuthenticationFeature
   public let settingsFeature: SettingsFeature
   public let activityFeature: ActivityFeature
   public let profileFeature: ProfileFeature
@@ -17,6 +18,7 @@ public final class AppModel {
 
   public init(
     sessionFeature: SessionFeature,
+    authenticationFeature: AuthenticationFeature,
     settingsFeature: SettingsFeature,
     activityFeature: ActivityFeature,
     profileFeature: ProfileFeature,
@@ -28,6 +30,7 @@ public final class AppModel {
     projectMediaFeature: ProjectMediaFeature
   ) {
     self.sessionFeature = sessionFeature
+    self.authenticationFeature = authenticationFeature
     self.settingsFeature = settingsFeature
     self.activityFeature = activityFeature
     self.profileFeature = profileFeature
@@ -59,6 +62,9 @@ public final class AppModel {
     )
     return AppModel(
       sessionFeature: sessionFeature,
+      authenticationFeature: AuthenticationFeature(sessionFeature: sessionFeature, makeProvider: {
+        AsyncAuthenticationProvider(service: AppEnvironment.current.apiService)
+      }),
       settingsFeature: SettingsFeature(sessionFeature: sessionFeature, makeProvider: {
         AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService)
       }),

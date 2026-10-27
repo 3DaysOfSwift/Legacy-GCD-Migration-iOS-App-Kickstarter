@@ -13,6 +13,37 @@ struct MySwiftModel: Decodable, Equatable {
 }
 
 final class ServiceTests: XCTestCase {
+  func testAsyncAuthenticationDecoderPreservesTokenAndUser() throws {
+    let data = try JSONSerialization.data(withJSONObject: [
+      "access_token": "fixture-token", "user": User.template.encode()
+    ])
+    let url = try XCTUnwrap(URL(string: "https://example.invalid/auth"))
+    let response = try XCTUnwrap(HTTPURLResponse(
+      url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"]
+    ))
+    let envelope: AccessTokenEnvelope = try Service.decodeDiscoveryResponse(data, response: response)
+    XCTAssertEqual(envelope.accessToken, "fixture-token")
+    XCTAssertEqual(envelope.user.id, User.template.id)
+  }
+
+  func testAsyncAuthenticationDecoderPreservesTwoFactorErrorContract() throws {
+    let data = try JSONSerialization.data(withJSONObject: [
+      "error_messages": ["Verification required"], "ksr_code": "tfa_required", "http_code": 403
+    ])
+    let url = try XCTUnwrap(URL(string: "https://example.invalid/auth"))
+    let response = try XCTUnwrap(HTTPURLResponse(
+      url: url, statusCode: 403, httpVersion: nil, headerFields: ["Content-Type": "application/json"]
+    ))
+    do {
+      let _: AccessTokenEnvelope = try Service.decodeDiscoveryResponse(data, response: response)
+      XCTFail("Authentication error decoded as success")
+    } catch let error as ErrorEnvelope {
+      XCTAssertEqual(error.ksrCode, .TfaRequired)
+      XCTAssertEqual(error.httpCode, 403)
+      XCTAssertEqual(error.errorMessages, ["Verification required"])
+    }
+  }
+
   func testDefaults() {
     XCTAssertTrue(Service().serverConfig == ServerConfig.production)
     XCTAssertNil(Service().oauthToken)

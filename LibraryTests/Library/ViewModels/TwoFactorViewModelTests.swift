@@ -6,9 +6,19 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class TwoFactorViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  let vm: TwoFactorViewModelType = TwoFactorViewModel()
+  private let authenticationFeature = AuthenticationFeature(
+    sessionFeature: SessionFeature(makeProvider: {
+      AsyncSessionProvider(service: AppEnvironment.current.apiService)
+    }),
+    makeProvider: { AsyncAuthenticationProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var vm: TwoFactorViewModelType = TwoFactorViewModel(
+    authenticationFeature: self
+      .authenticationFeature
+  )
   var codeTextFieldBecomeFirstResponder = TestObserver<(), Never>()
   var isFormValid = TestObserver<Bool, Never>()
   var isLoading = TestObserver<Bool, Never>()
@@ -19,7 +29,15 @@ final class TwoFactorViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated { self.bindOutputs() }
+  }
 
+  override func tearDown() async throws {
+    await self.authenticationFeature.waitForOperations()
+    try await super.tearDown()
+  }
+
+  private func bindOutputs() {
     self.vm.outputs.codeTextFieldBecomeFirstResponder.observe(self.codeTextFieldBecomeFirstResponder.observer)
     self.vm.outputs.isFormValid.observe(self.isFormValid.observer)
     self.vm.outputs.isLoading.observe(self.isLoading.observer)
@@ -30,12 +48,12 @@ final class TwoFactorViewModelTests: TestCase {
     self.vm.outputs.showError.observe(self.showError.observer)
   }
 
-  func testCodeTextFieldBecomesFirstResponder() {
+  func testCodeTextFieldBecomesFirstResponder() async {
     self.vm.inputs.viewDidLoad()
     self.codeTextFieldBecomeFirstResponder.assertValueCount(1)
   }
 
-  func testFormIsValid_forEmailPasswordFlow() {
+  func testFormIsValid_forEmailPasswordFlow() async {
     self.vm.inputs.viewWillAppear()
 
     self.isFormValid.assertValues([false])
@@ -57,7 +75,7 @@ final class TwoFactorViewModelTests: TestCase {
     self.isFormValid.assertValues([false, true, false])
   }
 
-  func testFormIsValid_forFacebookFlow() {
+  func testFormIsValid_forFacebookFlow() async {
     self.vm.inputs.viewWillAppear()
 
     self.isFormValid.assertValues([false])
@@ -79,11 +97,12 @@ final class TwoFactorViewModelTests: TestCase {
     self.isFormValid.assertValues([false, true, false])
   }
 
-  func testLogin_withEmailPasswordFlow() {
+  func testLogin_withEmailPasswordFlow() async {
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.email("user@example.com", password: "password")
     self.vm.inputs.codeChanged("454545")
     self.vm.inputs.submitPressed()
+    await self.authenticationFeature.waitForOperations()
 
     self.isLoading.assertValues([true, false])
     self.logIntoEnvironment.assertValueCount(1, "Log into environment.")
@@ -100,12 +119,13 @@ final class TwoFactorViewModelTests: TestCase {
     )
   }
 
-  func testLogin_withFacebookFlow() {
+  func testLogin_withFacebookFlow() async {
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.facebookToken("token")
     self.vm.inputs.codeChanged("454545")
 
     self.vm.inputs.submitPressed()
+    await self.authenticationFeature.waitForOperations()
 
     self.isLoading.assertValues([true, false])
     self.logIntoEnvironment.assertValueCount(1, "Log into environment.")
@@ -122,7 +142,7 @@ final class TwoFactorViewModelTests: TestCase {
     )
   }
 
-  func testLoginCodeMismatch_withEmailPasswordFlow() {
+  func testLoginCodeMismatch_withEmailPasswordFlow() async {
     let error = ErrorEnvelope(
       errorMessages: ["The code provided does not match."],
       ksrCode: .TfaFailed,
@@ -130,11 +150,12 @@ final class TwoFactorViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(loginError: error)) {
+    await withEnvironment(apiService: MockService(loginError: error)) {
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.email("user@example.com", password: "password")
       self.vm.inputs.codeChanged("454545")
       self.vm.inputs.submitPressed()
+      await self.authenticationFeature.waitForOperations()
 
       self.isLoading.assertValues([true, false])
       self.logIntoEnvironment.assertValueCount(0, "Did not log into environment.")
@@ -142,7 +163,7 @@ final class TwoFactorViewModelTests: TestCase {
     }
   }
 
-  func testLoginCodeMismatch_withFacebookFlow() {
+  func testLoginCodeMismatch_withFacebookFlow() async {
     let error = ErrorEnvelope(
       errorMessages: ["The code provided does not match."],
       ksrCode: .TfaFailed,
@@ -150,11 +171,12 @@ final class TwoFactorViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(loginError: error)) {
+    await withEnvironment(apiService: MockService(loginError: error)) {
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.facebookToken("token")
       self.vm.inputs.codeChanged("454545")
       self.vm.inputs.submitPressed()
+      await self.authenticationFeature.waitForOperations()
 
       self.isLoading.assertValues([true, false])
       self.logIntoEnvironment.assertValueCount(0, "Did not log into environment.")
@@ -162,7 +184,7 @@ final class TwoFactorViewModelTests: TestCase {
     }
   }
 
-  func testLoginGenericFail_withEmailPasswordFlow() {
+  func testLoginGenericFail_withEmailPasswordFlow() async {
     let error = ErrorEnvelope(
       errorMessages: ["Unable to login."],
       ksrCode: .UnknownCode,
@@ -170,11 +192,12 @@ final class TwoFactorViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(loginError: error)) {
+    await withEnvironment(apiService: MockService(loginError: error)) {
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.email("user@example.com", password: "password")
       self.vm.inputs.codeChanged("454545")
       self.vm.inputs.submitPressed()
+      await self.authenticationFeature.waitForOperations()
 
       self.isLoading.assertValues([true, false])
       self.logIntoEnvironment.assertValueCount(0, "Did not log into environment.")
@@ -182,7 +205,7 @@ final class TwoFactorViewModelTests: TestCase {
     }
   }
 
-  func testLoginGenericFail_withFacebookFlow() {
+  func testLoginGenericFail_withFacebookFlow() async {
     let error = ErrorEnvelope(
       errorMessages: ["Unable to login."],
       ksrCode: .UnknownCode,
@@ -190,11 +213,12 @@ final class TwoFactorViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(loginError: error)) {
+    await withEnvironment(apiService: MockService(loginError: error)) {
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.facebookToken("token")
       self.vm.inputs.codeChanged("454545")
       self.vm.inputs.submitPressed()
+      await self.authenticationFeature.waitForOperations()
 
       self.isLoading.assertValues([true, false])
       self.logIntoEnvironment.assertValueCount(0, "Did not log into environment.")
@@ -202,7 +226,7 @@ final class TwoFactorViewModelTests: TestCase {
     }
   }
 
-  func testResend_withEmailPasswordFlow() {
+  func testResend_withEmailPasswordFlow() async {
     let error = ErrorEnvelope(
       errorMessages: ["Two-factor authentication is enabled on this account."],
       ksrCode: .TfaRequired,
@@ -210,10 +234,11 @@ final class TwoFactorViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(resendCodeResponse: error)) {
+    await withEnvironment(apiService: MockService(resendCodeResponse: error)) {
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.email("user@example.com", password: "password")
       self.vm.inputs.resendPressed()
+      await self.authenticationFeature.waitForOperations()
 
       self.isLoading.assertValues([true, false])
       self.showError.assertValueCount(0, "No error was emitted")
@@ -221,7 +246,7 @@ final class TwoFactorViewModelTests: TestCase {
     }
   }
 
-  func testResend_withFacebookFlow() {
+  func testResend_withFacebookFlow() async {
     let error = ErrorEnvelope(
       errorMessages: ["Two-factor authentication is enabled on this account."],
       ksrCode: .TfaRequired,
@@ -229,10 +254,11 @@ final class TwoFactorViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(resendCodeResponse: error)) {
+    await withEnvironment(apiService: MockService(resendCodeResponse: error)) {
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.facebookToken("token")
       self.vm.inputs.resendPressed()
+      await self.authenticationFeature.waitForOperations()
 
       self.isLoading.assertValues([true, false])
       self.showError.assertValueCount(0, "No error was emitted")
@@ -240,7 +266,7 @@ final class TwoFactorViewModelTests: TestCase {
     }
   }
 
-  func testResendError_withEmailPasswordFlow() {
+  func testResendError_withEmailPasswordFlow() async {
     let error = ErrorEnvelope(
       errorMessages: [],
       ksrCode: .UnknownCode,
@@ -248,10 +274,11 @@ final class TwoFactorViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(resendCodeError: error)) {
+    await withEnvironment(apiService: MockService(resendCodeError: error)) {
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.email("user@example.com", password: "password")
       self.vm.inputs.resendPressed()
+      await self.authenticationFeature.waitForOperations()
 
       self.isLoading.assertValues([true, false])
       self.showError.assertValueCount(0, "No error was emitted")
@@ -259,7 +286,7 @@ final class TwoFactorViewModelTests: TestCase {
     }
   }
 
-  func testResendError_withFacebookFlow() {
+  func testResendError_withFacebookFlow() async {
     let error = ErrorEnvelope(
       errorMessages: [],
       ksrCode: .UnknownCode,
@@ -267,10 +294,11 @@ final class TwoFactorViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(resendCodeError: error)) {
+    await withEnvironment(apiService: MockService(resendCodeError: error)) {
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.facebookToken("token")
       self.vm.inputs.resendPressed()
+      await self.authenticationFeature.waitForOperations()
 
       self.isLoading.assertValues([true, false])
       self.showError.assertValueCount(0, "No error was emitted")

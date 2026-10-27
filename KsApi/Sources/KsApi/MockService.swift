@@ -1894,6 +1894,26 @@
       }
     }
 
+    @MainActor public func authenticate(
+      email _: String, password _: String, code _: String?
+    ) async throws -> AccessTokenEnvelope {
+      try self.authenticationResponse()
+    }
+
+    @MainActor public func authenticate(
+      facebookAccessToken _: String, code _: String?
+    ) async throws -> AccessTokenEnvelope {
+      try self.authenticationResponse()
+    }
+
+    private func authenticationResponse() throws -> AccessTokenEnvelope {
+      if let error = self.loginError { throw error }
+      if let response = self.loginResponse { return response }
+      if let response = self.resendCodeResponse { throw response }
+      if let error = self.resendCodeError { throw error }
+      return AccessTokenEnvelope(accessToken: "deadbeef", user: .template)
+    }
+
     internal func login(email _: String, password _: String, code _: String?) ->
       SignalProducer<AccessTokenEnvelope, ErrorEnvelope> {
       if let error = loginError {

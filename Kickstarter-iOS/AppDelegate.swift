@@ -220,9 +220,11 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       .addObserver(
         forName: Notification.Name.ksr_goToLoginFromOnboarding,
         object: nil,
-        queue: nil
+        queue: .main
       ) { [weak self] _ in
-        self?.viewModel.inputs.goToLoginSignup(from: .onboarding)
+        MainActor.assumeIsolated {
+          self?.viewModel.inputs.goToLoginSignup(from: .onboarding)
+        }
       }
 
     self.viewModel.outputs.showAlert
@@ -291,22 +293,32 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       }
 
     NotificationCenter.default
-      .addObserver(forName: Notification.Name.ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
-        AppModel.shared.sessionChanged()
-        self?.viewModel.inputs.userSessionStarted()
+      .addObserver(
+        forName: Notification.Name.ksr_sessionStarted,
+        object: nil,
+        queue: .main
+      ) { [weak self] _ in
+        MainActor.assumeIsolated {
+          AppModel.shared.sessionChanged()
+          self?.viewModel.inputs.userSessionStarted()
+        }
       }
 
     NotificationCenter.default
       .addObserver(
-        forName: Notification.Name.ksr_showNotificationsDialog, object: nil, queue: nil
-      ) { [weak self] in
-        self?.viewModel.inputs.showNotificationDialog(notification: $0)
+        forName: Notification.Name.ksr_showNotificationsDialog, object: nil, queue: .main
+      ) { [weak self] notification in
+        MainActor.assumeIsolated {
+          self?.viewModel.inputs.showNotificationDialog(notification: notification)
+        }
       }
 
     NotificationCenter.default
-      .addObserver(forName: Notification.Name.ksr_sessionEnded, object: nil, queue: nil) { [weak self] _ in
-        AppModel.shared.sessionChanged()
-        self?.viewModel.inputs.userSessionEnded()
+      .addObserver(forName: Notification.Name.ksr_sessionEnded, object: nil, queue: .main) { [weak self] _ in
+        MainActor.assumeIsolated {
+          AppModel.shared.sessionChanged()
+          self?.viewModel.inputs.userSessionEnded()
+        }
       }
 
     self.viewModel.outputs.configureSegmentWithBraze
@@ -337,9 +349,11 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       .addObserver(
         forName: Notification.Name.ksr_configUpdated,
         object: nil,
-        queue: nil
+        queue: .main
       ) { [weak self] _ in
-        self?.viewModel.inputs.configUpdatedNotificationObserved()
+        MainActor.assumeIsolated {
+          self?.viewModel.inputs.configUpdatedNotificationObserved()
+        }
       }
 
     self.window?.tintColor = LegacyColors.ksr_create_700.uiColor()
@@ -384,7 +398,11 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
     // If this is not a Facebook login call, handle the potential deep-link
-    guard self.isPublicDemo || !AppEnvironment.current.facebookSDK.handleOpenURL(app, open: url, options: options) else {
+    guard self.isPublicDemo || !AppEnvironment.current.facebookSDK.handleOpenURL(
+      app,
+      open: url,
+      options: options
+    ) else {
       return true
     }
 
@@ -643,7 +661,7 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
   // These local substitutes report unavailable capabilities without requesting
   // system permissions or claiming that a demo token was registered remotely.
   private enum DemoPushRegistration: PushRegistrationType {
-    static func register(for options: UNAuthorizationOptions) -> SignalProducer<Bool, Never> {
+    static func register(for _: UNAuthorizationOptions) -> SignalProducer<Bool, Never> {
       SignalProducer(value: false)
     }
 

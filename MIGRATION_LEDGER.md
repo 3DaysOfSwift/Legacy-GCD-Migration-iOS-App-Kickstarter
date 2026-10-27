@@ -1,8 +1,44 @@
 # CFA migration ledger
 
-Author: Matthew Thomas. Updated 27 October 2026.
+Author: Matthew Thomas. Updated 28 October 2026.
 
 ## Latest verified checkpoint
+
+### Email login and two-factor authentication — 28 October 2026
+
+AppModel now composes AuthenticationFeature with the existing SessionFeature.
+Email login and email/Facebook two-factor verification/resend use native async
+service requests. SessionFeature commits credentials/user through the existing
+AppEnvironment store before presentation; the two controllers no longer re-save
+completion payloads. Routes, encoding, storage keys, UI and notification effects
+remain unchanged. AppDelegate notification callbacks explicitly enter on main.
+
+Equivalent pending attempts share transport. Changed credentials/code supersede
+only their operation. Resend and verification remain independent; resend never
+establishes a session. Cancelled/disposed callers, obsolete attempts and replaced
+sessions cannot commit, even if transport ignores cancellation. Failed attempts
+preserve the current session and retry is explicit. No live authentication ran.
+
+Baseline: all 21 original Login/TwoFactor tests passed at the previous checkpoint.
+Final: 657 Library + 127 framework + 31 API = 815 tests passed, zero failures/skips;
+app build succeeded with zero errors and two existing warnings. Ten new controlled
+AuthenticationFeature cases and two native decoder cases protect the boundary.
+Results: /private/tmp/kickstarter-authentication.juTwNe.
+Evidence: sibling Migration Evidence/kickstarter-authentication.
+
+An earlier integrated run passed 655 tests and aborted in the previously recorded
+Discovery lifecycle test. Repetition reproduced it after four passes. That test
+now drains lifecycle-triggered work before restoring its environment, and suite
+teardown cancels/awaits retained work. All original assertions remain. Ten repeated
+runs and both subsequent integrated runs passed. This fixes an observed lifetime
+gap; the XCTest/Swift task-deallocation abort's exact root cause is not established.
+Failed runs are retained in evidence rather than represented as clean passes.
+
+Next authentication boundary: initial Facebook/LoginTout and Apple login, signup,
+OAuth and reset-password flows. Remaining account writes, legacy AppDelegate
+current-user refresh, messaging/project notifications and pledge/payment/backing
+also remain. App-wide strict-concurrency, full-suite, physical-device and visual
+validation are NOT complete. App-wide migration remains IN PROGRESS.
 
 ### Remaining preference entry points — 27 October 2026
 
