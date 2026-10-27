@@ -22,58 +22,40 @@ final class SearchFeatureTests: TestCase {
 
   func testFilterSelectionBuildsQueryAndChangingTextRetainsSelection() {
     let searchFeature = SearchFeature(provider: ControlledSearchProvider())
-    let (query, input) = Signal<String, Never>.pipe()
-    var parameters: DiscoveryParams?
-    let observation = searchFeature.queryParameters(for: query).observeValues { parameters = $0 }
-    defer { observation?.dispose() }
-    searchFeature.filterSelection.publishInitialSelection()
-    input.send(value: "art")
     searchFeature.selectFilter(.sort(.newest))
     searchFeature.selectFilter(.category(.rootCategory(.art)))
     searchFeature.selectFilter(.projectsWeLove(true))
-    input.send(value: "books")
     searchFeature.updateQuery("books")
-
-    XCTAssertEqual(parameters?.query, "books")
-    XCTAssertEqual(parameters?.sort, .newest)
-    XCTAssertEqual(parameters?.category?.id, Category.art.id)
-    XCTAssertEqual(parameters?.staffPicks, true)
+    let parameters = searchFeature.queryParameters(for: "books")
+    XCTAssertEqual(parameters.query, "books")
+    XCTAssertEqual(parameters.sort, .newest)
+    XCTAssertEqual(parameters.category?.id, Category.art.id)
+    XCTAssertEqual(parameters.staffPicks, true)
   }
 
   func testClearingQueryResetsFiltersAndSortButResetAllKeepsSort() {
     let searchFeature = SearchFeature(provider: ControlledSearchProvider())
-    let (query, input) = Signal<String, Never>.pipe()
-    var parameters: DiscoveryParams?
-    let observation = searchFeature.queryParameters(for: query).observeValues { parameters = $0 }
-    defer { observation?.dispose() }
-    searchFeature.filterSelection.publishInitialSelection()
-    input.send(value: "art")
     searchFeature.selectFilter(.sort(.newest))
     searchFeature.selectFilter(.category(.rootCategory(.art)))
     searchFeature.selectFilter(.projectsWeLove(true))
     searchFeature.resetFilters(.allFilters)
-    XCTAssertEqual(parameters?.sort, .newest)
-    XCTAssertNil(parameters?.category)
-    XCTAssertNil(parameters?.staffPicks) // Unselected means no API filter, not "exclude".
+    let resetParameters = searchFeature.queryParameters(for: "art")
+    XCTAssertEqual(resetParameters.sort, .newest)
+    XCTAssertNil(resetParameters.category)
+    XCTAssertNil(resetParameters.staffPicks) // Unselected means no API filter, not "exclude".
 
-    input.send(value: "")
     searchFeature.updateQuery("")
-    XCTAssertEqual(parameters?.sort, .magic)
-    XCTAssertEqual(parameters?.query, "")
+    let clearedParameters = searchFeature.queryParameters(for: "")
+    XCTAssertEqual(clearedParameters.sort, .magic)
+    XCTAssertEqual(clearedParameters.query, "")
   }
 
   func testFeatureTogglesFilterWithoutOwningModalPresentation() {
     let searchFeature = SearchFeature(provider: ControlledSearchProvider())
-    let (query, input) = Signal<String, Never>.pipe()
-    var parameters: DiscoveryParams?
-    let observation = searchFeature.queryParameters(for: query).observeValues { parameters = $0 }
-    defer { observation?.dispose() }
-    searchFeature.filterSelection.publishInitialSelection()
-    input.send(value: "art")
     searchFeature.toggleFilter(.projectsWeLove)
-    XCTAssertEqual(parameters?.staffPicks, true)
+    XCTAssertEqual(searchFeature.queryParameters(for: "art").staffPicks, true)
     searchFeature.toggleFilter(.projectsWeLove)
-    XCTAssertNil(parameters?.staffPicks)
+    XCTAssertNil(searchFeature.queryParameters(for: "art").staffPicks)
   }
 
   func testNativeQueryDefaultsNeedNoInitialSignalOrSubscriber() {
@@ -176,82 +158,6 @@ final class SearchFeatureTests: TestCase {
     XCTAssertEqual(parameters.category?.id, Category.art.id)
     XCTAssertEqual(parameters.sort, .newest)
   }
-
-  func testLegacyQueryAdapterWaitsForInitialSelectionAndMatchesNativeQuery() {
-    let feature = SearchFeature(provider: ControlledSearchProvider())
-    let (query, input) = Signal<String, Never>.pipe()
-    var received: [DiscoveryParams] = []
-    let observation = feature.queryParameters(for: query).observeValues { received.append($0) }
-    defer { observation?.dispose() }
-    input.send(value: "art")
-    feature.selectFilter(.sort(.newest))
-    feature.selectFilter(.category(.rootCategory(.art)))
-    XCTAssertTrue(received.isEmpty, "Keep the legacy initial-emission barrier")
-    feature.filterSelection.publishInitialSelection()
-    XCTAssertEqual(received.count, 1)
-    XCTAssertEqual(received.last, feature.queryParameters(for: "art"))
-    feature.selectFilter(.goal(.bucket_4))
-    XCTAssertEqual(received.last, feature.queryParameters(for: "art"))
-    input.send(value: "books")
-    XCTAssertEqual(received.last, feature.queryParameters(for: "books"))
-  }
-
-  func testLegacyResetKeepsPerFieldOrderAndDuplicateEmissions() {
-    let feature = SearchFeature(provider: ControlledSearchProvider())
-    let (query, input) = Signal<String, Never>.pipe()
-    var received: [DiscoveryParams] = []
-    let observation = feature.queryParameters(for: query).observeValues { received.append($0) }
-    defer { observation?.dispose() }
-    feature.filterSelection.publishInitialSelection()
-    input.send(value: "art")
-    feature.selectFilter(.sort(.newest))
-    feature.selectFilter(.category(.rootCategory(.art)))
-    feature.selectFilter(.projectState(.live))
-    feature.selectFilter(.percentRaised(.bucket_2))
-    feature.selectFilter(.amountRaised(.bucket_3))
-    feature.selectFilter(.goal(.bucket_4))
-    feature.selectFilter(.following(true))
-    feature.selectFilter(.recommended(true))
-    feature.selectFilter(.projectsWeLove(true))
-    feature.selectFilter(.savedProjects(true))
-    let beforeReset = feature.queryParameters(for: "art")
-    received.removeAll()
-    feature.resetFilters(.allFilters)
-
-    var expected = beforeReset
-    var expectedEmissions: [DiscoveryParams] = []
-    expected.category = nil
-    expectedEmissions.append(expected)
-    expected.state = .all
-    expectedEmissions.append(expected)
-    expected.percentRaised = nil
-    expectedEmissions.append(expected)
-    expected.location = nil
-    expectedEmissions.append(expected)
-    expected.amountRaised = nil
-    expectedEmissions.append(expected)
-    expected.goal = nil
-    expectedEmissions.append(expected)
-    expected.social = nil
-    expectedEmissions.append(expected)
-    expected.recommended = nil
-    expectedEmissions.append(expected)
-    expected.staffPicks = nil
-    expectedEmissions.append(expected)
-    expected.starred = nil
-    expectedEmissions.append(expected)
-    XCTAssertEqual(received, expectedEmissions, "Ten ordered emissions, including unchanged location")
-
-    received.removeAll()
-    feature.updateQuery("")
-    XCTAssertEqual(received.count, 11, "Clear resets ten filters, then sort")
-    XCTAssertEqual(received.last?.sort, .magic)
-    received.removeAll()
-    feature.selectFilter(.sort(.magic))
-    feature.selectFilter(.sort(.magic))
-    XCTAssertEqual(received.count, 2, "Do not silently deduplicate UI/analytics events")
-  }
-
   func testSuccessfulSearchPublishesDataCountAndLoading() async throws {
     let provider = ControlledSearchProvider()
     let searchFeature = SearchFeature(provider: provider, sleep: { _ in })

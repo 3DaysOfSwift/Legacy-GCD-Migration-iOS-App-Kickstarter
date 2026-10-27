@@ -174,6 +174,83 @@ internal final class SearchViewModelTests: TestCase {
     self.hasProjects.assertLastValue(false)
   }
 
+  func testFilterResetAdmitsRequestsInFieldOrderAndRetainsSort() async throws {
+    let response = [(GraphAPI.SearchQuery.self, try self.fixture("SearchQuery_FiveResults"))]
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.searchTextChanged("art")
+      self.searchFeature.selectFilter(.sort(.newest))
+      self.searchFeature.selectFilter(.category(.rootCategory(.art)))
+      self.searchFeature.selectFilter(.projectState(.live))
+      self.searchFeature.selectFilter(.percentRaised(.bucket_2))
+      self.searchFeature.selectFilter(.amountRaised(.bucket_3))
+      self.searchFeature.selectFilter(.goal(.bucket_4))
+      self.searchFeature.selectFilter(.following(true))
+      self.searchFeature.selectFilter(.recommended(true))
+      self.searchFeature.selectFilter(.projectsWeLove(true))
+      self.searchFeature.selectFilter(.savedProjects(true))
+      await self.advanceRequests()
+      guard var expected = self.searchFeature.parameters else {
+        XCTFail("Expected admitted parameters before reset")
+        return
+      }
+      var admitted: [DiscoveryParams] = []
+      let observation = self.searchFeature.loading.observeValues { [weak self] loading in
+        guard loading, let parameters = self?.searchFeature.parameters else { return }
+        admitted.append(parameters)
+      }
+      defer { observation?.dispose() }
+      self.searchFeature.resetFilters(.allFilters)
+
+      var expectedAdmissions: [DiscoveryParams] = []
+      expected.category = nil
+      expectedAdmissions.append(expected)
+      expected.state = .all
+      expectedAdmissions.append(expected)
+      expected.percentRaised = nil
+      expectedAdmissions.append(expected)
+      // Location was already nil: its duplicate notification shares the pending request.
+      expected.amountRaised = nil
+      expectedAdmissions.append(expected)
+      expected.goal = nil
+      expectedAdmissions.append(expected)
+      expected.social = nil
+      expectedAdmissions.append(expected)
+      expected.recommended = nil
+      expectedAdmissions.append(expected)
+      expected.staffPicks = nil
+      expectedAdmissions.append(expected)
+      expected.starred = nil
+      expectedAdmissions.append(expected)
+      XCTAssertEqual(admitted, expectedAdmissions)
+      XCTAssertEqual(self.searchFeature.parameters?.sort, .newest)
+      await self.advanceRequests()
+      XCTAssertEqual(self.searchFeature.projects.count, 5)
+    }
+  }
+
+  func testDuplicateFilterSharesPendingRequestButRefreshesAfterCompletion() async throws {
+    let response = [(GraphAPI.SearchQuery.self, try self.fixture("SearchQuery_FiveResults"))]
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.searchTextChanged("art")
+      let pending = self.vm.searchTask
+      XCTAssertNotNil(pending)
+      self.searchFeature.selectFilter(.sort(.magic))
+      self.searchFeature.selectFilter(.sort(.magic))
+      XCTAssertEqual(self.vm.searchTask, pending)
+      await self.advanceRequests()
+      XCTAssertNil(self.vm.searchTask)
+
+      self.searchFeature.selectFilter(.sort(.magic))
+      XCTAssertNotNil(self.vm.searchTask, "A completed request does not swallow a new selection event")
+      XCTAssertTrue(self.searchFeature.isLoading)
+      await self.advanceRequests()
+      XCTAssertFalse(self.searchFeature.isLoading)
+      XCTAssertEqual(self.searchFeature.projects.count, 5)
+    }
+  }
+
   func testRepeatedAppearanceTracksWithoutReplacingInFlightRequest() async throws {
     let response = [(GraphAPI.SearchQuery.self, try self.fixture("SearchQuery_FiveResults"))]
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {

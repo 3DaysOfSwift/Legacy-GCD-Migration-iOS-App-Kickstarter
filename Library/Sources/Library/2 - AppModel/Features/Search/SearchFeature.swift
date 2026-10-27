@@ -111,26 +111,6 @@ public final class SearchFeature {
     return task
   }
 
-  /// Transitional projection for the legacy screen's query signal.
-  /// Selection policy and parameter construction remain owned by the Feature.
-  public func queryParameters(for queryText: Signal<String, Never>) -> Signal<DiscoveryParams, Never> {
-    return Signal.combineLatest(
-      queryText,
-      self.filterSelection.selectedSort,
-      self.filterSelection.selectedCategory,
-      self.filterSelection.selectedState,
-      self.filterSelection.selectedPercentRaisedBucket,
-      self.filterSelection.selectedLocation,
-      self.filterSelection.selectedAmountRaisedBucket,
-      self.filterSelection.selectedGoalBucket,
-      self.filterSelection.selectedToggles
-    )
-    .map { [weak self] query, _, _, _, _, _, _, _, _ in
-      self?.queryParameters(for: query)
-    }
-    .skipNil()
-  }
-
   /// Native, side-effect-free query construction. No initial signal, UI
   /// subscriber or network execution is required to read the current selection.
   public func queryParameters(for query: String) -> DiscoveryParams {

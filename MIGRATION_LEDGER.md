@@ -16,8 +16,8 @@ not 130 migrated screens or a percentage of the full application.
 | Runnable public-demo baseline and evidence capture | Working baseline established | Keep synthetic data distinct from live-service validation |
 | Search request ownership, transport, cancellation and pagination | Implemented; focused tests passed | Final concurrency/compiler audit and broader integration |
 | Search filter policy and category/location lookups | Implemented; focused tests and bounded earlier UI smoke | Repeat relevant UI journeys on final Search build |
-| Search lifecycle, analytics and filter presentation | Implemented; 130-test checkpoint passed | Remaining screen projection/query edges and broader UI checks |
-| Search query admission | New explicit command implemented, runtime-unverified | 133-test check including early query, repeated load and second screen |
+| Search lifecycle, analytics and filter presentation | Implemented; 130-test checkpoint passed | Final integrated tests and UI checks; retain output-only UI compatibility |
+| Search query admission and obsolete API removal | Implementation consolidated; runtime-unverified | One 133-test check including readiness, reset order, duplicate requests and second screen |
 | Explore / discovery | Legacy; entry points inspected, not migrated | Behaviour baseline, ownership, async work, pagination, tests and UI parity |
 | Project details, media, updates/comments and related routes | Legacy; only initial source reconnaissance | Map independent/shared state, preserve destinations, migrate in bounded features |
 | Account/session, Profile, settings and authentication | Legacy; not migrated | One shared session owner, persistence/security contract, authenticated/signed-out tests |
@@ -30,10 +30,11 @@ number of green unit tests is not a work-completion measure.
 
 ### Remaining execution plan
 
-1. **Close Search before starting another feature.** Verify explicit query
-   admission; retire the no-longer-used legacy projection only after preserving
-   its initial barrier/reset-order tests; audit remaining result/banner/UI bridges;
-   test screen lifetimes and shared Feature access. Run the focused suite/app build,
+1. **Verify the consolidated Search close-out before migrating another feature.**
+   Explicit query admission and obsolete projection removal are implemented;
+   readiness/reset/duplicate coverage now targets the live ViewModel route.
+   Retain output-only result/banner/UI bridges; do not introduce further cosmetic
+   reactive rewrites as completion prerequisites. Run the focused suite/app build,
    then manual discovery → typing/clearing → filters/location → paging → detail/
    return journeys and relevant snapshots. Record unresolved gaps explicitly.
 2. **Explore/discovery next.** Baseline DiscoveryViewModel/DiscoveryPageViewModel,
@@ -104,14 +105,18 @@ Completed checkpoints below are historical evidence, not app-wide completion.
   and appearance/card-click analytics; 124 tests and app build passed.
 - Latest verified analytics slice: explicit result-completion pairing, including
   three empty/error/pagination regression tests; 127 tests and app build passed.
-- Next: remaining parameter/presentation adapters; manual UI checks outstanding.
 - Latest verified presentation slice: direct filter-pill commands and lookup
   subscriptions with explicit ownership; 130 tests and app build passed.
-- Current unverified slice: explicit query admission with per-screen selection
-  readiness; three additional tests, expected 133 plus app build.
-- Remaining Search work: replace reactive selection/query projections and screen
-  compatibility edges as appropriate; review the completed Feature against CFA;
-  close outstanding behaviour-contract/manual/snapshot validation gates.
+- Current unverified close-out: explicit query admission with per-screen selection
+  readiness and removal of the unused signal-query overload. Expected 133 tests
+  plus app build. Two obsolete projection-only tests are replaced by two live-route
+  reset/duplicate-request tests; native query tests no longer require a signal.
+- Remaining Search work: consolidated runtime/type-check verification and
+  behaviour-contract/manual/snapshot gates, not an open-ended adapter rewrite.
+- The single verification script also selects 55 existing non-visual Explore
+  tests to establish its baseline: 188 expected total, then the app build.
+  Only those two logic suites opt out of the snapshot reference-device guard;
+  no global test guard or visual suite was changed.
 - Remaining app work: inventories and migration of Explore, Activity/pledges,
   Profile/authentication and shared state/transport/persistence. Do not create
   placeholder Features or declare these routes migrated.
@@ -148,7 +153,7 @@ the connected feature slice once baseline results support comparison.
 | Explore / discovery | Discovery controllers / DiscoveryViewModel | AppModel.discoveryFeature / DiscoveryFeatureTests | Legacy; not in this pass |
 | Activity (signed out) | Activity flow | AppModel.activityFeature / ActivityFeatureTests | Legacy; inspect complete flow before migration |
 | Pledged projects and activity (signed in) | Pledged-project/activity flow | Ownership to map with shared pledge state | Legacy; not an empty placeholder Feature |
-| Search | SearchViewController / SearchViewModel | AppModel.searchFeature / SearchFeatureTests | Awaitable native search/paging and async transport connected; native lookups tested; manual checks and selection/presentation migration pending |
+| Search | SearchViewController / SearchViewModel | AppModel.searchFeature / SearchFeatureTests | Implementation consolidated; final 133-test/app-build and manual checks pending |
 | Profile (signed in/out variants) | Profile/account flow | AppModel.profileFeature / ProfileFeatureTests | Legacy; inspect authentication ownership first |
 
 `RootViewModel.generateViewControllers` omits Activity when the floating-tab

@@ -274,9 +274,60 @@ and cancellation still belong to SearchFeature.
 | SEARCH-QUERY-02 | Repeated load does not replace text or selected filters with discovery defaults. | testRepeatedLoadRetainsQueryAndSelection |
 | SEARCH-QUERY-03 | A second screen using the shared Feature waits for its own selection publication before admitting a query. | testNewScreenWaitsForItsOwnSelectionPublication |
 
-New tests are source-inferred, not runtime-confirmed. Existing reset-order and
-duplicate-emission reference tests remain, along with the complete 130-test
-baseline. Parameter publication must precede admission/loading/cancellation;
+New tests are source-inferred, not runtime-confirmed. Reset-order and duplicate
+request coverage now exercises SearchViewModel rather than the deleted legacy
+signal-query overload. Parameter publication must precede admission/loading/cancellation;
 query UI notification follows admission, and typed clear resets fields last.
 Static parsing passed. The fresh 133-test/app-build attempt exited 74 before
 compilation due to session permissions; no new runtime or manual pass claimed.
+
+### Consolidated Search close-out
+
+- `testFilterResetAdmitsRequestsInFieldOrderAndRetainsSort` protects the real
+  screen-to-Feature reset route. Nine changed parameter sets admit requests;
+  the unchanged nil-location notification shares the pending request.
+- `testDuplicateFilterSharesPendingRequestButRefreshesAfterCompletion` protects
+  equivalent in-flight sharing without swallowing a later intentional refresh.
+- Initial-readiness coverage remains in SEARCH-QUERY-01 through -03. Native
+  filter/query tests read ordinary Feature state without subscription setup.
+- Remaining signals are UI compatibility: filter notifications/readiness,
+  presentation projections, reachability/banner delivery and analytics pairing.
+  They do not replace Feature-owned async request/pagination/lookup execution.
+  Removing every reactive operator is not a Search exit requirement.
+- Expected focused count remains 133 (two projection-only tests replaced by two
+  live-route tests). This is a source count, not a recorded test pass.
+- A direct Xcode escalation attempt was rejected by the session permission
+  policy before execution. Runtime/type-check, strict-concurrency diagnostics
+  and final manual/snapshot checks remain open. The current target uses Swift 5
+  language mode; syntax parsing alone does not establish concurrency safety.
+
+## Explore baseline preparation — no implementation change yet
+
+Source review of DiscoveryViewModel and DiscoveryPageViewModel establishes these
+requirements for the next complete feature, subject to baseline runtime checks:
+
+- Four independently retained sort pages: Magic, Popular, Newest, Ending Soon.
+  Page requests wait for user/parameters/visibility readiness. Returning without
+  changed user/parameters does not imply a fresh request; pull-to-refresh,
+  environment changes and blocked-user events explicitly refresh.
+- Retain cards during refresh (`clearOnNewRequest: false`). Append distinct
+  projects using the existing pagination URL, not Search's GraphQL cursor.
+  Filter-change clearing and empty-state emission have separate ordering rules.
+- Fetch an activity sample on signed-in appearance. Preserve seen-activity
+  storage and the existing logout/navigation clearing rules and destinations.
+- Preserve recommendation opt-in defaults, onboarding/personalisation flags,
+  loading animations, playlist/ref-tag navigation and analytics timing.
+
+One concrete DiscoveryFeature should own page-keyed collections and request
+identities, constructed in AppModel; it must not share Search's collection or
+cancel another sort page's work through one global request slot. Session and
+seen-activity persistence retain their existing authoritative owners. Keep
+existing controllers and presentation bindings. First validate the existing
+DiscoveryViewModelTests and DiscoveryPageViewModelTests, then convert page and
+sample requests as one integrated feature with cancellation/stale-result tests.
+Both Discovery suites contain only logic/output assertions. Their existing
+per-suite reference-simulator opt-out is now enabled (55 test methods); the
+shared TestCase and all visual suites retain the reference-device guard. The
+consolidated verification selects these alongside Search's expected 133 tests:
+188 expected total, followed by the app build. This preparation is not a claim
+that Explore is migrated or baseline-tested.

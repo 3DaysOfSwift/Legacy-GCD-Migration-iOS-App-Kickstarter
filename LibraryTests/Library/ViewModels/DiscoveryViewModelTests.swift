@@ -10,6 +10,9 @@ import UIKit
 import XCTest
 
 internal final class DiscoveryViewModelTests: TestCase {
+  // Logic/output assertions only; visual suites retain their reference-device gate.
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   fileprivate let vm: DiscoveryViewModelType = DiscoveryViewModel()
 
   fileprivate let configureDataSource = TestObserver<[DiscoveryParams.Sort], Never>()
