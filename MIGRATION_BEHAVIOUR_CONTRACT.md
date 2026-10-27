@@ -177,3 +177,22 @@ Syntax parsing passed but is not a type-check or test result. The build attempt
 was sandbox-blocked before compilation. Earlier manual smoke does not validate
 these newly changed files. Query/lifecycle and analytics adapters remain in use;
 the overall migration is still in progress.
+
+Follow-up verification on 27 October: all 123 focused tests passed and the app
+built in `/private/tmp/kickstarter-search-selection-state.jLK7ZB`. This includes
+the six selection-state tests and six adapter characterisation tests.
+No production adapter changes preceded this result. The earlier pending status
+is superseded for selection state only; UI/snapshot checks remain outstanding.
+
+## Query/lifecycle adapter contract — 27 October 2026
+
+| ID | Preserved requirement | Baseline protection | Status |
+| --- | --- | --- | --- |
+| SEARCH-ADAPTER-01 | Nonanimated appearance does not start discovery or track a page. First animated appearance initialises it once. | testNonAnimatedAppearanceDoesNotStartDiscoveryOrTrackPage | Confirmed by passing test; preserve existing animated flag semantics |
+| SEARCH-ADAPTER-02 | Returning while loading retains the current request and tracks the latest query with the last published count. | testRepeatedAppearanceTracksWithoutReplacingInFlightRequest | Confirmed |
+| SEARCH-ADAPTER-03 | First animated appearance replaces early text with discovery text without clearing filters. | testFirstAnimatedAppearanceReplacesEarlyQueryWithoutClearingFilters | Inferred intent, characterised and passing |
+| SEARCH-ADAPTER-04 | Appearance before filter initialisation does not later backfill a page-view event. | testAppearanceBeforeLoadDoesNotBackfillPageView | Inferred intent, characterised and passing |
+| SEARCH-ADAPTER-05 | Failed query adds no completion analytics; later appearance still tracks with retained count. | testFailedQueryDoesNotTrackCompletionButAppearanceStillTracks | Inferred error policy, characterised and passing |
+| SEARCH-ADAPTER-06 | Card navigation preserves ref tags and click analytics include current query/filter parameters. | testCardClickAfterFilterChangeTracksCurrentParameters and existing ref-tag tests | Confirmed |
+
+Post-change results for the upcoming adapter implementation are not yet available.

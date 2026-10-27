@@ -18,13 +18,10 @@ Completed checkpoints below are historical evidence, not app-wide completion.
 
 - Completed: Search request ownership; filter decisions; cancellable Apollo bridge;
   directly awaitable first-page/pagination commands with shared in-flight work.
-- Last verified checkpoint: native category/location lookups and orphan cleanup;
-  111 tests and app build passed, with bounded installed-app filter smoke.
-- Current bounded slice: plain main-actor selection storage and direct query
-  construction, plus six new tests. Checkpoint committed at Matthew Thomas's
-  explicit request before runtime verification; not a verified milestone.
-- Next: verify this slice (expected 117 tests), record the result, then
-  migrate the screen's query-input/lifecycle and analytics compatibility edges.
+- Last verified checkpoint: selection state/direct query construction and six
+  query/lifecycle/analytics characterisation tests; 123 tests and app build passed.
+- Next bounded slice: explicit query/lifecycle inputs and appearance/card-click
+  analytics. Result-completion analytics pairing remains for a separate pass.
 - Remaining Search work: replace reactive selection/query projections and screen
   compatibility edges as appropriate; review the completed Feature against CFA;
   close outstanding behaviour-contract/manual/snapshot validation gates.
@@ -480,3 +477,22 @@ Evidence and repeatable script: sibling Migration Evidence/kickstarter-search-se
 Expected 117 tests in eight suites plus app build; verification remains pending.
 Matthew Thomas explicitly requested a checkpoint commit before this verification.
 This saves work only: it does not establish a passing build, tests or completion.
+
+### Selection-state and adapter baseline verified — 27 October 2026
+
+Matthew Thomas ran the script in Terminal. Direct inspection of
+`/private/tmp/kickstarter-search-selection-state.jLK7ZB` confirms 123 individual
+Success test records, zero failures/skips, and app buildResult.status succeeded.
+This verifies the selection-state implementation at 900b455b5 and the six new
+SearchViewModel characterisation tests added before any adapter implementation.
+Seven test-build warnings and three app-build warnings remain; no warning-free
+claim. No additional manual UI or snapshot validation was performed.
+
+The tests establish: animated=false does not initialise discovery or track a
+page; the first animated=true replaces early text without clearing filters;
+appearance before initial filter publication does not backfill analytics;
+returning while loading preserves the request and uses the last published count;
+a failed query adds no completion event; card clicks include current filters.
+The misleading old variable name "viewWillAppearNotAnimated" actually filters
+true. Preserve that behaviour rather than silently correcting it.
+The earlier permission-blocked runs remain historical evidence, not regressions.

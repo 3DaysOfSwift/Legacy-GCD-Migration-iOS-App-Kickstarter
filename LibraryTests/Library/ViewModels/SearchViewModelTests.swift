@@ -91,6 +91,127 @@ internal final class SearchViewModelTests: TestCase {
   }
 
   // Characterise the existing silent-error path before changing its ownership.
+  func testNonAnimatedAppearanceDoesNotStartDiscoveryOrTrackPage() async {
+    self.vm.inputs.viewDidLoad()
+    self.vm.inputs.viewWillAppear(animated: false)
+    await self.vm.filterOptionsTask?.value
+
+    XCTAssertNil(self.searchFeature.parameters)
+    XCTAssertNil(self.vm.searchTask)
+    XCTAssertTrue(self.segmentTrackingClient.events.isEmpty)
+    self.hasProjects.assertDidNotEmitValue()
+
+    self.vm.inputs.viewWillAppear(animated: true)
+    XCTAssertEqual(self.searchFeature.parameters?.query, "")
+    XCTAssertNotNil(self.vm.searchTask)
+    XCTAssertEqual(self.segmentTrackingClient.events, ["Page Viewed"])
+    self.hasProjects.assertLastValue(false)
+  }
+
+  func testRepeatedAppearanceTracksWithoutReplacingInFlightRequest() async throws {
+    let response = [(GraphAPI.SearchQuery.self, try self.fixture("SearchQuery_FiveResults"))]
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewWillAppear(animated: true)
+      await self.advanceRequests()
+      self.vm.inputs.searchTextChanged("pending")
+      await self.vm.filterOptionsTask?.value
+      guard await self.delay.waitForSleep() else { return }
+
+      let task = self.vm.searchTask
+      self.vm.inputs.viewWillAppear(animated: false)
+      XCTAssertEqual(self.segmentTrackingClient.events.count, 1)
+      self.vm.inputs.viewWillAppear(animated: true)
+      XCTAssertEqual(self.vm.searchTask, task)
+      XCTAssertEqual(self.searchFeature.parameters?.query, "pending")
+      XCTAssertEqual(self.segmentTrackingClient.events.count, 2)
+      XCTAssertEqual(
+        self.segmentTrackingClient.properties.last?["discover_search_term"] as? String, "pending"
+      )
+      // Returning before replacement results uses the last published count.
+      XCTAssertEqual(
+        self.segmentTrackingClient.properties.last?["discover_search_results_count"] as? Int, 200
+      )
+
+      await self.advanceRequests()
+      XCTAssertEqual(self.segmentTrackingClient.events.count, 3)
+    }
+  }
+
+  func testFirstAnimatedAppearanceReplacesEarlyQueryWithoutClearingFilters() async {
+    self.vm.inputs.searchTextChanged("early")
+    self.vm.inputs.selectedFilter(.category(.rootCategory(.art)))
+    XCTAssertNil(self.searchFeature.parameters, "Query still waits for initial filter publication")
+
+    self.vm.inputs.viewDidLoad()
+    XCTAssertEqual(self.searchFeature.parameters?.query, "early")
+    self.vm.inputs.viewWillAppear(animated: true)
+
+    XCTAssertEqual(self.searchFeature.parameters?.query, "")
+    XCTAssertEqual(self.searchFeature.parameters?.category, .art)
+    XCTAssertEqual(self.segmentTrackingClient.events, ["Page Viewed"])
+    XCTAssertEqual(
+      self.segmentTrackingClient.properties.last?["discover_search_results_count"] as? Int, 0
+    )
+  }
+
+  func testAppearanceBeforeLoadDoesNotBackfillPageView() async {
+    self.vm.inputs.viewWillAppear(animated: true)
+    self.hasProjects.assertLastValue(false)
+    XCTAssertTrue(self.segmentTrackingClient.events.isEmpty)
+
+    self.vm.inputs.viewDidLoad()
+    XCTAssertEqual(self.searchFeature.parameters?.query, "")
+    XCTAssertTrue(self.segmentTrackingClient.events.isEmpty)
+
+    self.vm.inputs.viewWillAppear(animated: true)
+    XCTAssertEqual(self.segmentTrackingClient.events, ["Page Viewed"])
+  }
+
+  func testFailedQueryDoesNotTrackCompletionButAppearanceStillTracks() async throws {
+    let response = [(GraphAPI.SearchQuery.self, try self.fixture("SearchQuery_FiveResults"))]
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewWillAppear(animated: true)
+      await self.advanceRequests()
+    }
+    await withEnvironment(apiService: MockService()) {
+      self.vm.inputs.searchTextChanged("failed")
+      await self.advanceRequests()
+      XCTAssertEqual(self.segmentTrackingClient.events, ["Page Viewed"])
+      self.vm.inputs.viewWillAppear(animated: true)
+      XCTAssertEqual(self.segmentTrackingClient.events, ["Page Viewed", "Page Viewed"])
+      XCTAssertEqual(
+        self.segmentTrackingClient.properties.last?["discover_search_term"] as? String, "failed"
+      )
+      XCTAssertEqual(
+        self.segmentTrackingClient.properties.last?["discover_search_results_count"] as? Int, 200
+      )
+    }
+  }
+
+  func testCardClickAfterFilterChangeTracksCurrentParameters() async throws {
+    let response = [(GraphAPI.SearchQuery.self, try self.fixture("SearchQuery_FiveResults"))]
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewWillAppear(animated: true)
+      await self.advanceRequests()
+      self.vm.inputs.searchTextChanged("artworks")
+      self.vm.inputs.selectedFilter(.category(.rootCategory(.art)))
+      await self.advanceRequests()
+      self.vm.inputs.tapped(projectAtIndex: 0)
+
+      self.goToRefTag.assertLastValue(.searchFeatured)
+      XCTAssertEqual(self.segmentTrackingClient.events.last, "CTA Clicked")
+      XCTAssertEqual(
+        self.segmentTrackingClient.properties.last?["discover_search_term"] as? String, "artworks"
+      )
+      XCTAssertEqual(
+        self.segmentTrackingClient.properties.last?["discover_category_name"] as? String, "Art"
+      )
+    }
+  }
+
   // This is not approval to keep a silent error as the final product design.
   func testFailedInitialSearchStopsLoadingAndRecoversOnChangedQuery() async throws {
     await withEnvironment(apiService: MockService()) {
