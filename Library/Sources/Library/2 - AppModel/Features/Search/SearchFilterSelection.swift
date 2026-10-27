@@ -1,82 +1,122 @@
 import KsApi
 import ReactiveSwift
 
-/// Search's selection policy. Owned by SearchFeature; presentation only reads it.
-/// Keep the legacy per-field reset emissions until request/analytics equivalence
-/// has been verified independently of this ownership change.
+/// Search's synchronous selection policy, owned by SearchFeature.
+/// Ordinary main-actor state is authoritative. Pipes only adapt changes to the
+/// legacy UIKit presentation/analytics edge; they do not own domain values.
 @MainActor
 internal final class SearchFilterSelection {
   internal static let defaultSortOption = DiscoveryParams.Sort.magic
   internal static let defaultStateOption = DiscoveryParams.State.all
-  private let (initialSignal, initialObserver) = Signal<Void, Never>.pipe()
-  internal var selectedSortValue: DiscoveryParams.Sort { self.selectedSortProperty.value }
-  internal var selectedCategoryValue: SearchFiltersCategory { self.selectedCategoryProperty.value }
-  internal var selectedStateValue: DiscoveryParams.State { self.selectedStateProperty.value }
-  internal var recommendedValue: Bool { self.recommendedProperty.value }
-  internal var savedProjectsValue: Bool { self.savedProjectsProperty.value }
-  internal var projectsWeLoveValue: Bool { self.projectsWeLoveProperty.value }
-  internal var followingValue: Bool { self.followingProperty.value }
 
-  internal init() {
-    self.selectedSort = self.selectedSortProperty.signal(takeInitialValueWhen: self.initialSignal)
-    self.selectedCategory = self.selectedCategoryProperty.signal(takeInitialValueWhen: self.initialSignal)
-    self.selectedState = self.selectedStateProperty.signal(takeInitialValueWhen: self.initialSignal)
-    self.selectedPercentRaisedBucket = self.selectedPercentRaisedBucketProperty
-      .signal(takeInitialValueWhen: self.initialSignal)
-    self.selectedLocation = self.selectedLocationProperty.signal(takeInitialValueWhen: self.initialSignal)
-    self.selectedAmountRaisedBucket = self.selectedAmountRaisedBucketProperty
-      .signal(takeInitialValueWhen: self.initialSignal)
-    self.selectedGoalBucket = self.selectedGoalBucketProperty
-      .signal(takeInitialValueWhen: self.initialSignal)
+  internal private(set) var selectedSortValue: DiscoveryParams.Sort = SearchFilterSelection.defaultSortOption {
+    didSet { self.selectedSortPipe.input.send(value: self.selectedSortValue) }
+  }
+  private let selectedSortPipe = Signal<DiscoveryParams.Sort, Never>.pipe()
+  internal var selectedSort: Signal<DiscoveryParams.Sort, Never> { self.selectedSortPipe.output }
 
-    self.selectedToggles = Signal.combineLatest(
-      self.recommendedProperty.signal(takeInitialValueWhen: self.initialSignal),
-      self.savedProjectsProperty.signal(takeInitialValueWhen: self.initialSignal),
-      self.projectsWeLoveProperty.signal(takeInitialValueWhen: self.initialSignal),
-      self.followingProperty.signal(takeInitialValueWhen: self.initialSignal)
-    )
-    .map { recommended, saved, pwl, following in
-      SearchFilterToggles(
-        recommended: recommended,
-        savedProjects: saved,
-        projectsWeLove: pwl,
-        following: following
-      )
-    }
+  internal private(set) var selectedCategoryValue: SearchFiltersCategory = .none {
+    didSet { self.selectedCategoryPipe.input.send(value: self.selectedCategoryValue) }
+  }
+  private let selectedCategoryPipe = Signal<SearchFiltersCategory, Never>.pipe()
+  internal var selectedCategory: Signal<SearchFiltersCategory, Never> { self.selectedCategoryPipe.output }
 
+  internal private(set) var selectedStateValue: DiscoveryParams.State = SearchFilterSelection.defaultStateOption {
+    didSet { self.selectedStatePipe.input.send(value: self.selectedStateValue) }
+  }
+  private let selectedStatePipe = Signal<DiscoveryParams.State, Never>.pipe()
+  internal var selectedState: Signal<DiscoveryParams.State, Never> { self.selectedStatePipe.output }
+
+  internal private(set) var selectedPercentRaisedBucketValue: DiscoveryParams.PercentRaisedBucket? = nil {
+    didSet { self.selectedPercentRaisedBucketPipe.input.send(value: self.selectedPercentRaisedBucketValue) }
+  }
+  private let selectedPercentRaisedBucketPipe = Signal<DiscoveryParams.PercentRaisedBucket?, Never>.pipe()
+  internal var selectedPercentRaisedBucket: Signal<DiscoveryParams.PercentRaisedBucket?, Never> {
+    self.selectedPercentRaisedBucketPipe.output
   }
 
-  internal func publishInitialSelection() { self.initialObserver.send(value: ()) }
+  internal private(set) var selectedLocationValue: Location? = nil {
+    didSet { self.selectedLocationPipe.input.send(value: self.selectedLocationValue) }
+  }
+  private let selectedLocationPipe = Signal<Location?, Never>.pipe()
+  internal var selectedLocation: Signal<Location?, Never> { self.selectedLocationPipe.output }
 
-  private let selectedSortProperty = MutableProperty<DiscoveryParams.Sort>(
-    SearchFilterSelection
-      .defaultSortOption
-  )
-  private let selectedCategoryProperty = MutableProperty<SearchFiltersCategory>(.none)
-  private let selectedStateProperty = MutableProperty<DiscoveryParams.State>(
-    SearchFilterSelection
-      .defaultStateOption
-  )
-  private let selectedPercentRaisedBucketProperty =
-    MutableProperty<DiscoveryParams.PercentRaisedBucket?>(nil)
-  private let selectedLocationProperty = MutableProperty<Location?>(nil)
-  private let selectedAmountRaisedBucketProperty =
-    MutableProperty<DiscoveryParams.AmountRaisedBucket?>(nil)
-  private let selectedGoalBucketProperty = MutableProperty<DiscoveryParams.GoalBucket?>(nil)
+  internal private(set) var selectedAmountRaisedBucketValue: DiscoveryParams.AmountRaisedBucket? = nil {
+    didSet { self.selectedAmountRaisedBucketPipe.input.send(value: self.selectedAmountRaisedBucketValue) }
+  }
+  private let selectedAmountRaisedBucketPipe = Signal<DiscoveryParams.AmountRaisedBucket?, Never>.pipe()
+  internal var selectedAmountRaisedBucket: Signal<DiscoveryParams.AmountRaisedBucket?, Never> {
+    self.selectedAmountRaisedBucketPipe.output
+  }
 
-  private let recommendedProperty = MutableProperty<Bool>(false)
-  private let savedProjectsProperty = MutableProperty<Bool>(false)
-  private let projectsWeLoveProperty = MutableProperty<Bool>(false)
-  private let followingProperty = MutableProperty<Bool>(false)
+  internal private(set) var selectedGoalBucketValue: DiscoveryParams.GoalBucket? = nil {
+    didSet { self.selectedGoalBucketPipe.input.send(value: self.selectedGoalBucketValue) }
+  }
+  private let selectedGoalBucketPipe = Signal<DiscoveryParams.GoalBucket?, Never>.pipe()
+  internal var selectedGoalBucket: Signal<DiscoveryParams.GoalBucket?, Never> {
+    self.selectedGoalBucketPipe.output
+  }
 
-  internal let selectedSort: Signal<DiscoveryParams.Sort, Never>
-  internal let selectedCategory: Signal<SearchFiltersCategory, Never>
-  internal let selectedState: Signal<DiscoveryParams.State, Never>
-  internal let selectedPercentRaisedBucket: Signal<DiscoveryParams.PercentRaisedBucket?, Never>
-  internal let selectedLocation: Signal<Location?, Never>
-  internal let selectedAmountRaisedBucket: Signal<DiscoveryParams.AmountRaisedBucket?, Never>
-  internal let selectedGoalBucket: Signal<DiscoveryParams.GoalBucket?, Never>
+  internal private(set) var recommendedValue = false {
+    didSet { self.recommendedPipe.input.send(value: self.recommendedValue) }
+  }
+  private let recommendedPipe = Signal<Bool, Never>.pipe()
+
+  internal private(set) var savedProjectsValue = false {
+    didSet { self.savedProjectsPipe.input.send(value: self.savedProjectsValue) }
+  }
+  private let savedProjectsPipe = Signal<Bool, Never>.pipe()
+
+  internal private(set) var projectsWeLoveValue = false {
+    didSet { self.projectsWeLovePipe.input.send(value: self.projectsWeLoveValue) }
+  }
+  private let projectsWeLovePipe = Signal<Bool, Never>.pipe()
+
+  internal private(set) var followingValue = false {
+    didSet { self.followingPipe.input.send(value: self.followingValue) }
+  }
+  private let followingPipe = Signal<Bool, Never>.pipe()
+
+  internal var toggles: SearchFilterToggles {
+    SearchFilterToggles(
+      recommended: self.recommendedValue,
+      savedProjects: self.savedProjectsValue,
+      projectsWeLove: self.projectsWeLoveValue,
+      following: self.followingValue
+    )
+  }
+
   internal let selectedToggles: Signal<SearchFilterToggles, Never>
+
+  internal init() {
+    // Preserve the adapter's initial barrier and individual toggle emissions.
+    // Native query construction reads ordinary state without this subscription.
+    self.selectedToggles = Signal.combineLatest(
+      self.recommendedPipe.output,
+      self.savedProjectsPipe.output,
+      self.projectsWeLovePipe.output,
+      self.followingPipe.output
+    ).map { recommended, saved, projectsWeLove, following in
+      SearchFilterToggles(
+        recommended: recommended, savedProjects: saved,
+        projectsWeLove: projectsWeLove, following: following
+      )
+    }
+  }
+
+  internal func publishInitialSelection() {
+    self.selectedSortPipe.input.send(value: self.selectedSortValue)
+    self.selectedCategoryPipe.input.send(value: self.selectedCategoryValue)
+    self.selectedStatePipe.input.send(value: self.selectedStateValue)
+    self.selectedPercentRaisedBucketPipe.input.send(value: self.selectedPercentRaisedBucketValue)
+    self.selectedLocationPipe.input.send(value: self.selectedLocationValue)
+    self.selectedAmountRaisedBucketPipe.input.send(value: self.selectedAmountRaisedBucketValue)
+    self.selectedGoalBucketPipe.input.send(value: self.selectedGoalBucketValue)
+    self.recommendedPipe.input.send(value: self.recommendedValue)
+    self.savedProjectsPipe.input.send(value: self.savedProjectsValue)
+    self.projectsWeLovePipe.input.send(value: self.projectsWeLoveValue)
+    self.followingPipe.input.send(value: self.followingValue)
+  }
 
   internal func clearedQueryText() {
     self.resetFilters(for: .allFilters)
@@ -87,55 +127,55 @@ internal final class SearchFilterSelection {
     switch modal {
     case .allFilters:
       // Sort isn't a filter, so it's not included here.
-      self.selectedCategoryProperty.value = .none
-      self.selectedStateProperty.value = SearchFilterSelection.defaultStateOption
-      self.selectedPercentRaisedBucketProperty.value = nil
-      self.selectedLocationProperty.value = nil
-      self.selectedAmountRaisedBucketProperty.value = nil
-      self.selectedGoalBucketProperty.value = nil
-      self.followingProperty.value = false
-      self.recommendedProperty.value = false
-      self.projectsWeLoveProperty.value = false
-      self.savedProjectsProperty.value = false
+      self.selectedCategoryValue = .none
+      self.selectedStateValue = SearchFilterSelection.defaultStateOption
+      self.selectedPercentRaisedBucketValue = nil
+      self.selectedLocationValue = nil
+      self.selectedAmountRaisedBucketValue = nil
+      self.selectedGoalBucketValue = nil
+      self.followingValue = false
+      self.recommendedValue = false
+      self.projectsWeLoveValue = false
+      self.savedProjectsValue = false
     case .category:
-      self.selectedCategoryProperty.value = .none
+      self.selectedCategoryValue = .none
     case .sort:
-      self.selectedSortProperty.value = SearchFilterSelection.defaultSortOption
+      self.selectedSortValue = SearchFilterSelection.defaultSortOption
     case .percentRaised:
-      self.selectedPercentRaisedBucketProperty.value = nil
+      self.selectedPercentRaisedBucketValue = nil
     case .location:
-      self.selectedLocationProperty.value = nil
+      self.selectedLocationValue = nil
     case .amountRaised:
-      self.selectedAmountRaisedBucketProperty.value = nil
+      self.selectedAmountRaisedBucketValue = nil
     case .goal:
-      self.selectedGoalBucketProperty.value = nil
+      self.selectedGoalBucketValue = nil
     }
   }
 
   internal func selectedFilter(_ event: SearchFilterEvent) {
     switch event {
     case let .sort(sort):
-      self.selectedSortProperty.value = sort
+      self.selectedSortValue = sort
     case let .category(selectedCategory):
-      self.selectedCategoryProperty.value = selectedCategory
+      self.selectedCategoryValue = selectedCategory
     case let .projectState(state):
-      self.selectedStateProperty.value = state
+      self.selectedStateValue = state
     case let .percentRaised(bucket):
-      self.selectedPercentRaisedBucketProperty.value = bucket
+      self.selectedPercentRaisedBucketValue = bucket
     case let .amountRaised(bucket):
-      self.selectedAmountRaisedBucketProperty.value = bucket
+      self.selectedAmountRaisedBucketValue = bucket
     case let .goal(bucket):
-      self.selectedGoalBucketProperty.value = bucket
+      self.selectedGoalBucketValue = bucket
     case let .location(location):
-      self.selectedLocationProperty.value = location
+      self.selectedLocationValue = location
     case let .recommended(showRecommended):
-      self.recommendedProperty.value = showRecommended
+      self.recommendedValue = showRecommended
     case let .savedProjects(showSavedProjects):
-      self.savedProjectsProperty.value = showSavedProjects
+      self.savedProjectsValue = showSavedProjects
     case let .projectsWeLove(showProjectsWeLove):
-      self.projectsWeLoveProperty.value = showProjectsWeLove
+      self.projectsWeLoveValue = showProjectsWeLove
     case let .following(showFollowing):
-      self.followingProperty.value = showFollowing
+      self.followingValue = showFollowing
     }
   }
 

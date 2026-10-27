@@ -76,6 +76,182 @@ final class SearchFeatureTests: TestCase {
     XCTAssertNil(parameters?.staffPicks)
   }
 
+  func testNativeQueryDefaultsNeedNoInitialSignalOrSubscriber() {
+    let provider = ControlledSearchProvider()
+    let feature = SearchFeature(provider: provider)
+    let parameters = feature.queryParameters(for: "  art  ")
+
+    XCTAssertEqual(parameters.query, "  art  ", "Query whitespace remains unchanged")
+    XCTAssertEqual(parameters.sort, .magic)
+    XCTAssertEqual(parameters.state, .all)
+    XCTAssertEqual(parameters.perPage, 15)
+    XCTAssertNil(parameters.category)
+    XCTAssertNil(parameters.location)
+    XCTAssertNil(parameters.percentRaised)
+    XCTAssertNil(parameters.amountRaised)
+    XCTAssertNil(parameters.goal)
+    XCTAssertNil(parameters.recommended)
+    XCTAssertNil(parameters.starred)
+    XCTAssertNil(parameters.staffPicks)
+    XCTAssertNil(parameters.social)
+    XCTAssertTrue(provider.requests.isEmpty, "Reading selection must not start transport")
+    XCTAssertNil(feature.parameters, "Building parameters must not pretend a request ran")
+  }
+
+  func testNativeQueryContainsEverySelectedFieldWithoutSubscribers() {
+    let feature = SearchFeature(provider: ControlledSearchProvider())
+    let location = Location(
+      country: "US", displayableName: "Somerville, MA", id: 1,
+      localizedName: "Somerville, MA", name: "Somerville, MA"
+    )
+    feature.selectFilter(.sort(.newest))
+    feature.selectFilter(.category(.rootCategory(.art)))
+    feature.selectFilter(.projectState(.live))
+    feature.selectFilter(.percentRaised(.bucket_2))
+    feature.selectFilter(.amountRaised(.bucket_3))
+    feature.selectFilter(.goal(.bucket_4))
+    feature.selectFilter(.location(location))
+    feature.toggleFilter(.recommended)
+    feature.toggleFilter(.savedProjects)
+    feature.toggleFilter(.projectsWeLove)
+    feature.toggleFilter(.following)
+
+    let parameters = feature.queryParameters(for: "ceramics")
+    XCTAssertEqual(parameters.sort, .newest)
+    XCTAssertEqual(parameters.category?.id, Category.art.id)
+    XCTAssertEqual(parameters.state, .live)
+    XCTAssertEqual(parameters.percentRaised, .bucket_2)
+    XCTAssertEqual(parameters.amountRaised, .bucket_3)
+    XCTAssertEqual(parameters.goal, .bucket_4)
+    XCTAssertEqual(parameters.location, location)
+    XCTAssertEqual(parameters.recommended, true)
+    XCTAssertEqual(parameters.starred, true)
+    XCTAssertEqual(parameters.staffPicks, true)
+    XCTAssertEqual(parameters.social, true)
+
+    feature.updateQuery("pottery")
+    XCTAssertEqual(feature.queryParameters(for: "ceramics"), parameters)
+    feature.toggleFilter(.recommended)
+    feature.toggleFilter(.savedProjects)
+    feature.toggleFilter(.projectsWeLove)
+    feature.toggleFilter(.following)
+    let untoggled = feature.queryParameters(for: "pottery")
+    XCTAssertNil(untoggled.recommended)
+    XCTAssertNil(untoggled.starred)
+    XCTAssertNil(untoggled.staffPicks)
+    XCTAssertNil(untoggled.social)
+  }
+
+  func testNativeResetAllPreservesSortAndClearResetsSortWithoutSubscribers() {
+    let feature = SearchFeature(provider: ControlledSearchProvider())
+    feature.selectFilter(.sort(.newest))
+    feature.selectFilter(.category(.rootCategory(.art)))
+    feature.selectFilter(.projectState(.live))
+    feature.selectFilter(.percentRaised(.bucket_2))
+    feature.selectFilter(.amountRaised(.bucket_3))
+    feature.selectFilter(.goal(.bucket_4))
+    feature.toggleFilter(.following)
+    feature.resetFilters(.allFilters)
+
+    let defaults = SearchFeature(provider: ControlledSearchProvider()).queryParameters(for: "")
+    var expected = defaults
+    expected.sort = .newest
+    XCTAssertEqual(feature.queryParameters(for: ""), expected)
+    feature.updateQuery("")
+    XCTAssertEqual(feature.queryParameters(for: ""), defaults)
+  }
+
+  func testScopedResetKeepsUnrelatedCategoryAndSort() {
+    let feature = SearchFeature(provider: ControlledSearchProvider())
+    feature.selectFilter(.sort(.newest))
+    feature.selectFilter(.category(.rootCategory(.art)))
+    feature.selectFilter(.goal(.bucket_4))
+    feature.selectFilter(.amountRaised(.bucket_3))
+    feature.selectFilter(.percentRaised(.bucket_2))
+    feature.resetFilters(.goal)
+    let parameters = feature.queryParameters(for: "art")
+    XCTAssertNil(parameters.goal)
+    XCTAssertEqual(parameters.amountRaised, .bucket_3)
+    XCTAssertEqual(parameters.percentRaised, .bucket_2)
+    XCTAssertEqual(parameters.category?.id, Category.art.id)
+    XCTAssertEqual(parameters.sort, .newest)
+  }
+
+  func testLegacyQueryAdapterWaitsForInitialSelectionAndMatchesNativeQuery() {
+    let feature = SearchFeature(provider: ControlledSearchProvider())
+    let (query, input) = Signal<String, Never>.pipe()
+    var received: [DiscoveryParams] = []
+    let observation = feature.queryParameters(for: query).observeValues { received.append($0) }
+    defer { observation?.dispose() }
+    input.send(value: "art")
+    feature.selectFilter(.sort(.newest))
+    feature.selectFilter(.category(.rootCategory(.art)))
+    XCTAssertTrue(received.isEmpty, "Keep the legacy initial-emission barrier")
+    feature.filterSelection.publishInitialSelection()
+    XCTAssertEqual(received.count, 1)
+    XCTAssertEqual(received.last, feature.queryParameters(for: "art"))
+    feature.selectFilter(.goal(.bucket_4))
+    XCTAssertEqual(received.last, feature.queryParameters(for: "art"))
+    input.send(value: "books")
+    XCTAssertEqual(received.last, feature.queryParameters(for: "books"))
+  }
+
+  func testLegacyResetKeepsPerFieldOrderAndDuplicateEmissions() {
+    let feature = SearchFeature(provider: ControlledSearchProvider())
+    let (query, input) = Signal<String, Never>.pipe()
+    var received: [DiscoveryParams] = []
+    let observation = feature.queryParameters(for: query).observeValues { received.append($0) }
+    defer { observation?.dispose() }
+    feature.filterSelection.publishInitialSelection()
+    input.send(value: "art")
+    feature.selectFilter(.sort(.newest))
+    feature.selectFilter(.category(.rootCategory(.art)))
+    feature.selectFilter(.projectState(.live))
+    feature.selectFilter(.percentRaised(.bucket_2))
+    feature.selectFilter(.amountRaised(.bucket_3))
+    feature.selectFilter(.goal(.bucket_4))
+    feature.selectFilter(.following(true))
+    feature.selectFilter(.recommended(true))
+    feature.selectFilter(.projectsWeLove(true))
+    feature.selectFilter(.savedProjects(true))
+    let beforeReset = feature.queryParameters(for: "art")
+    received.removeAll()
+    feature.resetFilters(.allFilters)
+
+    var expected = beforeReset
+    var expectedEmissions: [DiscoveryParams] = []
+    expected.category = nil
+    expectedEmissions.append(expected)
+    expected.state = .all
+    expectedEmissions.append(expected)
+    expected.percentRaised = nil
+    expectedEmissions.append(expected)
+    expected.location = nil
+    expectedEmissions.append(expected)
+    expected.amountRaised = nil
+    expectedEmissions.append(expected)
+    expected.goal = nil
+    expectedEmissions.append(expected)
+    expected.social = nil
+    expectedEmissions.append(expected)
+    expected.recommended = nil
+    expectedEmissions.append(expected)
+    expected.staffPicks = nil
+    expectedEmissions.append(expected)
+    expected.starred = nil
+    expectedEmissions.append(expected)
+    XCTAssertEqual(received, expectedEmissions, "Ten ordered emissions, including unchanged location")
+
+    received.removeAll()
+    feature.updateQuery("")
+    XCTAssertEqual(received.count, 11, "Clear resets ten filters, then sort")
+    XCTAssertEqual(received.last?.sort, .magic)
+    received.removeAll()
+    feature.selectFilter(.sort(.magic))
+    feature.selectFilter(.sort(.magic))
+    XCTAssertEqual(received.count, 2, "Do not silently deduplicate UI/analytics events")
+  }
+
   func testSuccessfulSearchPublishesDataCountAndLoading() async throws {
     let provider = ControlledSearchProvider()
     let searchFeature = SearchFeature(provider: provider, sleep: { _ in })

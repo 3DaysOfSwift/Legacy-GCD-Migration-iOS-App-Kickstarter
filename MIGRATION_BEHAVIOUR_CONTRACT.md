@@ -157,3 +157,23 @@ in /private/tmp/kickstarter-search-lookup-cleanup.PQ3So7 passed all 111 tests
 blocker above. No Swift or project changes followed that successful run.
 Manual smoke remains bounded to the pre-cleanup binary; broader validation
 and the rest of the migration remain outstanding.
+
+## Selection-state checkpoint — verification pending, 27 October 2026
+
+Ordinary main-actor state replaces reactive filter storage. Direct Feature query
+construction must be usable without subscriptions/initial signals, must not start
+IO, and must preserve query text, every selected field, page size 15 and false
+toggles represented as nil. New native API tests cover these requirements.
+
+Compatibility requirements retained, inferred from current source:
+the signal projection waits for initial selection; reset-all emits category,
+state, percent, location, amount, goal, following, recommended, projects-we-love,
+saved in that order, retaining sort. Clear resets sort last. Repeated identical
+assignments still emit. New initial-barrier and ordered-emission tests protect
+these details; they are not permission to redesign the UI or analytics.
+
+Six new tests plus the 111-test baseline are pending runtime verification.
+Syntax parsing passed but is not a type-check or test result. The build attempt
+was sandbox-blocked before compilation. Earlier manual smoke does not validate
+these newly changed files. Query/lifecycle and analytics adapters remain in use;
+the overall migration is still in progress.

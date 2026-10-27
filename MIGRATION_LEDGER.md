@@ -18,12 +18,13 @@ Completed checkpoints below are historical evidence, not app-wide completion.
 
 - Completed: Search request ownership; filter decisions; cancellable Apollo bridge;
   directly awaitable first-page/pagination commands with shared in-flight work.
-- Current bounded slice: category/location native lookups passed 114 focused
-  tests and the app build. Installed-app filter smoke checks now passed.
-  Orphan location source/tests and Xcode references are removed; fresh cleanup
-  verification passed all 111 tests and the app build (results inspected 27 October).
-- Next: continue Search selection/query projections, preserving reset event order
-  and request/analytics semantics.
+- Last verified checkpoint: native category/location lookups and orphan cleanup;
+  111 tests and app build passed, with bounded installed-app filter smoke.
+- Current bounded slice: plain main-actor selection storage and direct query
+  construction, plus six new tests. Checkpoint committed at Matthew Thomas's
+  explicit request before runtime verification; not a verified milestone.
+- Next: verify this slice (expected 117 tests), record the result, then
+  migrate the screen's query-input/lifecycle and analytics compatibility edges.
 - Remaining Search work: replace reactive selection/query projections and screen
   compatibility edges as appropriate; review the completed Feature against CFA;
   close outstanding behaviour-contract/manual/snapshot validation gates.
@@ -447,3 +448,35 @@ extension/host CFBundleVersion mismatch). No warning-free claim.
 Only progress/evidence documentation changed after the successful run.
 The earlier sandbox-blocked attempt remains recorded, superseded by this result.
 This verifies the bounded orphan cleanup, not whole-Search or whole-app completion.
+
+## Selection state and direct query construction — 27 October 2026
+
+Baseline: d4cf779797b9975eaa487910fd30fa55417b0da2, 111 tests and app build passed.
+Route remains SearchViewController → SearchViewModel → AppModel.searchFeature →
+SearchFilterSelection (existing internal policy) / existing async providers.
+
+- Filter choices now use ordinary main-actor stored values, not MutableProperty.
+  Existing signal pipes only publish compatibility events. No new type or Task.
+- SearchFeature.queryParameters(for: String) reads current selection directly:
+  no subscriber, initial signal, network call or UI object is required.
+- The legacy signal overload delegates query construction to that native API.
+  Its initial-emission barrier remains, as do per-field reset order, duplicate
+  events, optional false→nil semantics and the existing UIKit/analytics bindings.
+- Six new Feature tests cover direct defaults/all fields/toggles, reset-all versus
+  clear, scoped reset, initial adapter gating and ordered duplicate emissions.
+  Existing three projection tests and all wider focused tests remain unchanged.
+- No UI, persistence, transport, identifiers or error-delivery changes.
+
+This is NOT completion of reactive removal. SearchViewModel still owns query-text
+input signals, lifecycle/analytics projections and the request subscription.
+The presentation adapter and toggle-output combineLatest remain deliberately.
+Next: migrate that input/publication route after this checkpoint passes.
+
+Swift syntax parsing, project plist, zsh syntax and diff checks passed.
+Fresh verify.zsh attempt exited 74 before compilation: Simulator service/cache
+access denied in the execution sandbox. No new test/build/manual pass claimed.
+Output: /private/tmp/kickstarter-search-selection-state.ckH4Ho.
+Evidence and repeatable script: sibling Migration Evidence/kickstarter-search-selection-state.
+Expected 117 tests in eight suites plus app build; verification remains pending.
+Matthew Thomas explicitly requested a checkpoint commit before this verification.
+This saves work only: it does not establish a passing build, tests or completion.

@@ -125,20 +125,27 @@ public final class SearchFeature {
       self.filterSelection.selectedGoalBucket,
       self.filterSelection.selectedToggles
     )
-    .map { query, sort, category, state, percentRaised, location, amountRaised, goal, toggles in
-      DiscoveryParams.withQuery(
-        query,
-        sort: sort,
-        category: category.category,
-        state: state,
-        percentRaised: percentRaised,
-        location: location,
-        amountRaised: amountRaised,
-        goal: goal,
-        toggles: toggles
-      )
+    .map { [weak self] query, _, _, _, _, _, _, _, _ in
+      self?.queryParameters(for: query)
     }
+    .skipNil()
+  }
 
+  /// Native, side-effect-free query construction. No initial signal, UI
+  /// subscriber or network execution is required to read the current selection.
+  public func queryParameters(for query: String) -> DiscoveryParams {
+    let selection = self.filterSelection
+    return DiscoveryParams.withQuery(
+      query,
+      sort: selection.selectedSortValue,
+      category: selection.selectedCategoryValue.category,
+      state: selection.selectedStateValue,
+      percentRaised: selection.selectedPercentRaisedBucketValue,
+      location: selection.selectedLocationValue,
+      amountRaised: selection.selectedAmountRaisedBucketValue,
+      goal: selection.selectedGoalBucketValue,
+      toggles: selection.toggles
+    )
   }
 
   public func updateQuery(_ query: String) {
