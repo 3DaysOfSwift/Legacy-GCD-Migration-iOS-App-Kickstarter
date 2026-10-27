@@ -11,7 +11,15 @@ import ReactiveSwift
 import UserNotifications
 import XCTest
 
+@MainActor
 final class AppDelegateViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let settingsFeature = SettingsFeature(
+    sessionFeature: SessionFeature(makeProvider: {
+      AsyncSessionProvider(service: AppEnvironment.current.apiService)
+    }),
+    makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
+  )
   var vm: AppDelegateViewModelType!
 
   private let applicationIconBadgeNumber = TestObserver<Int, Never>()
@@ -41,6 +49,7 @@ final class AppDelegateViewModelTests: TestCase {
   private let triggerOnboardingFlow = TestObserver<(), Never>()
   private let unregisterForRemoteNotifications = TestObserver<(), Never>()
   private let updateCurrentUserInEnvironment = TestObserver<User, Never>()
+  private let notificationSettingsUpdated = TestObserver<Void, Never>()
   private let updateConfigInEnvironment = TestObserver<Config, Never>()
   private var disposables: [any Disposable] = []
 
@@ -56,8 +65,17 @@ final class AppDelegateViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated { self.bindOutputs() }
+  }
 
-    self.vm = AppDelegateViewModel()
+  override func tearDown() async throws {
+    await self.settingsFeature.waitForOperations()
+    try await super.tearDown()
+  }
+
+  private func bindOutputs() {
+    self.vm = AppDelegateViewModel(settingsFeature: self.settingsFeature)
+    self.vm.outputs.notificationSettingsUpdated.observe(self.notificationSettingsUpdated.observer)
 
     self.vm.outputs.applicationIconBadgeNumber.observe(self.applicationIconBadgeNumber.observer)
     self.vm.outputs.configureFirebase.observe(self.configureFirebase.observer)
@@ -2158,10 +2176,45 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testDeepLink_UserDidUpdateNotificationSettings() {
+  func testDeepLinkNotificationFailureDoesNotReportSuccess() async throws {
+    AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
+    let original = AppEnvironment.current.currentUser?.notifications
+    let url = try XCTUnwrap(URL(string: "https://www.kickstarter.com/settings/notify_mobile_of_messages/true"))
+    await withEnvironment(apiService: MockService(updateUserSelfError: .couldNotParseJSON)) {
+      XCTAssertTrue(self.vm.inputs.applicationOpenUrl(
+        application: UIApplication.shared, url: url, options: [:]
+      ))
+      await self.settingsFeature.waitForOperations()
+      await self.scheduler.advance()
+      self.notificationSettingsUpdated.assertDidNotEmitValue()
+      self.updateCurrentUserInEnvironment.assertDidNotEmitValue()
+      XCTAssertEqual(AppEnvironment.current.currentUser?.notifications, original)
+      XCTAssertNotNil(self.settingsFeature.lastError)
+    }
+  }
+
+  func testDeepLinkCompletionDoesNotReplaySavedUserAfterPresentationDelay() async throws {
+    AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
+    let url = try XCTUnwrap(URL(string: "https://www.kickstarter.com/settings/notify_mobile_of_messages/true"))
+    XCTAssertTrue(self.vm.inputs.applicationOpenUrl(
+      application: UIApplication.shared, url: url, options: [:]
+    ))
+    await self.settingsFeature.waitForOperations()
+    XCTAssertEqual(AppEnvironment.current.currentUser?.notifications.mobileMessages, true)
+    self.notificationSettingsUpdated.assertDidNotEmitValue()
+    var newer = try XCTUnwrap(AppEnvironment.current.currentUser)
+    newer.newsletters.games = true
+    AppEnvironment.updateCurrentUser(newer)
+    await self.scheduler.advance()
+    self.notificationSettingsUpdated.assertValueCount(1)
+    self.updateCurrentUserInEnvironment.assertDidNotEmitValue()
+    XCTAssertEqual(AppEnvironment.current.currentUser?.newsletters.games, true)
+  }
+
+  func testDeepLink_UserDidUpdateNotificationSettings() async {
     self.updateCurrentUserInEnvironment.assertDidNotEmitValue()
 
-    withEnvironment(apiService: MockService()) {
+    await withEnvironment(apiService: MockService()) {
       let user = User.template
         |> User.lens.notifications.mobileMessages .~ false
 
@@ -2173,7 +2226,7 @@ final class AppDelegateViewModelTests: TestCase {
         launchOptions: [:]
       )
 
-      self.scheduler.advance(by: .seconds(5))
+      await self.scheduler.advance(by: .seconds(5))
 
       self.updateCurrentUserInEnvironment.assertValues([user])
 
@@ -2192,9 +2245,12 @@ final class AppDelegateViewModelTests: TestCase {
 
       self.updateCurrentUserInEnvironment.assertValues([user])
 
-      self.scheduler.advance()
+      await self.settingsFeature.waitForOperations()
+      await self.scheduler.advance()
 
-      self.updateCurrentUserInEnvironment.assertValues([user, updatedUser])
+      self.updateCurrentUserInEnvironment.assertValues([user])
+      self.notificationSettingsUpdated.assertValueCount(1)
+      XCTAssertEqual(AppEnvironment.current.currentUser?.notifications, updatedUser.notifications)
     }
   }
 

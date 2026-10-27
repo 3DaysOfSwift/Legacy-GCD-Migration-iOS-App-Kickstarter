@@ -11,8 +11,16 @@ import UIKit
 import XCTest
 
 // swiftlint:disable:next type_body_length
+@MainActor
 final class ThanksViewModelTests: TestCase {
-  let vm: ThanksViewModelType = ThanksViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let settingsFeature = SettingsFeature(
+    sessionFeature: SessionFeature(makeProvider: {
+      AsyncSessionProvider(service: AppEnvironment.current.apiService)
+    }),
+    makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var vm: ThanksViewModelType = ThanksViewModel(settingsFeature: self.settingsFeature)
   private let categoryEnvelope = CategoryEnvelope(node: .template)
 
   private let backedProjectText = TestObserver<String, Never>()
@@ -33,6 +41,15 @@ final class ThanksViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated { self.bindOutputs() }
+  }
+
+  override func tearDown() async throws {
+    await self.settingsFeature.waitForOperations()
+    try await super.tearDown()
+  }
+
+  private func bindOutputs() {
     self.vm.outputs.backedProjectText.map { $0.string }.observe(self.backedProjectText.observer)
     self.vm.outputs.postProjectBackedNotification.map { $0.name }
       .observe(self.postBackedNotification.observer)
@@ -59,6 +76,21 @@ final class ThanksViewModelTests: TestCase {
     pledgeTotal: Double = 1
   ) -> ThanksPageData {
     return (project, reward, checkoutData, pledgeTotal)
+  }
+
+  func testNewsletterFailureDoesNotReportSavedUser() async {
+    await withEnvironment(
+      apiService: MockService(updateUserSelfError: .couldNotParseJSON), currentUser: .template
+    ) {
+      let original = AppEnvironment.current.currentUser?.newsletters.games
+      self.vm.inputs.gamesNewsletterSignupButtonTapped()
+      await self.settingsFeature.waitForOperations()
+      await self.scheduler.advance()
+      self.updateUserInEnvironment.assertDidNotEmitValue()
+      self.postUserUpdatedNotification.assertDidNotEmitValue()
+      XCTAssertEqual(AppEnvironment.current.currentUser?.newsletters.games, original)
+      XCTAssertNotNil(self.settingsFeature.lastError)
+    }
   }
 
   func testPostBackedNotification() {
@@ -180,7 +212,7 @@ final class ThanksViewModelTests: TestCase {
         "Newsletter pref saved"
       )
 
-      let secondVM: ThanksViewModelType = ThanksViewModel()
+      let secondVM: ThanksViewModelType = ThanksViewModel(settingsFeature: self.settingsFeature)
       let secondShowRatingAlert = TestObserver<(), Never>()
       secondVM.outputs.showRatingAlert.observe(secondShowRatingAlert.observer)
       let secondShowGamesNewsletterAlert = TestObserver<(), Never>()
@@ -209,10 +241,10 @@ final class ThanksViewModelTests: TestCase {
   }
 
   // FIXME: MBL-2857
-  func testGamesNewsletterSignup() {
+  func testGamesNewsletterSignup() async {
     let project = Project.template |> Project.lens.category .~ .games
 
-    withEnvironment(currentUser: .template) {
+    await withEnvironment(currentUser: .template) {
       self.vm.inputs.configure(with: self.thanksPageData(project: project))
       self.vm.inputs.viewDidLoad()
 
@@ -220,7 +252,8 @@ final class ThanksViewModelTests: TestCase {
 
       self.vm.inputs.gamesNewsletterSignupButtonTapped()
 
-      scheduler.advance()
+      await self.settingsFeature.waitForOperations()
+      await scheduler.advance()
 
       self.updateUserInEnvironment.assertValueCount(1)
       self.showGamesNewsletterOptInAlert.assertValueCount(0, "Opt-in alert does not emit")
@@ -260,10 +293,10 @@ final class ThanksViewModelTests: TestCase {
   }
 
   // FIXME: MBL-2857
-  func testGamesNewsletterOptInAlert() {
+  func testGamesNewsletterOptInAlert() async {
     let project = Project.template |> Project.lens.category .~ .games
 
-    withEnvironment(countryCode: "DE", currentUser: User.template) {
+    await withEnvironment(countryCode: "DE", currentUser: User.template) {
       self.vm.inputs.configure(with: self.thanksPageData(project: project))
       self.vm.inputs.viewDidLoad()
 
@@ -275,6 +308,8 @@ final class ThanksViewModelTests: TestCase {
         ["Kickstarter Loves Games"],
         "Opt-in alert emits with title"
       )
+
+      await self.settingsFeature.waitForOperations()
 
       XCTAssertEqual(
         ["Page Viewed"],

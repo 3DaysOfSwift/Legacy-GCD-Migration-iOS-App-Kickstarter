@@ -9,6 +9,7 @@ import ReactiveSwift
 import XCTest
 
 final class LoginViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   fileprivate let vm: LoginViewModelType = LoginViewModel()
   fileprivate let emailTextFieldBecomeFirstResponder = TestObserver<(), Never>()
   fileprivate let passwordTextFieldBecomeFirstResponder = TestObserver<(), Never>()

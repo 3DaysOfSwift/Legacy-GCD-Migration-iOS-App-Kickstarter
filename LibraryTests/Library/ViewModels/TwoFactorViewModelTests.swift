@@ -7,6 +7,7 @@ import ReactiveSwift
 import XCTest
 
 final class TwoFactorViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   let vm: TwoFactorViewModelType = TwoFactorViewModel()
   var codeTextFieldBecomeFirstResponder = TestObserver<(), Never>()
   var isFormValid = TestObserver<Bool, Never>()

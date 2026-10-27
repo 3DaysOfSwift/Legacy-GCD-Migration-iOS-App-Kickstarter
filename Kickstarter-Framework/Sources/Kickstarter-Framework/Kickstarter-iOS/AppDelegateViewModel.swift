@@ -14,6 +14,7 @@ public enum NotificationAuthorizationStatus {
   case provisional
 }
 
+@MainActor
 public protocol AppDelegateViewModelInputs {
   /// Call when the application is handed off to.
   func applicationContinueUserActivity(_ userActivity: NSUserActivity) -> Bool
@@ -88,6 +89,7 @@ public protocol AppDelegateViewModelInputs {
   func userSessionStarted()
 }
 
+@MainActor
 public protocol AppDelegateViewModelOutputs {
   /// The value to return from the delegate's `application:didFinishLaunchingWithOptions:` method.
   var applicationDidFinishLaunchingReturnValue: Bool { get }
@@ -180,18 +182,24 @@ public protocol AppDelegateViewModelOutputs {
   /// Emits a fresh user to be updated in the app environment.
   var updateCurrentUserInEnvironment: Signal<User, Never> { get }
 
+  /// A preference command has already persisted; observers must not re-save its snapshot.
+  var notificationSettingsUpdated: Signal<Void, Never> { get }
+
   /// Emits a config value that should be updated in the environment.
   var updateConfigInEnvironment: Signal<Config, Never> { get }
 }
 
+@MainActor
 public protocol AppDelegateViewModelType {
   var inputs: AppDelegateViewModelInputs { get }
   var outputs: AppDelegateViewModelOutputs { get }
 }
 
+@MainActor
 public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateViewModelInputs,
   AppDelegateViewModelOutputs {
-  public init() {
+  public init(settingsFeature: SettingsFeature? = nil) {
+    let settingsFeature = settingsFeature ?? AppModel.shared.settingsFeature
     let currentUserEvent = Signal
       .merge(
         self.applicationWillEnterForegroundProperty.signal,
@@ -409,12 +417,15 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       guard case .settings(.notifications) = nav else { return false }
       return true
     }
-    .flatMap(updateUserNotificationSetting)
+    .flatMap { navigation -> SignalProducer<User, Never> in
+      guard case let .settings(.notifications(notification, enabled)) = navigation else { return .empty }
+      return settingsFeature.notificationResult(named: notification, enabled: enabled)
+        .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+        .demoteErrors()
+    }
 
-    self.updateCurrentUserInEnvironment = Signal.merge(
-      currentUserEvent.values().skipNil(),
-      updatedUserNotificationSettings
-    )
+    self.updateCurrentUserInEnvironment = currentUserEvent.values().skipNil()
+    self.notificationSettingsUpdated = updatedUserNotificationSettings.ignoreValues()
 
     let emailVerificationEvent = deepLinkUrl
       .filter { Navigation.match($0) == .profile(.verifyEmail) }
@@ -794,6 +805,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public let triggerOnboardingFlow: Signal<(), Never>
   public let unregisterForRemoteNotifications: Signal<(), Never>
   public let updateCurrentUserInEnvironment: Signal<User, Never>
+  public let notificationSettingsUpdated: Signal<Void, Never>
   public let updateConfigInEnvironment: Signal<Config, Never>
 }
 
@@ -1129,27 +1141,6 @@ private func configRetainingDebugFeatureFlags(_ config: Config) -> Config {
     .filter { key, _ in currentFeatureKeys.contains(key) }
 
   return config |> Config.lens.features .~ currentFeatures.withAllValuesFrom(storedFeatures)
-}
-
-private func updateUserNotificationSetting(navigation: Navigation) -> SignalProducer<User, Never> {
-  guard
-    case let .settings(.notifications(notification, enabled)) = navigation,
-    let currentUser = AppEnvironment.current.currentUser
-  else { return .empty }
-
-  let currentNotifications = AppEnvironment.current.currentUser?.notifications.encode()
-  let updatedNotifications = currentNotifications?.withAllValuesFrom([notification: enabled])
-
-  guard
-    let data = try? JSONSerialization.data(withJSONObject: updatedNotifications as Any, options: []),
-    let userNotifications = try? JSONDecoder().decode(User.Notifications.self, from: data)
-  else { return .empty }
-
-  let updatedUser = currentUser |> User.lens.notifications .~ userNotifications
-
-  return AppEnvironment.current.apiService.updateUserSelf(updatedUser)
-    .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-    .demoteErrors()
 }
 
 /// A utility for handling all of the `.project` deep links.

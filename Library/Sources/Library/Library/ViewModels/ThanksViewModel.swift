@@ -11,6 +11,7 @@ public typealias ThanksPageData = (
   pledgeTotal: Double
 )
 
+@MainActor
 public protocol ThanksViewModelInputs {
   /// Call to configure the VM
   func configure(with data: ThanksPageData)
@@ -34,6 +35,7 @@ public protocol ThanksViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol ThanksViewModelOutputs {
   /// Emits backed project subheader text to display
   var backedProjectText: Signal<NSAttributedString, Never> { get }
@@ -69,13 +71,16 @@ public protocol ThanksViewModelOutputs {
   var updateUserInEnvironment: Signal<User, Never> { get }
 }
 
+@MainActor
 public protocol ThanksViewModelType {
   var inputs: ThanksViewModelInputs { get }
   var outputs: ThanksViewModelOutputs { get }
 }
 
+@MainActor
 public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, ThanksViewModelOutputs {
-  public init() {
+  public init(settingsFeature: SettingsFeature? = nil) {
+    let settingsFeature = settingsFeature ?? AppModel.shared.settingsFeature
     let project = self.configureWithDataProperty.signal
       .skipNil()
       .map { $0.project }
@@ -167,7 +172,7 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
       .map { AppEnvironment.current.currentUser ?? nil }
       .skipNil()
       .switchMap { user in
-        AppEnvironment.current.apiService.updateUserSelf(user |> \.newsletters.games .~ true)
+        settingsFeature.saveResult([.init(.newsletter(.games), true)], from: user)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .demoteErrors()
       }

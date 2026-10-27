@@ -176,8 +176,7 @@ internal final class ThanksViewController: UIViewController, UITableViewDelegate
       }
 
     self.viewModel.outputs.updateUserInEnvironment
-      .observeValues { [weak self] user in
-        AppEnvironment.updateCurrentUser(user)
+      .observeValues { [weak self] _ in
         self?.viewModel.inputs.userUpdated()
       }
 

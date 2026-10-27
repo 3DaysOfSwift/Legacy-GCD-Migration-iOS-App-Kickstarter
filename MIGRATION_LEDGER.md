@@ -4,6 +4,33 @@ Author: Matthew Thomas. Updated 27 October 2026.
 
 ## Latest verified checkpoint
 
+### Remaining preference entry points — 27 October 2026
+
+Thanks newsletter signup and notification-setting deep links now use the same
+SettingsFeature queue as the settings screens. All 18 notification URL names map
+to individual edits. Unknown names preserve the legacy unchanged-user save;
+signed-out links do not save. No app caller remains on reactive updateUserSelf.
+
+Thanks no longer persists its completion again. AppDelegate separates an already
+committed preference notification from legacy user-refresh payloads; its callback
+reads current session data rather than replaying a delayed command snapshot.
+The existing user-identification and user-updated notification effects remain.
+The app-delegate's legacy user-refresh/authentication paths are not yet migrated.
+
+Baseline: 16 Thanks and 118 AppDelegate tests passed before production changes.
+After: 647 Library + 127 framework + 29 API = 803 tests passed, zero failures/skips;
+app built successfully with two existing warnings. The Library run includes 21
+unchanged Login/TwoFactor tests as the next authentication baseline.
+Results: /private/tmp/kickstarter-preference-entrypoints.ITOvsu.
+Six added tests protect URL mapping, cross-entry-point ordering, failure,
+signed-out/unknown links and no delayed whole-user replay.
+Evidence: sibling Migration Evidence/kickstarter-preference-entrypoints.
+
+No UI redesign or live account mutation. Thanks recommendations, authentication,
+other account writes, messaging and payment/backing workflows remain, as do
+full-suite, strict-concurrency and physical-device/visual validation.
+App-wide migration remains IN PROGRESS.
+
 ### Settings preference reads/writes and account-safe persistence — 27 October 2026
 
 AppModel now composes SettingsFeature with the shared SessionFeature. Six

@@ -85,6 +85,36 @@ public final class SettingsFeature {
     return value
   }
 
+  /// Notification URLs carry wire names. Convert only the requested field into
+  /// an edit; never enqueue the whole user snapshot supplied by a deep link.
+  public func notificationResult(named parameter: String, enabled: Bool)
+    -> SignalProducer<User, ErrorEnvelope> {
+    guard let user = self.session.currentUser else { return .empty }
+    let names: [String: UserAttribute.Notification] = [
+      "notify_of_backings": .pledgeActivity,
+      "notify_of_comment_replies": .commentReplies,
+      "notify_of_comments": .comments,
+      "notify_of_creator_digest": .creatorDigest,
+      "notify_of_creator_edu": .creatorTips,
+      "notify_of_follower": .follower,
+      "notify_of_friend_activity": .friendActivity,
+      "notify_of_messages": .messages,
+      "notify_mobile_of_backings": .mobilePledgeActivity,
+      "notify_mobile_of_comments": .mobileComments,
+      "notify_mobile_of_follower": .mobileFollower,
+      "notify_mobile_of_friend_activity": .mobileFriendActivity,
+      "notify_mobile_of_marketing_update": .mobileMarketingUpdate,
+      "notify_mobile_of_messages": .mobileMessages,
+      "notify_mobile_of_post_likes": .mobilePostLikes,
+      "notify_mobile_of_updates": .mobileUpdates,
+      "notify_of_post_likes": .postLikes,
+      "notify_of_updates": .updates
+    ]
+    // Legacy decoding ignored unknown keys but still saved the unchanged user.
+    let changes = names[parameter].map { [Change(.notification($0), enabled)] } ?? []
+    return self.saveResult(changes, from: user)
+  }
+
   private func identity(for user: User) -> Account {
     Account(id: self.session.currentUser?.id, generation: self.session.generation, sourceID: user.id)
   }

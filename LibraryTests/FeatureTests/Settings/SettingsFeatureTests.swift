@@ -5,6 +5,75 @@ import XCTest
 
 @MainActor
 final class SettingsFeatureTests: XCTestCase {
+  func testEveryNotificationURLFieldChangesOnlyItsOwnPreference() async throws {
+    let parameters = [
+      "notify_of_backings", "notify_of_comment_replies", "notify_of_comments",
+      "notify_of_creator_digest", "notify_of_creator_edu", "notify_of_follower",
+      "notify_of_friend_activity", "notify_of_messages", "notify_mobile_of_backings",
+      "notify_mobile_of_comments", "notify_mobile_of_follower", "notify_mobile_of_friend_activity",
+      "notify_mobile_of_marketing_update", "notify_mobile_of_messages", "notify_mobile_of_post_likes",
+      "notify_mobile_of_updates", "notify_of_post_likes", "notify_of_updates"
+    ]
+    for parameter in parameters {
+      let fixture = PreferencesFixture()
+      defer { fixture.provider.gate.releaseAll() }
+      for (index, enabled) in [true, false].enumerated() {
+        let before = try XCTUnwrap(fixture.user)
+        var expected = try XCTUnwrap(before.notifications.encode() as? [String: Bool])
+        expected[parameter] = enabled
+        let observation = fixture.feature.notificationResult(named: parameter, enabled: enabled).start()
+        defer { observation.dispose() }
+        await fixture.provider.gate.waitFor(index + 1)
+        let sent = try XCTUnwrap(fixture.provider.sent.last)
+        XCTAssertEqual(sent.notifications.encode() as? [String: Bool], expected, parameter)
+        XCTAssertEqual(sent.newsletters.games, before.newsletters.games, parameter)
+        try fixture.provider.succeed(index)
+        await fixture.feature.waitForOperations()
+        XCTAssertEqual(fixture.user?.notifications.encode() as? [String: Bool], expected, parameter)
+      }
+    }
+  }
+
+  func testNewsletterAndDeepLinkCommandsShareOrderedWrites() async throws {
+    let fixture = PreferencesFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    let user = try XCTUnwrap(fixture.user)
+    let newsletter = fixture.feature.saveResult([.init(.newsletter(.games), true)], from: user).start()
+    let notification = fixture.feature.notificationResult(named: "notify_mobile_of_messages", enabled: true)
+      .start()
+    let laterNewsletter = fixture.feature.saveResult([.init(.newsletter(.games), false)], from: user).start()
+    defer { newsletter.dispose(); notification.dispose(); laterNewsletter.dispose() }
+    await fixture.provider.gate.waitFor(1)
+    try fixture.provider.succeed(0)
+    await fixture.provider.gate.waitFor(2)
+    XCTAssertEqual(fixture.provider.sent[1].newsletters.games, true)
+    XCTAssertEqual(fixture.provider.sent[1].notifications.mobileMessages, true)
+    try fixture.provider.succeed(1)
+    await fixture.provider.gate.waitFor(3)
+    XCTAssertEqual(fixture.provider.sent[2].newsletters.games, false)
+    XCTAssertEqual(fixture.provider.sent[2].notifications.mobileMessages, true)
+    try fixture.provider.succeed(2)
+    await fixture.feature.waitForOperations()
+    XCTAssertEqual(fixture.commits, 3)
+  }
+
+  func testUnknownNotificationKeepsLegacyNoOpAndSignedOutLinkDoesNotSave() async throws {
+    let fixture = PreferencesFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    let original = try XCTUnwrap(fixture.user)
+    let observation = fixture.feature.notificationResult(named: "unrecognized", enabled: true).start()
+    defer { observation.dispose() }
+    await fixture.provider.gate.waitFor(1)
+    XCTAssertEqual(fixture.provider.sent[0].notifications, original.notifications)
+    try fixture.provider.succeed(0)
+    await fixture.feature.waitForOperations()
+    fixture.user = nil
+    let signedOut = fixture.feature.notificationResult(named: "notify_of_messages", enabled: true).start()
+    defer { signedOut.dispose() }
+    await fixture.feature.waitForOperations()
+    XCTAssertEqual(fixture.provider.sent.count, 1)
+  }
+
   func testSignedOutCommandDoesNotReachProvider() async throws {
     let fixture = PreferencesFixture()
     fixture.user = nil

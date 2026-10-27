@@ -106,6 +106,17 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
         self?.viewModel.inputs.currentUserUpdatedInEnvironment()
       }
 
+    self.viewModel.outputs.notificationSettingsUpdated
+      .observeForUI()
+      .observeValues { [weak self] in
+        // The Feature committed the edit. Read the latest session rather than
+        // restoring an older command snapshot after presentation scheduling.
+        guard let user = AppEnvironment.current.currentUser else { return }
+        self?.braze?.changeUser(userId: String(user.id))
+        AppEnvironment.current.identify(user: user)
+        self?.viewModel.inputs.currentUserUpdatedInEnvironment()
+      }
+
     self.viewModel.outputs.forceLogout
       .observeForUI()
       .observeValues {

@@ -1,5 +1,25 @@
 # Kickstarter migration behaviour contract
 
+## Newsletter/deep-link preference entry points — 27 October 2026
+
+- Preserve the post-pledge Games newsletter prompt, German opt-in text, silent
+  save-failure behavior and user-updated notification after confirmed persistence.
+- Preserve notification URL field names, enabled/disabled values, navigation and
+  presentation delay. Unknown fields retain the legacy no-op save.
+- Newsletter and notification links join the existing settings queue; a later
+  edit must not overwrite an unrelated earlier edit from a stale User snapshot.
+- Persist once in the Feature. Delayed UI callbacks may identify/notify the
+  current user but must not re-save a completed command's old snapshot.
+
+Baseline: 16 Thanks + 118 AppDelegate tests. After: 803 integrated tests passed,
+zero failures/skips, app build succeeded. Six new cases cover all URL fields,
+shared ordering, failure, signed-out/unknown input and delayed completion.
+Evidence: /private/tmp/kickstarter-preference-entrypoints.ITOvsu and sibling
+Migration Evidence/kickstarter-preference-entrypoints.
+No live-service mutation or authenticated visual/device validation was run.
+The older settings checkpoint below accurately describes its earlier boundary;
+the two remaining updateUserSelf callers it lists are resolved by this checkpoint.
+
 ## Settings preferences and shared account persistence — 27 October 2026
 
 - Preserve switch values, immediate visual feedback, rollback/error messages,
