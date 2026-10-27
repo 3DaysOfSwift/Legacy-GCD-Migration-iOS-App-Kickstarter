@@ -913,6 +913,23 @@
       return VoidEnvelope()
     }
 
+    @MainActor public func projectVideoFeed() async throws -> GraphAPI.VideoFeedQuery.Data {
+      try Task.checkCancellation()
+      guard let data = try await self.fetch(query: GraphAPI.VideoFeedQuery(
+        first: 30, after: .none, categoryId: .none
+      )) else { throw ErrorEnvelope.couldNotParseJSON }
+      return data
+    }
+
+    @MainActor public func setProjectWatched(
+      id: String, watched: Bool
+    ) async throws -> WatchProjectResponseEnvelope {
+      try Task.checkCancellation()
+      guard let result = watched ? self.watchProjectMutationResult : self.unwatchProjectMutationResult
+      else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
     func fetchProjectComments(
       slug: String,
       cursor: String?,

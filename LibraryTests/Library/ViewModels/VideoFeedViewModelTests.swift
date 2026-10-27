@@ -7,10 +7,14 @@ import GraphAPI
 import SwiftUI
 import XCTest
 
+@MainActor
 final class VideoFeedViewModelTests: TestCase {
-  private let vm = VideoFeedViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let vm = VideoFeedViewModel(projectMediaFeature: ProjectMediaFeature(makeProvider: {
+    AsyncProjectMediaProvider(service: AppEnvironment.current.apiService)
+  }))
 
-  func testViewDidLoad_Success_PopulatesItems() async {
+  func testViewDidLoad_Success_PopulatesItems() async throws {
     let mockData = Self.mockVideoFeedQueryData(itemCount: 3)
 
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: [(VideoFeedQuery.self, mockData)])) {
@@ -22,7 +26,7 @@ final class VideoFeedViewModelTests: TestCase {
     XCTAssertNil(self.vm.errorMessage)
   }
 
-  func testViewDidLoad_Success() async {
+  func testViewDidLoad_Success() async throws {
     let mockData = Self.mockVideoFeedQueryData(itemCount: 3)
 
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: [(VideoFeedQuery.self, mockData)])) {
@@ -32,7 +36,7 @@ final class VideoFeedViewModelTests: TestCase {
     XCTAssertEqual(self.vm.items.map(\.id), ["project-0", "project-1", "project-2"])
   }
 
-  func testViewDidLoad_Success_MapsVerticalVideoToVideoURL() async {
+  func testViewDidLoad_Success_MapsVerticalVideoToVideoURL() async throws {
     let hlsURL = "https://test.com/video.mp4"
     let previewURL = "https://test.com/preview.jpg"
     let mockData = Self.mockVideoFeedQueryData(
@@ -49,7 +53,7 @@ final class VideoFeedViewModelTests: TestCase {
     XCTAssertEqual(self.vm.items.first?.videoPreviewImageURL?.absoluteString, previewURL)
   }
 
-  func testViewDidLoad_Success_EmptyResponse() async {
+  func testViewDidLoad_Success_EmptyResponse() async throws {
     let mockData = Self.mockVideoFeedQueryData(itemCount: 0)
 
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: [(VideoFeedQuery.self, mockData)])) {
@@ -61,7 +65,7 @@ final class VideoFeedViewModelTests: TestCase {
     XCTAssertEqual(self.vm.errorMessage, Strings.Something_went_wrong_please_try_again())
   }
 
-  func testViewDidLoad_Failure_SetsErrorMessage() async {
+  func testViewDidLoad_Failure_SetsErrorMessage() async throws {
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: [])) {
       await self.vm.fetchVideoFeed()
     }
@@ -71,14 +75,14 @@ final class VideoFeedViewModelTests: TestCase {
     XCTAssertNotNil(self.vm.errorMessage)
   }
 
-  func testToggleSaved_Watch_UpdatesIsSaved() async {
+  func testToggleSaved_Watch_UpdatesIsSaved() async throws {
     let mockData = Self.mockVideoFeedQueryData(itemCount: 1, isWatched: false)
 
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: [(VideoFeedQuery.self, mockData)])) {
       await self.vm.fetchVideoFeed()
     }
 
-    let item = try! XCTUnwrap(self.vm.items.first)
+    let item = try XCTUnwrap(self.vm.items.first)
 
     XCTAssertFalse(item.isSaved)
 
@@ -88,14 +92,14 @@ final class VideoFeedViewModelTests: TestCase {
     XCTAssertEqual(self.vm.items.first?.watchesCount, 4)
   }
 
-  func testToggleSaved_Unwatch_UpdatesIsSaved() async {
+  func testToggleSaved_Unwatch_UpdatesIsSaved() async throws {
     let mockData = Self.mockVideoFeedQueryData(itemCount: 1, isWatched: true)
 
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: [(VideoFeedQuery.self, mockData)])) {
       await self.vm.fetchVideoFeed()
     }
 
-    let item = try! XCTUnwrap(self.vm.items.first)
+    let item = try XCTUnwrap(self.vm.items.first)
 
     XCTAssertTrue(item.isSaved)
 
@@ -105,56 +109,56 @@ final class VideoFeedViewModelTests: TestCase {
     XCTAssertEqual(self.vm.items.first?.watchesCount, 2)
   }
 
-  func testToggleSaved_WatchesCountIncrementsOptimistically() async {
+  func testToggleSaved_WatchesCountIncrementsOptimistically() async throws {
     let mockData = Self.mockVideoFeedQueryData(itemCount: 1, isWatched: false)
 
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: [(VideoFeedQuery.self, mockData)])) {
       await self.vm.fetchVideoFeed()
     }
 
-    let item = try! XCTUnwrap(self.vm.items.first)
+    let item = try XCTUnwrap(self.vm.items.first)
     let originalCount = item.watchesCount
 
     self.vm.toggleSaved(for: item)
     XCTAssertEqual(self.vm.items.first?.watchesCount, originalCount + 1, "Count should increment on save.")
   }
 
-  func testToggleSaved_WatchesCountDecrementsOptimistically() async {
+  func testToggleSaved_WatchesCountDecrementsOptimistically() async throws {
     let mockData = Self.mockVideoFeedQueryData(itemCount: 1, isWatched: true)
 
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: [(VideoFeedQuery.self, mockData)])) {
       await self.vm.fetchVideoFeed()
     }
 
-    let item = try! XCTUnwrap(self.vm.items.first)
+    let item = try XCTUnwrap(self.vm.items.first)
     let originalCount = item.watchesCount
 
     self.vm.toggleSaved(for: item)
     XCTAssertEqual(self.vm.items.first?.watchesCount, originalCount - 1, "Count should decrement on unsave.")
   }
 
-  func testToggleSaved_WatchesCount_NeverDropsBelowOne_OnUnsave() async {
+  func testToggleSaved_WatchesCount_NeverDropsBelowOne_OnUnsave() async throws {
     let mockData = Self.mockVideoFeedQueryData(itemCount: 1, isWatched: true, watchesCount: 1)
 
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: [(VideoFeedQuery.self, mockData)])) {
       await self.vm.fetchVideoFeed()
     }
 
-    let item = try! XCTUnwrap(self.vm.items.first)
+    let item = try XCTUnwrap(self.vm.items.first)
 
     self.vm.toggleSaved(for: item)
 
     XCTAssertEqual(self.vm.items.first?.watchesCount, 0, "Count should not drop below 1 on unsave.")
   }
 
-  func testToggleSaved_OnlyAffectsSelectItems() async {
+  func testToggleSaved_OnlyAffectsSelectItems() async throws {
     let mockData = Self.mockVideoFeedQueryData(itemCount: 3, isWatched: false)
 
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: [(VideoFeedQuery.self, mockData)])) {
       await self.vm.fetchVideoFeed()
     }
 
-    let secondItem = try! XCTUnwrap(self.vm.items[1])
+    let secondItem = try XCTUnwrap(self.vm.items[1])
 
     self.vm.toggleSaved(for: secondItem)
 
@@ -163,38 +167,38 @@ final class VideoFeedViewModelTests: TestCase {
     XCTAssertFalse(self.vm.items[2].isSaved, "Third item should be unaffected.")
   }
 
-  func testToggleSaved_RapidTaps_OnlyLastRequestWins() async {
+  func testToggleSaved_RapidTaps_OnlyLastRequestWins() async throws {
     let mockData = Self.mockVideoFeedQueryData(itemCount: 1, isWatched: false)
 
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: [(VideoFeedQuery.self, mockData)])) {
       await self.vm.fetchVideoFeed()
     }
 
-    let item = try! XCTUnwrap(self.vm.items.first)
+    let item = try XCTUnwrap(self.vm.items.first)
 
     /// Tap 3 times rapidly: save, unsave, save.
     self.vm.toggleSaved(for: item)
-    self.vm.toggleSaved(for: self.vm.items.first!)
-    self.vm.toggleSaved(for: self.vm.items.first!)
+    self.vm.toggleSaved(for: try XCTUnwrap(self.vm.items.first))
+    self.vm.toggleSaved(for: try XCTUnwrap(self.vm.items.first))
 
     /// Final optimistic state should reflect the last tap (saved).
     XCTAssertTrue(self.vm.items.first?.isSaved == true, "Final state should reflect last tap.")
     XCTAssertNil(self.vm.saveFailedItemId, "No error toast should show for cancelled intermediate requests.")
   }
 
-  func testToggleSaved_RapidTaps_CountIsConsistent() async {
+  func testToggleSaved_RapidTaps_CountIsConsistent() async throws {
     let mockData = Self.mockVideoFeedQueryData(itemCount: 1, isWatched: false)
 
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: [(VideoFeedQuery.self, mockData)])) {
       await self.vm.fetchVideoFeed()
     }
 
-    let originalCount = self.vm.items.first!.watchesCount
-    let item = try! XCTUnwrap(self.vm.items.first)
+    let originalCount = try XCTUnwrap(self.vm.items.first).watchesCount
+    let item = try XCTUnwrap(self.vm.items.first)
 
     /// Tap twice: save then unsave.
     self.vm.toggleSaved(for: item)
-    self.vm.toggleSaved(for: self.vm.items.first!)
+    self.vm.toggleSaved(for: try XCTUnwrap(self.vm.items.first))
 
     /// Final optimistic state should be back to unsaved with original count.
     XCTAssertFalse(self.vm.items.first?.isSaved == true)
@@ -205,7 +209,7 @@ final class VideoFeedViewModelTests: TestCase {
     )
   }
 
-  func testFetchVideoFeed_SetsIsWatched() async {
+  func testFetchVideoFeed_SetsIsWatched() async throws {
     let mockData = Self.mockVideoFeedQueryData(itemCount: 3, isWatched: true)
 
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: [(VideoFeedQuery.self, mockData)])) {
@@ -215,14 +219,14 @@ final class VideoFeedViewModelTests: TestCase {
     XCTAssertTrue(self.vm.items.allSatisfy { $0.isSaved })
   }
 
-  func testViewWillAppear_UpdateSave_WhenLoggedIn() async {
+  func testViewWillAppear_UpdateSave_WhenLoggedIn() async throws {
     let mockData = Self.mockVideoFeedQueryData(itemCount: 1, isWatched: false)
 
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: [(VideoFeedQuery.self, mockData)])) {
       await self.vm.fetchVideoFeed()
     }
 
-    let item = try! XCTUnwrap(self.vm.items.first)
+    let item = try XCTUnwrap(self.vm.items.first)
 
     /// Simulate logged-out save tap
     withEnvironment(currentUser: nil) {
@@ -241,13 +245,15 @@ final class VideoFeedViewModelTests: TestCase {
     XCTAssertEqual(self.vm.items.first?.watchesCount, 4, "Count should increment after deferred save fires.")
 
     /// Same flow but staying logged out.
-    let vm2 = VideoFeedViewModel()
+    let vm2 = VideoFeedViewModel(projectMediaFeature: ProjectMediaFeature(makeProvider: {
+      AsyncProjectMediaProvider(service: AppEnvironment.current.apiService)
+    }))
 
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: [(VideoFeedQuery.self, mockData)])) {
       await vm2.fetchVideoFeed()
     }
 
-    let item2 = try! XCTUnwrap(vm2.items.first)
+    let item2 = try XCTUnwrap(vm2.items.first)
 
     withEnvironment(currentUser: nil) {
       let binding = vm2.isSaved(projectId: item2.id)
@@ -261,7 +267,7 @@ final class VideoFeedViewModelTests: TestCase {
 
   // MARK: - Analytics
 
-  func testTrackPageViewed_FiresOnSwipeForDepartingVideo() async {
+  func testTrackPageViewed_FiresOnSwipeForDepartingVideo() async throws {
     let mockData = Self.mockVideoFeedQueryData(itemCount: 3)
     var propertiesList: [[String: Any]] = []
 
@@ -285,7 +291,7 @@ final class VideoFeedViewModelTests: TestCase {
     XCTAssertEqual(8_000, swipeProps?["video_feed_total_video_duration"] as? Int)
   }
 
-  func testTrackPageViewed_FiresImpressionOfIncomingVideo() async {
+  func testTrackPageViewed_FiresImpressionOfIncomingVideo() async throws {
     let mockData = Self.mockVideoFeedQueryData(itemCount: 3)
     var propertiesList: [[String: Any]] = []
 
@@ -308,7 +314,7 @@ final class VideoFeedViewModelTests: TestCase {
     XCTAssertEqual("video_feed", impressionProps?["context_page"] as? String)
   }
 
-  func testFetchVideoFeed_FiresImpressionForFirstItem() async {
+  func testFetchVideoFeed_FiresImpressionForFirstItem() async throws {
     let mockData = Self.mockVideoFeedQueryData(itemCount: 3)
     var propertiesList: [[String: Any]] = []
 
@@ -326,6 +332,11 @@ final class VideoFeedViewModelTests: TestCase {
     let impressionProps = propertiesList.last
     XCTAssertEqual("project-0", impressionProps?["video_feed_video_id"] as? String)
     XCTAssertEqual(0, impressionProps?["video_feed_position_in_session"] as? Int)
+  }
+
+  override func tearDown() async throws {
+    await self.vm.waitForSaves()
+    try await super.tearDown()
   }
 
   // MARK: - Helpers

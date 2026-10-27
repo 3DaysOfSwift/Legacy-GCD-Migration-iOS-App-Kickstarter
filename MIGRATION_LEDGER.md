@@ -4,6 +4,38 @@ Author: Matthew Thomas. Updated 27 October 2026.
 
 ## Latest verified checkpoint
 
+### Video-feed loading and save/watch — 27 October 2026
+
+ProjectMediaFeature now owns route-scoped observable feed data, native async
+loading, saved-project reconciliation, optimistic save state and rollback.
+The ViewModel retains presentation, login intent, mute state and paging analytics.
+Equivalent reads share; released routes and changed accounts reject stale results.
+The original 30-item query, initial-load publication order, first impression and
+separate fetchedItems reload signal are preserved. Saves never force a reload.
+
+Watch/unwatch commands execute in order per account/project; equivalent pending
+states share and unrelated projects proceed independently. Screen disposal does
+not cancel admitted writes. Only the latest visible intent can roll back and
+show the existing error toast. Queued old-account writes do not dispatch, and
+uncertain remote mutations never retry automatically.
+
+528 tests passed: 497 Library, seven framework and 24 API; zero failures/skips.
+App build succeeded with the two existing Crashlytics/search-path warnings.
+Results: /private/tmp/kickstarter-video-feed.gHPMre.
+The original 18 ViewModel tests passed before changes; 40 focused tests passed
+after the initial patch. Seven new controlled Feature tests cover read sharing,
+late responses, write ordering, failure/retry, navigation/account changes and
+observation publication. One intermediate test-helper compile failure was fixed
+without weakening assertions. No live watch mutation or visual parity claimed.
+Evidence: sibling Migration Evidence/kickstarter-video-feed.
+
+Next: Activity/Profile loading and shared account/session ownership, followed by
+remaining account/settings/messaging/notification and pledge/payment/backing flows.
+Final gates remain: complete ownership/GCD inventory, strict-concurrency diagnostics,
+full regression, representative device/integration and visual validation.
+Core browsing boundaries are substantially migrated; app-wide migration remains
+IN PROGRESS. Passing focused tests is not a whole-app completion percentage.
+
 ### Discussion posting, retry and blocking — 27 October 2026
 
 Comments, replies and the legacy comment dialog now execute mutations through

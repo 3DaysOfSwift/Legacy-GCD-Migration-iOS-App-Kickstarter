@@ -176,6 +176,8 @@ public protocol ServiceType {
   @MainActor func blockDiscussionUser(id: String) async throws -> EmptyResponseEnvelope
   @MainActor func projectUpdate(id: Int, project: Param) async throws -> Update
   @MainActor func reportVideoEvent(project: any HasProjectWebURL, completed: Bool) async throws -> VoidEnvelope
+  @MainActor func projectVideoFeed() async throws -> GraphAPI.VideoFeedQuery.Data
+  @MainActor func setProjectWatched(id: String, watched: Bool) async throws -> WatchProjectResponseEnvelope
 
   /// Fetch comments for a project with a slug, cursor and limit.
   func fetchProjectComments(

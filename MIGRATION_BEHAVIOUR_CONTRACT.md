@@ -1,5 +1,24 @@
 # Kickstarter migration behaviour contract
 
+## Video-feed loading and save/watch — 27 October 2026
+
+- Preserve the existing 30-item query, empty/error display and prior data on failed refresh.
+- Publish initial-load completion before fetchedItems; optimistic saves update
+  items only, without a collection reload. Preserve first-impression analytics.
+- Preserve immediate saved state/count, login intent, cache reconciliation,
+  mute preference, navigation and latest-intent failure toast/rollback.
+- Share equivalent in-flight reads; reject released-route or old-account results.
+- Order changed watch states per account/project; share equivalent pending
+  commands and keep unrelated projects independent. No automatic remote-write retry.
+- Navigation cancels feed reads, not admitted writes; queued old-account writes
+  cannot dispatch and obsolete completions cannot alter visible state.
+
+528 tests passed with zero failures/skips and the app built successfully in
+/private/tmp/kickstarter-video-feed.gHPMre. Original 18 ViewModel assertions
+remain; controlled tests cover completed success/failure and adverse ordering.
+Live watch/unwatch, populated-feed visual parity, device and strict-concurrency
+validation remain unexecuted. This is a bounded checkpoint, not app-wide sign-off.
+
 ## Discussion mutations — 27 October 2026
 
 | ID | Preserved requirement | Protection |
