@@ -110,9 +110,15 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     )
     // Output notification only: query input and first appearance are explicit commands.
     let queryText = self.queryTextPipe.output
-    let queryParams = searchFeature.queryParameters(for: queryText)
-
-    let requestFirstPageWith = queryParams
+    let selection = searchFeature.filterSelection
+    // Keep the legacy screen's per-observer initial barrier and every subsequent
+    // field notification. This stream reports selection changes; it owns no query.
+    let selectionChanges = Signal.combineLatest(
+      selection.selectedSort, selection.selectedCategory, selection.selectedState,
+      selection.selectedPercentRaisedBucket, selection.selectedLocation,
+      selection.selectedAmountRaisedBucket, selection.selectedGoalBucket,
+      selection.selectedToggles
+    ).ignoreValues()
     let paginatedProjects = searchFeature.paginatedResults
     let isLoading = searchFeature.loading
     let stats = searchFeature.resultCount
@@ -140,7 +146,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       }
       .skipRepeats()
 
-    self.showEmptyState = requestFirstPageWith
+    self.showEmptyState = self.queryParametersPipe.output
       .takePairWhen(shouldShowEmptyState)
 
     self.reachabilityProperty <~ Reachability.signalProducer
@@ -184,10 +190,9 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.featureBindings += self.completionAnalytics.countsToTrack.observeValues { [weak self] count in
       self?.trackResultCompletion(count: count)
     }
-    self.featureBindings += queryParams.observeValues { [weak self] parameters in
-      // Install the analytics snapshot before admission publishes loading/clearing.
-      self?.latestQueryParameters = parameters
-      self?.searchTask = searchFeature.requestSearch(parameters: parameters)
+    self.featureBindings += selectionChanges.observeValues { [weak self] in
+      self?.hasReceivedFilterSelection = true
+      self?.refreshSearchIfReady()
     }
     self.featureBindings += searchFeature.loading.observeValues { [weak self] loading in
       if !loading {
@@ -208,8 +213,10 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   private var latestQueryParameters: DiscoveryParams?
   private var appearanceResultsCount: Int?
   private var hasAppearedAnimated = false
+  private var hasReceivedFilterSelection = false
   private var wasCloseToBottom: Bool?
   private let queryTextPipe = Signal<String, Never>.pipe()
+  private let queryParametersPipe = Signal<DiscoveryParams, Never>.pipe()
   private let appearancePipe = Signal<Void, Never>.pipe()
   private let initialResultsPipe = Signal<SearchResults, Never>.pipe()
   private let projectNavigationPipe = Signal<(ProjectPageParam, RefTag), Never>.pipe()
@@ -223,7 +230,18 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
 
   private func publishQueryText(_ query: String) {
     self.queryText = query
+    // Legacy parameter admission preceded query-text presentation observers.
+    // Preserve that order, including synchronous cancellation/loading analytics.
+    self.refreshSearchIfReady()
     self.queryTextPipe.input.send(value: query)
+  }
+
+  private func refreshSearchIfReady() {
+    guard self.hasReceivedFilterSelection, let query = self.queryText else { return }
+    let parameters = self.searchFeature.queryParameters(for: query)
+    self.latestQueryParameters = parameters
+    self.queryParametersPipe.input.send(value: parameters)
+    self.searchTask = self.searchFeature.requestSearch(parameters: parameters)
   }
 
   public func tapped(projectAtIndex index: Int) {

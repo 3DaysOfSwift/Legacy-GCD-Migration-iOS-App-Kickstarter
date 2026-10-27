@@ -2,6 +2,86 @@
 
 Author: Matthew Thomas. Updated 27 October 2026.
 
+## Progress dashboard — 27 October 2026
+
+**Overall: early in the app-wide migration; Search is the first feature in progress.**
+One migrated Feature is currently composed in AppModel: searchFeature.
+No top-level product area has passed every migration exit gate yet. The latest
+verified baseline is 849495b7afbce637b4083b1e88cdf1cd1998d81d: 130 focused tests,
+zero failures/skips and a successful app build. These are Search-focused results,
+not 130 migrated screens or a percentage of the full application.
+
+| Area / milestone | Evidence-backed status | Remaining exit criteria |
+| --- | --- | --- |
+| Runnable public-demo baseline and evidence capture | Working baseline established | Keep synthetic data distinct from live-service validation |
+| Search request ownership, transport, cancellation and pagination | Implemented; focused tests passed | Final concurrency/compiler audit and broader integration |
+| Search filter policy and category/location lookups | Implemented; focused tests and bounded earlier UI smoke | Repeat relevant UI journeys on final Search build |
+| Search lifecycle, analytics and filter presentation | Implemented; 130-test checkpoint passed | Remaining screen projection/query edges and broader UI checks |
+| Search query admission | New explicit command implemented, runtime-unverified | 133-test check including early query, repeated load and second screen |
+| Explore / discovery | Legacy; entry points inspected, not migrated | Behaviour baseline, ownership, async work, pagination, tests and UI parity |
+| Project details, media, updates/comments and related routes | Legacy; only initial source reconnaissance | Map independent/shared state, preserve destinations, migrate in bounded features |
+| Account/session, Profile, settings and authentication | Legacy; not migrated | One shared session owner, persistence/security contract, authenticated/signed-out tests |
+| Activity, pledged projects and transactional flows | Legacy; not migrated | Shared backing state, ordering/idempotency, cancellation, retry and storage guarantees |
+| App-wide integration and support flows | Not completed | Root/lifecycle/deep links, notifications, reachability, shared transport/storage, wider tests |
+
+Do not publish a percentage yet: feature sizes differ greatly and the full
+callback/reactive/shared-state inventory is not complete. A grep count or the
+number of green unit tests is not a work-completion measure.
+
+### Remaining execution plan
+
+1. **Close Search before starting another feature.** Verify explicit query
+   admission; retire the no-longer-used legacy projection only after preserving
+   its initial barrier/reset-order tests; audit remaining result/banner/UI bridges;
+   test screen lifetimes and shared Feature access. Run the focused suite/app build,
+   then manual discovery → typing/clearing → filters/location → paging → detail/
+   return journeys and relevant snapshots. Record unresolved gaps explicitly.
+2. **Explore/discovery next.** Baseline DiscoveryViewModel/DiscoveryPageViewModel,
+   sort/category/personalisation, paginated requests and activity snippets. Reuse
+   proven request/cancellation lessons, not Search's mutable collection or a new
+   generic framework. Add a concrete discovery Feature when the flow is mapped.
+3. **Project routes.** Map project detail fetching, prelaunch, media, rewards,
+   creator information, comments and updates. Separate navigation/presentation
+   from shared project state. Exact sub-feature boundaries follow that inventory,
+   not folder names alone.
+4. **Shared account/session, then Profile/settings/authentication.** Establish one
+   authoritative session and persistence owner before migrating consumers that
+   rely on signed-in identity. Preserve keychain/storage and login/logout effects.
+5. **Activity/pledges and transactional flows.** Migrate read-only activity and
+   backing projections, then mutations with explicit ordering, duplicate safety,
+   retries, cancellation and rollback. Demo fixtures cannot establish real payment
+   correctness; authenticated/live validation needs separate safe arrangements.
+6. **Cross-feature integration and residual work.** Audit root tab composition,
+   launch/deep links, notifications, media/reachability callbacks and shared network/
+   persistence owners throughout the above stages, then complete remaining routes
+   such as messaging, friends, onboarding and support/settings variants. Do not
+   defer a shared dependency that blocks an earlier feature.
+7. **Completion review.** Reconcile the full mechanism inventory, remove obsolete
+   adapters/dead code, verify target membership and supported toolchains, run wider
+   tests and UI/accessibility/device checks, and review the recorded case studies.
+   A passing Search suite alone cannot satisfy this gate.
+
+Steps 2–6 are dependency-informed sequencing, not equal-sized phases or a time
+estimate. Each feature exits only with its behaviour contract, authoritative
+ownership, directly awaitable model work, cancellation/overlap protection,
+passing appropriate build/tests and explicit manual/integration evidence.
+Preserve UI, identifiers and stored data throughout; no redesign is implied.
+
+### Source evidence for this scope
+
+AppModel currently stores only searchFeature. RootViewModel.generateViewControllers
+selects discovery, search and profile, plus signed-in pledged-project/activity or
+signed-out activity when the floating-tab flag is off. DiscoveryPageViewModel
+and ActivitiesViewModel still call reactive paginate and apiService; ProjectPageViewModel
+still contains reactive fetching. Profile/account and many additional routes are
+not connected through migrated AppModel Features.
+
+Reconnaissance also found callbacks/queues in AppDelegate, OAuth, reachability,
+video/audio, discovery controllers and UI helpers. This is a starting inventory,
+not proof that every match needs replacement: SDK callback-queue arguments and
+test code must be distinguished from application-owned work. Review protected
+state, delivery/ordering, lifetime, errors and cancellation before each conversion.
+
 ## Scope and first boundary
 
 Search is the first selected feature because its existing tests exercise query
@@ -27,6 +107,8 @@ Completed checkpoints below are historical evidence, not app-wide completion.
 - Next: remaining parameter/presentation adapters; manual UI checks outstanding.
 - Latest verified presentation slice: direct filter-pill commands and lookup
   subscriptions with explicit ownership; 130 tests and app build passed.
+- Current unverified slice: explicit query admission with per-screen selection
+  readiness; three additional tests, expected 133 plus app build.
 - Remaining Search work: replace reactive selection/query projections and screen
   compatibility edges as appropriate; review the completed Feature against CFA;
   close outstanding behaviour-contract/manual/snapshot validation gates.
@@ -627,3 +709,33 @@ Do not introduce a second owner for shared selection or coalesce notifications
 as an incidental cleanup. Keep existing UI projection until its contract is met.
 Session-level Simulator/cache access still prevents autonomous verification.
 This access limitation is not a migration completion or code-failure claim.
+
+## Explicit query admission — implementation pending verification
+
+The live ViewModel now admits requests through refreshSearchIfReady, constructing
+parameters with the native Feature API. Query input calls it directly; selection
+notifications call the same command. Eight selection outputs retain their
+per-screen initial barrier. Parameters/analytics snapshot and empty-state
+parameter publication occur before request admission; query UI notification
+follows admission, and typed empty-query resets occur last, as before.
+No new types, tasks, protocols, shared state owners or UI files.
+
+Three new tests cover early typing before initial selection, repeated load
+retaining query/selection, and a new screen attached to an already-used Feature.
+The legacy Feature signal overload is no longer used by the live screen; it is
+temporarily retained with its reference tests until verified cleanup preserves
+their coverage. Native Feature query construction and async requests are unchanged.
+
+Agent initiated sibling Migration Evidence/kickstarter-query-admission/verify.zsh.
+It exited 74 before compilation: CoreSimulator/cache permissions blocked access.
+Output: /private/tmp/kickstarter-query-admission.GR09g5. Swift parsing, project
+plist, script syntax and whitespace checks passed; 133 tests and app build have
+NOT passed yet. Leave this implementation uncommitted until verified.
+Last verified code remains 849495b7a; migration remains IN PROGRESS.
+
+Matthew Thomas requested continued migration and checkpoint commits despite the
+verification access blocker. Save the query-admission implementation as an
+explicitly unverified checkpoint; this does not change its test/build status.
+Consolidate the remaining Search close-out. Removing all presentation signals is
+not a prerequisite: retained UIKit/SwiftUI compatibility must have an explicit
+reason and owner, rather than become an open-ended reactive-code rewrite.

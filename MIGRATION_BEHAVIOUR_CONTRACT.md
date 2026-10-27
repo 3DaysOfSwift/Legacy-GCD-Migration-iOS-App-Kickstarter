@@ -261,3 +261,22 @@ Post-change confirmation: the Terminal run in
 /private/tmp/kickstarter-filter-presentation.iBVlAx passed 130 tests with zero
 failures/skips, including these three cases, and the app build. Both builds
 report three warnings. Active-screen manual and snapshot validation remain open.
+
+## Explicit query admission — runtime-unverified
+
+SearchViewModel now owns per-screen input readiness and calls native Feature
+parameter construction/admission explicitly. Selection policy, request lifetime
+and cancellation still belong to SearchFeature.
+
+| ID | Preserved requirement | Added regression protection |
+| --- | --- | --- |
+| SEARCH-QUERY-01 | Early query text waits for initial selection and then uses the current filters. | testEarlyQueryWaitsForInitialSelectionThenUsesCurrentFilters |
+| SEARCH-QUERY-02 | Repeated load does not replace text or selected filters with discovery defaults. | testRepeatedLoadRetainsQueryAndSelection |
+| SEARCH-QUERY-03 | A second screen using the shared Feature waits for its own selection publication before admitting a query. | testNewScreenWaitsForItsOwnSelectionPublication |
+
+New tests are source-inferred, not runtime-confirmed. Existing reset-order and
+duplicate-emission reference tests remain, along with the complete 130-test
+baseline. Parameter publication must precede admission/loading/cancellation;
+query UI notification follows admission, and typed clear resets fields last.
+Static parsing passed. The fresh 133-test/app-build attempt exited 74 before
+compilation due to session permissions; no new runtime or manual pass claimed.

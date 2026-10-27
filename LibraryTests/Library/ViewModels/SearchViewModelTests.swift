@@ -91,6 +91,72 @@ internal final class SearchViewModelTests: TestCase {
   }
 
   // Characterise lifecycle and analytics before changing their adapter.
+  func testEarlyQueryWaitsForInitialSelectionThenUsesCurrentFilters() async throws {
+    let response = [(GraphAPI.SearchQuery.self, try self.fixture("SearchQuery_FiveResults"))]
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {
+      self.vm.inputs.searchTextChanged("ceramics")
+      self.searchFeature.selectFilter(.sort(.newest))
+      self.searchFeature.selectFilter(.category(.rootCategory(.art)))
+      XCTAssertNil(self.searchFeature.parameters)
+      XCTAssertNil(self.vm.searchTask)
+
+      self.vm.inputs.viewDidLoad()
+      XCTAssertEqual(self.searchFeature.parameters?.query, "ceramics")
+      XCTAssertEqual(self.searchFeature.parameters?.sort, .newest)
+      XCTAssertEqual(self.searchFeature.parameters?.category, .art)
+      await self.advanceRequests()
+      XCTAssertEqual(self.searchFeature.projects.count, 5)
+      XCTAssertFalse(self.searchFeature.isLoading)
+    }
+  }
+
+  func testRepeatedLoadRetainsQueryAndSelection() async throws {
+    let response = [(GraphAPI.SearchQuery.self, try self.fixture("SearchQuery_FiveResults"))]
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewWillAppear(animated: true)
+      await self.advanceRequests()
+      self.vm.inputs.searchTextChanged("books")
+      self.searchFeature.selectFilter(.sort(.newest))
+      self.searchFeature.selectFilter(.category(.rootCategory(.art)))
+      await self.advanceRequests()
+      let parameters = self.searchFeature.parameters
+
+      self.vm.inputs.viewDidLoad()
+      XCTAssertEqual(self.searchFeature.parameters, parameters)
+      XCTAssertNotNil(self.vm.searchTask)
+      await self.advanceRequests()
+      XCTAssertEqual(self.searchFeature.parameters?.query, "books")
+      XCTAssertEqual(self.searchFeature.parameters?.category, .art)
+      XCTAssertEqual(self.searchFeature.projects.count, 5)
+    }
+  }
+
+  func testNewScreenWaitsForItsOwnSelectionPublication() async throws {
+    let response = [(GraphAPI.SearchQuery.self, try self.fixture("SearchQuery_FiveResults"))]
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewWillAppear(animated: true)
+      await self.advanceRequests()
+      let existingParameters = self.searchFeature.parameters
+      let secondScreen = SearchViewModel(searchFeature: self.searchFeature)
+
+      secondScreen.inputs.searchTextChanged("second screen")
+      XCTAssertNil(secondScreen.searchTask)
+      XCTAssertEqual(self.searchFeature.parameters, existingParameters)
+      secondScreen.inputs.viewDidLoad()
+      XCTAssertEqual(self.searchFeature.parameters?.query, "second screen")
+      XCTAssertNotNil(secondScreen.searchTask)
+      await secondScreen.filterOptionsTask?.value
+      guard await self.delay.waitForSleep() else { return }
+      let request = secondScreen.searchTask
+      self.delay.advance(by: .infinity)
+      await request?.value
+      XCTAssertEqual(self.searchFeature.projects.count, 5)
+      XCTAssertFalse(self.searchFeature.isLoading)
+    }
+  }
+
   func testNonAnimatedAppearanceDoesNotStartDiscoveryOrTrackPage() async {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewWillAppear(animated: false)
