@@ -93,8 +93,7 @@ internal final class FacebookConfirmationViewController: UIViewController,
       }
 
     self.viewModel.outputs.logIntoEnvironment
-      .observeValues { [weak self] env in
-        AppEnvironment.login(env)
+      .observeValues { [weak self] _ in
         self?.viewModel.inputs.environmentLoggedIn()
       }
 

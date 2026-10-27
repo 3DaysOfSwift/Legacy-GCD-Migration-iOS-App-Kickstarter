@@ -1,5 +1,38 @@
 # Kickstarter migration behaviour contract
 
+## Social/signup/OAuth and password reset — 28 October 2026
+
+- Preserve existing Facebook errors and two-factor/confirmation routing, Apple
+  SDK error handling, signup newsletter consent, reset validation/copy, navigation
+  and session notifications. Layout and identifiers are unchanged.
+- Treat Apple/OAuth token plus matching user as one operation. A partial failure,
+  cancelled caller, superseding attempt or old session cannot persist credentials.
+- Share equivalent pending signup/login requests; do not retry writes automatically.
+  Preserve OAuth's pre-login analytics identity, once per committed shared attempt.
+- Preserve existing REST routes, PKCE payload, both newsletter fields and Apple's
+  mutation input. OAuth's temporary token overrides X-Auth only for its user request;
+  it does not mutate the service or stored session before success.
+- Reset is separate from login/resend and never establishes a session. Duplicate
+  pending emails share; changed email replaces presentation. Disposal suppresses
+  completion without claiming to reverse an already accepted remote write.
+- OAuth browser/redirect work belongs to its screen adapter. Cancel/release and
+  replaced browser/session generations cannot publish late authentication.
+- Keep public demo account operations unavailable; no fictional successful login
+  or password-reset send. No live account operation was performed in verification.
+
+Intentional corrections: reset loading settles false after completion rather than
+the old synchronous mock's reversed notification order; malformed Apple IDs show
+failure rather than leaving loading active. Apple has one final artificial API
+delay (default zero), not separate delays around both stages. Other existing
+business assertions remain, with explicit async completion instead of timing guesses.
+
+Baseline: 53 passed, two 10ms OAuth test timeouts. Final: 886 integrated tests passed,
+zero failures/skips, app built with two existing warnings. Four nonvisual suites
+retain per-suite snapshot-device opt-outs only. Thirteen new Feature/OAuth cases
+and three native request tests are included. Results and limitations are recorded
+in sibling Migration Evidence/kickstarter-auth-flows and MIGRATION_LEDGER.md.
+No live-service, visual/device, full-suite or app-wide concurrency sign-off implied.
+
 ## Email login and two-factor authentication — 28 October 2026
 
 - Preserve email/password and Facebook two-factor routes, request encoding,

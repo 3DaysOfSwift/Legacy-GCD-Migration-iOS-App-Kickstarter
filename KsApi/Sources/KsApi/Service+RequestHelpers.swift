@@ -39,7 +39,10 @@ extension Service {
   @MainActor public func authenticate(
     facebookAccessToken: String, code: String?
   ) async throws -> AccessTokenEnvelope {
-    try await self.discussionResponse(route: .facebookLogin(facebookAccessToken: facebookAccessToken, code: code))
+    try await self.discussionResponse(route: .facebookLogin(
+      facebookAccessToken: facebookAccessToken,
+      code: code
+    ))
   }
 
   @MainActor public func discussionProject(param: Param) async throws -> Project {
@@ -64,14 +67,51 @@ extension Service {
     }
   }
 
-  private func discussionResponse<Model: Decodable>(route: Route) async throws -> Model {
+  @MainActor public func authenticationUser(id: Int) async throws -> User {
+    try await self.discussionResponse(route: .user(userId: id))
+  }
+
+  @MainActor public func authenticationUser(oauthToken: String) async throws -> User {
+    try await self.discussionResponse(route: .userSelf, oauthToken: oauthToken)
+  }
+
+  @MainActor public func signupFacebook(
+    token: String,
+    sendNewsletters: Bool
+  ) async throws -> AccessTokenEnvelope {
+    try await self.discussionResponse(route: .facebookSignup(
+      facebookAccessToken: token,
+      sendNewsletters: sendNewsletters
+    ))
+  }
+
+  @MainActor public func exchangeOAuth(params: OAuthTokenExchangeParams) async throws
+    -> OAuthTokenExchangeResponse {
+    try await self.discussionResponse(route: .exchangeToken(params: params))
+  }
+
+  @MainActor public func requestPasswordReset(email: String) async throws {
+    let _: User = try await self.discussionResponse(route: .resetPassword(email: email))
+  }
+
+  private func discussionResponse<Model: Decodable>(
+    route: Route,
+    oauthToken: String? = nil
+  ) async throws -> Model {
+    try await self.discoveryResponse(for: self.preparedRouteRequest(route, oauthToken: oauthToken))
+  }
+
+  // Shared native route preparation, including OAuth's uncommitted token override.
+  func preparedRouteRequest(_ route: Route, oauthToken: String? = nil) throws -> URLRequest {
     let properties = route.requestProperties
     guard let url = URL(string: properties.path, relativeTo: self.serverConfig.apiBaseUrl as URL) else {
       throw ErrorEnvelope.couldNotParseErrorEnvelopeJSON
     }
-    return try await self.discoveryResponse(for: self.preparedRequest(
+    var request = self.preparedRequest(
       forURL: url, method: properties.method, query: properties.query
-    ))
+    )
+    if let oauthToken { self.addV1AuthenticationToRequest(&request, oauthToken: oauthToken) }
+    return request
   }
 
   public func discoveryPage(params: DiscoveryParams) async throws -> DiscoveryEnvelope {

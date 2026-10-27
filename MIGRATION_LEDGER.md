@@ -4,6 +4,46 @@ Author: Matthew Thomas. Updated 28 October 2026.
 
 ## Latest verified checkpoint
 
+### Social login, signup, OAuth and password reset — 28 October 2026
+
+Initial Facebook login, Apple login, Facebook signup and OAuth now join the
+existing AuthenticationFeature. Apple/OAuth token and user requests are sequential
+within one attempt; only the complete current pair can establish a session.
+Controllers no longer persist credentials. SessionFeature is the sole application
+caller of AppEnvironment.login (test fixtures excluded). Existing UI is retained.
+OAuth tracks its login event once before persistence to preserve analytics identity.
+
+Password reset has an independent command lane: equivalent pending emails share,
+changed emails supersede presentation, and reset never logs in or cancels login.
+Cancellation cannot undo a server-accepted signup/reset; no automatic retry is added.
+OAuth's static subscription bag is replaced by a screen-owned browser/redirect task.
+Cancellation/release suppresses late callbacks and session commits. Public demo
+rejects these account operations. Legacy service signatures remain for compatibility;
+the migrated application callers no longer use them.
+
+Baseline: 53 of 55 original tests passed; two OAuth tests exceeded their existing
+10ms callback timeout. Those tests now directly await the command. Four logic-only
+suites opt out of the snapshot device gate; visual suites remain unchanged.
+Original business assertions are preserved except reset loading expectations,
+which now require loading then stopped rather than the synchronous mock's inverted
+sequence. Malformed Apple user IDs fail instead of leaving loading active. Apple
+uses one final artificial-delay boundary (default zero), not one per request stage.
+
+Final: 725 Library + 127 framework + 34 API = 886 passed, zero failures/skips;
+app build succeeded with zero errors and two existing warnings. Thirteen added
+Feature/OAuth lifetime cases and three native request-preparation cases protect
+sharing, cancellation, partial failure, stale replies, consent, PKCE, temporary
+token headers and pre-login analytics. Development compile failures and the
+baseline timing failures are retained in the evidence, not counted as passes.
+Results: /private/tmp/kickstarter-auth-flows.PCLOfp.
+Evidence: sibling Migration Evidence/kickstarter-auth-flows.
+
+Next: remaining account writes (email/password/currency/verification and account
+connections) and legacy AppDelegate current-user refresh, then messaging/project
+notifications and pledge/payment/backing. Live social/browser authorization,
+physical-device/visual parity, full-suite and app-wide strict-concurrency sign-off
+remain open. App-wide migration remains IN PROGRESS.
+
 ### Email login and two-factor authentication — 28 October 2026
 
 AppModel now composes AuthenticationFeature with the existing SessionFeature.

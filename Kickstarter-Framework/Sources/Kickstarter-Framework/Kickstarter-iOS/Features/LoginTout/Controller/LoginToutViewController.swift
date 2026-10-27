@@ -52,6 +52,7 @@ public final class LoginToutViewController: UIViewController, MFMailComposeViewC
 
   private lazy var separatorView: UIView = { UIView(frame: .zero) }()
   private var sessionStartedObserver: Any?
+  private let oauth = OAuth()
 
   private let viewModel: LoginToutViewModelType = LoginToutViewModel()
 
@@ -79,8 +80,8 @@ public final class LoginToutViewController: UIViewController, MFMailComposeViewC
     self.fbLoginManager.logOut()
 
     self.sessionStartedObserver = NotificationCenter.default
-      .addObserver(forName: .ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
-        self?.viewModel.inputs.userSessionStarted()
+      .addObserver(forName: .ksr_sessionStarted, object: nil, queue: .main) { [weak self] _ in
+        MainActor.assumeIsolated { self?.viewModel.inputs.userSessionStarted() }
       }
 
     if self.presentingViewController != nil {
@@ -173,16 +174,13 @@ public final class LoginToutViewController: UIViewController, MFMailComposeViewC
       }
 
     self.viewModel.outputs.logIntoEnvironmentWithApple
-      .observeValues { [weak self] accessTokenEnv in
-        AppEnvironment.login(accessTokenEnv)
+      .observeValues { [weak self] _ in
         self?.viewModel.inputs.environmentLoggedIn()
       }
 
     self.viewModel.outputs.logIntoEnvironmentWithFacebook
-      .observeValues { [weak self] accessTokenEnv in
+      .observeValues { [weak self] _ in
         guard let strongSelf = self else { return }
-
-        AppEnvironment.login(accessTokenEnv)
 
         strongSelf.viewModel.inputs.environmentLoggedIn()
       }
@@ -380,7 +378,7 @@ public final class LoginToutViewController: UIViewController, MFMailComposeViewC
   }
 
   fileprivate func createAuthorizationSession() -> ASWebAuthenticationSession? {
-    return OAuth.createAuthorizationSession { [weak self] result in
+    return self.oauth.createAuthorizationSession { [weak self] result in
       switch result {
       case .loggedIn:
         self?.viewModel.inputs.environmentLoggedIn()

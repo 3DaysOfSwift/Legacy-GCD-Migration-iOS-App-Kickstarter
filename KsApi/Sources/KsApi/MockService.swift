@@ -1906,6 +1906,52 @@
       try self.authenticationResponse()
     }
 
+    @MainActor public func authenticateApple(input _: SignInWithAppleInput) async throws
+      -> SignInWithAppleEnvelope {
+      try self.requireLiveAuthenticationFixture()
+      guard let result = self.signInWithAppleResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
+    @MainActor public func authenticationUser(id _: Int) async throws -> User {
+      try self.requireLiveAuthenticationFixture()
+      guard let result = self.fetchUserResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
+    @MainActor public func authenticationUser(oauthToken _: String) async throws -> User {
+      try self.requireLiveAuthenticationFixture()
+      if let error = self.fetchUserSelfError { throw error }
+      return self.fetchUserSelfResponse ?? .template
+    }
+
+    @MainActor public func signupFacebook(
+      token _: String,
+      sendNewsletters _: Bool
+    ) async throws -> AccessTokenEnvelope {
+      try self.requireLiveAuthenticationFixture()
+      if let error = self.signupError { throw error }
+      return self.signupResponse ?? AccessTokenEnvelope(accessToken: "deadbeef", user: .template)
+    }
+
+    @MainActor public func exchangeOAuth(params _: OAuthTokenExchangeParams) async throws
+      -> OAuthTokenExchangeResponse {
+      try self.requireLiveAuthenticationFixture()
+      if let response = self.tokenExchangeResponse { return response }
+      throw self.loginError ?? ErrorEnvelope.couldNotParseJSON
+    }
+
+    @MainActor public func requestPasswordReset(email _: String) async throws {
+      try self.requireLiveAuthenticationFixture()
+      if self.resetPasswordResponse != nil { return }
+      if let error = self.resetPasswordError { throw error }
+    }
+
+    private func requireLiveAuthenticationFixture() throws {
+      try Task.checkCancellation()
+      if self.demoCatalog != nil { throw self.loginError ?? ErrorEnvelope.couldNotParseJSON }
+    }
+
     private func authenticationResponse() throws -> AccessTokenEnvelope {
       if let error = self.loginError { throw error }
       if let response = self.loginResponse { return response }

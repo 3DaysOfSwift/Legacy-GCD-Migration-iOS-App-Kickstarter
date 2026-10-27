@@ -3,6 +3,7 @@ import KsApi
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol FacebookConfirmationViewModelInputs {
   /// Call when view controller's viewDidLoad() is called
   func viewDidLoad()
@@ -22,6 +23,7 @@ public protocol FacebookConfirmationViewModelInputs {
   func tapped(_ url: URL)
 }
 
+@MainActor
 public protocol FacebookConfirmationViewModelOutputs {
   /// Emits an email address to display
   var displayEmail: Signal<String, Never> { get }
@@ -39,16 +41,19 @@ public protocol FacebookConfirmationViewModelOutputs {
   var notifyDelegateOpenHelpType: Signal<HelpType, Never> { get }
 }
 
+@MainActor
 public protocol FacebookConfirmationViewModelErrors {
   var showSignupError: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol FacebookConfirmationViewModelType {
   var inputs: FacebookConfirmationViewModelInputs { get }
   var outputs: FacebookConfirmationViewModelOutputs { get }
   var errors: FacebookConfirmationViewModelErrors { get }
 }
 
+@MainActor
 public final class FacebookConfirmationViewModel: FacebookConfirmationViewModelType,
   FacebookConfirmationViewModelInputs, FacebookConfirmationViewModelOutputs,
   FacebookConfirmationViewModelErrors {
@@ -114,7 +119,8 @@ public final class FacebookConfirmationViewModel: FacebookConfirmationViewModelT
 
   public let showSignupError: Signal<String, Never>
 
-  public init() {
+  public init(authenticationFeature: AuthenticationFeature? = nil) {
+    let authenticationFeature = authenticationFeature ?? AppModel.shared.authenticationFeature
     let isLoading = MutableProperty(false)
 
     self.isLoading = isLoading.signal
@@ -129,7 +135,7 @@ public final class FacebookConfirmationViewModel: FacebookConfirmationViewModelT
     let signupEvent = Signal.combineLatest(self.facebookTokenProperty.signal, self.sendNewsletters)
       .takeWhen(self.createAccountButtonProperty.signal)
       .switchMap { token, newsletter in
-        AppEnvironment.current.apiService.signup(facebookAccessToken: token, sendNewsletters: newsletter)
+        authenticationFeature.result(.facebookSignup(token, sendNewsletters: newsletter))
           .on(
             starting: {
               isLoading.value = true

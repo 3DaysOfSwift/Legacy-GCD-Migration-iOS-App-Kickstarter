@@ -6,6 +6,7 @@ import ReactiveSwift
 
 public typealias SignInWithAppleData = (appId: String, firstName: String?, lastName: String?, token: String)
 
+@MainActor
 public protocol LoginToutViewModelInputs {
   /// Call when Apple completes authorization
   func appleAuthorizationDidSucceed(with data: SignInWithAppleData?)
@@ -45,6 +46,7 @@ public protocol LoginToutViewModelInputs {
   func viewWillAppear()
 }
 
+@MainActor
 public protocol LoginToutViewModelOutputs {
   /// Emits when Apple login should start
   var attemptAppleLogin: Signal<Void, Never> { get }
@@ -92,14 +94,17 @@ public protocol LoginToutViewModelOutputs {
   var startTwoFactorChallenge: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol LoginToutViewModelType {
   var inputs: LoginToutViewModelInputs { get }
   var outputs: LoginToutViewModelOutputs { get }
 }
 
+@MainActor
 public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewModelInputs,
   LoginToutViewModelOutputs {
-  public init() {
+  public init(authenticationFeature: AuthenticationFeature? = nil) {
+    let authenticationFeature = authenticationFeature ?? AppModel.shared.authenticationFeature
     let intent: Signal<LoginIntent, Never> = self.loginIntentProperty.signal.skipNil()
       .takeWhen(self.viewWillAppearProperty.signal)
 
@@ -121,7 +126,7 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
 
     let facebookLogin = tokenString
       .switchMap { token in
-        AppEnvironment.current.apiService.login(facebookAccessToken: token, code: nil)
+        authenticationFeature.result(.facebook(token))
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .on(
             starting: {
@@ -190,70 +195,27 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
 
     // MARK: - Sign-in with Apple
 
-    let appleSignInInput = self.appleAuthorizationDidSucceedWithDataProperty.signal
+    let appleSignInEvent = self.appleAuthorizationDidSucceedWithDataProperty.signal
       .skipNil()
-      .map { data in
-        SignInWithAppleInput(
-          appId: data.appId,
-          authCode: data.token,
-          firstName: data.firstName,
-          lastName: data.lastName
-        )
+      .switchMap { data in
+        authenticationFeature.result(.apple(
+          appID: data.appId, firstName: data.firstName, lastName: data.lastName, token: data.token
+        ))
+        .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+        .on(starting: { isLoading.value = true }, terminated: { isLoading.value = false })
+        .materialize()
       }
 
-    let appleSignInEvent = appleSignInInput
-      .switchMap { input in
-        AppEnvironment.current.apiService.signInWithApple(input: input)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .on(
-            starting: {
-              isLoading.value = true
-            },
-            failed: { _ in
-              isLoading.value = false
-            }
-          )
-          .materialize()
-      }
-
-    let userId = appleSignInEvent.values()
-      .map { envelope in Int(envelope.signInWithApple.user.uid) }
-      .skipNil()
-
-    let apiAccessToken = appleSignInEvent.values()
-      .map(\.signInWithApple.apiAccessToken)
-
-    let fetchUserEvent = userId
-      .switchMap { id in
-        AppEnvironment.current.apiService.fetchUser(userId: id)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .on(
-            starting: {
-              isLoading.value = true
-            },
-            terminated: {
-              isLoading.value = false
-            }
-          )
-          .materialize()
-      }
-
-    let logIntoEnvironmentWithApple = Signal.combineLatest(apiAccessToken, fetchUserEvent.values())
-      .map(AccessTokenEnvelope.init)
-
-    let appleSignInEventError = appleSignInEvent.errors()
-      .map { error in error.localizedDescription }
+    let logIntoEnvironmentWithApple = appleSignInEvent.values()
+    let appleSignInEventError = appleSignInEvent.errors().map { $0.localizedDescription }
 
     let appleAuthorizationError = self.appleAuthorizationDidFailWithErrorProperty.signal
       .skipNil()
       .map(errorMessage(from:))
       .skipNil()
 
-    let fetchUserEventError = fetchUserEvent.errors()
-      .map { error in error.localizedDescription }
-
     self.showAppleErrorAlert = Signal
-      .merge(appleAuthorizationError, fetchUserEventError, appleSignInEventError)
+      .merge(appleAuthorizationError, appleSignInEventError)
 
     self.logAppleError = self.appleAuthorizationDidFailWithErrorProperty.signal
       .skipNil()

@@ -5,6 +5,234 @@ import XCTest
 
 @MainActor
 final class AuthenticationFeatureTests: XCTestCase {
+  func testOAuthSharedSuccessTracksBeforeSingleSessionCommit() async throws {
+    let fixture = AuthenticationFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    var loginCountsAtTracking: [Int] = []
+    let feature = AuthenticationFeature(
+      sessionFeature: fixture.session, makeProvider: { fixture.provider },
+      trackOAuthLogin: { loginCountsAtTracking.append(fixture.logins) }
+    )
+    let first = feature.result(.oauth(code: "fixture", verifier: "fixture")).start()
+    let second = feature.result(.oauth(code: "fixture", verifier: "fixture")).start()
+    defer { first.dispose(); second.dispose() }
+    await fixture.provider.gate.waitFor(1)
+    XCTAssertTrue(loginCountsAtTracking.isEmpty)
+    try fixture.provider.gate.finish(0, .success(fixture.envelope))
+    await feature.waitForOperations()
+    XCTAssertEqual(loginCountsAtTracking, [0])
+    XCTAssertEqual(fixture.logins, 1)
+  }
+
+  func testSignupSharesPendingWriteAndPreservesNewsletterIntent() async throws {
+    let fixture = AuthenticationFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    let credentials = AuthenticationFeature.Credentials.facebookSignup("fixture", sendNewsletters: true)
+    var successes = 0
+    let first = fixture.feature.result(credentials)
+      .startWithResult { if case .success = $0 { successes += 1 } }
+    let second = fixture.feature.result(credentials)
+      .startWithResult { if case .success = $0 { successes += 1 } }
+    defer { first.dispose(); second.dispose() }
+    await fixture.provider.gate.waitFor(1)
+    XCTAssertEqual(fixture.provider.credentials, [credentials])
+    XCTAssertEqual(fixture.logins, 0)
+    try fixture.provider.gate.finish(0, .success(fixture.envelope))
+    await fixture.feature.waitForOperations()
+    XCTAssertEqual(successes, 2)
+    XCTAssertEqual(fixture.logins, 1)
+  }
+
+  func testAppleAndOAuthResultsCannotCommitAfterReplacementOrSessionChange() async throws {
+    for credentials in [
+      AuthenticationFeature.Credentials.apple(
+        appID: "fixture",
+        firstName: nil,
+        lastName: nil,
+        token: "fixture"
+      ),
+      .oauth(code: "fixture", verifier: "fixture")
+    ] {
+      let fixture = AuthenticationFixture()
+      defer { fixture.provider.gate.releaseAll() }
+      var oldSuccesses = 0
+      let old = fixture.feature.result(credentials)
+        .startWithResult { if case .success = $0 { oldSuccesses += 1 } }
+      await fixture.provider.gate.waitFor(1)
+      let newer = fixture.feature.result(.facebook("new-token")).start()
+      defer { old.dispose(); newer.dispose() }
+      await fixture.provider.gate.waitFor(2)
+      fixture.session.sessionChanged()
+      try fixture.provider.gate.finish(0, .success(fixture.envelope))
+      try fixture.provider.gate.finish(1, .success(fixture.envelope))
+      await fixture.feature.waitForOperations()
+      XCTAssertEqual(oldSuccesses, 0)
+      XCTAssertEqual(fixture.logins, 0)
+      XCTAssertNil(fixture.user)
+    }
+  }
+
+  func testDisposedSocialSignupDoesNotCommitLateServerSuccess() async throws {
+    let fixture = AuthenticationFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    let pending = fixture.feature.result(.facebookSignup("fixture", sendNewsletters: false)).start()
+    await fixture.provider.gate.waitFor(1)
+    pending.dispose()
+    try fixture.provider.gate.finish(0, .success(fixture.envelope))
+    await fixture.feature.waitForOperations()
+    XCTAssertEqual(fixture.logins, 0)
+    XCTAssertEqual(fixture.provider.gate.count, 1, "No automatic retry of account creation")
+  }
+
+  func testAppleUserFailureCannotPersistPartialTokenAndExplicitRetryUsesMatchingPair() async throws {
+    let fixture = AuthenticationFixture()
+    let failure = ErrorEnvelope(errorMessages: ["User failed"], ksrCode: nil, httpCode: 503, exception: nil)
+    var service = MockService(
+      fetchUserResult: .failure(failure), signInWithAppleResult: .success(.template)
+    )
+    let feature = AuthenticationFeature(sessionFeature: fixture.session, makeProvider: {
+      AsyncAuthenticationProvider(service: service)
+    })
+    let credentials = AuthenticationFeature.Credentials.apple(
+      appID: "fixture", firstName: "First", lastName: "Last", token: "fixture"
+    )
+    do { _ = try await feature.authenticate(credentials); XCTFail("Partial Apple login committed") }
+    catch let error as ErrorEnvelope { XCTAssertEqual(error.errorMessages, failure.errorMessages) }
+    XCTAssertNil(fixture.user)
+    XCTAssertEqual(fixture.logins, 0)
+    service = MockService(fetchUserResult: .success(.template), signInWithAppleResult: .success(.template))
+    let result = try await feature.authenticate(credentials)
+    XCTAssertEqual(result.accessToken, SignInWithAppleEnvelope.template.signInWithApple.apiAccessToken)
+    XCTAssertEqual(result.user.id, User.template.id)
+    XCTAssertEqual(fixture.logins, 1)
+  }
+
+  func testMalformedAppleUserIDFailsWithoutSessionCommit() async {
+    let fixture = AuthenticationFixture()
+    var envelope = SignInWithAppleEnvelope.template
+    envelope.signInWithApple.user.uid = "not-an-id"
+    let feature = AuthenticationFeature(sessionFeature: fixture.session, makeProvider: {
+      AsyncAuthenticationProvider(service: MockService(
+        fetchUserResult: .success(.template), signInWithAppleResult: .success(envelope)
+      ))
+    })
+    do {
+      _ = try await feature.authenticate(.apple(
+        appID: "fixture",
+        firstName: nil,
+        lastName: nil,
+        token: "fixture"
+      ))
+      XCTFail("Malformed user ID accepted")
+    } catch { XCTAssertTrue(error is ErrorEnvelope) }
+    XCTAssertEqual(fixture.logins, 0)
+  }
+
+  func testOAuthUserFailureLeavesSessionIntactAndRetryCommitsMatchingToken() async throws {
+    let fixture = AuthenticationFixture()
+    fixture.user = .template
+    let failure = ErrorEnvelope(errorMessages: ["User failed"], ksrCode: nil, httpCode: 503, exception: nil)
+    var service = MockService(fetchUserSelfError: failure, tokenExchangeResponse: .init(token: "first-token"))
+    let feature = AuthenticationFeature(sessionFeature: fixture.session, makeProvider: {
+      AsyncAuthenticationProvider(service: service)
+    })
+    do { _ = try await feature.authenticate(.oauth(
+      code: "code",
+      verifier: "verifier"
+    )); XCTFail("Partial login") } catch let error as ErrorEnvelope {
+      XCTAssertEqual(error.errorMessages, failure.errorMessages)
+    }
+    XCTAssertEqual(fixture.user?.id, User.template.id)
+    XCTAssertEqual(fixture.logins, 0)
+    service = MockService(
+      fetchUserSelfResponse: .template,
+      tokenExchangeResponse: .init(token: "second-token")
+    )
+    let result = try await feature.authenticate(.oauth(code: "new-code", verifier: "verifier"))
+    XCTAssertEqual(result.accessToken, "second-token")
+    XCTAssertEqual(result.user.id, User.template.id)
+    XCTAssertEqual(fixture.logins, 1)
+  }
+
+  func testPasswordResetSharesSendAndDisposedWaiterCannotCancelAnother() async throws {
+    let fixture = AuthenticationFixture()
+    defer { fixture.provider.resetGate.releaseAll() }
+    var successes = 0
+    let first = fixture.feature.passwordResetResult(email: "person@example.invalid")
+      .startWithResult { if case .success = $0 { successes += 1 } }
+    let second = fixture.feature.passwordResetResult(email: "person@example.invalid")
+      .startWithResult { if case .success = $0 { successes += 1 } }
+    defer { second.dispose() }
+    await fixture.provider.resetGate.waitFor(1)
+    first.dispose()
+    try fixture.provider.resetGate.finish(0, .success(()))
+    await fixture.feature.waitForOperations()
+    XCTAssertEqual(successes, 1)
+    XCTAssertEqual(fixture.provider.resetEmails, ["person@example.invalid"])
+    XCTAssertEqual(fixture.logins, 0)
+    XCTAssertNil(fixture.user)
+  }
+
+  func testPasswordResetReplacesOldEmailAndSuppressesLateFailure() async throws {
+    let fixture = AuthenticationFixture()
+    defer { fixture.provider.resetGate.releaseAll() }
+    var errors = 0
+    var successes = 0
+    let old = fixture.feature.passwordResetResult(email: "old@example.invalid")
+      .startWithFailed { _ in errors += 1 }
+    await fixture.provider.resetGate.waitFor(1)
+    let new = fixture.feature.passwordResetResult(email: "new@example.invalid")
+      .startWithResult { if case .success = $0 { successes += 1 } }
+    defer { old.dispose(); new.dispose() }
+    await fixture.provider.resetGate.waitFor(2)
+    try fixture.provider.resetGate.finish(1, .success(()))
+    try fixture.provider.resetGate.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
+    await fixture.feature.waitForOperations()
+    XCTAssertEqual(successes, 1)
+    XCTAssertEqual(errors, 0)
+    XCTAssertEqual(fixture.logins, 0)
+  }
+
+  func testPasswordResetFailureThenExplicitRetryDoesNotSupersedeLogin() async throws {
+    let fixture = AuthenticationFixture()
+    defer { fixture.provider.resetGate.releaseAll(); fixture.provider.gate.releaseAll() }
+    var errors = 0
+    var successes = 0
+    let login = Task { try await fixture.feature.authenticate(.facebook("fixture")) }
+    await fixture.provider.gate.waitFor(1)
+    let failed = fixture.feature.passwordResetResult(email: "person@example.invalid")
+      .startWithFailed { _ in errors += 1 }
+    defer { failed.dispose() }
+    await fixture.provider.resetGate.waitFor(1)
+    try fixture.provider.resetGate.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
+    await fixture.feature.waitForOperations()
+    XCTAssertEqual(errors, 1)
+    XCTAssertEqual(fixture.logins, 0)
+    let retry = fixture.feature.passwordResetResult(email: "person@example.invalid")
+      .startWithResult { if case .success = $0 { successes += 1 } }
+    defer { retry.dispose() }
+    await fixture.provider.resetGate.waitFor(2)
+    try fixture.provider.resetGate.finish(1, .success(()))
+    await fixture.feature.waitForOperations()
+    XCTAssertEqual(successes, 1)
+    XCTAssertEqual(fixture.logins, 0)
+    try fixture.provider.gate.finish(0, .success(fixture.envelope))
+    _ = try await login.value
+    XCTAssertEqual(fixture.logins, 1)
+  }
+
+  func testCancelledPasswordResetCallerCannotReportSuccess() async throws {
+    let fixture = AuthenticationFixture()
+    defer { fixture.provider.resetGate.releaseAll() }
+    let request = Task { try await fixture.feature.resetPassword(email: "person@example.invalid") }
+    await fixture.provider.resetGate.waitFor(1)
+    request.cancel()
+    try fixture.provider.resetGate.finish(0, .success(()))
+    do { try await request.value; XCTFail("Cancelled caller reported success") }
+    catch is CancellationError {} catch { XCTFail("\(error)") }
+    XCTAssertEqual(fixture.logins, 0)
+  }
+
   func testEquivalentAttemptsShareAndDisposedCallerCannotCancelAnotherLogin() async throws {
     let fixture = AuthenticationFixture()
     defer { fixture.provider.gate.releaseAll() }
@@ -147,15 +375,20 @@ final class AuthenticationFeatureTests: XCTestCase {
     XCTAssertNil(fixture.feature.lastError)
   }
 
-  func testPublicDemoCannotAuthenticateUsingEitherCredentialKind() async {
+  func testPublicDemoCannotAuthenticateSignupOrSendPasswordReset() async {
     let provider = AsyncAuthenticationProvider(service: MockService.publicDemo())
     for credentials in [
       AuthenticationFeature.Credentials.email("person@example.invalid", password: "fixture"),
-      .facebook("fixture-token")
+      .facebook("fixture-token"),
+      .facebookSignup("fixture", sendNewsletters: true),
+      .apple(appID: "fixture", firstName: nil, lastName: nil, token: "fixture"),
+      .oauth(code: "fixture", verifier: "fixture")
     ] {
       do { _ = try await provider.login(credentials, code: nil); XCTFail("Demo authenticated") }
       catch { XCTAssertTrue(error is ErrorEnvelope) }
     }
+    do { try await provider.resetPassword(email: "person@example.invalid"); XCTFail("Demo sent reset") }
+    catch { XCTAssertTrue(error is ErrorEnvelope) }
   }
 
   func testResendDoesNotCancelPendingVerification() async throws {
@@ -210,10 +443,19 @@ private final class AuthenticationFixture {
 @MainActor
 private final class ControlledAuthenticationProvider: AuthenticationProvider {
   let gate = AccountRequestGate<AccessTokenEnvelope>()
+  let resetGate = AccountRequestGate<Void>()
+  private(set) var resetEmails: [String] = []
+  private(set) var credentials: [AuthenticationFeature.Credentials] = []
   private(set) var codes: [String?] = []
+  func resetPassword(email: String) async throws {
+    self.resetEmails.append(email)
+    try await self.resetGate.request()
+  }
+
   func login(
-    _: AuthenticationFeature.Credentials, code: String?
+    _ credentials: AuthenticationFeature.Credentials, code: String?
   ) async throws -> AccessTokenEnvelope {
+    self.credentials.append(credentials)
     self.codes.append(code)
     return try await self.gate.request()
   }

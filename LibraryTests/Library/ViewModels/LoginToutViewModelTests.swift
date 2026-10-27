@@ -9,8 +9,20 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class LoginToutViewModelTests: TestCase {
-  fileprivate var vm: LoginToutViewModelType!
+  // Logic-only coverage; visual suites retain their reference-device requirement.
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let authenticationFeature = AuthenticationFeature(
+    sessionFeature: SessionFeature(makeProvider: {
+      AsyncSessionProvider(service: AppEnvironment.current.apiService)
+    }),
+    makeProvider: { AsyncAuthenticationProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var vm: LoginToutViewModelType = LoginToutViewModel(
+    authenticationFeature: self
+      .authenticationFeature
+  )
 
   fileprivate let attemptAppleLogin = TestObserver<(), Never>()
   fileprivate let attemptFacebookLogin = TestObserver<(), Never>()
@@ -30,9 +42,15 @@ final class LoginToutViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated { self.bindOutputs() }
+  }
 
-    self.vm = LoginToutViewModel()
+  override func tearDown() async throws {
+    await self.authenticationFeature.waitForOperations()
+    try await super.tearDown()
+  }
 
+  private func bindOutputs() {
     self.vm.outputs.attemptAppleLogin.observe(self.attemptAppleLogin.observer)
     self.vm.outputs.attemptFacebookLogin.observe(self.attemptFacebookLogin.observer)
     self.vm.outputs.dismissViewController.observe(self.dismissViewController.observer)
@@ -50,7 +68,7 @@ final class LoginToutViewModelTests: TestCase {
     self.vm.outputs.startTwoFactorChallenge.observe(self.startTwoFactorChallenge.observer)
   }
 
-  func testLoginIntent_Pledge() {
+  func testLoginIntent_Pledge() async {
     self.vm.inputs.configureWith(.backProject)
     self.vm.inputs.viewWillAppear()
 
@@ -60,27 +78,27 @@ final class LoginToutViewModelTests: TestCase {
     )
   }
 
-  func testStartSignupOrLoginWithOAuth() {
+  func testStartSignupOrLoginWithOAuth() async {
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.signupOrLoginWithOAuthButtonPressed()
     self.startOAuthSignupOrLogin.assertValueCount(1, "OAuth signup/loginlogin emitted")
   }
 
-  func testHeadlineLabelHidden() {
+  func testHeadlineLabelHidden() async {
     self.vm.inputs.configureWith(.starProject)
     self.vm.inputs.viewWillAppear()
 
     self.headlineLabelHidden.assertValues([true])
   }
 
-  func testHeadlineLabelShown() {
+  func testHeadlineLabelShown() async {
     self.vm.inputs.configureWith(.generic)
     self.vm.inputs.viewWillAppear()
 
     self.headlineLabelHidden.assertValues([false])
   }
 
-  func testLoginContextText() {
+  func testLoginContextText() async {
     self.vm.inputs.configureWith(.starProject)
     self.vm.inputs.viewWillAppear()
 
@@ -90,7 +108,7 @@ final class LoginToutViewModelTests: TestCase {
     )
   }
 
-  func testFacebookLoginFlow_Succes() {
+  func testFacebookLoginFlow_Succes() async {
     let token = AccessToken(
       tokenString: "12344566",
       permissions: [],
@@ -111,7 +129,7 @@ final class LoginToutViewModelTests: TestCase {
       declinedPermissions: []
     )
 
-    withEnvironment {
+    await withEnvironment {
       self.vm.inputs.configureWith(.generic)
       self.vm.inputs.viewWillAppear()
 
@@ -126,7 +144,8 @@ final class LoginToutViewModelTests: TestCase {
       self.isLoading.assertValues([true])
 
       // Wait enough time for API request to be made.
-      scheduler.advance()
+      await self.authenticationFeature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
       self.logIntoEnvironmentWithFacebook.assertValueCount(1, "Log into environment.")
@@ -135,7 +154,9 @@ final class LoginToutViewModelTests: TestCase {
 
       self.postNotification.assertDidNotEmitValue()
 
-      self.scheduler.advance()
+      await self.authenticationFeature.waitForOperations()
+
+      await self.scheduler.advance()
 
       // Notifications are posted on the next run loop
       XCTAssertEqual(self.postNotification.values.first?.0, .ksr_sessionStarted, "Login notification posted.")
@@ -149,7 +170,7 @@ final class LoginToutViewModelTests: TestCase {
     }
   }
 
-  func testLoginFacebookFlow_AttemptFail() {
+  func testLoginFacebookFlow_AttemptFail() async {
     let error = NSError(
       domain: "facebook.com",
       code: 404,
@@ -180,7 +201,7 @@ final class LoginToutViewModelTests: TestCase {
     )
   }
 
-  func testLoginFacebookFlow_AttemptFail_WithDefaultMessage() {
+  func testLoginFacebookFlow_AttemptFail_WithDefaultMessage() async {
     let error = NSError(
       domain: "facebook.com",
       code: 404,
@@ -208,7 +229,7 @@ final class LoginToutViewModelTests: TestCase {
     )
   }
 
-  func testLoginFacebookFlow_InvalidTokenFail() {
+  func testLoginFacebookFlow_InvalidTokenFail() async {
     let token = AccessToken(
       tokenString: "spaghetti",
       permissions: [],
@@ -236,7 +257,7 @@ final class LoginToutViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(loginError: error)) {
+    await withEnvironment(apiService: MockService(loginError: error)) {
       self.vm.inputs.configureWith(.generic)
       self.vm.inputs.viewWillAppear()
 
@@ -247,7 +268,8 @@ final class LoginToutViewModelTests: TestCase {
 
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
-      scheduler.advance()
+      await self.authenticationFeature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
       self.showFacebookErrorAlert.assertValues(
@@ -257,7 +279,7 @@ final class LoginToutViewModelTests: TestCase {
     }
   }
 
-  func testLoginFacebookFlow_GenericFail() {
+  func testLoginFacebookFlow_GenericFail() async {
     let token = AccessToken(
       tokenString: "12344566",
       permissions: [],
@@ -285,7 +307,7 @@ final class LoginToutViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(loginError: error)) {
+    await withEnvironment(apiService: MockService(loginError: error)) {
       self.vm.inputs.configureWith(.generic)
       self.vm.inputs.viewWillAppear()
 
@@ -294,7 +316,8 @@ final class LoginToutViewModelTests: TestCase {
 
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
-      scheduler.advance()
+      await self.authenticationFeature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
       self.showFacebookErrorAlert.assertValues(
@@ -304,7 +327,7 @@ final class LoginToutViewModelTests: TestCase {
     }
   }
 
-  func testLoginFacebookFlow_GenericFail_WithDefaultMessage() {
+  func testLoginFacebookFlow_GenericFail_WithDefaultMessage() async {
     let token = AccessToken(
       tokenString: "12344566",
       permissions: [],
@@ -332,7 +355,7 @@ final class LoginToutViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(loginError: error)) {
+    await withEnvironment(apiService: MockService(loginError: error)) {
       self.vm.inputs.configureWith(.generic)
       self.vm.inputs.viewWillAppear()
 
@@ -341,7 +364,8 @@ final class LoginToutViewModelTests: TestCase {
 
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
-      scheduler.advance()
+      await self.authenticationFeature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
       self.showFacebookErrorAlert.assertValues(
@@ -351,7 +375,7 @@ final class LoginToutViewModelTests: TestCase {
     }
   }
 
-  func testStartTwoFactorChallenge() {
+  func testStartTwoFactorChallenge() async {
     let token = AccessToken(
       tokenString: "12344566",
       permissions: [],
@@ -379,7 +403,7 @@ final class LoginToutViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(loginError: error)) {
+    await withEnvironment(apiService: MockService(loginError: error)) {
       self.vm.inputs.configureWith(.generic)
       self.vm.inputs.viewWillAppear()
 
@@ -390,7 +414,8 @@ final class LoginToutViewModelTests: TestCase {
 
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
-      scheduler.advance()
+      await self.authenticationFeature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
       self.startTwoFactorChallenge.assertValues(["12344566"], "TFA challenge emitted with token")
@@ -401,7 +426,7 @@ final class LoginToutViewModelTests: TestCase {
     }
   }
 
-  func testStartFacebookConfirmation() {
+  func testStartFacebookConfirmation() async {
     let token = AccessToken(
       tokenString: "12344566",
       permissions: [],
@@ -429,7 +454,7 @@ final class LoginToutViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(loginError: error)) {
+    await withEnvironment(apiService: MockService(loginError: error)) {
       self.vm.inputs.configureWith(.generic)
       self.vm.inputs.viewWillAppear()
 
@@ -438,7 +463,8 @@ final class LoginToutViewModelTests: TestCase {
 
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
-      scheduler.advance()
+      await self.authenticationFeature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
       self.startFacebookConfirmation.assertValues(
@@ -456,7 +482,8 @@ final class LoginToutViewModelTests: TestCase {
       self.vm.inputs.facebookLoginSuccess(result: result)
 
       self.isLoading.assertValues([true, false, true])
-      scheduler.advance()
+      await self.authenticationFeature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false, true, false])
       self.startFacebookConfirmation.assertValues(
@@ -466,7 +493,7 @@ final class LoginToutViewModelTests: TestCase {
     }
   }
 
-  func testDismissalWhenNotPresented() {
+  func testDismissalWhenNotPresented() async {
     self.vm.inputs.configureWith(.generic)
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.view(isPresented: false)
@@ -475,7 +502,7 @@ final class LoginToutViewModelTests: TestCase {
     self.dismissViewController.assertValueCount(0)
   }
 
-  func testDismissalWhenPresented() {
+  func testDismissalWhenPresented() async {
     self.vm.inputs.configureWith(.generic)
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.view(isPresented: true)
@@ -484,7 +511,7 @@ final class LoginToutViewModelTests: TestCase {
     self.dismissViewController.assertValueCount(1)
   }
 
-  func testShowAppleErrorAlert_DoesNotEmitWhen_CancellingSignInWithAppleModal() {
+  func testShowAppleErrorAlert_DoesNotEmitWhen_CancellingSignInWithAppleModal() async {
     self.vm.inputs.configureWith(.generic)
     self.vm.inputs.viewWillAppear()
 
@@ -493,7 +520,7 @@ final class LoginToutViewModelTests: TestCase {
     self.showAppleErrorAlert.assertDidNotEmitValue()
   }
 
-  func testShowAppleErrorAlert_AppleAuthorizationError() {
+  func testShowAppleErrorAlert_AppleAuthorizationError() async {
     let error = NSError(
       domain: "notonlinesorry", code: -1_234, userInfo: [NSLocalizedDescriptionKey: "Not online sorry"]
     )
@@ -506,8 +533,8 @@ final class LoginToutViewModelTests: TestCase {
     self.showAppleErrorAlert.assertValue("Not online sorry")
   }
 
-  func testShowAppleErrorAlert_SignInWithAppleMutationError() {
-    withEnvironment(apiService: MockService(signInWithAppleResult: .failure(.couldNotParseJSON))) {
+  func testShowAppleErrorAlert_SignInWithAppleMutationError() async {
+    await withEnvironment(apiService: MockService(signInWithAppleResult: .failure(.couldNotParseJSON))) {
       self.vm.inputs.configureWith(.generic)
       self.vm.inputs.viewWillAppear()
 
@@ -524,18 +551,19 @@ final class LoginToutViewModelTests: TestCase {
       self.vm.inputs.appleAuthorizationDidSucceed(with: data)
 
       self.isLoading.assertValues([true])
-      scheduler.advance()
+      await self.authenticationFeature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
       self.showAppleErrorAlert.assertValue("Something went wrong.")
     }
   }
 
-  func testShowAppleErrorAlert_FetchUserEventError() {
+  func testShowAppleErrorAlert_FetchUserEventError() async {
     let envelope = SignInWithAppleEnvelope.template
       |> \.signInWithApple.apiAccessToken .~ "some_token"
 
-    withEnvironment(apiService: MockService(
+    await withEnvironment(apiService: MockService(
       fetchUserResult: .failure(.couldNotParseJSON),
       signInWithAppleResult: .success(envelope)
     )) {
@@ -555,7 +583,8 @@ final class LoginToutViewModelTests: TestCase {
       self.vm.inputs.appleAuthorizationDidSucceed(with: data)
 
       self.isLoading.assertValues([true])
-      self.scheduler.advance()
+      await self.authenticationFeature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
       self.showAppleErrorAlert.assertValue(
@@ -564,7 +593,7 @@ final class LoginToutViewModelTests: TestCase {
     }
   }
 
-  func testLogIntoEnvironment_SignInWithApple() {
+  func testLogIntoEnvironment_SignInWithApple() async {
     let user = User.template
 
     let envelope = SignInWithAppleEnvelope.template
@@ -572,7 +601,7 @@ final class LoginToutViewModelTests: TestCase {
 
     let service = MockService(fetchUserResult: .success(user), signInWithAppleResult: .success(envelope))
 
-    withEnvironment(apiService: service) {
+    await withEnvironment(apiService: service) {
       self.vm.inputs.configureWith(.generic)
       self.vm.inputs.viewWillAppear()
 
@@ -589,7 +618,8 @@ final class LoginToutViewModelTests: TestCase {
       self.vm.inputs.appleAuthorizationDidSucceed(with: data)
 
       self.isLoading.assertValues([true])
-      self.scheduler.run()
+      await self.authenticationFeature.waitForOperations()
+      await self.scheduler.run()
 
       self.isLoading.assertValues([true, false])
       self.logIntoEnvironmentWithApple.assertValueCount(1)
@@ -601,7 +631,7 @@ final class LoginToutViewModelTests: TestCase {
     }
   }
 
-  func testAttemptAppleLogin_Tracking() {
+  func testAttemptAppleLogin_Tracking() async {
     self.vm.inputs.configureWith(.generic)
     self.vm.inputs.viewWillAppear()
 

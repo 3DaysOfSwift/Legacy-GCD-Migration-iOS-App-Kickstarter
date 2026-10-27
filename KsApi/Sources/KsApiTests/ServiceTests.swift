@@ -13,6 +13,54 @@ struct MySwiftModel: Decodable, Equatable {
 }
 
 final class ServiceTests: XCTestCase {
+  func testNativeOAuthUsesExchangedTokenOnlyForUserRequest() throws {
+    let service = Service(oauthToken: OauthToken(token: "old-fixture"))
+    let request = try service.preparedRouteRequest(.userSelf, oauthToken: "new-fixture")
+    XCTAssertEqual(request.url?.path, "/v1/users/self")
+    XCTAssertEqual(request.httpMethod, "GET")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "X-Auth"), "token new-fixture")
+    XCTAssertEqual(service.oauthToken?.token, "old-fixture", "Uncommitted token must not mutate the service")
+  }
+
+  func testNativeSocialSignupPreservesBothNewsletterFields() throws {
+    for optedIn in [false, true] {
+      let request = try Service().preparedRouteRequest(.facebookSignup(
+        facebookAccessToken: "fixture", sendNewsletters: optedIn
+      ))
+      XCTAssertEqual(request.url?.path, "/v1/facebook/access_token")
+      XCTAssertEqual(request.httpMethod, "PUT")
+      let body = try XCTUnwrap(
+        JSONSerialization
+          .jsonObject(with: XCTUnwrap(request.httpBody)) as? [String: Any]
+      )
+      XCTAssertEqual(body["access_token"] as? String, "fixture")
+      XCTAssertEqual(body["intent"] as? String, "register")
+      XCTAssertEqual(body["send_newsletters"] as? Bool, optedIn)
+      XCTAssertEqual(body["newsletter_opt_in"] as? Bool, optedIn)
+    }
+  }
+
+  func testNativeOAuthExchangePreservesPKCEAndPasswordResetPreservesEmail() throws {
+    let service = Service()
+    let exchange = try service.preparedRouteRequest(.exchangeToken(params: .init(
+      temporaryToken: "fixture-code", codeVerifier: "fixture-verifier"
+    )))
+    XCTAssertEqual(exchange.url?.path, "/v1/oauth/authorizations/exchange")
+    XCTAssertEqual(exchange.httpMethod, "POST")
+    let body = try XCTUnwrap(
+      JSONSerialization
+        .jsonObject(with: XCTUnwrap(exchange.httpBody)) as? [String: String]
+    )
+    XCTAssertEqual(body, ["code": "fixture-code", "code_verifier": "fixture-verifier"])
+    let reset = try service.preparedRouteRequest(.resetPassword(email: "person@example.invalid"))
+    XCTAssertEqual(reset.httpMethod, "POST")
+    let resetBody = try XCTUnwrap(
+      JSONSerialization
+        .jsonObject(with: XCTUnwrap(reset.httpBody)) as? [String: String]
+    )
+    XCTAssertEqual(resetBody, ["email": "person@example.invalid"])
+  }
+
   func testAsyncAuthenticationDecoderPreservesTokenAndUser() throws {
     let data = try JSONSerialization.data(withJSONObject: [
       "access_token": "fixture-token", "user": User.template.encode()

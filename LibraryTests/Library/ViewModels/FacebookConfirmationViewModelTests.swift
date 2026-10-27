@@ -7,8 +7,18 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class FacebookConfirmationViewModelTests: TestCase {
-  let vm: FacebookConfirmationViewModelType = FacebookConfirmationViewModel()
+  // Logic-only coverage; visual suites retain their reference-device requirement.
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let authenticationFeature = AuthenticationFeature(
+    sessionFeature: SessionFeature(makeProvider: {
+      AsyncSessionProvider(service: AppEnvironment.current.apiService)
+    }),
+    makeProvider: { AsyncAuthenticationProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var vm: FacebookConfirmationViewModelType =
+    FacebookConfirmationViewModel(authenticationFeature: self.authenticationFeature)
   let displayEmail = TestObserver<String, Never>()
   let sendNewsletters = TestObserver<Bool, Never>()
   let showLogin = TestObserver<(), Never>()
@@ -18,6 +28,15 @@ final class FacebookConfirmationViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated { self.bindOutputs() }
+  }
+
+  override func tearDown() async throws {
+    await self.authenticationFeature.waitForOperations()
+    try await super.tearDown()
+  }
+
+  private func bindOutputs() {
     self.vm.outputs.displayEmail.observe(self.displayEmail.observer)
     self.vm.outputs.sendNewsletters.observe(self.sendNewsletters.observer)
     self.vm.outputs.showLogin.observe(self.showLogin.observer)
@@ -26,7 +45,7 @@ final class FacebookConfirmationViewModelTests: TestCase {
     self.vm.errors.showSignupError.observe(self.showSignupError.observer)
   }
 
-  func testDisplayEmail_whenViewDidLoad() {
+  func testDisplayEmail_whenViewDidLoad() async {
     self.vm.inputs.email("kittens@example.com")
 
     self.displayEmail.assertDidNotEmitValue("Email does not display")
@@ -36,7 +55,7 @@ final class FacebookConfirmationViewModelTests: TestCase {
     self.displayEmail.assertValues(["kittens@example.com"], "Display email")
   }
 
-  func testNewsletterSwitch_whenViewDidLoad() {
+  func testNewsletterSwitch_whenViewDidLoad() async {
     self.sendNewsletters.assertDidNotEmitValue("Newsletter toggle does not emit")
 
     self.vm.inputs.viewDidLoad()
@@ -49,7 +68,7 @@ final class FacebookConfirmationViewModelTests: TestCase {
     )
   }
 
-  func testNewsletterSwitch_whenViewDidLoad_German() {
+  func testNewsletterSwitch_whenViewDidLoad_German() async {
     withEnvironment(countryCode: "DE") {
       self.sendNewsletters.assertDidNotEmitValue("Newsletter toggle does not emit")
 
@@ -59,8 +78,8 @@ final class FacebookConfirmationViewModelTests: TestCase {
     }
   }
 
-  func testNewsletterSwitch_whenViewDidLoad_UK() {
-    withEnvironment(countryCode: "UK") {
+  func testNewsletterSwitch_whenViewDidLoad_UK() async {
+    await withEnvironment(countryCode: "UK") {
       self.sendNewsletters.assertDidNotEmitValue("Newsletter toggle does not emit")
 
       self.vm.inputs.viewDidLoad()
@@ -74,7 +93,7 @@ final class FacebookConfirmationViewModelTests: TestCase {
     }
   }
 
-  func testNewsletterToggle() {
+  func testNewsletterToggle() async {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.sendNewslettersToggled(false)
 
@@ -85,12 +104,14 @@ final class FacebookConfirmationViewModelTests: TestCase {
     self.sendNewsletters.assertValues([false, false, true], "Newsletter is toggled on")
   }
 
-  func testCreateNewAccount_withoutNewsletterToggle() {
+  func testCreateNewAccount_withoutNewsletterToggle() async {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.facebookToken("PuRrrrrrr3848")
     self.vm.inputs.createAccountButtonPressed()
 
-    scheduler.advance()
+    await self.authenticationFeature.waitForOperations()
+
+    await self.scheduler.advance()
 
     self.logIntoEnvironment.assertValueCount(1, "Account successfully created")
 
@@ -102,13 +123,15 @@ final class FacebookConfirmationViewModelTests: TestCase {
     )
   }
 
-  func testCreateNewAccount_withNewsletterToggle() {
+  func testCreateNewAccount_withNewsletterToggle() async {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.facebookToken("PuRrrrrrr3848")
     self.vm.inputs.sendNewslettersToggled(true)
     self.vm.inputs.createAccountButtonPressed()
 
-    scheduler.advance()
+    await self.authenticationFeature.waitForOperations()
+
+    await self.scheduler.advance()
 
     self.logIntoEnvironment.assertValueCount(1, "Account successfully created")
 
@@ -120,7 +143,7 @@ final class FacebookConfirmationViewModelTests: TestCase {
     )
   }
 
-  func testCreateNewAccount_withError() {
+  func testCreateNewAccount_withError() async {
     let error = ErrorEnvelope(
       errorMessages: ["Email address has an issue. If you are not sure why, please contact us."],
       ksrCode: nil,
@@ -128,12 +151,14 @@ final class FacebookConfirmationViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(signupError: error)) {
+    await withEnvironment(apiService: MockService(signupError: error)) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.facebookToken("Meowwwww4484848")
       self.vm.inputs.createAccountButtonPressed()
 
-      scheduler.advance()
+      await self.authenticationFeature.waitForOperations()
+
+      await self.scheduler.advance()
 
       self.logIntoEnvironment.assertValueCount(0, "Did not emit log into environment")
       self.showSignupError.assertValues(
@@ -142,7 +167,7 @@ final class FacebookConfirmationViewModelTests: TestCase {
     }
   }
 
-  func testCreateNewAccount_withDefaultError() {
+  func testCreateNewAccount_withDefaultError() async {
     let error = ErrorEnvelope(
       errorMessages: [],
       ksrCode: nil,
@@ -150,12 +175,14 @@ final class FacebookConfirmationViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(signupError: error)) {
+    await withEnvironment(apiService: MockService(signupError: error)) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.facebookToken("Meowwwww4484848")
       self.vm.inputs.createAccountButtonPressed()
 
-      scheduler.advance()
+      await self.authenticationFeature.waitForOperations()
+
+      await self.scheduler.advance()
 
       self.logIntoEnvironment.assertValueCount(0, "Did not emit log into environment")
       self.showSignupError.assertValues(
@@ -164,7 +191,7 @@ final class FacebookConfirmationViewModelTests: TestCase {
     }
   }
 
-  func testShowLogin() {
+  func testShowLogin() async {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.loginButtonPressed()
 

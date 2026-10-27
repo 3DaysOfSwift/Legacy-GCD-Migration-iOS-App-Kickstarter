@@ -6,8 +6,20 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class ResetPasswordViewModelTests: TestCase {
-  internal let vm: ResetPasswordViewModelType = ResetPasswordViewModel()
+  // Logic-only coverage; visual suites retain their reference-device requirement.
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let authenticationFeature = AuthenticationFeature(
+    sessionFeature: SessionFeature(makeProvider: {
+      AsyncSessionProvider(service: AppEnvironment.current.apiService)
+    }),
+    makeProvider: { AsyncAuthenticationProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var vm: ResetPasswordViewModelType = ResetPasswordViewModel(
+    authenticationFeature: self
+      .authenticationFeature
+  )
   internal let emailTextFieldBecomeFirstResponder = TestObserver<(), Never>()
   internal let formIsValid = TestObserver<Bool, Never>()
   internal let showResetSuccess = TestObserver<String, Never>()
@@ -17,7 +29,15 @@ final class ResetPasswordViewModelTests: TestCase {
 
   internal override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated { self.bindOutputs() }
+  }
 
+  override func tearDown() async throws {
+    await self.authenticationFeature.waitForOperations()
+    try await super.tearDown()
+  }
+
+  private func bindOutputs() {
     self.vm.outputs.emailTextFieldBecomeFirstResponder
       .observe(self.emailTextFieldBecomeFirstResponder.observer)
     self.vm.outputs.formIsValid.observe(self.formIsValid.observer)
@@ -27,12 +47,12 @@ final class ResetPasswordViewModelTests: TestCase {
     self.vm.outputs.showError.observe(self.showError.observer)
   }
 
-  func testEmailFieldBecomesFirstResponder() {
+  func testEmailFieldBecomesFirstResponder() async {
     self.vm.inputs.viewDidLoad()
     self.emailTextFieldBecomeFirstResponder.assertValueCount(1)
   }
 
-  func testFormIsValid() {
+  func testFormIsValid() async {
     self.formIsValid.assertDidNotEmitValue("Form is valid did not emit any values")
 
     self.vm.inputs.viewDidLoad()
@@ -48,7 +68,7 @@ final class ResetPasswordViewModelTests: TestCase {
     self.formIsValid.assertValues([false, true])
   }
 
-  func testFormIsValid_WithInitialValue() {
+  func testFormIsValid_WithInitialValue() async {
     self.formIsValid.assertDidNotEmitValue("Form is valid did not emit any values")
 
     self.vm.inputs.emailChanged("hello@goodemail.biz")
@@ -64,7 +84,7 @@ final class ResetPasswordViewModelTests: TestCase {
     self.formIsValid.assertValues([true, false])
   }
 
-  func testEmailSetOnce_WithInitialValue() {
+  func testEmailSetOnce_WithInitialValue() async {
     self.vm.inputs.emailChanged("user@example.com")
 
     self.setEmailInitial.assertValueCount(0, "Initial email does not emit")
@@ -78,7 +98,7 @@ final class ResetPasswordViewModelTests: TestCase {
     self.setEmailInitial.assertValues(["user@example.com"])
   }
 
-  func testEmailNotSet_WithoutInitialValue() {
+  func testEmailNotSet_WithoutInitialValue() async {
     self.setEmailInitial.assertValueCount(0, "Initial email does not emit")
 
     self.vm.inputs.viewDidLoad()
@@ -90,10 +110,11 @@ final class ResetPasswordViewModelTests: TestCase {
     self.setEmailInitial.assertValueCount(0, "Initial email does not emit")
   }
 
-  func testResetSuccess() {
+  func testResetSuccess() async {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.emailChanged("user@example.com")
     self.vm.inputs.resetButtonPressed()
+    await self.authenticationFeature.waitForOperations()
 
     self.showResetSuccess.assertValues(
       [
@@ -104,14 +125,14 @@ final class ResetPasswordViewModelTests: TestCase {
     )
   }
 
-  func testResetConfirmation() {
+  func testResetConfirmation() async {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.confirmResetButtonPressed()
 
     self.returnToLogin.assertValueCount(1, "Shows login after confirming message receipt")
   }
 
-  func testResetFail_WithUnknownEmail() {
+  func testResetFail_WithUnknownEmail() async {
     let error = ErrorEnvelope(
       errorMessages: ["The resource you are looking for does not exist."],
       ksrCode: nil,
@@ -119,10 +140,11 @@ final class ResetPasswordViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(resetPasswordError: error)) {
+    await withEnvironment(apiService: MockService(resetPasswordError: error)) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.emailChanged("bad@email")
       self.vm.inputs.resetButtonPressed()
+      await self.authenticationFeature.waitForOperations()
 
       self.showError.assertValues(
         [Strings.forgot_password_error()],
@@ -131,7 +153,7 @@ final class ResetPasswordViewModelTests: TestCase {
     }
   }
 
-  func testResetFail_WithNon404Error() {
+  func testResetFail_WithNon404Error() async {
     let error = ErrorEnvelope(
       errorMessages: ["Zoinks!"],
       ksrCode: nil,
@@ -139,10 +161,11 @@ final class ResetPasswordViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(resetPasswordError: error)) {
+    await withEnvironment(apiService: MockService(resetPasswordError: error)) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.emailChanged("unicorns@sparkles.tv")
       self.vm.inputs.resetButtonPressed()
+      await self.authenticationFeature.waitForOperations()
 
       self.showError.assertValues(["Something went wrong."], "Error alert is shown on bad request")
     }

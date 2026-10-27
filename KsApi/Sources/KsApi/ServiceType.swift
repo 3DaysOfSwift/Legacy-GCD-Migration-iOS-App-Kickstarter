@@ -183,6 +183,12 @@ public protocol ServiceType {
   @MainActor func saveAccountPreferences(_ user: User) async throws -> User
   @MainActor func authenticate(email: String, password: String, code: String?) async throws -> AccessTokenEnvelope
   @MainActor func authenticate(facebookAccessToken: String, code: String?) async throws -> AccessTokenEnvelope
+  @MainActor func authenticateApple(input: SignInWithAppleInput) async throws -> SignInWithAppleEnvelope
+  @MainActor func authenticationUser(id: Int) async throws -> User
+  @MainActor func authenticationUser(oauthToken: String) async throws -> User
+  @MainActor func signupFacebook(token: String, sendNewsletters: Bool) async throws -> AccessTokenEnvelope
+  @MainActor func exchangeOAuth(params: OAuthTokenExchangeParams) async throws -> OAuthTokenExchangeResponse
+  @MainActor func requestPasswordReset(email: String) async throws
   @MainActor func sessionGraphUser() async throws -> User
   @MainActor func clearActivityIndicator() async throws -> Int
   @MainActor func profileBackedProjects(cursor: String?) async throws -> GraphAPI.FetchMyBackedProjectsQuery

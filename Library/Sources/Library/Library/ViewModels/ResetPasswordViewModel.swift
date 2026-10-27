@@ -2,6 +2,7 @@ import KsApi
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol ResetPasswordViewModelInputs {
   /// Call when the view loads
   func viewDidLoad()
@@ -13,6 +14,7 @@ public protocol ResetPasswordViewModelInputs {
   func confirmResetButtonPressed()
 }
 
+@MainActor
 public protocol ResetPasswordViewModelOutputs {
   /// Sets whether the email text field is the first responder.
   var emailTextFieldBecomeFirstResponder: Signal<(), Never> { get }
@@ -28,14 +30,17 @@ public protocol ResetPasswordViewModelOutputs {
   var showError: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol ResetPasswordViewModelType {
   var inputs: ResetPasswordViewModelInputs { get }
   var outputs: ResetPasswordViewModelOutputs { get }
 }
 
+@MainActor
 public final class ResetPasswordViewModel: ResetPasswordViewModelType, ResetPasswordViewModelInputs,
   ResetPasswordViewModelOutputs {
-  public init() {
+  public init(authenticationFeature: AuthenticationFeature? = nil) {
+    let authenticationFeature = authenticationFeature ?? AppModel.shared.authenticationFeature
     self.emailTextFieldBecomeFirstResponder = self.viewDidLoadProperty.signal
 
     self.setEmailInitial = self.emailProperty.signal.skipNil()
@@ -51,7 +56,7 @@ public final class ResetPasswordViewModel: ResetPasswordViewModelType, ResetPass
     let resetEvent = self.emailProperty.signal.skipNil()
       .takeWhen(self.resetButtonPressedProperty.signal)
       .switchMap { email in
-        AppEnvironment.current.apiService.resetPassword(email: email)
+        authenticationFeature.passwordResetResult(email: email)
           .mapConst(email)
           .materialize()
       }

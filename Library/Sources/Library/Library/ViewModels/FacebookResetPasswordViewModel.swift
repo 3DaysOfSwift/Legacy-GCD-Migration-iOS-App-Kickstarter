@@ -3,6 +3,7 @@ import KsApi
 import Prelude
 import ReactiveSwift
 
+@MainActor
 public protocol FacebookResetPasswordViewModelInputs {
   func viewDidLoad()
   func viewWillAppear()
@@ -11,6 +12,7 @@ public protocol FacebookResetPasswordViewModelInputs {
   func setPasswordButtonPressed()
 }
 
+@MainActor
 public protocol FacebookResetPasswordViewModelOutputs {
   var shouldShowActivityIndicator: Signal<Bool, Never> { get }
   var setPasswordButtonIsEnabled: Signal<Bool, Never> { get }
@@ -21,15 +23,18 @@ public protocol FacebookResetPasswordViewModelOutputs {
   var textFieldAndSetPasswordButtonAreEnabled: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol FacebookResetPasswordViewModelType {
   var inputs: FacebookResetPasswordViewModelInputs { get }
   var outputs: FacebookResetPasswordViewModelOutputs { get }
 }
 
+@MainActor
 public final class FacebookResetPasswordViewModel: FacebookResetPasswordViewModelType,
   FacebookResetPasswordViewModelInputs,
   FacebookResetPasswordViewModelOutputs {
-  public init() {
+  public init(authenticationFeature: AuthenticationFeature? = nil) {
+    let authenticationFeature = authenticationFeature ?? AppModel.shared.authenticationFeature
     self.contextLabelText = self.viewWillAppearProperty.signal
       .map { Strings.We_re_simplifying_our_login_process_To_log_in() }
     self.emailLabel = self.viewWillAppearProperty.signal
@@ -58,7 +63,7 @@ public final class FacebookResetPasswordViewModel: FacebookResetPasswordViewMode
     let setPasswordEvent = self.emailTextFieldProperty.signal.skipNil()
       .takeWhen(submitAction)
       .switchMap { email in
-        AppEnvironment.current.apiService.resetPassword(email: email)
+        authenticationFeature.passwordResetResult(email: email)
           .mapConst(email)
           .materialize()
       }
