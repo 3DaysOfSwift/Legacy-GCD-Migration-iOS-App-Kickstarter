@@ -177,6 +177,15 @@ public protocol ServiceType {
   @MainActor func projectUpdate(id: Int, project: Param) async throws -> Update
   @MainActor func reportVideoEvent(project: any HasProjectWebURL, completed: Bool) async throws -> VoidEnvelope
   @MainActor func projectVideoFeed() async throws -> GraphAPI.VideoFeedQuery.Data
+  @MainActor func activityPage(cursor: String?) async throws -> ActivityEnvelope
+  @MainActor func unansweredSurveys() async throws -> [SurveyResponse]
+  @MainActor func sessionUser() async throws -> User
+  @MainActor func sessionGraphUser() async throws -> User
+  @MainActor func clearActivityIndicator() async throws -> Int
+  @MainActor func profileBackedProjects(cursor: String?) async throws -> GraphAPI.FetchMyBackedProjectsQuery
+    .Data
+  @MainActor func profileSavedProjects(cursor: String?) async throws -> GraphAPI.FetchMySavedProjectsQuery
+    .Data
   @MainActor func setProjectWatched(id: String, watched: Bool) async throws -> WatchProjectResponseEnvelope
 
   /// Fetch comments for a project with a slug, cursor and limit.

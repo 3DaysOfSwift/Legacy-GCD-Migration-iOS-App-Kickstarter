@@ -281,6 +281,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     NotificationCenter.default
       .addObserver(forName: Notification.Name.ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
+        AppModel.shared.sessionChanged()
         self?.viewModel.inputs.userSessionStarted()
       }
 
@@ -293,6 +294,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     NotificationCenter.default
       .addObserver(forName: Notification.Name.ksr_sessionEnded, object: nil, queue: nil) { [weak self] _ in
+        AppModel.shared.sessionChanged()
         self?.viewModel.inputs.userSessionEnded()
       }
 

@@ -7,8 +7,26 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class BackerDashboardViewModelTests: TestCase {
-  private let vm: BackerDashboardViewModelType = BackerDashboardViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let sessionFeature =
+    SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) })
+  private lazy var feature = ProfileFeature(
+    sessionFeature: self.sessionFeature,
+    makeProvider: { AsyncProfileProvider(service: AppEnvironment.current.apiService) },
+    sleep: { _ in }
+  )
+  private lazy var vm = BackerDashboardViewModel(profileFeature: self.feature)
+  private func advanceRequests() async {
+    await self.scheduler.advance()
+    await self.vm.headerTask?.value
+  }
+
+  override func tearDown() async throws {
+    await self.advanceRequests()
+    try await super.tearDown()
+  }
 
   private let avatarURL = TestObserver<String, Never>()
   private let backedButtonTitleText = TestObserver<String, Never>()
@@ -28,23 +46,25 @@ internal final class BackerDashboardViewModelTests: TestCase {
   override func setUp() {
     super.setUp()
 
-    self.vm.outputs.avatarURL.map { $0?.absoluteString ?? "" }.observe(self.avatarURL.observer)
-    self.vm.outputs.backedButtonTitleText.observe(self.backedButtonTitleText.observer)
-    self.vm.outputs.backerNameText.observe(self.backerNameText.observer)
-    self.vm.outputs.configurePagesDataSource.observe(self.configurePagesDataSourceTab.observer)
-    self.vm.outputs.goToMessages.observe(self.goToMessages.observer)
-    self.vm.outputs.goToSettings.observe(self.goToSettings.observer)
-    self.vm.outputs.navigateToTab.observe(self.navigateToTab.observer)
-    self.vm.outputs.pinSelectedIndicatorToTab.map(first).observe(self.pinSelectedIndicatorToTab.observer)
-    self.vm.outputs.pinSelectedIndicatorToTab.map(second)
-      .observe(self.pinSelectedIndicatorToTabAnimated.observer)
-    self.vm.outputs.savedButtonTitleText.observe(self.savedButtonTitleText.observer)
-    self.vm.outputs.setSelectedButton.observe(self.setSelectedButton.observer)
-    self.vm.outputs.updateCurrentUserInEnvironment.observe(self.updateCurrentUserInEnvironment.observer)
-    self.vm.outputs.postNotification.observe(self.postNotification.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.avatarURL.map { $0?.absoluteString ?? "" }.observe(self.avatarURL.observer)
+      self.vm.outputs.backedButtonTitleText.observe(self.backedButtonTitleText.observer)
+      self.vm.outputs.backerNameText.observe(self.backerNameText.observer)
+      self.vm.outputs.configurePagesDataSource.observe(self.configurePagesDataSourceTab.observer)
+      self.vm.outputs.goToMessages.observe(self.goToMessages.observer)
+      self.vm.outputs.goToSettings.observe(self.goToSettings.observer)
+      self.vm.outputs.navigateToTab.observe(self.navigateToTab.observer)
+      self.vm.outputs.pinSelectedIndicatorToTab.map(first).observe(self.pinSelectedIndicatorToTab.observer)
+      self.vm.outputs.pinSelectedIndicatorToTab.map(second)
+        .observe(self.pinSelectedIndicatorToTabAnimated.observer)
+      self.vm.outputs.savedButtonTitleText.observe(self.savedButtonTitleText.observer)
+      self.vm.outputs.setSelectedButton.observe(self.setSelectedButton.observer)
+      self.vm.outputs.updateCurrentUserInEnvironment.observe(self.updateCurrentUserInEnvironment.observer)
+      self.vm.outputs.postNotification.observe(self.postNotification.observer)
+    }
   }
 
-  func testUserAndHeaderDisplayData() {
+  func testUserAndHeaderDisplayData() async {
     let location = Location.template
       |> Location.lens.displayableName .~ "Siberia"
 
@@ -57,7 +77,7 @@ internal final class BackerDashboardViewModelTests: TestCase {
 
     let userEnvelope = UserEnvelope(me: user)
 
-    withEnvironment(apiService: MockService(
+    await withEnvironment(apiService: MockService(
       fetchGraphUserSelfResult: .success(userEnvelope),
       fetchUserSelfResponse: user
     )) {
@@ -76,7 +96,7 @@ internal final class BackerDashboardViewModelTests: TestCase {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(false)
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       // Signals emit twice as they are prefixed with the current user data.
       self.avatarURL.assertValues(["http://cats.com/furball.jpg", "http://cats.com/furball.jpg"])
@@ -97,7 +117,7 @@ internal final class BackerDashboardViewModelTests: TestCase {
     }
   }
 
-  func testConfigurePagesData() {
+  func testConfigurePagesData() async {
     self.configurePagesDataSourceTab.assertValueCount(0)
 
     self.vm.inputs.viewDidLoad()
@@ -105,10 +125,10 @@ internal final class BackerDashboardViewModelTests: TestCase {
     self.configurePagesDataSourceTab.assertValues([.backed])
   }
 
-  func testTabNavigation() {
+  func testTabNavigation() async {
     let userEnvelope = UserEnvelope(me: User.template)
 
-    withEnvironment(apiService: MockService(
+    await withEnvironment(apiService: MockService(
       fetchGraphUserSelfResult: .success(userEnvelope)
     )) {
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
@@ -121,7 +141,7 @@ internal final class BackerDashboardViewModelTests: TestCase {
       self.pinSelectedIndicatorToTabAnimated.assertValueCount(0)
       XCTAssertEqual(.backed, self.vm.outputs.currentSelectedTab)
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.navigateToTab.assertValueCount(0)
       self.setSelectedButton.assertValues([.backed])
@@ -179,7 +199,7 @@ internal final class BackerDashboardViewModelTests: TestCase {
     }
   }
 
-  func testGoPlaces() {
+  func testGoPlaces() async {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewWillAppear(false)
 
@@ -195,7 +215,7 @@ internal final class BackerDashboardViewModelTests: TestCase {
     self.goToMessages.assertValueCount(1)
   }
 
-  func testHeaderPanning() {
+  func testHeaderPanning() async {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewWillAppear(false)
 

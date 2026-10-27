@@ -7,6 +7,25 @@ import ReactiveSwift
 extension Service {
   private static let session = URLSession(configuration: .default)
 
+  @MainActor public func activityPage(cursor: String?) async throws -> ActivityEnvelope {
+    if let cursor {
+      guard let url = URL(string: cursor) else { throw ErrorEnvelope.invalidPaginationUrl }
+      return try await self.discoveryResponse(for: self.preparedRequest(forURL: url))
+    }
+    return try await self.discussionResponse(route: .activities(
+      categories: [.backing, .cancellation, .failure, .follow, .launch, .shipped, .success, .update],
+      count: nil
+    ))
+  }
+
+  @MainActor public func unansweredSurveys() async throws -> [SurveyResponse] {
+    try await self.discussionResponse(route: .unansweredSurveyResponses)
+  }
+
+  @MainActor public func sessionUser() async throws -> User {
+    try await self.discussionResponse(route: .userSelf)
+  }
+
   @MainActor public func discussionProject(param: Param) async throws -> Project {
     try await self.discussionResponse(route: .project(param))
   }

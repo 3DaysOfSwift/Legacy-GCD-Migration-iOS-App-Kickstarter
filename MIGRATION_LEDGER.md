@@ -4,6 +4,44 @@ Author: Matthew Thomas. Updated 27 October 2026.
 
 ## Latest verified checkpoint
 
+### Activity/Profile loading and shared account reads — 27 October 2026
+
+AppModel now composes ActivityFeature, ProfileFeature and one shared SessionFeature.
+Activity owns ordered/deduplicated history, pagination and survey reads. Profile
+owns independently paged backed/saved collections and concurrent header reads.
+The existing UIKit ViewModels retain presentation, navigation and analytics;
+their reactive request/pagination chains have been replaced by awaitable work.
+
+Equivalent requests share. Refresh supersedes pagination, reset rejects late
+successes/errors, and login/logout invalidates both tabs even when the next user
+has the same ID. Account identity is checked after suspension. Signed-out Profile
+commands do not request private collections. Admitted badge writes are not
+cancelled by navigation/session changes, but cannot update a newer account.
+
+A project-save event explicitly invalidates older header reads; ordinary repeated
+appearances share. Successful REST/GraphQL header values combine regardless of
+completion order, correcting the legacy graph-first lost-update race. Individual
+fields still publish independently; a failure does not publish a partial combined
+session update. AppEnvironment remains the credential/persistence authority:
+authentication and full session-storage migration are NOT complete.
+
+573 tests passed: 537 Library, seven framework and 29 API, zero failures/skips.
+App build succeeded with two pre-existing warnings.
+Results: /private/tmp/kickstarter-account-tabs.f1QiDO.
+24 original ViewModel tests passed before changes; all original expected values
+remain. Sixteen controlled Feature tests cover sharing, adverse completion order,
+failure/retry, independent tabs, reset, logout and same-account session changes.
+Intermediate compile failures, one missing async wait and missing test-target
+membership were corrected and recorded, not omitted from evidence.
+Evidence: sibling Migration Evidence/kickstarter-account-tabs.
+
+Next: account/settings ownership using this shared session dependency, then
+authentication/persistence, messaging/notification and pledge/payment/backing
+workflows. The final app-wide inventory, strict-concurrency, full regression,
+authenticated/device and visual gates remain open. No live badge/account/payment
+mutation or populated authenticated-screen visual parity is claimed.
+App-wide migration remains IN PROGRESS; this is a verified bounded checkpoint.
+
 ### Video-feed loading and save/watch — 27 October 2026
 
 ProjectMediaFeature now owns route-scoped observable feed data, native async
@@ -299,11 +337,11 @@ do not ask the developer to run routine verification commands.
 
 ## Progress dashboard — 27 October 2026
 
-**Overall: Search, Explore and project-detail loading have verified implementation checkpoints.**
-AppModel composes searchFeature, discoveryFeature and projectDetailsFeature.
+**Overall: browsing/project interactions plus Activity/Profile reads have verified checkpoints.**
+AppModel composes nine concrete Features, including the shared SessionFeature.
 No top-level product area has passed every manual/snapshot/strict-concurrency exit
-gate. The latest combined checkpoint passed 324 tests plus an app build; eight
-additional reward insertion/decoder tests passed. Bounded Simulator journeys are recorded above.
+gate. The latest combined checkpoint passed 573 tests plus an app build.
+Bounded earlier Simulator journeys are recorded above; authenticated tabs are fixture-tested.
 Test counts are coverage evidence, not a percentage of the full application.
 
 | Area / milestone | Evidence-backed status | Remaining exit criteria |
@@ -315,9 +353,10 @@ Test counts are coverage evidence, not a percentage of the full application.
 | Explore / discovery | Connected Feature owns filters/defaults, four feed states, async requests, pagination and activity samples; 205-test combined checkpoint and bounded smoke passed | Full snapshots, signed-in/live journeys, accessibility/device checks and compiler isolation audit |
 | Project-detail loading, backing and rewards dependencies | Connected Feature and cancellation-aware API operations; existing page/analytics assertions and new concurrency tests passed | Live authenticated validation, full UI/compiler audit |
 | Rewards-screen loading and related-project requests | CFA async owners connected; combined regression/build and bounded rewards smoke passed | Related-card visual/live validation; shipping-location loader and broader compiler/UI audit |
-| Media, updates/comments and other project interactions | Legacy execution remains | Migrate connected reads next; preserve transaction ordering and navigation |
-| Account/session, Profile, settings and authentication | Legacy; not migrated | One shared session owner, persistence/security contract, authenticated/signed-out tests |
-| Activity, pledged projects and transactional flows | Legacy; not migrated | Shared backing state, ordering/idempotency, cancellation, retry and storage guarantees |
+| Media, updates/comments and project interactions | Read, posting/retry/blocking, playback counters and ordered watch/save checkpoints verified | Live mutation/populated visual checks, remaining interaction inventory and compiler audit |
+| Activity and Profile loading | Concrete tab owners; pagination, surveys and header requests verified | Authenticated/device/visual validation and integration with remaining account workflows |
+| Shared account/session, settings and authentication | Shared read execution, badge clearing and session invalidation implemented; AppEnvironment still owns credentials | Settings writes, authentication, persistence/security and broader account integration |
+| Pledged projects and transactional flows | Legacy execution remains outside migrated project read dependencies | Shared backing state, ordering/idempotency, cancellation, retry and storage guarantees |
 | App-wide integration and support flows | Not completed | Root/lifecycle/deep links, notifications, reachability, shared transport/storage, wider tests |
 
 Do not publish a percentage yet: feature sizes differ greatly and the full
@@ -464,11 +503,11 @@ the connected feature slice once baseline results support comparison.
 
 | Existing tab/route | Existing screen / ViewModel | Intended owner | Current state |
 | --- | --- | --- | --- |
-| Explore / discovery | Discovery controllers / DiscoveryViewModel | AppModel.discoveryFeature / DiscoveryFeatureTests | Legacy; not in this pass |
-| Activity (signed out) | Activity flow | AppModel.activityFeature / ActivityFeatureTests | Legacy; inspect complete flow before migration |
+| Explore / discovery | Discovery controllers / DiscoveryViewModel | AppModel.discoveryFeature / DiscoveryFeatureTests | Implementation checkpoint verified; final app-wide gates open |
+| Activity (legacy tab variants) | ActivitiesViewController / ActivitiesViewModel | AppModel.activityFeature / ActivityFeatureTests | History/surveys/session-aware async loading verified; UI composition unchanged |
 | Pledged projects and activity (signed in) | Pledged-project/activity flow | Ownership to map with shared pledge state | Legacy; not an empty placeholder Feature |
-| Search | SearchViewController / SearchViewModel | AppModel.searchFeature / SearchFeatureTests | Implementation consolidated; final 133-test/app-build and manual checks pending |
-| Profile (signed in/out variants) | Profile/account flow | AppModel.profileFeature / ProfileFeatureTests | Legacy; inspect authentication ownership first |
+| Search | SearchViewController / SearchViewModel | AppModel.searchFeature / SearchFeatureTests | Automated implementation checkpoint verified; final app-wide gates open |
+| Profile (signed in/out variants) | BackerDashboard controllers / ViewModels | AppModel.profileFeature / ProfileFeatureTests | Header/backed/saved reads verified; authentication/settings remain open |
 
 `RootViewModel.generateViewControllers` omits Activity when the floating-tab
 flag is enabled. Preserve this actual flag/session-dependent composition. A tab

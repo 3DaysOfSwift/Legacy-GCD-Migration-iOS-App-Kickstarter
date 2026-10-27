@@ -5,7 +5,7 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
-public enum ProfileProjectsType: Decodable {
+public enum ProfileProjectsType: Decodable, Hashable {
   case backed
   case saved
 
@@ -17,6 +17,7 @@ public enum ProfileProjectsType: Decodable {
   }
 }
 
+@MainActor
 public protocol BackerDashboardProjectsViewModelInputs {
   /// Call to configure with the ProfileProjectsType to display.
   func configureWith(projectsType: ProfileProjectsType)
@@ -40,6 +41,7 @@ public protocol BackerDashboardProjectsViewModelInputs {
   func willDisplayRow(_ row: Int, outOf totalRows: Int)
 }
 
+@MainActor
 public protocol BackerDashboardProjectsViewModelOutputs {
   /// Emits a boolean that determines if the empty state is visible and a ProfileProjectsType.
   var emptyStateIsVisible: Signal<(Bool, ProfileProjectsType), Never> { get }
@@ -57,14 +59,20 @@ public protocol BackerDashboardProjectsViewModelOutputs {
   var projects: Signal<[ProjectCardProperties], Never> { get }
 }
 
+@MainActor
 public protocol BackerDashboardProjectsViewModelType {
   var inputs: BackerDashboardProjectsViewModelInputs { get }
   var outputs: BackerDashboardProjectsViewModelOutputs { get }
 }
 
+@MainActor
 public final class BackerDashboardProjectsViewModel: BackerDashboardProjectsViewModelType,
   BackerDashboardProjectsViewModelInputs, BackerDashboardProjectsViewModelOutputs {
-  public init() {
+  private let profileFeature: ProfileFeature
+  internal private(set) var pageTask: Task<Void, Never>?
+  public init(profileFeature: ProfileFeature? = nil) {
+    let profileFeature = profileFeature ?? AppModel.shared.profileFeature
+    self.profileFeature = profileFeature
     let projectsType = self.configureWithProjectsTypeAndSortProperty.signal.skipNil()
 
     let userUpdated = Signal.merge(
@@ -72,14 +80,17 @@ public final class BackerDashboardProjectsViewModel: BackerDashboardProjectsView
       self.currentUserUpdatedProperty.signal
     )
 
-    let userUpdatedProjectCount = projectsType.takeWhen(userUpdated)
-      .map { type -> Int in
-        switch type {
-        case .backed: return AppEnvironment.current.currentUser?.stats.backedProjectsCount ?? 0
-        case .saved: return AppEnvironment.current.currentUser?.stats.starredProjectsCount ?? 0
-        }
+    let userCounts: Signal<(Int?, Int, Int), Never> = projectsType.takeWhen(userUpdated)
+      .map { type -> (Int?, Int, Int) in
+        (
+          profileFeature.sessionFeature.currentUser?.id,
+          profileFeature.projectCount(for: type),
+          profileFeature.sessionFeature.generation
+        )
       }
-      .skipRepeats { $0 == $1 }
+    let userUpdatedProjectCount = userCounts.skipRepeats { previous, current in
+      previous.0 == current.0 && previous.1 == current.1 && previous.2 == current.2
+    }
 
     let requestFirstPageWith = projectsType
       .takeWhen(
@@ -96,82 +107,16 @@ public final class BackerDashboardProjectsViewModel: BackerDashboardProjectsView
 
     let isCloseToBottomWith = projectsType.takeWhen(isCloseToBottom)
 
-    // MARK: Paginate backed projects
-
-    let requestFirstPageBackedProjects = requestFirstPageWith
-      .filter { $0 == .backed }
-
-    let backedProjectsIsCloseToBottom = isCloseToBottomWith
-      .filter { $0 == .backed }
-      .ignoreValues()
-
-    let isLoadingBackedProjects: Signal<Bool, Never>
-    let backedProjectFragments: Signal<[ProjectCardFragment], Never>
-    (backedProjectFragments, isLoadingBackedProjects, _, _) = paginate(
-      requestFirstPageWith: requestFirstPageBackedProjects,
-      requestNextPageWhen: backedProjectsIsCloseToBottom,
-      clearOnNewRequest: false,
-      skipRepeats: false,
-      valuesFromEnvelope: { (data: GraphAPI.FetchMyBackedProjectsQuery.Data) -> [ProjectCardFragment] in
-        data.projects?.nodes?.compactMap { $0?.fragments.projectCardFragment } ?? []
-      },
-      cursorFromEnvelope: { (data: GraphAPI.FetchMyBackedProjectsQuery.Data) -> String? in
-        if let pageInfo = data.projects?.pageInfo, pageInfo.hasNextPage {
-          return pageInfo.endCursor
-        }
-        return nil
-      },
-      requestFromParams: { _ in
-        AppEnvironment.current.apiService.fetchBackedProjects(cursor: nil, limit: 20)
-      },
-      requestFromCursor: { cursor in
-        AppEnvironment.current.apiService.fetchBackedProjects(cursor: cursor, limit: 20)
+    let isLoading = profileFeature.loadingValues
+      .filter { [configuredType = self.configureWithProjectsTypeAndSortProperty] type, _ in
+        configuredType.value == type
       }
-    )
-
-    // MARK: Paginate saved projects
-
-    let requestFirstPageSavedProjects = requestFirstPageWith
-      .filter { $0 == .saved }
-
-    let savedProjectsIsCloseToBottom = isCloseToBottomWith
-      .filter { $0 == .saved }
-      .ignoreValues()
-
-    let isLoadingSavedProjects: Signal<Bool, Never>
-    let savedProjectFragments: Signal<[ProjectCardFragment], Never>
-    (savedProjectFragments, isLoadingSavedProjects, _, _) = paginate(
-      requestFirstPageWith: requestFirstPageSavedProjects,
-      requestNextPageWhen: savedProjectsIsCloseToBottom,
-      clearOnNewRequest: false,
-      skipRepeats: false,
-      valuesFromEnvelope: { (data: GraphAPI.FetchMySavedProjectsQuery.Data) -> [ProjectCardFragment] in
-        data.projects?.nodes?.compactMap { $0?.fragments.projectCardFragment } ?? []
-      },
-      cursorFromEnvelope: { (data: GraphAPI.FetchMySavedProjectsQuery.Data) -> String? in
-        if let pageInfo = data.projects?.pageInfo, pageInfo.hasNextPage {
-          return pageInfo.endCursor
-        }
-        return nil
-      },
-      requestFromParams: { _ in
-        AppEnvironment.current.apiService.fetchSavedProjects(cursor: nil, limit: 20)
-      },
-      requestFromCursor: { cursor in
-        AppEnvironment.current.apiService.fetchSavedProjects(cursor: cursor, limit: 20)
+      .map { $0.1 }
+    self.projects = profileFeature.projectValues
+      .filter { [configuredType = self.configureWithProjectsTypeAndSortProperty] type, _ in
+        configuredType.value == type
       }
-    )
-
-    // MARK: Recombine backed and saved projects
-
-    let isLoading = Signal.merge(isLoadingSavedProjects, isLoadingBackedProjects)
-
-    self.projects = Signal.merge(backedProjectFragments, savedProjectFragments)
-      .map { fragments in
-        fragments.compactMap { fragment in
-          ProjectCardProperties(fragment)
-        }
-      }
+      .map { $0.1 }
 
     let latestLoadingWasRefresh = Signal.merge(
       userUpdatedProjectCount.mapConst(true),
@@ -202,6 +147,13 @@ public final class BackerDashboardProjectsViewModel: BackerDashboardProjectsView
         let ref = (projectsType == .backed) ? RefTag.profileBacked : RefTag.profileSaved
         return (project, ref)
       }
+
+    requestFirstPageWith.observeValues { [weak self] type in
+      self?.pageTask = profileFeature.requestPage(type: type)
+    }
+    isCloseToBottomWith.observeValues { [weak self] type in
+      self?.pageTask = profileFeature.requestPage(type: type, next: true)
+    }
 
     // Tracking
 

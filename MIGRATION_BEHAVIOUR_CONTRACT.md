@@ -1,5 +1,29 @@
 # Kickstarter migration behaviour contract
 
+## Activity/Profile and shared account reads — 27 October 2026
+
+- Preserve Activity's descending deduplicated history, refresh retention, empty
+  first-page clearing, surveys, navigation, badge triggers and analytics.
+- Preserve independent backed/saved pagination, cached header prefix, loading
+  presentation, project-count refresh triggers and the one-second save debounce.
+- Equivalent pending reads share. Refresh replaces pagination; completed saves
+  invalidate older header reads. Late success/error cannot repopulate reset state.
+- Validate account generation after suspension, including logout/login to the
+  same ID. Login/logout resets both tab owners; signed-out private reads do not run.
+- Combine successful header reads regardless of response order, explicitly fixing
+  the old graph-first lost-update race. Independent display/error behavior remains.
+- Admitted badge writes continue, but cannot update a newer account; no automatic
+  retry after an uncertain remote mutation.
+- AppEnvironment remains the sole credential/current-user persistence authority
+  during this stage. No storage keys, branding, layout or login/logout effects changed.
+
+573 tests passed with zero failures/skips and an app build succeeded:
+/private/tmp/kickstarter-account-tabs.f1QiDO.
+Existing expected values are retained. Sixteen controlled Feature tests cover
+overlap, late replies, failure/retry, account change, reset and save invalidation.
+No live badge/account mutation, populated authenticated UI, physical-device,
+full-suite or strict-concurrency sign-off. Whole-app migration remains incomplete.
+
 ## Video-feed loading and save/watch — 27 October 2026
 
 - Preserve the existing 30-item query, empty/error display and prior data on failed refresh.

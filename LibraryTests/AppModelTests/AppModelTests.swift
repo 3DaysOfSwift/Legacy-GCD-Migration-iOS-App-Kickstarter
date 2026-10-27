@@ -15,7 +15,18 @@ final class AppModelTests: XCTestCase {
       ProjectDetailsFeature(makeProvider: { AsyncProjectDetailsProvider(service: MockService()) })
     let secondDetails =
       ProjectDetailsFeature(makeProvider: { AsyncProjectDetailsProvider(service: MockService()) })
+    let firstSession = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
+    let secondSession = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
     let first = AppModel(
+      sessionFeature: firstSession,
+      activityFeature: ActivityFeature(
+        sessionFeature: firstSession,
+        makeProvider: { AsyncActivityProvider(service: MockService()) }
+      ),
+      profileFeature: ProfileFeature(
+        sessionFeature: firstSession,
+        makeProvider: { AsyncProfileProvider(service: MockService()) }
+      ),
       searchFeature: firstFeature,
       discoveryFeature: DiscoveryFeature(provider: NoRequestDiscoveryProvider()),
       projectDetailsFeature: firstDetails,
@@ -26,6 +37,15 @@ final class AppModelTests: XCTestCase {
       })
     )
     let second = AppModel(
+      sessionFeature: secondSession,
+      activityFeature: ActivityFeature(
+        sessionFeature: secondSession,
+        makeProvider: { AsyncActivityProvider(service: MockService()) }
+      ),
+      profileFeature: ProfileFeature(
+        sessionFeature: secondSession,
+        makeProvider: { AsyncProfileProvider(service: MockService()) }
+      ),
       searchFeature: secondFeature,
       discoveryFeature: DiscoveryFeature(provider: NoRequestDiscoveryProvider()),
       projectDetailsFeature: secondDetails,
@@ -36,6 +56,11 @@ final class AppModelTests: XCTestCase {
       })
     )
 
+    XCTAssertTrue(first.activityFeature.sessionFeature === first.sessionFeature)
+    XCTAssertTrue(first.profileFeature.sessionFeature === first.sessionFeature)
+    XCTAssertFalse(first.sessionFeature === second.sessionFeature)
+    XCTAssertFalse(first.activityFeature === second.activityFeature)
+    XCTAssertFalse(first.profileFeature === second.profileFeature)
     XCTAssertTrue(first.searchFeature === firstFeature)
     XCTAssertTrue(second.searchFeature === secondFeature)
     XCTAssertFalse(first.searchFeature === second.searchFeature)
@@ -51,6 +76,9 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(secondProvider.requestCount, 0)
     XCTAssertNil(first.searchFeature.parameters)
     XCTAssertNil(second.searchFeature.parameters)
+    first.sessionChanged()
+    XCTAssertEqual(first.sessionFeature.generation, 1)
+    XCTAssertEqual(second.sessionFeature.generation, 0)
   }
 }
 

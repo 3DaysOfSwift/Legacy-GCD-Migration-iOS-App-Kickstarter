@@ -10,6 +10,7 @@ public enum BackerDashboardTab {
   public static let allTabs: [BackerDashboardTab] = [.backed, .saved]
 }
 
+@MainActor
 public protocol BackerDashboardViewModelInputs {
   /// Call when backed projects button is tapped.
   func backedProjectsButtonTapped()
@@ -46,6 +47,7 @@ public protocol BackerDashboardViewModelInputs {
   func willTransition(toPage nextPage: Int)
 }
 
+@MainActor
 public protocol BackerDashboardViewModelOutputs {
   /// Emits a URL for the avatar image view.
   var avatarURL: Signal<URL?, Never> { get }
@@ -90,56 +92,26 @@ public protocol BackerDashboardViewModelOutputs {
   var updateCurrentUserInEnvironment: Signal<User, Never> { get }
 }
 
+@MainActor
 public protocol BackerDashboardViewModelType {
   var inputs: BackerDashboardViewModelInputs { get }
   var outputs: BackerDashboardViewModelOutputs { get }
 }
 
+@MainActor
 public final class BackerDashboardViewModel: BackerDashboardViewModelType, BackerDashboardViewModelInputs,
   BackerDashboardViewModelOutputs {
-  public init() {
+  private let profileFeature: ProfileFeature
+  internal private(set) var headerTask: Task<Void, Never>?
+  public init(profileFeature: ProfileFeature? = nil) {
+    let profileFeature = profileFeature ?? AppModel.shared.profileFeature
+    self.profileFeature = profileFeature
     self.configurePagesDataSource = self.viewDidLoadProperty.signal
       .map { .backed }
 
-    let fetchedUserEvent = Signal.merge(
-      self.projectSavedProperty.signal.ignoreValues()
-        .ksr_debounce(.seconds(1), on: AppEnvironment.current.scheduler),
-      self.viewWillAppearProperty.signal.ignoreValues()
-    )
-    .switchMap { _ in
-      AppEnvironment.current.apiService.fetchUserSelf()
-        .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-        .prefix(SignalProducer([AppEnvironment.current.currentUser].compact()))
-        .materialize()
-    }
-
-    let graphUserEvent = Signal.merge(
-      self.projectSavedProperty.signal.ignoreValues()
-        .ksr_debounce(.seconds(1), on: AppEnvironment.current.scheduler),
-      self.viewWillAppearProperty.signal.ignoreValues()
-    )
-    .switchMap { _ in
-      AppEnvironment.current
-        .apiService.fetchGraphUserSelf()
-        .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-        .materialize()
-    }
-
-    let user = fetchedUserEvent.values()
-
-    let updatedUserWithSavedProjectsCount = graphUserEvent.values()
-      .map { $0.me }
-
-    self.updateCurrentUserInEnvironment = user.skip(first: 1)
-      .takePairWhen(updatedUserWithSavedProjectsCount)
-      .map { user, graphEventUser in
-        var updatedUserWithStarredProjectsCount = user
-
-        updatedUserWithStarredProjectsCount.stats.starredProjectsCount = graphEventUser.stats
-          .starredProjectsCount
-
-        return updatedUserWithStarredProjectsCount
-      }
+    let user = profileFeature.userValues
+    let updatedUserWithSavedProjectsCount = profileFeature.graphUserValues
+    self.updateCurrentUserInEnvironment = profileFeature.combinedUserValues
 
     self.postNotification = self.currentUserUpdatedInEnvironmentProperty.signal
       .mapConst(Notification(name: .ksr_userUpdated, object: nil))
@@ -188,6 +160,15 @@ public final class BackerDashboardViewModel: BackerDashboardViewModelType, Backe
       // instead of the tableView.
       .map { headerTopConstant, scrollViewYOffset in
         min(headerTopConstant, -scrollViewYOffset)
+      }
+
+    self.viewWillAppearProperty.signal.observeValues { [weak self] _ in
+      self?.headerTask = profileFeature.requestHeader()
+    }
+    self.projectSavedProperty.signal
+      .ksr_debounce(.seconds(1), on: AppEnvironment.current.scheduler)
+      .observeValues { [weak self] _ in
+        self?.headerTask = profileFeature.requestHeader(replacing: true)
       }
 
     self.currentSelectedTabProperty

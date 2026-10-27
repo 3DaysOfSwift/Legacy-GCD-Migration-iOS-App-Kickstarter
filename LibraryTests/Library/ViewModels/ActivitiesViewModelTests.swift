@@ -7,8 +7,29 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class ActivitiesViewModelTests: TestCase {
-  fileprivate let vm: ActivitiesViewModelType! = ActivitiesViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let sessionFeature =
+    SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) })
+  private lazy var feature = ActivityFeature(
+    sessionFeature: self.sessionFeature,
+    makeProvider: { AsyncActivityProvider(service: AppEnvironment.current.apiService) },
+    sleep: { _ in }
+  )
+  private lazy var vm = ActivitiesViewModel(activityFeature: self.feature)
+  private func advanceRequests() async {
+    await self.scheduler.advance()
+    await self.vm.pageTask?.value
+    await self.vm.surveyTask?.value
+    await self.vm.userTask?.value
+    await self.vm.badgeTask?.value
+  }
+
+  override func tearDown() async throws {
+    await self.advanceRequests()
+    try await super.tearDown()
+  }
 
   fileprivate let activities = TestObserver<[Activity], Never>()
   fileprivate let activitiesPresent = TestObserver<Bool, Never>()
@@ -36,24 +57,26 @@ final class ActivitiesViewModelTests: TestCase {
   override func setUp() {
     super.setUp()
 
-    self.vm.outputs.activities.observe(self.activities.observer)
-    self.vm.outputs.activities.map { !$0.isEmpty }.observe(self.activitiesPresent.observer)
-    self.vm.outputs.clearBadgeValue.observe(self.clearBadgeValue.observer)
-    self.vm.outputs.erroredBackings.observe(self.erroredBackings.observer)
-    self.vm.outputs.hideEmptyState.observe(self.hideEmptyState.observer)
-    self.vm.outputs.isRefreshing.observe(self.isRefreshing.observer)
-    self.vm.outputs.goToProject.map { $0.0 }.observe(self.goToProject.observer)
-    self.vm.outputs.goToProject.map { $0.1 }.observe(self.showRefTag.observer)
-    self.vm.outputs.goToSurveyResponse.observe(self.goToSurveyResponse.observer)
-    self.vm.outputs.goToManagePledge.map(first).observe(self.goToManagePledgeProjectParam.observer)
-    self.vm.outputs.goToManagePledge.map(second).observe(self.goToManagePledgeBackingParam.observer)
-    self.vm.outputs.showEmptyStateIsLoggedIn.observe(self.showEmptyStateIsLoggedIn.observer)
-    self.vm.outputs.unansweredSurveys.observe(self.unansweredSurveyResponse.observer)
-    self.vm.outputs.updateUserInEnvironment.observe(self.updateUserInEnvironment.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.activities.observe(self.activities.observer)
+      self.vm.outputs.activities.map { !$0.isEmpty }.observe(self.activitiesPresent.observer)
+      self.vm.outputs.clearBadgeValue.observe(self.clearBadgeValue.observer)
+      self.vm.outputs.erroredBackings.observe(self.erroredBackings.observer)
+      self.vm.outputs.hideEmptyState.observe(self.hideEmptyState.observer)
+      self.vm.outputs.isRefreshing.observe(self.isRefreshing.observer)
+      self.vm.outputs.goToProject.map { $0.0 }.observe(self.goToProject.observer)
+      self.vm.outputs.goToProject.map { $0.1 }.observe(self.showRefTag.observer)
+      self.vm.outputs.goToSurveyResponse.observe(self.goToSurveyResponse.observer)
+      self.vm.outputs.goToManagePledge.map(first).observe(self.goToManagePledgeProjectParam.observer)
+      self.vm.outputs.goToManagePledge.map(second).observe(self.goToManagePledgeBackingParam.observer)
+      self.vm.outputs.showEmptyStateIsLoggedIn.observe(self.showEmptyStateIsLoggedIn.observer)
+      self.vm.outputs.unansweredSurveys.observe(self.unansweredSurveyResponse.observer)
+      self.vm.outputs.updateUserInEnvironment.observe(self.updateUserInEnvironment.observer)
+    }
   }
 
   // Tests the flow of logging in with a user that has activities.
-  func testLoginFlow_ForUserWithActivities() {
+  func testLoginFlow_ForUserWithActivities() async {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewWillAppear(animated: false)
 
@@ -67,11 +90,14 @@ final class ActivitiesViewModelTests: TestCase {
     self.hideEmptyState.assertValueCount(1, "Dismiss empty state emits.")
 
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
-    withEnvironment(apiService: MockService(fetchActivitiesResponse: [self.activity1, self.activity2])) {
+    await withEnvironment(apiService: MockService(fetchActivitiesResponse: [
+      self.activity1,
+      self.activity2
+    ])) {
       self.vm.inputs.userSessionStarted()
       self.vm.inputs.viewWillAppear(animated: false)
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.activitiesPresent.assertValues([true], "Activities load after session starts and view appears.")
       self.showEmptyStateIsLoggedIn.assertValues([false], "Empty state does not emit.")
@@ -98,11 +124,11 @@ final class ActivitiesViewModelTests: TestCase {
     self.hideEmptyState.assertValueCount(2, "Dismiss empty state does not emit.")
 
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeefffffff", user: User.brando))
-    withEnvironment(apiService: MockService(fetchActivitiesResponse: [])) {
+    await withEnvironment(apiService: MockService(fetchActivitiesResponse: [])) {
       self.vm.inputs.userSessionStarted()
       self.vm.inputs.viewWillAppear(animated: false)
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.activitiesPresent.assertValues([true, false, false], "Emits empty activities.")
       self.showEmptyStateIsLoggedIn.assertValues([false, false, true], "Logged-in empty state emits.")
@@ -112,11 +138,11 @@ final class ActivitiesViewModelTests: TestCase {
 
   // Tests the flow of logging in with a user that has no activities and making sure the correct
   // empty state shows.
-  func testLoginFlow_ForUserWithNoActivities() {
-    withEnvironment(apiService: MockService(fetchActivitiesResponse: [])) {
+  func testLoginFlow_ForUserWithNoActivities() async {
+    await withEnvironment(apiService: MockService(fetchActivitiesResponse: [])) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: false)
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.activitiesPresent.assertValues([], "Activities didn't emit.")
       self.showEmptyStateIsLoggedIn.assertValues([false], "Logged out empty state emits.")
@@ -125,7 +151,7 @@ final class ActivitiesViewModelTests: TestCase {
       self.vm.inputs.userSessionStarted()
       self.vm.inputs.viewWillAppear(animated: false)
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.activitiesPresent.assertValues([false], "Activities emit an empty array.")
       // NB: Technically, it is correct that the logged-in empty state should emit here.
@@ -143,7 +169,7 @@ final class ActivitiesViewModelTests: TestCase {
   }
 
   // Tests that activities are cleared if the user is logged out for any reason.
-  func testInvalidatedTokenFlow_ActivitiesClearAfterSessionCleared() {
+  func testInvalidatedTokenFlow_ActivitiesClearAfterSessionCleared() async {
     self.vm.inputs.viewDidLoad()
 
     self.hideEmptyState.assertValueCount(1, "Dismiss empty state emits.")
@@ -152,7 +178,7 @@ final class ActivitiesViewModelTests: TestCase {
     self.vm.inputs.userSessionStarted()
     self.vm.inputs.viewWillAppear(animated: false)
 
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.activitiesPresent.assertValues([true], "Activities show right away.")
     self.showEmptyStateIsLoggedIn.assertValueCount(0, "Empty state does not emit.")
@@ -165,7 +191,7 @@ final class ActivitiesViewModelTests: TestCase {
 
     self.vm.inputs.viewWillAppear(animated: false)
 
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.activitiesPresent.assertValues([true, false], "Activities clear right away.")
     self.showEmptyStateIsLoggedIn.assertValues([false], "Logged out empty state emits.")
@@ -181,12 +207,12 @@ final class ActivitiesViewModelTests: TestCase {
   // Tests the flow:
   //   * user logs in before ever view activities
   //   * user navigates to activities
-  func testLogin_BeforeActivityViewAppeared() {
+  func testLogin_BeforeActivityViewAppeared() async {
     self.vm.inputs.viewDidLoad()
 
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
     self.vm.inputs.userSessionStarted()
-    self.scheduler.advance()
+    await self.advanceRequests()
 
     self.activitiesPresent.assertValues([], "Activities don't load after session starts.")
 
@@ -195,39 +221,39 @@ final class ActivitiesViewModelTests: TestCase {
     self.activitiesPresent.assertValues([true], "Activities load once view appears.")
   }
 
-  func testRefreshActivities() {
-    withEnvironment(
+  func testRefreshActivities() async {
+    await withEnvironment(
       apiService: MockService(fetchActivitiesResponse: [self.activity1, self.activity2]),
       currentUser: .template
     ) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.userSessionStarted()
       self.vm.inputs.viewWillAppear(animated: false)
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.activitiesPresent.assertValues([true], "Activities load immediately after session starts.")
 
       self.vm.inputs.willDisplayRow(9, outOf: 10)
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.activitiesPresent.assertValues([true, true], "New activities emit on pagination.")
 
       // New fetchActivitiesResponse
-      withEnvironment(apiService: MockService(fetchActivitiesResponse: [
+      await withEnvironment(apiService: MockService(fetchActivitiesResponse: [
         self.activity1,
         self.activity2,
         self.activity3
       ])) {
         self.vm.inputs.refresh()
-        self.scheduler.advance()
+        await self.advanceRequests()
 
         self.activitiesPresent.assertValues([true, true, true], "New activities emit on refresh.")
       }
     }
   }
 
-  func testShippedActivities() {
-    withEnvironment(
+  func testShippedActivities() async {
+    await withEnvironment(
       apiService: MockService(fetchActivitiesResponse: [
         self.activity1,
         self.activity2,
@@ -238,14 +264,14 @@ final class ActivitiesViewModelTests: TestCase {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.userSessionStarted()
       self.vm.inputs.viewWillAppear(animated: false)
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.activitiesPresent.assertValues([true], "Activities loaded.")
       self.activities.assertValues([[self.shippedActivity, self.activity2, self.activity1]])
     }
   }
 
-  func testClearBadgeValueOnRefreshActivities() {
+  func testClearBadgeValueOnRefreshActivities() async {
     self.updateUserInEnvironment.assertValues([])
     self.clearBadgeValue.assertValueCount(0)
 
@@ -262,35 +288,35 @@ final class ActivitiesViewModelTests: TestCase {
     let user = User.template
       |> User.lens.unseenActivityCount .~ 100
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService1,
       currentUser: user
     ) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.userSessionStarted()
       self.vm.inputs.viewWillAppear(animated: false)
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.updateUserInEnvironment.assertValues([])
       self.activitiesPresent.assertValues([true], "Activities load immediately after session starts.")
       self.clearBadgeValue.assertValueCount(0)
 
-      withEnvironment(apiService: mockService2) {
+      await withEnvironment(apiService: mockService2) {
         self.vm.inputs.refresh()
-        self.scheduler.advance()
+        await self.advanceRequests()
 
         self.activitiesPresent.assertValues([true, true], "New activities emit on refresh.")
         self.clearBadgeValue.assertValueCount(1)
         XCTAssertEqual(self.updateUserInEnvironment.values.map { $0.id }, [user.id])
 
-        self.scheduler.advance()
+        await self.advanceRequests()
 
         XCTAssertEqual(self.updateUserInEnvironment.values.map { $0.id }, [user.id])
       }
     }
   }
 
-  func testClearBadgeValueOnRefreshActivities_LoggedOut() {
+  func testClearBadgeValueOnRefreshActivities_LoggedOut() async {
     self.updateUserInEnvironment.assertValues([])
     self.clearBadgeValue.assertValueCount(0)
 
@@ -304,34 +330,34 @@ final class ActivitiesViewModelTests: TestCase {
       fetchActivitiesResponse: [self.activity1, self.activity2, self.activity3]
     )
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService1
     ) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.userSessionStarted()
       self.vm.inputs.viewWillAppear(animated: false)
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.updateUserInEnvironment.assertValues([])
       self.activitiesPresent.assertValues([])
       self.clearBadgeValue.assertValueCount(0)
 
-      withEnvironment(apiService: mockService2) {
+      await withEnvironment(apiService: mockService2) {
         self.vm.inputs.refresh()
-        self.scheduler.advance()
+        await self.advanceRequests()
 
         self.activitiesPresent.assertValues([])
         self.clearBadgeValue.assertValueCount(0)
         self.updateUserInEnvironment.assertValues([])
 
-        self.scheduler.advance()
+        await self.advanceRequests()
 
         self.updateUserInEnvironment.assertValues([])
       }
     }
   }
 
-  func testGoToProject() {
+  func testGoToProject() async {
     let activity = .template |> Activity.lens.category .~ .backing
     let project = activity.project!
     let refTag = RefTag.activity
@@ -349,20 +375,22 @@ final class ActivitiesViewModelTests: TestCase {
     )
   }
 
-  func testSurveys() {
+  func testSurveys() async {
     let surveyResponse = SurveyResponse.template
 
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewWillAppear(animated: false)
+    await self.advanceRequests()
 
     self.unansweredSurveyResponse.assertValueCount(0, "Survey does not emit when logged out.")
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(fetchUnansweredSurveyResponsesResponse: [surveyResponse]),
       currentUser: .template
     ) {
       self.vm.inputs.userSessionStarted()
       self.vm.inputs.viewWillAppear(animated: false)
+      await self.advanceRequests()
 
       self.unansweredSurveyResponse.assertValues([[surveyResponse]])
 
@@ -372,6 +400,7 @@ final class ActivitiesViewModelTests: TestCase {
 
       // Exited survey full screen.
       self.vm.inputs.viewWillAppear(animated: true)
+      await self.advanceRequests()
       self.unansweredSurveyResponse.assertValues(
         [[surveyResponse], [surveyResponse]],
         "Survey emits whenever view appears"
@@ -382,6 +411,7 @@ final class ActivitiesViewModelTests: TestCase {
 
       // Exited survey modal.
       self.vm.inputs.surveyResponseViewControllerDismissed()
+      await self.advanceRequests()
       self.unansweredSurveyResponse.assertValues(
         [[surveyResponse], [surveyResponse], [surveyResponse]],
         "Same unanswered survey emits."
@@ -389,7 +419,7 @@ final class ActivitiesViewModelTests: TestCase {
     }
   }
 
-  func testGoToManagePledge() {
+  func testGoToManagePledge() async {
     self.goToManagePledgeProjectParam.assertDidNotEmitValue()
     self.goToManagePledgeBackingParam.assertDidNotEmitValue()
 
@@ -402,65 +432,67 @@ final class ActivitiesViewModelTests: TestCase {
     self.goToManagePledgeBackingParam.assertValues([.id(env.backing.id)])
   }
 
-  func testUpdateUserInEnvironmentOnManagePledgeViewDidFinish_DidReturnUser() {
+  func testUpdateUserInEnvironmentOnManagePledgeViewDidFinish_DidReturnUser() async {
     let user = User.template
 
-    withEnvironment(currentUser: user) {
+    await withEnvironment(currentUser: user) {
       self.updateUserInEnvironment.assertDidNotEmitValue()
       self.erroredBackings.assertDidNotEmitValue()
 
       self.vm.inputs.managePledgeViewControllerDidFinish()
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.updateUserInEnvironment.assertValues([user])
       self.erroredBackings.assertDidNotEmitValue()
 
       self.vm.inputs.currentUserUpdated()
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.updateUserInEnvironment.assertValues([user])
       self.erroredBackings.assertValues([])
     }
   }
 
-  func testUpdateUserInEnvironmentOnManagePledgeViewDidFinish_DidReturnUserAndNoErroredBackings() {
+  func testUpdateUserInEnvironmentOnManagePledgeViewDidFinish_DidReturnUserAndNoErroredBackings() async {
     let user = User.template
 
-    withEnvironment(currentUser: user) {
+    await withEnvironment(currentUser: user) {
       self.updateUserInEnvironment.assertDidNotEmitValue()
       self.erroredBackings.assertDidNotEmitValue()
 
       self.vm.inputs.managePledgeViewControllerDidFinish()
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.updateUserInEnvironment.assertValues([user])
       self.erroredBackings.assertDidNotEmitValue()
 
       self.vm.inputs.currentUserUpdated()
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.updateUserInEnvironment.assertValues([user])
       self.erroredBackings.assertValues([])
     }
   }
 
-  func testSurvey_DoesntEmitAfterLogOut() {
+  func testSurvey_DoesntEmitAfterLogOut() async {
     let surveyResponse = SurveyResponse.template
 
-    withEnvironment(apiService: MockService(fetchUnansweredSurveyResponsesResponse: [surveyResponse])) {
+    await withEnvironment(apiService: MockService(fetchUnansweredSurveyResponsesResponse: [surveyResponse])) {
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: false)
+      await self.advanceRequests()
 
       self.unansweredSurveyResponse.assertValues([[surveyResponse]])
 
       AppEnvironment.logout()
       self.vm.inputs.userSessionEnded()
       self.vm.inputs.viewWillAppear(animated: false)
+      await self.advanceRequests()
 
       self.unansweredSurveyResponse.assertValues([[surveyResponse]])
     }

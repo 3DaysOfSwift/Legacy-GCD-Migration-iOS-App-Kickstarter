@@ -4,6 +4,9 @@
 public final class AppModel {
   public static let shared = AppModel.live()
 
+  public let sessionFeature: SessionFeature
+  public let activityFeature: ActivityFeature
+  public let profileFeature: ProfileFeature
   public let searchFeature: SearchFeature
   public let discoveryFeature: DiscoveryFeature
   public let projectDetailsFeature: ProjectDetailsFeature
@@ -12,6 +15,9 @@ public final class AppModel {
   public let projectMediaFeature: ProjectMediaFeature
 
   public init(
+    sessionFeature: SessionFeature,
+    activityFeature: ActivityFeature,
+    profileFeature: ProfileFeature,
     searchFeature: SearchFeature,
     discoveryFeature: DiscoveryFeature,
     projectDetailsFeature: ProjectDetailsFeature,
@@ -19,6 +25,9 @@ public final class AppModel {
     discussionFeature: DiscussionFeature,
     projectMediaFeature: ProjectMediaFeature
   ) {
+    self.sessionFeature = sessionFeature
+    self.activityFeature = activityFeature
+    self.profileFeature = profileFeature
     self.searchFeature = searchFeature
     self.discoveryFeature = discoveryFeature
     self.projectDetailsFeature = projectDetailsFeature
@@ -27,9 +36,28 @@ public final class AppModel {
     self.projectMediaFeature = projectMediaFeature
   }
 
+  public func sessionChanged() {
+    self.sessionFeature.sessionChanged()
+    self.activityFeature.reset()
+    self.profileFeature.reset()
+  }
+
   public static func live() -> AppModel {
     let searchProvider = AsyncSearchProjectsProvider()
+    let sessionFeature =
+      SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) })
+    let activityFeature = ActivityFeature(
+      sessionFeature: sessionFeature,
+      makeProvider: { AsyncActivityProvider(service: AppEnvironment.current.apiService) }
+    )
+    let profileFeature = ProfileFeature(
+      sessionFeature: sessionFeature,
+      makeProvider: { AsyncProfileProvider(service: AppEnvironment.current.apiService) }
+    )
     return AppModel(
+      sessionFeature: sessionFeature,
+      activityFeature: activityFeature,
+      profileFeature: profileFeature,
       searchFeature: SearchFeature(provider: searchProvider, lookupProvider: AsyncSearchLookupProvider()),
       discoveryFeature: DiscoveryFeature(provider: AsyncDiscoveryProvider()),
       projectDetailsFeature: ProjectDetailsFeature(makeProvider: {

@@ -4,6 +4,7 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol ActitiviesViewModelInputs {
   /// Called when the project image in an update activity cell is tapped.
   func activityUpdateCellTappedProjectImage(activity: Activity)
@@ -53,6 +54,7 @@ public protocol ActitiviesViewModelInputs {
   func willDisplayRow(_ row: Int, outOf totalRows: Int)
 }
 
+@MainActor
 public protocol ActivitiesViewModelOutputs {
   /// Emits an array of activities that should be displayed.
   var activities: Signal<[Activity], Never> { get }
@@ -94,14 +96,26 @@ public protocol ActivitiesViewModelOutputs {
   var updateUserInEnvironment: Signal<User, Never> { get }
 }
 
+@MainActor
 public protocol ActivitiesViewModelType {
   var inputs: ActitiviesViewModelInputs { get }
   var outputs: ActivitiesViewModelOutputs { get }
 }
 
+@MainActor
 public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewModelInputs,
   ActivitiesViewModelOutputs {
-  public init() {
+  private let activityFeature: ActivityFeature
+  internal private(set) var pageTask: Task<Void, Never>?
+  internal private(set) var surveyTask: Task<Void, Never>?
+  internal private(set) var userTask: Task<Void, Never>?
+  internal private(set) var badgeTask: Task<Void, Never>?
+  private var userProjection: (userID: Int?, generation: Int, token: UUID)?
+  private var badgeProjection: (userID: Int?, generation: Int, token: UUID)?
+  private let userPipe = Signal<User, Never>.pipe()
+  public init(activityFeature: ActivityFeature? = nil) {
+    let activityFeature = activityFeature ?? AppModel.shared.activityFeature
+    self.activityFeature = activityFeature
     let isCloseToBottom = self.willDisplayRowProperty.signal.skipNil()
       .map { row, total in total > 3 && row >= total - 2 }
       .skipRepeats()
@@ -114,28 +128,10 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
         self.viewWillAppearProperty.signal.skipNil().filter(isTrue).ignoreValues(),
         self.refreshProperty.signal
       )
-      .filter { AppEnvironment.current.currentUser != nil }
+      .filter { activityFeature.sessionFeature.currentUser != nil }
 
-    let (paginatedActivities, isLoading, _, _) = paginate(
-      requestFirstPageWith: requestFirstPage,
-      requestNextPageWhen: isCloseToBottom,
-      clearOnNewRequest: false,
-      skipRepeats: false,
-      valuesFromEnvelope: { $0.activities },
-      cursorFromEnvelope: { $0.urls.api.moreActivities },
-      requestFromParams: { _ in AppEnvironment.current.apiService.fetchActivities(count: nil) },
-      requestFromCursor: { AppEnvironment.current.apiService.fetchActivities(paginationUrl: $0) }
-    )
-
-    let activities = paginatedActivities
-      .scan([Activity]()) { acc, next in
-        !next.isEmpty
-          ? (acc + next).distincts().sorted { $0.id > $1.id }
-          : next
-      }
-
-    self.isRefreshing = isLoading
-
+    let activities = activityFeature.activityValues
+    self.isRefreshing = activityFeature.loadingValues
     let clearedActivitiesOnSessionEnd = self.userSessionEndedProperty.signal.mapConst([Activity]())
 
     let activityToUpdate: Signal<Activity?, Never> = self.viewWillAppearProperty.signal.skipNil()
@@ -157,24 +153,7 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
     )
     .ignoreValues()
 
-    let userClearingBadgeCountEvent = self.clearBadgeValue
-      .filter { _ in AppEnvironment.current.currentUser != nil }
-      .switchMap { _ in
-        updatedUserWithClearedActivityCountProducer()
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .materialize()
-      }
-
-    let refreshUserEvent = self.managePledgeViewControllerDidFinishProperty.signal
-      .switchMap { _ in
-        AppEnvironment.current.apiService.fetchUserSelf()
-          .materialize()
-      }
-
-    self.updateUserInEnvironment = Signal.merge(
-      userClearingBadgeCountEvent.values(),
-      refreshUserEvent.values()
-    )
+    self.updateUserInEnvironment = self.userPipe.output
 
     let currentUser = Signal
       .merge(
@@ -183,14 +162,14 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
         self.userSessionStartedProperty.signal,
         self.userSessionEndedProperty.signal
       )
-      .map { _ in AppEnvironment.current.currentUser }
+      .map { _ in activityFeature.sessionFeature.currentUser }
 
     // TODO: Remove this whole set of Signals as these live in Backings Dashboard now.
     // https://kickstarter.atlassian.net/browse/MBL-2255
     self.erroredBackings = Signal<[ProjectAndBackingEnvelope], Never>.never
 
     let loggedInForEmptyState = self.activities
-      .filter { AppEnvironment.current.currentUser != nil && $0.isEmpty }
+      .filter { activityFeature.sessionFeature.currentUser != nil && $0.isEmpty }
       .skipRepeats(==)
       .mapConst(true)
 
@@ -212,7 +191,7 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
         .filter { previousActivities, currentActivities in
           previousActivities.isEmpty
             && !currentActivities.isEmpty
-            && AppEnvironment.current.currentUser != nil
+            && activityFeature.sessionFeature.currentUser != nil
         }.ignoreValues()
     )
 
@@ -227,20 +206,7 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
       .skipNil()
       .map { ($0, .activity) }
 
-    let surveyEvents = currentUser
-      .takeWhen(
-        Signal.merge(
-          self.viewWillAppearProperty.signal.skipNil().ignoreValues(),
-          self.surveyResponseViewControllerDismissedProperty.signal
-        )
-      )
-      .filter { $0 != nil }
-      .switchMap { _ in
-        AppEnvironment.current.apiService.fetchUnansweredSurveyResponses()
-          .materialize()
-      }
-
-    self.unansweredSurveys = surveyEvents.values()
+    self.unansweredSurveys = activityFeature.surveyValues
 
     self.goToSurveyResponse = self.tappedSurveyResponseProperty.signal.skipNil()
 
@@ -271,6 +237,62 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
     }
 
     self.goToTrackShipping = self.tappedTrackShippingProperty.signal.skipNil()
+    requestFirstPage.observeValues { [weak self] _ in
+      self?.pageTask = activityFeature.requestPage()
+    }
+    isCloseToBottom.observeValues { [weak self] _ in
+      self?.pageTask = activityFeature.requestPage(next: true)
+    }
+
+    self.clearBadgeValue.observeValues { [weak self] in self?.refreshUser(.clearActivity) }
+    self.managePledgeViewControllerDidFinishProperty.signal.observeValues { [weak self] in
+      self?.refreshUser(.user)
+    }
+    currentUser.takeWhen(
+      Signal.merge(
+        self.viewWillAppearProperty.signal.skipNil().ignoreValues(),
+        self.surveyResponseViewControllerDismissedProperty.signal
+      )
+    ).skipNil().observeValues { [weak self] _ in
+      self?.surveyTask = activityFeature.requestSurveys()
+    }
+  }
+
+  private func refreshUser(_ operation: SessionFeature.Operation) {
+    let sessionFeature = self.activityFeature.sessionFeature
+    guard sessionFeature.currentUser != nil else { return }
+    let userID = sessionFeature.currentUser?.id
+    let generation = sessionFeature.generation
+    let projection = operation == .clearActivity ? self.badgeProjection : self.userProjection
+    if projection?.userID == userID, projection?.generation == generation { return }
+    let token = UUID()
+    let request = sessionFeature.request(operation)
+    let task = Task { [weak self] in
+      defer {
+        if operation == .clearActivity, self?.badgeProjection?.token == token {
+          self?.badgeTask = nil
+          self?.badgeProjection = nil
+        } else if operation == .user, self?.userProjection?.token == token {
+          self?.userTask = nil
+          self?.userProjection = nil
+        }
+      }
+      do {
+        let user = try await request.value
+        guard sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+        self?.userPipe.input.send(value: user)
+      } catch {
+        // Legacy presentation intentionally has no user-refresh error output.
+        // SessionFeature's throwing API remains directly testable.
+      }
+    }
+    if operation == .clearActivity {
+      self.badgeTask = task
+      self.badgeProjection = (userID, generation, token)
+    } else {
+      self.userTask = task
+      self.userProjection = (userID, generation, token)
+    }
   }
 
   fileprivate let currentUserUpdatedProperty = MutableProperty(())
@@ -331,6 +353,7 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
 
   fileprivate let userSessionEndedProperty = MutableProperty(())
   public func userSessionEnded() {
+    self.activityFeature.reset()
     self.userSessionEndedProperty.value = ()
   }
 

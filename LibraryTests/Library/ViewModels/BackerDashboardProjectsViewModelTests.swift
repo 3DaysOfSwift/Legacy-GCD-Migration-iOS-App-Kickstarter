@@ -10,8 +10,26 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class BackerDashboardProjectsViewModelTests: TestCase {
-  private let vm: BackerDashboardProjectsViewModelType = BackerDashboardProjectsViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let sessionFeature =
+    SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) })
+  private lazy var feature = ProfileFeature(
+    sessionFeature: self.sessionFeature,
+    makeProvider: { AsyncProfileProvider(service: AppEnvironment.current.apiService) },
+    sleep: { _ in }
+  )
+  private lazy var vm = BackerDashboardProjectsViewModel(profileFeature: self.feature)
+  private func advanceRequests() async {
+    await self.scheduler.advance()
+    await self.vm.pageTask?.value
+  }
+
+  override func tearDown() async throws {
+    await self.advanceRequests()
+    try await super.tearDown()
+  }
 
   private let emptyStateIsVisible = TestObserver<Bool, Never>()
   private let emptyStateProjectsType = TestObserver<ProfileProjectsType, Never>()
@@ -24,21 +42,23 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
   override func setUp() {
     super.setUp()
 
-    self.vm.outputs.emptyStateIsVisible.map(first).observe(self.emptyStateIsVisible.observer)
-    self.vm.outputs.emptyStateIsVisible.map(second).observe(self.emptyStateProjectsType.observer)
-    self.vm.outputs.isRefreshing.observe(self.isRefreshing.observer)
-    self.vm.outputs.isLoadingNextPage.observe(self.isLoadingNextPage.observer)
-    self.vm.outputs.goToProject.map(first).observe(self.goToProject.observer)
-    self.vm.outputs.goToProject.map(second).observe(self.goToProjectRefTag.observer)
-    self.vm.outputs.projects.observe(self.projects.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.emptyStateIsVisible.map(first).observe(self.emptyStateIsVisible.observer)
+      self.vm.outputs.emptyStateIsVisible.map(second).observe(self.emptyStateProjectsType.observer)
+      self.vm.outputs.isRefreshing.observe(self.isRefreshing.observer)
+      self.vm.outputs.isLoadingNextPage.observe(self.isLoadingNextPage.observer)
+      self.vm.outputs.goToProject.map(first).observe(self.goToProject.observer)
+      self.vm.outputs.goToProject.map(second).observe(self.goToProjectRefTag.observer)
+      self.vm.outputs.projects.observe(self.projects.observer)
+    }
   }
 
-  func testProjects() {
+  func testProjects() async {
     let response1 = self.dataForMyBackingsFetch(numberOfProjects: 3)
     let response2 = self.dataForMyBackingsFetch(numberOfProjects: 4)
     let response3 = self.dataForMyBackingsFetch(numberOfProjects: 5)
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(fetchBackerBackedProjectsResponse: response1),
       currentUser: .template
     ) {
@@ -54,7 +74,7 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
       XCTAssertEqual([], self.segmentTrackingClient.events)
       XCTAssertEqual([], self.segmentTrackingClient.properties(forKey: "type", as: String.self))
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       XCTAssertEqual(self.projects.lastValue?.count, 3)
       self.emptyStateIsVisible.assertValues([false])
@@ -64,7 +84,7 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
       self.vm.inputs.viewDidAppear(true)
       self.isRefreshing.assertValues([true, false], "Projects don't refresh.")
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       XCTAssertEqual(self.projects.lastValue?.count, 3)
       self.projects.assertValueCount(1, "Projects have only been fetched once")
@@ -74,7 +94,7 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
       let updatedUser = User.template |> \.stats.backedProjectsCount .~ 1
 
       // Come back after backing a project.
-      withEnvironment(
+      await withEnvironment(
         apiService: MockService(fetchBackerBackedProjectsResponse: response2),
         currentUser: updatedUser
       ) {
@@ -84,7 +104,7 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
         self.isRefreshing.assertValues([true, false, true])
         self.isLoadingNextPage.assertLastValue(false)
 
-        self.scheduler.advance()
+        await self.advanceRequests()
 
         XCTAssertEqual(self.projects.lastValue?.count, 4)
         self.emptyStateIsVisible.assertValues([false, false])
@@ -93,7 +113,7 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
       }
 
       // Refresh.
-      withEnvironment(
+      await withEnvironment(
         apiService: MockService(fetchBackerBackedProjectsResponse: response3),
         currentUser: updatedUser
       ) {
@@ -102,7 +122,7 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
         self.isRefreshing.assertValues([true, false, true, false, true])
         self.isLoadingNextPage.assertLastValue(false)
 
-        self.scheduler.advance()
+        await self.advanceRequests()
 
         XCTAssertEqual(self.projects.lastValue?.count, 5)
         self.emptyStateIsVisible.assertValues([false, false, false])
@@ -112,10 +132,10 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
     }
   }
 
-  func testNoProjects() {
+  func testNoProjects() async {
     let response = self.dataForSavedProjectsFetch(numberOfProjects: 0)
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(fetchBackerSavedProjectsResponse: response),
       currentUser: .template
     ) {
@@ -127,7 +147,7 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
       self.isLoadingNextPage.assertValues([false])
       self.isRefreshing.assertValues([true])
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       XCTAssert(self.projects.lastValue?.isEmpty == true)
       self.emptyStateIsVisible.assertValues([true], "Empty state is shown for user with no projects.")
@@ -139,26 +159,26 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
 
       self.vm.inputs.viewDidAppear(true)
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       XCTAssert(self.projects.lastValue?.isEmpty == true, "Projects emits empty list")
       self.emptyStateIsVisible.assertValues([true], "Empty state does not emit.")
     }
   }
 
-  func testProjectCellTapped() {
+  func testProjectCellTapped() async {
     let response = self.dataForMyBackingsFetch(numberOfProjects: 3)
     let projectCardFragment = response.projects?.nodes?[0]?.fragments.projectCardFragment
     let projectCardProperties = ProjectCardProperties(projectCardFragment!)!
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(fetchBackerBackedProjectsResponse: response),
       currentUser: .template
     ) {
       self.vm.inputs.configureWith(projectsType: .backed)
       self.vm.inputs.viewDidAppear(false)
 
-      self.scheduler.advance()
+      await self.advanceRequests()
 
       self.vm.inputs.projectTapped(projectCardProperties)
 
@@ -186,11 +206,14 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
     }
   }
 
-  func testRefresh() {
+  func testRefresh() async {
     let response = self.dataForMyBackingsFetch(numberOfProjects: 3)
     let user = User.template
 
-    withEnvironment(apiService: MockService(fetchBackerBackedProjectsResponse: response), currentUser: user) {
+    await withEnvironment(
+      apiService: MockService(fetchBackerBackedProjectsResponse: response),
+      currentUser: user
+    ) {
       self.vm.inputs.configureWith(projectsType: .backed)
       self.vm.inputs.viewDidAppear(false)
       self.vm.inputs.currentUserUpdated()
@@ -199,13 +222,13 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
       self.isLoadingNextPage.assertLastValue(false)
 
       // Load all projects to end refreshing.
-      self.scheduler.advance()
+      await self.advanceRequests()
       self.isRefreshing.assertLastValue(false)
       self.isLoadingNextPage.assertLastValue(false)
 
       // Test that updating the saved projects count doesn't trigger re-fetching backed projects.
       let userSavedCountChanged = user |> \.stats.starredProjectsCount .~ 3
-      withEnvironment(
+      await withEnvironment(
         apiService: MockService(fetchBackerBackedProjectsResponse: response),
         currentUser: userSavedCountChanged
       ) {
@@ -216,7 +239,7 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
 
       // Test that updating the backed projects count triggers re-fetching backed projects.
       let userBackedCountChanged = userSavedCountChanged |> \.stats.backedProjectsCount .~ 1
-      withEnvironment(
+      await withEnvironment(
         apiService: MockService(fetchBackerBackedProjectsResponse: response),
         currentUser: userBackedCountChanged
       ) {
@@ -224,19 +247,22 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
         self.isRefreshing.assertLastValue(true)
         self.isLoadingNextPage.assertLastValue(false)
 
-        self.scheduler.advance()
+        await self.advanceRequests()
         self.isRefreshing.assertLastValue(false)
         self.isLoadingNextPage.assertLastValue(false)
       }
     }
   }
 
-  func testLoadNextPage() {
+  func testLoadNextPage() async {
     let response = self.dataForMyBackingsFetch(numberOfProjects: 3)
 
     let user = User.template
 
-    withEnvironment(apiService: MockService(fetchBackerBackedProjectsResponse: response), currentUser: user) {
+    await withEnvironment(
+      apiService: MockService(fetchBackerBackedProjectsResponse: response),
+      currentUser: user
+    ) {
       self.vm.inputs.configureWith(projectsType: .backed)
       self.vm.inputs.viewDidAppear(false)
       self.vm.inputs.currentUserUpdated()
@@ -245,7 +271,7 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
       self.isLoadingNextPage.assertLastValue(false)
 
       // Finish loading.
-      self.scheduler.advance()
+      await self.advanceRequests()
       self.isRefreshing.assertLastValue(false)
       self.isLoadingNextPage.assertLastValue(false)
 
@@ -256,7 +282,7 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
       self.isLoadingNextPage.assertLastValue(true)
 
       // Finish loading.
-      self.scheduler.advance()
+      await self.advanceRequests()
       self.isRefreshing.assertLastValue(false)
       self.isLoadingNextPage.assertLastValue(false)
     }

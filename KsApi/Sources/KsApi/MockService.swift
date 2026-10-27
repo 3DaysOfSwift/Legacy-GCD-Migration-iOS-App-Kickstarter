@@ -921,6 +921,49 @@
       return data
     }
 
+    @MainActor public func activityPage(cursor _: String?) async throws -> ActivityEnvelope {
+      guard let envelope = try await self.discoveryActivitySample()
+      else { throw ErrorEnvelope.couldNotParseJSON }
+      return envelope
+    }
+
+    @MainActor public func unansweredSurveys() async throws -> [SurveyResponse] {
+      try Task.checkCancellation()
+      return self.fetchUnansweredSurveyResponsesResponse
+    }
+
+    @MainActor public func sessionUser() async throws -> User {
+      try Task.checkCancellation()
+      if let error = self.fetchUserSelfError { throw error }
+      return self.fetchUserSelfResponse ?? .template
+    }
+
+    @MainActor public func sessionGraphUser() async throws -> User {
+      try Task.checkCancellation()
+      guard let result = self.fetchGraphUserSelfResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get().me
+    }
+
+    @MainActor public func clearActivityIndicator() async throws -> Int {
+      try Task.checkCancellation()
+      guard let result = self.clearUserUnseenActivityResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get().activityIndicatorCount
+    }
+
+    @MainActor public func profileBackedProjects(cursor _: String?) async throws -> GraphAPI
+      .FetchMyBackedProjectsQuery.Data {
+      try Task.checkCancellation()
+      guard let data = self.fetchBackerBackedProjectsResponse else { throw ErrorEnvelope.couldNotParseJSON }
+      return data
+    }
+
+    @MainActor public func profileSavedProjects(cursor _: String?) async throws -> GraphAPI
+      .FetchMySavedProjectsQuery.Data {
+      try Task.checkCancellation()
+      guard let data = self.fetchBackerSavedProjectsResponse else { throw ErrorEnvelope.couldNotParseJSON }
+      return data
+    }
+
     @MainActor public func setProjectWatched(
       id: String, watched: Bool
     ) async throws -> WatchProjectResponseEnvelope {
@@ -1532,7 +1575,6 @@
       guard let result = self.addUserToSecretRewardGroup else { throw ErrorEnvelope.couldNotParseJSON }
       _ = try result.get()
     }
-
 
     internal func fastFetchProjectPageBase(projectParam: Param)
       -> SignalProducer<Project, ErrorEnvelope> {

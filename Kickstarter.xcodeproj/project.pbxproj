@@ -23,6 +23,10 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		CFA027600000000000000001 /* SessionFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027600000000000000002 /* SessionFeatureTests.swift */; };
+		CFA027700000000000000001 /* ActivityFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027700000000000000002 /* ActivityFeatureTests.swift */; };
+		CFA027800000000000000001 /* ProfileFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027800000000000000002 /* ProfileFeatureTests.swift */; };
+		CFA027900000000000000001 /* AccountRequestGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027900000000000000002 /* AccountRequestGate.swift */; };
 		CFA027400000000000000001 /* DiscussionFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027400000000000000002 /* DiscussionFeatureTests.swift */; };
 		CFA027500000000000000001 /* ProjectMediaFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027500000000000000002 /* ProjectMediaFeatureTests.swift */; };
 		CFA027300000000000000001 /* RewardsFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027300000000000000002 /* RewardsFeatureTests.swift */; };
@@ -387,6 +391,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		CFA027600000000000000002 /* SessionFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionFeatureTests.swift; sourceTree = "<group>"; };
+		CFA027700000000000000002 /* ActivityFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityFeatureTests.swift; sourceTree = "<group>"; };
+		CFA027800000000000000002 /* ProfileFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileFeatureTests.swift; sourceTree = "<group>"; };
+		CFA027900000000000000002 /* AccountRequestGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountRequestGate.swift; sourceTree = "<group>"; };
 		CFA027400000000000000002 /* DiscussionFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscussionFeatureTests.swift; sourceTree = "<group>"; };
 		CFA027500000000000000002 /* ProjectMediaFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectMediaFeatureTests.swift; sourceTree = "<group>"; };
 		CFA027300000000000000002 /* RewardsFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewardsFeatureTests.swift; sourceTree = "<group>"; };
@@ -826,6 +834,10 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		CFA027600000000000000003 /* Session */ = {isa = PBXGroup; children = (CFA027600000000000000002 /* SessionFeatureTests.swift */,); path = Session; sourceTree = "<group>"; };
+		CFA027700000000000000003 /* Activity */ = {isa = PBXGroup; children = (CFA027700000000000000002 /* ActivityFeatureTests.swift */,); path = Activity; sourceTree = "<group>"; };
+		CFA027800000000000000003 /* Profile */ = {isa = PBXGroup; children = (CFA027800000000000000002 /* ProfileFeatureTests.swift */,); path = Profile; sourceTree = "<group>"; };
+		CFA027900000000000000003 /* Support */ = {isa = PBXGroup; children = (CFA027900000000000000002 /* AccountRequestGate.swift */,); path = Support; sourceTree = "<group>"; };
 		CFA027400000000000000003 /* Discussion */ = {isa = PBXGroup; children = (CFA027400000000000000002 /* DiscussionFeatureTests.swift */,); path = Discussion; sourceTree = "<group>"; };
 		CFA027500000000000000003 /* ProjectMedia */ = {isa = PBXGroup; children = (CFA027500000000000000002 /* ProjectMediaFeatureTests.swift */,); path = ProjectMedia; sourceTree = "<group>"; };
 		CFA027300000000000000003 /* Rewards */ = {
@@ -854,7 +866,7 @@
 		};
 		CFA026100000000000000004 /* FeatureTests */ = {
 			isa = PBXGroup;
-			children = (CFA026100000000000000003 /* Search */, CFA027100000000000000003 /* Discovery */, CFA027200000000000000003 /* ProjectDetails */, CFA027300000000000000003 /* Rewards */, CFA027400000000000000003 /* Discussion */, CFA027500000000000000003 /* ProjectMedia */,);
+			children = (CFA026100000000000000003 /* Search */, CFA027100000000000000003 /* Discovery */, CFA027200000000000000003 /* ProjectDetails */, CFA027300000000000000003 /* Rewards */, CFA027400000000000000003 /* Discussion */, CFA027500000000000000003 /* ProjectMedia */, CFA027600000000000000003 /* Session */, CFA027700000000000000003 /* Activity */, CFA027800000000000000003 /* Profile */,);
 			path = FeatureTests;
 			sourceTree = "<group>";
 		};
@@ -1298,6 +1310,7 @@
 				AAF548D12F2445C0001DB5AC /* Library */,
 				CFA026100000000000000004 /* FeatureTests */,
 				CFA026100000000000000007 /* AppModelTests */,
+				CFA027900000000000000003 /* Support */,
 				AAF548D52F2445C0001DB5AC /* Resources */,
 			);
 			path = LibraryTests;
@@ -1909,6 +1922,10 @@
 				CFA027300000000000000001 /* RewardsFeatureTests.swift in Sources */,
 				CFA027400000000000000001 /* DiscussionFeatureTests.swift in Sources */,
 				CFA027500000000000000001 /* ProjectMediaFeatureTests.swift in Sources */,
+				CFA027600000000000000001 /* SessionFeatureTests.swift in Sources */,
+				CFA027700000000000000001 /* ActivityFeatureTests.swift in Sources */,
+				CFA027800000000000000001 /* ProfileFeatureTests.swift in Sources */,
+				CFA027900000000000000001 /* AccountRequestGate.swift in Sources */,
 				CFA026100000000000000010 /* SearchLookupTests.swift in Sources */,
 				CFA026100000000000000008 /* SearchRequestCancellationTests.swift in Sources */,
 				CFA026100000000000000005 /* AppModelTests.swift in Sources */,
