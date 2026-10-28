@@ -20,7 +20,9 @@ final class ThanksViewModelTests: TestCase {
     }),
     makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
   )
-  private lazy var vm: ThanksViewModelType = ThanksViewModel(settingsFeature: self.settingsFeature)
+  private lazy var feature = RecommendationsFeature(settingsFeature: self.settingsFeature,
+    makeProvider: { AsyncRecommendationsProvider(service: AppEnvironment.current.apiService) })
+  private lazy var vm: ThanksViewModelType = ThanksViewModel(recommendationsFeature: self.feature)
   private let categoryEnvelope = CategoryEnvelope(node: .template)
 
   private let backedProjectText = TestObserver<String, Never>()
@@ -45,6 +47,8 @@ final class ThanksViewModelTests: TestCase {
   }
 
   override func tearDown() async throws {
+    self.feature.reset()
+    await self.feature.waitForOperations()
     await self.settingsFeature.waitForOperations()
     try await super.tearDown()
   }
@@ -105,7 +109,7 @@ final class ThanksViewModelTests: TestCase {
   }
 
   // FIXME: MBL-2857
-  func testGoToDiscovery() {
+  func testGoToDiscovery() async {
     let projects = [
       .template |> Project.lens.id .~ 1,
       .template |> Project.lens.id .~ 2,
@@ -115,14 +119,15 @@ final class ThanksViewModelTests: TestCase {
     let project = Project.template
     let response = .template |> DiscoveryEnvelope.lens.projects .~ projects
 
-    withEnvironment(apiService: MockService(
+    await withEnvironment(apiService: MockService(
       fetchGraphCategoryResult: .success(self.categoryEnvelope),
       fetchDiscoveryResponse: response
     )) {
       self.vm.inputs.configure(with: self.thanksPageData(project: project))
       self.vm.inputs.viewDidLoad()
 
-      scheduler.advance()
+      await self.feature.waitForOperations()
+      await scheduler.advance()
 
       self.showRecommendationsProjects.assertValueCount(1)
 
@@ -212,7 +217,7 @@ final class ThanksViewModelTests: TestCase {
         "Newsletter pref saved"
       )
 
-      let secondVM: ThanksViewModelType = ThanksViewModel(settingsFeature: self.settingsFeature)
+      let secondVM: ThanksViewModelType = ThanksViewModel(recommendationsFeature: self.feature)
       let secondShowRatingAlert = TestObserver<(), Never>()
       secondVM.outputs.showRatingAlert.observe(secondShowRatingAlert.observer)
       let secondShowGamesNewsletterAlert = TestObserver<(), Never>()
@@ -319,7 +324,7 @@ final class ThanksViewModelTests: TestCase {
   }
 
   // FIXME: MBL-2857
-  func testGoToProject() {
+  func testGoToProject() async {
     let projects = [
       .template |> Project.lens.id .~ 1,
       .template |> Project.lens.id .~ 2,
@@ -329,7 +334,7 @@ final class ThanksViewModelTests: TestCase {
     let project = Project.template
     let response = .template |> DiscoveryEnvelope.lens.projects .~ projects
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(
         fetchGraphCategoryResult: .success(self.categoryEnvelope),
         fetchDiscoveryResponse: response
@@ -338,7 +343,8 @@ final class ThanksViewModelTests: TestCase {
       self.vm.inputs.configure(with: self.thanksPageData(project: project))
       self.vm.inputs.viewDidLoad()
 
-      scheduler.advance()
+      await self.feature.waitForOperations()
+      await scheduler.advance()
 
       self.showRecommendationsProjects.assertValueCount(1)
 
@@ -359,7 +365,7 @@ final class ThanksViewModelTests: TestCase {
   }
 
   // FIXME: MBL-2857
-  func testRecommendationsWithProjects() {
+  func testRecommendationsWithProjects() async {
     let projects = [
       .template |> Project.lens.id .~ 1,
       .template |> Project.lens.id .~ 2,
@@ -372,29 +378,31 @@ final class ThanksViewModelTests: TestCase {
     let response = .template |> DiscoveryEnvelope.lens.projects .~ projects
     let project = Project.template |> Project.lens.id .~ 12
 
-    withEnvironment(apiService: MockService(
+    await withEnvironment(apiService: MockService(
       fetchGraphCategoryResult: .success(self.categoryEnvelope),
       fetchDiscoveryResponse: response
     )) {
       self.vm.inputs.configure(with: self.thanksPageData(project: project))
       self.vm.inputs.viewDidLoad()
 
-      scheduler.advance()
+      await self.feature.waitForOperations()
+      await scheduler.advance()
 
       self.showRecommendationsProjects.assertValueCount(1, "Recommended projects emit, shuffled.")
     }
   }
 
   // FIXME: MBL-2857
-  func testRecommendationsWithoutProjects() {
+  func testRecommendationsWithoutProjects() async {
     let response = .template |> DiscoveryEnvelope.lens.projects .~ []
     let project = Project.template |> Project.lens.category .~ .games
 
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: response)) {
+    await withEnvironment(apiService: MockService(fetchDiscoveryResponse: response)) {
       self.vm.inputs.configure(with: self.thanksPageData(project: project))
       self.vm.inputs.viewDidLoad()
 
-      scheduler.advance()
+      await self.feature.waitForOperations()
+      await scheduler.advance()
 
       self.showRecommendationsProjects.assertValueCount(0, "Recommended projects did not emit")
     }

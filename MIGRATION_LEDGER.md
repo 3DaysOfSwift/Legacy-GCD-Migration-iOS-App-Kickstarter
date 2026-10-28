@@ -43,6 +43,33 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Curated and post-backing recommendations — 28 October 2026
+
+RecommendationsFeature owns both request policies through native awaitable APIs.
+Onboarding queries categories concurrently, retains duplicates and shuffles the
+combined results. Thanks resolves the root category, tries recommended/similar/
+staff-picked sources in order, excludes the backed project, and stops at three
+unique alternatives. Results retain their originating category. Duplicate pending
+route inputs share; changed inputs, close/release and session changes invalidate
+late outcomes. AppModel shares the existing SettingsFeature/SessionFeature with
+this owner, preserving newsletter behavior and all screen layouts/navigation.
+
+Baseline: **24 original tests passed**. Final: **1,251 Library + 199 framework +
+87 API = 1,537 passed**, zero failures/skips. **14 new regression cases** (12
+Feature/lifetime, 2 API). App build: zero errors, two existing warnings.
+Results: /private/tmp/kickstarter-recommendations.JA9C5a.
+Evidence: sibling Migration Evidence/kickstarter-recommendations.
+One focused test run passed 36 and failed 1: a new test expected the leaf category
+rather than the preserved parent category. Corrected that expectation. No compile
+failures or human terminal intervention. The CuratedProjects logic suite alone
+opts out of the snapshot reference-device gate. Visual/live checks remain open.
+
+Remaining named implementation: project attribution and creator UpdateDraft
+editing/images. Then app-wide concurrency, broader regression, visual/device and
+live-service validation. **The app-wide migration remains in progress.**
+
+### Previous checkpoint
+
 ### Saved projects, reporting and account fields — 28 October 2026
 
 Ordinary save buttons now share ProjectMediaFeature's native watch/unwatch queue

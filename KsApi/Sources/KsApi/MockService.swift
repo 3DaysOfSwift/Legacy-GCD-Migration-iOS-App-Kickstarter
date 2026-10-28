@@ -1335,6 +1335,12 @@
       return client.fetchWithResult(query: fetchGraphCategoriesQuery, result: self.fetchGraphCategoriesResult)
     }
 
+    @MainActor public func recommendationCategory(id: String) async throws -> Category {
+      try Task.checkCancellation()
+      guard let result = self.fetchGraphCategoryResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get().node
+    }
+
     @MainActor public func reportingEmail() async throws -> String? {
       try Task.checkCancellation()
       guard let result = self.fetchGraphUserEmailResult else { throw ErrorEnvelope.couldNotParseJSON }

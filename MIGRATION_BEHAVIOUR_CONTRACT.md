@@ -914,3 +914,24 @@ It is removed; the active ProjectDetailsFeature enrollment sequence and its test
 remain. Existing four login-gating tests remain intact. Add-on API delay now belongs
 to the owned async task, so cancellation/account checks also cover that delay.
 The display adapter retains each result's requesting project/reward/shipping data.
+
+## Curated and post-backing recommendations — 28 October 2026
+
+- Onboarding queries each selected category with live state and integer 30/category
+  page budget, combines successful results, retains duplicates, and shuffles them.
+  A failed category contributes no projects; an empty combined response displays
+  the existing generic error. Empty category input performs no request/output.
+- Thanks first loads the root category, then tries recommended (six), similar
+  (three), and staff-picked category projects (three), in that order. Exclude the
+  backed project, deduplicate by ID, and stop after three alternatives. A discovery
+  failure allows the next source; a failed category or empty final list emits no
+  recommendation section. Keep the existing recommended-list shuffle algorithm.
+- Pair each list with its own category. Reconfiguration, route release and account
+  replacement suppress obsolete results, including providers that ignore cancellation.
+  Equivalent pending inputs on the same route share; independent screens do not
+  cancel one another. Closing a screen cancels its pending recommendation reads.
+- Preserve navigation/ref tags, newsletter settings ownership, analytics payloads,
+  alerts, labels and layouts. Reactive outputs remain presentation adapters only.
+- The 24 original CuratedProjects/Thanks logic tests passed before production edits.
+  CuratedProjects alone newly opts out of the visual reference-device gate; no
+  snapshot suite or global gate changes. Live recommendations remain unverified.

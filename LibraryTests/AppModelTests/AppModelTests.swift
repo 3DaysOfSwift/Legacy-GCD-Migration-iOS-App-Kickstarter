@@ -17,7 +17,14 @@ final class AppModelTests: XCTestCase {
       ProjectDetailsFeature(makeProvider: { AsyncProjectDetailsProvider(service: MockService()) })
     let firstSession = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
     let secondSession = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
+    let firstSettings = SettingsFeature(sessionFeature: firstSession, makeProvider: {
+        AsyncAccountPreferencesProvider(service: MockService())
+      })
     let first = AppModel(
+      recommendationsFeature: RecommendationsFeature(settingsFeature: firstSettings, makeProvider: {
+        XCTFail("Composition must not perform recommendation requests")
+        return AsyncRecommendationsProvider(service: MockService())
+      }),
       projectReportingFeature: ProjectReportingFeature(sessionFeature: firstSession, makeProvider: { AsyncProjectReportingProvider(service: MockService()) }),
       friendsFeature: FriendsFeature(sessionFeature: firstSession, makeProvider: { AsyncFriendsProvider(service: MockService()) }),
       pledgedProjectsFeature: PledgedProjectsFeature(sessionFeature: firstSession, makeProvider: { AsyncPledgedProjectsProvider(service: MockService()) }),
@@ -28,9 +35,7 @@ final class AppModelTests: XCTestCase {
       authenticationFeature: AuthenticationFeature(sessionFeature: firstSession, makeProvider: {
         AsyncAuthenticationProvider(service: MockService())
       }),
-      settingsFeature: SettingsFeature(sessionFeature: firstSession, makeProvider: {
-        AsyncAccountPreferencesProvider(service: MockService())
-      }),
+      settingsFeature: firstSettings,
       activityFeature: ActivityFeature(
         sessionFeature: firstSession,
         makeProvider: { AsyncActivityProvider(service: MockService()) }
@@ -48,7 +53,14 @@ final class AppModelTests: XCTestCase {
         AsyncProjectMediaProvider(service: MockService())
       })
     )
+    let secondSettings = SettingsFeature(sessionFeature: secondSession, makeProvider: {
+        AsyncAccountPreferencesProvider(service: MockService())
+      })
     let second = AppModel(
+      recommendationsFeature: RecommendationsFeature(settingsFeature: secondSettings, makeProvider: {
+        XCTFail("Composition must not perform recommendation requests")
+        return AsyncRecommendationsProvider(service: MockService())
+      }),
       projectReportingFeature: ProjectReportingFeature(sessionFeature: secondSession, makeProvider: { AsyncProjectReportingProvider(service: MockService()) }),
       friendsFeature: FriendsFeature(sessionFeature: secondSession, makeProvider: { AsyncFriendsProvider(service: MockService()) }),
       pledgedProjectsFeature: PledgedProjectsFeature(sessionFeature: secondSession, makeProvider: { AsyncPledgedProjectsProvider(service: MockService()) }),
@@ -59,9 +71,7 @@ final class AppModelTests: XCTestCase {
       authenticationFeature: AuthenticationFeature(sessionFeature: secondSession, makeProvider: {
         AsyncAuthenticationProvider(service: MockService())
       }),
-      settingsFeature: SettingsFeature(sessionFeature: secondSession, makeProvider: {
-        AsyncAccountPreferencesProvider(service: MockService())
-      }),
+      settingsFeature: secondSettings,
       activityFeature: ActivityFeature(
         sessionFeature: secondSession,
         makeProvider: { AsyncActivityProvider(service: MockService()) }
@@ -80,6 +90,9 @@ final class AppModelTests: XCTestCase {
       })
     )
 
+    XCTAssertTrue(first.recommendationsFeature.settingsFeature === first.settingsFeature)
+    XCTAssertTrue(first.recommendationsFeature.sessionFeature === first.sessionFeature)
+    XCTAssertFalse(first.recommendationsFeature === second.recommendationsFeature)
     XCTAssertTrue(first.projectReportingFeature.sessionFeature === first.sessionFeature)
     XCTAssertFalse(first.projectReportingFeature === second.projectReportingFeature)
     XCTAssertTrue(first.friendsFeature.sessionFeature === first.sessionFeature)

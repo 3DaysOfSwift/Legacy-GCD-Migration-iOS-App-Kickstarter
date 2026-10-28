@@ -9,9 +9,12 @@ extension CategoryEnvelope {
     from data: GraphAPI.FetchCategoryQuery
       .Data
   ) -> SignalProducer<CategoryEnvelope, ErrorEnvelope> {
-    guard let categoryNode = data.node?.asCategory else {
-      return .empty
-    }
+    guard let envelope = self.envelope(from: data) else { return .empty }
+    return SignalProducer(value: envelope)
+  }
+
+  static func envelope(from data: GraphAPI.FetchCategoryQuery.Data) -> CategoryEnvelope? {
+    guard let categoryNode = data.node?.asCategory else { return nil }
 
     let category = Category(
       analyticsName: categoryNode.analyticsName,
@@ -23,9 +26,7 @@ extension CategoryEnvelope {
       totalProjectCount: categoryNode.totalProjectCount
     )
 
-    let envelope = CategoryEnvelope(node: category)
-
-    return SignalProducer(value: envelope)
+    return CategoryEnvelope(node: category)
   }
 
   private static func subcategoryConnection(

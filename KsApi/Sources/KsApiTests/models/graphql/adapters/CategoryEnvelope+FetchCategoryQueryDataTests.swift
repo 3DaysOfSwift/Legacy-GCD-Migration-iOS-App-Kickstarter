@@ -4,6 +4,23 @@ import Apollo
 import XCTest
 
 final class Category_FetchCategoryQueryDataTests: XCTestCase {
+  func testNativeCategoryMappingMatchesExistingEnvelope() throws {
+    let data = FetchCategoryQueryTemplate.valid.data
+    let native = try XCTUnwrap(CategoryEnvelope.envelope(from: data))
+    let existing = try XCTUnwrap(MockGraphQLClient.shared.client.data(from: CategoryEnvelope.envelopeProducer(from: data)))
+    XCTAssertEqual(native.node, existing.node)
+  }
+
+  @MainActor func testAsyncCategoryMockReturnsConfiguredValueAndPropagatesFailure() async throws {
+    let service = MockService(fetchGraphCategoryResult: .success(CategoryEnvelope(node: .art)))
+    let category = try await service.recommendationCategory(id: "art")
+    XCTAssertEqual(category, .art)
+    do {
+      _ = try await MockService(fetchGraphCategoryResult: .failure(.couldNotParseJSON)).recommendationCategory(id: "art")
+      XCTFail("Expected category error")
+    } catch { XCTAssertTrue(error is ErrorEnvelope) }
+  }
+
   func testFetchCategoryQueryData_Success() {
     let producer = CategoryEnvelope.envelopeProducer(from: FetchCategoryQueryTemplate.valid.data)
     guard let envelope = MockGraphQLClient.shared.client.data(from: producer)?.node else {

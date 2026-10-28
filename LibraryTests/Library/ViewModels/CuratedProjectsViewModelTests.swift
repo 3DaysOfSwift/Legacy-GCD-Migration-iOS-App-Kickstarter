@@ -8,7 +8,9 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class CuratedProjectsViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private let dismissViewController = TestObserver<Void, Never>()
   private let goToProjectProject = TestObserver<Project, Never>()
   private let goToProjectProjects = TestObserver<[Project], Never>()
@@ -16,10 +18,18 @@ final class CuratedProjectsViewModelTests: TestCase {
   private let isLoading = TestObserver<Bool, Never>()
   private let loadProjectsCount = TestObserver<Int, Never>()
   private let showErrorMessage = TestObserver<String, Never>()
-  private let viewModel: CuratedProjectsViewModelType = CuratedProjectsViewModel()
+  private let feature = RecommendationsFeature(settingsFeature: SettingsFeature(
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }),
+    makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
+  ), makeProvider: { AsyncRecommendationsProvider(service: AppEnvironment.current.apiService) })
+  private lazy var viewModel: CuratedProjectsViewModelType = CuratedProjectsViewModel(recommendationsFeature: self.feature)
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated { self.bindOutputs() }
+  }
+
+  private func bindOutputs() {
     self.viewModel.outputs.dismissViewController.observe(self.dismissViewController.observer)
     self.viewModel.outputs.isLoading.observe(self.isLoading.observer)
     self.viewModel.outputs.loadProjects.map { $0.count }.observe(self.loadProjectsCount.observer)
@@ -29,7 +39,7 @@ final class CuratedProjectsViewModelTests: TestCase {
     self.viewModel.outputs.showErrorMessage.observe(self.showErrorMessage.observer)
   }
 
-  func testDismissViewController_OnButtonTap() {
+  func testDismissViewController_OnButtonTap() async {
     self.dismissViewController.assertDidNotEmitValue()
 
     self.viewModel.inputs.doneButtonTapped()
@@ -37,7 +47,7 @@ final class CuratedProjectsViewModelTests: TestCase {
     self.dismissViewController.assertValueCount(1)
   }
 
-  func testLoadProjects() {
+  func testLoadProjects() async {
     let projects = (1...5).map {
       .template
         |> Project.lens.id .~ $0
@@ -48,12 +58,13 @@ final class CuratedProjectsViewModelTests: TestCase {
       |> DiscoveryEnvelope.lens.projects .~ projects
 
     let apiService = MockService(fetchDiscoveryResponse: envelope)
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.viewModel.inputs.configure(with: [Category.art, Category.tabletopGames])
 
       self.viewModel.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       // We configured the viewModel with 2 categories,
       // therefore, the request was made 2x, returning 10 projects
@@ -61,22 +72,23 @@ final class CuratedProjectsViewModelTests: TestCase {
     }
   }
 
-  func testLoadProjects_WhenCategoryListIsEmpty() {
+  func testLoadProjects_WhenCategoryListIsEmpty() async {
     let envelope = .template
       |> DiscoveryEnvelope.lens.projects .~ []
 
     let apiService = MockService(fetchDiscoveryResponse: envelope)
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.viewModel.inputs.configure(with: [])
       self.viewModel.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.loadProjectsCount.assertDidNotEmitValue()
     }
   }
 
-  func testIsLoading() {
+  func testIsLoading() async {
     let category = Project.Category.art
     let projects = (1...5).map {
       .template
@@ -88,7 +100,7 @@ final class CuratedProjectsViewModelTests: TestCase {
 
     let apiService = MockService(fetchDiscoveryResponse: envelope)
 
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.isLoading.assertDidNotEmitValue()
 
       self.viewModel.inputs.viewDidLoad()
@@ -97,58 +109,62 @@ final class CuratedProjectsViewModelTests: TestCase {
 
       self.viewModel.inputs.configure(with: [Category.art])
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
     }
   }
 
-  func testShowErrorMessage_WhenServerError() {
+  func testShowErrorMessage_WhenServerError() async {
     let apiService = MockService(fetchDiscoveryError: .couldNotParseJSON)
 
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.viewModel.inputs.configure(with: [Category.art, Category.tabletopGames])
 
       self.showErrorMessage.assertDidNotEmitValue()
 
       self.viewModel.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.showErrorMessage.assertValue("Something went wrong.", "Should show a generic error message")
     }
   }
 
-  func testShowErrorMessage_WhenNoProjectsReturned() {
+  func testShowErrorMessage_WhenNoProjectsReturned() async {
     let emptyEnvelope = .template
       |> DiscoveryEnvelope.lens.projects .~ []
 
     let apiService = MockService(fetchDiscoveryResponse: emptyEnvelope)
 
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.viewModel.inputs.configure(with: [Category.art, Category.tabletopGames])
 
       self.showErrorMessage.assertDidNotEmitValue()
 
       self.viewModel.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.showErrorMessage.assertValue("Something went wrong.", "Should show a generic error message")
     }
   }
 
-  func testGoToProject() {
+  func testGoToProject() async {
     let discoveryEnvelope = .template
       |> DiscoveryEnvelope.lens.projects .~ [.template]
 
     let apiService = MockService(fetchDiscoveryResponse: discoveryEnvelope)
 
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.viewModel.inputs.configure(with: [.art])
       self.viewModel.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.goToProjectProject.assertDidNotEmitValue()
       self.goToProjectProjects.assertDidNotEmitValue()

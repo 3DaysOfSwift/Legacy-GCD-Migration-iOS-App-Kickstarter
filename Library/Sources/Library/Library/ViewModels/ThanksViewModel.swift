@@ -79,8 +79,13 @@ public protocol ThanksViewModelType {
 
 @MainActor
 public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, ThanksViewModelOutputs {
-  public init(settingsFeature: SettingsFeature? = nil) {
-    let settingsFeature = settingsFeature ?? AppModel.shared.settingsFeature
+  private let feature: RecommendationsFeature
+  private let route = UUID()
+  public init(recommendationsFeature: RecommendationsFeature? = nil) {
+    let feature = recommendationsFeature ?? AppModel.shared.recommendationsFeature
+    self.feature = feature
+    let settingsFeature = feature.settingsFeature
+    let route = self.route
     let project = self.configureWithDataProperty.signal
       .skipNil()
       .map { $0.project }
@@ -142,26 +147,12 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
         DiscoveryParams.defaults |> DiscoveryParams.lens.category .~ $0
       }
 
-    let rootCategory: Signal<KsApi.Category, Never> = project
-      .map { $0.category }
-      .skipNil()
-      .map(toBase64)
-      .flatMap {
-        AppEnvironment.current.apiService.fetchGraphCategory(id: $0)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .map { (categoryEnvelope: KsApi.CategoryEnvelope) -> KsApi.Category
-            in categoryEnvelope.node.parent ?? categoryEnvelope.node
-          }
-          .demoteErrors()
+    self.showRecommendations = feature.selections
+      .filter { $0.0 == route }
+      .compactMap { _, selection in
+        selection.category.map { (selection.projects, $0) }
       }
-
-    let projects = Signal.combineLatest(project, rootCategory)
-      .flatMap { relatedProjects(toProject: $0.0, inCategory: $0.1) }
-      .filter { projects in !projects.isEmpty }
-
-    self.showRecommendations = Signal.zip(projects, rootCategory).map { projects, category in
-      (projects, category)
-    }
+    project.observeValues { feature.request(.afterBacking($0), route: route) }
 
     self.goToProject = self.showRecommendations
       .map(first)
@@ -187,7 +178,7 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
       .observeValues { AppEnvironment.current.userDefaults.hasSeenGamesNewsletterPrompt = true }
 
     self.projectTappedProperty.signal.skipNil()
-      .map { project in (project, recommendedParams) }
+      .map { project in (project, RecommendationsFeature.recommendedParameters) }
       .combineLatest(with: rewardAndCheckoutData)
       .observeValues { projectAndParams, rewardAndCheckoutData in
         let (project, params) = projectAndParams
@@ -269,6 +260,12 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
     }
   }
 
+  deinit {
+    let feature = self.feature
+    let route = self.route
+    Task { @MainActor in feature.release(route: route) }
+  }
+
   // MARK: - ThanksViewModelType
 
   public var inputs: ThanksViewModelInputs { return self }
@@ -288,6 +285,7 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
 
   fileprivate let closeButtonTappedProperty = MutableProperty(())
   public func closeButtonTapped() {
+    self.feature.release(route: self.route)
     self.closeButtonTappedProperty.value = ()
   }
 
@@ -326,81 +324,7 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
   public let updateUserInEnvironment: Signal<User, Never>
 }
 
-/*
- This is a work around that fixes the incompatibility between the types of category id returned by
- the server (Int) and the type we need to send when requesting category by id
- through GraphQL (base64 encoded String). This will be removed once we start consuming GraphQL to fetch
- Discovery projects.
-
- */
-private func toBase64(_ category: Project.Category) -> String {
-  let id = category.parentId ?? category.id
-  let decodedId = Category.decode(id: "\(id)")
-  return decodedId.toBase64()
-}
-
-private func relatedProjects(
-  toProject project: Project,
-  inCategory category: KsApi.Category
-) ->
-  SignalProducer<[Project], Never> {
-  let base = DiscoveryParams.lens.perPage .~ 3 <> DiscoveryParams.lens.backed .~ false
-
-  let similarToParams = DiscoveryParams.defaults |> base
-    |> DiscoveryParams.lens.similarTo .~ project
-
-  let staffPickParams = DiscoveryParams.defaults |> base
-    |> DiscoveryParams.lens.staffPicks .~ true
-    |> DiscoveryParams.lens.category .~ category
-
-  let recommendedProjects = AppEnvironment.current.apiService.fetchDiscovery(params: recommendedParams)
-    .demoteErrors()
-    .map { shuffle(projects: $0.projects) }
-    .uncollect()
-
-  let similarToProjects = AppEnvironment.current.apiService.fetchDiscovery(params: similarToParams)
-    .demoteErrors()
-    .map { $0.projects }
-    .uncollect()
-
-  let staffPickProjects = AppEnvironment.current.apiService.fetchDiscovery(params: staffPickParams)
-    .demoteErrors()
-    .map { $0.projects }
-    .uncollect()
-
-  return SignalProducer.concat(recommendedProjects, similarToProjects, staffPickProjects)
-    .filter { $0.id != project.id }
-    .uniqueValues { $0.id }
-    .take(first: 3)
-    .collect()
-}
-
 private func shouldShowPledgeDialog() -> Bool {
   return PushNotificationDialog.canShowDialog(for: .pledge) &&
     AppEnvironment.current.currentUser?.stats.backedProjectsCount == 0
 }
-
-// Shuffle an array without mutating the input argument.
-// Based on the Fisher-Yates shuffle algorithm https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle.
-private func shuffle(projects xs: [Project]) -> [Project] {
-  var ys = xs
-  let length = ys.count
-
-  if length > 1 {
-    for i in 0...length - 1 {
-      let j = Int(arc4random_uniform(UInt32(length - 1)))
-      let temp = ys[i]
-      ys[i] = ys[j]
-      ys[j] = temp
-    }
-    return ys
-
-  } else {
-    return xs
-  }
-}
-
-private let recommendedParams = DiscoveryParams.defaults
-  |> DiscoveryParams.lens.backed .~ false
-  |> DiscoveryParams.lens.perPage .~ 6
-  |> DiscoveryParams.lens.recommended .~ true

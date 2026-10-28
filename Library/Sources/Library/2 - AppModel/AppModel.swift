@@ -4,6 +4,7 @@
 public final class AppModel {
   public static let shared = AppModel.live()
 
+  public let recommendationsFeature: RecommendationsFeature
   public let projectReportingFeature: ProjectReportingFeature
   public let friendsFeature: FriendsFeature
   public let pledgedProjectsFeature: PledgedProjectsFeature
@@ -23,6 +24,7 @@ public final class AppModel {
   public let projectMediaFeature: ProjectMediaFeature
 
   public init(
+    recommendationsFeature: RecommendationsFeature,
     projectReportingFeature: ProjectReportingFeature,
     friendsFeature: FriendsFeature,
     pledgedProjectsFeature: PledgedProjectsFeature,
@@ -41,6 +43,7 @@ public final class AppModel {
     discussionFeature: DiscussionFeature,
     projectMediaFeature: ProjectMediaFeature
   ) {
+    self.recommendationsFeature = recommendationsFeature
     self.projectReportingFeature = projectReportingFeature
     self.friendsFeature = friendsFeature
     self.pledgedProjectsFeature = pledgedProjectsFeature
@@ -62,6 +65,7 @@ public final class AppModel {
 
   public func sessionChanged() {
     self.sessionFeature.sessionChanged()
+    self.recommendationsFeature.reset()
     self.friendsFeature.reset()
     self.activityFeature.reset()
     self.profileFeature.reset()
@@ -83,7 +87,13 @@ public final class AppModel {
       sessionFeature: sessionFeature,
       makeProvider: { AsyncProfileProvider(service: AppEnvironment.current.apiService) }
     )
+    let settingsFeature = SettingsFeature(sessionFeature: sessionFeature, makeProvider: {
+        AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService)
+      })
     return AppModel(
+      recommendationsFeature: RecommendationsFeature(settingsFeature: settingsFeature, makeProvider: {
+        AsyncRecommendationsProvider(service: AppEnvironment.current.apiService)
+      }),
       projectReportingFeature: ProjectReportingFeature(sessionFeature: sessionFeature, makeProvider: {
         AsyncProjectReportingProvider(service: AppEnvironment.current.apiService)
       }),
@@ -106,9 +116,7 @@ public final class AppModel {
       authenticationFeature: AuthenticationFeature(sessionFeature: sessionFeature, makeProvider: {
         AsyncAuthenticationProvider(service: AppEnvironment.current.apiService)
       }),
-      settingsFeature: SettingsFeature(sessionFeature: sessionFeature, makeProvider: {
-        AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService)
-      }),
+      settingsFeature: settingsFeature,
       activityFeature: activityFeature,
       profileFeature: profileFeature,
       searchFeature: SearchFeature(provider: searchProvider, lookupProvider: AsyncSearchLookupProvider()),

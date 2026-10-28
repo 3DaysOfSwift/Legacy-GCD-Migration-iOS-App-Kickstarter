@@ -145,6 +145,7 @@ public protocol ServiceType {
     -> AnyPublisher<EmptyResponseEnvelope, ErrorEnvelope>
 
   /// Fetches and maps flagging options for a given content type (e.g. project, comment, backing).
+  @MainActor func recommendationCategory(id: String) async throws -> Category
   @MainActor func reportingEmail() async throws -> String?
   @MainActor func submitProjectReport(input: CreateFlaggingInput) async throws
   func fetchProjectFlaggingOptions() async throws -> [ReportProjectInfoListItem]

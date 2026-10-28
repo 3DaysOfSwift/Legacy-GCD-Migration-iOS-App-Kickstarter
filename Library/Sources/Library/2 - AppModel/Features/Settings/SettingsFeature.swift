@@ -150,6 +150,7 @@ public final class SettingsFeature {
   private var verificationWrites: [UUID: Task<EmailVerificationResponseEnvelope, Error>] = [:]
   private var editRevision = 0
   private let results = Signal<(UUID, Result<User, Error>), Never>.pipe()
+  public var sessionFeature: SessionFeature { self.session }
   public private(set) var lastError: Error?
 
   public init(sessionFeature: SessionFeature, makeProvider: @escaping () -> any AccountPreferencesProvider) {

@@ -5,6 +5,7 @@ import ReactiveSwift
 
 public typealias ProjectData = (project: Project, projects: [Project], refTag: RefTag)
 
+@MainActor
 public protocol CuratedProjectsViewModelInputs {
   func configure(with categories: [KsApi.Category])
   func doneButtonTapped()
@@ -12,6 +13,7 @@ public protocol CuratedProjectsViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol CuratedProjectsViewModelOutputs {
   var dismissViewController: Signal<Void, Never> { get }
   var goToProject: Signal<ProjectData, Never> { get }
@@ -20,24 +22,25 @@ public protocol CuratedProjectsViewModelOutputs {
   var showErrorMessage: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol CuratedProjectsViewModelType {
   var inputs: CuratedProjectsViewModelInputs { get }
   var outputs: CuratedProjectsViewModelOutputs { get }
 }
 
+@MainActor
 public final class CuratedProjectsViewModel: CuratedProjectsViewModelType, CuratedProjectsViewModelInputs,
   CuratedProjectsViewModelOutputs {
-  public init() {
-    let curatedProjects: Signal<[Project], Never> = self.categoriesSignal
-      .combineLatest(with: self.viewDidLoadSignal.ignoreValues())
+  private let feature: RecommendationsFeature
+  private let route = UUID()
+  public init(recommendationsFeature: RecommendationsFeature? = nil) {
+    let feature = recommendationsFeature ?? AppModel.shared.recommendationsFeature
+    self.feature = feature
+    let route = self.route
+    let curatedProjects = feature.selections.filter { $0.0 == route }.map { $0.1.projects }
+    self.categoriesSignal.combineLatest(with: self.viewDidLoadSignal)
       .map(first)
-      .filter { !$0.isEmpty }
-      .flatMap { categories in
-        projects(from: categories)
-          .flatten()
-          .reduce([], +)
-      }
-      .map { $0.shuffled() }
+      .observeValues { feature.request(.curated($0), route: route) }
 
     self.loadProjects = curatedProjects
 
@@ -58,6 +61,12 @@ public final class CuratedProjectsViewModel: CuratedProjectsViewModelType, Curat
       .map { projects, project in (project, projects, RefTag.onboarding) }
   }
 
+  deinit {
+    let feature = self.feature
+    let route = self.route
+    Task { @MainActor in feature.release(route: route) }
+  }
+
   private let (categoriesSignal, categoriesObserver) = Signal<[KsApi.Category], Never>.pipe()
   public func configure(with categories: [KsApi.Category]) {
     self.categoriesObserver.send(value: categories)
@@ -65,6 +74,7 @@ public final class CuratedProjectsViewModel: CuratedProjectsViewModelType, Curat
 
   private let (doneButtonTappedSignal, doneButtonTappedObserver) = Signal<Void, Never>.pipe()
   public func doneButtonTapped() {
+    self.feature.release(route: self.route)
     self.doneButtonTappedObserver.send(value: ())
   }
 
@@ -86,27 +96,4 @@ public final class CuratedProjectsViewModel: CuratedProjectsViewModelType, Curat
 
   public var inputs: CuratedProjectsViewModelInputs { return self }
   public var outputs: CuratedProjectsViewModelOutputs { return self }
-}
-
-private func projects(from categories: [KsApi.Category])
-  -> SignalProducer<[[Project]], Never> {
-  return SignalProducer.combineLatest(producers(from: categories))
-}
-
-private func producers(from categories: [KsApi.Category])
-  -> [SignalProducer<[Project], Never>] {
-  let projectsPerCategory = Int(floor(Float(30 / categories.count)))
-
-  return categories.map { category in
-
-    let params = DiscoveryParams.defaults
-      |> DiscoveryParams.lens.category .~ category
-      |> DiscoveryParams.lens.state .~ .live
-      |> DiscoveryParams.lens.perPage .~ projectsPerCategory
-
-    return AppEnvironment.current.apiService.fetchDiscovery(params: params)
-      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-      .map { $0.projects }
-      .demoteErrors(replaceErrorWith: [])
-  }
 }
