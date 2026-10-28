@@ -11,7 +11,7 @@ import XCTest
 @MainActor
 internal final class CommentRepliesViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  private let vm = CommentRepliesViewModel(feature: DiscussionFeature(makeProvider: {
+  private let vm = CommentRepliesViewModel(feature: DiscussionFeature(sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }), makeProvider: {
     AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
   }, sleep: { _ in try Task.checkCancellation() }))
 

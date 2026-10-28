@@ -76,8 +76,38 @@ final class DiscussionFeatureTests: TestCase {
     XCTAssertEqual(provider.postInputs.count, 1)
   }
 
+  func testSameAccountReauthenticationSuppressesAdmittedBlockCompletion() async throws {
+    let provider = ControlledDiscussionProvider()
+    provider.pauseWrites = true
+    defer { provider.releaseAll() }
+    let feature = self.feature(provider)
+    let request = feature.requestBlockUser(id: "target")
+    await provider.waitForBlocks(1)
+    feature.sessionFeature.sessionChanged()
+    provider.finishAllBlocks()
+    if case .failure(is CancellationError) = await request.result {} else {
+      XCTFail("Returning to the same account must not publish an old block result")
+    }
+    XCTAssertEqual(provider.blockIDs, ["target"])
+  }
+
+  func testSameAccountReauthenticationDuringBlockPresentationDelaySuppressesNotification() async {
+    let provider = ControlledDiscussionProvider()
+    let feature = self.feature(provider)
+    var successes = 0
+    let subscription = feature.blockUserEvents(id: "target").startWithValues { event in
+      if event.value != nil { successes += 1 }
+    }
+    defer { subscription.dispose() }
+    await feature.waitForMutations()
+    feature.sessionFeature.sessionChanged()
+    await self.scheduler.advance()
+    XCTAssertEqual(successes, 0)
+    XCTAssertEqual(provider.blockIDs, ["target"])
+  }
+
   private func feature(_ provider: ControlledDiscussionProvider) -> DiscussionFeature {
-    DiscussionFeature(makeProvider: { provider }, sleep: { _ in try Task.checkCancellation() })
+    DiscussionFeature(sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }), makeProvider: { provider }, sleep: { _ in try Task.checkCancellation() })
   }
 
   func testEquivalentPostsShareButDistinctAttemptsAndChangedBodiesDoNot() async throws {

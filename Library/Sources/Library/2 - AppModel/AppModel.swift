@@ -4,6 +4,7 @@
 public final class AppModel {
   public static let shared = AppModel.live()
 
+  public let appLifecycleFeature: AppLifecycleFeature
   public let creatorDraftsFeature: CreatorDraftsFeature
   public let recommendationsFeature: RecommendationsFeature
   public let projectReportingFeature: ProjectReportingFeature
@@ -25,6 +26,7 @@ public final class AppModel {
   public let projectMediaFeature: ProjectMediaFeature
 
   public init(
+    appLifecycleFeature: AppLifecycleFeature,
     creatorDraftsFeature: CreatorDraftsFeature,
     recommendationsFeature: RecommendationsFeature,
     projectReportingFeature: ProjectReportingFeature,
@@ -45,6 +47,7 @@ public final class AppModel {
     discussionFeature: DiscussionFeature,
     projectMediaFeature: ProjectMediaFeature
   ) {
+    self.appLifecycleFeature = appLifecycleFeature
     self.creatorDraftsFeature = creatorDraftsFeature
     self.recommendationsFeature = recommendationsFeature
     self.projectReportingFeature = projectReportingFeature
@@ -68,6 +71,7 @@ public final class AppModel {
 
   public func sessionChanged() {
     self.sessionFeature.sessionChanged()
+    self.appLifecycleFeature.reset()
     self.creatorDraftsFeature.reset()
     self.recommendationsFeature.reset()
     self.friendsFeature.reset()
@@ -94,7 +98,15 @@ public final class AppModel {
     let settingsFeature = SettingsFeature(sessionFeature: sessionFeature, makeProvider: {
         AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService)
       })
+    let messagingFeature = MessagingFeature(sessionFeature: sessionFeature, makeProvider: {
+      AsyncMessagingProvider(service: AppEnvironment.current.apiService)
+    })
+    let discussionFeature = DiscussionFeature(sessionFeature: sessionFeature, makeProvider: {
+      AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
+    })
     return AppModel(
+      appLifecycleFeature: AppLifecycleFeature(sessionFeature: sessionFeature, settingsFeature: settingsFeature,
+        messagingFeature: messagingFeature, makeProvider: { AsyncAppLifecycleProvider(service: AppEnvironment.current.apiService) }),
       creatorDraftsFeature: CreatorDraftsFeature(sessionFeature: sessionFeature, makeProvider: {
         AsyncCreatorDraftsProvider(service: AppEnvironment.current.apiService)
       }),
@@ -116,9 +128,7 @@ public final class AppModel {
       paymentsFeature: PaymentsFeature(sessionFeature: sessionFeature, makeProvider: {
         AsyncPaymentsProvider(service: AppEnvironment.current.apiService)
       }),
-      messagingFeature: MessagingFeature(sessionFeature: sessionFeature, makeProvider: {
-        AsyncMessagingProvider(service: AppEnvironment.current.apiService)
-      }),
+      messagingFeature: messagingFeature,
       sessionFeature: sessionFeature,
       authenticationFeature: AuthenticationFeature(sessionFeature: sessionFeature, makeProvider: {
         AsyncAuthenticationProvider(service: AppEnvironment.current.apiService)
@@ -128,15 +138,13 @@ public final class AppModel {
       profileFeature: profileFeature,
       searchFeature: SearchFeature(provider: searchProvider, lookupProvider: AsyncSearchLookupProvider()),
       discoveryFeature: DiscoveryFeature(provider: AsyncDiscoveryProvider()),
-      projectDetailsFeature: ProjectDetailsFeature(sessionFeature: sessionFeature, makeProvider: {
+      projectDetailsFeature: ProjectDetailsFeature(sessionFeature: sessionFeature, discussionFeature: discussionFeature, makeProvider: {
         AsyncProjectDetailsProvider(service: AppEnvironment.current.apiService)
       }),
       rewardsFeature: RewardsFeature(sessionFeature: sessionFeature, makeProvider: {
         AsyncRewardsProvider(service: AppEnvironment.current.apiService)
       }),
-      discussionFeature: DiscussionFeature(makeProvider: {
-        AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
-      }),
+      discussionFeature: discussionFeature,
       projectMediaFeature: ProjectMediaFeature(sessionFeature: sessionFeature, makeProvider: {
         AsyncProjectMediaProvider(service: AppEnvironment.current.apiService)
       })

@@ -74,6 +74,7 @@ public final class DiscussionFeature {
     }
   }
 
+  public let sessionFeature: SessionFeature
   private let makeProvider: () -> any DiscussionProvider
   // Mutations have stable attempt identity, independent from page routes.
   // Identical text submitted deliberately twice has two operation IDs; retries
@@ -84,11 +85,13 @@ public final class DiscussionFeature {
     let commentableID: String
     let parentID: String?
     let userID: Int?
+    let generation: Int
   }
 
   private struct BlockIdentity: Hashable {
     let targetID: String
     let userID: Int?
+    let generation: Int
   }
 
   private var posts: [PostIdentity: Task<Comment, Error>] = [:]
@@ -133,7 +136,7 @@ public final class DiscussionFeature {
   ) -> Task<Comment, Error> {
     let key = PostIdentity(
       operationID: operationID, body: body, commentableID: commentableID,
-      parentID: parentID, userID: AppEnvironment.current.currentUser?.id
+      parentID: parentID, userID: AppEnvironment.current.currentUser?.id, generation: self.sessionFeature.generation
     )
     // Cancelling a waiter must not cancel a mutation another caller still needs.
     return self.requestPost(key)
@@ -151,16 +154,16 @@ public final class DiscussionFeature {
       let result: Result<Comment, Error>
       do {
         try Task.checkCancellation()
-        guard key.userID == AppEnvironment.current.currentUser?.id else { throw CancellationError() }
+        guard self.sessionFeature.isCurrent(userID: key.userID, generation: key.generation) else { throw CancellationError() }
         let comment = try await provider.post(input: PostCommentInput(
           body: key.body, commentableId: key.commentableID, parentId: key.parentID
         ))
         try Task.checkCancellation()
-        guard key.userID == AppEnvironment.current.currentUser?.id else { throw CancellationError() }
+        guard self.sessionFeature.isCurrent(userID: key.userID, generation: key.generation) else { throw CancellationError() }
         result = .success(comment)
       } catch {
         result = .failure(
-          key.userID == AppEnvironment.current.currentUser?.id ? error : CancellationError()
+          self.sessionFeature.isCurrent(userID: key.userID, generation: key.generation) ? error : CancellationError()
         )
       }
       self.postResults.input.send(value: (key, result))
@@ -179,7 +182,7 @@ public final class DiscussionFeature {
 
   @discardableResult
   public func requestBlockUser(id: String) -> Task<EmptyResponseEnvelope, Error> {
-    self.requestBlock(BlockIdentity(targetID: id, userID: AppEnvironment.current.currentUser?.id))
+    self.requestBlock(BlockIdentity(targetID: id, userID: AppEnvironment.current.currentUser?.id, generation: self.sessionFeature.generation))
   }
 
   private func requestBlock(_ key: BlockIdentity) -> Task<EmptyResponseEnvelope, Error> {
@@ -191,14 +194,14 @@ public final class DiscussionFeature {
       let result: Result<EmptyResponseEnvelope, Error>
       do {
         try Task.checkCancellation()
-        guard key.userID == AppEnvironment.current.currentUser?.id else { throw CancellationError() }
+        guard self.sessionFeature.isCurrent(userID: key.userID, generation: key.generation) else { throw CancellationError() }
         let response = try await provider.block(id: key.targetID)
         try Task.checkCancellation()
-        guard key.userID == AppEnvironment.current.currentUser?.id else { throw CancellationError() }
+        guard self.sessionFeature.isCurrent(userID: key.userID, generation: key.generation) else { throw CancellationError() }
         result = .success(response)
       } catch {
         result = .failure(
-          key.userID == AppEnvironment.current.currentUser?.id ? error : CancellationError()
+          self.sessionFeature.isCurrent(userID: key.userID, generation: key.generation) ? error : CancellationError()
         )
       }
       self.blockResults.input.send(value: (key, result))
@@ -218,11 +221,11 @@ public final class DiscussionFeature {
     // eventually starts; otherwise an account switch could post old text as a new user.
     let key = PostIdentity(
       operationID: operationID, body: body, commentableID: commentableID,
-      parentID: parentID, userID: AppEnvironment.current.currentUser?.id
+      parentID: parentID, userID: AppEnvironment.current.currentUser?.id, generation: self.sessionFeature.generation
     )
     return SignalProducer { observer, lifetime in
       MainActor.assumeIsolated {
-        guard key.userID == AppEnvironment.current.currentUser?.id else {
+        guard self.sessionFeature.isCurrent(userID: key.userID, generation: key.generation) else {
           observer.sendInterrupted()
           return
         }
@@ -242,10 +245,21 @@ public final class DiscussionFeature {
     }
   }
 
+  /// Keep delayed presentation bound to the initiating session too. A completed
+  /// request can otherwise sit on the scheduler until after logout/login.
+  func blockUserEvents(id: String) -> SignalProducer<Signal<EmptyResponseEnvelope, ErrorEnvelope>.Event, Never> {
+    let userID = self.sessionFeature.currentUser?.id
+    let generation = self.sessionFeature.generation
+    return self.blockUserResult(id: id)
+      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      .materialize()
+      .filter { _ in self.sessionFeature.isCurrent(userID: userID, generation: generation) }
+  }
+
   func blockUserResult(id: String) -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
     SignalProducer { observer, lifetime in
       MainActor.assumeIsolated {
-        let key = BlockIdentity(targetID: id, userID: AppEnvironment.current.currentUser?.id)
+        let key = BlockIdentity(targetID: id, userID: AppEnvironment.current.currentUser?.id, generation: self.sessionFeature.generation)
         let subscription = self.blockResults.output.filter { $0.0 == key }.take(first: 1)
           .observeValues { _, result in
             switch result {
@@ -281,11 +295,13 @@ public final class DiscussionFeature {
   public var errors: Signal<(UUID, ErrorEnvelope), Never> { self.errorPipe.output }
 
   public init(
+    sessionFeature: SessionFeature,
     makeProvider: @escaping () -> any DiscussionProvider,
     sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
       if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
     }
   ) {
+    self.sessionFeature = sessionFeature
     self.makeProvider = makeProvider
     self.sleep = sleep
   }

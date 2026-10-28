@@ -183,6 +183,7 @@ final class ProjectDetailsFeatureTests: TestCase {
   ) -> ProjectDetailsFeature {
     ProjectDetailsFeature(
       sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+      discussionFeature: DiscussionFeature(sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }), makeProvider: { AsyncDiscussionProvider(service: AppEnvironment.current.apiService) }),
       makeProvider: { provider },
       useFastLoading: { fast },
       includeRichText: { true },

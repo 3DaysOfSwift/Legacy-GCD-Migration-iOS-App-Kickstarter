@@ -13,6 +13,36 @@ struct MySwiftModel: Decodable, Equatable {
 }
 
 final class ServiceTests: XCTestCase {
+  func testNativeStartupRoutesPreserveMethodsPathsAndPushBody() throws {
+    let service = Service(oauthToken: OauthToken(token: "fixture-session"))
+    let config = try service.preparedRouteRequest(.config)
+    XCTAssertEqual(config.httpMethod, "GET")
+    XCTAssertEqual(config.url?.path, "/v1/app/ios/config")
+    let survey = try service.preparedRouteRequest(.surveyResponse(surveyResponseId: 42))
+    XCTAssertEqual(survey.httpMethod, "GET")
+    XCTAssertEqual(survey.url?.path, "/v1/users/self/surveys/42")
+    let push = try service.preparedRouteRequest(.registerPushToken("synthetic-token"))
+    XCTAssertEqual(push.httpMethod, "POST")
+    XCTAssertEqual(push.url?.path, "/v1/users/self/ios/push_tokens")
+    let body = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(push.httpBody)) as? [String: Any])
+    XCTAssertEqual(body["token"] as? String, "synthetic-token")
+    XCTAssertEqual(push.value(forHTTPHeaderField: "X-Auth"), "token fixture-session")
+    XCTAssertEqual(survey.value(forHTTPHeaderField: "X-Auth"), "token fixture-session")
+  }
+
+  @MainActor func testNativeStartupMocksReturnConfiguredDataAndErrors() async throws {
+    let service = MockService(fetchConfigResponse: .template, fetchSurveyResponseResponse: .template)
+    let config = try await service.applicationConfiguration()
+    let survey = try await service.applicationSurvey(id: 42)
+    XCTAssertEqual(config, .template)
+    XCTAssertEqual(survey.id, SurveyResponse.template.id)
+    do {
+      _ = try await MockService(fetchSurveyResponseError: .couldNotParseJSON).applicationSurvey(id: 42)
+      XCTFail("Survey failure must not become a destination")
+    } catch { XCTAssertTrue(error is ErrorEnvelope) }
+    try await MockService.publicDemo().registerApplicationPushToken("synthetic-token")
+  }
+
   func testDraftImageMultipartPreservesRequestAndUsesImageField() throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

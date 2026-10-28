@@ -11,7 +11,7 @@ import XCTest
 @MainActor
 final class ProjectUpdatesViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  fileprivate let vm = ProjectUpdatesViewModel(feature: DiscussionFeature(makeProvider: {
+  fileprivate let vm = ProjectUpdatesViewModel(feature: DiscussionFeature(sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }), makeProvider: {
     AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
   }, sleep: { _ in try Task.checkCancellation() }))
 

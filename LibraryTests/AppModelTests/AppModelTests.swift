@@ -13,14 +13,26 @@ final class AppModelTests: XCTestCase {
     let secondFeature = SearchFeature(provider: secondProvider)
     let firstSession = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
     let secondSession = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
+    let firstDiscussion = DiscussionFeature(sessionFeature: firstSession, makeProvider: { AsyncDiscussionProvider(service: MockService()) })
     let firstDetails =
-      ProjectDetailsFeature(sessionFeature: firstSession, makeProvider: { AsyncProjectDetailsProvider(service: MockService()) })
+      ProjectDetailsFeature(sessionFeature: firstSession,
+      discussionFeature: firstDiscussion,
+      makeProvider: { AsyncProjectDetailsProvider(service: MockService()) })
+    let secondDiscussion = DiscussionFeature(sessionFeature: secondSession, makeProvider: { AsyncDiscussionProvider(service: MockService()) })
     let secondDetails =
-      ProjectDetailsFeature(sessionFeature: secondSession, makeProvider: { AsyncProjectDetailsProvider(service: MockService()) })
+      ProjectDetailsFeature(sessionFeature: secondSession,
+      discussionFeature: secondDiscussion,
+      makeProvider: { AsyncProjectDetailsProvider(service: MockService()) })
     let firstSettings = SettingsFeature(sessionFeature: firstSession, makeProvider: {
         AsyncAccountPreferencesProvider(service: MockService())
       })
+    let firstMessaging = MessagingFeature(sessionFeature: firstSession, makeProvider: { AsyncMessagingProvider(service: MockService()) })
     let first = AppModel(
+      appLifecycleFeature: AppLifecycleFeature(sessionFeature: firstSession, settingsFeature: firstSettings,
+        messagingFeature: firstMessaging, makeProvider: {
+          XCTFail("Composition must not perform startup requests")
+          return AsyncAppLifecycleProvider(service: MockService())
+        }),
       creatorDraftsFeature: CreatorDraftsFeature(sessionFeature: firstSession, makeProvider: {
         XCTFail("Composition must not load creator drafts")
         return AsyncCreatorDraftsProvider(service: MockService())
@@ -34,7 +46,7 @@ final class AppModelTests: XCTestCase {
       pledgedProjectsFeature: PledgedProjectsFeature(sessionFeature: firstSession, makeProvider: { AsyncPledgedProjectsProvider(service: MockService()) }),
       pledgeFeature: PledgeFeature(sessionFeature: firstSession, makeProvider: { AsyncPledgeProvider(service: MockService()) }),
       paymentsFeature: PaymentsFeature(sessionFeature: firstSession, makeProvider: { AsyncPaymentsProvider(service: MockService()) }),
-      messagingFeature: MessagingFeature(sessionFeature: firstSession, makeProvider: { AsyncMessagingProvider(service: MockService()) }),
+      messagingFeature: firstMessaging,
       sessionFeature: firstSession,
       authenticationFeature: AuthenticationFeature(sessionFeature: firstSession, makeProvider: {
         AsyncAuthenticationProvider(service: MockService())
@@ -52,15 +64,24 @@ final class AppModelTests: XCTestCase {
       discoveryFeature: DiscoveryFeature(provider: NoRequestDiscoveryProvider()),
       projectDetailsFeature: firstDetails,
       rewardsFeature: RewardsFeature(sessionFeature: firstSession, makeProvider: { AsyncRewardsProvider(service: MockService()) }),
-      discussionFeature: DiscussionFeature(makeProvider: { AsyncDiscussionProvider(service: MockService()) }),
+      discussionFeature: firstDiscussion,
       projectMediaFeature: ProjectMediaFeature(sessionFeature: firstSession, makeProvider: {
         AsyncProjectMediaProvider(service: MockService())
       })
     )
+    XCTAssertTrue(first.projectDetailsFeature.discussionFeature === first.discussionFeature)
+    XCTAssertTrue(first.appLifecycleFeature.messagingFeature === first.messagingFeature)
+    XCTAssertTrue(first.appLifecycleFeature.sessionFeature === first.sessionFeature)
     let secondSettings = SettingsFeature(sessionFeature: secondSession, makeProvider: {
         AsyncAccountPreferencesProvider(service: MockService())
       })
+    let secondMessaging = MessagingFeature(sessionFeature: secondSession, makeProvider: { AsyncMessagingProvider(service: MockService()) })
     let second = AppModel(
+      appLifecycleFeature: AppLifecycleFeature(sessionFeature: secondSession, settingsFeature: secondSettings,
+        messagingFeature: secondMessaging, makeProvider: {
+          XCTFail("Composition must not perform startup requests")
+          return AsyncAppLifecycleProvider(service: MockService())
+        }),
       creatorDraftsFeature: CreatorDraftsFeature(sessionFeature: secondSession, makeProvider: {
         XCTFail("Composition must not load creator drafts")
         return AsyncCreatorDraftsProvider(service: MockService())
@@ -74,7 +95,7 @@ final class AppModelTests: XCTestCase {
       pledgedProjectsFeature: PledgedProjectsFeature(sessionFeature: secondSession, makeProvider: { AsyncPledgedProjectsProvider(service: MockService()) }),
       pledgeFeature: PledgeFeature(sessionFeature: secondSession, makeProvider: { AsyncPledgeProvider(service: MockService()) }),
       paymentsFeature: PaymentsFeature(sessionFeature: secondSession, makeProvider: { AsyncPaymentsProvider(service: MockService()) }),
-      messagingFeature: MessagingFeature(sessionFeature: secondSession, makeProvider: { AsyncMessagingProvider(service: MockService()) }),
+      messagingFeature: secondMessaging,
       sessionFeature: secondSession,
       authenticationFeature: AuthenticationFeature(sessionFeature: secondSession, makeProvider: {
         AsyncAuthenticationProvider(service: MockService())
@@ -92,7 +113,7 @@ final class AppModelTests: XCTestCase {
       discoveryFeature: DiscoveryFeature(provider: NoRequestDiscoveryProvider()),
       projectDetailsFeature: secondDetails,
       rewardsFeature: RewardsFeature(sessionFeature: secondSession, makeProvider: { AsyncRewardsProvider(service: MockService()) }),
-      discussionFeature: DiscussionFeature(makeProvider: { AsyncDiscussionProvider(service: MockService()) }),
+      discussionFeature: secondDiscussion,
       projectMediaFeature: ProjectMediaFeature(sessionFeature: secondSession, makeProvider: {
         AsyncProjectMediaProvider(service: MockService())
       })

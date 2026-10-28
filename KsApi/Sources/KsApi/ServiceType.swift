@@ -261,6 +261,10 @@ public protocol ServiceType {
   ) -> SignalProducer<CommentRepliesEnvelope, ErrorEnvelope>
 
   /// Fetch the config.
+  @MainActor func applicationConfiguration() async throws -> Config
+  @MainActor func applicationSurvey(id: Int) async throws -> SurveyResponse
+  @MainActor func registerApplicationPushToken(_ token: String) async throws
+
   func fetchConfig() -> SignalProducer<Config, ErrorEnvelope>
 
   /// Fetch discovery envelope with a pagination url.

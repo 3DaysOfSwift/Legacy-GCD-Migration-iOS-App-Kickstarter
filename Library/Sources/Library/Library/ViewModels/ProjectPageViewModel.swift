@@ -592,13 +592,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     // MARK: User blocking
 
     let blockUserEvent = self.blockUserProperty.signal
-      .map { BlockUserInput.init(blockUserId: "\($0)") }
-      .switchMap { input in
-        AppEnvironment.current.apiService
-          .blockUser(input: input)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .materialize()
-      }
+      .switchMap { id in projectDetailsFeature.discussionFeature.blockUserEvents(id: String(id)) }
 
     self.didBlockUser = blockUserEvent.values().ignoreValues()
       .map { _ in NotificationCenter.default.post(.init(name: .ksr_blockedUser)) }
@@ -724,6 +718,10 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         route: route, param: projectOrParam.param.param, secretRewardToken: token, force: force
       )
     }
+  }
+
+  internal func waitForBlocking() async {
+    await self.projectDetailsFeature.discussionFeature.waitForMutations()
   }
 
   deinit {

@@ -1226,6 +1226,21 @@
         .fetchWithResult(query: fetchCommentRepliesQuery, result: self.fetchCommentRepliesEnvelopeResult)
     }
 
+    @MainActor internal func applicationConfiguration() async throws -> Config {
+      try Task.checkCancellation()
+      return self.fetchConfigResponse ?? .template
+    }
+    @MainActor internal func applicationSurvey(id: Int) async throws -> SurveyResponse {
+      try Task.checkCancellation()
+      if let response = self.fetchSurveyResponseResponse { return response }
+      if let error = self.fetchSurveyResponseError { throw error }
+      return .template |> SurveyResponse.lens.id .~ id
+    }
+    @MainActor internal func registerApplicationPushToken(_ token: String) async throws {
+      try Task.checkCancellation()
+      // The public demo never registers a real token with any server.
+    }
+
     internal func fetchConfig() -> SignalProducer<Config, ErrorEnvelope> {
       guard let config = self.fetchConfigResponse else { return .empty }
       return SignalProducer(value: config)

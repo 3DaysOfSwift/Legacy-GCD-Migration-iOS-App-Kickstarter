@@ -972,3 +972,19 @@ retain their existing checks.
   original assertions retained. This retained model has no application constructor
   call found in the current checkout; actual editor reachability and device/image
   picker behavior are not established by these tests.
+
+## Startup, navigation and creator blocking — 28 October 2026
+
+Preserve config refresh triggers, visitor cookies, debug feature overrides, five-second
+push debounce, Braze delivery, shortcut ordering/failure fallback, category matching,
+and every existing deep-link controller stack. A resolved link is one operation:
+project, optional update and optional replies must belong to the same destination.
+A newer link (including a synchronous tab link), session change or delegate release
+invalidates old navigation. Equivalent pending destinations share work.
+
+Push registrations are admitted writes: equivalent pending tokens share; changed
+tokens execute in order, without automatic retries. Stale account completions cannot
+publish. Project creator blocking cooperates with the existing DiscussionFeature;
+screen release only stops observation of an admitted block. Preserve success
+notifications, errors and analytics. No screen design or live service action is part
+of verification; use controlled providers and public demo fixtures.

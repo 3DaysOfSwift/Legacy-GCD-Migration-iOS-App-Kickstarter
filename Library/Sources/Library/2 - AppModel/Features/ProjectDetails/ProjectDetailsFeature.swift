@@ -63,6 +63,7 @@ public struct AsyncProjectDetailsProvider: ProjectDetailsProvider {
 /// it. Cancellation invalidates publication even if a provider completes late.
 @MainActor
 public final class ProjectDetailsFeature {
+  public let discussionFeature: DiscussionFeature
   public let sessionFeature: SessionFeature
   private var attributionRoutes: [UUID: Task<Void, Error>] = [:]
   private var attributionOperations: [UUID: Task<Void, Error>] = [:]
@@ -212,6 +213,7 @@ public final class ProjectDetailsFeature {
 
   public init(
     sessionFeature: SessionFeature,
+    discussionFeature: DiscussionFeature,
     makeProvider: @escaping @MainActor () -> any ProjectDetailsProvider,
     useFastLoading: @escaping @MainActor () -> Bool = {
       InstantPledgeButtonExperiment().boolValue(forKey: .instant_pledge_enabled) == true
@@ -223,6 +225,7 @@ public final class ProjectDetailsFeature {
       try Task.checkCancellation()
     }
   ) {
+    self.discussionFeature = discussionFeature
     self.sessionFeature = sessionFeature
     self.makeProvider = makeProvider
     self.useFastLoading = useFastLoading

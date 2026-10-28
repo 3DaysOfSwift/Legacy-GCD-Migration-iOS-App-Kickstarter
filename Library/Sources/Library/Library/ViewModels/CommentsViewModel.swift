@@ -371,13 +371,7 @@ public final class CommentsViewModel: CommentsViewModelType,
       .skipNil()
 
     let blockUserEvent = self.blockUserProperty.signal
-      .switchMap { id in
-        let userID = AppEnvironment.current.currentUser?.id
-        return feature.blockUserResult(id: id)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .materialize()
-          .filter { _ in AppEnvironment.current.currentUser?.id == userID }
-      }
+      .switchMap { id in feature.blockUserEvents(id: id) }
 
     self.didBlockUser = blockUserEvent.values().ignoreValues()
       .map { _ in NotificationCenter.default.post(.init(name: .ksr_blockedUser)) }

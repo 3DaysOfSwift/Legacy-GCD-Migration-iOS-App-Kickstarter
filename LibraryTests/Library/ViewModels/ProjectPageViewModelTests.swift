@@ -306,6 +306,7 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.blockUser(id: User.template.id)
 
+      await self.vm.waitForBlocking()
       await self.vm.loadingTask?.value
 
       await self.scheduler.advance()
@@ -334,6 +335,7 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.blockUser(id: User.template.id)
 
+      await self.vm.waitForBlocking()
       await self.vm.loadingTask?.value
 
       await self.scheduler.advance()
@@ -2138,6 +2140,7 @@ final class ProjectPageViewModelTests: TestCase {
   static func isolatedFeature() -> ProjectDetailsFeature {
     ProjectDetailsFeature(
       sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+      discussionFeature: DiscussionFeature(sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }), makeProvider: { AsyncDiscussionProvider(service: AppEnvironment.current.apiService) }),
       makeProvider: { AsyncProjectDetailsProvider(service: AppEnvironment.current.apiService) },
       sleep: { _ in try Task.checkCancellation() }
     )

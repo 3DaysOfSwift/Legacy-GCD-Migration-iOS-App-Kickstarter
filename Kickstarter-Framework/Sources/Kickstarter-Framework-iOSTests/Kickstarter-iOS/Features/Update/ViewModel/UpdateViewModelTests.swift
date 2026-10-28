@@ -12,7 +12,7 @@ import XCTest
 @MainActor
 final class UpdateViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  fileprivate let vm = UpdateViewModel(feature: DiscussionFeature(makeProvider: {
+  fileprivate let vm = UpdateViewModel(feature: DiscussionFeature(sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }), makeProvider: {
     AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
   }))
 

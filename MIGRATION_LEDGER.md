@@ -1,6 +1,6 @@
 # CFA migration ledger
 
-Author: Matthew Thomas. Updated 28 October 2026.
+Author: Matthew Thomas. Updated 29 October 2026.
 
 ## Required final migration report
 
@@ -43,6 +43,48 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Startup, deep links and shared creator blocking — 29 October 2026
+
+AppLifecycleFeature now owns the nine remaining AppDelegate service-request sites:
+config, push registration, category/survey/shortcut lookups and complete project,
+update and reply-thread deep links. Equivalent reads share; newer destinations,
+session changes and route release invalidate old navigation. Project/update/reply
+data resolve as one operation before the original UIKit stack is built. Push
+registrations retain the five-second debounce and execute admitted changed tokens
+in order. Cookie, debug flag, shortcut and Braze behavior remains intact.
+
+Project-page creator blocking now cooperates with the shared DiscussionFeature.
+Comment/block identities include session generation; delayed block notifications
+cannot survive logging back into the same account. Raw push-token logging removed.
+
+**1,310 Library + 199 framework + 93 API = 1,602 selected tests passed**, zero
+failures/skips; **18 new regression cases**. All 121 original AppDelegate cases
+passed. App build succeeded with zero errors/two existing warnings. Four test
+compilation attempts were corrected; no runtime test failures or human terminal
+intervention. API tests were rerun after a test-only OAuth fixture fix; other
+successful targets were unchanged. Results: /private/tmp/kickstarter-app-lifecycle.UWceFE.
+Evidence: sibling Migration Evidence/kickstarter-app-lifecycle.
+
+### Remaining implementation and validation
+
+1. Beta/example screens: PaginationExample and RichTextExample still need explicit
+   Feature/request ownership. These are accessible developer surfaces, not assumed
+   covered by the product-flow migration.
+2. Platform callback and scheduling boundaries: audio/video, push permission,
+   reachability, images, refresh controls and UIKit presentation helpers. Current
+   scoped text scan found 40 primitive-matching lines across app/framework/Library/API
+   sources, including SDK queues and mocks. Each must be classified; the count is
+   neither a defect total nor an exhaustive callback inventory.
+3. App-wide concurrency diagnostics and broader regression, then reference-device
+   snapshots, simulator/physical-device journeys and live-service gates (payments,
+   push registration and other mutations). Inactive advertising calls stay inactive.
+
+Final reporting still requires evidence-backed dates/times, model attribution,
+attempt statistics and explicit validation limits. Finish time remains unset.
+**Migration remains in progress.**
+
+### Previous verified checkpoint
+
 ### Creator draft editing and images — 28 October 2026
 
 CreatorDraftsFeature owns draft reads and ordered per-project/account saves,
@@ -67,26 +109,6 @@ API error constructor from Library. Both corrected; no failed runtime test run o
 human command intervention. The retained UpdateDraftViewModel currently has no
 application constructor call found; tests do not establish editor reachability or
 live upload behavior. Visual/device and live-service validation remain open.
-
-### Remaining implementation inventory (source audit, not a completion claim)
-
-The earlier named-screen list was incomplete. Direct request sites still exist:
-
-1. AppDelegateViewModel: config refresh, push-token registration, deep-link category
-   lookup, survey lookup, shortcut recommendation count, project lookup, update
-   lookup, and two comment-thread lookup paths (nine request sites).
-2. ProjectPageViewModel's creator-blocking action still calls the legacy service;
-   it should cooperate with the existing DiscussionFeature blocking owner.
-3. Beta/example surfaces: RichTextExample and PaginationExample request ownership
-   needs classification/migration; they are not assumed covered by product tests.
-4. Remaining platform/main-queue adapters (audio, push registration, reachability,
-   refresh control and UIKit helpers) need explicit boundary review, followed by
-   strict-concurrency diagnostics and a complete direct-request/callback inventory.
-
-Then broader regression, reference-device snapshots, simulator/device flows and
-live-service gates (including payments) remain. Existing inactive third-party
-advertising calls are not automatically enabled. Final report must preserve timing,
-model evidence and unsuccessful-attempt statistics. **Migration remains in progress.**
 
 ### Previous checkpoint
 

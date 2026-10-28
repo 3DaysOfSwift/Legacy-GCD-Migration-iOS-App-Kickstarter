@@ -14,6 +14,7 @@ final class ProjectCreatorViewModelTests: TestCase {
   fileprivate let vm: ProjectCreatorViewModelType =
     ProjectCreatorViewModel(projectDetailsFeature: ProjectDetailsFeature(
       sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+      discussionFeature: DiscussionFeature(sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }), makeProvider: { AsyncDiscussionProvider(service: AppEnvironment.current.apiService) }),
       makeProvider: { AsyncProjectDetailsProvider(service: MockService()) }
     ))
 

@@ -10,7 +10,7 @@ import XCTest
 @MainActor
 internal final class CommentDialogViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  internal let vm = CommentDialogViewModel(feature: DiscussionFeature(makeProvider: {
+  internal let vm = CommentDialogViewModel(feature: DiscussionFeature(sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }), makeProvider: {
     AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
   }))
 
