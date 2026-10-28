@@ -3,6 +3,7 @@ import KsApi
 import Prelude
 import ReactiveSwift
 
+@MainActor
 public protocol MessagesSearchViewModelInputs {
   /// Call when the search clear button is tapped.
   func clearSearchText()
@@ -26,6 +27,7 @@ public protocol MessagesSearchViewModelInputs {
   func viewWillDisappear()
 }
 
+@MainActor
 public protocol MessagesSearchViewModelOutputs {
   /// Emits a boolean that determines if the empty state is visible.
   var emptyStateIsVisible: Signal<Bool, Never> { get }
@@ -43,14 +45,19 @@ public protocol MessagesSearchViewModelOutputs {
   var showKeyboard: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol MessagesSearchViewModelType {
   var inputs: MessagesSearchViewModelInputs { get }
   var outputs: MessagesSearchViewModelOutputs { get }
 }
 
+@MainActor
 public final class MessagesSearchViewModel: MessagesSearchViewModelType, MessagesSearchViewModelInputs,
   MessagesSearchViewModelOutputs {
-  public init() {
+  private let feature: MessagingFeature
+  public convenience init() { self.init(feature: AppModel.shared.messagingFeature) }
+  public init(feature: MessagingFeature) {
+    self.feature = feature
     let isLoading = MutableProperty(false)
 
     let project = self.projectProperty.producer
@@ -63,20 +70,29 @@ public final class MessagesSearchViewModel: MessagesSearchViewModelType, Message
       )
       .skipRepeats()
 
+    let route = self.route
+    var isVisible = true
+    self.viewWillAppearProperty.signal.observeValues { isVisible = true }
+    self.viewWillDisappearProperty.signal.observeValues { isVisible = false }
+    var queryRevision = 0
+    query.observeValues { _ in
+      queryRevision += 1
+      feature.cancelRead(route: route)
+    }
     let clears = query.map(const([MessageThread]()))
 
     let searchResults = query
       .ksr_debounce(AppEnvironment.current.debounceInterval, on: AppEnvironment.current.scheduler)
       .skipRepeats()
-      .filter { !$0.isEmpty }
+      .filter { !$0.isEmpty && isVisible }
       .combineLatest(with: project)
       .switchMap { query, project in
-        AppEnvironment.current.apiService.searchMessages(query: query, project: project)
+        let revision = queryRevision
+        return feature.readResult(route: route) { try await feature.search(query: query, project: project) }
           .on(
             starting: { isLoading.value = true },
-            terminated: { isLoading.value = false }
+            terminated: { if revision == queryRevision { isLoading.value = false } }
           )
-          .map { $0.messageThreads }
           .materialize()
       }
 
@@ -98,6 +114,12 @@ public final class MessagesSearchViewModel: MessagesSearchViewModelType, Message
     ).skipRepeats()
 
     self.goToMessageThread = self.tappedMessageThreadProperty.signal.skipNil()
+  }
+
+  private let route = UUID()
+  deinit {
+    let feature = self.feature, route = self.route
+    Task { @MainActor in feature.release(route: route) }
   }
 
   fileprivate let clearSearchTextProperty = MutableProperty(())
@@ -132,6 +154,7 @@ public final class MessagesSearchViewModel: MessagesSearchViewModelType, Message
 
   fileprivate let viewWillDisappearProperty = MutableProperty(())
   public func viewWillDisappear() {
+    self.feature.cancelRead(route: self.route)
     self.viewWillDisappearProperty.value = ()
   }
 

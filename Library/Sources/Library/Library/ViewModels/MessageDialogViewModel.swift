@@ -2,6 +2,7 @@ import KsApi
 import Prelude
 import ReactiveSwift
 
+@MainActor
 public protocol MessageDialogViewModelInputs {
   /// Call when the message text changes.
   func bodyTextChanged(_ body: String)
@@ -19,6 +20,7 @@ public protocol MessageDialogViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol MessageDialogViewModelOutputs {
   /// Emits a boolean that determines if the keyboard is shown or not.
   var keyboardIsVisible: Signal<Bool, Never> { get }
@@ -42,14 +44,19 @@ public protocol MessageDialogViewModelOutputs {
   var showAlertMessage: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol MessageDialogViewModelType {
   var inputs: MessageDialogViewModelInputs { get }
   var outputs: MessageDialogViewModelOutputs { get }
 }
 
+@MainActor
 public final class MessageDialogViewModel: MessageDialogViewModelType, MessageDialogViewModelInputs,
   MessageDialogViewModelOutputs {
-  public init() {
+  private let feature: MessagingFeature
+  public convenience init() { self.init(feature: AppModel.shared.messagingFeature) }
+  public init(feature: MessagingFeature) {
+    self.feature = feature
     let messageSubject = self.messageSubjectProperty.signal.skipNil()
       .takeWhen(self.viewDidLoadProperty.signal)
 
@@ -69,9 +76,9 @@ public final class MessageDialogViewModel: MessageDialogViewModelType, MessageDi
       messageSubject
     )
     .takeWhen(self.postButtonPressedProperty.signal)
-    .switchMap { body, messageSubject in
-      AppEnvironment.current.apiService.sendMessage(body: body, toSubject: messageSubject)
-        .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+    .switchMap { [cancel = self.cancelButtonPressedProperty.signal] body, messageSubject in
+      feature.delayedResult(feature.sendResult(body: body, subject: messageSubject))
+        .take(until: cancel)
         .materialize()
     }
 

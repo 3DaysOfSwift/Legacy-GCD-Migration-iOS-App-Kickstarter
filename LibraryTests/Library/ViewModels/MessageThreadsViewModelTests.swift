@@ -6,8 +6,14 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class MessageThreadsViewModelTests: TestCase {
-  fileprivate let vm: MessageThreadsViewModelType = MessageThreadsViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = MessagingFeature(
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }),
+    makeProvider: { AsyncMessagingProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var vm: MessageThreadsViewModelType = MessageThreadsViewModel(feature: self.feature)
 
   fileprivate let emptyStateIsVisible = TestObserver<Bool, Never>()
   fileprivate let loadingFooterIsHidden = TestObserver<Bool, Never>()
@@ -20,16 +26,18 @@ internal final class MessageThreadsViewModelTests: TestCase {
   override func setUp() {
     super.setUp()
 
-    self.vm.outputs.emptyStateIsVisible.observe(self.emptyStateIsVisible.observer)
-    self.vm.outputs.loadingFooterIsHidden.observe(self.loadingFooterIsHidden.observer)
-    self.vm.outputs.goToSearch.observe(self.goToSearch.observer)
-    self.vm.outputs.mailboxName.observe(self.mailboxName.observer)
-    self.vm.outputs.messageThreads.map { !$0.isEmpty }.observe(self.hasMessageThreads.observer)
-    self.vm.outputs.refreshControlEndRefreshing.observe(self.refreshControlEndRefreshing.observer)
-    self.vm.outputs.showMailboxChooserActionSheet.observe(self.showMailboxChooserActionSheet.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.emptyStateIsVisible.observe(self.emptyStateIsVisible.observer)
+      self.vm.outputs.loadingFooterIsHidden.observe(self.loadingFooterIsHidden.observer)
+      self.vm.outputs.goToSearch.observe(self.goToSearch.observer)
+      self.vm.outputs.mailboxName.observe(self.mailboxName.observer)
+      self.vm.outputs.messageThreads.map { !$0.isEmpty }.observe(self.hasMessageThreads.observer)
+      self.vm.outputs.refreshControlEndRefreshing.observe(self.refreshControlEndRefreshing.observer)
+      self.vm.outputs.showMailboxChooserActionSheet.observe(self.showMailboxChooserActionSheet.observer)
+    }
   }
 
-  func testLoadingMessages_NoProject() {
+  func testLoadingMessages_NoProject() async {
     self.vm.inputs.configureWith(project: nil, refTag: nil)
     self.vm.inputs.viewDidLoad()
 
@@ -38,7 +46,7 @@ internal final class MessageThreadsViewModelTests: TestCase {
     self.hasMessageThreads.assertValues([], "No threads emit.")
 
     // Wait enough time to get API response
-    self.scheduler.advance()
+    await self.settleMessaging()
 
     self.loadingFooterIsHidden.assertValues([false, true], "Loading footer is hidden after API response.")
     self.refreshControlEndRefreshing.assertValueCount(1, "Refresh control stopped refreshing.")
@@ -52,7 +60,7 @@ internal final class MessageThreadsViewModelTests: TestCase {
     self.hasMessageThreads.assertValues([true, false], "Threads clear immediately.")
 
     // Wait enough time to get API response
-    self.scheduler.advance()
+    await self.settleMessaging()
 
     self.loadingFooterIsHidden.assertValues([false, true], "Loading footer doesn't change visibility.")
     self.refreshControlEndRefreshing.assertValueCount(2, "Refresh control stopped refreshing.")
@@ -66,14 +74,14 @@ internal final class MessageThreadsViewModelTests: TestCase {
     self.hasMessageThreads.assertValues([true, false, true], "No threads emit.")
 
     // Wait enough time to get API response
-    self.scheduler.advance()
+    await self.settleMessaging()
 
     self.loadingFooterIsHidden.assertValues([false, true, false, true], "Loading footer is hidden.")
     self.refreshControlEndRefreshing.assertValueCount(3, "Refresh control stopped refreshing.")
     self.hasMessageThreads.assertValues([true, false, true, true], "More threads are emitted.")
   }
 
-  func testLoadingMessages_WithProject() {
+  func testLoadingMessages_WithProject() async {
     self.vm.inputs.configureWith(project: Project.template, refTag: nil)
     self.vm.inputs.viewDidLoad()
 
@@ -82,7 +90,7 @@ internal final class MessageThreadsViewModelTests: TestCase {
     self.hasMessageThreads.assertValues([], "No threads emit.")
 
     // Wait enough time to get API response
-    self.scheduler.advance()
+    await self.settleMessaging()
 
     self.loadingFooterIsHidden.assertValues([false, true], "Loading footer is hidden after API response.")
     self.refreshControlEndRefreshing.assertValueCount(1, "Refresh control stopped refreshing.")
@@ -96,7 +104,7 @@ internal final class MessageThreadsViewModelTests: TestCase {
     self.hasMessageThreads.assertValues([true, false], "Threads clear immediately.")
 
     // Wait enough time to get API response
-    self.scheduler.advance()
+    await self.settleMessaging()
 
     self.loadingFooterIsHidden.assertValues([false, true], "Loading footer doesn't change visibility.")
     self.refreshControlEndRefreshing.assertValueCount(2, "Refresh control stopped refreshing.")
@@ -110,17 +118,17 @@ internal final class MessageThreadsViewModelTests: TestCase {
     self.hasMessageThreads.assertValues([true, false, true], "No threads emit.")
 
     // Wait enough time to get API response
-    self.scheduler.advance()
+    await self.settleMessaging()
 
     self.loadingFooterIsHidden.assertValues([false, true, false, true], "Loading footer is hidden.")
     self.refreshControlEndRefreshing.assertValueCount(3, "Refresh control stopped refreshing.")
     self.hasMessageThreads.assertValues([true, false, true, true], "More threads are emitted.")
   }
 
-  func testSwitchingMailbox() {
+  func testSwitchingMailbox() async {
     self.vm.inputs.configureWith(project: nil, refTag: nil)
     self.vm.inputs.viewDidLoad()
-    self.scheduler.advance()
+    await self.settleMessaging()
 
     self.loadingFooterIsHidden.assertValues(
       [false, true],
@@ -142,7 +150,7 @@ internal final class MessageThreadsViewModelTests: TestCase {
     self.hasMessageThreads.assertValues([true, false], "Threads clear immediately.")
     self.emptyStateIsVisible.assertValues([false])
 
-    self.scheduler.advance()
+    await self.settleMessaging()
 
     self.loadingFooterIsHidden.assertValues([false, true, false, true], "Loading footer is hidden.")
     self.refreshControlEndRefreshing.assertValueCount(2, "Refresh control isn't refreshing.")
@@ -150,7 +158,7 @@ internal final class MessageThreadsViewModelTests: TestCase {
     self.emptyStateIsVisible.assertValues([false])
   }
 
-  func testGoToSearch() {
+  func testGoToSearch() async {
     self.vm.inputs.viewDidLoad()
 
     self.goToSearch.assertValueCount(0)
@@ -160,15 +168,15 @@ internal final class MessageThreadsViewModelTests: TestCase {
     self.goToSearch.assertValueCount(1)
   }
 
-  func testEmptyState() {
-    withEnvironment(apiService: MockService(fetchMessageThreadsResponse: [])) {
+  func testEmptyState() async {
+    await withEnvironment(apiService: MockService(fetchMessageThreadsResponse: [])) {
       self.vm.inputs.configureWith(project: nil, refTag: nil)
       self.vm.inputs.viewDidLoad()
 
       self.emptyStateIsVisible.assertValues([], "No empty state emits immediately.")
       self.loadingFooterIsHidden.assertValues([false], "Loading footer is visible")
 
-      self.scheduler.advance()
+      await self.settleMessaging()
 
       self.emptyStateIsVisible.assertValues([true], "Empty state is shown.")
       self.loadingFooterIsHidden.assertValues([false, true], "Loading view is hidden.")
@@ -182,5 +190,23 @@ internal final class MessageThreadsViewModelTests: TestCase {
       self.emptyStateIsVisible.assertValues([true], "The empty state is still visible.")
       self.loadingFooterIsHidden.assertValues([false, true], "The loading view did not change.")
     }
+  }
+
+  override func tearDown() async throws {
+    self.feature.reset()
+    await self.feature.waitForOperations()
+
+    try await super.tearDown()
+  }
+
+  private func settleMessaging() async {
+    // Start debounced requests, await native work, then deliver the presentation delay.
+    await self.scheduler.advance()
+    await self.feature.waitForOperations()
+
+    await self.scheduler.advance()
+    // Thread delivery starts backing lookup and read-status commands.
+    await self.feature.waitForOperations()
+    await self.scheduler.advance()
   }
 }

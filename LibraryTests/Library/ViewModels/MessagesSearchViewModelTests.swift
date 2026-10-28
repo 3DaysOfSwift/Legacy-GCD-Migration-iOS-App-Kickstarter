@@ -7,8 +7,14 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class MessagesSearchViewModelTests: TestCase {
-  fileprivate let vm: MessagesSearchViewModelType = MessagesSearchViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = MessagingFeature(
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }),
+    makeProvider: { AsyncMessagingProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var vm: MessagesSearchViewModelType = MessagesSearchViewModel(feature: self.feature)
 
   fileprivate let emptyStateIsVisible = TestObserver<Bool, Never>()
   fileprivate let isSearching = TestObserver<Bool, Never>()
@@ -19,14 +25,16 @@ internal final class MessagesSearchViewModelTests: TestCase {
   override func setUp() {
     super.setUp()
 
-    self.vm.outputs.emptyStateIsVisible.observe(self.emptyStateIsVisible.observer)
-    self.vm.outputs.isSearching.observe(self.isSearching.observer)
-    self.vm.outputs.messageThreads.map { !$0.isEmpty }.observe(self.hasMessageThreads.observer)
-    self.vm.outputs.showKeyboard.observe(self.showKeyboard.observer)
-    self.vm.outputs.goToMessageThread.observe(self.goToMessageThread.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.emptyStateIsVisible.observe(self.emptyStateIsVisible.observer)
+      self.vm.outputs.isSearching.observe(self.isSearching.observer)
+      self.vm.outputs.messageThreads.map { !$0.isEmpty }.observe(self.hasMessageThreads.observer)
+      self.vm.outputs.showKeyboard.observe(self.showKeyboard.observer)
+      self.vm.outputs.goToMessageThread.observe(self.goToMessageThread.observer)
+    }
   }
 
-  func testKeyboard() {
+  func testKeyboard() async {
     self.showKeyboard.assertValues([])
 
     self.vm.inputs.configureWith(project: nil)
@@ -40,7 +48,7 @@ internal final class MessagesSearchViewModelTests: TestCase {
     self.showKeyboard.assertValues([true, false])
   }
 
-  func testSearch_NoProject() {
+  func testSearch_NoProject() async {
     self.vm.inputs.configureWith(project: nil)
 
     XCTAssertEqual([], self.segmentTrackingClient.events)
@@ -57,18 +65,18 @@ internal final class MessagesSearchViewModelTests: TestCase {
     self.hasMessageThreads.assertValues([])
     self.isSearching.assertValues([false, true])
 
-    self.scheduler.advance()
+    await self.settleMessaging()
 
     self.hasMessageThreads.assertValues([true])
     self.isSearching.assertValues([false, true, false])
 
-    withEnvironment(apiService: MockService(fetchMessageThreadsResponse: [])) {
+    await withEnvironment(apiService: MockService(fetchMessageThreadsResponse: [])) {
       self.vm.inputs.searchTextChanged("hello world")
 
       self.hasMessageThreads.assertValues([true, false])
       self.isSearching.assertValues([false, true, false, true])
 
-      self.scheduler.advance()
+      await self.settleMessaging()
 
       self.hasMessageThreads.assertValues([true, false])
       self.isSearching.assertValues([false, true, false, true, false])
@@ -79,14 +87,14 @@ internal final class MessagesSearchViewModelTests: TestCase {
       self.hasMessageThreads.assertValues([true, false])
       self.isSearching.assertValues([false, true, false, true, false])
 
-      self.scheduler.advance()
+      await self.settleMessaging()
 
       self.hasMessageThreads.assertValues([true, false])
       self.isSearching.assertValues([false, true, false, true, false])
     }
   }
 
-  func testSearch_WithProject() {
+  func testSearch_WithProject() async {
     let project = Project.template |> Project.lens.id .~ 123
 
     self.vm.inputs.configureWith(project: project)
@@ -103,7 +111,7 @@ internal final class MessagesSearchViewModelTests: TestCase {
 
     self.hasMessageThreads.assertValues([])
 
-    self.scheduler.advance()
+    await self.settleMessaging()
 
     self.hasMessageThreads.assertValues([true])
 
@@ -111,7 +119,7 @@ internal final class MessagesSearchViewModelTests: TestCase {
 
     self.hasMessageThreads.assertValues([true, false])
 
-    self.scheduler.advance()
+    await self.settleMessaging()
 
     self.hasMessageThreads.assertValues([true, false, true])
 
@@ -119,12 +127,12 @@ internal final class MessagesSearchViewModelTests: TestCase {
 
     self.hasMessageThreads.assertValues([true, false, true, false])
 
-    self.scheduler.advance()
+    await self.settleMessaging()
 
     self.hasMessageThreads.assertValues([true, false, true, false])
   }
 
-  func testGoToMessageThread() {
+  func testGoToMessageThread() async {
     let project = Project.template |> Project.lens.id .~ 123
     let messageThread = MessageThread.template
 
@@ -137,7 +145,7 @@ internal final class MessagesSearchViewModelTests: TestCase {
     self.goToMessageThread.assertValues([messageThread])
   }
 
-  func testClearSearchTerm_NoProject() {
+  func testClearSearchTerm_NoProject() async {
     self.vm.inputs.configureWith(project: nil)
 
     XCTAssertEqual([], self.segmentTrackingClient.events)
@@ -152,7 +160,7 @@ internal final class MessagesSearchViewModelTests: TestCase {
 
     self.hasMessageThreads.assertValues([])
 
-    self.scheduler.advance()
+    await self.settleMessaging()
 
     self.hasMessageThreads.assertValues([true])
 
@@ -161,7 +169,7 @@ internal final class MessagesSearchViewModelTests: TestCase {
     self.hasMessageThreads.assertValues([true, false])
   }
 
-  func testClearSearchTerm_WithProject() {
+  func testClearSearchTerm_WithProject() async {
     let project = Project.template |> Project.lens.id .~ 123
 
     self.vm.inputs.configureWith(project: project)
@@ -178,12 +186,30 @@ internal final class MessagesSearchViewModelTests: TestCase {
 
     self.hasMessageThreads.assertValues([])
 
-    self.scheduler.advance()
+    await self.settleMessaging()
 
     self.hasMessageThreads.assertValues([true])
 
     self.vm.inputs.clearSearchText()
 
     self.hasMessageThreads.assertValues([true, false])
+  }
+
+  override func tearDown() async throws {
+    self.feature.reset()
+    await self.feature.waitForOperations()
+
+    try await super.tearDown()
+  }
+
+  private func settleMessaging() async {
+    // Start debounced requests, await native work, then deliver the presentation delay.
+    await self.scheduler.advance()
+    await self.feature.waitForOperations()
+
+    await self.scheduler.advance()
+    // Thread delivery starts backing lookup and read-status commands.
+    await self.feature.waitForOperations()
+    await self.scheduler.advance()
   }
 }

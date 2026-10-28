@@ -4,6 +4,50 @@ Author: Matthew Thomas. Updated 28 October 2026.
 
 ## Latest verified checkpoint
 
+### Messaging — 28 October 2026
+
+Mailbox pagination, message search, thread/backing reads, sending and read status
+now execute through one AppModel-owned MessagingFeature and native async service
+methods. AppDelegate message links use the same owner. Blocking reuses the
+existing DiscussionFeature. No application caller remains on the migrated legacy
+message request methods; compatibility signatures remain in KsApi.
+
+Preserved existing UI, navigation, message ordering, recipient/error copy,
+mailbox refresh clearing, concatenated pages and empty-page sentinel.
+Search cancels on every changed/cleared query before debounce; late results and
+errors cannot refill cleared results or stop a newer request's loading indicator.
+Hidden searches cannot start after disappearance. Distinct sends queue per
+destination; equivalent pending tails share. Disposing a dialog removes delivery
+without abandoning an admitted write. Session generations gate reads, writes and
+delayed presentation. Public demo rejects account messaging operations.
+
+Baseline: all 36 original nonvisual messaging tests passed. Only those four
+suites opt out of the reference-simulator gate. Original assertions are retained
+with isolated Features and explicit async/presentation synchronization.
+Final: 859 Library + 165 framework + 39 API = 1,063 passed, zero failures/skips.
+All 15 new MessagingFeature cases were individually confirmed in xcresult.
+The app built with zero errors and two existing warnings (missing legacy
+Frameworks search path and Crashlytics script outputs).
+Results: /private/tmp/kickstarter-messaging.Bxc7BY.
+Evidence: sibling Migration Evidence/kickstarter-messaging.
+
+Earlier verification caught initialization/setup isolation issues and four new
+fixture failures: the existing MessageThread.lens.id setter always returns zero.
+Tests now construct distinct IDs directly; unrelated production lenses were not
+changed. One integrated run also exposed two email-verification tests advancing
+their scheduler before awaiting the async command, but not afterward. All three
+verification-result tests now await work then advance presentation; their
+original success/error assertions are unchanged. Failed artifacts are retained.
+
+Remaining work:
+1. Payment-method loading/addition/deletion and Stripe setup/payment intent ownership.
+2. Pledge creation/update/cancellation, backing management and reward-received writes.
+3. Remaining application request/dispatch audit, full regression, strict concurrency,
+   authenticated visual/physical-device journeys and live-service validation.
+
+No live message/account/payment writes or rendered/device parity were validated.
+App-wide migration remains IN PROGRESS.
+
 ### Project-notification settings — 28 October 2026
 
 Project notification lists and switch saves now use native async service methods

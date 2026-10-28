@@ -5,6 +5,40 @@ import ReactiveExtensions
 import ReactiveSwift
 
 extension Service {
+  @MainActor public func messageThreadsPage(
+    mailbox: Mailbox, project: Project?, cursor: String?
+  ) async throws -> MessageThreadsEnvelope {
+    if let cursor {
+      guard let url = URL(string: cursor) else { throw ErrorEnvelope.invalidPaginationUrl }
+      return try await self.discoveryResponse(for: self.preparedRequest(forURL: url))
+    }
+    return try await self.discussionResponse(route: .messageThreads(mailbox: mailbox, project: project))
+  }
+
+  @MainActor public func messageSearch(query: String, project: Project?) async throws -> MessageThreadsEnvelope {
+    try await self.discussionResponse(route: .searchMessages(query: query, project: project))
+  }
+
+  @MainActor public func messageThread(id: Int) async throws -> MessageThreadEnvelope {
+    try await self.discussionResponse(route: .messagesForThread(messageThreadId: id))
+  }
+
+  @MainActor public func messageThread(backing: Backing) async throws -> MessageThreadEnvelope? {
+    try await self.discussionResponse(route: .messagesForBacking(backing))
+  }
+
+  @MainActor public func messageBacking(project: Project, user: User) async throws -> Backing {
+    try await self.discussionResponse(route: .backing(projectId: project.id, backerId: user.id))
+  }
+
+  @MainActor public func readMessageThread(_ thread: MessageThread) async throws -> MessageThread {
+    try await self.discussionResponse(route: .markAsRead(thread))
+  }
+
+  @MainActor public func submitMessage(body: String, subject: MessageSubject) async throws -> Message {
+    try await self.discussionResponse(route: .sendMessage(body: body, messageSubject: subject))
+  }
+
   private static let session = URLSession(configuration: .default)
 
   @MainActor public func activityPage(cursor: String?) async throws -> ActivityEnvelope {

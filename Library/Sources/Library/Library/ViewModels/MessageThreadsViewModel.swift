@@ -1,7 +1,9 @@
+import Foundation
 import KsApi
 import Prelude
 import ReactiveSwift
 
+@MainActor
 public protocol MessageThreadsViewModelInputs {
   /// Call when the mailbox chooser button is pressed.
   func mailboxButtonPressed()
@@ -26,6 +28,7 @@ public protocol MessageThreadsViewModelInputs {
   func willDisplayRow(_ row: Int, outOf totalRows: Int)
 }
 
+@MainActor
 public protocol MessageThreadsViewModelOutputs {
   /// Emits a boolean that determines if the empty state is visible.
   var emptyStateIsVisible: Signal<Bool, Never> { get }
@@ -49,14 +52,19 @@ public protocol MessageThreadsViewModelOutputs {
   var showMailboxChooserActionSheet: Signal<(), Never> { get }
 }
 
+@MainActor
 public protocol MessageThreadsViewModelType {
   var inputs: MessageThreadsViewModelInputs { get }
   var outputs: MessageThreadsViewModelOutputs { get }
 }
 
+@MainActor
 public final class MessageThreadsViewModel: MessageThreadsViewModelType, MessageThreadsViewModelInputs,
   MessageThreadsViewModelOutputs {
-  public init() {
+  private let feature: MessagingFeature
+  public convenience init() { self.init(feature: AppModel.shared.messagingFeature) }
+  public init(feature: MessagingFeature) {
+    self.feature = feature
     let isCloseToBottom = self.willDisplayRowProperty.signal.skipNil()
       .filter { _, total in total > 1 }
       .map { row, total in row >= total - 3 }
@@ -74,23 +82,9 @@ public final class MessageThreadsViewModel: MessageThreadsViewModelType, Message
       mailbox.takeWhen(self.refreshProperty.signal)
     )
 
-    let (messageThreads, isLoading, _, _) = paginate(
-      requestFirstPageWith: requestFirstPageWith,
-      requestNextPageWhen: isCloseToBottom,
-      clearOnNewRequest: true,
-      valuesFromEnvelope: { $0.messageThreads },
-      cursorFromEnvelope: { $0.urls.api.moreMessageThreads },
-      requestFromParams: { [project = configDataProperty.producer.map { $0?.project }] mailbox in
-        project.take(first: 1)
-          .promoteError(ErrorEnvelope.self)
-          .flatMap { project in
-            AppEnvironment.current.apiService.fetchMessageThreads(mailbox: mailbox, project: project)
-          }
-      },
-      requestFromCursor: {
-        AppEnvironment.current.apiService.fetchMessageThreads(paginationUrl: $0)
-      }
-    )
+    let route = self.route
+    let messageThreads = feature.pages.filter { $0.0 == route }.map { $0.1 }.skipRepeats(==)
+    let isLoading = feature.loading.filter { $0.0 == route }.map { $0.1 }
 
     self.mailboxName = mailbox.map {
       switch $0 {
@@ -118,6 +112,19 @@ public final class MessageThreadsViewModel: MessageThreadsViewModelType, Message
     self.showMailboxChooserActionSheet = self.mailboxButtonPressedProperty.signal
 
     self.goToSearch = self.searchButtonPressedProperty.signal
+    requestFirstPageWith.observeValues { [weak self] mailbox in
+      guard let self else { return }
+      feature.requestMailbox(route: route, mailbox: mailbox, project: self.configDataProperty.value?.project,
+                             refresh: true)
+    }
+    isCloseToBottom.observeValues { feature.requestNextPage(route: route) }
+
+  }
+
+  private let route = UUID()
+  deinit {
+    let feature = self.feature, route = self.route
+    Task { @MainActor in feature.release(route: route) }
   }
 
   fileprivate let mailboxButtonPressedProperty = MutableProperty(())

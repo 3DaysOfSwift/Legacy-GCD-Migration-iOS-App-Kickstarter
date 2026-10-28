@@ -1465,6 +1465,56 @@
       return SignalProducer(error: ErrorEnvelope.graphError("Unimplemented mock"))
     }
 
+    @MainActor public func messageThreadsPage(
+      mailbox _: Mailbox, project _: Project?, cursor _: String?
+    ) async throws -> MessageThreadsEnvelope {
+      _ = try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      return MessageThreadsEnvelope(
+        messageThreads: self.fetchMessageThreadsResponse,
+        urls: .init(api: .init(moreMessageThreads: ""))
+      )
+    }
+
+    @MainActor public func messageSearch(query _: String, project: Project?) async throws -> MessageThreadsEnvelope {
+      try await self.messageThreadsPage(mailbox: .inbox, project: project, cursor: nil)
+    }
+
+    @MainActor public func messageThread(id _: Int) async throws -> MessageThreadEnvelope {
+      _ = try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      if let error = self.fetchMessageThreadResult?.error { throw error }
+      return MessageThreadEnvelope(
+        participants: [.template, .template |> \.id .~ 2],
+        messages: [.template |> Message.lens.id .~ 1, .template |> Message.lens.id .~ 2,
+                   .template |> Message.lens.id .~ 3],
+        messageThread: self.fetchMessageThreadResult?.value as? MessageThread ?? .template
+      )
+    }
+
+    @MainActor public func messageThread(backing _: Backing) async throws -> MessageThreadEnvelope? {
+      _ = try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      if let error = self.fetchMessageThreadResult?.error { throw error }
+      guard self.fetchMessageThreadResult?.value as? MessageThread != nil else { return nil }
+      return try await self.messageThread(id: 0)
+    }
+
+    @MainActor public func messageBacking(project: Project, user: User) async throws -> Backing {
+      _ = try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      return self.fetchBackingResponse
+        |> Backing.lens.backer .~ user
+        |> Backing.lens.backerId .~ user.id
+        |> Backing.lens.projectId .~ project.id
+    }
+
+    @MainActor public func readMessageThread(_ thread: MessageThread) async throws -> MessageThread {
+      _ = try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      return thread
+    }
+
+    @MainActor public func submitMessage(body: String, subject _: MessageSubject) async throws -> Message {
+      _ = try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      return .template |> Message.lens.id .~ body.hashValue |> Message.lens.body .~ body
+    }
+
     internal func fetchMessageThread(messageThreadId _: Int)
       -> SignalProducer<MessageThreadEnvelope, ErrorEnvelope> {
       if let error = self.fetchMessageThreadResult?.error {

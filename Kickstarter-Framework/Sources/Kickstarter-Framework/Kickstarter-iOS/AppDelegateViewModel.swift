@@ -198,7 +198,9 @@ public protocol AppDelegateViewModelType {
 @MainActor
 public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateViewModelInputs,
   AppDelegateViewModelOutputs {
-  public init(settingsFeature: SettingsFeature? = nil) {
+  public init(settingsFeature: SettingsFeature? = nil, messagingFeature: MessagingFeature? = nil) {
+    let messagingFeature = messagingFeature ?? AppModel.shared.messagingFeature
+    let messageRoute = UUID()
     let settingsFeature = settingsFeature ?? AppModel.shared.settingsFeature
     let currentUserEvent = Signal
       .merge(
@@ -497,9 +499,10 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
         return .some(messageThreadId)
       }
       .skipNil()
-      .switchMap {
-        AppEnvironment.current.apiService.fetchMessageThread(messageThreadId: $0)
+      .switchMap { id in
+        messagingFeature.readResult(route: messageRoute) { try await messagingFeature.thread(id: id) }
           .demoteErrors()
+          .skipNil()
           .map { $0.messageThread }
       }
 

@@ -20,6 +20,10 @@ final class AppDelegateViewModelTests: TestCase {
     }),
     makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
   )
+  private let messagingFeature = MessagingFeature(
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }),
+    makeProvider: { AsyncMessagingProvider(service: AppEnvironment.current.apiService) }
+  )
   var vm: AppDelegateViewModelType!
 
   private let applicationIconBadgeNumber = TestObserver<Int, Never>()
@@ -70,11 +74,30 @@ final class AppDelegateViewModelTests: TestCase {
 
   override func tearDown() async throws {
     await self.settingsFeature.waitForOperations()
+    self.messagingFeature.reset()
+    await self.messagingFeature.waitForOperations()
     try await super.tearDown()
   }
 
+  func testMessageDeepLinkLoadsThroughSharedFeature() async throws {
+    var threads: [MessageThread] = []
+    let observation = self.vm.outputs.goToMessageThread.observeValues { threads.append($0) }
+    defer { observation?.dispose() }
+    self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: [:])
+    let accepted = self.vm.inputs.applicationOpenUrl(
+      application: UIApplication.shared,
+      url: try XCTUnwrap(URL(string: "https://www.kickstarter.com/messages/42")), options: [:]
+    )
+    XCTAssertTrue(accepted)
+    await self.scheduler.advance()
+    await self.messagingFeature.waitForOperations()
+    XCTAssertEqual(threads.count, 1)
+    XCTAssertEqual(threads.first?.id, MessageThread.template.id)
+    await self.settingsFeature.waitForOperations()
+  }
+
   private func bindOutputs() {
-    self.vm = AppDelegateViewModel(settingsFeature: self.settingsFeature)
+    self.vm = AppDelegateViewModel(settingsFeature: self.settingsFeature, messagingFeature: self.messagingFeature)
     self.vm.outputs.notificationSettingsUpdated.observe(self.notificationSettingsUpdated.observer)
 
     self.vm.outputs.applicationIconBadgeNumber.observe(self.applicationIconBadgeNumber.observer)
@@ -1998,6 +2021,7 @@ final class AppDelegateViewModelTests: TestCase {
 
       await self.scheduler.advance()
       await self.settingsFeature.waitForOperations()
+      await self.scheduler.advance()
 
       self.emailVerificationCompletedSuccess.assertValues([true])
       self.emailVerificationCompletedMessage.assertValues(
@@ -2033,6 +2057,7 @@ final class AppDelegateViewModelTests: TestCase {
 
       await self.scheduler.advance()
       await self.settingsFeature.waitForOperations()
+      await self.scheduler.advance()
 
       self.emailVerificationCompletedSuccess.assertValues([false])
       self.emailVerificationCompletedMessage.assertValues(
@@ -2068,6 +2093,7 @@ final class AppDelegateViewModelTests: TestCase {
 
       await self.scheduler.advance()
       await self.settingsFeature.waitForOperations()
+      await self.scheduler.advance()
 
       self.emailVerificationCompletedSuccess.assertValues([false])
       self.emailVerificationCompletedMessage.assertValues(

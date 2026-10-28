@@ -18,6 +18,7 @@ final class AppModelTests: XCTestCase {
     let firstSession = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
     let secondSession = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
     let first = AppModel(
+      messagingFeature: MessagingFeature(sessionFeature: firstSession, makeProvider: { AsyncMessagingProvider(service: MockService()) }),
       sessionFeature: firstSession,
       authenticationFeature: AuthenticationFeature(sessionFeature: firstSession, makeProvider: {
         AsyncAuthenticationProvider(service: MockService())
@@ -43,6 +44,7 @@ final class AppModelTests: XCTestCase {
       })
     )
     let second = AppModel(
+      messagingFeature: MessagingFeature(sessionFeature: secondSession, makeProvider: { AsyncMessagingProvider(service: MockService()) }),
       sessionFeature: secondSession,
       authenticationFeature: AuthenticationFeature(sessionFeature: secondSession, makeProvider: {
         AsyncAuthenticationProvider(service: MockService())
@@ -68,6 +70,8 @@ final class AppModelTests: XCTestCase {
       })
     )
 
+    XCTAssertTrue(first.messagingFeature.sessionFeature === first.sessionFeature)
+    XCTAssertFalse(first.messagingFeature === second.messagingFeature)
     XCTAssertTrue(first.activityFeature.sessionFeature === first.sessionFeature)
     XCTAssertTrue(first.profileFeature.sessionFeature === first.sessionFeature)
     XCTAssertFalse(first.sessionFeature === second.sessionFeature)

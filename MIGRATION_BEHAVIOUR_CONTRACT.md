@@ -1,5 +1,29 @@
 # Kickstarter migration behaviour contract
 
+## Messaging — 28 October 2026
+
+- MSG-01: Preserve inbox/sent/project scope, refresh clearing, concatenation,
+  empty-page stop, loading/footer behavior and current navigation.
+- MSG-02: Search clears immediately and cancels obsolete work before debounce.
+  Late success/error cannot restore a cleared query or change newer loading.
+  Disappearing screens cannot admit a pending debounced request.
+- MSG-03: Preserve sorted messages, backing lookup rules, role-based empty copy,
+  recipient labels, untrimmed bodies and blocking/read-status effects.
+- MSG-04: Share equivalent pending sends and read-status writes. Distinct sends
+  remain ordered per destination; a failed send does not automatically retry.
+  Screen disposal suppresses presentation without canceling an admitted write.
+- MSG-05: Reject stale account generations, including same-user replacement,
+  and suppress delayed presentation after session changes.
+- MSG-06: Keep native endpoint/query/body encoding and reject account messaging
+  in the fictional demo. Deep links use the same MessagingFeature.
+
+Baseline 36 original tests passed. Final 1,063 integrated tests passed, zero
+failures/skips, and app build succeeded. Includes 15 new Feature/lifetime cases,
+one deep-link test and three native request/demo tests. All original messaging
+assertions retained. See ledger/evidence for corrected fixtures and scheduler
+synchronization failures. Live services, visual/device parity and app-wide
+strict-concurrency validation remain open.
+
 ## Project-notification settings — 28 October 2026
 
 - Preserve project names, list loading's silent failure, combined email/mobile

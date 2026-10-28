@@ -1,8 +1,10 @@
 import Foundation
+import Foundation
 import KsApi
 import Prelude
 import ReactiveSwift
 
+@MainActor
 public protocol MessagesViewModelInputs {
   /// Call when the backing button is pressed.
   func backingInfoPressed()
@@ -29,6 +31,7 @@ public protocol MessagesViewModelInputs {
   func viewWillAppear()
 }
 
+@MainActor
 public protocol MessagesViewModelOutputs {
   /**
    Emits a Backing and Project that can be used to populate the BackingCell.
@@ -73,14 +76,23 @@ public protocol MessagesViewModelOutputs {
   var didBlockUserError: Signal<(), Never> { get }
 }
 
+@MainActor
 public protocol MessagesViewModelType {
   var inputs: MessagesViewModelInputs { get }
   var outputs: MessagesViewModelOutputs { get }
 }
 
+@MainActor
 public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelInputs,
   MessagesViewModelOutputs {
-  public init() {
+  private let feature: MessagingFeature
+  public convenience init() {
+    self.init(feature: AppModel.shared.messagingFeature, discussion: AppModel.shared.discussionFeature)
+  }
+  public init(feature: MessagingFeature, discussion: DiscussionFeature) {
+    self.feature = feature
+    let threadRoute = self.threadRoute
+    let backingRoute = self.backingRoute
     let configData = self.configData.signal.skipNil()
       .takeWhen(self.viewDidLoadProperty.signal)
 
@@ -116,13 +128,10 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
       -> SignalProducer<Signal<MessageThreadEnvelope?, ErrorEnvelope>.Event, Never> in
       switch backingOrThread {
       case let .left(backing):
-        return AppEnvironment.current.apiService.fetchMessageThread(backing: backing)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+        return feature.delayedResult(feature.readResult(route: threadRoute) { try await feature.thread(backing: backing) })
           .materialize()
       case let .right(thread):
-        return AppEnvironment.current.apiService.fetchMessageThread(messageThreadId: thread.id)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .map(MessageThreadEnvelope?.some)
+        return feature.delayedResult(feature.readResult(route: threadRoute) { try await feature.thread(id: thread.id) })
           .materialize()
       }
     }
@@ -143,21 +152,12 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
 
       let isBacker = project.personalization.isBacking == .some(true)
 
-      guard let backingID = messageThreadEnvelope.messageThread.backing?.id else {
-        // If the messageThread does not contain a backing ID, fall back to fetching the backing info using the V1 endpoint:
-        // `fetchBacking(forProject:forUser:)`
-        let user = isBacker ? currentUser : participant
-        let request = AppEnvironment.current.apiService.fetchBacking(forProject: project, forUser: user)
-
-        return request
-          .map { (backing: $0, project: project, isFromBacking: false) }
-          .demoteErrors()
+      let user = isBacker ? currentUser : participant
+      return feature.readResult(route: backingRoute) {
+        try await feature.backing(id: messageThreadEnvelope.messageThread.backing?.id,
+                                  project: project, user: user)
       }
-
-      let request = AppEnvironment.current.apiService.fetchBacking(id: backingID)
-      return request.map { projectAndBacking in
-        (projectAndBacking.backing, project, false)
-      }
+      .map { ($0, project, false) }
       .demoteErrors()
     }
 
@@ -212,17 +212,14 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
 
     self.successfullyMarkedAsRead = messageThreadEnvelope
       .switchMap {
-        AppEnvironment.current.apiService.markAsRead(messageThread: $0.messageThread)
+        feature.markReadResult($0.messageThread)
           .demoteErrors()
       }
       .ignoreValues()
 
     let blockUserEvent = self.blockUserProperty.signal
-      .map(BlockUserInput.init(blockUserId:))
-      .switchMap { input in
-        AppEnvironment.current.apiService
-          .blockUser(input: input)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      .switchMap { id in
+        feature.delayedResult(discussion.blockUserResult(id: id))
           .materialize()
       }
 
@@ -253,6 +250,16 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
         AppEnvironment.current.ksrAnalytics
           .trackBlockedUser(project, page: .messages, typeContext: .confirm, targetUserId: "\(blockedUserId)")
       }
+  }
+
+  private let threadRoute = UUID()
+  private let backingRoute = UUID()
+  deinit {
+    let feature = self.feature, thread = self.threadRoute, backing = self.backingRoute
+    Task { @MainActor in
+      feature.release(route: thread)
+      feature.release(route: backing)
+    }
   }
 
   public func backingInfoPressed() {

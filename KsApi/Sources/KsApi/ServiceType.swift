@@ -177,6 +177,14 @@ public protocol ServiceType {
   @MainActor func projectUpdate(id: Int, project: Param) async throws -> Update
   @MainActor func reportVideoEvent(project: any HasProjectWebURL, completed: Bool) async throws -> VoidEnvelope
   @MainActor func projectVideoFeed() async throws -> GraphAPI.VideoFeedQuery.Data
+  @MainActor func messageThreadsPage(mailbox: Mailbox, project: Project?, cursor: String?) async throws -> MessageThreadsEnvelope
+  @MainActor func messageSearch(query: String, project: Project?) async throws -> MessageThreadsEnvelope
+  @MainActor func messageThread(id: Int) async throws -> MessageThreadEnvelope
+  @MainActor func messageThread(backing: Backing) async throws -> MessageThreadEnvelope?
+  @MainActor func messageBacking(project: Project, user: User) async throws -> Backing
+  @MainActor func readMessageThread(_ thread: MessageThread) async throws -> MessageThread
+  @MainActor func submitMessage(body: String, subject: MessageSubject) async throws -> Message
+
   @MainActor func activityPage(cursor: String?) async throws -> ActivityEnvelope
   @MainActor func unansweredSurveys() async throws -> [SurveyResponse]
   @MainActor func sessionUser() async throws -> User

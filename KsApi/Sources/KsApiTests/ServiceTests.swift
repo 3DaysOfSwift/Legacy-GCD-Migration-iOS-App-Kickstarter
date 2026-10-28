@@ -13,6 +13,56 @@ struct MySwiftModel: Decodable, Equatable {
 }
 
 final class ServiceTests: XCTestCase {
+  @MainActor
+  func testPublicDemoRejectsNativeMessagingOperations() async {
+    let service = MockService.publicDemo()
+    let operations: [() async throws -> Void] = [
+      { _ = try await service.messageThreadsPage(mailbox: .inbox, project: nil, cursor: nil) },
+      { _ = try await service.messageSearch(query: "fixture", project: nil) },
+      { _ = try await service.messageThread(id: 1) },
+      { _ = try await service.messageThread(backing: .template) },
+      { _ = try await service.messageBacking(project: .template, user: .template) },
+      { _ = try await service.readMessageThread(.template) },
+      { _ = try await service.submitMessage(body: "fixture", subject: .project(id: 1, name: "Fixture")) }
+    ]
+    for operation in operations {
+      do { try await operation(); XCTFail("Public demo must reject account messaging") }
+      catch { XCTAssertTrue(error is ErrorEnvelope) }
+    }
+  }
+
+  func testNativeMessagingRoutesKeepMailboxProjectAndQuery() throws {
+    let service = Service()
+    let inbox = try service.preparedRouteRequest(.messageThreads(mailbox: .inbox, project: nil))
+    XCTAssertEqual(inbox.httpMethod, "GET")
+    XCTAssertEqual(inbox.url?.path, "/v1/message_threads/inbox")
+    let project = Project.template
+    let sent = try service.preparedRouteRequest(.messageThreads(mailbox: .sent, project: project))
+    XCTAssertEqual(sent.url?.path, "/v1/projects/\(project.id)/message_threads/sent")
+    let search = try service.preparedRouteRequest(.searchMessages(query: "hello & goodbye", project: project))
+    XCTAssertEqual(search.url?.path, "/v1/projects/\(project.id)/message_threads/search")
+    let query = URLComponents(url: try XCTUnwrap(search.url), resolvingAgainstBaseURL: false)?.queryItems
+    XCTAssertEqual(query?.first(where: { $0.name == "q" })?.value, "hello & goodbye")
+  }
+
+  func testNativeMessagingWritesKeepDestinationAndUntrimmedBody() throws {
+    let service = Service()
+    let thread = MessageThread.template
+    let read = try service.preparedRouteRequest(.markAsRead(thread))
+    XCTAssertEqual(read.httpMethod, "PUT")
+    XCTAssertEqual(read.url?.path, "/v1/message_threads/\(thread.id)/read")
+    let body = " Hello & goodbye \n"
+    let send = try service.preparedRouteRequest(.sendMessage(body: body, messageSubject: .messageThread(thread)))
+    XCTAssertEqual(send.httpMethod, "POST")
+    XCTAssertEqual(send.url?.path, "/v1/message_threads/\(thread.id)/messages")
+    let json = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(send.httpBody)) as? [String: String])
+    XCTAssertEqual(json["body"], body)
+    let project = try service.preparedRouteRequest(.sendMessage(
+      body: body, messageSubject: .project(id: 42, name: "Fixture")
+    ))
+    XCTAssertEqual(project.url?.path, "/v1/projects/42/messages")
+  }
+
   func testNativeProjectNotificationRoutesPreserveBothChannels() throws {
     let service = Service()
     let list = try service.preparedRouteRequest(.projectNotifications)
