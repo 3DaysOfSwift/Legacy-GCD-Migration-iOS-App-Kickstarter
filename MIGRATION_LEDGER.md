@@ -2,6 +2,45 @@
 
 Author: Matthew Thomas. Updated 28 October 2026.
 
+## Required final migration report
+
+Matthew Thomas requested transparent timing, model attribution and outcome
+statistics on 28 October 2026. This is part of migration completion.
+
+Keep the reporting data in sibling `Migration Evidence/kickstarter-report-metrics.json`.
+The final report must contain:
+
+- Start and finish dates/times with timezone and evidence for each. Separate
+  repository/demo preparation, architecture implementation and final validation.
+  An earliest commit is a verified checkpoint, not proof of the actual start.
+- Calendar elapsed duration between explicitly named boundaries. Report active
+  agent time, human effort, waiting and interruptions separately only when measured;
+  never equate calendar elapsed time with continuous model execution.
+- Model display name, reasoning setting, tool/client and any documented changes
+  by phase. Exact backend model IDs, token totals and costs require reliable
+  metadata; do not infer them from UI labels or invent missing usage.
+- Baseline/final revision, feature coverage, remaining exceptions, migration
+  commits and changed files/lines, separating production, tests, docs and fixtures.
+  Diff volume is descriptive, not a quality or productivity score.
+- Comparable before/after build and test outcomes, unique tests in the final run,
+  added regression scenarios, failures/rework and warnings. Do not sum repeated
+  test runs as unique coverage or compare differently scoped suites as a gain.
+- Human interventions, environment blockers and recoveries, plus measured waiting
+  when available. Include unsuccessful attempts as well as successful checkpoints.
+- Behavior/visual/device/live-service and concurrency validation, with explicit
+  limits. Explain which findings are backed by mocks versus real integration.
+
+Current evidence anchors: baseline commit ecd4da688 at 2026-10-26T14:18:04+07:00;
+Search baseline commit 192fa9148 at 2026-10-26T16:42:07+07:00.
+Actual kickoff time is not established; preparation predates the first anchor.
+User-supplied screenshots show GPT-6 Astra with High reasoning, but do not prove
+the model used for every phase. Finish time and final duration remain unset.
+
+Record finish only after the agreed app-wide completion/validation gates are
+resolved and the final report explicitly states any accepted limitations.
+A successful feature checkpoint does not finish the app-wide migration.
+Do not publish the report or upload logs/usage data without authorization.
+
 ## Latest verified checkpoint
 
 ### Messaging — 28 October 2026
