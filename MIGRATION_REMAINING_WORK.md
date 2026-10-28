@@ -10,12 +10,12 @@ estimate. These groups differ substantially in size and risk.
 
 | Group | Remaining application paths | Exit condition |
 | --- | --- | --- |
-| 1. Friends and following | FindFriends lists/stats/pagination/follow-all; two follow-cell adapters | Shared follow state and ordered writes; obsolete-account results rejected |
-| 2. Residual project, creator and account actions | WatchProject save/unsave; CuratedProjects and Thanks recommendations; project attribution; UpdateDraft editing/images; ReportProjectInfo options; SettingsAccount user read | Each remaining production request has an explicit owner and documented lifetime |
+| 1. Residual project, creator and account actions | WatchProject save/unsave; CuratedProjects and Thanks recommendations; project attribution; UpdateDraft editing/images; ReportProjectInfo options; SettingsAccount user read | Each remaining production request has an explicit owner and documented lifetime |
 
-Checkout, payment plans, pledge-manager project/update navigation and reward add-on
-loading now have migrated implementations. Two implementation groups remain; they
-are not equal units of effort. See the ledger for the verified checkpoint status.
+Checkout, payment plans, pledge-manager project/update navigation, reward add-ons
+and friends/following now have verified migrated checkpoints. One implementation
+group remains, followed by the validation gates below. This is a scope count,
+not a percentage estimate. See the ledger for exact checkpoint evidence.
 
 The named paths are source-audit findings, not evidence that every call in those
 files is legacy. Configuration access such as serverConfig is
@@ -40,7 +40,7 @@ separately in the final audit, not counted as migrated product journeys.
 ## What the existing checkpoints establish
 
 Search/Explore, project details/rewards loading, comments and media, Activity/Profile,
-session/authentication/account work, messaging, and payment-method/intent paths have
+session/authentication/account work, messaging, friends/following and payment-method/intent paths have
 verified migrated checkpoints. They do not imply every related screen is finished:
 the residual paths above still need work. See MIGRATION_LEDGER.md for exact scopes.
 

@@ -9,8 +9,16 @@ import ReactiveSwift
 import UIKit.UIActivity
 import XCTest
 
+@MainActor
 final class ActivityFriendFollowCellViewModelTests: TestCase {
-  let vm: ActivityFriendFollowCellViewModel = ActivityFriendFollowCellViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = FriendsFeature(
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+    makeProvider: {
+      precondition(AppEnvironment.current.apiService is MockService)
+      return AsyncFriendsProvider(service: AppEnvironment.current.apiService)
+    }, sleep: { _ in })
+  private lazy var vm: ActivityFriendFollowCellViewModel = ActivityFriendFollowCellViewModel(feature: self.feature)
   let hideFollowButton = TestObserver<Bool, Never>()
   let friendImageURL = TestObserver<String?, Never>()
   let title = TestObserver<String, Never>()
@@ -18,12 +26,27 @@ final class ActivityFriendFollowCellViewModelTests: TestCase {
   override func setUp() {
     super.setUp()
 
-    self.vm.outputs.hideFollowButton.observe(self.hideFollowButton.observer)
-    self.vm.outputs.friendImageURL.map { $0?.absoluteString }.observe(self.friendImageURL.observer)
-    self.vm.outputs.title.map { $0.string }.observe(self.title.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.hideFollowButton.observe(self.hideFollowButton.observer)
+      self.vm.outputs.friendImageURL.map { $0?.absoluteString }.observe(self.friendImageURL.observer)
+      self.vm.outputs.title.map { $0.string }.observe(self.title.observer)
+    }
   }
 
-  func testFriendDetails_Complete() {
+  override func tearDown() async throws {
+    self.feature.reset()
+    await self.feature.waitForOperations()
+    try await super.tearDown()
+  }
+
+  private func advanceFriends(by interval: DispatchTimeInterval = .seconds(0)) async {
+    await self.feature.waitForOperations()
+    await self.scheduler.advance(by: interval)
+    await self.feature.waitForOperations()
+    await self.scheduler.advance()
+  }
+
+  func testFriendDetails_Complete() async {
     let user = User.template
       |> \.avatar.small .~ "http://coolpic.com/cool.jpg"
       |> \.name .~ "Squiggles McTwiddle"
@@ -40,7 +63,7 @@ final class ActivityFriendFollowCellViewModelTests: TestCase {
     self.title.assertValues(["Squiggles McTwiddle is now following you!"])
   }
 
-  func testFriendDetails_Incomplete() {
+  func testFriendDetails_Incomplete() async {
     let user = User.template
       |> \.name .~ "Squiggles McTwiddle"
 
@@ -56,7 +79,7 @@ final class ActivityFriendFollowCellViewModelTests: TestCase {
     self.title.assertValues(["Squiggles McTwiddle is now following you!"])
   }
 
-  func testFriendFollowing_Friend() {
+  func testFriendFollowing_Friend() async {
     let user = User.template
       |> \.avatar.small .~ "http://coolpic.com/cool.jpg"
       |> \.isFriend .~ true
@@ -74,7 +97,7 @@ final class ActivityFriendFollowCellViewModelTests: TestCase {
     XCTAssertEqual([], self.segmentTrackingClient.events)
   }
 
-  func testFriendFollowing_NonFriend() {
+  func testFriendFollowing_NonFriend() async {
     let user = User.template
       |> \.avatar.medium .~ "http://coolpic.com/cool.jpg"
       |> \.isFriend .~ false
@@ -91,11 +114,12 @@ final class ActivityFriendFollowCellViewModelTests: TestCase {
     self.hideFollowButton.assertValues([false], "Show Follow Button")
 
     self.vm.inputs.followButtonTapped()
+    await self.feature.waitForOperations()
 
     self.hideFollowButton.assertValues([false], "Follow Button does not change")
   }
 
-  func testRetainFriendStatusOnReuse_After_Following() {
+  func testRetainFriendStatusOnReuse_After_Following() async {
     let user = User.template
       |> \.avatar.small .~ "http://coolpic.com/cool.jpg"
       |> \.isFriend .~ false
@@ -111,6 +135,7 @@ final class ActivityFriendFollowCellViewModelTests: TestCase {
     self.hideFollowButton.assertValues([false], "Show Follow Button")
 
     self.vm.inputs.followButtonTapped()
-    scheduler.advance()
+    await self.feature.waitForOperations()
+    await self.advanceFriends()
   }
 }

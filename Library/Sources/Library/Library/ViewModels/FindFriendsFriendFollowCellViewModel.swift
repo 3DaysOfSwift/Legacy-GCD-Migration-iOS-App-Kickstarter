@@ -4,6 +4,7 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol FindFriendsFriendFollowCellViewModelInputs {
   /// Call to set friend from whence it comes
   func configureWith(friend: User)
@@ -15,6 +16,7 @@ public protocol FindFriendsFriendFollowCellViewModelInputs {
   func unfollowButtonTapped()
 }
 
+@MainActor
 public protocol FindFriendsFriendFollowCellViewModelOutputs {
   /// Emits accessibilityValue for the Cell
   var cellAccessibilityValue: Signal<String, Never> { get }
@@ -56,16 +58,20 @@ public protocol FindFriendsFriendFollowCellViewModelOutputs {
   var unfollowButtonAccessibilityLabel: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol FindFriendsFriendFollowCellViewModelType {
   var inputs: FindFriendsFriendFollowCellViewModelInputs { get }
   var outputs: FindFriendsFriendFollowCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class FindFriendsFriendFollowCellViewModel: FindFriendsFriendFollowCellViewModelType,
   FindFriendsFriendFollowCellViewModelInputs, FindFriendsFriendFollowCellViewModelOutputs {
-  public init() {
+  public init(feature: FriendsFeature? = nil) {
+    let feature = feature ?? AppModel.shared.friendsFeature
+    let configuredFriend = self.configureWithFriendProperty
     let friend: Signal<User, Never> = self.configureWithFriendProperty.signal.skipNil()
-      .map(cached(friend:))
+      .map { feature.cached($0) }
 
     self.imageURL = friend.map { (friend: User) -> URL? in URL(string: friend.avatar.medium) }
 
@@ -95,7 +101,7 @@ public final class FindFriendsFriendFollowCellViewModel: FindFriendsFriendFollow
     let followFriendEvent: Signal<Signal<User, ErrorEnvelope>.Event, Never> = friend
       .takeWhen(self.followButtonTappedProperty.signal)
       .switchMap { user in
-        AppEnvironment.current.apiService.followFriend(userId: user.id)
+        feature.delayed(feature.setFollowingResult(user: user, following: true)
           .on(
             starting: {
               isLoadingFollowRequest.value = true
@@ -103,16 +109,14 @@ public final class FindFriendsFriendFollowCellViewModel: FindFriendsFriendFollow
             terminated: {
               isLoadingFollowRequest.value = false
             }
-          )
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .mapConst(user |> \.isFriend .~ true)
+          ))
           .materialize()
       }
 
     let unfollowFriendEvent: Signal<Signal<User, ErrorEnvelope>.Event, Never> = friend
       .takeWhen(self.unfollowButtonTappedProperty.signal)
       .switchMap { user in
-        AppEnvironment.current.apiService.unfollowFriend(userId: user.id)
+        feature.delayed(feature.setFollowingResult(user: user, following: false)
           .on(
             starting: {
               isLoadingUnfollowRequest.value = true
@@ -120,17 +124,15 @@ public final class FindFriendsFriendFollowCellViewModel: FindFriendsFriendFollow
             terminated: {
               isLoadingUnfollowRequest.value = false
             }
-          )
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .mapConst(user |> \.isFriend .~ false)
+          ))
           .materialize()
       }
 
     let updatedFriendToFollowed: Signal<User, Never> = followFriendEvent.values()
-      .on(value: { (friend: User) in cache(friend: friend, isFriend: true) })
+      .filter { $0.id == configuredFriend.value?.id }
 
     let updatedFriendToUnfollowed: Signal<User, Never> = unfollowFriendEvent.values()
-      .on(value: { (friend: User) in cache(friend: friend, isFriend: false) })
+      .filter { $0.id == configuredFriend.value?.id }
 
     let isFollowed: Signal<Bool, Never> = Signal.merge(
       friend, updatedFriendToFollowed, updatedFriendToUnfollowed
@@ -189,23 +191,4 @@ public final class FindFriendsFriendFollowCellViewModel: FindFriendsFriendFollow
   public let projectsBackedText: Signal<String, Never>
   public let projectsCreatedText: Signal<String, Never>
   public let unfollowButtonAccessibilityLabel: Signal<String, Never>
-}
-
-private func cached(friend: User) -> User {
-  if let friendCache = AppEnvironment.current.cache[KSCache.ksr_findFriendsFollowing] as? [Int: Bool] {
-    let isFriend = friendCache[friend.id] ?? friend.isFriend
-    return friend |> \.isFriend .~ isFriend
-  } else {
-    return friend
-  }
-}
-
-private func cache(friend: User, isFriend: Bool) {
-  AppEnvironment.current.cache[KSCache.ksr_findFriendsFollowing] =
-    AppEnvironment.current.cache[KSCache.ksr_findFriendsFollowing] ?? [Int: Bool]()
-
-  var cache = AppEnvironment.current.cache[KSCache.ksr_findFriendsFollowing] as? [Int: Bool]
-  cache?[friend.id] = isFriend
-
-  AppEnvironment.current.cache[KSCache.ksr_findFriendsFollowing] = cache
 }

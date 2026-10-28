@@ -1,5 +1,33 @@
 # Kickstarter migration behaviour contract
 
+## Friends and following — 28 October 2026
+
+- FRIEND-01: Preserve Facebook connection gating, source attribution, friend order,
+  concatenated pagination, terminal empty pages, statistics, loading behavior,
+  discovery navigation, names/counts/accessibility and all existing screen layout.
+- FRIEND-02: Keep follow-all confirmation, immediate list clearing after success,
+  and the existing two-second refresh delay. A previous session's delayed refresh
+  cannot start a request under a replacement account.
+- FRIEND-03: One FriendsFeature owns transient follow state shared by Find Friends
+  and Activity. Follow/unfollow/follow-all writes execute in admission order;
+  identical pending tails share. Failures do not mutate confirmed state or retry.
+- FRIEND-04: Reads belong to screen routes. Equivalent pending reads share, refresh
+  supersedes pagination, and released routes or replaced accounts reject old values
+  and errors. Page and statistics failures remain independent. New reads wait for
+  admitted writes; follow-all invalidates any older page before delayed refresh.
+- FRIEND-05: Cell reuse suppresses another friend's completion. Observer disposal
+  does not cancel an admitted remote write. Session changes reject late cache
+  commits and delayed presentation, including logout/login to the same user ID.
+- FRIEND-06: Native requests retain existing routes, methods, cursor and body fields.
+  The fictional demo rejects follow mutations. No live service mutation is implied
+  by mock success, and cancellation cannot undo a server-accepted write.
+
+Baseline: 25 original logic tests passed. Their behavior assertions are retained
+with explicit async waits. New controlled tests cover ownership and ordering.
+Full checkpoint results and limits are recorded in the ledger and sibling
+Migration Evidence/kickstarter-friends. Visual/device and live-service checks remain open.
+
+
 ## Pledged-project overview and payment plans — 28 October 2026
 
 - PPO-01: Preserve card parsing, tier flags, order, page counts, empty/error/loading

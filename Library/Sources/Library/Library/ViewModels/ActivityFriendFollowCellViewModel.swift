@@ -4,6 +4,7 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol ActivityFriendFollowCellViewModelInputs {
   /// Call to configure activity with Activity.
   func configureWith(activity: Activity)
@@ -12,6 +13,7 @@ public protocol ActivityFriendFollowCellViewModelInputs {
   func followButtonTapped()
 }
 
+@MainActor
 public protocol ActivityFriendFollowCellViewModelOutputs {
   /// Emits a URL to the friend image.
   var friendImageURL: Signal<URL?, Never> { get }
@@ -23,13 +25,16 @@ public protocol ActivityFriendFollowCellViewModelOutputs {
   var title: Signal<NSAttributedString, Never> { get }
 }
 
+@MainActor
 public final class ActivityFriendFollowCellViewModel: ActivityFriendFollowCellViewModelInputs,
   ActivityFriendFollowCellViewModelOutputs {
-  public init() {
+  public init(feature: FriendsFeature? = nil) {
+    let feature = feature ?? AppModel.shared.friendsFeature
+    let configuredActivity = self.activityProperty
     let friend = self.activityProperty.signal.skipNil()
       .map(Activity.lens.user.view)
       .skipNil()
-      .map(cached(friend:))
+      .map { feature.cached($0) }
 
     self.friendImageURL = friend.map { URL.init(string: $0.avatar.small) }
 
@@ -49,13 +54,12 @@ public final class ActivityFriendFollowCellViewModel: ActivityFriendFollowCellVi
 
     let followFriendEvent = friend.takeWhen(self.followButtonTappedProperty.signal)
       .switchMap { user in
-        AppEnvironment.current.apiService.followFriend(userId: user.id)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+        feature.delayed(feature.setFollowingResult(user: user, following: true))
           .materialize()
       }
 
     let followFriendSuccess = followFriendEvent.values()
-      .on(value: { cache(friend: $0, isFriend: true) })
+      .filter { $0.id == configuredActivity.value?.user?.id }
 
     self.hideFollowButton = Signal.merge(friend, followFriendSuccess)
       .map { $0.isFriend ?? false }
@@ -78,23 +82,4 @@ public final class ActivityFriendFollowCellViewModel: ActivityFriendFollowCellVi
 
   public var inputs: ActivityFriendFollowCellViewModelInputs { return self }
   public var outputs: ActivityFriendFollowCellViewModelOutputs { return self }
-}
-
-private func cached(friend: User) -> User {
-  if let friendCache = AppEnvironment.current.cache[KSCache.ksr_activityFriendsFollowing] as? [Int: Bool] {
-    let isFriend = friendCache[friend.id] ?? friend.isFriend
-    return friend |> \.isFriend .~ isFriend
-  } else {
-    return friend
-  }
-}
-
-private func cache(friend: User, isFriend: Bool) {
-  AppEnvironment.current.cache[KSCache.ksr_activityFriendsFollowing] =
-    AppEnvironment.current.cache[KSCache.ksr_activityFriendsFollowing] ?? [Int: Bool]()
-
-  var cache = AppEnvironment.current.cache[KSCache.ksr_activityFriendsFollowing] as? [Int: Bool]
-  cache?[friend.id] = isFriend
-
-  AppEnvironment.current.cache[KSCache.ksr_activityFriendsFollowing] = cache
 }

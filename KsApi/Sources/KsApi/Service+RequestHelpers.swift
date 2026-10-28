@@ -149,6 +149,30 @@ extension Service {
     let _: User = try await self.discussionResponse(route: .resetPassword(email: email))
   }
 
+  @MainActor public func friendsPage(cursor: String?) async throws -> FindFriendsEnvelope {
+    if let cursor {
+      guard let url = URL(string: cursor) else { throw ErrorEnvelope.invalidPaginationUrl }
+      return try await self.discoveryResponse(for: self.preparedRequest(forURL: url))
+    }
+    return try await self.discussionResponse(route: .friends)
+  }
+
+  @MainActor public func friendStatistics() async throws -> FriendStatsEnvelope {
+    try await self.discussionResponse(route: .friendStats)
+  }
+
+  @MainActor public func followUser(id: Int) async throws -> User {
+    try await self.discussionResponse(route: .followFriend(userId: id))
+  }
+
+  @MainActor public func unfollowUser(id: Int) async throws {
+    let _: VoidEnvelope = try await self.discussionResponse(route: .unfollowFriend(userId: id))
+  }
+
+  @MainActor public func followEveryFriend() async throws {
+    let _: VoidEnvelope = try await self.discussionResponse(route: .followAllFriends)
+  }
+
   private func discussionResponse<Model: Decodable>(
     route: Route,
     oauthToken: String? = nil

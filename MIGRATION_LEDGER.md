@@ -43,6 +43,48 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Friends and following — 28 October 2026
+
+FriendsFeature owns Find Friends list/statistics reads, pagination, and the ordered
+follow/unfollow/follow-all command queue shared with Activity. Native service calls
+reuse the existing route, cursor and request-body contracts. AppModel composes one
+owner with SessionFeature; tests inject independent owners.
+
+Equivalent pending requests share; distinct writes execute in account order without
+automatic retry. Disposing observation cannot undo an admitted write. Replaced
+sessions (including the same user ID) cannot commit old results or cache state.
+Independent list/statistics reads preserve their separate failure behavior; refresh
+supersedes pagination, released screens suppress late results, and empty pages stop.
+Reads begun after writes wait for them. Follow-all invalidates older pages; its
+existing two-second UI refresh delay now checks the originating session again.
+Reused cells reject a different friend's completion. Both screens consult one
+transient following cache; no persistence, screens, branding or identifiers change.
+The fictional demo rejects follow mutations.
+
+Baseline: **25 original tests passed**. Their assertions remain, with explicit async
+waits. Final: **1,190 Library + 192 framework + 79 API = 1,461 tests passed**, zero
+failures/skips; **23 new regression cases** (19 Feature/adapter lifetime cases and
+four native API cases). App build succeeded with zero errors and two existing
+warnings: Crashlytics script outputs and missing Frameworks search path.
+
+Results: /private/tmp/kickstarter-friends.7Nq5rA (Library, framework, app build) and
+/private/tmp/kickstarter-friends-api.PKLF7C (API). Only an API-test assertion changed
+between these runs: compare statistics fields instead of requiring Equatable.
+Evidence: sibling Migration Evidence/kickstarter-friends.
+
+Four compile attempts failed while integrating tests: Xcode group identifier,
+fallible producer observer, throwing environment fixture, and API fixture equality.
+All were corrected; no executed test run failed. The earlier focused run passed 43
+before two final cases were added. Repeated runs are not additive coverage.
+No human command execution was required. The three newly selected logic-only suites
+opt out of the snapshot reference-device gate; global snapshot checks are unchanged.
+
+**One implementation group remains:** residual project, creator and account actions
+(saved projects, recommendations, attribution, draft updates, reporting and account
+reads). Then app-wide concurrency, broader regression and visual/device validation.
+**App-wide migration remains in progress; live payments/follow operations remain unverified.**
+
+
 
 ### Pledge-manager navigation and reward add-ons — 28 October 2026
 

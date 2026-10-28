@@ -270,6 +270,12 @@ public protocol ServiceType {
   func discoveryActivitySample() async throws -> ActivityEnvelope?
 
   /// Fetch friends for a user.
+  @MainActor func friendsPage(cursor: String?) async throws -> FindFriendsEnvelope
+  @MainActor func friendStatistics() async throws -> FriendStatsEnvelope
+  @MainActor func followUser(id: Int) async throws -> User
+  @MainActor func unfollowUser(id: Int) async throws
+  @MainActor func followEveryFriend() async throws
+
   func fetchFriends() -> SignalProducer<FindFriendsEnvelope, ErrorEnvelope>
 
   /// Fetch friends from a pagination url.

@@ -1,8 +1,10 @@
+import Foundation
 import KsApi
 import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol FindFriendsViewModelInputs {
   /// Call to set where Friends View Controller was loaded from
   func configureWith(source: FriendsSource)
@@ -35,6 +37,7 @@ public protocol FindFriendsViewModelInputs {
   func willDisplayRow(_ row: Int, outOf totalRows: Int)
 }
 
+@MainActor
 public protocol FindFriendsViewModelOutputs {
   /// Emits an array of friend users with the source that presented the controller.
   var friends: Signal<([User], FriendsSource), Never> { get }
@@ -58,20 +61,28 @@ public protocol FindFriendsViewModelOutputs {
   var stats: Signal<(FriendStatsEnvelope, FriendsSource), Never> { get }
 }
 
+@MainActor
 public protocol FindFriendsViewModelType {
   var inputs: FindFriendsViewModelInputs { get }
   var outputs: FindFriendsViewModelOutputs { get }
 }
 
+@MainActor
 public final class FindFriendsViewModel: FindFriendsViewModelType, FindFriendsViewModelInputs,
   FindFriendsViewModelOutputs {
-  public init() {
+  private let feature: FriendsFeature
+  private let route = UUID()
+  private let subscriptions = CompositeDisposable()
+
+  public init(feature: FriendsFeature? = nil) {
+    let feature = feature ?? AppModel.shared.friendsFeature
+    self.feature = feature
+    let route = self.route
     let source = self.configureWithProperty.signal
 
     let followAll = self.confirmFollowAllFriendsProperty.signal
       .switchMap {
-        AppEnvironment.current.apiService.followAllFriends()
-          .on(value: { _ in AppEnvironment.current.cache[KSCache.ksr_findFriendsFollowing] = [Int: Bool]() })
+        feature.followAllResult()
           .demoteErrors()
       }
 
@@ -84,9 +95,16 @@ public final class FindFriendsViewModel: FindFriendsViewModelType, FindFriendsVi
         .showFacebookConnectionSection(for: AppEnvironment.current.currentUser)
     }
 
+    let refreshAfterFollowAll = followAll.map { _ in
+      (feature.sessionFeature.currentUser?.id, feature.sessionFeature.generation)
+    }
+    .ksr_debounce(.seconds(2), on: AppEnvironment.current.scheduler)
+    .filter { feature.sessionFeature.isCurrent(userID: $0.0, generation: $0.1) }
+    .ignoreValues()
+
     let requestFirstPageWith = Signal.merge(
       shouldShowFacebookConnect.filter(isFalse).ignoreValues(),
-      followAll.ignoreValues().ksr_debounce(.seconds(2), on: AppEnvironment.current.scheduler)
+      refreshAfterFollowAll
     )
 
     let requestNextPageWhen = self.willDisplayRowProperty.signal.skipNil()
@@ -95,17 +113,8 @@ public final class FindFriendsViewModel: FindFriendsViewModelType, FindFriendsVi
       .filter(isTrue)
       .ignoreValues()
 
-    let (friends, isLoading, _, _) = paginate(
-      requestFirstPageWith: requestFirstPageWith,
-      requestNextPageWhen: requestNextPageWhen,
-      clearOnNewRequest: true,
-      valuesFromEnvelope: { $0.users },
-      cursorFromEnvelope: { $0.urls.api.moreUsers },
-      requestFromParams: { AppEnvironment.current.apiService.fetchFriends() },
-      requestFromCursor: {
-        $0.map { AppEnvironment.current.apiService.fetchFriends(paginationUrl: $0) } ?? .empty
-      }
-    )
+    let friends = feature.pageValues.filter { $0.0 == route }.map { $0.1 }
+    let isLoading = feature.loadingValues.filter { $0.0 == route }.map { $0.1 }
 
     self.friends = Signal.combineLatest(
       Signal.merge(friends, followAll.mapConst([])).skipRepeats(==),
@@ -131,15 +140,9 @@ public final class FindFriendsViewModel: FindFriendsViewModelType, FindFriendsVi
       friends.mapConst(false)
     ).skipRepeats()
 
-    let statsEvent = shouldShowFacebookConnect
-      .filter(isFalse)
-      .switchMap { _ in
-        AppEnvironment.current.apiService.fetchFriendStats()
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .materialize()
-      }
-
-    let stats = Signal.combineLatest(statsEvent.values(), source)
+    let stats = Signal.combineLatest(
+      feature.statisticsValues.filter { $0.0 == route }.map { $0.1 }, source
+    )
 
     self.stats = Signal.combineLatest(
       shouldShowFacebookConnect,
@@ -150,6 +153,20 @@ public final class FindFriendsViewModel: FindFriendsViewModelType, FindFriendsVi
       }.map { _, friends, source in
         (friends, source)
       }
+    // Subscribe after the output graph is connected so initial loading is observable.
+    self.subscriptions += requestFirstPageWith.observeValues { feature.requestPage(route: route) }
+    self.subscriptions += requestNextPageWhen.observeValues { feature.requestPage(route: route, next: true) }
+    self.subscriptions += shouldShowFacebookConnect.filter(isFalse).observeValues { _ in
+      feature.requestStatistics(route: route)
+    }
+
+  }
+
+  deinit {
+    self.subscriptions.dispose()
+    let feature = self.feature
+    let route = self.route
+    Task { @MainActor in feature.release(route: route) }
   }
 
   fileprivate let configureWithProperty = MutableProperty<FriendsSource>(FriendsSource.findFriends)

@@ -1225,6 +1225,35 @@
       return SignalProducer(value: config)
     }
 
+    @MainActor public func friendsPage(cursor: String?) async throws -> FindFriendsEnvelope {
+      try Task.checkCancellation()
+      if let response = self.fetchFriendsResponse { return response }
+      if let error = self.fetchFriendsError { throw error }
+      return .template
+    }
+
+    @MainActor public func friendStatistics() async throws -> FriendStatsEnvelope {
+      try Task.checkCancellation()
+      if let response = self.fetchFriendStatsResponse { return response }
+      if let error = self.fetchFriendStatsError { throw error }
+      return .template
+    }
+
+    @MainActor public func followUser(id: Int) async throws -> User {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      if let error = self.followFriendError { throw error }
+      return User.template |> \.id .~ id |> \.isFriend .~ true
+    }
+
+    @MainActor public func unfollowUser(id: Int) async throws {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      if let error = self.unfollowFriendError { throw error }
+    }
+
+    @MainActor public func followEveryFriend() async throws {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+    }
+
     internal func fetchFriends() -> SignalProducer<FindFriendsEnvelope, ErrorEnvelope> {
       if let response = fetchFriendsResponse {
         return SignalProducer(value: response)

@@ -9,8 +9,16 @@ import ReactiveSwift
 import UIKit.UIActivity
 import XCTest
 
+@MainActor
 final class FindFriendsFriendFollowCellViewModelTests: TestCase {
-  let vm: FindFriendsFriendFollowCellViewModelType = FindFriendsFriendFollowCellViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = FriendsFeature(
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+    makeProvider: {
+      precondition(AppEnvironment.current.apiService is MockService)
+      return AsyncFriendsProvider(service: AppEnvironment.current.apiService)
+    }, sleep: { _ in })
+  private lazy var vm: FindFriendsFriendFollowCellViewModelType = FindFriendsFriendFollowCellViewModel(feature: self.feature)
 
   let cellAccessibilityValue = TestObserver<String, Never>()
   let enableFollowButton = TestObserver<Bool, Never>()
@@ -29,22 +37,37 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
   override func setUp() {
     super.setUp()
 
-    self.vm.outputs.enableFollowButton.observe(self.enableFollowButton.observer)
-    self.vm.outputs.enableUnfollowButton.observe(self.enableUnfollowButton.observer)
-    self.vm.outputs.imageURL.map { $0?.absoluteString }.observe(self.imageURL.observer)
-    self.vm.outputs.location.observe(self.location.observer)
-    self.vm.outputs.name.observe(self.friendName.observer)
-    self.vm.outputs.projectsBackedText.observe(self.projectsBackedText.observer)
-    self.vm.outputs.projectsCreatedText.observe(self.projectsCreatedText.observer)
-    self.vm.outputs.hideFollowButton.observe(self.hideFollowButton.observer)
-    self.vm.outputs.hideUnfollowButton.observe(self.hideUnfollowButton.observer)
-    self.vm.outputs.hideProjectsCreated.observe(self.hideProjectsCreated.observer)
-    self.vm.outputs.followButtonAccessibilityLabel.observe(self.followButtonAccessibilityLabel.observer)
-    self.vm.outputs.unfollowButtonAccessibilityLabel.observe(self.unfollowButtonAccessibilityLabel.observer)
-    self.vm.outputs.cellAccessibilityValue.observe(self.cellAccessibilityValue.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.enableFollowButton.observe(self.enableFollowButton.observer)
+      self.vm.outputs.enableUnfollowButton.observe(self.enableUnfollowButton.observer)
+      self.vm.outputs.imageURL.map { $0?.absoluteString }.observe(self.imageURL.observer)
+      self.vm.outputs.location.observe(self.location.observer)
+      self.vm.outputs.name.observe(self.friendName.observer)
+      self.vm.outputs.projectsBackedText.observe(self.projectsBackedText.observer)
+      self.vm.outputs.projectsCreatedText.observe(self.projectsCreatedText.observer)
+      self.vm.outputs.hideFollowButton.observe(self.hideFollowButton.observer)
+      self.vm.outputs.hideUnfollowButton.observe(self.hideUnfollowButton.observer)
+      self.vm.outputs.hideProjectsCreated.observe(self.hideProjectsCreated.observer)
+      self.vm.outputs.followButtonAccessibilityLabel.observe(self.followButtonAccessibilityLabel.observer)
+      self.vm.outputs.unfollowButtonAccessibilityLabel.observe(self.unfollowButtonAccessibilityLabel.observer)
+      self.vm.outputs.cellAccessibilityValue.observe(self.cellAccessibilityValue.observer)
+    }
   }
 
-  func testFriendDetails_Complete() {
+  override func tearDown() async throws {
+    self.feature.reset()
+    await self.feature.waitForOperations()
+    try await super.tearDown()
+  }
+
+  private func advanceFriends(by interval: DispatchTimeInterval = .seconds(0)) async {
+    await self.feature.waitForOperations()
+    await self.scheduler.advance(by: interval)
+    await self.feature.waitForOperations()
+    await self.scheduler.advance()
+  }
+
+  func testFriendDetails_Complete() async {
     let brooklyn = Location.template
       |> Location.lens.displayableName .~ "Brooklyn, NY"
 
@@ -73,7 +96,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
     self.hideProjectsCreated.assertValues([false], "Show projects created text")
   }
 
-  func testFriendDetails_Incomplete() {
+  func testFriendDetails_Incomplete() async {
     let friend = User.template
       |> \.name .~ "Ned"
 
@@ -92,7 +115,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
     self.hideProjectsCreated.assertValues([true], "Hide projects created text")
   }
 
-  func testFollowing_Friend() {
+  func testFollowing_Friend() async {
     let friend = User.template
       |> \.name .~ "Jed"
       |> \.id .~ 245
@@ -123,6 +146,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
     XCTAssertEqual([], self.segmentTrackingClient.events)
 
     self.vm.inputs.unfollowButtonTapped()
+    await self.feature.waitForOperations()
 
     self.hideFollowButton.assertValues([true], "Follow Button does not change")
     self.hideUnfollowButton.assertValues([false], "Unfollow Button does not change")
@@ -139,7 +163,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
       "Accessibility label assigned to the Button"
     )
 
-    scheduler.advance()
+    await self.advanceFriends()
 
     self.hideFollowButton.assertValues([true, false], "Show Follow Button")
     self.hideUnfollowButton.assertValues([false, true], "Hide Unfollow Button")
@@ -148,6 +172,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
     self.cellAccessibilityValue.assertValues(["Followed", "Not followed"])
 
     self.vm.inputs.followButtonTapped()
+    await self.feature.waitForOperations()
 
     self.hideFollowButton.assertValues([true, false], "Follow Button does not change")
     self.hideUnfollowButton.assertValues([false, true], "Unfollow Button does not change")
@@ -157,7 +182,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
     )
     self.enableUnfollowButton.assertValues([true, false, true, false], "Unfollow Button does not change")
 
-    scheduler.advance()
+    await self.advanceFriends()
 
     self.hideFollowButton.assertValues([true, false, true], "Hide Follow Button")
     self.hideUnfollowButton.assertValues([false, true, false], "Show Unfollow Button")
@@ -166,6 +191,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
     self.cellAccessibilityValue.assertValues(["Followed", "Not followed", "Followed"])
 
     self.vm.inputs.unfollowButtonTapped()
+    await self.feature.waitForOperations()
 
     self.hideFollowButton.assertValues([true, false, true], "Follow Button does not change")
     self.hideUnfollowButton.assertValues([false, true, false], "Unfollow Button does not change")
@@ -176,7 +202,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
       "Enable Unfollow Button emits false/true with loader"
     )
 
-    scheduler.advance()
+    await self.advanceFriends()
 
     self.hideFollowButton.assertValues([true, false, true, false], "Show Follow Button")
     self.hideUnfollowButton.assertValues([false, true, false, true], "Hide Unfollow Button")
@@ -195,7 +221,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
     )
   }
 
-  func testFollowing_NonFriend() {
+  func testFollowing_NonFriend() async {
     let friend = User.template
       |> \.name .~ "Zed"
       |> \.id .~ 200
@@ -222,6 +248,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
     XCTAssertEqual([], self.segmentTrackingClient.events)
 
     self.vm.inputs.followButtonTapped()
+    await self.feature.waitForOperations()
 
     self.hideFollowButton.assertValues([false], "Follow Button does not change")
     self.hideUnfollowButton.assertValues([true], "Unfollow Button does not change")
@@ -231,7 +258,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
     )
     self.enableUnfollowButton.assertValues([false], "Enable Unfollow Button does not emit")
 
-    scheduler.advance()
+    await self.advanceFriends()
 
     self.hideFollowButton.assertValues([false, true], "Hide Follow Button")
     self.hideUnfollowButton.assertValues([true, false], "Show Unfollow Button")
@@ -239,6 +266,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
     self.enableUnfollowButton.assertValues([false, true], "Enable Unfollow Button")
 
     self.vm.inputs.unfollowButtonTapped()
+    await self.feature.waitForOperations()
 
     self.hideFollowButton.assertValues([false, true], "Follow Button does not change")
     self.hideUnfollowButton.assertValues([true, false], "Unfollow Button does not change")
@@ -248,7 +276,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
       "Enable Unfollow Button emits false/true with loader"
     )
 
-    scheduler.advance()
+    await self.advanceFriends()
 
     self.hideFollowButton.assertValues([false, true, false], "Show Follow Button")
     self.hideUnfollowButton.assertValues([true, false, true], "Hide Unfollow Button")
@@ -256,6 +284,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
     self.enableUnfollowButton.assertValues([false, true, false, true, false], "Disable Unfollow Button")
 
     self.vm.inputs.followButtonTapped()
+    await self.feature.waitForOperations()
 
     self.hideFollowButton.assertValues([false, true, false], "Follow Button does not change")
     self.hideUnfollowButton.assertValues([true, false, true], "Unfollow Button does not change")
@@ -266,7 +295,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
     self.enableUnfollowButton
       .assertValues([false, true, false, true, false], "Unfollow Button does not change")
 
-    scheduler.advance()
+    await self.advanceFriends()
 
     self.hideFollowButton.assertValues([false, true, false, true], "Hide Follow Button")
     self.hideUnfollowButton.assertValues([true, false, true, false], "Show Unfollow Button")
@@ -277,7 +306,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
     self.enableUnfollowButton.assertValues([false, true, false, true, false, true], "Enable Unfollow Button")
   }
 
-  func testFollowFriend_WithError() {
+  func testFollowFriend_WithError() async {
     let error = ErrorEnvelope(
       errorMessages: ["Something went wrong."],
       ksrCode: .UnknownCode,
@@ -290,7 +319,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
       |> \.id .~ 200
       |> \.isFriend .~ false
 
-    withEnvironment(apiService: MockService(followFriendError: error)) {
+    await withEnvironment(apiService: MockService(followFriendError: error)) {
       self.hideFollowButton.assertValueCount(0)
       self.hideUnfollowButton.assertValueCount(0)
       self.enableFollowButton.assertValueCount(0)
@@ -306,6 +335,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
       XCTAssertEqual([], self.segmentTrackingClient.events)
 
       self.vm.inputs.followButtonTapped()
+    await self.feature.waitForOperations()
 
       self.hideFollowButton.assertValues([false], "Follow Button does not change")
       self.hideUnfollowButton.assertValues([true], "Unfollow Button does not change")
@@ -315,7 +345,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
       )
       self.enableUnfollowButton.assertValues([false], "Enable Unfollow Button does not emit")
 
-      scheduler.advance()
+      await self.advanceFriends()
 
       self.hideFollowButton.assertValues([false], "Follow Button does not emit")
       self.hideUnfollowButton.assertValues([true], "Unfollow Button does not emit")
@@ -324,7 +354,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
     }
   }
 
-  func testUnfollowFriend_WithError() {
+  func testUnfollowFriend_WithError() async {
     let error = ErrorEnvelope(
       errorMessages: ["Something went wrong."],
       ksrCode: .UnknownCode,
@@ -337,7 +367,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
       |> \.id .~ 245
       |> \.isFriend .~ true
 
-    withEnvironment(apiService: MockService(unfollowFriendError: error)) {
+    await withEnvironment(apiService: MockService(unfollowFriendError: error)) {
       self.hideFollowButton.assertValueCount(0)
       self.hideUnfollowButton.assertValueCount(0)
       self.enableFollowButton.assertValueCount(0)
@@ -353,6 +383,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
       XCTAssertEqual([], self.segmentTrackingClient.events)
 
       self.vm.inputs.unfollowButtonTapped()
+    await self.feature.waitForOperations()
 
       self.hideFollowButton.assertValues([true], "Follow Button does not change")
       self.hideUnfollowButton.assertValues([false], "Unfollow Button does not change")
@@ -362,7 +393,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
         "Enable Unfollow Button emits false/true with loader"
       )
 
-      scheduler.advance()
+      await self.advanceFriends()
 
       self.hideFollowButton.assertValues([true], "Follow Button does not emit")
       self.hideUnfollowButton.assertValues([false], "Unfollow Button does not emit")
@@ -371,7 +402,7 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
     }
   }
 
-  func testFriendDetails_NilCreatedProjectsCount() {
+  func testFriendDetails_NilCreatedProjectsCount() async {
     let friend = User.template
       |> \.stats.createdProjectsCount .~ nil
 

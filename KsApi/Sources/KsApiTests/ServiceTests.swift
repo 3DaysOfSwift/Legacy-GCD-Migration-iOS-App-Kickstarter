@@ -14,6 +14,70 @@ struct MySwiftModel: Decodable, Equatable {
 
 final class ServiceTests: XCTestCase {
   @MainActor
+  func testNativeFriendsRoutesPreserveReadAndWriteSemantics() throws {
+    let service = Service()
+    for (route, method, path) in [
+      (Route.friends, "GET", "/v1/users/self/friends/find"),
+      (.friendStats, "GET", "/v1/users/self/friends/find"),
+      (.followFriend(userId: 42), "POST", "/v1/users/self/friends"),
+      (.unfollowFriend(userId: 42), "DELETE", "/v1/users/self/friends/42"),
+      (.followAllFriends, "PUT", "/v1/users/self/friends/follow_all")
+    ] {
+      let request = try service.preparedRouteRequest(route)
+      XCTAssertEqual(request.httpMethod, method)
+      XCTAssertEqual(request.url?.path, path)
+    }
+    let stats = try service.preparedRouteRequest(.friendStats)
+    let query = URLComponents(url: try XCTUnwrap(stats.url), resolvingAgainstBaseURL: false)?.queryItems
+    XCTAssertEqual(query?.first(where: { $0.name == "count" })?.value, "0")
+    let follow = try service.preparedRouteRequest(.followFriend(userId: 42))
+    let body = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(follow.httpBody)) as? [String: Int])
+    XCTAssertEqual(body["followed_id"], 42)
+
+  }
+
+  @MainActor
+  func testNativeFriendsMockPreservesResponsesAndFailures() async throws {
+    let page = try await MockService().friendsPage(cursor: "next")
+    XCTAssertEqual(page.users, FindFriendsEnvelope.template.users)
+    let stats = try await MockService().friendStatistics()
+    XCTAssertEqual(stats.stats.friendProjectsCount, FriendStatsEnvelope.template.stats.friendProjectsCount)
+    XCTAssertEqual(stats.stats.remoteFriendsCount, FriendStatsEnvelope.template.stats.remoteFriendsCount)
+    let user = try await MockService().followUser(id: 42)
+    XCTAssertEqual(user.id, 42)
+    XCTAssertEqual(user.isFriend, true)
+    try await MockService().unfollowUser(id: 42)
+    try await MockService().followEveryFriend()
+    do {
+      _ = try await MockService(fetchFriendsError: .couldNotParseJSON).friendsPage(cursor: nil)
+      XCTFail("Expected the configured error")
+    } catch { XCTAssertTrue(error is ErrorEnvelope) }
+    do {
+      _ = try await MockService(fetchFriendStatsError: .couldNotParseJSON).friendStatistics()
+      XCTFail("Expected the configured error")
+    } catch { XCTAssertTrue(error is ErrorEnvelope) }
+  }
+
+  @MainActor
+  func testPublicDemoRejectsFollowMutations() async {
+    let service = MockService.publicDemo()
+    do { _ = try await service.followUser(id: 42); XCTFail("Demo must not follow") }
+    catch { XCTAssertTrue(error is ErrorEnvelope) }
+    do { try await service.unfollowUser(id: 42); XCTFail("Demo must not unfollow") }
+    catch { XCTAssertTrue(error is ErrorEnvelope) }
+    do { try await service.followEveryFriend(); XCTFail("Demo must not follow all") }
+    catch { XCTAssertTrue(error is ErrorEnvelope) }
+  }
+
+  @MainActor
+  func testNativeFriendsRejectInvalidCursorBeforeNetworkAdmission() async {
+    do {
+      _ = try await Service().friendsPage(cursor: "http://[")
+      XCTFail("Malformed cursor must fail before transport")
+    } catch { XCTAssertTrue(error is ErrorEnvelope) }
+  }
+
+  @MainActor
   func testFastAddOnsRejectInvalidCountryBeforeNetworkAdmission() async {
     do {
       _ = try await Service().fastRewardAddOns(baseRewardID: 1, country: "INVALID")

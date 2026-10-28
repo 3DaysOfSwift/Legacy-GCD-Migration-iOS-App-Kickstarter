@@ -4,6 +4,7 @@
 public final class AppModel {
   public static let shared = AppModel.live()
 
+  public let friendsFeature: FriendsFeature
   public let pledgedProjectsFeature: PledgedProjectsFeature
   public let pledgeFeature: PledgeFeature
   public let paymentsFeature: PaymentsFeature
@@ -21,6 +22,7 @@ public final class AppModel {
   public let projectMediaFeature: ProjectMediaFeature
 
   public init(
+    friendsFeature: FriendsFeature,
     pledgedProjectsFeature: PledgedProjectsFeature,
     pledgeFeature: PledgeFeature,
     paymentsFeature: PaymentsFeature,
@@ -37,6 +39,7 @@ public final class AppModel {
     discussionFeature: DiscussionFeature,
     projectMediaFeature: ProjectMediaFeature
   ) {
+    self.friendsFeature = friendsFeature
     self.pledgedProjectsFeature = pledgedProjectsFeature
     self.pledgeFeature = pledgeFeature
     self.paymentsFeature = paymentsFeature
@@ -56,6 +59,7 @@ public final class AppModel {
 
   public func sessionChanged() {
     self.sessionFeature.sessionChanged()
+    self.friendsFeature.reset()
     self.activityFeature.reset()
     self.profileFeature.reset()
     self.messagingFeature.reset()
@@ -77,6 +81,9 @@ public final class AppModel {
       makeProvider: { AsyncProfileProvider(service: AppEnvironment.current.apiService) }
     )
     return AppModel(
+      friendsFeature: FriendsFeature(sessionFeature: sessionFeature, makeProvider: {
+        AsyncFriendsProvider(service: AppEnvironment.current.apiService)
+      }),
       pledgedProjectsFeature: PledgedProjectsFeature(sessionFeature: sessionFeature, makeProvider: {
         AsyncPledgedProjectsProvider(service: AppEnvironment.current.apiService)
       }),
