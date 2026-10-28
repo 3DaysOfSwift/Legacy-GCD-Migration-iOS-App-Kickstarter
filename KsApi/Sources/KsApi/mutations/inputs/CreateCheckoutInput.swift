@@ -1,6 +1,6 @@
 import Foundation
 
-public struct CreateCheckoutInput: GraphMutationInput, Encodable {
+public struct CreateCheckoutInput: GraphMutationInput, Encodable, Equatable {
   let projectId: String
   let amount: String?
   let locationId: String?

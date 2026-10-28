@@ -10,8 +10,8 @@ estimate. These groups differ substantially in size and risk.
 
 | Group | Remaining application paths | Exit condition |
 | --- | --- | --- |
-| 1. Pledge and backing management | Pledge writes verified; remaining ManagePledge reads, PPO pledged-project pagination/address/receipt writes, PledgeManagerWeb project/update loading | Shared ownership, ordered mutations, session guards and existing screen regressions verified |
-| 2. Checkout and payment plans | PostCampaignCheckout create/validate/complete; PledgeOverTime payment-plan loading | Awaitable commands preserve checkout sequence, payment errors and duplicate-submission policy |
+| 1. Pledge and backing management | Pledge writes and ManagePledge reads verified; remaining PPO pledged-project pagination/address/receipt writes, PledgeManagerWeb project/update loading | Shared ownership, ordered mutations, session guards and existing screen regressions verified |
+| 2. Checkout and payment plans | PostCampaignCheckout create/validate/complete verified; remaining PledgeOverTime payment-plan loading | Awaitable commands preserve checkout sequence, payment errors and duplicate-submission policy |
 | 3. Reward add-ons | RewardAddOnSelection loading; RewardsUseCase secret reward-group write | Feature-owned requests with cancellation/order tests and unchanged selection behavior |
 | 4. Friends and following | FindFriends lists/stats/pagination/follow-all; two follow-cell adapters | Shared follow state and ordered writes; obsolete-account results rejected |
 | 5. Residual project, creator and account actions | WatchProject save/unsave; CuratedProjects and Thanks recommendations; project attribution; UpdateDraft editing/images; ReportProjectInfo options; SettingsAccount user read | Each remaining production request has an explicit owner and documented lifetime |

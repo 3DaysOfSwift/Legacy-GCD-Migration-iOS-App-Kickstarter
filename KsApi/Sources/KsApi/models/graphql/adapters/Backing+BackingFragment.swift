@@ -73,6 +73,13 @@ extension Backing {
   static func producer(
     from data: FetchBackingWithIncrementsRefundedQuery.Data
   ) -> SignalProducer<Backing, ErrorEnvelope> {
+    guard let backing = managedBacking(from: data) else { return SignalProducer(error: .couldNotParseJSON) }
+    return SignalProducer(value: backing)
+  }
+
+  static func managedBacking(
+    from data: FetchBackingWithIncrementsRefundedQuery.Data
+  ) -> Backing? {
     let addOns = data.backing?.addOns?.nodes?
       .compactMap { $0 }
       .compactMap { node -> Reward? in
@@ -110,10 +117,10 @@ extension Backing {
         rewardExpandedShippingRules: rewardShippingRules
       )
     else {
-      return SignalProducer(error: .couldNotParseJSON)
+      return nil
     }
 
-    return SignalProducer(value: backing)
+    return backing
   }
 }
 

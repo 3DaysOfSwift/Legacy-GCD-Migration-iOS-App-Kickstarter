@@ -1,33 +1,49 @@
 import Apollo
 import GraphAPI
-@testable import KsApi
-@testable import KsApiTestHelpers
-@testable import Library
-@testable import LibraryTestHelpers
 import Prelude
 import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@testable import KsApi
+@testable import KsApiTestHelpers
+@testable import Library
+@testable import LibraryTestHelpers
+
 @MainActor
 final class PostCampaignCheckoutViewModelTests: TestCase {
 
   private func advancePayments(by interval: DispatchTimeInterval = .seconds(0)) async {
+    await self.pledgeFeature.waitForOperations()
     await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.pledgeFeature.waitForOperations()
     await self.scheduler.advance(by: interval)
     // A successful store can trigger a card reload during delivery.
+    await self.pledgeFeature.waitForOperations()
     await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.pledgeFeature.waitForOperations()
     await self.scheduler.advance()
   }
   private func runPayments() async {
+    await self.pledgeFeature.waitForOperations()
     await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.pledgeFeature.waitForOperations()
     await self.scheduler.run()
+    await self.pledgeFeature.waitForOperations()
     await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.pledgeFeature.waitForOperations()
     await self.scheduler.run()
   }
 
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  private var vm = PostCampaignCheckoutViewModel(stripeIntentService: MockStripeIntentService())
+  private let pledgeFeature = PledgeFeature(
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+    makeProvider: {
+      precondition(AppEnvironment.current.apiService is MockService, "Tests require MockService")
+      return AsyncPledgeProvider(service: AppEnvironment.current.apiService)
+    })
+  private lazy var vm = PostCampaignCheckoutViewModel(
+    stripeIntentService: MockStripeIntentService(), feature: self.pledgeFeature)
   private let mockStripeIntentService = MockStripeIntentService()
 
   private let checkoutResponse = CreateCheckoutEnvelope(
@@ -48,7 +64,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
   private let configurePaymentMethodsViewControllerWithProject = TestObserver<Project, Never>()
   private let configurePaymentMethodsViewControllerWithCheckoutId = TestObserver<String, Never>()
   private let configurePaymentMethodsViewControllerWithReward = TestObserver<Reward, Never>()
-  private let configurePaymentMethodsViewControllerWithContext = TestObserver<PledgeViewContext, Never>()
+  private let configurePaymentMethodsViewControllerWithContext = TestObserver<
+    PledgeViewContext, Never
+  >()
 
   private let configurePledgeViewCTAContainerViewIsLoggedIn = TestObserver<Bool, Never>()
   private let configurePledgeViewCTAContainerViewIsEnabled = TestObserver<Bool, Never>()
@@ -63,9 +81,11 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
     super.setUp()
     MainActor.assumeIsolated {
 
-      self.vm = PostCampaignCheckoutViewModel(stripeIntentService: self.mockStripeIntentService)
+      self.vm = PostCampaignCheckoutViewModel(
+        stripeIntentService: self.mockStripeIntentService, feature: self.pledgeFeature)
 
-      self.vm.goToApplePayPaymentAuthorization.observe(self.goToApplePayPaymentAuthorization.observer)
+      self.vm.goToApplePayPaymentAuthorization.observe(
+        self.goToApplePayPaymentAuthorization.observer)
       self.vm.checkoutComplete.observe(self.checkoutComplete.observer)
       self.vm.processingViewIsHidden.observe(self.processingViewIsHidden.observer)
       self.vm.validateCheckoutSuccess.observe(self.validateCheckoutSuccess.observer)
@@ -107,7 +127,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
     self.vm.inputs.termsOfUseTapped(with: .terms)
 
     self.showWebHelp.assertValues([HelpType.terms])
+    await self.pledgeFeature.waitForOperations()
     await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.pledgeFeature.waitForOperations()
   }
 
   func testShowWebHelpLearnMore() async {
@@ -116,7 +138,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
     self.vm.inputs.pledgeDisclaimerViewDidTapLearnMore()
 
     self.showWebHelp.assertValues([HelpType.trust])
+    await self.pledgeFeature.waitForOperations()
     await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.pledgeFeature.waitForOperations()
   }
 
   // MARK: - Stripe
@@ -146,8 +170,12 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       self.vm.inputs.viewDidLoad()
 
       self.configureStripeIntegrationMerchantId.assertValues([Secrets.ApplePay.merchantIdentifier])
-      self.configureStripeIntegrationPublishableKey.assertValues([Secrets.StripePublishableKey.staging])
+      self.configureStripeIntegrationPublishableKey.assertValues([
+        Secrets.StripePublishableKey.staging
+      ])
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
@@ -175,8 +203,12 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       self.vm.inputs.viewDidLoad()
 
       self.configureStripeIntegrationMerchantId.assertValues([Secrets.ApplePay.merchantIdentifier])
-      self.configureStripeIntegrationPublishableKey.assertValues([Secrets.StripePublishableKey.production])
+      self.configureStripeIntegrationPublishableKey.assertValues([
+        Secrets.StripePublishableKey.production
+      ])
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
@@ -225,7 +257,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
@@ -274,13 +308,16 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
   func testApplePayAuthorization_rewardAndShipping_isCorrect() async {
     let project = Project.cosmicSurgery
-    let reward = project.rewards.first!
+    let reward =
+      project.rewards.first!
 
       |> Reward.lens.shipping.enabled .~ true
 
@@ -325,17 +362,21 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
   func testApplePayAuthorization_rewardAndShippingAndBonus_isCorrect() async {
     let shippingRule = ShippingRule.template
     var project = Project.cosmicSurgery
-    let reward1 = project.rewards[0]
+    let reward1 =
+      project.rewards[0]
 
       |> Reward.lens.shipping.enabled .~ true
-    let reward2 = project.rewards[1]
+    let reward2 =
+      project.rewards[1]
 
       |> Reward.lens.shipping.enabled .~ true
 
@@ -381,7 +422,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
@@ -419,7 +462,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
@@ -449,7 +494,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       self.vm.inputs.applePayButtonTapped()
       await self.runPayments()
       self.processingViewIsHidden.assertLastValue(false)
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
@@ -480,7 +527,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       await self.runPayments()
       // Processing view starts hidden and should stay hidden.
       self.processingViewIsHidden.assertDidNotEmitValue()
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
@@ -489,24 +538,25 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
     let paymentIntent = PaymentIntentEnvelope(clientSecret: "foo")
     let validateCheckout = ValidateCheckoutEnvelope(messages: ["message"])
     let completeSessionJsonString = """
-    {
-      "completeOnSessionCheckout": {
-        "__typename": "CompleteOnSessionCheckoutPayload",
-        "checkout": {
-          "__typename": "Checkout",
-          "id": "Q2hlY2tvdXQtMTk4MzM2OTIz",
-          "state": "successful",
-          "backing": {
-            "requiresAction": false,
-            "clientSecret": "super-secret",
-            "__typename": "Backing"
+      {
+        "completeOnSessionCheckout": {
+          "__typename": "CompleteOnSessionCheckoutPayload",
+          "checkout": {
+            "__typename": "Checkout",
+            "id": "Q2hlY2tvdXQtMTk4MzM2OTIz",
+            "state": "successful",
+            "backing": {
+              "requiresAction": false,
+              "clientSecret": "super-secret",
+              "__typename": "Backing"
+            }
           }
         }
       }
-    }
-    """
-    let completeSessionData: GraphAPI.CompleteOnSessionCheckoutMutation
-      .Data = try! testGraphObject(jsonString: completeSessionJsonString)
+      """
+    let completeSessionData:
+      GraphAPI.CompleteOnSessionCheckoutMutation
+        .Data = try! testGraphObject(jsonString: completeSessionJsonString)
     let mockService = MockService(
       completeOnSessionCheckoutResult: .success(completeSessionData),
       createCheckoutResult: .success(self.checkoutResponse),
@@ -555,7 +605,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
@@ -597,7 +649,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
@@ -607,28 +661,31 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
     // Mock data for API requests
     let validateCheckout = ValidateCheckoutEnvelope(messages: ["message"])
     let completeSessionJsonString = """
-    {
-      "completeOnSessionCheckout": {
-        "__typename": "CompleteOnSessionCheckoutPayload",
-        "checkout": {
-          "__typename": "Checkout",
-          "id": "Q2hlY2tvdXQtMTk4MzM2OTIz",
-          "state": "successful",
-          "backing": {
-            "requiresAction": false,
-            "clientSecret": "super-secret",
-            "__typename": "Backing"
+      {
+        "completeOnSessionCheckout": {
+          "__typename": "CompleteOnSessionCheckoutPayload",
+          "checkout": {
+            "__typename": "Checkout",
+            "id": "Q2hlY2tvdXQtMTk4MzM2OTIz",
+            "state": "successful",
+            "backing": {
+              "requiresAction": false,
+              "clientSecret": "super-secret",
+              "__typename": "Backing"
+            }
           }
         }
       }
-    }
-    """
-    let completeSessionJson = try! JSONSerialization
+      """
+    let completeSessionJson =
+      try! JSONSerialization
       .jsonObject(with: completeSessionJsonString.data(using: .utf8)!)
-    let completeSessionData: GraphAPI.CompleteOnSessionCheckoutMutation
-      .Data = try! testGraphObject(jsonObject: completeSessionJson as! JSONObject)
+    let completeSessionData:
+      GraphAPI.CompleteOnSessionCheckoutMutation
+        .Data = try! testGraphObject(jsonObject: completeSessionJson as! JSONObject)
     let paymentIntent = PaymentIntentEnvelope(clientSecret: "foo")
-    let graphUser = GraphUser.template |> \.storedCards .~ UserCreditCards.withCards([UserCreditCards.visa])
+    let graphUser =
+      GraphUser.template |> \.storedCards .~ UserCreditCards.withCards([UserCreditCards.visa])
     let userResponse = UserEnvelope<GraphUser>(me: graphUser)
 
     let mockService = MockService(
@@ -680,17 +737,21 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       self.checkoutComplete.assertDidNotEmitValue()
 
       self.vm.inputs.confirmPaymentSuccessful(clientSecret: "super-secret")
+      await self.pledgeFeature.waitForOperations()
 
       self.checkoutComplete.assertDidEmitValue()
       self.processingViewIsHidden.assertLastValue(true)
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
   func testPledge_validationFails() async {
     // Mock data for API requests
     let paymentIntent = PaymentIntentEnvelope(clientSecret: "foo")
-    let graphUser = GraphUser.template |> \.storedCards .~ UserCreditCards.withCards([UserCreditCards.visa])
+    let graphUser =
+      GraphUser.template |> \.storedCards .~ UserCreditCards.withCards([UserCreditCards.visa])
     let userResponse = UserEnvelope<GraphUser>(me: graphUser)
 
     let mockService = MockService(
@@ -736,7 +797,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       self.validateCheckoutSuccess.assertDidNotEmitValue()
       self.processingViewIsHidden.assertValues([false, true])
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
@@ -791,7 +854,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       self.checkoutComplete.assertDidNotEmitValue()
       self.processingViewIsHidden.assertLastValue(true)
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
@@ -832,7 +897,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       self.configurePledgeViewCTAContainerViewIsLoggedIn.assertValues([true, true])
       self.configurePledgeViewCTAContainerViewIsEnabled.assertValues([false, true])
       self.configurePledgeViewCTAContainerViewContext.assertValues([.latePledge, .latePledge])
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
@@ -861,7 +928,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       self.configurePledgeViewCTAContainerViewIsLoggedIn.assertLastValue(true)
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(false)
       self.configurePledgeViewCTAContainerViewContext.assertValues([.latePledge])
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
@@ -890,7 +959,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       self.configurePledgeViewCTAContainerViewIsLoggedIn.assertLastValue(false)
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(false)
       self.configurePledgeViewCTAContainerViewContext.assertValues([.latePledge])
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
@@ -916,7 +987,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       self.goToLoginSignup.assertDidEmitValue()
       self.checkoutError.assertDidNotEmitValue()
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 
@@ -948,7 +1021,9 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       await self.runPayments()
 
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 1)
+      await self.pledgeFeature.waitForOperations()
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+      await self.pledgeFeature.waitForOperations()
     }
   }
 }

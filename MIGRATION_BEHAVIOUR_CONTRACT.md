@@ -787,3 +787,35 @@ that Explore is migrated or baseline-tested.
 - Original screen assertions remain; async test fixtures wait for owned operations
   before temporary environments end. Only the three nonvisual suites opt out of
   the reference-simulator gate. Real payments and visual/device parity remain open.
+
+
+## Backing management and post-campaign checkout — 28 October 2026
+
+- ManagePledge retains its REST project load followed by GraphQL rewards/payment-
+  plan metadata, plus the separate backing query with increments, add-ons, refunds
+  and expanded shipping rules. Keep the initial-project cache and backing refresh
+  behavior, menu options, totals, payment display, banners and 300ms refresh animation.
+- Feature-owned read routes share equivalent pending requests, supersede changed
+  inputs and cancel on screen release/session changes. Screens have independent
+  project/backing routes. A refresh waits for preceding writes and does not share
+  a pre-write pending read. Completed reads are not cached by the Feature.
+- The artificial API delay is applied once to the combined project response;
+  formerly the project and rewards requests each applied it. Its production default
+  remains zero. The actual sequential request dependencies and refresh animation
+  remain; simulated latency is not a live-service performance measurement.
+- PostCampaignCheckout creation, card/Apple Pay validation and completion use the
+  same account-generation command owner as pledge mutations. Preserve amount,
+  repeated reward IDs, location/ref tag, checkout-ID conversion, payment source,
+  nullable reuse/Apple Pay fields and payment-intent secret. Never log these inputs.
+- Validation retains the valid flag and server messages/error mapping. The complete
+  mutation retains its raw GraphQL response contract, including existing downstream
+  success/error interpretation. There is no automatic retry or server idempotency
+  guarantee. Disposing observation does not undo an admitted financial write.
+- Preserve existing Stripe authorization, checkout-terminated presentation, loading,
+  button enablement, error/navigation and analytics bindings. This migration does
+  not assert live Stripe, Apple Pay/3DS or server mutation verification.
+- Existing checkout completion assertions now await the command. The old project-
+  retry test omitted backing data; it now explicitly fails both reads and asserts
+  two error/header events before a successful retry. Other business assertions are
+  retained. Only the nonvisual ManagePledge suite newly opts out of the reference-
+  simulator gate; visual/snapshot checks remain separate.

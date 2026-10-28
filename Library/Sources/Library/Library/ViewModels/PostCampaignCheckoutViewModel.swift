@@ -88,7 +88,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   PostCampaignCheckoutViewModelOutputs {
   let stripeIntentService: StripeIntentServiceType
 
-  public init(stripeIntentService: StripeIntentServiceType) {
+  public init(stripeIntentService: StripeIntentServiceType, feature: PledgeFeature = AppModel.shared.pledgeFeature) {
     self.stripeIntentService = stripeIntentService
 
     let initialData = Signal.combineLatest(
@@ -203,9 +203,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       )
     }
     .switchMap { input in
-      AppEnvironment.current.apiService
-        .createCheckout(input: input)
-        .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      feature.delayedResult(feature.openCheckoutResult(input))
         .materialize()
     }
 
@@ -365,13 +363,10 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
           "Payment method ID should not be missing in a late pledge context."
         )
 
-        return AppEnvironment.current.apiService
-          .validateCheckout(
-            checkoutId: checkoutId,
-            paymentSourceId: selectedCard.stripePaymentMethodId ?? "",
-            paymentIntentClientSecret: paymentIntentClientSecret
-          )
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+        return feature.delayedResult(feature.validateCheckoutResult(
+            checkoutID: checkoutId, sourceID: selectedCard.stripePaymentMethodId ?? "",
+            secret: paymentIntentClientSecret
+          ))
           .materialize()
       }
 
@@ -445,13 +440,9 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     )
     .takeWhen(self.applePayContextDidCompleteSignal)
     .switchMap { (clientSecret: String, checkoutId: String, paymentMethodId: String) in
-      AppEnvironment.current.apiService
-        .validateCheckout(
-          checkoutId: checkoutId,
-          paymentSourceId: paymentMethodId,
-          paymentIntentClientSecret: clientSecret
-        )
-        .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      feature.delayedResult(feature.validateCheckoutResult(
+          checkoutID: checkoutId, sourceID: paymentMethodId, secret: clientSecret
+        ))
         .materialize()
     }
 
@@ -512,7 +503,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
         completeCheckoutWithApplePayInput
       )
       .switchMap { input in
-        AppEnvironment.current.apiService.completeOnSessionCheckout(input: input).materialize()
+        feature.completeCheckoutResult(input).materialize()
       }
 
     let thanksPageData = Signal.combineLatest(project, baseReward, pledgeTotal)

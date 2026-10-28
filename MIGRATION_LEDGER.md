@@ -43,6 +43,52 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Backing management and checkout completion — 28 October 2026
+
+PledgeFeature now owns managed project/backing reads and post-campaign checkout
+creation, validation and completion. The existing screen bindings remain. REST
+project data, GraphQL rewards/pledge-over-time metadata and the backing query retain
+their data composition and fields. Backing's legacy producer and native caller share
+one pure mapper. The initial-project screen cache and 300ms refresh animation remain.
+Artificial combined-project latency now has one response delay instead of two;
+production default remains zero.
+
+Read routes are independent, share equivalent pending requests and reject superseded
+or released responses. Session changes cancel reads. A refresh waits for preceding
+writes and uses the write-admission version to avoid joining older pending data.
+Checkout commands use the existing account-generation ordered queue: equivalent
+pending inputs share; distinct commands remain ordered; failures never auto-retry.
+Disposal does not undo an admitted mutation. Old account/caller outcomes are filtered.
+Native APIs preserve nullable inputs, validation valid/messages and raw completion
+response semantics. Public demo rejects checkout operations.
+
+Baseline: 63 original ManagePledge/PostCampaignCheckout tests passed. Final:
+**1,090 Library + 165 framework + 72 API = 1,327 tests passed**, zero failures/skips.
+All 22 PledgeFeature cases confirmed, including ten new cases. App built with zero
+errors and one existing Crashlytics script-output warning. Results:
+/private/tmp/kickstarter-checkout.GBHb8b. Evidence: sibling Migration Evidence/
+kickstarter-checkout. No human command execution required.
+
+Rework recorded: two compile attempts corrected type qualification/test observer APIs.
+Adapter run passed 73/75; focused run passed 84/85. Checkout assertions now await
+completion. One original retry fixture omitted backing data; it now explicitly fails
+both requests and asserts two errors/header events, retaining successful retry and
+animation checks. Its intermediate single-header assertion failed in a targeted run
+before correction. Other screen business assertions remain. Only the nonvisual
+ManagePledge suite newly opts out of the snapshot-device guard.
+
+No application callers remain for the migrated legacy checkout and managed-backing/
+rewards request methods. Compatibility declarations remain. Live Stripe/Apple Pay/
+3DS, server-accepted changes and physical-device/visual parity remain unverified.
+Swift 5 builds are not full strict-concurrency validation.
+
+Five implementation groups remain open, with the first two reduced. Next: PPO
+pledged-project pagination, address/receipt writes and payment-plan loading, followed
+by the remaining entries in [the work inventory](MIGRATION_REMAINING_WORK.md).
+App-wide migration remains IN PROGRESS.
+
+## Earlier verified checkpoints
+
 ### Pledge creation, updates, cancellation and receipt — 28 October 2026
 
 AppModel now owns PledgeFeature alongside PaymentsFeature and the shared session.
@@ -89,8 +135,6 @@ for concrete paths and final validation gates. No percentage is inferred from te
 counts or groups. Next: backing reads/PPO and checkout creation/validation/completion.
 
 App-wide migration remains IN PROGRESS.
-
-## Earlier verified checkpoints
 
 ### Payment methods and Stripe intents — 28 October 2026
 

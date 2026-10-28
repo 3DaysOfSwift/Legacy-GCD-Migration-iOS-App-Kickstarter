@@ -938,6 +938,38 @@
       return self.fetchUserSelfResponse ?? .template
     }
 
+    @MainActor public func openPledgeCheckout(_ input: CreateCheckoutInput) async throws -> CreateCheckoutEnvelope {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      guard let result = self.createCheckoutResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+    @MainActor public func checkPledgeCheckout(checkoutID: String, sourceID: String, secret: String) async throws -> ValidateCheckoutEnvelope {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      guard let result = self.validateCheckoutResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+    @MainActor public func finishPledgeCheckout(_ input: GraphAPI.CompleteOnSessionCheckoutInput) async throws -> GraphAPI.CompleteOnSessionCheckoutMutation.Data {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      guard let result = self.completeOnSessionCheckoutResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+    @MainActor public func managedPledgeBacking(id: Int) async throws -> Backing {
+      try Task.checkCancellation()
+      guard let result = self.fetchManagePledgeViewBackingResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+    @MainActor public func managedPledgeRewards(projectID: Int) async throws -> RewardsAndPledgeOverTimeEnvelope {
+      try Task.checkCancellation()
+      if let demoCatalog {
+        return RewardsAndPledgeOverTimeEnvelope(rewards: try demoCatalog.project(.id(projectID)).rewards,
+          isPledgeOverTimeAllowed: false, pledgeOverTimeCollectionPlanChargeExplanation: nil,
+          pledgeOverTimeCollectionPlanChargedAsNPayments: nil, pledgeOverTimeCollectionPlanShortPitch: nil,
+          pledgeOverTimeMinimumExplanation: nil)
+      }
+      guard let result = self.fetchProjectRewardsAndPledgeOverTimeDataResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
     @MainActor public func submitPledge(_ input: CreateBackingInput) async throws -> CreateBackingEnvelope {
       try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
       guard let result = self.createBackingResult else { throw ErrorEnvelope.couldNotParseJSON }

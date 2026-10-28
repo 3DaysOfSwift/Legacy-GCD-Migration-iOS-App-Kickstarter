@@ -18,6 +18,7 @@ public enum ManagePledgeAlertAction: CaseIterable {
   case viewRewards
 }
 
+@MainActor
 public protocol ManagePledgeViewModelInputs {
   func beginRefresh()
   func configureWith(_ params: ManagePledgeViewParamConfigData)
@@ -30,6 +31,7 @@ public protocol ManagePledgeViewModelInputs {
   func termsOfUseTapped(with helpType: HelpType)
 }
 
+@MainActor
 public protocol ManagePledgeViewModelOutputs {
   var configurePaymentMethodView: Signal<ManagePledgePaymentMethodViewData, Never> { get }
   var configurePledgeSummaryView: Signal<ManagePledgeSummaryViewData, Never> { get }
@@ -56,14 +58,28 @@ public protocol ManagePledgeViewModelOutputs {
   var plotPaymentScheduleViewHidden: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol ManagePledgeViewModelType {
   var inputs: ManagePledgeViewModelInputs { get }
   var outputs: ManagePledgeViewModelOutputs { get }
 }
 
+@MainActor
 public final class ManagePledgeViewModel:
   ManagePledgeViewModelType, ManagePledgeViewModelInputs, ManagePledgeViewModelOutputs {
-  public init() {
+  private let feature: PledgeFeature
+  private let projectRoute = UUID()
+  private let backingRoute = UUID()
+  deinit {
+    let feature = self.feature, projectRoute = self.projectRoute, backingRoute = self.backingRoute
+    Task { @MainActor in
+      feature.releaseRead(route: projectRoute)
+      feature.releaseRead(route: backingRoute)
+    }
+  }
+  public init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
+    self.feature = feature
+    let projectRoute = self.projectRoute, backingRoute = self.backingRoute
     let params = Signal.combineLatest(
       self.configureWithProjectOrParamSignal,
       self.viewDidLoadSignal
@@ -89,11 +105,7 @@ public final class ManagePledgeViewModel:
       // Only fetch the project if it hasn't yet succeeded, to avoid this call occurring with each refresh.
       .filter { [projectLoaded] _ in projectLoaded.value == false }
       .switchMap { param in
-        AppEnvironment.current.apiService.fetchProject(param: param)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .switchMap { project in
-            fetchProjectRewardsAndPledgeOverTimeData(project: project)
-          }
+        feature.delayedResult(feature.projectResult(route: projectRoute, param: param))
           .materialize()
       }
 
@@ -122,9 +134,7 @@ public final class ManagePledgeViewModel:
       .map { param in param.id }
       .skipNil()
       .switchMap { backingId in
-        AppEnvironment.current.apiService
-          .fetchBackingForManagePledge(id: backingId)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+        feature.delayedResult(feature.backingResult(route: backingRoute, id: backingId))
           .materialize()
       }
 
@@ -472,62 +482,6 @@ public final class ManagePledgeViewModel:
 }
 
 // MARK: - Functions
-
-// TODO: Clean up rewards fetch.
-// We now fetch the rewards directly in the RewardsCollectionViewController.
-// However, other parts of the pledge flow use the rewards attached to the Project to handle other logic -
-// like checking to see if the project has rewards that require shipping, or picking the correct shipping rule.
-// If we can clean up and decouple that behavior from the rest of the pledge flow, we can eliminate this fetch,
-// making the Manage page load substantially faster.
-private func fetchProjectRewards(project: Project) -> SignalProducer<Project, ErrorEnvelope> {
-  return AppEnvironment.current.apiService
-    .fetchProjectRewards(projectId: project.id)
-    .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-    .switchMap { projectRewards -> SignalProducer<Project, ErrorEnvelope> in
-
-      let projectUpdated = projectWithUpdatedRewards(project, rewards: projectRewards)
-
-      return SignalProducer(value: projectUpdated)
-    }
-}
-
-private func fetchProjectRewardsAndPledgeOverTimeData(project: Project)
-  -> SignalProducer<Project, ErrorEnvelope> {
-  return AppEnvironment.current.apiService
-    .fetchProjectRewardsAndPledgeOverTimeData(projectId: project.id)
-    .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-    .switchMap { envelope -> SignalProducer<Project, ErrorEnvelope> in
-
-      var projectUpdated = projectWithUpdatedRewards(project, rewards: envelope.rewards)
-
-      projectUpdated = projectUpdated
-        |> Project.lens.isPledgeOverTimeAllowed .~ envelope.isPledgeOverTimeAllowed
-        |> Project.lens
-        .pledgeOverTimeCollectionPlanChargeExplanation .~ envelope
-        .pledgeOverTimeCollectionPlanChargeExplanation
-        |> Project.lens
-        .pledgeOverTimeCollectionPlanChargedAsNPayments .~ envelope
-        .pledgeOverTimeCollectionPlanChargedAsNPayments
-        |> Project.lens
-        .pledgeOverTimeCollectionPlanShortPitch .~ envelope.pledgeOverTimeCollectionPlanShortPitch
-        |> Project.lens.pledgeOverTimeMinimumExplanation .~ envelope.pledgeOverTimeMinimumExplanation
-
-      return SignalProducer(value: projectUpdated)
-    }
-}
-
-private func projectWithUpdatedRewards(_ project: Project, rewards: [Reward]) -> Project {
-  let rewardsIncludingNoReward: [Reward]
-
-  if let noReward = project.rewardData.rewards.first {
-    rewardsIncludingNoReward = [noReward] + rewards
-  } else {
-    rewardsIncludingNoReward = rewards
-  }
-
-  return project
-    |> Project.lens.rewardData.rewards .~ rewardsIncludingNoReward
-}
 
 private func pledgeViewData(
   project: Project,
