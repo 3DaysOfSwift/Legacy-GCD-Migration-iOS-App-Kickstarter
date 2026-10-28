@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ChangeCurrencyInput: GraphMutationInput {
+public struct ChangeCurrencyInput: GraphMutationInput, Equatable {
   let chosenCurrency: String
 
   public init(chosenCurrency: String) {

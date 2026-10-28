@@ -1,5 +1,33 @@
 # Kickstarter migration behaviour contract
 
+## Account writes and session refresh — 28 October 2026
+
+- ACC-W01: Preserve account form validation, loading/errors, confirmation,
+  navigation and notification effects; retain existing routes and encoded keys.
+- ACC-W02: Account and preference writes execute in admitted order. Only an
+  equivalent pending tail shares work. Failure does not strand the next edit.
+- ACC-W03: Disposing presentation cannot cancel an admitted remote write.
+  Old-session completions cannot persist into the replacement session.
+- ACC-W04: Merge only the confirmed changed account fields into the latest
+  session user. Facebook connection changes its connection/token flags, not a
+  stale response's unrelated preferences. Live reconciliation remains unverified.
+- ACC-R01: Refresh waits for queued settings writes; stale reads and stale errors
+  are suppressed after account changes, including logout/login to the same ID.
+- ACC-R02: Preserve cached-user-first Settings display. Only authenticated
+  lifecycle refresh may restore a stored token's missing user; ordinary refresh
+  never logs in. Setup email/PPO/features commit once through SessionFeature.
+- ACC-V01: Verification links may execute while signed out, share equivalent
+  pending tokens, order distinct tokens and never establish a session.
+- ACC-D01: Public demo rejects account writes; no synthetic successful mutation.
+
+Original assertions plus controlled SettingsFeature/SessionFeature tests protect
+these requirements. Baselines: 37 account-form tests and 11 Settings tests;
+Facebook original suite has post-change evidence only. Final: 962 tests passed,
+zero failures/skips; app build succeeded. See MIGRATION_LEDGER.md and sibling
+Migration Evidence/kickstarter-account-writes for commands, failures and limits.
+UI source/layout is preserved; rendered/device and live account journeys have
+NOT been signed off. This is an engineering checkpoint, not migration completion.
+
 ## Social/signup/OAuth and password reset — 28 October 2026
 
 - Preserve existing Facebook errors and two-factor/confirmation routing, Apple

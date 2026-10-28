@@ -246,6 +246,7 @@ private final class ControlledProfileProvider: ProfileProvider {
 
 @MainActor
 private final class ControlledHeaderProvider: SessionProvider {
+  func setup() async throws -> GraphUserSetup { throw CancellationError() }
   let users = AccountRequestGate<User>()
   let graphs = AccountRequestGate<User>()
   func user() async throws -> User { try await self.users.request() }

@@ -9,6 +9,7 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol SettingsViewModelInputs {
   func currentUserUpdated()
   func logoutConfirmed()
@@ -17,6 +18,7 @@ public protocol SettingsViewModelInputs {
   func viewWillAppear()
 }
 
+@MainActor
 public protocol SettingsViewModelOutputs {
   var findFriendsDisabledProperty: MutableProperty<Bool> { get }
   var goToAppStoreRating: Signal<String, Never> { get }
@@ -26,6 +28,7 @@ public protocol SettingsViewModelOutputs {
   var transitionToViewController: Signal<UIViewController, Never> { get }
 }
 
+@MainActor
 public protocol SettingsViewModelType {
   var inputs: SettingsViewModelInputs { get }
   var outputs: SettingsViewModelOutputs { get }
@@ -33,20 +36,21 @@ public protocol SettingsViewModelType {
   func shouldSelectRow(for cellType: SettingsCellType) -> Bool
 }
 
+@MainActor
 public final class SettingsViewModel: SettingsViewModelInputs,
   SettingsViewModelOutputs, SettingsViewModelType {
-  public init(_ viewControllerFactory: @escaping (SettingsCellType) -> UIViewController?) {
+  public init(
+    _ viewControllerFactory: @escaping (SettingsCellType) -> UIViewController?,
+    settingsFeature: SettingsFeature? = nil
+  ) {
+    let settings = settingsFeature ?? AppModel.shared.settingsFeature
     let user = Signal.merge(
       self.viewDidLoadProperty.signal,
       self.currentUserUpdatedProperty.signal
     )
     .flatMap {
-      AppEnvironment.current.apiService.fetchUserSelf()
-        .wrapInOptional()
-        .prefix(value: AppEnvironment.current.currentUser)
-        .demoteErrors()
+      settings.userResult().demoteErrors()
     }
-    .skipNil()
 
     let isFollowingEnabled = user
       .map { $0 |> (\User.social).view }

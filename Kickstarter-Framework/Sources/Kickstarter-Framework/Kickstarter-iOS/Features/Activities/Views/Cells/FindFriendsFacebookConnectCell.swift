@@ -68,8 +68,7 @@ internal final class FindFriendsFacebookConnectCell: UITableViewCell, ValueCell 
       }
 
     self.viewModel.outputs.updateUserInEnvironment
-      .observeValues { [weak self] user in
-        AppEnvironment.updateCurrentUser(user)
+      .observeValues { [weak self] _ in
         self?.viewModel.inputs.userUpdated()
       }
   }

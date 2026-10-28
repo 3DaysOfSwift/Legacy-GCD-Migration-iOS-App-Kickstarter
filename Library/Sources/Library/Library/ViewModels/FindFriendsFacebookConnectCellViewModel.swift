@@ -4,6 +4,7 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol FindFriendsFacebookConnectCellViewModelInputs {
   /// Call when close button tapped to dismiss this view if used as a header
   func closeButtonTapped()
@@ -24,6 +25,7 @@ public protocol FindFriendsFacebookConnectCellViewModelInputs {
   func userUpdated()
 }
 
+@MainActor
 public protocol FindFriendsFacebookConnectCellViewModelOutputs {
   /// Emits when Facebook login should start
   var attemptFacebookLogin: Signal<(), Never> { get }
@@ -59,14 +61,17 @@ public protocol FindFriendsFacebookConnectCellViewModelOutputs {
   var facebookConnectButtonTitle: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol FindFriendsFacebookConnectCellViewModelType {
   var inputs: FindFriendsFacebookConnectCellViewModelInputs { get }
   var outputs: FindFriendsFacebookConnectCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class FindFriendsFacebookConnectCellViewModel: FindFriendsFacebookConnectCellViewModelType,
   FindFriendsFacebookConnectCellViewModelInputs, FindFriendsFacebookConnectCellViewModelOutputs {
-  public init() {
+  public init(settingsFeature: SettingsFeature? = nil) {
+    let settingsFeature = settingsFeature ?? AppModel.shared.settingsFeature
     self.notifyDelegateToDismissHeader = self.closeButtonTappedProperty.signal
 
     let isLoading: MutableProperty<Bool> = MutableProperty(false)
@@ -80,7 +85,7 @@ public final class FindFriendsFacebookConnectCellViewModel: FindFriendsFacebookC
 
     let facebookConnect = tokenString
       .switchMap { token in
-        AppEnvironment.current.apiService.facebookConnect(facebookAccessToken: token)
+        settingsFeature.accountResult(.facebook(token))
           .on(
             starting: {
               isLoading.value = true
@@ -199,7 +204,7 @@ public final class FindFriendsFacebookConnectCellViewModel: FindFriendsFacebookC
 }
 
 extension FindFriendsFacebookConnectCellViewModel {
-  public static func showFacebookConnectionSection(for user: User?) -> Bool {
+  nonisolated public static func showFacebookConnectionSection(for user: User?) -> Bool {
     guard let isFacebookConnected = user?.facebookConnected else {
       return true
     }

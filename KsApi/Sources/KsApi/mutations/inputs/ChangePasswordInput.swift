@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ChangePasswordInput: GraphMutationInput {
+public struct ChangePasswordInput: GraphMutationInput, Equatable {
   let currentPassword: String
   let newPassword: String
   let newPasswordConfirmation: String

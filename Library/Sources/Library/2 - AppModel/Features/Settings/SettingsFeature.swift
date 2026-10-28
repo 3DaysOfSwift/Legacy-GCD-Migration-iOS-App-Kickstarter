@@ -5,6 +5,9 @@ import ReactiveSwift
 @MainActor
 public protocol AccountPreferencesProvider {
   func save(_ user: User) async throws -> User
+  func update(_ change: SettingsFeature.AccountChange) async throws -> User?
+  func emailUser() async throws -> GraphUser
+  func verifyEmail(token: String) async throws -> EmailVerificationResponseEnvelope
 }
 
 @MainActor
@@ -14,6 +17,24 @@ public struct AsyncAccountPreferencesProvider: AccountPreferencesProvider {
   public func save(_ user: User) async throws -> User {
     try await self.service.saveAccountPreferences(user)
   }
+
+  public func verifyEmail(token: String) async throws -> EmailVerificationResponseEnvelope {
+    try await self.service.confirmEmail(token: token)
+  }
+
+  public func emailUser() async throws -> GraphUser { try await self.service.accountEmailUser() }
+
+  public func update(_ change: SettingsFeature.AccountChange) async throws -> User? {
+    switch change {
+    case let .email(input): try await self.service.saveEmail(input)
+    case let .password(input): try await self.service.savePassword(input)
+    case let .initialPassword(input): try await self.service.setInitialPassword(input)
+    case let .currency(currency): try await self.service.saveCurrency(.init(chosenCurrency: currency))
+    case .sendVerification: try await self.service.requestEmailVerification()
+    case let .facebook(token): return try await self.service.connectFacebook(token: token)
+    }
+    return nil
+  }
 }
 
 /// Owns ordered preference edits, not credentials or a second current-user store.
@@ -21,6 +42,21 @@ public struct AsyncAccountPreferencesProvider: AccountPreferencesProvider {
 /// session user at dispatch, so stale cells cannot undo another screen's edits.
 @MainActor
 public final class SettingsFeature {
+  /// Commands contain credentials only for their admitted lifetime, never in evidence or persistent state.
+  public enum AccountChange: Equatable {
+    case email(ChangeEmailInput)
+    case password(ChangePasswordInput)
+    case initialPassword(CreatePasswordInput)
+    case currency(String)
+    case sendVerification
+    case facebook(String)
+  }
+
+  private enum Edit: Equatable {
+    case preferences([Change])
+    case account(AccountChange)
+  }
+
   public struct Change: Hashable {
     let path: WritableKeyPath<User, Bool?>
     let value: Bool?
@@ -44,7 +80,7 @@ public final class SettingsFeature {
   private struct Pending {
     let id: UUID
     let account: Account
-    let changes: [Change]
+    let edit: Edit
     let task: Task<User, Error>
   }
 
@@ -68,6 +104,23 @@ public final class SettingsFeature {
   private var tail: Pending?
   private var writes: [UUID: Task<User, Error>] = [:]
   private var reads: [UUID: Task<Void, Never>] = [:]
+  private var emailRead: (
+    id: UUID,
+    userID: Int?,
+    generation: Int,
+    revision: Int,
+    task: Task<GraphUser, Error>
+  )?
+  private struct Verification {
+    let id: UUID
+    let token: String
+    let userID: Int?
+    let generation: Int
+    let task: Task<EmailVerificationResponseEnvelope, Error>
+  }
+
+  private var verificationTail: Verification?
+  private var verificationWrites: [UUID: Task<EmailVerificationResponseEnvelope, Error>] = [:]
   private var editRevision = 0
   private let results = Signal<(UUID, Result<User, Error>), Never>.pipe()
   public private(set) var lastError: Error?
@@ -135,6 +188,10 @@ public final class SettingsFeature {
   }
 
   private func request(_ changes: [Change], from source: User) -> Pending {
+    self.request(.preferences(changes), from: source)
+  }
+
+  private func request(_ edit: Edit, from source: User) -> Pending {
     let account = self.identity(for: source)
     let valid = self.isCurrent(account)
     if valid, self.account != account {
@@ -143,7 +200,7 @@ public final class SettingsFeature {
       self.lastError = nil
     }
     // Share only the equivalent tail: on/off/on must still execute in order.
-    if valid, let tail = self.tail, tail.account == account, tail.changes == changes { return tail }
+    if valid, let tail = self.tail, tail.account == account, tail.edit == edit { return tail }
     let previous = valid ? self.tail?.task : nil
     let provider = self.makeProvider()
     let id = UUID()
@@ -157,10 +214,27 @@ public final class SettingsFeature {
       do {
         guard self.isCurrent(account) else { throw CancellationError() }
         let base = self.session.currentUser ?? source
-        let requested = self.applying(changes, to: base)
-        let response = try await provider.save(requested)
-        guard self.isCurrent(account), response.id == source.id else { throw CancellationError() }
-        let current = self.applying(self.preferences(of: response), to: self.session.currentUser ?? response)
+        let current: User
+        switch edit {
+        case let .preferences(changes):
+          let response = try await provider.save(self.applying(changes, to: base))
+          guard self.isCurrent(account), response.id == source.id else { throw CancellationError() }
+          current = self.applying(self.preferences(of: response), to: self.session.currentUser ?? response)
+        case let .account(change):
+          let response = try await provider.update(change)
+          guard self.isCurrent(account), response == nil || response?.id == source.id,
+                var latest = self.session.currentUser else { throw CancellationError() }
+          // Update only confirmed account fields, not a stale server copy of preferences.
+          switch change {
+          case let .currency(currency): latest.chosenCurrency = currency
+          case .initialPassword: latest.needsPassword = false
+          case .facebook:
+            latest.facebookConnected = response?.facebookConnected
+            latest.needsFreshFacebookToken = response?.needsFreshFacebookToken
+          case .email, .password, .sendVerification: break
+          }
+          current = latest
+        }
         self.session.commitUser(current, userID: account.id, generation: account.generation)
         self.session.invalidateReads()
         self.lastError = nil
@@ -174,7 +248,7 @@ public final class SettingsFeature {
       self.results.input.send(value: (id, result))
       return try result.get()
     }
-    let pending = Pending(id: id, account: account, changes: changes, task: task)
+    let pending = Pending(id: id, account: account, edit: edit, task: task)
     if valid { self.tail = pending }
     self.writes[id] = task
     return pending
@@ -195,17 +269,195 @@ public final class SettingsFeature {
     }
   }
 
-  public func userResult() -> SignalProducer<User, ErrorEnvelope> {
+  public func updateAccount(_ change: AccountChange) async throws -> User {
+    try Task.checkCancellation()
+    guard let user = self.session.currentUser else { throw CancellationError() }
+    let result = try await self.request(.account(change), from: user).task.value
+    try Task.checkCancellation()
+    return result
+  }
+
+  public func accountResult(_ change: AccountChange) -> SignalProducer<User, ErrorEnvelope> {
     SignalProducer { observer, lifetime in
       MainActor.assumeIsolated {
-        if let user = self.session.currentUser { observer.send(value: user) }
+        guard let user = self.session.currentUser else { observer.sendInterrupted(); return }
+        let pending = self.request(.account(change), from: user)
+        let subscription = self.results.output.filter { $0.0 == pending.id }.take(first: 1)
+          .observeValues { _, result in Self.deliver(result, to: observer) }
+        lifetime.observeEnded { subscription?.dispose() }
+      }
+    }
+  }
+
+  /// Verification links carry their own token and may be opened while signed out.
+  /// They do not establish a login. Distinct links queue; equivalent tails share.
+  public func verifyEmail(token: String) async throws -> EmailVerificationResponseEnvelope {
+    try Task.checkCancellation()
+    let task = self.verificationRequest(token: token)
+    let envelope = try await task.value
+    try Task.checkCancellation()
+    return envelope
+  }
+
+  private func verificationRequest(token: String) -> Task<EmailVerificationResponseEnvelope, Error> {
+    let userID = self.session.currentUser?.id
+    let generation = self.session.generation
+    if let tail = self.verificationTail, tail.token == token,
+       tail.userID == userID, tail.generation == generation { return tail.task }
+    let previous = self.verificationTail?.task
+    let provider = self.makeProvider()
+    let id = UUID()
+    let task = Task { [self] in
+      defer {
+        self.verificationWrites[id] = nil
+        if self.verificationTail?.id == id { self.verificationTail = nil }
+      }
+      if let previous { _ = await previous.result }
+      do {
+        guard self.session.isCurrent(userID: userID, generation: generation)
+        else { throw CancellationError() }
+        let envelope = try await provider.verifyEmail(token: token)
+        guard self.session.isCurrent(userID: userID, generation: generation)
+        else { throw CancellationError() }
+        self.session.invalidateReads()
+        return envelope
+      } catch {
+        guard self.session.isCurrent(userID: userID, generation: generation)
+        else { throw CancellationError() }
+        throw error
+      }
+    }
+    self.verificationTail = Verification(
+      id: id,
+      token: token,
+      userID: userID,
+      generation: generation,
+      task: task
+    )
+    self.verificationWrites[id] = task
+    return task
+  }
+
+  public func verificationResult(token: String)
+    -> SignalProducer<EmailVerificationResponseEnvelope, ErrorEnvelope> {
+    self.readResult { try await self.verifyEmail(token: token) }
+  }
+
+  public func setupResult() -> SignalProducer<GraphUserSetup, ErrorEnvelope> {
+    let userID = self.session.currentUser?.id
+    let generation = self.session.generation
+    return self.readResult {
+      while let previous = self.tail?.task { _ = await previous.result }
+      try Task.checkCancellation()
+      guard self.session.isCurrent(userID: userID, generation: generation) else { throw CancellationError() }
+      return try await self.session.refreshSetup()
+    }
+  }
+
+  private func readResult<Value>(_ operation: @escaping @MainActor () async throws -> Value)
+    -> SignalProducer<Value, ErrorEnvelope> {
+    SignalProducer { observer, lifetime in
+      MainActor.assumeIsolated {
+        let id = UUID()
+        let task = Task { [self] in
+          defer { self.reads[id] = nil }
+          do {
+            let value = try await operation()
+            try Task.checkCancellation()
+            observer.send(value: value)
+            observer.sendCompleted()
+          } catch is CancellationError { observer.sendInterrupted() }
+          catch { observer.send(error: error as? ErrorEnvelope ?? .couldNotParseJSON) }
+        }
+        self.reads[id] = task
+        lifetime.observeEnded { task.cancel() }
+      }
+    }
+  }
+
+  public func emailUser() async throws -> GraphUser {
+    let generation = self.session.generation
+    let userID = self.session.currentUser?.id
+    while let previous = self.tail?.task { _ = await previous.result }
+    let revision = self.session.readGeneration
+    try Task.checkCancellation()
+    guard self.session.isCurrent(userID: userID, generation: generation) else { throw CancellationError() }
+    let task: Task<GraphUser, Error>
+    if let existing = self.emailRead, existing.userID == userID,
+       existing.generation == generation, existing.revision == revision {
+      task = existing.task
+    } else {
+      self.emailRead?.task.cancel()
+      let id = UUID()
+      let provider = self.makeProvider()
+      task = Task { [self] in
+        defer { if self.emailRead?.id == id { self.emailRead = nil } }
+        return try await provider.emailUser()
+      }
+      self.emailRead = (id, userID, generation, revision, task)
+    }
+    do {
+      let user = try await task.value
+      try Task.checkCancellation()
+      guard revision == self.session.readGeneration, self.session.isCurrent(
+        userID: userID,
+        generation: generation
+      )
+      else { throw CancellationError() }
+      return user
+    } catch {
+      guard !Task.isCancelled, revision == self.session.readGeneration,
+            self.session.isCurrent(userID: userID, generation: generation) else { throw CancellationError() }
+      throw error
+    }
+  }
+
+  public func emailUserResult() -> SignalProducer<GraphUser, ErrorEnvelope> {
+    SignalProducer { observer, lifetime in
+      MainActor.assumeIsolated {
+        let id = UUID()
+        let task = Task { [self] in
+          defer { self.reads[id] = nil }
+          do {
+            let user = try await self.emailUser()
+            observer.send(value: user)
+            observer.sendCompleted()
+          } catch is CancellationError { observer.sendInterrupted() }
+          catch { observer.send(error: error as? ErrorEnvelope ?? .couldNotParseJSON) }
+        }
+        self.reads[id] = task
+        lifetime.observeEnded { task.cancel() }
+      }
+    }
+  }
+
+  /// App lifecycle receives only a freshly committed user, not the cached initial emission.
+  public func refreshResult(allowSessionRestore: Bool = false) -> SignalProducer<User, ErrorEnvelope> {
+    self.userResult(includeCurrent: false, allowSessionRestore: allowSessionRestore)
+  }
+
+  public func userResult() -> SignalProducer<User, ErrorEnvelope> {
+    self.userResult(includeCurrent: true)
+  }
+
+  private func userResult(
+    includeCurrent: Bool,
+    allowSessionRestore: Bool = false
+  ) -> SignalProducer<User, ErrorEnvelope> {
+    SignalProducer { observer, lifetime in
+      MainActor.assumeIsolated {
+        if includeCurrent, let user = self.session.currentUser { observer.send(value: user) }
         let id = UUID()
         let generation = self.session.generation
         let userID = self.session.currentUser?.id
         let task = Task { [self] in
           defer { self.reads[id] = nil }
           do {
-            let user = try await self.refresh(userID: userID, generation: generation)
+            let user = try await self.refresh(
+              userID: userID,
+              generation: generation,
+              allowSessionRestore: allowSessionRestore
+            )
             observer.send(value: user)
             observer.sendCompleted()
           } catch { Self.deliver(.failure(error), to: observer) }
@@ -220,18 +472,38 @@ public final class SettingsFeature {
     try await self.refresh(userID: self.session.currentUser?.id, generation: self.session.generation)
   }
 
-  private func refresh(userID: Int?, generation: Int) async throws -> User {
-    if let previous = self.tail?.task { _ = await previous.result }
+  private func refresh(
+    userID: Int?,
+    generation: Int,
+    allowSessionRestore: Bool = false
+  ) async throws -> User {
+    while let previous = self.tail?.task { _ = await previous.result }
     let revision = self.editRevision
     try Task.checkCancellation()
     guard self.session.isCurrent(userID: userID, generation: generation)
     else { throw CancellationError() }
-    let user = try await self.session.refresh()
-    try Task.checkCancellation()
-    guard revision == self.editRevision, userID == nil || user.id == userID else { throw CancellationError() }
-    self.account = self.identity(for: user)
-    self.session.commitUser(user, userID: userID, generation: generation)
-    return user
+    let readGeneration = self.session.readGeneration
+    do {
+      let user = try await self.session.refresh()
+      try Task.checkCancellation()
+      guard revision == self.editRevision, readGeneration == self.session.readGeneration,
+            self.session.isCurrent(userID: userID, generation: generation),
+            userID == nil || user.id == userID else { throw CancellationError() }
+      self.account = self.identity(for: user)
+      self.session.commitRefreshedUser(
+        user,
+        userID: userID,
+        generation: generation,
+        allowSessionRestore: allowSessionRestore
+      )
+      return user
+    } catch {
+      guard !Task.isCancelled, revision == self.editRevision,
+            readGeneration == self.session.readGeneration,
+            self.session.isCurrent(userID: userID, generation: generation)
+      else { throw CancellationError() }
+      throw error
+    }
   }
 
   private static func deliver(
@@ -247,9 +519,13 @@ public final class SettingsFeature {
 
   /// Waits for owned executions, not presentation scheduler delays.
   func waitForOperations() async {
-    while !self.reads.isEmpty || !self.writes.isEmpty {
+    while !self.reads.isEmpty || !self.writes.isEmpty || !self.verificationWrites.isEmpty || self
+      .emailRead != nil {
       let reads = Array(self.reads.values)
       let writes = Array(self.writes.values)
+      let verifications = Array(self.verificationWrites.values)
+      for verification in verifications { _ = await verification.result }
+      if let task = self.emailRead?.task { _ = await task.result }
       for read in reads { await read.value }
       for write in writes { _ = await write.result }
     }

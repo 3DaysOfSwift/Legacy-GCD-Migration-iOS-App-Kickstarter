@@ -111,10 +111,10 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.outputs.updateConfigInEnvironment.observe(self.updateConfigInEnvironment.observer)
   }
 
-  func testResetApplicationIconBadgeNumber_registeredForPushNotifications_WillEnterForeground() {
+  func testResetApplicationIconBadgeNumber_registeredForPushNotifications_WillEnterForeground() async {
     MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: true)
 
-    withEnvironment(pushRegistrationType: MockPushRegistration.self) {
+    await withEnvironment(pushRegistrationType: MockPushRegistration.self) {
       self.applicationIconBadgeNumber.assertValues([])
 
       self.vm.inputs.applicationWillEnterForeground()
@@ -123,10 +123,10 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testResetApplicationIconBadgeNumber_notRegisteredForPushNotifications_WillEnterForeground() {
+  func testResetApplicationIconBadgeNumber_notRegisteredForPushNotifications_WillEnterForeground() async {
     MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
 
-    withEnvironment(pushRegistrationType: MockPushRegistration.self) {
+    await withEnvironment(pushRegistrationType: MockPushRegistration.self) {
       self.applicationIconBadgeNumber.assertValues([])
 
       self.vm.inputs.applicationWillEnterForeground()
@@ -135,10 +135,10 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testResetApplicationIconBadgeNumber_registeredForPushNotifications_AppLaunch() {
+  func testResetApplicationIconBadgeNumber_registeredForPushNotifications_AppLaunch() async {
     MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: true)
 
-    withEnvironment(pushRegistrationType: MockPushRegistration.self) {
+    await withEnvironment(pushRegistrationType: MockPushRegistration.self) {
       self.applicationIconBadgeNumber.assertValues([])
 
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
@@ -147,10 +147,10 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testResetApplicationIconBadgeNumber_notRegisteredForPushNotifications_AppLaunch() {
+  func testResetApplicationIconBadgeNumber_notRegisteredForPushNotifications_AppLaunch() async {
     MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
 
-    withEnvironment(pushRegistrationType: MockPushRegistration.self) {
+    await withEnvironment(pushRegistrationType: MockPushRegistration.self) {
       self.applicationIconBadgeNumber.assertValues([])
 
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
@@ -159,13 +159,13 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testConfigureFirebase() {
+  func testConfigureFirebase() async {
     self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
 
     self.configureFirebase.assertValueCount(1)
   }
 
-  func testCurrentUserUpdating_NothingHappensWhenLoggedOut() {
+  func testCurrentUserUpdating_NothingHappensWhenLoggedOut() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -176,7 +176,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.updateCurrentUserInEnvironment.assertDidNotEmitValue()
   }
 
-  func testCurrentUserUpdating_WhenLoggedIn() {
+  func testCurrentUserUpdating_WhenLoggedIn() async {
     let env = AccessTokenEnvelope(accessToken: "deadbeef", user: User.template)
     AppEnvironment.login(env)
 
@@ -185,7 +185,8 @@ final class AppDelegateViewModelTests: TestCase {
       launchOptions: [:]
     )
 
-    self.scheduler.advance(by: .seconds(5))
+    await self.scheduler.advance(by: .seconds(5))
+    await self.settingsFeature.waitForOperations()
 
     self.updateCurrentUserInEnvironment.assertValues([env.user])
     self.postNotificationName.assertDidNotEmitValue()
@@ -196,7 +197,8 @@ final class AppDelegateViewModelTests: TestCase {
     self.postNotificationName.assertValues([.ksr_userUpdated])
 
     self.vm.inputs.applicationWillEnterForeground()
-    self.scheduler.advance(by: .seconds(5))
+    await self.scheduler.advance(by: .seconds(5))
+    await self.settingsFeature.waitForOperations()
 
     self.updateCurrentUserInEnvironment.assertValues([env.user, env.user])
     self.postNotificationName.assertValues([.ksr_userUpdated])
@@ -209,7 +211,7 @@ final class AppDelegateViewModelTests: TestCase {
     )
   }
 
-  func testAppStateEnteringBackground_SendNotification_Success() {
+  func testAppStateEnteringBackground_SendNotification_Success() async {
     let env = AccessTokenEnvelope(accessToken: "deadbeef", user: User.template)
     AppEnvironment.login(env)
 
@@ -218,28 +220,31 @@ final class AppDelegateViewModelTests: TestCase {
       launchOptions: [:]
     )
 
-    self.scheduler.advance(by: .seconds(5))
+    await self.scheduler.advance(by: .seconds(5))
+    await self.settingsFeature.waitForOperations()
 
     self.postNotificationName.assertDidNotEmitValue()
 
     self.vm.inputs.applicationDidEnterBackground()
-    self.scheduler.advance(by: .seconds(5))
+    await self.scheduler.advance(by: .seconds(5))
+    await self.settingsFeature.waitForOperations()
 
     self.postNotificationName.assertValues(
       [.ksr_applicationDidEnterBackground]
     )
   }
 
-  func testCurrentUserUpdating_WithLegacyUserDefaultsUser() {
+  func testCurrentUserUpdating_WithLegacyUserDefaultsUser() async {
     // No current user in the environment, but the api has an oauth token. This can happen when an oauth
     // token is resurrected from the legacy user defaults.
-    withEnvironment(apiService: MockService(oauthToken: OauthToken(token: "deadbeef"))) {
+    await withEnvironment(apiService: MockService(oauthToken: OauthToken(token: "deadbeef"))) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [:]
       )
 
-      self.scheduler.advance(by: .seconds(5))
+      await self.scheduler.advance(by: .seconds(5))
+      await self.settingsFeature.waitForOperations()
 
       self.updateCurrentUserInEnvironment.assertValues([.template])
       self.postNotificationName.assertDidNotEmitValue()
@@ -251,7 +256,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testInvalidAccessToken() {
+  func testInvalidAccessToken() async {
     let error = ErrorEnvelope(
       errorMessages: ["invalid deadbeef"],
       ksrCode: .AccessTokenInvalid,
@@ -259,23 +264,24 @@ final class AppDelegateViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(fetchUserSelfError: error), currentUser: .template) {
+    await withEnvironment(apiService: MockService(fetchUserSelfError: error), currentUser: .template) {
       self.forceLogout.assertValueCount(0)
 
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [:]
       )
-      self.scheduler.advance(by: .seconds(5))
+      await self.scheduler.advance(by: .seconds(5))
+      await self.settingsFeature.waitForOperations()
 
       self.updateCurrentUserInEnvironment.assertDidNotEmitValue()
       self.forceLogout.assertValueCount(1)
     }
   }
 
-  func testConfig() {
+  func testConfig() async {
     let config1 = Config.template |> Config.lens.countryCode .~ "US"
-    withEnvironment(apiService: MockService(fetchConfigResponse: config1)) {
+    await withEnvironment(apiService: MockService(fetchConfigResponse: config1)) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [:]
@@ -287,7 +293,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
 
     let config2 = Config.template |> Config.lens.countryCode .~ "GB"
-    withEnvironment(apiService: MockService(fetchConfigResponse: config2)) {
+    await withEnvironment(apiService: MockService(fetchConfigResponse: config2)) {
       self.vm.inputs.applicationWillEnterForeground()
       self.updateConfigInEnvironment.assertValues([config1, config2])
 
@@ -296,7 +302,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
 
     let config3 = Config.template |> Config.lens.countryCode .~ "CZ"
-    withEnvironment(apiService: MockService(fetchConfigResponse: config3)) {
+    await withEnvironment(apiService: MockService(fetchConfigResponse: config3)) {
       self.vm.inputs.userSessionEnded()
       self.updateConfigInEnvironment.assertValues([config1, config2, config3])
 
@@ -305,7 +311,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
 
     let config4 = Config.template |> Config.lens.countryCode .~ "CA"
-    withEnvironment(apiService: MockService(fetchConfigResponse: config4)) {
+    await withEnvironment(apiService: MockService(fetchConfigResponse: config4)) {
       self.vm.inputs.userSessionStarted()
       self.updateConfigInEnvironment.assertValues([config1, config2, config3, config4])
 
@@ -319,12 +325,12 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testPresentViewController() {
+  func testPresentViewController() async {
     let apiService = MockService(
       fetchProjectResult: .success(.template),
       fetchUpdateResponse: .template
     )
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       let rootUrl = "https://www.kickstarter.com/"
 
       self.vm.inputs.applicationDidFinishLaunching(
@@ -396,12 +402,12 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testPresentViewController_ProjectPreviewLink_DisplayPrelaunch_True() {
+  func testPresentViewController_ProjectPreviewLink_DisplayPrelaunch_True() async {
     let project = Project.template
       |> Project.lens.displayPrelaunch .~ true
 
     let apiService = MockService(fetchProjectResult: .success(project))
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       let rootUrl = "https://www.kickstarter.com/"
 
       self.vm.inputs.applicationDidFinishLaunching(
@@ -424,12 +430,12 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testPresentViewController_ProjectPreviewLink_DisplayPrelaunch_False() {
+  func testPresentViewController_ProjectPreviewLink_DisplayPrelaunch_False() async {
     let project = Project.template
       |> Project.lens.displayPrelaunch .~ false
 
     let apiService = MockService(fetchProjectResult: .success(project))
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       let rootUrl = "https://www.kickstarter.com/"
 
       self.vm.inputs.applicationDidFinishLaunching(
@@ -452,12 +458,12 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testPresentViewController_ProjectPreviewLink_DisplayPrelaunch_Nil() {
+  func testPresentViewController_ProjectPreviewLink_DisplayPrelaunch_Nil() async {
     let project = Project.template
       |> Project.lens.displayPrelaunch .~ nil
 
     let apiService = MockService(fetchProjectResult: .success(project))
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       let rootUrl = "https://www.kickstarter.com/"
 
       self.vm.inputs.applicationDidFinishLaunching(
@@ -480,13 +486,13 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testPresentViewController_ProjectCommentThread_Success() {
+  func testPresentViewController_ProjectCommentThread_Success() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
     )
 
-    withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(
+    await withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(
       CommentRepliesEnvelope
         .successfulRepliesTemplate
     ), fetchProjectResult: .success(.template))) {
@@ -504,13 +510,13 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testPresentViewController_ProjectCommentThread_Reply_Success() {
+  func testPresentViewController_ProjectCommentThread_Reply_Success() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
     )
 
-    withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(
+    await withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(
       CommentRepliesEnvelope
         .successfulRepliesTemplate
     ), fetchProjectResult: .success(.template))) {
@@ -528,13 +534,13 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testPresentViewController_UpdateCommentThread_Success() {
+  func testPresentViewController_UpdateCommentThread_Success() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
     )
 
-    withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(
+    await withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(
       CommentRepliesEnvelope
         .successfulRepliesTemplate
     ), fetchProjectResult: .success(.template))) {
@@ -552,13 +558,13 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testPresentViewController_UpdateCommentThread_Reply_Success() {
+  func testPresentViewController_UpdateCommentThread_Reply_Success() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
     )
 
-    withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(
+    await withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(
       CommentRepliesEnvelope
         .successfulRepliesTemplate
     ), fetchProjectResult: .success(.template))) {
@@ -576,7 +582,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testGoToActivity() {
+  func testGoToActivity() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -594,7 +600,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.goToActivity.assertValueCount(1)
   }
 
-  func testGoToDiscovery() {
+  func testGoToDiscovery() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -614,7 +620,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.goToDiscovery.assertValues([params])
   }
 
-  func testGoToDiscovery_NoParams() {
+  func testGoToDiscovery_NoParams() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -632,10 +638,10 @@ final class AppDelegateViewModelTests: TestCase {
     self.goToDiscovery.assertValues([nil])
   }
 
-  func testGoToDiscoveryWithCategoryName_ValidCategoryName_RoutesToCategory() {
+  func testGoToDiscoveryWithCategoryName_ValidCategoryName_RoutesToCategory() async {
     let mockService = MockService(fetchGraphCategoriesResult: .success(defaultRootCategoriesTemplate))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [:]
@@ -651,17 +657,18 @@ final class AppDelegateViewModelTests: TestCase {
       )
       XCTAssertTrue(result)
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.settingsFeature.waitForOperations()
 
       let params = .defaults |> DiscoveryParams.lens.category .~ .art
       self.goToDiscovery.assertValues([params])
     }
   }
 
-  func testGoToDiscoveryWithCategoryName_InvalidCategoryName_DoesNotRouteToAnyCategory() {
+  func testGoToDiscoveryWithCategoryName_InvalidCategoryName_DoesNotRouteToAnyCategory() async {
     let mockService = MockService(fetchGraphCategoriesResult: .success(defaultRootCategoriesTemplate))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [:]
@@ -677,14 +684,15 @@ final class AppDelegateViewModelTests: TestCase {
       )
       XCTAssertTrue(result)
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.settingsFeature.waitForOperations()
 
       let params = .defaults |> DiscoveryParams.lens.category .~ .none
       self.goToDiscovery.assertValues([params])
     }
   }
 
-  func testGoToDiscoveryWithSubcategoryName_ValidSubcategoryName_RoutesToSubcategory() {
+  func testGoToDiscoveryWithSubcategoryName_ValidSubcategoryName_RoutesToSubcategory() async {
     let gamesTemplate = RootCategoriesEnvelope.template
       |> RootCategoriesEnvelope.lens.categories .~ [
         .art,
@@ -696,7 +704,7 @@ final class AppDelegateViewModelTests: TestCase {
 
     let mockService = MockService(fetchGraphCategoriesResult: .success(gamesTemplate))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [:]
@@ -712,14 +720,15 @@ final class AppDelegateViewModelTests: TestCase {
       )
       XCTAssertTrue(result)
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.settingsFeature.waitForOperations()
 
       let params = .defaults |> DiscoveryParams.lens.category .~ .tabletopGames
       self.goToDiscovery.assertValues([params])
     }
   }
 
-  func testGoToDiscoveryWithSubcategoryName_InvalidSubcategoryName_RoutesToCategory() {
+  func testGoToDiscoveryWithSubcategoryName_InvalidSubcategoryName_RoutesToCategory() async {
     let gamesTemplate = RootCategoriesEnvelope.template
       |> RootCategoriesEnvelope.lens.categories .~ [
         .art,
@@ -731,7 +740,7 @@ final class AppDelegateViewModelTests: TestCase {
 
     let mockService = MockService(fetchGraphCategoriesResult: .success(gamesTemplate))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [:]
@@ -747,17 +756,18 @@ final class AppDelegateViewModelTests: TestCase {
       )
       XCTAssertTrue(result)
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.settingsFeature.waitForOperations()
 
       let params = .defaults |> DiscoveryParams.lens.category .~ .games
       self.goToDiscovery.assertValues([params])
     }
   }
 
-  func testGoToDiscoveryWithCategoryId_ValidCategoryId_RoutesToCategory() {
+  func testGoToDiscoveryWithCategoryId_ValidCategoryId_RoutesToCategory() async {
     let mockService = MockService(fetchGraphCategoriesResult: .success(defaultRootCategoriesTemplate))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [:]
@@ -776,7 +786,8 @@ final class AppDelegateViewModelTests: TestCase {
       )
       XCTAssertTrue(result)
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.settingsFeature.waitForOperations()
 
       let params = .defaults |> DiscoveryParams.lens.category .~ .art
         |> DiscoveryParams.lens.sort .~ .magic
@@ -786,10 +797,10 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testGoToDiscoveryWithCategoryId_InvalidCategoryOrSubcategoryId_DoesNotRouteToAnyCategory() {
+  func testGoToDiscoveryWithCategoryId_InvalidCategoryOrSubcategoryId_DoesNotRouteToAnyCategory() async {
     let mockService = MockService(fetchGraphCategoriesResult: .success(defaultRootCategoriesTemplate))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [:]
@@ -808,7 +819,8 @@ final class AppDelegateViewModelTests: TestCase {
       )
       XCTAssertTrue(result)
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.settingsFeature.waitForOperations()
 
       let params = .defaults |> DiscoveryParams.lens.category .~ .none
         |> DiscoveryParams.lens.sort .~ .magic
@@ -818,7 +830,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testGoToDiscoveryWithSubcategoryId_ValidSubcategoryId_RoutesToSubcategory() {
+  func testGoToDiscoveryWithSubcategoryId_ValidSubcategoryId_RoutesToSubcategory() async {
     let gamesTemplate = RootCategoriesEnvelope.template
       |> RootCategoriesEnvelope.lens.categories .~ [
         .art,
@@ -830,7 +842,7 @@ final class AppDelegateViewModelTests: TestCase {
 
     let mockService = MockService(fetchGraphCategoriesResult: .success(gamesTemplate))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [:]
@@ -849,7 +861,8 @@ final class AppDelegateViewModelTests: TestCase {
       )
       XCTAssertTrue(result)
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.settingsFeature.waitForOperations()
 
       let params = .defaults |> DiscoveryParams.lens.category .~ .tabletopGames
         |> DiscoveryParams.lens.sort .~ .magic
@@ -859,7 +872,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testGoToLogin() {
+  func testGoToLogin() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -877,7 +890,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.goToLoginWithIntent.assertValueCount(1)
   }
 
-  func testGoToProfile() {
+  func testGoToProfile() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -895,7 +908,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.goToProfile.assertValueCount(1)
   }
 
-  func testGoToSearch() {
+  func testGoToSearch() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -913,13 +926,13 @@ final class AppDelegateViewModelTests: TestCase {
     self.goToSearch.assertValueCount(1)
   }
 
-  func testDeeplink_IsActivated_Success() {
+  func testDeeplink_IsActivated_Success() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
     )
 
-    withEnvironment(currentUser: nil) {
+    await withEnvironment(currentUser: nil) {
       let result = self.vm.inputs.applicationOpenUrl(
         application: UIApplication.shared,
         url: URL(string: "https://www.kickstarter.com/search")!,
@@ -932,13 +945,13 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testRegisterPushNotifications_Prompted() {
+  func testRegisterPushNotifications_Prompted() async {
     let segmentClient = MockTrackingClient()
 
     MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
     MockPushRegistration.registerProducer = .init(value: true)
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(),
       currentUser: .template,
       ksrAnalytics: KSRAnalytics(segmentClient: segmentClient),
@@ -955,7 +968,8 @@ final class AppDelegateViewModelTests: TestCase {
 
       self.vm.inputs.didRegisterForRemoteNotifications(withDeviceTokenData: "token".data(using: .utf8)!)
 
-      self.scheduler.advance(by: .seconds(5))
+      await self.scheduler.advance(by: .seconds(5))
+      await self.settingsFeature.waitForOperations()
 
       self.pushTokenSuccessfullyRegistered.assertValueCount(1)
 
@@ -963,13 +977,13 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testRegisterPushNotifications_PreviouslyAccepted() {
+  func testRegisterPushNotifications_PreviouslyAccepted() async {
     let segmentClient = MockTrackingClient()
 
     MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: true)
     MockPushRegistration.registerProducer = .init(value: true)
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(),
       currentUser: .template,
       ksrAnalytics: KSRAnalytics(segmentClient: segmentClient),
@@ -985,7 +999,8 @@ final class AppDelegateViewModelTests: TestCase {
 
       self.vm.inputs.didRegisterForRemoteNotifications(withDeviceTokenData: "token".data(using: .utf8)!)
 
-      self.scheduler.advance(by: .seconds(5))
+      await self.scheduler.advance(by: .seconds(5))
+      await self.settingsFeature.waitForOperations()
 
       self.pushTokenSuccessfullyRegistered.assertValueCount(1)
 
@@ -993,12 +1008,12 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testRegisterPushNotifications_WhenNotPreviouslyAccepted() {
+  func testRegisterPushNotifications_WhenNotPreviouslyAccepted() async {
     let segmentClient = MockTrackingClient()
     MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: true)
     MockPushRegistration.registerProducer = .init(value: true)
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(),
       currentUser: .template,
       ksrAnalytics: KSRAnalytics(segmentClient: segmentClient),
@@ -1014,7 +1029,8 @@ final class AppDelegateViewModelTests: TestCase {
 
       self.vm.inputs.didRegisterForRemoteNotifications(withDeviceTokenData: "token".data(using: .utf8)!)
 
-      self.scheduler.advance(by: .seconds(5))
+      await self.scheduler.advance(by: .seconds(5))
+      await self.settingsFeature.waitForOperations()
 
       self.pushTokenSuccessfullyRegistered.assertValueCount(1)
 
@@ -1022,13 +1038,13 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testTrackingPushAuthorizationOptIn() {
+  func testTrackingPushAuthorizationOptIn() async {
     let segmentClient = MockTrackingClient()
 
     MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
     MockPushRegistration.registerProducer = .init(value: true)
 
-    withEnvironment(
+    await withEnvironment(
       currentUser: .template,
       ksrAnalytics: KSRAnalytics(segmentClient: segmentClient),
       pushRegistrationType: MockPushRegistration.self
@@ -1042,25 +1058,26 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testRegisterDeviceToken() {
-    withEnvironment(currentUser: .template) {
+  func testRegisterDeviceToken() async {
+    await withEnvironment(currentUser: .template) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [:]
       )
       self.vm.inputs.didRegisterForRemoteNotifications(withDeviceTokenData: "deadbeef".data(using: .utf8)!)
-      self.scheduler.advance(by: .seconds(5))
+      await self.scheduler.advance(by: .seconds(5))
+      await self.settingsFeature.waitForOperations()
 
       self.pushTokenSuccessfullyRegistered.assertValueCount(1)
     }
   }
 
-  func testRegisterPushTokenInBraze() {
+  func testRegisterPushTokenInBraze() async {
     let data = Data("deadbeef".utf8)
 
     self.registerPushTokenInBraze.assertDidNotEmitValue()
 
-    withEnvironment(currentUser: .template) {
+    await withEnvironment(currentUser: .template) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [:]
@@ -1071,8 +1088,8 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testOpenPushNotification_WhileInBackground() {
-    withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
+  func testOpenPushNotification_WhileInBackground() async {
+    await withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [:]
@@ -1086,7 +1103,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testOpenNotification_NewBacking_ForCreator_WithBadData() {
+  func testOpenNotification_NewBacking_ForCreator_WithBadData() async {
     var badPushData = backingForCreatorPushData
     var badActivityData = badPushData["activity"] as? [String: AnyObject]
     badActivityData?["project_id"] = nil
@@ -1095,13 +1112,13 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.inputs.didReceive(remoteNotification: badPushData)
   }
 
-  func testOpenNotification_Order() {
+  func testOpenNotification_Order() async {
     self.vm.inputs.didReceive(remoteNotification: orderPushData)
 
     self.presentViewController.assertValueCount(1)
   }
 
-  func testOpenNotification_Order_BadData() {
+  func testOpenNotification_Order_BadData() async {
     var badPushData = orderPushData
     badPushData["order"]?["id"] = nil
 
@@ -1110,15 +1127,15 @@ final class AppDelegateViewModelTests: TestCase {
     self.presentViewController.assertValueCount(0)
   }
 
-  func testOpenNotification_ProjectUpdate() {
-    withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
+  func testOpenNotification_ProjectUpdate() async {
+    await withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
       self.vm.inputs.didReceive(remoteNotification: updatePushData)
 
       self.presentViewController.assertValueCount(1)
     }
   }
 
-  func testOpenNotification_ProjectUpdate_BadData() {
+  func testOpenNotification_ProjectUpdate_BadData() async {
     var badPushData = updatePushData
     badPushData["activity"]?["update_id"] = nil
 
@@ -1127,13 +1144,13 @@ final class AppDelegateViewModelTests: TestCase {
     self.presentViewController.assertValueCount(0)
   }
 
-  func testOpenNotification_SurveyResponse() {
+  func testOpenNotification_SurveyResponse() async {
     self.vm.inputs.didReceive(remoteNotification: surveyResponsePushData)
 
     self.presentViewController.assertValueCount(1)
   }
 
-  func testOpenNotification_SurveyResponse_BadData() {
+  func testOpenNotification_SurveyResponse_BadData() async {
     var badPushData = surveyResponsePushData
     badPushData["survey"]?["id"] = nil
 
@@ -1142,15 +1159,15 @@ final class AppDelegateViewModelTests: TestCase {
     self.presentViewController.assertValueCount(0)
   }
 
-  func testOpenNotification_UpdateComment() {
-    withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
+  func testOpenNotification_UpdateComment() async {
+    await withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
       self.vm.inputs.didReceive(remoteNotification: updateCommentPushData)
 
       self.presentViewController.assertValueCount(1)
     }
   }
 
-  func testOpenNotification_UpdateComment_BadData() {
+  func testOpenNotification_UpdateComment_BadData() async {
     var badPushData = updatePushData
     badPushData["activity"]?["update_id"] = nil
 
@@ -1159,16 +1176,16 @@ final class AppDelegateViewModelTests: TestCase {
     self.presentViewController.assertValueCount(0)
   }
 
-  func testOpenNotification_ProjectComment() {
-    withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
+  func testOpenNotification_ProjectComment() async {
+    await withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
       self.vm.inputs.didReceive(remoteNotification: projectCommentPushData)
 
       self.presentViewController.assertValueCount(1)
     }
   }
 
-  func testOpenNotification_ProjectComment_WithBadData() {
-    withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
+  func testOpenNotification_ProjectComment_WithBadData() async {
+    await withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
       var badPushData = updatePushData
       badPushData["activity"]?["project_id"] = nil
 
@@ -1178,16 +1195,16 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testOpenNotification_GenericProject() {
-    withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
+  func testOpenNotification_GenericProject() async {
+    await withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
       self.vm.inputs.didReceive(remoteNotification: genericProjectPushData)
 
       self.presentViewController.assertValueCount(1)
     }
   }
 
-  func testOpenNotification_ProjectStateChanges() {
-    withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
+  func testOpenNotification_ProjectStateChanges() async {
+    await withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
       let states: [Activity.Category] = [.failure, .launch, .success, .cancellation, .suspension]
 
       self.vm.inputs.applicationDidFinishLaunching(
@@ -1208,8 +1225,8 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testOpenNotification_PostLike() {
-    withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
+  func testOpenNotification_PostLike() async {
+    await withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
       let pushData: [String: Any] = [
         "aps": [
           "alert": "Blob liked your update: Important message..."
@@ -1226,7 +1243,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testOpenNotification_UnrecognizedActivityType() {
+  func testOpenNotification_UnrecognizedActivityType() async {
     let categories: [Activity.Category] = [.follow, .funding, .unknown, .watch]
 
     self.vm.inputs.applicationDidFinishLaunching(
@@ -1245,7 +1262,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testContinueUserActivity_ValidActivity() {
+  func testContinueUserActivity_ValidActivity() async {
     let userActivity = NSUserActivity(activityType: NSUserActivityTypeBrowsingWeb)
     userActivity.webpageURL = URL(string: "https://www.kickstarter.com/activity")
 
@@ -1261,7 +1278,7 @@ final class AppDelegateViewModelTests: TestCase {
     XCTAssertTrue(self.vm.outputs.continueUserActivityReturnValue.value)
   }
 
-  func testContinueUserActivity_InvalidActivity() {
+  func testContinueUserActivity_InvalidActivity() async {
     let userActivity = NSUserActivity(activityType: "Other")
 
     self.vm.inputs.applicationDidFinishLaunching(application: .shared, launchOptions: [:])
@@ -1271,11 +1288,11 @@ final class AppDelegateViewModelTests: TestCase {
     XCTAssertFalse(self.vm.outputs.continueUserActivityReturnValue.value)
   }
 
-  func testContinueUserActivity_Success() {
+  func testContinueUserActivity_Success() async {
     let userActivity = NSUserActivity(activityType: NSUserActivityTypeBrowsingWeb)
     userActivity.webpageURL = URL(string: "https://www.kickstarter.com/activity")
 
-    withEnvironment(currentUser: nil) {
+    await withEnvironment(currentUser: nil) {
       self.vm.inputs.applicationDidFinishLaunching(application: .shared, launchOptions: [:])
 
       self.goToActivity.assertValueCount(0)
@@ -1289,20 +1306,22 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testSetApplicationShortcutItems() {
+  func testSetApplicationShortcutItems() async {
     self.setApplicationShortcutItems.assertValues([])
 
     self.vm.inputs.applicationDidFinishLaunching(application: .shared, launchOptions: [:])
 
     self.setApplicationShortcutItems.assertValues([])
 
-    self.scheduler.advance(by: .seconds(5))
+    await self.scheduler.advance(by: .seconds(5))
+    await self.settingsFeature.waitForOperations()
 
     self.setApplicationShortcutItems.assertValues([[.projectsWeLove, .search]])
 
     self.vm.inputs.applicationDidEnterBackground()
     self.vm.inputs.applicationWillEnterForeground()
-    self.scheduler.advance(by: .seconds(5))
+    await self.scheduler.advance(by: .seconds(5))
+    await self.settingsFeature.waitForOperations()
 
     self.setApplicationShortcutItems.assertValues(
       [
@@ -1312,18 +1331,22 @@ final class AppDelegateViewModelTests: TestCase {
     )
   }
 
-  func testSetApplicationShortcutItems_LoggedInUser_NonMember() {
+  func testSetApplicationShortcutItems_LoggedInUser_NonMember() async {
     let currentUser = User.template
       |> \.stats.memberProjectsCount .~ 0
 
-    withEnvironment(apiService: MockService(fetchUserSelfResponse: currentUser), currentUser: currentUser) {
+    await withEnvironment(
+      apiService: MockService(fetchUserSelfResponse: currentUser),
+      currentUser: currentUser
+    ) {
       self.setApplicationShortcutItems.assertValues([])
 
       self.vm.inputs.applicationDidFinishLaunching(application: .shared, launchOptions: [:])
 
       self.setApplicationShortcutItems.assertValues([])
 
-      self.scheduler.advance(by: .seconds(5))
+      await self.scheduler.advance(by: .seconds(5))
+      await self.settingsFeature.waitForOperations()
 
       self.setApplicationShortcutItems.assertValues([
         [.recommendedForYou, .projectsWeLove, .search]
@@ -1331,18 +1354,22 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testSetApplicationShortcutItems_LoggedInUser_Member() {
+  func testSetApplicationShortcutItems_LoggedInUser_Member() async {
     let currentUser = User.template
       |> \.stats.memberProjectsCount .~ 2
 
-    withEnvironment(apiService: MockService(fetchUserSelfResponse: currentUser), currentUser: currentUser) {
+    await withEnvironment(
+      apiService: MockService(fetchUserSelfResponse: currentUser),
+      currentUser: currentUser
+    ) {
       self.setApplicationShortcutItems.assertValues([])
 
       self.vm.inputs.applicationDidFinishLaunching(application: .shared, launchOptions: [:])
 
       self.setApplicationShortcutItems.assertValues([])
 
-      self.scheduler.advance(by: .seconds(5))
+      await self.scheduler.advance(by: .seconds(5))
+      await self.settingsFeature.waitForOperations()
 
       self.setApplicationShortcutItems.assertValues([
         [.recommendedForYou, .projectsWeLove, .search]
@@ -1350,7 +1377,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testPerformShortcutItem_ProjectsWeLove() {
+  func testPerformShortcutItem_ProjectsWeLove() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -1368,7 +1395,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.goToDiscovery.assertValues([params])
   }
 
-  func testLaunchShortcutItem_ProjectsWeLove() {
+  func testLaunchShortcutItem_ProjectsWeLove() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [
@@ -1383,7 +1410,7 @@ final class AppDelegateViewModelTests: TestCase {
     XCTAssertFalse(self.vm.outputs.applicationDidFinishLaunchingReturnValue)
   }
 
-  func testPerformShortcutItem_RecommendedForYou() {
+  func testPerformShortcutItem_RecommendedForYou() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -1401,7 +1428,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.goToDiscovery.assertValues([params])
   }
 
-  func testLaunchShortcutItem_RecommendedForYou() {
+  func testLaunchShortcutItem_RecommendedForYou() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [
@@ -1416,7 +1443,7 @@ final class AppDelegateViewModelTests: TestCase {
     XCTAssertFalse(self.vm.outputs.applicationDidFinishLaunchingReturnValue)
   }
 
-  func testPerformShortcutItem_Search() {
+  func testPerformShortcutItem_Search() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -1429,8 +1456,8 @@ final class AppDelegateViewModelTests: TestCase {
     self.goToSearch.assertValueCount(1)
   }
 
-  func testPerformShortcutItem_Success() {
-    withEnvironment(currentUser: nil) {
+  func testPerformShortcutItem_Success() async {
+    await withEnvironment(currentUser: nil) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [:]
@@ -1441,7 +1468,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testLaunchShortcutItem_Search() {
+  func testLaunchShortcutItem_Search() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [
@@ -1453,8 +1480,8 @@ final class AppDelegateViewModelTests: TestCase {
     XCTAssertFalse(self.vm.outputs.applicationDidFinishLaunchingReturnValue)
   }
 
-  func testLaunchShortcutItem_Failure() {
-    withEnvironment(currentUser: nil) {
+  func testLaunchShortcutItem_Failure() async {
+    await withEnvironment(currentUser: nil) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [
@@ -1467,7 +1494,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testVisitorCookies_ApplicationDidFinishLaunching() {
+  func testVisitorCookies_ApplicationDidFinishLaunching() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -1488,7 +1515,7 @@ final class AppDelegateViewModelTests: TestCase {
     )
   }
 
-  func testVisitorCookies_ApplicationWillEnterForeground() {
+  func testVisitorCookies_ApplicationWillEnterForeground() async {
     let existingCookie = HTTPCookie(
       properties: [
         .name: "existing-cookie",
@@ -1528,7 +1555,7 @@ final class AppDelegateViewModelTests: TestCase {
     )
   }
 
-  func testVisitorCookies_UserSessionStarted() {
+  func testVisitorCookies_UserSessionStarted() async {
     let existingCookie = HTTPCookie(
       properties: [
         .name: "existing-cookie",
@@ -1568,7 +1595,7 @@ final class AppDelegateViewModelTests: TestCase {
     )
   }
 
-  func testVisitorCookies_UserSessionEnded() {
+  func testVisitorCookies_UserSessionEnded() async {
     let existingCookie = HTTPCookie(
       properties: [
         .name: "existing-cookie",
@@ -1608,8 +1635,8 @@ final class AppDelegateViewModelTests: TestCase {
     )
   }
 
-  func testEmailDeepLinking() {
-    withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
+  func testEmailDeepLinking() async {
+    await withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
       let emailUrl = URL(string: "https://clicks.kickstarter.com/?qs=deadbeef")!
 
       // The application launches.
@@ -1645,8 +1672,8 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testEmailDeepLinking_ContinuedUserActivity() {
-    withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
+  func testEmailDeepLinking_ContinuedUserActivity() async {
+    await withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
       let emailUrl = URL(string: "https://emails.kickstarter.com/?qs=deadbeef")!
       let userActivity = NSUserActivity(activityType: NSUserActivityTypeBrowsingWeb)
       userActivity.webpageURL = emailUrl
@@ -1680,7 +1707,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testEmailDeepLinking_UnrecognizedUrl() {
+  func testEmailDeepLinking_UnrecognizedUrl() async {
     let emailUrl = URL(string: "https://clicks.kickstarter.com/?qs=deadbeef")!
 
     // The application launches.
@@ -1716,7 +1743,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.goToMobileSafari.assertValues([unrecognizedUrl], "Go to mobile safari for the unrecognized url.")
   }
 
-  func testEmailDeepLinking_UnrecognizedUrl_ProjectPreview() {
+  func testEmailDeepLinking_UnrecognizedUrl_ProjectPreview() async {
     let emailUrl = URL(string: "https://emails.kickstarter.com/?qs=deadbeef")!
 
     // The application launches.
@@ -1752,7 +1779,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.goToMobileSafari.assertValues([unrecognizedUrl], "Go to mobile safari for the unrecognized url.")
   }
 
-  func testProjectSurveyDeepLink() {
+  func testProjectSurveyDeepLink() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -1772,12 +1799,12 @@ final class AppDelegateViewModelTests: TestCase {
     self.presentViewController.assertValues([1])
   }
 
-  func testErroredPledgeDeepLink_LoggedIn() {
+  func testErroredPledgeDeepLink_LoggedIn() async {
     let project = Project.template
       |> \.personalization.backing .~ .template
     let service = MockService(fetchProjectResult: .success(project))
 
-    withEnvironment(apiService: service, currentUser: .template) {
+    await withEnvironment(apiService: service, currentUser: .template) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [:]
@@ -1802,8 +1829,11 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testErroredPledgeDeepLink_LoggedOut() {
-    withEnvironment(apiService: MockService(fetchProjectResult: .success(.template)), currentUser: nil) {
+  func testErroredPledgeDeepLink_LoggedOut() async {
+    await withEnvironment(
+      apiService: MockService(fetchProjectResult: .success(.template)),
+      currentUser: nil
+    ) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: UIApplication.shared,
         launchOptions: [:]
@@ -1828,12 +1858,12 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testErroredPledgePushDeepLink_LoggedIn() {
+  func testErroredPledgePushDeepLink_LoggedIn() async {
     let project = Project.template
       |> \.personalization.backing .~ .template
     let service = MockService(fetchProjectResult: .success(project))
 
-    withEnvironment(apiService: service, currentUser: .template) {
+    await withEnvironment(apiService: service, currentUser: .template) {
       self.goToLoginWithIntent.assertDidNotEmitValue()
       self.presentViewController.assertDidNotEmitValue()
 
@@ -1853,8 +1883,11 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testErroredPledgePushDeepLink_LoggedOut() {
-    withEnvironment(apiService: MockService(fetchProjectResult: .success(.template)), currentUser: nil) {
+  func testErroredPledgePushDeepLink_LoggedOut() async {
+    await withEnvironment(
+      apiService: MockService(fetchProjectResult: .success(.template)),
+      currentUser: nil
+    ) {
       self.goToLoginWithIntent.assertDidNotEmitValue()
       self.presentViewController.assertDidNotEmitValue()
 
@@ -1874,7 +1907,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testGoToLoginWithIntent_EmitsCorrectIntents() {
+  func testGoToLoginWithIntent_EmitsCorrectIntents() async {
     self.goToLoginWithIntent.assertDidNotEmitValue()
 
     self.vm.inputs.goToLoginSignup(from: .generic)
@@ -1883,7 +1916,7 @@ final class AppDelegateViewModelTests: TestCase {
     XCTAssertEqual(self.goToLoginWithIntent.values, [.generic, .onboarding])
   }
 
-  func testUserSurveyDeepLink() {
+  func testUserSurveyDeepLink() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -1902,7 +1935,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.presentViewController.assertValues([1])
   }
 
-  func testShowAlertEmitsIf_CanShowDialog() {
+  func testShowAlertEmitsIf_CanShowDialog() async {
     let notification = Notification(
       name: Notification.Name(rawValue: "deadbeef"),
       userInfo: ["context": PushNotificationDialog.Context.login]
@@ -1911,7 +1944,7 @@ final class AppDelegateViewModelTests: TestCase {
     userDefaults.set(["message"], forKey: "com.kickstarter.KeyValueStoreType.deniedNotificationContexts")
     MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
 
-    withEnvironment(
+    await withEnvironment(
       currentUser: .template,
       pushRegistrationType: MockPushRegistration.self,
       userDefaults: userDefaults
@@ -1924,7 +1957,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testShowAlertDoesNotEmitIf_CanNotShowDialog() {
+  func testShowAlertDoesNotEmitIf_CanNotShowDialog() async {
     let notification = Notification(
       name: Notification.Name(rawValue: "deadbeef"),
       userInfo: ["context": PushNotificationDialog.Context.login]
@@ -1932,7 +1965,7 @@ final class AppDelegateViewModelTests: TestCase {
 
     userDefaults.set(["login"], forKey: "com.kickstarter.KeyValueStoreType.deniedNotificationContexts")
 
-    withEnvironment(currentUser: .template, userDefaults: userDefaults) {
+    await withEnvironment(currentUser: .template, userDefaults: userDefaults) {
       self.vm.inputs.applicationWillEnterForeground()
       self.vm.inputs.didReceive(remoteNotification: updatePushData)
       self.vm.inputs.showNotificationDialog(notification: notification)
@@ -1941,7 +1974,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testVerifyEmail_Success() {
+  func testVerifyEmail_Success() async {
     self.emailVerificationCompletedMessage.assertDidNotEmitValue()
     self.emailVerificationCompletedSuccess.assertDidNotEmitValue()
 
@@ -1956,14 +1989,15 @@ final class AppDelegateViewModelTests: TestCase {
 
     let mockService = MockService(verifyEmailResult: .success(env))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       _ = self.vm.inputs.applicationOpenUrl(
         application: UIApplication.shared,
         url: url,
         options: [:]
       )
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.settingsFeature.waitForOperations()
 
       self.emailVerificationCompletedSuccess.assertValues([true])
       self.emailVerificationCompletedMessage.assertValues(
@@ -1972,7 +2006,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testVerifyEmail_Failure() {
+  func testVerifyEmail_Failure() async {
     self.emailVerificationCompletedMessage.assertDidNotEmitValue()
     self.emailVerificationCompletedSuccess.assertDidNotEmitValue()
 
@@ -1990,14 +2024,15 @@ final class AppDelegateViewModelTests: TestCase {
 
     let mockService = MockService(verifyEmailResult: .failure(errorEnvelope))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       _ = self.vm.inputs.applicationOpenUrl(
         application: UIApplication.shared,
         url: url,
         options: [:]
       )
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.settingsFeature.waitForOperations()
 
       self.emailVerificationCompletedSuccess.assertValues([false])
       self.emailVerificationCompletedMessage.assertValues(
@@ -2006,7 +2041,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testVerifyEmail_Failure_UnknownError() {
+  func testVerifyEmail_Failure_UnknownError() async {
     self.emailVerificationCompletedMessage.assertDidNotEmitValue()
     self.emailVerificationCompletedSuccess.assertDidNotEmitValue()
 
@@ -2024,14 +2059,15 @@ final class AppDelegateViewModelTests: TestCase {
 
     let mockService = MockService(verifyEmailResult: .failure(errorEnvelope))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       _ = self.vm.inputs.applicationOpenUrl(
         application: UIApplication.shared,
         url: url,
         options: [:]
       )
 
-      self.scheduler.advance()
+      await self.scheduler.advance()
+      await self.settingsFeature.waitForOperations()
 
       self.emailVerificationCompletedSuccess.assertValues([false])
       self.emailVerificationCompletedMessage.assertValues(
@@ -2040,7 +2076,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testFeatureFlagsRetainedInConfig_NotRelease() {
+  func testFeatureFlagsRetainedInConfig_NotRelease() async {
     let mockBundle = MockBundle(
       bundleIdentifier: KickstarterBundleIdentifier.beta.rawValue
     )
@@ -2062,7 +2098,7 @@ final class AppDelegateViewModelTests: TestCase {
 
     self.updateConfigInEnvironment.assertDidNotEmitValue()
 
-    withEnvironment(apiService: service, config: config, mainBundle: mockBundle) {
+    await withEnvironment(apiService: service, config: config, mainBundle: mockBundle) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: .shared,
         launchOptions: [:]
@@ -2078,7 +2114,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testFeatureFlagsRetainedInConfig_Release() {
+  func testFeatureFlagsRetainedInConfig_Release() async {
     let mockBundle = MockBundle(
       bundleIdentifier: KickstarterBundleIdentifier.release.rawValue
     )
@@ -2100,7 +2136,7 @@ final class AppDelegateViewModelTests: TestCase {
 
     self.updateConfigInEnvironment.assertDidNotEmitValue()
 
-    withEnvironment(apiService: service, config: config, mainBundle: mockBundle) {
+    await withEnvironment(apiService: service, config: config, mainBundle: mockBundle) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: .shared,
         launchOptions: [:]
@@ -2116,14 +2152,14 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testConfigureSegment_Release() {
+  func testConfigureSegment_Release() async {
     let mockBundle = MockBundle(
       bundleIdentifier: KickstarterBundleIdentifier.release.rawValue
     )
 
     self.configureSegmentWithBraze.assertDidNotEmitValue()
 
-    withEnvironment(mainBundle: mockBundle) {
+    await withEnvironment(mainBundle: mockBundle) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: .shared,
         launchOptions: [:]
@@ -2133,14 +2169,14 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testConfigureSegment_NotRelease() {
+  func testConfigureSegment_NotRelease() async {
     let mockBundle = MockBundle(
       bundleIdentifier: KickstarterBundleIdentifier.beta.rawValue
     )
 
     self.configureSegmentWithBraze.assertDidNotEmitValue()
 
-    withEnvironment(mainBundle: mockBundle) {
+    await withEnvironment(mainBundle: mockBundle) {
       self.vm.inputs.applicationDidFinishLaunching(
         application: .shared,
         launchOptions: [:]
@@ -2150,26 +2186,26 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testSegmentIsEnabled_IsEnabled_DidUpdateConfig() {
+  func testSegmentIsEnabled_IsEnabled_DidUpdateConfig() async {
     self.segmentIsEnabled.assertDidNotEmitValue()
 
     let config = Config.template
       |> Config.lens.features .~ [Feature.segment.rawValue: true]
 
-    withEnvironment(config: config) {
+    await withEnvironment(config: config) {
       self.vm.inputs.didUpdateConfig(config)
 
       self.segmentIsEnabled.assertValues([true])
     }
   }
 
-  func testSegmentIsEnabled_IsDisabled_ConfigUpdatedNotificationObserved() {
+  func testSegmentIsEnabled_IsDisabled_ConfigUpdatedNotificationObserved() async {
     self.segmentIsEnabled.assertDidNotEmitValue()
 
     let config = Config.template
       |> Config.lens.features .~ [Feature.segment.rawValue: false]
 
-    withEnvironment(config: config) {
+    await withEnvironment(config: config) {
       self.vm.inputs.configUpdatedNotificationObserved()
 
       self.segmentIsEnabled.assertValues([false])
@@ -2179,13 +2215,15 @@ final class AppDelegateViewModelTests: TestCase {
   func testDeepLinkNotificationFailureDoesNotReportSuccess() async throws {
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
     let original = AppEnvironment.current.currentUser?.notifications
-    let url = try XCTUnwrap(URL(string: "https://www.kickstarter.com/settings/notify_mobile_of_messages/true"))
+    let url =
+      try XCTUnwrap(URL(string: "https://www.kickstarter.com/settings/notify_mobile_of_messages/true"))
     await withEnvironment(apiService: MockService(updateUserSelfError: .couldNotParseJSON)) {
       XCTAssertTrue(self.vm.inputs.applicationOpenUrl(
         application: UIApplication.shared, url: url, options: [:]
       ))
       await self.settingsFeature.waitForOperations()
       await self.scheduler.advance()
+      await self.settingsFeature.waitForOperations()
       self.notificationSettingsUpdated.assertDidNotEmitValue()
       self.updateCurrentUserInEnvironment.assertDidNotEmitValue()
       XCTAssertEqual(AppEnvironment.current.currentUser?.notifications, original)
@@ -2195,7 +2233,8 @@ final class AppDelegateViewModelTests: TestCase {
 
   func testDeepLinkCompletionDoesNotReplaySavedUserAfterPresentationDelay() async throws {
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
-    let url = try XCTUnwrap(URL(string: "https://www.kickstarter.com/settings/notify_mobile_of_messages/true"))
+    let url =
+      try XCTUnwrap(URL(string: "https://www.kickstarter.com/settings/notify_mobile_of_messages/true"))
     XCTAssertTrue(self.vm.inputs.applicationOpenUrl(
       application: UIApplication.shared, url: url, options: [:]
     ))
@@ -2206,6 +2245,7 @@ final class AppDelegateViewModelTests: TestCase {
     newer.newsletters.games = true
     AppEnvironment.updateCurrentUser(newer)
     await self.scheduler.advance()
+    await self.settingsFeature.waitForOperations()
     self.notificationSettingsUpdated.assertValueCount(1)
     self.updateCurrentUserInEnvironment.assertDidNotEmitValue()
     XCTAssertEqual(AppEnvironment.current.currentUser?.newsletters.games, true)
@@ -2227,6 +2267,7 @@ final class AppDelegateViewModelTests: TestCase {
       )
 
       await self.scheduler.advance(by: .seconds(5))
+      await self.settingsFeature.waitForOperations()
 
       self.updateCurrentUserInEnvironment.assertValues([user])
 
@@ -2247,6 +2288,7 @@ final class AppDelegateViewModelTests: TestCase {
 
       await self.settingsFeature.waitForOperations()
       await self.scheduler.advance()
+      await self.settingsFeature.waitForOperations()
 
       self.updateCurrentUserInEnvironment.assertValues([user])
       self.notificationSettingsUpdated.assertValueCount(1)
@@ -2255,14 +2297,14 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testRequestATTrackingAuthorizationStatus_WhenAppBecomesActive_WhenAdvertisingIdentifierNil_WhenShouldRequestAuthorizationStatusTrue_RequestAllowed_ShowsConsentDialogAndUpdatesAdId_whenHasSeenOnboardingIsTrue(
-  ) {
+  ) async {
     let appTrackingTransparency = MockAppTrackingTransparency()
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
     appTrackingTransparency.shouldRequestAuthStatus = true
 
     userDefaults.set(true, forKey: AppKeys.hasSeenOnboarding.rawValue)
 
-    withEnvironment(
+    await withEnvironment(
       appTrackingTransparency: appTrackingTransparency
     ) {
       self.requestATTrackingAuthorizationStatus.assertValueCount(0)
@@ -2273,7 +2315,8 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.scheduler.advance(by: .seconds(1))
+      await self.settingsFeature.waitForOperations()
 
       XCTAssertEqual(appTrackingTransparency.advertisingIdentifier, "advertisingIdentifier")
       self.requestATTrackingAuthorizationStatus.assertValueCount(1)
@@ -2281,12 +2324,12 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testRequestATTrackingAuthorizationStatus_WhenAppBecomesActive_WhenAdvertisingIdentifierNil_WhenShouldRequestAuthorizationStatusTrue_RequestAllowed_ShowsConsentDialogAndUpdatesAdId_WhenHasSeenOnboardingIsFalse(
-  ) {
+  ) async {
     let appTrackingTransparency = MockAppTrackingTransparency()
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
     appTrackingTransparency.shouldRequestAuthStatus = true
 
-    withEnvironment(
+    await withEnvironment(
       appTrackingTransparency: appTrackingTransparency
     ) {
       self.requestATTrackingAuthorizationStatus.assertValueCount(0)
@@ -2297,7 +2340,8 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.scheduler.advance(by: .seconds(1))
+      await self.settingsFeature.waitForOperations()
 
       XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
       self.requestATTrackingAuthorizationStatus.assertValueCount(0)
@@ -2305,12 +2349,12 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testRequestATTrackingAuthorizationStatus_WhenAppBecomesActive_WhenAdvertisingIdentifierNil_WhenConsentManagementFeatureFlagOn_WhenShouldRequestAuthorizationStatusTrue_RequestAllowed_DoesNot_ShowConsentDialogAndUpdateAdId(
-  ) {
+  ) async {
     let appTrackingTransparency = MockAppTrackingTransparency()
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
     appTrackingTransparency.shouldRequestAuthStatus = true
 
-    withEnvironment(
+    await withEnvironment(
       appTrackingTransparency: appTrackingTransparency
     ) {
       self.requestATTrackingAuthorizationStatus.assertValueCount(0)
@@ -2321,7 +2365,8 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.scheduler.advance(by: .seconds(1))
+      await self.settingsFeature.waitForOperations()
 
       XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
       self.requestATTrackingAuthorizationStatus.assertValueCount(0)
@@ -2329,14 +2374,14 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testRequestATTrackingAuthorizationStatus_WhenAppBecomesActive_WhenAdvertisingIdentifierNil_WhenConsentManagementFeatureFlagOn_WhenShouldRequestAuthorizationStatusFalse_RequestAllowed_DoesNotShowConsentDialogAndDoesNotUpdateAdId(
-  ) {
+  ) async {
     let appTrackingTransparency = MockAppTrackingTransparency()
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
     appTrackingTransparency.shouldRequestAuthStatus = false
 
     userDefaults.set(true, forKey: AppKeys.hasSeenOnboarding.rawValue)
 
-    withEnvironment(
+    await withEnvironment(
       appTrackingTransparency: appTrackingTransparency
     ) {
       self.requestATTrackingAuthorizationStatus.assertValueCount(0)
@@ -2347,15 +2392,15 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.scheduler.advance(by: .seconds(1))
+      await self.settingsFeature.waitForOperations()
 
       XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
       self.requestATTrackingAuthorizationStatus.assertValueCount(1)
     }
   }
 
-  func testTriggerOnboardingFlow_WhenUserHasNotDeterminedPushNotificationsOrATTPermissions(
-  ) {
+  func testTriggerOnboardingFlow_WhenUserHasNotDeterminedPushNotificationsOrATTPermissions() async {
     MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
     MockPushRegistration.registerProducer = .init(value: true)
 
@@ -2363,7 +2408,7 @@ final class AppDelegateViewModelTests: TestCase {
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
     appTrackingTransparency.shouldRequestAuthStatus = true
 
-    withEnvironment(
+    await withEnvironment(
       appTrackingTransparency: appTrackingTransparency,
       pushRegistrationType: MockPushRegistration.self
     ) {
@@ -2378,7 +2423,8 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
 
-      self.scheduler.advance(by: .seconds(5))
+      await self.scheduler.advance(by: .seconds(5))
+      await self.settingsFeature.waitForOperations()
 
       self.pushRegistrationStarted.assertValueCount(0)
       XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
@@ -2389,7 +2435,7 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testTriggerOnboardingFlow_IsNotCalled_WhenUserHasAuthorizedPushNotifications_ButNotATTPermissions(
-  ) {
+  ) async {
     MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: true)
     MockPushRegistration.registerProducer = .init(value: true)
 
@@ -2397,7 +2443,7 @@ final class AppDelegateViewModelTests: TestCase {
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = false
     appTrackingTransparency.shouldRequestAuthStatus = false
 
-    withEnvironment(
+    await withEnvironment(
       appTrackingTransparency: appTrackingTransparency,
       pushRegistrationType: MockPushRegistration.self
     ) {
@@ -2407,14 +2453,15 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
 
-      self.scheduler.advance(by: .seconds(5))
+      await self.scheduler.advance(by: .seconds(5))
+      await self.settingsFeature.waitForOperations()
 
       self.triggerOnboardingFlow.assertValueCount(0)
     }
   }
 
   func testTriggerOnboardingFlow_IsNotCalled_WhenUserHasAuthorizedATTPermissions_ButNotPushNotifications(
-  ) {
+  ) async {
     MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
     MockPushRegistration.registerProducer = .init(value: false)
 
@@ -2422,7 +2469,7 @@ final class AppDelegateViewModelTests: TestCase {
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
     appTrackingTransparency.shouldRequestAuthStatus = false
 
-    withEnvironment(
+    await withEnvironment(
       appTrackingTransparency: appTrackingTransparency,
       pushRegistrationType: MockPushRegistration.self
     ) {
@@ -2432,14 +2479,14 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
 
-      self.scheduler.advance(by: .seconds(5))
+      await self.scheduler.advance(by: .seconds(5))
+      await self.settingsFeature.waitForOperations()
 
       self.triggerOnboardingFlow.assertValueCount(0)
     }
   }
 
-  func testTriggerOnboardingFlow_IsNotCalled_WhenOnboardingFlowFeatureFlagDisabled(
-  ) {
+  func testTriggerOnboardingFlow_IsNotCalled_WhenOnboardingFlowFeatureFlagDisabled() async {
     MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
     MockPushRegistration.registerProducer = .init(value: false)
 
@@ -2447,7 +2494,7 @@ final class AppDelegateViewModelTests: TestCase {
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = false
     appTrackingTransparency.shouldRequestAuthStatus = false
 
-    withEnvironment(
+    await withEnvironment(
       appTrackingTransparency: appTrackingTransparency,
       pushRegistrationType: MockPushRegistration.self
     ) {
@@ -2457,14 +2504,14 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
 
-      self.scheduler.advance(by: .seconds(5))
+      await self.scheduler.advance(by: .seconds(5))
+      await self.settingsFeature.waitForOperations()
 
       self.triggerOnboardingFlow.assertValueCount(0)
     }
   }
 
-  func testTriggerOnboardingFlow_IsNotCalled_UserDefaultsHasSeenOnboardingIsTrue(
-  ) {
+  func testTriggerOnboardingFlow_IsNotCalled_UserDefaultsHasSeenOnboardingIsTrue() async {
     MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
     MockPushRegistration.registerProducer = .init(value: true)
 
@@ -2474,7 +2521,7 @@ final class AppDelegateViewModelTests: TestCase {
 
     userDefaults.set(true, forKey: AppKeys.hasSeenOnboarding.rawValue)
 
-    withEnvironment(
+    await withEnvironment(
       appTrackingTransparency: appTrackingTransparency,
       pushRegistrationType: MockPushRegistration.self
     ) {
@@ -2489,7 +2536,8 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
 
-      self.scheduler.advance(by: .seconds(5))
+      await self.scheduler.advance(by: .seconds(5))
+      await self.settingsFeature.waitForOperations()
 
       self.pushRegistrationStarted.assertValueCount(0)
       XCTAssertEqual(appTrackingTransparency.advertisingIdentifier, "advertisingIdentifier")
@@ -2499,8 +2547,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testTriggerOnboardingFlow_WhenUserDefaultsHasSeenOnboardingIsFalse(
-  ) {
+  func testTriggerOnboardingFlow_WhenUserDefaultsHasSeenOnboardingIsFalse() async {
     MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
     MockPushRegistration.registerProducer = .init(value: true)
 
@@ -2508,7 +2555,7 @@ final class AppDelegateViewModelTests: TestCase {
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
     appTrackingTransparency.shouldRequestAuthStatus = true
 
-    withEnvironment(
+    await withEnvironment(
       appTrackingTransparency: appTrackingTransparency,
       pushRegistrationType: MockPushRegistration.self
     ) {
@@ -2523,7 +2570,8 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
 
-      self.scheduler.advance(by: .seconds(5))
+      await self.scheduler.advance(by: .seconds(5))
+      await self.settingsFeature.waitForOperations()
 
       self.pushRegistrationStarted.assertValueCount(0)
       XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
@@ -2536,12 +2584,12 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testRequestATTrackingAuthorizationStatus_WhenAppBecomesActive_WhenAdvertisingIdentifierNil_WhenShouldRequestAuthorizationStatusTrue_RequestDenied_DoesNotShowConsentDialogAndDoesNotUpdateAdId(
-  ) {
+  ) async {
     let appTrackingTransparency = MockAppTrackingTransparency()
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = false
     appTrackingTransparency.shouldRequestAuthStatus = true
 
-    withEnvironment(
+    await withEnvironment(
       appTrackingTransparency: appTrackingTransparency
     ) {
       self.requestATTrackingAuthorizationStatus.assertValueCount(0)
@@ -2552,16 +2600,17 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.scheduler.advance(by: .seconds(1))
+      await self.settingsFeature.waitForOperations()
 
       XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
       self.requestATTrackingAuthorizationStatus.assertValueCount(0)
     }
   }
 
-  func testRequestAppTrackingSignalAuthorize() {
+  func testRequestAppTrackingSignalAuthorize() async {
     let appTrackingTransparency = MockAppTrackingTransparency()
-    withEnvironment(
+    await withEnvironment(
       appTrackingTransparency: appTrackingTransparency
     ) {
       self.vm.inputs.applicationActive(state: false)
@@ -2577,9 +2626,9 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testRequestAppTrackingSignalDeny() {
+  func testRequestAppTrackingSignalDeny() async {
     let appTrackingTransparency = MockAppTrackingTransparency()
-    withEnvironment(
+    await withEnvironment(
       appTrackingTransparency: appTrackingTransparency
     ) {
       self.vm.inputs.applicationActive(state: false)
@@ -2595,13 +2644,13 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testPresentViewController_BrazeInAppNotificationDeeplink_ProjectCommentThread_Success() {
+  func testPresentViewController_BrazeInAppNotificationDeeplink_ProjectCommentThread_Success() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
     )
 
-    withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(
+    await withEnvironment(apiService: MockService(fetchCommentRepliesEnvelopeResult: .success(
       CommentRepliesEnvelope
         .successfulRepliesTemplate
     ), fetchProjectResult: .success(.template))) {
@@ -2616,7 +2665,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testGoToMobileSafari_BrazeInAppNotificaton() {
+  func testGoToMobileSafari_BrazeInAppNotificaton() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -2629,7 +2678,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.presentViewController.assertValues([])
   }
 
-  func testGoToMobileSafari_unrecognizedDeeplink() {
+  func testGoToMobileSafari_unrecognizedDeeplink() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -2641,7 +2690,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.goToMobileSafari.assertLastValue(url)
   }
 
-  func testGoToMobileSafari_deeplinkFound() {
+  func testGoToMobileSafari_deeplinkFound() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -2653,7 +2702,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.goToMobileSafari.assertDidNotEmitValue()
   }
 
-  func testGoToMobileSafari_ksrUnrecognizedDeeplink() throws {
+  func testGoToMobileSafari_ksrUnrecognizedDeeplink() async throws {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -2665,7 +2714,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.goToMobileSafari.assertDidNotEmitValue()
   }
 
-  func testGoToMobileSafari_ksrDeeplinkFound() {
+  func testGoToMobileSafari_ksrDeeplinkFound() async {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [:]
@@ -2677,10 +2726,10 @@ final class AppDelegateViewModelTests: TestCase {
     self.goToMobileSafari.assertDidNotEmitValue()
   }
 
-  func testRemoteConfigClientConfiguredNotification_Success() {
+  func testRemoteConfigClientConfiguredNotification_Success() async {
     let mockService = MockService(serverConfig: ServerConfig.staging)
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.postNotificationName.assertDidNotEmitValue()
 
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
@@ -2691,10 +2740,10 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testRemoteConfigClientConfigurationFailedNotification() {
+  func testRemoteConfigClientConfigurationFailedNotification() async {
     let mockService = MockService(serverConfig: ServerConfig.staging)
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.postNotificationName.assertDidNotEmitValue()
 
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
@@ -2705,7 +2754,7 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testUserSessionStarted_fetchesUserEmail_andClearsOnLogout() {
+  func testUserSessionStarted_fetchesUserEmail_andClearsOnLogout() async {
     let fetchUserSetupQueryData = GraphAPI.FetchUserSetupQuery.Data(
       me: GraphAPI.FetchUserSetupQuery.Data.Me(
         email: "user@example.com",
@@ -2722,10 +2771,11 @@ final class AppDelegateViewModelTests: TestCase {
       fetchGraphUserSetupResult: .success(envelope)
     )
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       XCTAssertNil(AppEnvironment.current.currentUserEmail)
 
       self.vm.inputs.userSessionStarted()
+      await self.settingsFeature.waitForOperations()
 
       XCTAssertEqual(AppEnvironment.current.currentUserEmail, "user@example.com")
 

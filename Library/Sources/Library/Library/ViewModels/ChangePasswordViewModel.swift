@@ -3,6 +3,7 @@ import KsApi
 import Prelude
 import ReactiveSwift
 
+@MainActor
 public protocol ChangePasswordViewModelInputs {
   func currentPasswordFieldTextChanged(text: String)
   func currentPasswordFieldDidReturn(currentPassword: String)
@@ -14,6 +15,7 @@ public protocol ChangePasswordViewModelInputs {
   func viewDidAppear()
 }
 
+@MainActor
 public protocol ChangePasswordViewModelOutputs {
   var accessibilityFocusValidationErrorLabel: Signal<Void, Never> { get }
   var activityIndicatorShouldShow: Signal<Bool, Never> { get }
@@ -28,14 +30,17 @@ public protocol ChangePasswordViewModelOutputs {
   var validationErrorLabelMessage: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol ChangePasswordViewModelType {
   var inputs: ChangePasswordViewModelInputs { get }
   var outputs: ChangePasswordViewModelOutputs { get }
 }
 
+@MainActor
 public class ChangePasswordViewModel: ChangePasswordViewModelType,
   ChangePasswordViewModelInputs, ChangePasswordViewModelOutputs {
-  public init() {
+  public init(settingsFeature: SettingsFeature? = nil) {
+    let settingsFeature = settingsFeature ?? AppModel.shared.settingsFeature
     let currentPasswordSignal = self.currentPasswordProperty.signal
 
     let combinedPasswords = Signal.combineLatest(
@@ -72,7 +77,7 @@ public class ChangePasswordViewModel: ChangePasswordViewModelType,
       .map(unpack)
       .map { ChangePasswordInput(currentPassword: $0.0, newPassword: $0.1, newPasswordConfirmation: $0.2) }
       .flatMap {
-        AppEnvironment.current.apiService.changePassword(input: $0)
+        settingsFeature.accountResult(.password($0))
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
       }

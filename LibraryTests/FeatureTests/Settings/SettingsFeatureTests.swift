@@ -327,7 +327,249 @@ private final class PreferencesFixture {
 }
 
 @MainActor
+extension SettingsFeatureTests {
+  func testEmailLookupSharesAndAccountEditRejectsLateResult() async throws {
+    let fixture = AccountWritesFixture()
+    defer { fixture.provider.emails.releaseAll(); fixture.provider.gate.releaseAll() }
+    let first = Task { try await fixture.feature.emailUser() }
+    let second = Task { try await fixture.feature.emailUser() }
+    await fixture.provider.emails.waitFor(1)
+    let write = fixture.feature.accountResult(.email(.init(
+      email: "new@example.invalid",
+      currentPassword: "fixture"
+    ))).start()
+    defer { write.dispose() }
+    await fixture.provider.gate.waitFor(1)
+    try fixture.provider.gate.finish(0, .success(nil))
+    try fixture.provider.emails.finish(0, .success(.template))
+    for task in [first, second] {
+      do { _ = try await task.value; XCTFail("Stale email appeared") }
+      catch { XCTAssertTrue(error is CancellationError) }
+    }
+    XCTAssertEqual(fixture.provider.emails.count, 1)
+  }
+
+  func testEmailVerificationSharesAndDistinctLinksQueueWithoutLoggingIn() async throws {
+    let fixture = AccountWritesFixture()
+    fixture.user = nil // A deep link carries its own token.
+    defer { fixture.provider.verifications.releaseAll() }
+    let first = Task { try await fixture.feature.verifyEmail(token: "first-fixture") }
+    let duplicate = Task { try await fixture.feature.verifyEmail(token: "first-fixture") }
+    await fixture.provider.verifications.waitFor(1)
+    let next = Task { try await fixture.feature.verifyEmail(token: "next-fixture") }
+    try fixture.provider.verifications.finish(0, .success(.init(message: "Confirmed")))
+    let firstResult = try await first.value
+    let duplicateResult = try await duplicate.value
+    XCTAssertEqual(firstResult.message, "Confirmed")
+    XCTAssertEqual(duplicateResult.message, "Confirmed")
+    await fixture.provider.verifications.waitFor(2)
+    try fixture.provider.verifications.finish(1, .success(.init(message: "Next confirmed")))
+    let nextResult = try await next.value
+    XCTAssertEqual(nextResult.message, "Next confirmed")
+    XCTAssertNil(fixture.user)
+    XCTAssertEqual(fixture.commits, 0)
+  }
+
+  func testVerificationFailureAllowsRetryAndSessionChangeSuppressesLateSuccess() async throws {
+    let fixture = AccountWritesFixture()
+    defer { fixture.provider.verifications.releaseAll() }
+    let first = Task { try await fixture.feature.verifyEmail(token: "fixture") }
+    await fixture.provider.verifications.waitFor(1)
+    try fixture.provider.verifications.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
+    do { _ = try await first.value; XCTFail("Expected failure") }
+    catch { XCTAssertTrue(error is ErrorEnvelope) }
+    let retry = Task { try await fixture.feature.verifyEmail(token: "fixture") }
+    await fixture.provider.verifications.waitFor(2)
+    fixture.session.sessionChanged()
+    try fixture.provider.verifications.finish(1, .success(.init(message: "Confirmed")))
+    do { _ = try await retry.value; XCTFail("Old session completion escaped") }
+    catch { XCTAssertTrue(error is CancellationError) }
+  }
+
+  func testEquivalentAccountWritesShareAndDistinctCommandsRemainOrdered() async throws {
+    let fixture = AccountWritesFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    let first = fixture.feature.accountResult(.currency("GBP")).start()
+    let duplicate = fixture.feature.accountResult(.currency("GBP")).start()
+    let next = fixture.feature.accountResult(.currency("EUR")).start()
+    defer { first.dispose(); duplicate.dispose(); next.dispose() }
+    await fixture.provider.gate.waitFor(1)
+    XCTAssertEqual(fixture.provider.commands, [.currency("GBP")])
+    try fixture.provider.gate.finish(0, .success(nil))
+    await fixture.provider.gate.waitFor(2)
+    XCTAssertEqual(fixture.user?.chosenCurrency, "GBP")
+    try fixture.provider.gate.finish(1, .success(nil))
+    await fixture.feature.waitForOperations()
+    XCTAssertEqual(fixture.user?.chosenCurrency, "EUR")
+    XCTAssertEqual(fixture.commits, 2)
+  }
+
+  func testAccountAndPreferenceWritesUseOneQueue() async throws {
+    let fixture = AccountWritesFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    let source = try XCTUnwrap(fixture.user)
+    let currency = fixture.feature.accountResult(.currency("GBP")).start()
+    let preference = fixture.feature.saveResult([.init(.newsletter(.arts), true)], from: source).start()
+    defer { currency.dispose(); preference.dispose() }
+    await fixture.provider.gate.waitFor(1)
+    XCTAssertEqual(fixture.provider.preferences.count, 0)
+    try fixture.provider.gate.finish(0, .success(nil))
+    await fixture.feature.waitForOperations()
+    XCTAssertEqual(fixture.provider.preferences.first?.chosenCurrency, "GBP")
+    XCTAssertEqual(fixture.user?.newsletters.arts, true)
+    XCTAssertEqual(fixture.user?.chosenCurrency, "GBP")
+  }
+
+  func testFailedAccountWriteDoesNotStrandNextCommandAndRetryIsExplicit() async throws {
+    let fixture = AccountWritesFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    let original = fixture.user?.chosenCurrency
+    let failure = fixture.feature.accountResult(.currency("GBP")).start()
+    let next = fixture.feature.accountResult(.currency("EUR")).start()
+    defer { failure.dispose(); next.dispose() }
+    await fixture.provider.gate.waitFor(1)
+    try fixture.provider.gate.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
+    await fixture.provider.gate.waitFor(2)
+    XCTAssertEqual(fixture.user?.chosenCurrency, original)
+    try fixture.provider.gate.finish(1, .success(nil))
+    await fixture.feature.waitForOperations()
+    let retry = Task { try await fixture.feature.updateAccount(.currency("GBP")) }
+    await fixture.provider.gate.waitFor(3)
+    try fixture.provider.gate.finish(2, .success(nil))
+    _ = try await retry.value
+    XCTAssertEqual(fixture.user?.chosenCurrency, "GBP")
+    XCTAssertEqual(fixture.commits, 2)
+  }
+
+  func testDisposedObserverDoesNotAbandonAdmittedAccountWrite() async throws {
+    let fixture = AccountWritesFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    var delivered = false
+    let observation = fixture.feature.accountResult(.currency("GBP"))
+      .startWithResult { _ in delivered = true }
+    await fixture.provider.gate.waitFor(1)
+    observation.dispose()
+    try fixture.provider.gate.finish(0, .success(nil))
+    await fixture.feature.waitForOperations()
+    XCTAssertEqual(fixture.user?.chosenCurrency, "GBP")
+    XCTAssertFalse(delivered)
+  }
+
+  func testReplacedSessionSuppressesAcceptedWriteAndDoesNotDispatchQueuedWrite() async throws {
+    let fixture = AccountWritesFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    let first = fixture.feature.accountResult(.currency("GBP")).start()
+    let queued = fixture.feature.accountResult(.currency("EUR")).start()
+    defer { first.dispose(); queued.dispose() }
+    await fixture.provider.gate.waitFor(1)
+    fixture.session.sessionChanged() // Even re-login as the same account is a new identity.
+    try fixture.provider.gate.finish(0, .success(nil))
+    await fixture.feature.waitForOperations()
+    XCTAssertEqual(fixture.provider.commands.count, 1)
+    XCTAssertEqual(fixture.commits, 0)
+  }
+
+  func testSignedOutAccountWriteNeverReachesTransport() async {
+    let fixture = AccountWritesFixture()
+    fixture.user = nil
+    do {
+      _ = try await fixture.feature.updateAccount(.sendVerification)
+      XCTFail("Signed-out command succeeded")
+    } catch { XCTAssertTrue(error is CancellationError) }
+    XCTAssertEqual(fixture.provider.commands.count, 0)
+  }
+
+  func testFacebookConnectMergesOnlyAccountFieldsIntoLatestUser() async throws {
+    let fixture = AccountWritesFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    let request = Task { try await fixture.feature.updateAccount(.facebook("fixture-token")) }
+    await fixture.provider.gate.waitFor(1)
+    var response = try XCTUnwrap(fixture.user)
+    response.facebookConnected = true
+    response.needsFreshFacebookToken = false
+    response.newsletters.arts = false
+    fixture.user?.newsletters.arts = true
+    try fixture.provider.gate.finish(0, .success(response))
+    _ = try await request.value
+    XCTAssertEqual(fixture.user?.facebookConnected, true)
+    XCTAssertEqual(fixture.user?.newsletters.arts, true)
+  }
+
+  func testRefreshWaitsForAccountWriteBeforeFetchingAndCommitting() async throws {
+    let fixture = AccountWritesFixture()
+    defer { fixture.provider.gate.releaseAll(); fixture.readProvider.gate.releaseAll() }
+    let write = fixture.feature.accountResult(.currency("GBP")).start()
+    let refresh = fixture.feature.refreshResult().start()
+    defer { write.dispose(); refresh.dispose() }
+    await fixture.provider.gate.waitFor(1)
+    XCTAssertEqual(fixture.readProvider.gate.count, 0)
+    try fixture.provider.gate.finish(0, .success(nil))
+    await fixture.readProvider.gate.waitFor(1)
+    var response = try XCTUnwrap(fixture.user)
+    response.name = "Fresh account"
+    try fixture.readProvider.gate.finish(0, .success(response))
+    await fixture.feature.waitForOperations()
+    XCTAssertEqual(fixture.user?.chosenCurrency, "GBP")
+    XCTAssertEqual(fixture.user?.name, "Fresh account")
+  }
+
+  func testRefreshStartedBeforeAccountEditCannotOverwriteConfirmedWrite() async throws {
+    let fixture = AccountWritesFixture()
+    defer { fixture.provider.gate.releaseAll(); fixture.readProvider.gate.releaseAll() }
+    let stale = try XCTUnwrap(fixture.user)
+    let refresh = fixture.feature.refreshResult().start()
+    await fixture.readProvider.gate.waitFor(1)
+    let write = fixture.feature.accountResult(.currency("GBP")).start()
+    defer { refresh.dispose(); write.dispose() }
+    await fixture.provider.gate.waitFor(1)
+    try fixture.provider.gate.finish(0, .success(nil))
+    try fixture.readProvider.gate.finish(0, .success(stale)) // Transport ignores cancellation.
+    await fixture.feature.waitForOperations()
+    XCTAssertEqual(fixture.user?.chosenCurrency, "GBP")
+    XCTAssertEqual(fixture.commits, 1)
+  }
+}
+
+@MainActor
+private final class AccountWritesFixture {
+  var user: User? = .template
+  var commits = 0
+  let provider = ControlledAccountWritesProvider()
+  let readProvider = ControlledPreferencesReadProvider()
+  lazy var session = SessionFeature(
+    makeProvider: { self.readProvider },
+    currentUser: { [weak self] in self?.user },
+    updateUser: { [weak self] in self?.user = $0; self?.commits += 1 }
+  )
+  lazy var feature = SettingsFeature(sessionFeature: self.session, makeProvider: { self.provider })
+}
+
+@MainActor
+private final class ControlledAccountWritesProvider: AccountPreferencesProvider {
+  let verifications = AccountRequestGate<EmailVerificationResponseEnvelope>()
+  let emails = AccountRequestGate<GraphUser>()
+  func verifyEmail(token _: String) async throws -> EmailVerificationResponseEnvelope {
+    try await self.verifications.request()
+  }
+
+  let gate = AccountRequestGate<User?>()
+  var commands: [SettingsFeature.AccountChange] = []
+  var preferences: [User] = []
+  func update(_ change: SettingsFeature.AccountChange) async throws -> User? {
+    self.commands.append(change)
+    return try await self.gate.request()
+  }
+
+  func save(_ user: User) async throws -> User { self.preferences.append(user); return user }
+  func emailUser() async throws -> GraphUser { try await self.emails.request() }
+}
+
+@MainActor
 private final class ControlledPreferencesProvider: AccountPreferencesProvider {
+  func verifyEmail(token _: String) async throws
+    -> EmailVerificationResponseEnvelope { throw CancellationError() }
+  func update(_: SettingsFeature.AccountChange) async throws -> User? { throw CancellationError() }
+  func emailUser() async throws -> GraphUser { throw CancellationError() }
   let gate = AccountRequestGate<User>()
   var sent: [User] = []
   func save(_ user: User) async throws -> User {
@@ -343,6 +585,7 @@ private final class ControlledPreferencesProvider: AccountPreferencesProvider {
 
 @MainActor
 private final class ControlledPreferencesReadProvider: SessionProvider {
+  func setup() async throws -> GraphUserSetup { throw CancellationError() }
   let gate = AccountRequestGate<User>()
   func user() async throws -> User { try await self.gate.request() }
   func graphUser() async throws -> User { throw CancellationError() }

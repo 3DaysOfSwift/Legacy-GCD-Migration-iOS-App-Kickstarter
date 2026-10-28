@@ -28,6 +28,7 @@ public protocol ChangeEmailViewModelTypeSwiftUIIntegrationTest {
   var outputs: ChangeEmailViewModelOutputsSwiftUIIntegrationTest { get }
 }
 
+@MainActor
 public final class ChangeEmailViewModelSwiftUIIntegrationTest: ChangeEmailViewModelTypeSwiftUIIntegrationTest,
   ChangeEmailViewModelInputsSwiftUIIntegrationTest,
   ChangeEmailViewModelOutputsSwiftUIIntegrationTest, ObservableObject {
@@ -44,11 +45,12 @@ public final class ChangeEmailViewModelSwiftUIIntegrationTest: ChangeEmailViewMo
   public var saveTriggered: PassthroughSubject<Bool, Never> = .init()
   public var resetEditableText: PassthroughSubject<Bool, Never> = .init()
 
-  public init() {
+  public init(settingsFeature: SettingsFeature? = nil) {
+    let settingsFeature = settingsFeature ?? AppModel.shared.settingsFeature
     let changeEmailEvent = self.updateEmailAndPasswordProperty.signal.skipNil()
       .map(ChangeEmailInput.init(email:currentPassword:))
       .switchMap { input in
-        AppEnvironment.current.apiService.changeEmail(input: input)
+        settingsFeature.accountResult(.email(input))
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .map { _ in input.email }
           .materialize()
@@ -56,16 +58,14 @@ public final class ChangeEmailViewModelSwiftUIIntegrationTest: ChangeEmailViewMo
 
     let userEmailEvent = self.viewDidLoadProperty.signal
       .switchMap { _ in
-        AppEnvironment.current
-          .apiService
-          .fetchGraphUser(withStoredCards: false)
+        settingsFeature.emailUserResult()
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
       }
 
     let resendEmailVerificationEvent = self.resendVerificationEmailButtonProperty.signal
       .switchMap { _ in
-        AppEnvironment.current.apiService.sendVerificationEmail(input: EmptyInput())
+        settingsFeature.accountResult(.sendVerification)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
       }
@@ -77,11 +77,11 @@ public final class ChangeEmailViewModelSwiftUIIntegrationTest: ChangeEmailViewMo
 
     self.emailText = Signal.merge(
       changeEmailEvent.values(),
-      userEmailEvent.values().map { $0.me.email ?? "" }
+      userEmailEvent.values().map { $0.email ?? "" }
     )
 
-    let isEmailVerified = userEmailEvent.values().map { $0.me.isEmailVerified }.skipNil()
-    let isEmailDeliverable = userEmailEvent.values().map { $0.me.isDeliverable }.skipNil()
+    let isEmailVerified = userEmailEvent.values().map { $0.isEmailVerified }.skipNil()
+    let isEmailDeliverable = userEmailEvent.values().map { $0.isDeliverable }.skipNil()
     let emailVerifiedAndDeliverable: Signal<Bool, Never> = Signal
       .combineLatest(isEmailVerified, isEmailDeliverable)
       .map { isEmailVerified, isEmailDeliverable -> Bool in

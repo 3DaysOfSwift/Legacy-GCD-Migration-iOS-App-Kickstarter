@@ -3,6 +3,7 @@ import KsApi
 import Prelude
 import ReactiveSwift
 
+@MainActor
 public protocol CreatePasswordViewModelInputs {
   func cellAtIndexPathShouldBecomeFirstResponder(_ indexPath: IndexPath?)
   func newPasswordTextFieldChanged(text: String?)
@@ -13,6 +14,7 @@ public protocol CreatePasswordViewModelInputs {
   func viewDidAppear()
 }
 
+@MainActor
 public protocol CreatePasswordViewModelOutputs {
   var accessibilityFocusValidationLabel: Signal<Void, Never> { get }
   var activityIndicatorShouldShow: Signal<Bool, Never> { get }
@@ -30,14 +32,17 @@ public protocol CreatePasswordViewModelOutputs {
   func currentValidationLabelText() -> String?
 }
 
+@MainActor
 public protocol CreatePasswordViewModelType {
   var inputs: CreatePasswordViewModelInputs { get }
   var outputs: CreatePasswordViewModelOutputs { get }
 }
 
+@MainActor
 public class CreatePasswordViewModel: CreatePasswordViewModelType,
   CreatePasswordViewModelInputs, CreatePasswordViewModelOutputs {
-  public init() {
+  public init(settingsFeature: SettingsFeature? = nil) {
+    let settingsFeature = settingsFeature ?? AppModel.shared.settingsFeature
     self.newPasswordTextFieldDidBecomeFirstResponder = self.viewDidAppearProperty.signal
     self.newPasswordConfirmationTextFieldDidBecomeFirstResponder = self.newPasswordDidReturnProperty.signal
     self.newPasswordConfirmationTextFieldDidResignFirstResponder =
@@ -101,7 +106,7 @@ public class CreatePasswordViewModel: CreatePasswordViewModelType,
       .takeWhen(saveAction)
       .map { CreatePasswordInput(password: $0.0, passwordConfirmation: $0.1) }
       .switchMap { input in
-        AppEnvironment.current.apiService.createPassword(input: input)
+        settingsFeature.accountResult(.initialPassword(input))
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
       }

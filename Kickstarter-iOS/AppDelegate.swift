@@ -95,8 +95,9 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     self.viewModel.outputs.updateCurrentUserInEnvironment
       .observeForUI()
-      .observeValues { [weak self] user in
-        AppEnvironment.updateCurrentUser(user)
+      .observeValues { [weak self] _ in
+        // The Feature committed already; never replay a delayed whole-user snapshot.
+        guard let user = AppEnvironment.current.currentUser else { return }
         // Update user in Braze.
         self?.braze?.changeUser(userId: String(user.id))
 

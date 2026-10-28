@@ -8,8 +8,16 @@ import XCTest
 @testable import Library
 import ReactiveExtensions_TestHelpers
 
+@MainActor
 final class CreatePasswordViewModelTests: TestCase {
-  private let vm: CreatePasswordViewModelType = CreatePasswordViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = SettingsFeature(
+    sessionFeature: SessionFeature(makeProvider: {
+      AsyncSessionProvider(service: AppEnvironment.current.apiService)
+    }),
+    makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var vm: CreatePasswordViewModelType = CreatePasswordViewModel(settingsFeature: self.feature)
   private let failureService =
     MockService(createPasswordResult: .failure(ErrorEnvelope(
       errorMessages: ["Error creating password"],
@@ -35,32 +43,41 @@ final class CreatePasswordViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated {
+      AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
 
-    self.vm.outputs.accessibilityFocusValidationLabel.observe(self.accessibilityFocusValidationLabel.observer)
-    self.vm.outputs.activityIndicatorShouldShow.observe(self.activityIndicatorShouldShow.observer)
-    self.vm.outputs.createPasswordFailure.observe(self.createPasswordFailure.observer)
-    self.vm.outputs.createPasswordSuccess.observe(self.createPasswordSuccess.observer)
-    self.vm.outputs.dismissKeyboard.observe(self.dismissKeyboard.observer)
-    self.vm.outputs.newPasswordTextFieldDidBecomeFirstResponder.observe(
-      self.newPasswordTextFieldBecomeFirstResponder.observer
-    )
-    self.vm.outputs.newPasswordConfirmationTextFieldDidBecomeFirstResponder.observe(
-      self.newPasswordConfirmationTextFieldBecomeFirstResponder.observer
-    )
-    self.vm.outputs.newPasswordConfirmationTextFieldDidResignFirstResponder.observe(
-      self.newPasswordConfirmationTextFieldResignFirstResponder.observer
-    )
-    self.vm.outputs.saveButtonIsEnabled.observe(self.saveButtonIsEnabled.observer)
+      self.vm.outputs.accessibilityFocusValidationLabel
+        .observe(self.accessibilityFocusValidationLabel.observer)
+      self.vm.outputs.activityIndicatorShouldShow.observe(self.activityIndicatorShouldShow.observer)
+      self.vm.outputs.createPasswordFailure.observe(self.createPasswordFailure.observer)
+      self.vm.outputs.createPasswordSuccess.observe(self.createPasswordSuccess.observer)
+      self.vm.outputs.dismissKeyboard.observe(self.dismissKeyboard.observer)
+      self.vm.outputs.newPasswordTextFieldDidBecomeFirstResponder.observe(
+        self.newPasswordTextFieldBecomeFirstResponder.observer
+      )
+      self.vm.outputs.newPasswordConfirmationTextFieldDidBecomeFirstResponder.observe(
+        self.newPasswordConfirmationTextFieldBecomeFirstResponder.observer
+      )
+      self.vm.outputs.newPasswordConfirmationTextFieldDidResignFirstResponder.observe(
+        self.newPasswordConfirmationTextFieldResignFirstResponder.observer
+      )
+      self.vm.outputs.saveButtonIsEnabled.observe(self.saveButtonIsEnabled.observer)
 
-    self.vm.outputs.cellAtIndexPathDidBecomeFirstResponder.observe(
-      self.cellAtIndexPathDidBecomeFirstResponder.observer
-    )
-    self.vm.outputs.validationLabelIsHidden.observe(self.validationLabelIsHidden.observer)
-    self.vm.outputs.validationLabelText.observe(self.validationLabelText.observer)
+      self.vm.outputs.cellAtIndexPathDidBecomeFirstResponder.observe(
+        self.cellAtIndexPathDidBecomeFirstResponder.observer
+      )
+      self.vm.outputs.validationLabelIsHidden.observe(self.validationLabelIsHidden.observer)
+      self.vm.outputs.validationLabelText.observe(self.validationLabelText.observer)
+    }
   }
 
-  func testCreatePasswordFailure() {
-    withEnvironment(apiService: self.failureService) {
+  override func tearDown() async throws {
+    await self.feature.waitForOperations()
+    try await super.tearDown()
+  }
+
+  func testCreatePasswordFailure() async {
+    await withEnvironment(apiService: self.failureService) {
       self.vm.inputs.viewDidAppear()
 
       self.newPasswordTextFieldBecomeFirstResponder.assertValueCount(1)
@@ -77,14 +94,16 @@ final class CreatePasswordViewModelTests: TestCase {
       self.dismissKeyboard.assertValueCount(1)
       self.activityIndicatorShouldShow.assertValues([true])
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+
+      await self.scheduler.advance()
       self.createPasswordFailure.assertValues(["Error creating password"])
       self.activityIndicatorShouldShow.assertValues([true, false])
     }
   }
 
-  func testCreatePassword() {
-    withEnvironment(apiService: self.successService) {
+  func testCreatePassword() async {
+    await withEnvironment(apiService: self.successService) {
       self.vm.inputs.viewDidAppear()
 
       self.newPasswordTextFieldBecomeFirstResponder.assertValueCount(1)
@@ -101,13 +120,15 @@ final class CreatePasswordViewModelTests: TestCase {
       self.dismissKeyboard.assertValueCount(1)
       self.activityIndicatorShouldShow.assertValues([true])
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+
+      await self.scheduler.advance()
       self.createPasswordSuccess.assertValueCount(1)
       self.activityIndicatorShouldShow.assertValues([true, false])
     }
   }
 
-  func testDismissKeyboard_WhenSaveButtonDisabled() {
+  func testDismissKeyboard_WhenSaveButtonDisabled() async {
     self.vm.inputs.viewDidAppear()
 
     self.dismissKeyboard.assertValueCount(0)
@@ -125,7 +146,7 @@ final class CreatePasswordViewModelTests: TestCase {
     self.activityIndicatorShouldShow.assertValueCount(0)
   }
 
-  func testTextFieldShouldBecomeFirstResponder() {
+  func testTextFieldShouldBecomeFirstResponder() async {
     self.vm.inputs.viewDidAppear()
 
     self.vm.inputs.cellAtIndexPathShouldBecomeFirstResponder(nil)
@@ -136,8 +157,8 @@ final class CreatePasswordViewModelTests: TestCase {
     self.cellAtIndexPathDidBecomeFirstResponder.assertValues([indexPath])
   }
 
-  func testValidationErrorsWithVoiceOverOn() {
-    withEnvironment(isVoiceOverRunning: { true }) {
+  func testValidationErrorsWithVoiceOverOn() async {
+    await withEnvironment(isVoiceOverRunning: { true }) {
       self.vm.inputs.viewDidAppear()
       self.validationLabelIsHidden.assertValues([true])
       self.validationLabelText.assertValues([nil])
@@ -243,8 +264,8 @@ final class CreatePasswordViewModelTests: TestCase {
     }
   }
 
-  func testValidationErrorsWithVoiceOverOff() {
-    withEnvironment(isVoiceOverRunning: { false }) {
+  func testValidationErrorsWithVoiceOverOff() async {
+    await withEnvironment(isVoiceOverRunning: { false }) {
       self.vm.inputs.viewDidAppear()
       self.validationLabelIsHidden.assertValues([true])
       self.validationLabelText.assertValues([nil])
@@ -350,10 +371,10 @@ final class CreatePasswordViewModelTests: TestCase {
     }
   }
 
-  func testCreatePassword_eventTracking() {
+  func testCreatePassword_eventTracking() async {
     let segmentClient = MockTrackingClient()
 
-    withEnvironment(
+    await withEnvironment(
       apiService: self.successService,
       ksrAnalytics: KSRAnalytics(segmentClient: segmentClient)
     ) {
@@ -368,7 +389,9 @@ final class CreatePasswordViewModelTests: TestCase {
 
       self.vm.inputs.saveButtonTapped()
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+
+      await self.scheduler.advance()
 
       self.createPasswordSuccess.assertValueCount(1)
     }

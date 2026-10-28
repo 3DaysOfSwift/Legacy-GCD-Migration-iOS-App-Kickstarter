@@ -7,8 +7,18 @@ import Prelude
 import ReactiveExtensions_TestHelpers
 import XCTest
 
+@MainActor
 internal final class SettingsViewModelTests: TestCase {
-  let vm = SettingsViewModel(SettingsViewController.viewController(for:))
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = SettingsFeature(
+    sessionFeature: SessionFeature(makeProvider: {
+      AsyncSessionProvider(service: AppEnvironment.current.apiService)
+    }),
+    makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var vm = SettingsViewModel(
+    SettingsViewController.viewController(for:), settingsFeature: self.feature
+  )
   private let expectedLogoutPromptText = (
     messsage: "Are you sure you want to log out?",
     cancel: "Cancel",
@@ -25,32 +35,41 @@ internal final class SettingsViewModelTests: TestCase {
   internal override func setUp() {
     super.setUp()
 
-    self.vm.outputs.findFriendsDisabledProperty.signal.observe(self.findFriendsDisabled.observer)
-    self.vm.outputs.goToAppStoreRating.observe(self.goToAppStoreRating.observer)
-    self.vm.outputs.logoutWithParams.observe(self.logout.observer)
-    self.vm.outputs.reloadDataWithUser.observe(self.reloadDataWithUser.observer)
-    self.vm.outputs.showConfirmLogoutPrompt.signal.observe(self.showConfirmLogout.observer)
-    self.vm.outputs.transitionToViewController.observe(self.transitionToViewController.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.findFriendsDisabledProperty.signal.observe(self.findFriendsDisabled.observer)
+      self.vm.outputs.goToAppStoreRating.observe(self.goToAppStoreRating.observer)
+      self.vm.outputs.logoutWithParams.observe(self.logout.observer)
+      self.vm.outputs.reloadDataWithUser.observe(self.reloadDataWithUser.observer)
+      self.vm.outputs.showConfirmLogoutPrompt.signal.observe(self.showConfirmLogout.observer)
+      self.vm.outputs.transitionToViewController.observe(self.transitionToViewController.observer)
+    }
   }
 
-  func testViewDidLoad_withSocialEnabledUser() {
+  override func tearDown() async throws {
+    await self.feature.waitForOperations()
+    try await super.tearDown()
+  }
+
+  func testViewDidLoad_withSocialEnabledUser() async {
     let user = User.template |> \.social .~ true
     let mockService = MockService(fetchUserSelfResponse: user)
 
-    withEnvironment(apiService: mockService, currentUser: user) {
+    await withEnvironment(apiService: mockService, currentUser: user) {
       self.vm.viewDidLoad()
+      await self.feature.waitForOperations()
 
       self.reloadDataWithUser.assertValueCount(2)
       self.findFriendsDisabled.assertValues([false, false])
     }
   }
 
-  func testViewDidLoad_withSocialDisabledUser() {
+  func testViewDidLoad_withSocialDisabledUser() async {
     let user = User.template |> \.social .~ false
     let mockService = MockService(fetchUserSelfResponse: user)
 
-    withEnvironment(apiService: mockService, currentUser: user) {
+    await withEnvironment(apiService: mockService, currentUser: user) {
       self.vm.viewDidLoad()
+      await self.feature.waitForOperations()
 
       self.reloadDataWithUser.assertValueCount(2)
       self.findFriendsDisabled.assertValues([true, true])
@@ -122,15 +141,16 @@ internal final class SettingsViewModelTests: TestCase {
     self.goToAppStoreRating.assertValueCount(1, "Opens app store url")
   }
 
-  func testUserUpdatedNotification() {
+  func testUserUpdatedNotification() async {
     let storedUser = User.template |> \.social .~ false
     let updatedUser = User.template |> \.social .~ true
     let mockService = MockService(fetchUserSelfResponse: updatedUser)
 
-    withEnvironment(apiService: mockService, currentUser: storedUser) {
+    await withEnvironment(apiService: mockService, currentUser: storedUser) {
       self.vm.currentUserUpdated()
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.reloadDataWithUser.assertValueCount(2)
       self.findFriendsDisabled.assertValues([true, false])

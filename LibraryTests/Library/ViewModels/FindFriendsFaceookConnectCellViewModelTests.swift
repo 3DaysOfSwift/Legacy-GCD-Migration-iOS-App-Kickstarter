@@ -11,8 +11,17 @@ import ReactiveSwift
 import UIKit.UIActivity
 import XCTest
 
+@MainActor
 final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
-  let vm: FindFriendsFacebookConnectCellViewModelType = FindFriendsFacebookConnectCellViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = SettingsFeature(
+    sessionFeature: SessionFeature(makeProvider: {
+      AsyncSessionProvider(service: AppEnvironment.current.apiService)
+    }),
+    makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var vm: FindFriendsFacebookConnectCellViewModelType =
+    FindFriendsFacebookConnectCellViewModel(settingsFeature: self.feature)
 
   let attemptFacebookLogin = TestObserver<(), Never>()
   let hideCloseButton = TestObserver<Bool, Never>()
@@ -27,34 +36,42 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated {
+      AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
 
-    self.vm.outputs.attemptFacebookLogin.observe(self.attemptFacebookLogin.observer)
-    self.vm.outputs.facebookConnectCellTitle.observe(self.title.observer)
-    self.vm.outputs.facebookConnectCellSubtitle.observe(self.subtitle.observer)
-    self.vm.outputs.hideCloseButton.observe(self.hideCloseButton.observer)
-    self.vm.outputs.isLoading.observe(self.isLoading.observer)
-    self.vm.outputs.notifyDelegateToDismissHeader.observe(self.notifyPresenterToDismissHeader.observer)
-    self.vm.outputs.notifyDelegateUserFacebookConnected
-      .observe(self.notifyPresenterUserFacebookConnected.observer)
-    self.vm.outputs.postUserUpdatedNotification.map { $0.name }
-      .observe(self.postUserUpdatedNotification.observer)
-    self.vm.outputs.updateUserInEnvironment.observe(self.updateUserInEnvironment.observer)
-    self.vm.outputs.showErrorAlert.observe(self.showErrorAlert.observer)
+      self.vm.outputs.attemptFacebookLogin.observe(self.attemptFacebookLogin.observer)
+      self.vm.outputs.facebookConnectCellTitle.observe(self.title.observer)
+      self.vm.outputs.facebookConnectCellSubtitle.observe(self.subtitle.observer)
+      self.vm.outputs.hideCloseButton.observe(self.hideCloseButton.observer)
+      self.vm.outputs.isLoading.observe(self.isLoading.observer)
+      self.vm.outputs.notifyDelegateToDismissHeader.observe(self.notifyPresenterToDismissHeader.observer)
+      self.vm.outputs.notifyDelegateUserFacebookConnected
+        .observe(self.notifyPresenterUserFacebookConnected.observer)
+      self.vm.outputs.postUserUpdatedNotification.map { $0.name }
+        .observe(self.postUserUpdatedNotification.observer)
+      self.vm.outputs.updateUserInEnvironment.observe(self.updateUserInEnvironment.observer)
+      self.vm.outputs.showErrorAlert.observe(self.showErrorAlert.observer)
+    }
   }
 
-  func testHideCloseButton() {
+  override func tearDown() async throws {
+    await self.feature.waitForOperations()
+    try await super.tearDown()
+  }
+
+  func testHideCloseButton() async {
     self.vm.inputs.configureWith(source: .findFriends)
 
     self.hideCloseButton.assertValue(true)
   }
 
-  func testShowCloseButton() {
+  func testShowCloseButton() async {
     self.vm.inputs.configureWith(source: .settings)
 
     self.hideCloseButton.assertValue(false)
   }
 
-  func testDismissal() {
+  func testDismissal() async {
     self.vm.inputs.configureWith(source: .settings)
 
     self.notifyPresenterToDismissHeader.assertValueCount(0)
@@ -64,8 +81,8 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
     self.notifyPresenterToDismissHeader.assertValueCount(1)
   }
 
-  func testLabels_NonFacebookConnectedUser() {
-    withEnvironment(currentUser: User.template) {
+  func testLabels_NonFacebookConnectedUser() async {
+    await withEnvironment(currentUser: User.template) {
       self.vm.inputs.configureWith(source: .settings)
 
       self.title.assertValue(Strings.Discover_more_projects())
@@ -73,8 +90,8 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
     }
   }
 
-  func testLabels_needsReconnect() {
-    withEnvironment(
+  func testLabels_needsReconnect() async {
+    await withEnvironment(
       currentUser: User.template
         |> \.facebookConnected .~ true
         |> \.needsFreshFacebookToken .~ true
@@ -86,7 +103,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
     }
   }
 
-  func testFacebookConnectFlow_Success() {
+  func testFacebookConnectFlow_Success() async {
     let token = AccessToken(
       tokenString: "12344566",
       permissions: [],
@@ -107,7 +124,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
       declinedPermissions: []
     )
 
-    withEnvironment(currentUser: User.template) {
+    await withEnvironment(currentUser: User.template) {
       self.vm.inputs.configureWith(source: .settings)
 
       self.attemptFacebookLogin.assertValueCount(0, "Attempt Facebook Login does not emit")
@@ -120,7 +137,8 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
 
       self.updateUserInEnvironment.assertValueCount(0, "Update user does not emit")
 
-      scheduler.advance()
+      await self.feature.waitForOperations()
+      await scheduler.advance()
 
       self.updateUserInEnvironment.assertValueCount(1, "Update user in environment")
 
@@ -136,7 +154,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
     }
   }
 
-  func testFacebookConnectFlow_Error_LoginAttemptFail() {
+  func testFacebookConnectFlow_Error_LoginAttemptFail() async {
     let error = NSError(
       domain: "facebook.com",
       code: 404,
@@ -164,7 +182,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
     self.updateUserInEnvironment.assertValueCount(0, "Update user does not emit")
   }
 
-  func testFacebookConnectFlow_Error_TokenFail() {
+  func testFacebookConnectFlow_Error_TokenFail() async {
     let token = AccessToken(
       tokenString: "spaghetti",
       permissions: [],
@@ -192,7 +210,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(facebookConnectError: error)) {
+    await withEnvironment(apiService: MockService(facebookConnectError: error)) {
       self.vm.inputs.configureWith(source: .settings)
 
       self.attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login does not emit")
@@ -205,7 +223,8 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
 
       self.showErrorAlert.assertValueCount(0, "Error alert does not emit")
 
-      scheduler.advance()
+      await self.feature.waitForOperations()
+      await scheduler.advance()
 
       self.showErrorAlert.assertValues(
         [AlertError.facebookTokenFail],
@@ -215,7 +234,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
     }
   }
 
-  func testFacebookConnectFlow_Error_AccountTaken() {
+  func testFacebookConnectFlow_Error_AccountTaken() async {
     let token = AccessToken(
       tokenString: "spaghetti",
       permissions: [],
@@ -243,7 +262,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(facebookConnectError: error)) {
+    await withEnvironment(apiService: MockService(facebookConnectError: error)) {
       self.vm.inputs.configureWith(source: .settings)
 
       self.attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login does not emit")
@@ -256,7 +275,8 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
 
       self.showErrorAlert.assertValueCount(0, "Error alert does not emit")
 
-      scheduler.advance()
+      await self.feature.waitForOperations()
+      await scheduler.advance()
 
       self.showErrorAlert.assertValues(
         [AlertError.facebookConnectAccountTaken(envelope: error)],
@@ -266,7 +286,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
     }
   }
 
-  func testFacebookConnectFlow_Error_EmailTaken() {
+  func testFacebookConnectFlow_Error_EmailTaken() async {
     let token = AccessToken(
       tokenString: "spaghetti",
       permissions: [],
@@ -296,7 +316,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(facebookConnectError: error)) {
+    await withEnvironment(apiService: MockService(facebookConnectError: error)) {
       self.vm.inputs.configureWith(source: .settings)
 
       self.attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login does not emit")
@@ -309,7 +329,8 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
 
       self.showErrorAlert.assertValueCount(0, "Error alert does not emit")
 
-      scheduler.advance()
+      await self.feature.waitForOperations()
+      await scheduler.advance()
 
       self.showErrorAlert.assertValues(
         [AlertError.facebookConnectEmailTaken(envelope: error)],
@@ -319,7 +340,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
     }
   }
 
-  func testFacebookConnectFlow_Error_Generic() {
+  func testFacebookConnectFlow_Error_Generic() async {
     let token = AccessToken(
       tokenString: "12344566",
       permissions: [],
@@ -347,7 +368,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
       exception: nil
     )
 
-    withEnvironment(apiService: MockService(facebookConnectError: error)) {
+    await withEnvironment(apiService: MockService(facebookConnectError: error)) {
       self.vm.inputs.configureWith(source: .settings)
 
       self.attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login does not emit")
@@ -360,7 +381,8 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
 
       self.showErrorAlert.assertValueCount(0, "Error alert does not emit")
 
-      scheduler.advance()
+      await self.feature.waitForOperations()
+      await scheduler.advance()
 
       self.showErrorAlert.assertValues(
         [AlertError.genericFacebookError(envelope: error)],

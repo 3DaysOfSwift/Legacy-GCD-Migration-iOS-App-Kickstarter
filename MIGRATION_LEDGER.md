@@ -4,6 +4,48 @@ Author: Matthew Thomas. Updated 28 October 2026.
 
 ## Latest verified checkpoint
 
+### Account writes and session refresh — 28 October 2026
+
+Email/password creation and changes, currency, verification sends and Facebook
+connection now use directly awaitable SettingsFeature commands and native async
+service adapters. They share the existing preference queue: equivalent pending
+tails share; distinct edits remain ordered. Confirmed account fields merge into
+the latest session user instead of replaying stale preference snapshots.
+Admitted writes survive observer disposal; no automatic mutation retry is added.
+
+SessionFeature owns setup persistence and guards refresh success AND failure
+against session/read generations. An obsolete unauthorized response cannot log
+out a replacement account. Authenticated lifecycle refresh explicitly permits
+legacy token-only restoration; ordinary refresh does not create a login.
+Email-verification links have a separate ordered token lane, work while signed
+out and never establish a session. AppDelegate and the Facebook cell no longer
+persist delayed whole-user results. The main Settings screen uses the same
+guarded refresh, retaining its cached-user-first presentation.
+
+Baseline: 37 original account-screen tests and 11 original Settings screen tests
+passed before their respective production changes. The existing Facebook suite
+was discovered later (its filename contains Faceook), adapted and run afterward;
+it is not claimed as pre-change evidence. Five account suites and Settings opt
+out of the snapshot reference-device gate only because they are nonvisual.
+Business assertions remain; tests now await Feature completion.
+
+Final: 790 Library + 138 framework + 34 API = 962 passed, zero failures/skips;
+app build succeeded, zero errors, three warnings (Crashlytics output declaration,
+missing legacy Frameworks search path, extension/app build-number mismatch).
+Seventeen added Feature scenarios cover sharing, ordered writes, failures/retry,
+disposed observers, account replacement, read/write overlap, setup persistence
+and token-only restoration. Three development compile failures were corrected
+and retained in the case study. Intermediate 945- and 951-test runs also passed.
+Results: /private/tmp/kickstarter-account-writes.6Wlp03.
+Evidence: sibling Migration Evidence/kickstarter-account-writes.
+
+Next: root activity badge ownership, messaging and project-notification
+reads/writes, then pledge/payment/backing. Existing reactive presentation and
+unmigrated service signatures remain compatibility boundaries. Settings retains
+its existing controller factory; moving that navigation plumbing is not part
+of this checkpoint. No live account mutations, visual/physical-device validation,
+full-suite or app-wide strict-concurrency sign-off. App-wide migration IN PROGRESS.
+
 ### Social login, signup, OAuth and password reset — 28 October 2026
 
 Initial Facebook login, Apple login, Facebook signup and OAuth now join the

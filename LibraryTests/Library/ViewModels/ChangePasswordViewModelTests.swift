@@ -9,8 +9,16 @@ import XCTest
 @testable import LibraryTestHelpers
 import ReactiveExtensions_TestHelpers
 
+@MainActor
 final class ChangePasswordViewModelTests: TestCase {
-  private let vm: ChangePasswordViewModelType = ChangePasswordViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = SettingsFeature(
+    sessionFeature: SessionFeature(makeProvider: {
+      AsyncSessionProvider(service: AppEnvironment.current.apiService)
+    }),
+    makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var vm: ChangePasswordViewModelType = ChangePasswordViewModel(settingsFeature: self.feature)
 
   private let accessibilityFocusValidationErrorLabel = TestObserver<Void, Never>()
   private let activityIndicatorShouldShow = TestObserver<Bool, Never>()
@@ -26,27 +34,35 @@ final class ChangePasswordViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated {
+      AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
 
-    self.vm.outputs.accessibilityFocusValidationErrorLabel
-      .observe(self.accessibilityFocusValidationErrorLabel.observer)
-    self.vm.outputs.activityIndicatorShouldShow.observe(self.activityIndicatorShouldShow.observer)
-    self.vm.outputs.changePasswordFailure.observe(self.changePasswordFailure.observer)
-    self.vm.outputs.changePasswordSuccess.observe(self.changePasswordSuccess.observer)
-    self.vm.outputs.confirmNewPasswordBecomeFirstResponder
-      .observe(self.confirmNewPasswordBecomeFirstResponder.observer)
-    self.vm.outputs.currentPasswordBecomeFirstResponder
-      .observe(self.currentPasswordBecomeFirstResponder.observer)
-    self.vm.outputs.dismissKeyboard.observe(self.dismissKeyboard.observer)
-    self.vm.outputs.newPasswordBecomeFirstResponder.observe(self.newPasswordBecomeFirstResponder.observer)
-    self.vm.outputs.saveButtonIsEnabled.observe(self.saveButtonIsEnabled.observer)
-    self.vm.outputs.validationErrorLabelIsHidden.observe(self.validationErrorLabelIsHidden.observer)
-    self.vm.outputs.validationErrorLabelMessage.observe(self.validationErrorLabelMessage.observer)
+      self.vm.outputs.accessibilityFocusValidationErrorLabel
+        .observe(self.accessibilityFocusValidationErrorLabel.observer)
+      self.vm.outputs.activityIndicatorShouldShow.observe(self.activityIndicatorShouldShow.observer)
+      self.vm.outputs.changePasswordFailure.observe(self.changePasswordFailure.observer)
+      self.vm.outputs.changePasswordSuccess.observe(self.changePasswordSuccess.observer)
+      self.vm.outputs.confirmNewPasswordBecomeFirstResponder
+        .observe(self.confirmNewPasswordBecomeFirstResponder.observer)
+      self.vm.outputs.currentPasswordBecomeFirstResponder
+        .observe(self.currentPasswordBecomeFirstResponder.observer)
+      self.vm.outputs.dismissKeyboard.observe(self.dismissKeyboard.observer)
+      self.vm.outputs.newPasswordBecomeFirstResponder.observe(self.newPasswordBecomeFirstResponder.observer)
+      self.vm.outputs.saveButtonIsEnabled.observe(self.saveButtonIsEnabled.observer)
+      self.vm.outputs.validationErrorLabelIsHidden.observe(self.validationErrorLabelIsHidden.observer)
+      self.vm.outputs.validationErrorLabelMessage.observe(self.validationErrorLabelMessage.observer)
+    }
   }
 
-  func testChangePassword() {
+  override func tearDown() async throws {
+    await self.feature.waitForOperations()
+    try await super.tearDown()
+  }
+
+  func testChangePassword() async {
     let service = MockService(changePasswordResult: .success(EmptyResponseEnvelope()))
 
-    withEnvironment(apiService: service) {
+    await withEnvironment(apiService: service) {
       self.vm.inputs.viewDidAppear()
 
       self.currentPasswordBecomeFirstResponder.assertValueCount(1)
@@ -62,14 +78,16 @@ final class ChangePasswordViewModelTests: TestCase {
       self.dismissKeyboard.assertValueCount(1)
       self.activityIndicatorShouldShow.assertValues([true])
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+
+      await self.scheduler.advance()
 
       self.changePasswordSuccess.assertValueCount(1)
       self.activityIndicatorShouldShow.assertValues([true, false])
     }
   }
 
-  func testDismissKeyboard_WhenSaveButtonDisabled() {
+  func testDismissKeyboard_WhenSaveButtonDisabled() async {
     self.vm.inputs.viewDidAppear()
 
     self.dismissKeyboard.assertValueCount(0)
@@ -89,8 +107,8 @@ final class ChangePasswordViewModelTests: TestCase {
     self.activityIndicatorShouldShow.assertValueCount(0)
   }
 
-  func testValidationErrors_VoiceOverON() {
-    withEnvironment(isVoiceOverRunning: { true }) {
+  func testValidationErrors_VoiceOverON() async {
+    await withEnvironment(isVoiceOverRunning: { true }) {
       self.vm.inputs.viewDidAppear()
       self.validationErrorLabelIsHidden.assertValues([true])
       self.validationErrorLabelMessage.assertValues([""])
@@ -197,8 +215,8 @@ final class ChangePasswordViewModelTests: TestCase {
     }
   }
 
-  func testValidationErrors_VoiceOverOFF() {
-    withEnvironment(isVoiceOverRunning: { false }) {
+  func testValidationErrors_VoiceOverOFF() async {
+    await withEnvironment(isVoiceOverRunning: { false }) {
       self.vm.inputs.viewDidAppear()
       self.validationErrorLabelIsHidden.assertValues([true])
       self.validationErrorLabelMessage.assertValues([""])
@@ -305,7 +323,7 @@ final class ChangePasswordViewModelTests: TestCase {
     }
   }
 
-  func testChangePasswordFailure() {
+  func testChangePasswordFailure() async {
     let service =
       MockService(changePasswordResult: .failure(ErrorEnvelope(
         errorMessages: ["Error changing password"],
@@ -314,7 +332,7 @@ final class ChangePasswordViewModelTests: TestCase {
         exception: nil
       )))
 
-    withEnvironment(apiService: service) {
+    await withEnvironment(apiService: service) {
       self.vm.inputs.viewDidAppear()
 
       self.currentPasswordBecomeFirstResponder.assertValueCount(1)
@@ -336,7 +354,9 @@ final class ChangePasswordViewModelTests: TestCase {
       self.dismissKeyboard.assertValueCount(1)
       self.activityIndicatorShouldShow.assertValues([true])
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+
+      await self.scheduler.advance()
 
       self.changePasswordFailure.assertValues(["Error changing password"])
 

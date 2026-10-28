@@ -210,7 +210,9 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       .ksr_debounce(.seconds(5), on: AppEnvironment.current.scheduler)
       .switchMap { _ -> SignalProducer<Signal<User?, ErrorEnvelope>.Event, Never> in
         AppEnvironment.current.apiService.isAuthenticated || AppEnvironment.current.currentUser != nil
-          ? AppEnvironment.current.apiService.fetchUserSelf().wrapInOptional().materialize()
+          ? settingsFeature
+          .refreshResult(allowSessionRestore: AppEnvironment.current.apiService.isAuthenticated)
+          .wrapInOptional().materialize()
           : SignalProducer(value: .value(nil))
       }
 
@@ -220,29 +222,14 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
         self.applicationLaunchOptionsProperty.signal.ignoreValues(),
         self.userSessionStartedProperty.signal
       )
-      .switchMap { _ -> SignalProducer<Signal<UserEnvelope<GraphUserSetup>?, ErrorEnvelope>.Event, Never> in
-        AppEnvironment.current.apiService.fetchGraphUserSetup().wrapInOptional().materialize()
+      .switchMap { _ -> SignalProducer<Signal<GraphUserSetup?, ErrorEnvelope>.Event, Never> in
+        settingsFeature.setupResult().wrapInOptional().materialize()
       }
 
     self.fetchUserEmail = fetchUserSetupEvent.values()
       .map { user in
-        guard
-          let email = user?.me.email,
-          let features = user?.me.enabledFeatures
-        else {
-          return
-        }
-
-        let ppoSettings = PPOUserSettings(
-          hasAction: user?.me.ppoHasAction ?? false,
-          backingActionCount: user?.me.backingActionCount ?? 0
-        )
-
-        AppEnvironment.replaceCurrentEnvironment(
-          currentUserEmail: email,
-          currentUserPPOSettings: ppoSettings,
-          currentUserServerFeatures: features
-        )
+        // SessionFeature has already stored the guarded setup snapshot.
+        guard user?.email != nil else { return }
 
         NotificationCenter.default.post(.init(name: .ksr_userUpdated))
       }
@@ -432,7 +419,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       .map(accessTokenFromUrl)
       .skipNil()
       .switchMap { accessToken in
-        AppEnvironment.current.apiService.verifyEmail(withToken: accessToken)
+        settingsFeature.verificationResult(token: accessToken)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
       }

@@ -3,6 +3,7 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol ChangeEmailViewModelInputs {
   func emailFieldTextDidChange(text: String?)
   func passwordFieldTextDidChange(text: String?)
@@ -13,6 +14,7 @@ public protocol ChangeEmailViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol ChangeEmailViewModelOutputs {
   var activityIndicatorShouldShow: Signal<Bool, Never> { get }
   var didChangeEmail: Signal<Void, Never> { get }
@@ -32,14 +34,17 @@ public protocol ChangeEmailViewModelOutputs {
   var verificationEmailButtonTitle: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol ChangeEmailViewModelType {
   var inputs: ChangeEmailViewModelInputs { get }
   var outputs: ChangeEmailViewModelOutputs { get }
 }
 
+@MainActor
 public final class ChangeEmailViewModel: ChangeEmailViewModelType, ChangeEmailViewModelInputs,
   ChangeEmailViewModelOutputs {
-  public init() {
+  public init(settingsFeature: SettingsFeature? = nil) {
+    let settingsFeature = settingsFeature ?? AppModel.shared.settingsFeature
     self.dismissKeyboard = Signal.merge(
       self.textFieldShouldReturnProperty.signal.skipNil()
         .filter { $0 == .done }
@@ -59,7 +64,7 @@ public final class ChangeEmailViewModel: ChangeEmailViewModelType, ChangeEmailVi
     .takeWhen(triggerSaveAction)
     .map(ChangeEmailInput.init(email:currentPassword:))
     .switchMap { input in
-      AppEnvironment.current.apiService.changeEmail(input: input)
+      settingsFeature.accountResult(.email(input))
         .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
         .map { _ in input.email }
         .materialize()
@@ -71,16 +76,14 @@ public final class ChangeEmailViewModel: ChangeEmailViewModelType, ChangeEmailVi
 
     let userEmailEvent = self.viewDidLoadProperty.signal
       .switchMap { _ in
-        AppEnvironment.current
-          .apiService
-          .fetchGraphUser(withStoredCards: false)
+        settingsFeature.emailUserResult()
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
       }
 
     let resendEmailVerificationEvent = self.resendVerificationEmailButtonProperty.signal
       .switchMap { _ in
-        AppEnvironment.current.apiService.sendVerificationEmail(input: EmptyInput())
+        settingsFeature.accountResult(.sendVerification)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
       }
@@ -92,11 +95,11 @@ public final class ChangeEmailViewModel: ChangeEmailViewModelType, ChangeEmailVi
 
     self.emailText = Signal.merge(
       changeEmailEvent.values(),
-      userEmailEvent.values().map { $0.me.email ?? "" }
+      userEmailEvent.values().map { $0.email ?? "" }
     )
 
-    let isEmailVerified = userEmailEvent.values().map { $0.me.isEmailVerified }.skipNil()
-    let isEmailDeliverable = userEmailEvent.values().map { $0.me.isDeliverable }.skipNil()
+    let isEmailVerified = userEmailEvent.values().map { $0.isEmailVerified }.skipNil()
+    let isEmailDeliverable = userEmailEvent.values().map { $0.isDeliverable }.skipNil()
     let emailVerifiedAndDeliverable: Signal<Bool, Never> = Signal
       .combineLatest(isEmailVerified, isEmailDeliverable)
       .map { isEmailVerified, isEmailDeliverable -> Bool in

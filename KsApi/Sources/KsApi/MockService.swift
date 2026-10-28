@@ -938,6 +938,65 @@
       return self.fetchUserSelfResponse ?? .template
     }
 
+    @MainActor private func completeAccountWrite(
+      _ result: Result<EmptyResponseEnvelope, ErrorEnvelope>?
+    ) throws {
+      try Task.checkCancellation()
+      guard self.demoCatalog == nil else {
+        throw ErrorEnvelope.graphError("Accounts and payments are unavailable in this fictional demo.")
+      }
+      guard let result else { throw ErrorEnvelope.couldNotParseJSON }
+      _ = try result.get()
+    }
+
+    @MainActor public func accountEmailUser() async throws -> GraphUser {
+      try Task.checkCancellation()
+      guard let result = self.fetchGraphUserResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get().me
+    }
+
+    @MainActor public func sessionSetup() async throws -> GraphUserSetup {
+      try Task.checkCancellation()
+      guard let result = self.fetchGraphUserSetupResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get().me
+    }
+
+    @MainActor public func confirmEmail(token: String) async throws -> EmailVerificationResponseEnvelope {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      guard let result = self.verifyEmailResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
+    @MainActor public func saveEmail(_ input: ChangeEmailInput) async throws {
+      try self.completeAccountWrite(self.changeEmailResult)
+    }
+
+    @MainActor public func savePassword(_ input: ChangePasswordInput) async throws {
+      try self.completeAccountWrite(self.changePasswordResult)
+    }
+
+    @MainActor public func setInitialPassword(_ input: CreatePasswordInput) async throws {
+      try self.completeAccountWrite(self.createPasswordResult)
+    }
+
+    @MainActor public func saveCurrency(_ input: ChangeCurrencyInput) async throws {
+      try self.completeAccountWrite(self.changeCurrencyResult)
+    }
+
+    @MainActor public func requestEmailVerification() async throws {
+      try self.completeAccountWrite(self.sendEmailVerificationResult)
+    }
+
+    @MainActor public func connectFacebook(token: String) async throws -> User {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      if let error = self.facebookConnectError { throw error }
+      if let user = self.facebookConnectResponse { return user }
+      var user = User.template
+      user.id = 1
+      user.facebookConnected = true
+      return user
+    }
+
     @MainActor public func saveAccountPreferences(_ user: User) async throws -> User {
       try Task.checkCancellation()
       if self.demoCatalog != nil {

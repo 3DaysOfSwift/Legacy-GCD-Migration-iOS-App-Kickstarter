@@ -8,6 +8,7 @@ public struct SelectedCurrencyData: Equatable {
   public let selected: Bool
 }
 
+@MainActor
 public protocol SelectCurrencyViewModelInputs {
   func configure(with selectedCurrency: Currency)
   func didSelectCurrency(atIndex index: Int)
@@ -15,6 +16,7 @@ public protocol SelectCurrencyViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol SelectCurrencyViewModelOutputs {
   var activityIndicatorShouldShow: Signal<Bool, Never> { get }
   var deselectCellAtIndex: Signal<Int, Never> { get }
@@ -26,14 +28,17 @@ public protocol SelectCurrencyViewModelOutputs {
   var updateCurrencyDidSucceed: Signal<Void, Never> { get }
 }
 
+@MainActor
 public protocol SelectCurrencyViewModelType {
   var inputs: SelectCurrencyViewModelInputs { get }
   var outputs: SelectCurrencyViewModelOutputs { get }
 }
 
+@MainActor
 public final class SelectCurrencyViewModel: SelectCurrencyViewModelType, SelectCurrencyViewModelInputs,
   SelectCurrencyViewModelOutputs {
-  public init() {
+  public init(settingsFeature: SettingsFeature? = nil) {
+    let settingsFeature = settingsFeature ?? AppModel.shared.settingsFeature
     let initialChosenCurrency = Signal.combineLatest(
       self.selectedCurrencySignal,
       self.viewDidLoadSignal
@@ -78,8 +83,7 @@ public final class SelectCurrencyViewModel: SelectCurrencyViewModelType, SelectC
     let updateCurrencyEvent = didSelectCurrency
       .takeWhen(self.saveButtonTappedSignal.ignoreValues())
       .switchMap { input in
-        AppEnvironment.current.apiService
-          .changeCurrency(input: ChangeCurrencyInput(chosenCurrency: input.rawValue))
+        settingsFeature.accountResult(.currency(input.rawValue))
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .map { _ in input }
           .materialize()

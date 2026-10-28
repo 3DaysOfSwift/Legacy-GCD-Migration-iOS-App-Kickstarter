@@ -180,6 +180,15 @@ public protocol ServiceType {
   @MainActor func activityPage(cursor: String?) async throws -> ActivityEnvelope
   @MainActor func unansweredSurveys() async throws -> [SurveyResponse]
   @MainActor func sessionUser() async throws -> User
+  @MainActor func accountEmailUser() async throws -> GraphUser
+  @MainActor func sessionSetup() async throws -> GraphUserSetup
+  @MainActor func confirmEmail(token: String) async throws -> EmailVerificationResponseEnvelope
+  @MainActor func saveEmail(_ input: ChangeEmailInput) async throws
+  @MainActor func savePassword(_ input: ChangePasswordInput) async throws
+  @MainActor func setInitialPassword(_ input: CreatePasswordInput) async throws
+  @MainActor func saveCurrency(_ input: ChangeCurrencyInput) async throws
+  @MainActor func requestEmailVerification() async throws
+  @MainActor func connectFacebook(token: String) async throws -> User
   @MainActor func saveAccountPreferences(_ user: User) async throws -> User
   @MainActor func authenticate(email: String, password: String, code: String?) async throws -> AccessTokenEnvelope
   @MainActor func authenticate(facebookAccessToken: String, code: String?) async throws -> AccessTokenEnvelope

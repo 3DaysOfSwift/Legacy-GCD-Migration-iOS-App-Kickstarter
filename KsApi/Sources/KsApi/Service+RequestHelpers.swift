@@ -26,6 +26,14 @@ extension Service {
     try await self.discussionResponse(route: .userSelf)
   }
 
+  @MainActor public func confirmEmail(token: String) async throws -> EmailVerificationResponseEnvelope {
+    try await self.discussionResponse(route: .verifyEmail(accessToken: token))
+  }
+
+  @MainActor public func connectFacebook(token: String) async throws -> User {
+    try await self.discussionResponse(route: .facebookConnect(facebookAccessToken: token))
+  }
+
   @MainActor public func saveAccountPreferences(_ user: User) async throws -> User {
     try await self.discussionResponse(route: .updateUserSelf(user))
   }

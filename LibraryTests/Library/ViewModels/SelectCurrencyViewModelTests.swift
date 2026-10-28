@@ -9,8 +9,16 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class SelectCurrencyViewModelTests: TestCase {
-  private let vm: SelectCurrencyViewModelType = SelectCurrencyViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = SettingsFeature(
+    sessionFeature: SessionFeature(makeProvider: {
+      AsyncSessionProvider(service: AppEnvironment.current.apiService)
+    }),
+    makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var vm: SelectCurrencyViewModelType = SelectCurrencyViewModel(settingsFeature: self.feature)
 
   private let activityIndicatorShouldShow = TestObserver<Bool, Never>()
   private let deselectCellAtIndex = TestObserver<Int, Never>()
@@ -24,19 +32,28 @@ internal final class SelectCurrencyViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated {
+      AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
 
-    self.vm.outputs.activityIndicatorShouldShow.observe(self.activityIndicatorShouldShow.observer)
-    self.vm.outputs.deselectCellAtIndex.observe(self.deselectCellAtIndex.observer)
-    self.vm.outputs.didUpdateCurrency.observe(self.didUpdateCurrency.observer)
-    self.vm.outputs.reloadDataWithCurrencies.map(first).observe(self.reloadDataWithCurrenciesData.observer)
-    self.vm.outputs.reloadDataWithCurrencies.map(second).observe(self.reloadDataWithCurrenciesReload.observer)
-    self.vm.outputs.saveButtonIsEnabled.observe(self.saveButtonIsEnabled.observer)
-    self.vm.outputs.selectCellAtIndex.observe(self.selectCellAtIndex.observer)
-    self.vm.outputs.updateCurrencyDidFailWithError.observe(self.updateCurrencyDidFailWithError.observer)
-    self.vm.outputs.updateCurrencyDidSucceed.observe(self.updateCurrencyDidSucceed.observer)
+      self.vm.outputs.activityIndicatorShouldShow.observe(self.activityIndicatorShouldShow.observer)
+      self.vm.outputs.deselectCellAtIndex.observe(self.deselectCellAtIndex.observer)
+      self.vm.outputs.didUpdateCurrency.observe(self.didUpdateCurrency.observer)
+      self.vm.outputs.reloadDataWithCurrencies.map(first).observe(self.reloadDataWithCurrenciesData.observer)
+      self.vm.outputs.reloadDataWithCurrencies.map(second)
+        .observe(self.reloadDataWithCurrenciesReload.observer)
+      self.vm.outputs.saveButtonIsEnabled.observe(self.saveButtonIsEnabled.observer)
+      self.vm.outputs.selectCellAtIndex.observe(self.selectCellAtIndex.observer)
+      self.vm.outputs.updateCurrencyDidFailWithError.observe(self.updateCurrencyDidFailWithError.observer)
+      self.vm.outputs.updateCurrencyDidSucceed.observe(self.updateCurrencyDidSucceed.observer)
+    }
   }
 
-  func testUpdateCurrency_Success() {
+  override func tearDown() async throws {
+    await self.feature.waitForOperations()
+    try await super.tearDown()
+  }
+
+  func testUpdateCurrency_Success() async {
     self.activityIndicatorShouldShow.assertValues([])
     self.deselectCellAtIndex.assertValues([])
     self.didUpdateCurrency.assertValueCount(0)
@@ -63,7 +80,7 @@ internal final class SelectCurrencyViewModelTests: TestCase {
     self.updateCurrencyDidSucceed.assertValueCount(0)
     self.selectCellAtIndex.assertValues([0])
 
-    withEnvironment(apiService: MockService(changeCurrencyResult: .success(EmptyResponseEnvelope()))) {
+    await withEnvironment(apiService: MockService(changeCurrencyResult: .success(EmptyResponseEnvelope()))) {
       self.vm.inputs.didSelectCurrency(atIndex: usdSelectedOrdering.firstIndex(of: .AUD) ?? -1)
       self.vm.inputs.saveButtonTapped()
 
@@ -82,7 +99,9 @@ internal final class SelectCurrencyViewModelTests: TestCase {
       self.updateCurrencyDidSucceed.assertValueCount(0)
       self.selectCellAtIndex.assertValues([0, 2])
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+
+      await self.scheduler.advance()
 
       self.activityIndicatorShouldShow.assertValues([true, false])
       self.deselectCellAtIndex.assertValues([0])
@@ -99,7 +118,7 @@ internal final class SelectCurrencyViewModelTests: TestCase {
     }
   }
 
-  func testUpdateCurrency_Failure() {
+  func testUpdateCurrency_Failure() async {
     self.activityIndicatorShouldShow.assertValues([])
     self.deselectCellAtIndex.assertValues([])
     self.didUpdateCurrency.assertValueCount(0)
@@ -126,7 +145,7 @@ internal final class SelectCurrencyViewModelTests: TestCase {
     self.updateCurrencyDidSucceed.assertValueCount(0)
     self.selectCellAtIndex.assertValues([0])
 
-    withEnvironment(apiService: MockService(changeCurrencyResult: .failure(.couldNotParseJSON))) {
+    await withEnvironment(apiService: MockService(changeCurrencyResult: .failure(.couldNotParseJSON))) {
       self.vm.inputs.didSelectCurrency(atIndex: usdSelectedOrdering.firstIndex(of: .AUD) ?? -1)
       self.vm.inputs.saveButtonTapped()
 
@@ -145,7 +164,9 @@ internal final class SelectCurrencyViewModelTests: TestCase {
       self.updateCurrencyDidSucceed.assertValueCount(0)
       self.selectCellAtIndex.assertValues([0, 2])
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+
+      await self.scheduler.advance()
 
       self.activityIndicatorShouldShow.assertValues([true, false])
       self.deselectCellAtIndex.assertValues([0])
@@ -162,7 +183,7 @@ internal final class SelectCurrencyViewModelTests: TestCase {
     }
   }
 
-  func testCurrenciesOrderedBySelected() {
+  func testCurrenciesOrderedBySelected() async {
     XCTAssertEqual(
       currencies(orderedBySelected: .USD),
       [.USD, .EUR, .AUD, .CAD, .CHF, .DKK, .GBP, .HKD, .JPY, .MXN, .NOK, .NZD, .PLN, .SEK, .SGD]
@@ -174,7 +195,7 @@ internal final class SelectCurrencyViewModelTests: TestCase {
     )
   }
 
-  func testSelectedCurrencyDataWithCurrencies() {
+  func testSelectedCurrencyDataWithCurrencies() async {
     XCTAssertEqual(
       selectedCurrencyData(with: Currency.allCases, selected: .SEK),
       [
