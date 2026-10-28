@@ -34,6 +34,15 @@ extension Service {
     try await self.discussionResponse(route: .facebookConnect(facebookAccessToken: token))
   }
 
+  @MainActor public func projectNotificationSettings() async throws -> [ProjectNotification] {
+    try await self.discussionResponse(route: .projectNotifications)
+  }
+
+  @MainActor public func saveProjectNotification(_ notification: ProjectNotification) async throws
+    -> ProjectNotification {
+    try await self.discussionResponse(route: .updateProjectNotification(notification: notification))
+  }
+
   @MainActor public func saveAccountPreferences(_ user: User) async throws -> User {
     try await self.discussionResponse(route: .updateUserSelf(user))
   }

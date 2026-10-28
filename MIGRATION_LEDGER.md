@@ -4,6 +4,48 @@ Author: Matthew Thomas. Updated 28 October 2026.
 
 ## Latest verified checkpoint
 
+### Project-notification settings — 28 October 2026
+
+Project notification lists and switch saves now use native async service methods
+under the existing SettingsFeature. Per-notification queues preserve distinct
+on/off/on intents and share equivalent pending tails. Disposed/reused cells stop
+presentation without abandoning admitted writes. Confirmed responses alone update
+the existing cache/key. Replaced sessions cannot cache or publish late success
+or failure, including through the existing presentation delay.
+
+The existing screens, combined email/mobile switch and error strings remain.
+An intentional rapid-edit correction restores the last confirmed value on error,
+rather than a previous speculative tap. Reads wait for admitted writes and reject
+results overtaken by a new edit. The public demo rejects these account operations.
+No application caller remains on fetchProjectNotifications/updateProjectNotification;
+legacy signatures remain for compatibility.
+
+Baseline: six original list/cell tests passed. Two nonvisual suites opt out of the
+snapshot device gate and now use signed-in isolated fixtures and explicit awaits.
+Final: 808 Library + 164 framework + 36 API = 1,008 passed, zero failures/skips;
+app build succeeded with zero errors and one existing Crashlytics script warning.
+Eight new Feature/presentation cases and two native route/decoder tests ran.
+Results: /private/tmp/kickstarter-project-notifications.r7xOYr.
+Evidence: sibling Migration Evidence/kickstarter-project-notifications.
+
+Coverage audit caught the new test file missing from the Xcode test target:
+the earlier 34-test focused and 1,000-test integrated runs did NOT include those
+eight cases. Added explicit project membership, reran verification and checked
+all eight named results. Earlier successful commands are retained as incomplete
+coverage, not proof that the new scenarios passed.
+
+Remaining plan:
+1. Messaging: mailbox/thread pagination, search, thread/backing lookup,
+   mark-as-read and sending; preserve cancellation, retries and session ownership.
+2. Pledge/payment/backing: remaining checkout mutations, payment-method management,
+   backing edits/cancellation and related workflows.
+3. Audit remaining application request/dispatch boundaries; full regression,
+   app-wide strict concurrency, visual/physical-device and live-service gates.
+
+The next audit identified four messaging ViewModels still invoking legacy APIs.
+No live message/account/payment mutation or rendered/device validation was run.
+App-wide migration remains IN PROGRESS.
+
 ### Shared root/Activity badge ownership — 28 October 2026
 
 Root and Activity now share the SessionFeature badge command. One execution

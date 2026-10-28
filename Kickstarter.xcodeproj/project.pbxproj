@@ -23,6 +23,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		CFA030100000000000000001 /* SettingsProjectNotificationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA030100000000000000002 /* SettingsProjectNotificationsTests.swift */; };
 		CFA029000000000000000001 /* AuthenticationFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA029000000000000000002 /* AuthenticationFeatureTests.swift */; };
 		CFA028000000000000000001 /* SettingsFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA028000000000000000002 /* SettingsFeatureTests.swift */; };
 		CFA027600000000000000001 /* SessionFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA027600000000000000002 /* SessionFeatureTests.swift */; };
@@ -393,6 +394,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		CFA030100000000000000002 /* SettingsProjectNotificationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsProjectNotificationsTests.swift; sourceTree = "<group>"; };
 		CFA029000000000000000002 /* AuthenticationFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationFeatureTests.swift; sourceTree = "<group>"; };
 		CFA028000000000000000002 /* SettingsFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFeatureTests.swift; sourceTree = "<group>"; };
 		CFA027600000000000000002 /* SessionFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionFeatureTests.swift; sourceTree = "<group>"; };
@@ -839,7 +841,7 @@
 
 /* Begin PBXGroup section */
 		CFA029000000000000000003 /* Authentication */ = {isa = PBXGroup; children = (CFA029000000000000000002 /* AuthenticationFeatureTests.swift */,); path = Authentication; sourceTree = "<group>"; };
-		CFA028000000000000000003 /* Settings */ = {isa = PBXGroup; children = (CFA028000000000000000002 /* SettingsFeatureTests.swift */,); path = Settings; sourceTree = "<group>"; };
+		CFA028000000000000000003 /* Settings */ = {isa = PBXGroup; children = (CFA028000000000000000002 /* SettingsFeatureTests.swift */, CFA030100000000000000002 /* SettingsProjectNotificationsTests.swift */,); path = Settings; sourceTree = "<group>"; };
 		CFA027600000000000000003 /* Session */ = {isa = PBXGroup; children = (CFA027600000000000000002 /* SessionFeatureTests.swift */,); path = Session; sourceTree = "<group>"; };
 		CFA027700000000000000003 /* Activity */ = {isa = PBXGroup; children = (CFA027700000000000000002 /* ActivityFeatureTests.swift */,); path = Activity; sourceTree = "<group>"; };
 		CFA027800000000000000003 /* Profile */ = {isa = PBXGroup; children = (CFA027800000000000000002 /* ProfileFeatureTests.swift */,); path = Profile; sourceTree = "<group>"; };
@@ -1933,6 +1935,7 @@
 				CFA027800000000000000001 /* ProfileFeatureTests.swift in Sources */,
 				CFA029000000000000000001 /* AuthenticationFeatureTests.swift in Sources */,
 				CFA028000000000000000001 /* SettingsFeatureTests.swift in Sources */,
+				CFA030100000000000000001 /* SettingsProjectNotificationsTests.swift in Sources */,
 				CFA027900000000000000001 /* AccountRequestGate.swift in Sources */,
 				CFA026100000000000000010 /* SearchLookupTests.swift in Sources */,
 				CFA026100000000000000008 /* SearchRequestCancellationTests.swift in Sources */,

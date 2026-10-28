@@ -190,6 +190,8 @@ public protocol ServiceType {
   @MainActor func requestEmailVerification() async throws
   @MainActor func connectFacebook(token: String) async throws -> User
   @MainActor func saveAccountPreferences(_ user: User) async throws -> User
+  @MainActor func projectNotificationSettings() async throws -> [ProjectNotification]
+  @MainActor func saveProjectNotification(_ notification: ProjectNotification) async throws -> ProjectNotification
   @MainActor func authenticate(email: String, password: String, code: String?) async throws -> AccessTokenEnvelope
   @MainActor func authenticate(facebookAccessToken: String, code: String?) async throws -> AccessTokenEnvelope
   @MainActor func authenticateApple(input: SignInWithAppleInput) async throws -> SignInWithAppleEnvelope

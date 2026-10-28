@@ -13,6 +13,36 @@ struct MySwiftModel: Decodable, Equatable {
 }
 
 final class ServiceTests: XCTestCase {
+  func testNativeProjectNotificationRoutesPreserveBothChannels() throws {
+    let service = Service()
+    let list = try service.preparedRouteRequest(.projectNotifications)
+    XCTAssertEqual(list.httpMethod, "GET")
+    XCTAssertEqual(list.url?.path, "/v1/users/self/notifications")
+    let notification = ProjectNotification.template
+    let update = try service.preparedRouteRequest(.updateProjectNotification(notification: notification))
+    XCTAssertEqual(update.httpMethod, "PUT")
+    XCTAssertEqual(update.url?.path, "/v1/users/self/notifications/\(notification.id)")
+    let body = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(update.httpBody)) as? [String: Bool])
+    XCTAssertEqual(body, ["email": notification.email, "mobile": notification.mobile])
+  }
+
+  func testNativeProjectNotificationDecoderPreservesChannelValues() throws {
+    let data = Data("""
+      [{"id":17,"email":true,"mobile":false,"project":{"id":99,"name":"Fixture project"}}]
+      """.utf8)
+    let url = try XCTUnwrap(URL(string: "https://example.invalid/notifications"))
+    let response = try XCTUnwrap(HTTPURLResponse(
+      url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"]
+    ))
+    let values: [ProjectNotification] = try Service.decodeDiscoveryResponse(data, response: response)
+    let value = try XCTUnwrap(values.first)
+    XCTAssertEqual(value.id, 17)
+    XCTAssertTrue(value.email)
+    XCTAssertFalse(value.mobile)
+    XCTAssertEqual(value.project.id, 99)
+    XCTAssertEqual(value.project.name, "Fixture project")
+  }
+
   func testNativeOAuthUsesExchangedTokenOnlyForUserRequest() throws {
     let service = Service(oauthToken: OauthToken(token: "old-fixture"))
     let request = try service.preparedRouteRequest(.userSelf, oauthToken: "new-fixture")

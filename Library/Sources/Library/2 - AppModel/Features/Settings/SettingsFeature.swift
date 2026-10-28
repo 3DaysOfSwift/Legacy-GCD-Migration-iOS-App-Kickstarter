@@ -1,10 +1,14 @@
 import Foundation
 import KsApi
+import Prelude
+import ReactiveExtensions
 import ReactiveSwift
 
 @MainActor
 public protocol AccountPreferencesProvider {
   func save(_ user: User) async throws -> User
+  func projectNotifications() async throws -> [ProjectNotification]
+  func saveProjectNotification(_ notification: ProjectNotification) async throws -> ProjectNotification
   func update(_ change: SettingsFeature.AccountChange) async throws -> User?
   func emailUser() async throws -> GraphUser
   func verifyEmail(token: String) async throws -> EmailVerificationResponseEnvelope
@@ -20,6 +24,15 @@ public struct AsyncAccountPreferencesProvider: AccountPreferencesProvider {
 
   public func verifyEmail(token: String) async throws -> EmailVerificationResponseEnvelope {
     try await self.service.confirmEmail(token: token)
+  }
+
+  public func projectNotifications() async throws -> [ProjectNotification] {
+    try await self.service.projectNotificationSettings()
+  }
+
+  public func saveProjectNotification(_ notification: ProjectNotification) async throws
+    -> ProjectNotification {
+    try await self.service.saveProjectNotification(notification)
   }
 
   public func emailUser() async throws -> GraphUser { try await self.service.accountEmailUser() }
@@ -97,6 +110,20 @@ public final class SettingsFeature {
       + notifications.map(UserAttribute.notification)
       + [.privacy(.following), .privacy(.recommendations), .privacy(.showPublicProfile)]
   }
+
+  private struct NotificationWrite {
+    let id: UUID
+    let userID: Int
+    let generation: Int
+    let email: Bool
+    let mobile: Bool
+    let task: Task<ProjectNotification, Error>
+  }
+
+  private var notificationTails: [Int: NotificationWrite] = [:]
+  private var notificationWrites: [UUID: Task<ProjectNotification, Error>] = [:]
+  private var notificationRevision = 0
+  private let notificationResults = Signal<(UUID, Result<ProjectNotification, Error>), Never>.pipe()
 
   private let session: SessionFeature
   private let makeProvider: () -> any AccountPreferencesProvider
@@ -517,10 +544,130 @@ public final class SettingsFeature {
     }
   }
 
+  // MARK: Project notification settings
+
+  public func projectNotifications() async throws -> [ProjectNotification] {
+    let userID = self.session.currentUser?.id
+    let generation = self.session.generation
+    guard userID != nil else { throw CancellationError() }
+    // A fresh list cannot overtake an admitted setting edit.
+    while !self.notificationWrites.isEmpty {
+      for task in Array(self.notificationWrites.values) { _ = await task.result }
+    }
+    let revision = self.notificationRevision
+    try Task.checkCancellation()
+    guard self.session.isCurrent(userID: userID, generation: generation) else { throw CancellationError() }
+    let provider = self.makeProvider()
+    do {
+      let values = try await provider.projectNotifications()
+      try Task.checkCancellation()
+      guard revision == self.notificationRevision,
+            self.session.isCurrent(userID: userID, generation: generation) else { throw CancellationError() }
+      return values
+    } catch {
+      guard !Task.isCancelled, revision == self.notificationRevision,
+            self.session.isCurrent(userID: userID, generation: generation) else { throw CancellationError() }
+      throw error
+    }
+  }
+
+  public func saveProjectNotification(_ notification: ProjectNotification) async throws -> ProjectNotification {
+    try Task.checkCancellation()
+    let pending = try self.notificationRequest(notification)
+    let result = try await pending.task.value
+    try Task.checkCancellation()
+    guard self.session.isCurrent(userID: pending.userID, generation: pending.generation)
+    else { throw CancellationError() }
+    return result
+  }
+
+  private func notificationRequest(_ notification: ProjectNotification) throws -> NotificationWrite {
+    guard let userID = self.session.currentUser?.id else { throw CancellationError() }
+    let generation = self.session.generation
+    let tail = self.notificationTails[notification.id]
+    let sameSession = tail?.userID == userID && tail?.generation == generation
+    if sameSession, let tail, tail.email == notification.email, tail.mobile == notification.mobile {
+      return tail
+    }
+    let previous = sameSession ? tail?.task : nil
+    let id = UUID()
+    let provider = self.makeProvider()
+    self.notificationRevision += 1
+    let task = Task { [self] in
+      if let previous { _ = await previous.result }
+      let result: Result<ProjectNotification, Error>
+      do {
+        guard self.session.isCurrent(userID: userID, generation: generation) else { throw CancellationError() }
+        let saved = try await provider.saveProjectNotification(notification)
+        guard self.session.isCurrent(userID: userID, generation: generation), saved.id == notification.id
+        else { throw CancellationError() }
+        // Preserve the existing cache/key and store only confirmed state.
+        AppEnvironment.current.cache[self.notificationCacheKey(saved)] = saved.email && saved.mobile
+        result = .success(saved)
+      } catch {
+        result = .failure(self.session.isCurrent(userID: userID, generation: generation)
+          ? error : CancellationError())
+      }
+      self.notificationWrites[id] = nil
+      if self.notificationTails[notification.id]?.id == id { self.notificationTails[notification.id] = nil }
+      self.notificationResults.input.send(value: (id, result))
+      return try result.get()
+    }
+    let pending = NotificationWrite(
+      id: id, userID: userID, generation: generation,
+      email: notification.email, mobile: notification.mobile, task: task
+    )
+    self.notificationTails[notification.id] = pending
+    self.notificationWrites[id] = task
+    return pending
+  }
+
+  private func notificationCacheKey(_ notification: ProjectNotification) -> String {
+    "project_notification_view_model_notification_\(notification.id)"
+  }
+
+  public func cachedProjectNotification(_ notification: ProjectNotification) -> ProjectNotification {
+    guard let on = AppEnvironment.current.cache[self.notificationCacheKey(notification)] as? Bool
+    else { return notification }
+    return notification |> ProjectNotification.lens.email .~ on |> ProjectNotification.lens.mobile .~ on
+  }
+
+  /// Compatibility output only. Disposal stops presentation, never an admitted write.
+  public func projectNotificationResult(_ notification: ProjectNotification)
+    -> SignalProducer<ProjectNotification, ErrorEnvelope> {
+    let userID = self.session.currentUser?.id
+    let generation = self.session.generation
+    return SignalProducer { observer, lifetime in
+      MainActor.assumeIsolated {
+        guard self.session.isCurrent(userID: userID, generation: generation) else {
+          observer.sendInterrupted()
+          return
+        }
+        do {
+          let pending = try self.notificationRequest(notification)
+          let subscription = self.notificationResults.output.filter { $0.0 == pending.id }.take(first: 1)
+            .observeValues { _, result in
+              switch result {
+              case let .success(value): observer.send(value: value); observer.sendCompleted()
+              case .failure(is CancellationError): observer.sendInterrupted()
+              case let .failure(error): observer.send(error: error as? ErrorEnvelope ?? .couldNotParseJSON)
+              }
+            }
+          lifetime.observeEnded { subscription?.dispose() }
+        } catch { observer.sendInterrupted() }
+      }
+    }
+    .materialize()
+    .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+    .filter { _ in self.session.isCurrent(userID: userID, generation: generation) }
+    .dematerialize()
+  }
+
   /// Waits for owned executions, not presentation scheduler delays.
   func waitForOperations() async {
     while !self.reads.isEmpty || !self.writes.isEmpty || !self.verificationWrites.isEmpty || self
-      .emailRead != nil {
+      .emailRead != nil || !self.notificationWrites.isEmpty {
+      for task in Array(self.notificationWrites.values) { _ = await task.result }
       let reads = Array(self.reads.values)
       let writes = Array(self.writes.values)
       let verifications = Array(self.verificationWrites.values)

@@ -997,6 +997,21 @@
       return user
     }
 
+    @MainActor public func projectNotificationSettings() async throws -> [ProjectNotification] {
+      try Task.checkCancellation()
+      guard self.demoCatalog == nil else {
+        throw ErrorEnvelope.graphError("Accounts and payments are unavailable in this fictional demo.")
+      }
+      return self.fetchProjectNotificationsResponse
+    }
+
+    @MainActor public func saveProjectNotification(_ notification: ProjectNotification) async throws
+      -> ProjectNotification {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      if let error = self.updateProjectNotificationError { throw error }
+      return self.updateProjectNotificationResponse ?? notification
+    }
+
     @MainActor public func saveAccountPreferences(_ user: User) async throws -> User {
       try Task.checkCancellation()
       if self.demoCatalog != nil {

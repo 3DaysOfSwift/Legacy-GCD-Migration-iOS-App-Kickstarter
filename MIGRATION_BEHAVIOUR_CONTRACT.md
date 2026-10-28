@@ -1,5 +1,26 @@
 # Kickstarter migration behaviour contract
 
+## Project-notification settings — 28 October 2026
+
+- Preserve project names, list loading's silent failure, combined email/mobile
+  switch, immediate optimistic feedback, existing error text and cache keys.
+- Use the same GET/PUT routes and encoded channel fields. Never fabricate a
+  successful account operation in the public fictional demo.
+- Share equivalent pending tails; execute distinct edits in order per notification.
+  Cell reuse/disposal stops presentation but cannot undo an admitted remote write.
+- Commit only confirmed state for the current session. Suppress stale list results,
+  old-session success/errors and delayed notifications after cell reuse.
+- Intentional correction: rapid-edit failure returns to confirmed state rather than
+  an earlier unconfirmed tap. Failure remains a failure; retry is explicit.
+
+Baseline: all six original list/cell tests passed. Final: 1,008 integrated tests
+passed, zero failures/skips; app build succeeded. Eight new ownership/lifetime cases
+and two native route/decoder cases are included. The first runs omitted the new
+test file from Xcode membership; that coverage gap was fixed and all eight named
+results checked afterward. See the ledger and sibling Migration Evidence/
+kickstarter-project-notifications. Live accounts, rendered/device parity,
+full-suite and app-wide concurrency sign-off remain open.
+
 ## Shared activity badge — 28 October 2026
 
 - Root tab and Activity callers share one pending badge-clear command and one

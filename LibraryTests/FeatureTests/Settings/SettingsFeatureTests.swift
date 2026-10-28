@@ -546,6 +546,8 @@ private final class AccountWritesFixture {
 
 @MainActor
 private final class ControlledAccountWritesProvider: AccountPreferencesProvider {
+  func projectNotifications() async throws -> [ProjectNotification] { throw CancellationError() }
+  func saveProjectNotification(_: ProjectNotification) async throws -> ProjectNotification { throw CancellationError() }
   let verifications = AccountRequestGate<EmailVerificationResponseEnvelope>()
   let emails = AccountRequestGate<GraphUser>()
   func verifyEmail(token _: String) async throws -> EmailVerificationResponseEnvelope {
@@ -566,6 +568,8 @@ private final class ControlledAccountWritesProvider: AccountPreferencesProvider 
 
 @MainActor
 private final class ControlledPreferencesProvider: AccountPreferencesProvider {
+  func projectNotifications() async throws -> [ProjectNotification] { throw CancellationError() }
+  func saveProjectNotification(_: ProjectNotification) async throws -> ProjectNotification { throw CancellationError() }
   func verifyEmail(token _: String) async throws
     -> EmailVerificationResponseEnvelope { throw CancellationError() }
   func update(_: SettingsFeature.AccountChange) async throws -> User? { throw CancellationError() }
