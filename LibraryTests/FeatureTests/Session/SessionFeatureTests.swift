@@ -4,6 +4,101 @@ import XCTest
 
 @MainActor
 final class SessionFeatureTests: XCTestCase {
+  func testSharedBadgeCommandCommitsOnceAndKeepsLatestPreferences() async throws {
+    let provider = ControlledSessionProvider()
+    defer { provider.releaseAll() }
+    var user: User? = .template
+    var commits = 0
+    let feature = SessionFeature(
+      makeProvider: { provider }, currentUser: { user },
+      updateUser: { user = $0; commits += 1 }
+    )
+    let first = feature.request(.clearActivity)
+    let duplicate = feature.request(.clearActivity)
+    await provider.badges.waitFor(1)
+    user?.chosenCurrency = "GBP"
+    let readRevision = feature.readGeneration
+    try provider.badges.finish(0, .success(0))
+    _ = try await first.value
+    _ = try await duplicate.value
+    XCTAssertEqual(provider.badges.count, 1)
+    XCTAssertEqual(commits, 1)
+    XCTAssertEqual(user?.chosenCurrency, "GBP")
+    XCTAssertEqual(user?.unseenActivityCount, 0)
+    XCTAssertGreaterThan(feature.readGeneration, readRevision)
+  }
+
+  func testFailedBadgeCommandPreservesUserAndCanRetry() async throws {
+    let provider = ControlledSessionProvider()
+    defer { provider.releaseAll() }
+    var user: User? = .template
+    user?.unseenActivityCount = 7
+    var commits = 0
+    let feature = SessionFeature(
+      makeProvider: { provider }, currentUser: { user },
+      updateUser: { user = $0; commits += 1 }
+    )
+    let failed = feature.request(.clearActivity)
+    await provider.badges.waitFor(1)
+    try provider.badges.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
+    do { _ = try await failed.value; XCTFail("Expected failure") }
+    catch { XCTAssertTrue(error is ErrorEnvelope) }
+    XCTAssertEqual(user?.unseenActivityCount, 7)
+    XCTAssertEqual(commits, 0)
+    let retry = feature.request(.clearActivity)
+    await provider.badges.waitFor(2)
+    try provider.badges.finish(1, .success(0))
+    _ = try await retry.value
+    XCTAssertEqual(user?.unseenActivityCount, 0)
+    XCTAssertEqual(commits, 1)
+  }
+
+  func testCompletedBadgeCommandInvalidatesOlderWholeUserRefresh() async throws {
+    let provider = ControlledSessionProvider()
+    defer { provider.releaseAll() }
+    var user: User? = .template
+    let feature = SessionFeature(
+      makeProvider: { provider }, currentUser: { user }, updateUser: { user = $0 }
+    )
+    let read = feature.request()
+    await provider.users.waitFor(1)
+    let write = feature.request(.clearActivity)
+    await provider.badges.waitFor(1)
+    try provider.badges.finish(0, .success(0))
+    _ = try await write.value
+    var obsolete = User.template
+    obsolete.unseenActivityCount = 9
+    try provider.users.finish(0, .success(obsolete))
+    do { _ = try await read.value; XCTFail("Old badge count escaped") }
+    catch { XCTAssertTrue(error is CancellationError) }
+    XCTAssertEqual(user?.unseenActivityCount, 0)
+  }
+
+  func testBadgeCommitDoesNotCancelIndependentAccountSetup() async throws {
+    let provider = ControlledSessionProvider()
+    defer { provider.releaseAll() }
+    var user: User? = .template
+    var setupCommits = 0
+    let feature = SessionFeature(
+      makeProvider: { provider }, currentUser: { user },
+      updateUser: { user = $0 }, updateSetup: { _ in setupCommits += 1 }
+    )
+    let setup = Task { try await feature.refreshSetup() }
+    await provider.setups.waitFor(1)
+    let badge = feature.request(.clearActivity)
+    await provider.badges.waitFor(1)
+    try provider.badges.finish(0, .success(0))
+    _ = try await badge.value
+    let metadata = GraphUserSetup(
+      email: "fixture@example.invalid", enabledFeatures: [], ppoHasAction: true, backingActionCount: 2
+    )
+    try provider.setups.finish(0, .success(metadata))
+    let result = try await setup.value
+    XCTAssertEqual(result, metadata)
+    XCTAssertEqual(setupCommits, 1)
+    XCTAssertEqual(user?.unseenActivityCount, 0)
+  }
+
   func testEquivalentSetupReadsShareAndCommitOnce() async throws {
     let provider = ControlledSessionProvider()
     defer { provider.releaseAll() }

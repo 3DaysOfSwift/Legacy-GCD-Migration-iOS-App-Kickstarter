@@ -314,6 +314,8 @@ final class RewardsCollectionViewModelTests: TestCase {
           "Pledge data should include shipping rule for location 2"
         )
       }
+      // Location selection starts another read. Finish it before releasing its fixture.
+      await self.vm.loadingTask?.value
     }
   }
 
@@ -377,6 +379,7 @@ final class RewardsCollectionViewModelTests: TestCase {
           "Pledge data should have no shipping rule, because the reward is digital"
         )
       }
+      await self.vm.loadingTask?.value
     }
   }
 

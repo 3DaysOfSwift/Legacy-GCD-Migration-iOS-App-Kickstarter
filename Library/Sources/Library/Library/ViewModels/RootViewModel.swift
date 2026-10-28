@@ -57,6 +57,7 @@ public enum TabBarItem {
   case search(index: RootViewControllerIndex)
 }
 
+@MainActor
 public protocol RootViewModelInputs {
   /// Call when the application will enter foreground.
   func applicationWillEnterForeground()
@@ -106,6 +107,7 @@ public protocol RootViewModelInputs {
   func voiceOverStatusDidChange()
 }
 
+@MainActor
 public protocol RootViewModelOutputs {
   /// Emits when the discovery VC should filter with specific params.
   var filterDiscovery: Signal<(RootViewControllerIndex, DiscoveryParams), Never> { get }
@@ -126,20 +128,29 @@ public protocol RootViewModelOutputs {
   /// Emits data for setting tab bar item styles.
   var tabBarItemsData: Signal<TabBarItemsData, Never> { get }
 
-  /// Emits a User that can be used to replace the current user in the environment.
+  /// Emits an already committed User for the existing user-updated notification.
   var updateUserInEnvironment: Signal<User, Never> { get }
 
   /// Emits when the floating tab bar feature is enabled or disabled.
   var floatingTabBarEnabled: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol RootViewModelType {
   var inputs: RootViewModelInputs { get }
   var outputs: RootViewModelOutputs { get }
 }
 
+@MainActor
 public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootViewModelOutputs {
-  public init() {
+  private let sessionFeature: SessionFeature
+  private var badgeTask: Task<Void, Never>?
+  private var badgeIdentity: (userID: Int, generation: Int, token: UUID)?
+  private let badgePipe = Signal<(User, Int), Never>.pipe()
+
+  public init(sessionFeature: SessionFeature? = nil) {
+    let sessionFeature = sessionFeature ?? AppModel.shared.sessionFeature
+    self.sessionFeature = sessionFeature
     let currentUser = Signal.merge(
       self.viewDidLoadProperty.signal,
       self.userSessionStartedProperty.signal,
@@ -306,12 +317,12 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
 
     currentBadgeValue <~ self.setBadgeValueAtIndex.map { $0.0 }
 
-    self.updateUserInEnvironment = clearBadgeValueOnActivitiesTabSelected
-      .filter { _ in AppEnvironment.current.currentUser != nil }
-      .switchMap { _ in
-        updatedUserWithClearedActivityCountProducer()
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+    self.updateUserInEnvironment = self.badgePipe.output
+      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      .filter { user, generation in
+        sessionFeature.isCurrent(userID: user.id, generation: generation)
       }
+      .map(first)
 
     let shouldSelectIndex = self.shouldSelectIndexProperty.signal
       .skipNil()
@@ -383,7 +394,42 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
             previousTabBarItemLabel: prevSelectedTabBarItemLabel
           )
       }
+
+    clearBadgeValueOnActivitiesTabSelected.observeValues { [weak self] _ in
+      self?.clearActivityBadge()
+    }
   }
+
+  private func clearActivityBadge() {
+    guard let userID = self.sessionFeature.currentUser?.id else { return }
+    let generation = self.sessionFeature.generation
+    if self.badgeIdentity?.userID == userID, self.badgeIdentity?.generation == generation { return }
+    self.badgeTask?.cancel() // Presentation only; the admitted shared write continues.
+    let token = UUID()
+    let sessionFeature = self.sessionFeature
+    let request = sessionFeature.request(.clearActivity)
+    self.badgeIdentity = (userID, generation, token)
+    self.badgeTask = Task { [weak self] in
+      defer {
+        if self?.badgeIdentity?.token == token {
+          self?.badgeTask = nil
+          self?.badgeIdentity = nil
+        }
+      }
+      do {
+        let user = try await request.value
+        try Task.checkCancellation()
+        guard sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+        self?.badgePipe.input.send(value: (user, generation))
+      } catch {
+        // Preserve silent badge-save failure; the shared throwing command is tested separately.
+      }
+    }
+  }
+
+  func waitForBadgeUpdate() async { await self.badgeTask?.value }
+
+  deinit { self.badgeTask?.cancel() }
 
   private let (applicationWillEnterForegroundSignal, applicationWillEnterForegroundObserver)
     = Signal<(), Never>.pipe()

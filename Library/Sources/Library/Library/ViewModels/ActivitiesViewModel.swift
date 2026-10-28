@@ -286,7 +286,9 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
           current.unseenActivityCount = user.unseenActivityCount
           user = current
         }
-        sessionFeature.commitUser(user, userID: userID, generation: generation)
+        if operation != .clearActivity {
+          sessionFeature.commitUser(user, userID: userID, generation: generation)
+        }
         self?.userPipe.input.send(value: user)
       } catch {
         // Legacy presentation intentionally has no user-refresh error output.

@@ -45,40 +45,40 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
       .default
       .addObserver(
         forName: UIApplication.willEnterForegroundNotification,
-        object: nil, queue: nil
+        object: nil, queue: .main
       ) { [weak self] _ in
         self?.viewModel.inputs.applicationWillEnterForeground()
       }
 
     self.sessionStartedObserver = NotificationCenter
       .default
-      .addObserver(forName: Notification.Name.ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
+      .addObserver(forName: Notification.Name.ksr_sessionStarted, object: nil, queue: .main) { [weak self] _ in
         self?.viewModel.inputs.userSessionStarted()
       }
 
     self.sessionEndedObserver = NotificationCenter
       .default
-      .addObserver(forName: Notification.Name.ksr_sessionEnded, object: nil, queue: nil) { [weak self] _ in
+      .addObserver(forName: Notification.Name.ksr_sessionEnded, object: nil, queue: .main) { [weak self] _ in
         self?.viewModel.inputs.userSessionEnded()
       }
 
     self.userUpdatedObserver = NotificationCenter
       .default
-      .addObserver(forName: Notification.Name.ksr_userUpdated, object: nil, queue: nil) { [weak self] _ in
+      .addObserver(forName: Notification.Name.ksr_userUpdated, object: nil, queue: .main) { [weak self] _ in
         self?.viewModel.inputs.currentUserUpdated()
       }
 
     self.voiceOverStatusDidChangeObserver = NotificationCenter
       .default
       .addObserver(
-        forName: UIAccessibility.voiceOverStatusDidChangeNotification, object: nil, queue: nil
+        forName: UIAccessibility.voiceOverStatusDidChangeNotification, object: nil, queue: .main
       ) { [weak self] _ in
         self?.viewModel.inputs.voiceOverStatusDidChange()
       }
 
     self.viewModel.outputs.updateUserInEnvironment
-      .observeValues { user in
-        AppEnvironment.updateCurrentUser(user)
+      .observeValues { _ in
+        // SessionFeature already committed; never replay a delayed whole-user payload.
         NotificationCenter.default.post(.init(name: .ksr_userUpdated))
       }
 
@@ -87,7 +87,7 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
       .addObserver(
         forName: Notification.Name.ksr_userLocalePreferencesChanged,
         object: nil,
-        queue: nil,
+        queue: .main,
         using: { [weak self] _ in
           self?.viewModel.inputs.userLocalePreferencesChanged()
         }

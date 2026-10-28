@@ -91,14 +91,18 @@ extension XCTestCase {
 
   // MARK: Async
 
+  // Async fixtures share the UI-owned environment. Keep stack mutation on the
+  // same actor as their bodies, including when resuming after an await.
   // Pushes an environment onto the stack, executes a closure, and then pops the environment from the stack.
-  func withEnvironment(_ env: Environment, body: () async -> Void) async {
+  @MainActor
+  func withEnvironment(_ env: Environment, body: @MainActor () async -> Void) async {
     AppEnvironment.pushEnvironment(env)
     await body()
     AppEnvironment.popEnvironment()
   }
 
   // Pushes an environment onto the stack, executes a closure, and then pops the environment from the stack.
+  @MainActor
   func withEnvironment(
     apiService: ServiceType = AppEnvironment.current.apiService,
     apiDelayInterval: DispatchTimeInterval = AppEnvironment.current.apiDelayInterval,
@@ -132,7 +136,7 @@ extension XCTestCase {
     ubiquitousStore: KeyValueStoreType = AppEnvironment.current.ubiquitousStore,
     userDefaults: KeyValueStoreType = AppEnvironment.current.userDefaults,
     uuidType: UUIDType.Type = AppEnvironment.current.uuidType,
-    body: () async -> Void
+    body: @MainActor () async -> Void
   ) async {
     await self.withEnvironment(
       Environment(

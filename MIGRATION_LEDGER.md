@@ -4,6 +4,39 @@ Author: Matthew Thomas. Updated 28 October 2026.
 
 ## Latest verified checkpoint
 
+### Shared root/Activity badge ownership — 28 October 2026
+
+Root and Activity now share the SessionFeature badge command. One execution
+commits the returned count into the latest current user; delayed controller
+notifications never re-save an old whole-user payload. Old-session results are
+suppressed through presentation delays. Badge completion invalidates stale user
+snapshots while independent email/setup metadata requests continue.
+
+Baseline: 24 original Root tests passed. Six new scenarios cover shared single
+commit, current preferences, explicit retry, stale reads, independent setup,
+old-session notification suppression and silent UI save failures.
+Final: 794 Library + 164 framework + 34 API = 992 passed, zero failures/skips;
+app build succeeded with zero errors and two existing warnings (Crashlytics
+outputs and missing legacy Frameworks path).
+Results: /private/tmp/kickstarter-root-badge.0zGMvZ.
+Evidence: sibling Migration Evidence/kickstarter-root-badge.
+
+An earlier run passed 991 tests and built. The next run passed 793 Library tests
+but crashed in RewardsCollectionViewModelTests during AppEnvironment.popEnvironment.
+The crash stack shows the async fixture helper mutating its shared stack on a
+background executor. Two Rewards tests also started second location requests
+without awaiting them before fixture release. Async fixture helpers now run on
+MainActor, and those tests drain the second requests. Ten repeated Rewards runs
+and the final integrated run passed. The exact allocator-level abort cause is
+not proven; failed-run evidence is retained. No test parallelism was disabled.
+
+Existing tab UI, navigation, optimistic badge clearing and silent save-error
+behavior remain. Root's nonvisual tests alone opt out of the snapshot device
+gate. The now-unused reactive badge helper remains for compatibility.
+Next: project-notification settings, messaging, then pledge/payment/backing.
+No live mutation, full-suite, app-wide strict-concurrency or rendered/physical
+device validation is claimed. App-wide migration remains IN PROGRESS.
+
 ### Account writes and session refresh — 28 October 2026
 
 Email/password creation and changes, currency, verification sends and Facebook

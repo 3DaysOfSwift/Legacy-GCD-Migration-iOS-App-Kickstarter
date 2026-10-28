@@ -9,8 +9,13 @@ import ReactiveSwift
 import UIKit
 import XCTest
 
+@MainActor
 final class RootViewModelTests: TestCase {
-  let vm: RootViewModelType = RootViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let sessionFeature = SessionFeature(makeProvider: {
+    AsyncSessionProvider(service: AppEnvironment.current.apiService)
+  })
+  private lazy var vm = RootViewModel(sessionFeature: self.sessionFeature)
   let viewControllerNames = TestObserver<[String], Never>()
   let filterDiscovery = TestObserver<DiscoveryParams, Never>()
   let floatingTabBarEnabled = TestObserver<Bool, Never>()
@@ -24,26 +29,73 @@ final class RootViewModelTests: TestCase {
   override func setUp() {
     super.setUp()
 
-    self.vm.outputs.setViewControllers
-      .map(extractRootNames)
-      .observe(self.viewControllerNames.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.setViewControllers
+        .map(extractRootNames)
+        .observe(self.viewControllerNames.observer)
 
-    self.vm.outputs.filterDiscovery.map(second).observe(self.filterDiscovery.observer)
-    self.vm.outputs.floatingTabBarEnabled.observe(self.floatingTabBarEnabled.observer)
-    self.vm.outputs.selectedIndex.observe(self.selectedIndex.observer)
-    self.vm.outputs.setBadgeValueAtIndex.map { $0.0 }.observe(self.setBadgeValueAtIndexValue.observer)
-    self.vm.outputs.setBadgeValueAtIndex.map { $0.1 }.observe(self.setBadgeValueAtIndexIndex.observer)
-    self.vm.outputs.updateUserInEnvironment.observe(self.updateUserInEnvironment.observer)
+      self.vm.outputs.filterDiscovery.map(second).observe(self.filterDiscovery.observer)
+      self.vm.outputs.floatingTabBarEnabled.observe(self.floatingTabBarEnabled.observer)
+      self.vm.outputs.selectedIndex.observe(self.selectedIndex.observer)
+      self.vm.outputs.setBadgeValueAtIndex.map { $0.0 }.observe(self.setBadgeValueAtIndexValue.observer)
+      self.vm.outputs.setBadgeValueAtIndex.map { $0.1 }.observe(self.setBadgeValueAtIndexIndex.observer)
+      self.vm.outputs.updateUserInEnvironment.observe(self.updateUserInEnvironment.observer)
 
-    let viewControllers = self.vm.outputs.setViewControllers
-      .map { $0.map(RootTabBarViewController.viewController(from:)).compact() }
+      let viewControllers = self.vm.outputs.setViewControllers
+        .map { $0.map(RootTabBarViewController.viewController(from:)).compact() }
 
-    Signal.combineLatest(viewControllers, self.vm.outputs.scrollToTop)
-      .map { vcs, idx in vcs[clamp(0, vcs.count - 1)(idx)] }
-      .map(extractName)
-      .observe(self.scrollToTopControllerName.observer)
+      Signal.combineLatest(viewControllers, self.vm.outputs.scrollToTop)
+        .map { vcs, idx in vcs[clamp(0, vcs.count - 1)(idx)] }
+        .map(extractName)
+        .observe(self.scrollToTopControllerName.observer)
 
-    self.vm.outputs.tabBarItemsData.observe(self.tabBarItemsData.observer)
+      self.vm.outputs.tabBarItemsData.observe(self.tabBarItemsData.observer)
+    }
+  }
+
+  override func tearDown() async throws {
+    await self.vm.waitForBadgeUpdate()
+    try await super.tearDown()
+  }
+
+  func testOldSessionBadgeNotificationIsSuppressedAfterPresentationDelay() async {
+    let application = MockApplication()
+    application.applicationIconBadgeNumber = 5
+    await withEnvironment(
+      apiService: MockService(clearUserUnseenActivityResult: .success(.init(activityIndicatorCount: 0))),
+      apiDelayInterval: .seconds(1),
+      application: application,
+      currentUser: .template
+    ) {
+      self.vm.viewDidLoad()
+      self.vm.applicationWillEnterForeground()
+      self.vm.didSelect(index: 1)
+      await self.vm.waitForBadgeUpdate()
+      XCTAssertEqual(AppEnvironment.current.currentUser?.unseenActivityCount, 0)
+      self.sessionFeature.sessionChanged()
+      await self.scheduler.advance(by: .seconds(2))
+      self.updateUserInEnvironment.assertValueCount(0)
+    }
+  }
+
+  func testBadgeSaveFailureKeepsImmediateTabDisplayAndDoesNotNotify() async {
+    let application = MockApplication()
+    application.applicationIconBadgeNumber = 5
+    let user = User.template |> User.lens.unseenActivityCount .~ 5
+    await withEnvironment(
+      apiService: MockService(clearUserUnseenActivityResult: .failure(.couldNotParseJSON)),
+      application: application,
+      currentUser: user
+    ) {
+      self.vm.viewDidLoad()
+      self.vm.applicationWillEnterForeground()
+      self.vm.didSelect(index: 1)
+      await self.vm.waitForBadgeUpdate()
+      await self.scheduler.advance()
+      self.setBadgeValueAtIndexValue.assertValues(["5", nil])
+      self.updateUserInEnvironment.assertValueCount(0)
+      XCTAssertEqual(AppEnvironment.current.currentUser?.unseenActivityCount, 5)
+    }
   }
 
   func testSetBadgeValueAtIndex_NoValue() {
@@ -146,7 +198,7 @@ final class RootViewModelTests: TestCase {
     }
   }
 
-  func testClearBadgeValueOnActivitiesTabSelected() {
+  func testClearBadgeValueOnActivitiesTabSelected() async {
     let initialActivitiesCount = 100
 
     let mockApplication = MockApplication()
@@ -163,7 +215,7 @@ final class RootViewModelTests: TestCase {
     let user = User.template
       |> User.lens.unseenActivityCount .~ initialActivitiesCount
 
-    withEnvironment(apiService: mockService, application: mockApplication, currentUser: user) {
+    await withEnvironment(apiService: mockService, application: mockApplication, currentUser: user) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.applicationWillEnterForeground()
 
@@ -177,8 +229,10 @@ final class RootViewModelTests: TestCase {
       self.setBadgeValueAtIndexValue.assertValues(["99+", nil])
       self.setBadgeValueAtIndexIndex.assertValues([1, 1])
 
-      self.scheduler.advance()
+      await self.vm.waitForBadgeUpdate()
+      await self.scheduler.advance()
 
+      XCTAssertEqual(AppEnvironment.current.currentUser?.unseenActivityCount, 0)
       XCTAssertEqual(self.updateUserInEnvironment.values.map { $0.id }, [user.id])
       self.setBadgeValueAtIndexValue.assertValues(["99+", nil])
       self.setBadgeValueAtIndexIndex.assertValues([1, 1])

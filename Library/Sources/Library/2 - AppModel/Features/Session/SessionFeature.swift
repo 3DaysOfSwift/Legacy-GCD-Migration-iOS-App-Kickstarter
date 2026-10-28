@@ -40,6 +40,7 @@ public final class SessionFeature {
   private var setupRequests: [Identity: Task<GraphUserSetup, Error>] = [:]
   private var revision = 0
   private var readRevision = 0
+  private var setupReadRevision = 0
   private var requests: [Identity: Task<User, Error>] = [:]
   public var currentUser: User? { self.readUser() }
   public var generation: Int { self.revision }
@@ -79,8 +80,14 @@ public final class SessionFeature {
   /// A completed account-affecting command requires fresh reads, without
   /// pretending that the user logged out or interrupting admitted badge writes.
   public func invalidateReads() {
-    self.readRevision += 1
+    self.setupReadRevision += 1
     for task in self.setupRequests.values { task.cancel() }
+    self.invalidateUserReads()
+  }
+
+  /// Badge changes invalidate whole-user snapshots, not unrelated email/setup metadata.
+  private func invalidateUserReads() {
+    self.readRevision += 1
     for (identity, task) in self.requests where identity.operation != .clearActivity { task.cancel() }
   }
 
@@ -123,7 +130,7 @@ public final class SessionFeature {
       operation: .user,
       userID: self.currentUser?.id,
       revision: self.revision,
-      readRevision: self.readRevision
+      readRevision: self.setupReadRevision
     )
     let task: Task<GraphUserSetup, Error>
     if let existing = self.setupRequests[identity] {
@@ -137,13 +144,13 @@ public final class SessionFeature {
           let setup = try await provider.setup()
           try Task.checkCancellation()
           guard self.isCurrent(userID: identity.userID, generation: identity.revision),
-                self.readRevision == identity.readRevision else { throw CancellationError() }
+                self.setupReadRevision == identity.readRevision else { throw CancellationError() }
           self.writeSetup(setup)
           return setup
         } catch {
           guard !Task.isCancelled,
                 self.isCurrent(userID: identity.userID, generation: identity.revision),
-                self.readRevision == identity.readRevision else { throw CancellationError() }
+                self.setupReadRevision == identity.readRevision else { throw CancellationError() }
           throw error
         }
       }
@@ -153,12 +160,12 @@ public final class SessionFeature {
       let setup = try await task.value
       try Task.checkCancellation()
       guard self.isCurrent(userID: identity.userID, generation: identity.revision),
-            self.readRevision == identity.readRevision else { throw CancellationError() }
+            self.setupReadRevision == identity.readRevision else { throw CancellationError() }
       return setup
     } catch {
       guard !Task.isCancelled,
             self.isCurrent(userID: identity.userID, generation: identity.revision),
-            self.readRevision == identity.readRevision else { throw CancellationError() }
+            self.setupReadRevision == identity.readRevision else { throw CancellationError() }
       throw error
     }
   }
@@ -212,6 +219,11 @@ public final class SessionFeature {
         guard self.isCurrent(userID: identity.userID, generation: identity.revision),
               operation == .clearActivity || self.readRevision == identity.readRevision
         else { throw CancellationError() }
+        if operation == .clearActivity {
+          // Both root-tab and Activity callers share this execution and one commit.
+          self.commitUser(user, userID: identity.userID, generation: identity.revision)
+          self.invalidateUserReads()
+        }
         return user
       } catch {
         // An old unauthorized response must not log out a replacement session.

@@ -1,5 +1,21 @@
 # Kickstarter migration behaviour contract
 
+## Shared activity badge — 28 October 2026
+
+- Root tab and Activity callers share one pending badge-clear command and one
+  session commit. Merge only its returned count into the latest current user.
+- Preserve immediate tab-badge clearing, silent save failure, existing notification
+  effects and tab layout. Retry is explicit; disposal cannot undo an admitted write.
+- Suppress old-session results and delayed notifications. Completed badge changes
+  invalidate older whole-user reads without cancelling unrelated setup metadata.
+- Controllers notify after persistence; they must not replay returned User snapshots.
+
+Baseline: 24 original Root tests. Final: 992 tests passed and app built, zero
+failures/skips; six new scenarios. The Rewards fixture-cleanup crash, corrective
+actor/lifetime changes and ten passing repeated runs are recorded in the ledger
+and sibling Migration Evidence/kickstarter-root-badge. Exact runtime-abort cause
+is not proven. No full-suite, live-service or visual/device sign-off is implied.
+
 ## Account writes and session refresh — 28 October 2026
 
 - ACC-W01: Preserve account form validation, loading/errors, confirmation,
