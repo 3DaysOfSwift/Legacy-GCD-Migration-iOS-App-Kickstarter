@@ -4795,6 +4795,7 @@ final class PledgeViewModelTests: TestCase {
       self.vm.inputs.configure(with: data)
       self.vm.inputs.paymentPlanSelected(.pledgeInFull)
       self.vm.inputs.viewDidLoad()
+      await self.feature.waitForOperations()
 
       self.showPledgeOverTimeUI.assertLastValue(true)
       self.pledgeOverTimeConfigData.assertDidEmitValue()
@@ -4829,6 +4830,7 @@ final class PledgeViewModelTests: TestCase {
 
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
+      await self.feature.waitForOperations()
       self.vm.inputs.paymentPlanSelected(.pledgeOverTime)
 
       self.showPledgeOverTimeUI.assertLastValue(true)
@@ -4865,6 +4867,7 @@ final class PledgeViewModelTests: TestCase {
       self.vm.inputs.configure(with: data)
       self.vm.inputs.paymentPlanSelected(.pledgeInFull)
       self.vm.inputs.viewDidLoad()
+      await self.feature.waitForOperations()
 
       self.showPledgeOverTimeUI.assertLastValue(true)
       self.pledgeOverTimeConfigData.assertDidEmitValue()
@@ -4905,6 +4908,7 @@ final class PledgeViewModelTests: TestCase {
 
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
+      await self.feature.waitForOperations()
 
       self.showPledgeOverTimeUI.assertValues([true, false])
       self.pledgeOverTimeConfigData.assertDidNotEmitValue()
@@ -5013,6 +5017,7 @@ final class PledgeViewModelTests: TestCase {
 
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
+      await self.feature.waitForOperations()
 
       self.beginSCAFlowWithClientSecret.assertDidNotEmitValue()
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(false)

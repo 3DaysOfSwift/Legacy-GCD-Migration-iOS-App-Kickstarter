@@ -938,6 +938,27 @@
       return self.fetchUserSelfResponse ?? .template
     }
 
+    @MainActor public func pledgedProjects(tiers: [GraphAPI.PledgeProjectsOverviewSort], cursor: String?, limit: Int) async throws -> GraphAPI.FetchPledgedProjectsQuery.Data {
+      try Task.checkCancellation()
+      guard let result = self.fetchPledgedProjectsResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+    @MainActor public func confirmPledgeAddress(backingID: String, addressID: String) async throws -> Bool {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      guard let result = self.confirmBackingAddressResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+    @MainActor public func setPledgeReceipt(backingID: String, received: Bool) async throws -> Bool {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      guard let result = self.updateRewardReceivedResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+    @MainActor public func pledgePaymentPlan(slug: String, amount: String) async throws -> GraphAPI.BuildPaymentPlanQuery.Data {
+      try Task.checkCancellation()
+      guard let result = self.buildPaymentPlanResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
     @MainActor public func openPledgeCheckout(_ input: CreateCheckoutInput) async throws -> CreateCheckoutEnvelope {
       try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
       guard let result = self.createCheckoutResult else { throw ErrorEnvelope.couldNotParseJSON }

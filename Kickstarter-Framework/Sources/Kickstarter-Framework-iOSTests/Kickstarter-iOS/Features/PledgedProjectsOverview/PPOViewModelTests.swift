@@ -7,23 +7,35 @@ import GraphAPI
 @testable import LibraryTestHelpers
 import XCTest
 
+@MainActor
 class PPOViewModelTests: XCTestCase {
+  private let feature = PledgedProjectsFeature(
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+    makeProvider: {
+      precondition(AppEnvironment.current.apiService is MockService)
+      return AsyncPledgedProjectsProvider(service: AppEnvironment.current.apiService)
+    })
   var viewModel: PPOViewModel!
   var cancellables: Set<AnyCancellable>!
 
   override func setUp() {
     super.setUp()
-    self.viewModel = PPOViewModel()
-    self.cancellables = []
+    MainActor.assumeIsolated {
+      self.viewModel = PPOViewModel(feature: self.feature)
+      self.cancellables = []
+    }
   }
 
   override func tearDown() {
-    self.viewModel = nil
-    self.cancellables = nil
+    MainActor.assumeIsolated {
+      self.feature.reset()
+      self.viewModel = nil
+      self.cancellables = nil
+    }
     super.tearDown()
   }
 
-  func testInitialLoading_Once() throws {
+  func testInitialLoading_Once() async throws {
     let expectation = XCTestExpectation(description: "Initial loading")
     expectation.expectedFulfillmentCount = 3
 
@@ -35,13 +47,14 @@ class PPOViewModelTests: XCTestCase {
       }
       .store(in: &self.cancellables)
 
-    withEnvironment(apiService: MockService(
+    await withEnvironment(apiService: MockService(
       fetchPledgedProjectsResult: Result.success(try GraphAPI.FetchPledgedProjectsQuery.fakeData())
-    )) {
+    )) { () async in
       self.viewModel.viewDidAppear()
+      await self.feature.waitForOperations()
     }
 
-    wait(for: [expectation], timeout: 0.1)
+    await fulfillment(of: [expectation], timeout: 2)
 
     guard
       case .unloaded = values[0],
@@ -54,9 +67,9 @@ class PPOViewModelTests: XCTestCase {
     XCTAssertEqual(data.count, 3)
   }
 
-  func testInitialLoading_Twice() throws {
+  func testInitialLoading_Twice() async throws {
     let expectation = XCTestExpectation(description: "Initial loading twice")
-    expectation.expectedFulfillmentCount = 5
+    expectation.expectedFulfillmentCount = 3
 
     var values: [PPOViewModelPaginator.Results] = []
     self.viewModel.$results
@@ -66,21 +79,22 @@ class PPOViewModelTests: XCTestCase {
       }
       .store(in: &self.cancellables)
 
-    withEnvironment(apiService: MockService(
+    await withEnvironment(apiService: MockService(
       fetchPledgedProjectsResult: Result.success(try GraphAPI.FetchPledgedProjectsQuery.fakeData())
-    )) {
+    )) { () async in
       self.viewModel.viewDidAppear()
       self.viewModel.viewDidAppear() // This should not trigger another load
+      await self.feature.waitForOperations()
     }
 
-    wait(for: [expectation], timeout: 0.1)
+    await fulfillment(of: [expectation], timeout: 2)
 
-    XCTAssertEqual(values.count, 5)
+    XCTAssertEqual(values.count, 3)
 
     guard
       case .unloaded = values[0],
       case .loading = values[1],
-      case let .allLoaded(data, _) = values[4]
+      case let .allLoaded(data, _) = values[2]
     else {
       return XCTFail()
     }
@@ -103,14 +117,15 @@ class PPOViewModelTests: XCTestCase {
       }
       .store(in: &self.cancellables)
 
-    withEnvironment(apiService: MockService(
+    await withEnvironment(apiService: MockService(
       fetchPledgedProjectsResult: Result
         .success(try GraphAPI.FetchPledgedProjectsQuery.fakeData(cursors: 1...3))
-    )) {
+    )) { () async in
       self.viewModel.viewDidAppear() // Initial load
+      await self.feature.waitForOperations()
     }
 
-    await fulfillment(of: [initialLoadExpectation], timeout: 0.1)
+    await fulfillment(of: [initialLoadExpectation], timeout: 2)
 
     await withEnvironment(apiService: MockService(
       fetchPledgedProjectsResult: Result
@@ -119,7 +134,7 @@ class PPOViewModelTests: XCTestCase {
       await self.viewModel.refresh()
     }
 
-    await fulfillment(of: [fullyLoadedExpectation], timeout: 0.1)
+    await fulfillment(of: [fullyLoadedExpectation], timeout: 2)
 
     XCTAssertEqual(values.count, 5)
 
@@ -157,14 +172,15 @@ class PPOViewModelTests: XCTestCase {
       }
       .store(in: &self.cancellables)
 
-    withEnvironment(apiService: MockService(
+    await withEnvironment(apiService: MockService(
       fetchPledgedProjectsResult: Result
         .success(try GraphAPI.FetchPledgedProjectsQuery.fakeData(cursors: 1...3))
-    )) {
+    )) { () async in
       self.viewModel.viewDidAppear() // Initial load
+      await self.feature.waitForOperations()
     }
 
-    await fulfillment(of: [initialLoadExpectation], timeout: 0.1)
+    await fulfillment(of: [initialLoadExpectation], timeout: 2)
 
     await withEnvironment(apiService: MockService(
       fetchPledgedProjectsResult: Result
@@ -180,7 +196,7 @@ class PPOViewModelTests: XCTestCase {
       await self.viewModel.refresh() // Refresh a second time
     }
 
-    await fulfillment(of: [fullyLoadedExpectation], timeout: 0.1)
+    await fulfillment(of: [fullyLoadedExpectation], timeout: 2)
 
     XCTAssertEqual(values.count, 7)
 
@@ -226,16 +242,17 @@ class PPOViewModelTests: XCTestCase {
       }
       .store(in: &self.cancellables)
 
-    withEnvironment(apiService: MockService(
+    await withEnvironment(apiService: MockService(
       fetchPledgedProjectsResult: Result.success(try GraphAPI.FetchPledgedProjectsQuery.fakeData(
         cursors: 1...4,
         hasNextPage: true
       ))
-    )) {
+    )) { () async in
       self.viewModel.viewDidAppear() // Initial load
+      await self.feature.waitForOperations()
     }
 
-    await fulfillment(of: [initialLoadExpectation], timeout: 0.1)
+    await fulfillment(of: [initialLoadExpectation], timeout: 2)
 
     await withEnvironment(apiService: MockService(
       fetchPledgedProjectsResult: Result
@@ -244,7 +261,7 @@ class PPOViewModelTests: XCTestCase {
       await self.viewModel.loadMore() // Load next page
     }
 
-    await fulfillment(of: [fullyLoadedExpectation], timeout: 0.1)
+    await fulfillment(of: [fullyLoadedExpectation], timeout: 2)
 
     XCTAssertEqual(values.count, 5)
 
@@ -393,7 +410,7 @@ class PPOViewModelTests: XCTestCase {
       self.viewModel.handleCardEvent(.fixPayment, from: .fixPaymentTemplate)
       self.viewModel.handleCardEvent(.sendMessage, from: .addressLockTemplate)
 
-      await fulfillment(of: [initialLoadExpectation], timeout: 0.1)
+      await fulfillment(of: [initialLoadExpectation], timeout: 2)
 
       // Store analytics event counts before refresh
       let trackCountBefore = mockTrackingClient.tracks.count
@@ -407,14 +424,14 @@ class PPOViewModelTests: XCTestCase {
         await self.viewModel.refresh()
       }
 
-      await fulfillment(of: [refreshExpectation], timeout: 0.1)
+      await fulfillment(of: [refreshExpectation], timeout: 2)
 
       // Verify analytics events weren't triggered again
       XCTAssertEqual(mockTrackingClient.tracks.count, trackCountBefore)
     }
   }
 
-  func testInitialLoading_Empty() throws {
+  func testInitialLoading_Empty() async throws {
     let expectation = XCTestExpectation(description: "Initial loading empty")
     expectation.expectedFulfillmentCount = 3
 
@@ -426,16 +443,17 @@ class PPOViewModelTests: XCTestCase {
       }
       .store(in: &self.cancellables)
 
-    withEnvironment(apiService: MockService(
+    await withEnvironment(apiService: MockService(
       fetchPledgedProjectsResult: Result.success(try GraphAPI.FetchPledgedProjectsQuery.fakeData(
         cursors: nil,
         hasNextPage: false
       ))
-    )) {
+    )) { () async in
       self.viewModel.viewDidAppear()
+      await self.feature.waitForOperations()
     }
 
-    wait(for: [expectation], timeout: 0.1)
+    await fulfillment(of: [expectation], timeout: 2)
 
     XCTAssertEqual(values.count, 3)
 

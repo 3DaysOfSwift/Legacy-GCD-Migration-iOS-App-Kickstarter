@@ -10,11 +10,13 @@ estimate. These groups differ substantially in size and risk.
 
 | Group | Remaining application paths | Exit condition |
 | --- | --- | --- |
-| 1. Pledge and backing management | Pledge writes and ManagePledge reads verified; remaining PPO pledged-project pagination/address/receipt writes, PledgeManagerWeb project/update loading | Shared ownership, ordered mutations, session guards and existing screen regressions verified |
-| 2. Checkout and payment plans | PostCampaignCheckout create/validate/complete verified; remaining PledgeOverTime payment-plan loading | Awaitable commands preserve checkout sequence, payment errors and duplicate-submission policy |
-| 3. Reward add-ons | RewardAddOnSelection loading; RewardsUseCase secret reward-group write | Feature-owned requests with cancellation/order tests and unchanged selection behavior |
-| 4. Friends and following | FindFriends lists/stats/pagination/follow-all; two follow-cell adapters | Shared follow state and ordered writes; obsolete-account results rejected |
-| 5. Residual project, creator and account actions | WatchProject save/unsave; CuratedProjects and Thanks recommendations; project attribution; UpdateDraft editing/images; ReportProjectInfo options; SettingsAccount user read | Each remaining production request has an explicit owner and documented lifetime |
+| 1. Pledge and backing management | Pledge/overview/address/receipt paths verified; remaining PledgeManagerWeb project/update loading | Shared ownership, ordered mutations, session guards and existing screen regressions verified |
+| 2. Reward add-ons | RewardAddOnSelection loading; RewardsUseCase secret reward-group write | Feature-owned requests with cancellation/order tests and unchanged selection behavior |
+| 3. Friends and following | FindFriends lists/stats/pagination/follow-all; two follow-cell adapters | Shared follow state and ordered writes; obsolete-account results rejected |
+| 4. Residual project, creator and account actions | WatchProject save/unsave; CuratedProjects and Thanks recommendations; project attribution; UpdateDraft editing/images; ReportProjectInfo options; SettingsAccount user read | Each remaining production request has an explicit owner and documented lifetime |
+
+Checkout creation/validation/completion and payment-plan loading now have verified
+checkpoints. Four implementation groups remain; they are not equal units of effort.
 
 The named paths are source-audit findings, not evidence that every call in those
 files is legacy. For example, PledgeManagerWeb currently mixes migrated interactions

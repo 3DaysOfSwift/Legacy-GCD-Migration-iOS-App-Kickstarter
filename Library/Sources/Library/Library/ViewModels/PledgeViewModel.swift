@@ -504,7 +504,8 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     self.pledgeOverTimeUseCase = PledgeOverTimeUseCase(
       project: project,
       pledgeTotal: pledgeTotal,
-      context: context
+      context: context,
+      feature: feature
     )
 
     // MARK: - Create Backing

@@ -43,6 +43,45 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Pledged-project overview, address/receipt and payment plans — 28 October 2026
+
+PledgedProjectsFeature owns overview pagination and tier selection, with independent
+screen routes, shared pending requests, cancellation and account-generation guards.
+The existing card parser/models move to Library; formatting, order, analytics and
+screen layout remain. Paginator.Results is retained only as a snapshot type.
+Refresh awaits the actual request and terminal pagination returns immediately.
+
+PledgeFeature now owns address confirmations and GraphQL receipt writes using the
+existing ordered account queue. One receipt result observer drives the banner and
+refresh; the prior two-subscriber pipeline could execute the same write twice.
+Negative acknowledgements retain their existing presentation semantics. Disposing
+observation never undoes an admitted write; no automatic retry is introduced.
+Payment-plan reads use independent cancellable routes and retain the exact project
+associated with each response, preventing prior installments from being paired
+with a newer project. Public demo rejects address/receipt mutations.
+
+Baseline: 25 original tests passed. Final: **1,114 Library + 192 framework + 72 API
+= 1,378 tests passed**, zero failures/skips. Includes 18 new cases (seven overview,
+five pledge ownership, five container, one project/plan coherence). App build passed
+with zero errors and two existing warnings: Crashlytics outputs and missing
+Frameworks search path. Results: /private/tmp/kickstarter-pledged-overview.IALRLa.
+Evidence: sibling Migration Evidence/kickstarter-pledged-overview.
+
+Five compile attempts corrected integration/type/test registration issues. The
+first integrated run passed 1,108/1,113; five parent pledge tests needed to await
+plan completion before asserting. Business assertions remain. Pending duplicate
+appearance now asserts one loading sequence; the original test comment already
+required this. The logic-only payment-plan suite opts out of the reference-device
+gate; visual suites remain intact. No human command execution was required.
+
+No application callers remain for legacy overview, address confirmation, GraphQL
+receipt or payment-plan service methods (compatibility APIs remain). Pledge-manager
+project/update reads, add-ons, friends/following and residual actions remain, followed
+by app-wide validation. **Migration remains in progress.** Live payments and other
+server mutations, physical-device/visual parity and strict-concurrency sign-off
+remain unverified.
+
+
 ### Backing management and checkout completion — 28 October 2026
 
 PledgeFeature now owns managed project/backing reads and post-campaign checkout

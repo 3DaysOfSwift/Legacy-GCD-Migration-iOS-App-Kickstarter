@@ -18,6 +18,7 @@ final class AppModelTests: XCTestCase {
     let firstSession = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
     let secondSession = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
     let first = AppModel(
+      pledgedProjectsFeature: PledgedProjectsFeature(sessionFeature: firstSession, makeProvider: { AsyncPledgedProjectsProvider(service: MockService()) }),
       pledgeFeature: PledgeFeature(sessionFeature: firstSession, makeProvider: { AsyncPledgeProvider(service: MockService()) }),
       paymentsFeature: PaymentsFeature(sessionFeature: firstSession, makeProvider: { AsyncPaymentsProvider(service: MockService()) }),
       messagingFeature: MessagingFeature(sessionFeature: firstSession, makeProvider: { AsyncMessagingProvider(service: MockService()) }),
@@ -46,6 +47,7 @@ final class AppModelTests: XCTestCase {
       })
     )
     let second = AppModel(
+      pledgedProjectsFeature: PledgedProjectsFeature(sessionFeature: secondSession, makeProvider: { AsyncPledgedProjectsProvider(service: MockService()) }),
       pledgeFeature: PledgeFeature(sessionFeature: secondSession, makeProvider: { AsyncPledgeProvider(service: MockService()) }),
       paymentsFeature: PaymentsFeature(sessionFeature: secondSession, makeProvider: { AsyncPaymentsProvider(service: MockService()) }),
       messagingFeature: MessagingFeature(sessionFeature: secondSession, makeProvider: { AsyncMessagingProvider(service: MockService()) }),
@@ -74,6 +76,7 @@ final class AppModelTests: XCTestCase {
       })
     )
 
+    XCTAssertFalse(first.pledgedProjectsFeature === second.pledgedProjectsFeature)
     XCTAssertTrue(first.pledgeFeature.sessionFeature === first.sessionFeature)
     XCTAssertFalse(first.pledgeFeature === second.pledgeFeature)
     XCTAssertTrue(first.paymentsFeature.sessionFeature === first.sessionFeature)

@@ -111,3 +111,42 @@ extension Service {
     return Project.projectRewardsAndPledgeOverTimeData(from: data)
   }
 }
+
+extension Service {
+  @MainActor public func pledgedProjects(
+    tiers: [GraphAPI.PledgeProjectsOverviewSort], cursor: String?, limit: Int
+  ) async throws -> GraphAPI.FetchPledgedProjectsQuery.Data {
+    try await self.cancellableQuery(
+      GraphAPI.FetchPledgedProjectsQuery(
+        first: .some(limit), after: .someOrNil(cursor),
+        tierTypes: .some(tiers.map { GraphQLEnum($0) })
+      ))
+  }
+  @MainActor public func confirmPledgeAddress(backingID: String, addressID: String) async throws
+    -> Bool
+  {
+    let data: GraphAPI.CreateOrUpdateBackingAddressMutation.Data =
+      try await CancellableGraphQLRequest.fetch { completion in
+        GraphQL.shared.client.perform(
+          mutation: GraphAPI.CreateOrUpdateBackingAddressMutation(
+            input: .init(backingId: backingID, addressId: addressID)),
+          queue: .global(qos: .userInitiated), resultHandler: completion)
+      }
+    return data.createOrUpdateBackingAddress?.success ?? false
+  }
+  @MainActor public func setPledgeReceipt(backingID: String, received: Bool) async throws -> Bool {
+    let data: GraphAPI.UpdateBackerCompletedMutation.Data =
+      try await CancellableGraphQLRequest.fetch { completion in
+        GraphQL.shared.client.perform(
+          mutation: GraphAPI.UpdateBackerCompletedMutation(
+            input: .init(id: backingID, backerCompleted: received)),
+          queue: .global(qos: .userInitiated), resultHandler: completion)
+      }
+    return data.updateBackerCompleted?.backing?.backerCompleted == received
+  }
+  @MainActor public func pledgePaymentPlan(slug: String, amount: String) async throws
+    -> GraphAPI.BuildPaymentPlanQuery.Data
+  {
+    try await self.cancellableQuery(GraphAPI.BuildPaymentPlanQuery(slug: slug, amount: amount))
+  }
+}

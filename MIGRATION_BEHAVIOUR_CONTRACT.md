@@ -1,5 +1,26 @@
 # Kickstarter migration behaviour contract
 
+## Pledged-project overview and payment plans — 28 October 2026
+
+- PPO-01: Preserve card parsing, tier flags, order, page counts, empty/error/loading
+  states, dashboard/card analytics, navigation, banners and existing screen layout.
+- PPO-02: Share equivalent pending pages; refresh supersedes pagination. Screen
+  release or account replacement prevents late results. Terminal load-more returns.
+- PPO-03: Order address/receipt writes. A single receipt failure produces one error
+  banner and refresh; success retains optimistic feedback. Preserve negative address
+  acknowledgement/progress behavior. Never retry writes automatically.
+- PPO-04: Public demo rejects mutations. Disposed screens stop observing but cannot
+  undo admitted writes. Old-account outcomes cannot publish into a new session.
+- PLAN-01: Preserve amount formatting, eligibility/context/default selection and
+  payment errors. Bind each plan to its requesting project; replaced amounts,
+  released routes and account changes reject old responses.
+
+25 original baseline tests passed. Final integrated run: 1,378 passed, zero
+failures/skips, app build succeeded. Eighteen new cases cover ownership and
+presentation. Existing parent pledge assertions now await plan completion.
+Live payments, visual/device validation and app-wide concurrency remain open.
+
+
 ## Payment methods and Stripe intents — 28 October 2026
 
 - PAY-01: Preserve card ordering/availability, selection, optimistic deletion and

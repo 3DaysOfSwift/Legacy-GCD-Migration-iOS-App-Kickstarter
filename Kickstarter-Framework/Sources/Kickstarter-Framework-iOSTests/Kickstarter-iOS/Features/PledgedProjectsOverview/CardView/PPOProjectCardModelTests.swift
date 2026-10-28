@@ -1,3 +1,4 @@
+@testable import Library
 import ApolloTestSupport
 import Combine
 import GraphAPI

@@ -5,6 +5,9 @@ import ReactiveSwift
 
 @MainActor
 public protocol PledgeProvider {
+  func confirmAddress(backingID: String, addressID: String) async throws -> Bool
+  func receipt(backingID: String, received: Bool) async throws -> Bool
+  func paymentPlan(slug: String, amount: String) async throws -> GraphAPI.BuildPaymentPlanQuery.Data
   func openCheckout(_ input: KsApi.CreateCheckoutInput) async throws -> CreateCheckoutEnvelope
   func validateCheckout(checkoutID: String, sourceID: String, secret: String) async throws
     -> ValidateCheckoutEnvelope
@@ -23,6 +26,17 @@ public protocol PledgeProvider {
 public struct AsyncPledgeProvider: PledgeProvider {
   private let service: any ServiceType
   public init(service: any ServiceType) { self.service = service }
+  public func confirmAddress(backingID: String, addressID: String) async throws -> Bool {
+    try await self.service.confirmPledgeAddress(backingID: backingID, addressID: addressID)
+  }
+  public func receipt(backingID: String, received: Bool) async throws -> Bool {
+    try await self.service.setPledgeReceipt(backingID: backingID, received: received)
+  }
+  public func paymentPlan(slug: String, amount: String) async throws
+    -> GraphAPI.BuildPaymentPlanQuery.Data
+  {
+    try await self.service.pledgePaymentPlan(slug: slug, amount: amount)
+  }
   public func openCheckout(_ input: KsApi.CreateCheckoutInput) async throws
     -> CreateCheckoutEnvelope
   {
@@ -98,6 +112,8 @@ public final class PledgeFeature {
   }
 
   private enum Command: Equatable {
+    case confirmAddress(String, String)
+    case receipt(String, Bool)
     case openCheckout(KsApi.CreateCheckoutInput)
     case validateCheckout(checkoutID: String, sourceID: String, secret: String)
     case completeCheckout(GraphAPI.CompleteOnSessionCheckoutInput)
@@ -107,6 +123,7 @@ public final class PledgeFeature {
     case received(projectID: Int, userID: Int, received: Bool)
   }
   private enum Value {
+    case acknowledged(Bool)
     case checkout(CreateCheckoutEnvelope)
     case validated(ValidateCheckoutEnvelope)
     case completed(GraphAPI.CompleteOnSessionCheckoutMutation.Data)
@@ -142,6 +159,12 @@ public final class PledgeFeature {
       do {
         let value: Value
         switch command {
+        case .confirmAddress(let backingID, let addressID):
+          value = .acknowledged(
+            try await provider.confirmAddress(backingID: backingID, addressID: addressID))
+        case .receipt(let backingID, let received):
+          value = .acknowledged(
+            try await provider.receipt(backingID: backingID, received: received))
         case .openCheckout(let input): value = .checkout(try await provider.openCheckout(input))
         case .validateCheckout(let checkoutID, let sourceID, let secret):
           value = .validated(
@@ -181,6 +204,27 @@ public final class PledgeFeature {
       try self.requireCurrent(session)
       throw error
     }
+  }
+
+  public func confirmAddress(backingID: String, addressID: String) async throws -> Bool {
+    try Self.acknowledged(await self.execute(.confirmAddress(backingID, addressID)))
+  }
+  public func receipt(backingID: String, received: Bool) async throws -> Bool {
+    try Self.acknowledged(await self.execute(.receipt(backingID, received)))
+  }
+  public func confirmAddressResult(backingID: String, addressID: String) -> SignalProducer<
+    Bool, ErrorEnvelope
+  > {
+    self.result(.confirmAddress(backingID, addressID), transform: Self.acknowledged)
+  }
+  public func receiptResult(backingID: String, received: Bool) -> SignalProducer<
+    Bool, ErrorEnvelope
+  > {
+    self.result(.receipt(backingID, received), transform: Self.acknowledged)
+  }
+  private static func acknowledged(_ value: Value) throws -> Bool {
+    guard case .acknowledged(let success) = value else { throw ErrorEnvelope.couldNotParseJSON }
+    return success
   }
 
   public func create(_ input: KsApi.CreateBackingInput) async throws -> CreateBackingEnvelope {
@@ -329,10 +373,12 @@ public final class PledgeFeature {
   }
 
   private enum Read: Equatable {
+    case plan(String, String)
     case project(Param)
     case backing(Int)
   }
   private enum ReadValue {
+    case plan(GraphAPI.BuildPaymentPlanQuery.Data)
     case project(Project)
     case backing(Backing)
   }
@@ -369,6 +415,8 @@ public final class PledgeFeature {
       do {
         let value: ReadValue
         switch input {
+        case .plan(let slug, let amount):
+          value = .plan(try await provider.paymentPlan(slug: slug, amount: amount))
         case .project(let param): value = .project(try await provider.project(param))
         case .backing(let id): value = .backing(try await provider.backing(id))
         }
@@ -385,6 +433,29 @@ public final class PledgeFeature {
     return task
   }
 
+  public func paymentPlan(route: UUID, slug: String, amount: String) async throws
+    -> GraphAPI.BuildPaymentPlanQuery.Data
+  {
+    try Task.checkCancellation()
+    let session = self.session
+    do {
+      let value = try await self.requestRead(route: route, input: .plan(slug, amount)).value
+      try self.requireCurrent(session)
+      return try Self.plan(value)
+    } catch {
+      try self.requireCurrent(session)
+      throw error
+    }
+  }
+  public func paymentPlanResult(route: UUID, slug: String, amount: String) -> SignalProducer<
+    GraphAPI.BuildPaymentPlanQuery.Data, ErrorEnvelope
+  > {
+    self.readResult(route: route, input: .plan(slug, amount), transform: Self.plan)
+  }
+  private static func plan(_ value: ReadValue) throws -> GraphAPI.BuildPaymentPlanQuery.Data {
+    guard case .plan(let data) = value else { throw ErrorEnvelope.couldNotParseJSON }
+    return data
+  }
   public func project(route: UUID, param: Param) async throws -> Project {
     try Task.checkCancellation()
     let session = self.session

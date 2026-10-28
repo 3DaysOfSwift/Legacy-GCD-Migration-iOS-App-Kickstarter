@@ -2,7 +2,6 @@ import Foundation
 import GraphAPI
 import Kingfisher
 import KsApi
-import Library
 
 public enum PPORewardToggleState: Equatable {
   case hidden
@@ -26,6 +25,40 @@ public struct PPOProjectCardModel: Identifiable, Equatable, Hashable {
   public let backingGraphId: String
   public let projectAnalytics: GraphAPI.ProjectAnalyticsFragment
   public let projectPageParam: ProjectPageParam?
+
+  public init(
+    isUnread: Bool,
+    alerts: [Alert],
+    image: Kingfisher.Source,
+    projectName: String,
+    projectId: Int,
+    pledge: String,
+    creatorName: String,
+    address: DisplayAddress,
+    rewardReceivedToggleState: PPORewardToggleState,
+    action: ButtonAction?,
+    tierType: PPOTierType,
+    backingId: Int,
+    backingGraphId: String,
+    projectAnalytics: GraphAPI.ProjectAnalyticsFragment,
+    projectPageParam: ProjectPageParam?
+  ) {
+    self.isUnread = isUnread
+    self.alerts = alerts
+    self.image = image
+    self.projectName = projectName
+    self.projectId = projectId
+    self.pledge = pledge
+    self.creatorName = creatorName
+    self.address = address
+    self.rewardReceivedToggleState = rewardReceivedToggleState
+    self.action = action
+    self.tierType = tierType
+    self.backingId = backingId
+    self.backingGraphId = backingGraphId
+    self.projectAnalytics = projectAnalytics
+    self.projectPageParam = projectPageParam
+  }
 
   public func hash(into hasher: inout Hasher) {
     hasher.combine(self.isUnread)

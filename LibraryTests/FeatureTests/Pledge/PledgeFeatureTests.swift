@@ -491,6 +491,111 @@ final class PledgeFeatureTests: TestCase {
     } catch {}
   }
 
+  func testOverviewReceiptChangesAreOrderedAndDuplicatesShare() async throws {
+    var results: [Bool] = []
+    let first = self.feature.receiptResult(backingID: "B", received: true).startWithResult {
+      if case .success(let value) = $0 {
+        results.append(value)
+      } else {
+        XCTFail("Unexpected receipt failure")
+      }
+    }
+    let duplicate = self.feature.receiptResult(backingID: "B", received: true).startWithResult {
+      if case .success(let value) = $0 {
+        results.append(value)
+      } else {
+        XCTFail("Unexpected receipt failure")
+      }
+    }
+    let next = self.feature.receiptResult(backingID: "B", received: false).startWithResult {
+      if case .success(let value) = $0 {
+        results.append(value)
+      } else {
+        XCTFail("Unexpected receipt failure")
+      }
+    }
+    defer {
+      first.dispose()
+      duplicate.dispose()
+      next.dispose()
+    }
+    await self.provider.overviewReceipts.waitFor(1)
+    XCTAssertEqual(self.provider.receiptInputs.map { $0.1 }, [true])
+    try self.provider.overviewReceipts.finish(0, .success(true))
+    await self.provider.overviewReceipts.waitFor(2)
+    XCTAssertEqual(self.provider.receiptInputs.map { $0.1 }, [true, false])
+    try self.provider.overviewReceipts.finish(1, .success(true))
+    await self.feature.waitForOperations()
+    XCTAssertEqual(results, [true, true, true])
+  }
+  func testAddressWriteSettlesAfterObserverDisposalAndDoesNotRetry() async throws {
+    var delivered = false
+    let subscription = self.feature.confirmAddressResult(backingID: "B", addressID: "A")
+      .startWithResult { _ in delivered = true }
+    await self.provider.addresses.waitFor(1)
+    subscription.dispose()
+    try self.provider.addresses.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
+    await self.feature.waitForOperations()
+    XCTAssertFalse(delivered)
+    XCTAssertEqual(self.provider.addressInputs.count, 1)
+    XCTAssertEqual(self.provider.addressInputs.first?.1, "A")
+  }
+  func testPaymentPlanAmountChangeRejectsOldResult() async throws {
+    let route = UUID()
+    var oldDelivered = false
+    var latestDelivered = false
+    let old = self.feature.paymentPlanResult(route: route, slug: "project", amount: "10.00")
+      .startWithResult { _ in oldDelivered = true }
+    await self.provider.plans.waitFor(1)
+    let latest = self.feature.paymentPlanResult(route: route, slug: "project", amount: "20.00")
+      .startWithResult {
+        if case .success = $0 { latestDelivered = true } else { XCTFail("Unexpected plan failure") }
+      }
+    defer {
+      old.dispose()
+      latest.dispose()
+    }
+    await self.provider.plans.waitFor(2)
+    try self.provider.plans.finish(
+      1, .success(try testGraphObject(jsonString: buildPaymentPlanQueryJson(eligible: true))))
+    try self.provider.plans.finish(
+      0, .success(try testGraphObject(jsonString: buildPaymentPlanQueryJson(eligible: false))))
+    await self.feature.waitForOperations()
+    XCTAssertFalse(oldDelivered)
+    XCTAssertTrue(latestDelivered)
+    XCTAssertEqual(self.provider.planInputs.map { $0.1 }, ["10.00", "20.00"])
+  }
+  func testPaymentPlanEquivalentPendingSharesAndReleaseSuppressesBothObservers() async throws {
+    let route = UUID()
+    var delivered = 0
+    let first = self.feature.paymentPlanResult(route: route, slug: "project", amount: "10.00")
+      .startWithResult { _ in delivered += 1 }
+    let duplicate = self.feature.paymentPlanResult(route: route, slug: "project", amount: "10.00")
+      .startWithResult { _ in delivered += 1 }
+    defer {
+      first.dispose()
+      duplicate.dispose()
+    }
+    await self.provider.plans.waitFor(1)
+    self.feature.releaseRead(route: route)
+    try self.provider.plans.finish(
+      0, .success(try testGraphObject(jsonString: buildPaymentPlanQueryJson(eligible: true))))
+    await self.feature.waitForOperations()
+    XCTAssertEqual(delivered, 0)
+    XCTAssertEqual(self.provider.planInputs.count, 1)
+  }
+  func testPublicDemoRejectsAddressAndReceiptWrites() async {
+    let provider = AsyncPledgeProvider(service: MockService.publicDemo())
+    do {
+      _ = try await provider.confirmAddress(backingID: "B", addressID: "A")
+      XCTFail("Demo write accepted")
+    } catch { XCTAssertNotNil(error as? ErrorEnvelope) }
+    do {
+      _ = try await provider.receipt(backingID: "B", received: true)
+      XCTFail("Demo write accepted")
+    } catch { XCTAssertNotNil(error as? ErrorEnvelope) }
+  }
+
   private func createInput(amount: String = "10.00") -> KsApi.CreateBackingInput {
     KsApi.CreateBackingInput(
       amount: amount, applePay: nil, incremental: true, locationId: "location",
@@ -515,6 +620,25 @@ final class PledgeFeatureTests: TestCase {
 
 @MainActor
 private final class ControlledPledgeProvider: PledgeProvider {
+  let addresses = AccountRequestGate<Bool>()
+  let overviewReceipts = AccountRequestGate<Bool>()
+  let plans = AccountRequestGate<GraphAPI.BuildPaymentPlanQuery.Data>()
+  var addressInputs: [(String, String)] = []
+  var receiptInputs: [(String, Bool)] = []
+  var planInputs: [(String, String)] = []
+  func confirmAddress(backingID: String, addressID: String) async throws -> Bool {
+    self.addressInputs.append((backingID, addressID))
+    return try await self.addresses.request()
+  }
+  func receipt(backingID: String, received: Bool) async throws -> Bool {
+    self.receiptInputs.append((backingID, received))
+    return try await self.overviewReceipts.request()
+  }
+  func paymentPlan(slug: String, amount: String) async throws -> GraphAPI.BuildPaymentPlanQuery.Data
+  {
+    self.planInputs.append((slug, amount))
+    return try await self.plans.request()
+  }
   let checkouts = AccountRequestGate<CreateCheckoutEnvelope>()
   let validations = AccountRequestGate<ValidateCheckoutEnvelope>()
   let completions = AccountRequestGate<GraphAPI.CompleteOnSessionCheckoutMutation.Data>()
@@ -578,6 +702,9 @@ private final class ControlledPledgeProvider: PledgeProvider {
     return try await self.receipts.request()
   }
   func releaseAll() {
+    self.addresses.releaseAll()
+    self.overviewReceipts.releaseAll()
+    self.plans.releaseAll()
     self.checkouts.releaseAll()
     self.validations.releaseAll()
     self.completions.releaseAll()

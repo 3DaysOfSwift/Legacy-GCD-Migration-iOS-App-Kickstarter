@@ -2,7 +2,7 @@
 import Kingfisher
 @testable import KsApi
 @testable import KsApiTestHelpers
-import Library
+@testable import Library
 @testable import LibraryTestHelpers
 import SnapshotTesting
 import SwiftUI

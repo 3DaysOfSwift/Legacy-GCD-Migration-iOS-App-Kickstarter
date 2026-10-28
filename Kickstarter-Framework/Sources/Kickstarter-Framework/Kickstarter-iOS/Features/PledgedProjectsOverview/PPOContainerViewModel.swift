@@ -2,10 +2,12 @@ import Combine
 import Foundation
 import KsApi
 import Library
+import ReactiveSwift
 import UIKit
 
 typealias PPOStripeConfiguration = (publishableKey: String, merchantIdentifier: String)
 
+@MainActor
 protocol PPOContainerViewModelInputs {
   func viewWillAppear()
   func projectAlertsCountChanged(_ count: Int?)
@@ -14,6 +16,7 @@ protocol PPOContainerViewModelInputs {
   func actionFinishedPerforming()
 }
 
+@MainActor
 protocol PPOContainerViewModelOutputs {
   var projectAlertsBadge: AnyPublisher<TabBarBadge, Never> { get }
   var activityBadge: AnyPublisher<TabBarBadge, Never> { get }
@@ -23,8 +26,11 @@ protocol PPOContainerViewModelOutputs {
   var shouldRefresh: AnyPublisher<Void, Never> { get }
 }
 
+@MainActor
 final class PPOContainerViewModel: PPOContainerViewModelInputs, PPOContainerViewModelOutputs {
-  init() {
+  init(feature injectedFeature: PledgeFeature? = nil) {
+    let feature = injectedFeature ?? AppModel.shared.pledgeFeature
+    self.feature = feature
     let sessionStarted = NotificationCenter.default
       .publisher(for: .ksr_sessionStarted)
       .withEmptyValues()
@@ -87,55 +93,6 @@ final class PPOContainerViewModel: PPOContainerViewModelInputs, PPOContainerView
       }
       .store(in: &self.cancellables)
 
-    // Confirm address call with result banners.
-    self.confirmAddressSubject
-      .handleEvents(receiveOutput: { data in
-        data.onProgress(.confirmed)
-      })
-      .flatMap { data in
-        AppEnvironment.current.apiService.confirmBackingAddress(
-          backingId: data.backingId,
-          addressId: data.addressId
-        )
-        .handleEvents(receiveOutput: { _ in
-          data.onProgress(.succeeded)
-        })
-        .catch { _ in Just(false) }
-      }
-      .compactMap { success -> MessageBannerConfiguration in
-        if success {
-          return (.success, Strings.Address_confirmed_need_to_change_your_address_before_it_locks())
-        } else {
-          return (.error, Strings.Something_went_wrong_please_try_again())
-        }
-      }
-      .sink { [weak self] configuration in
-        self?.showBannerSubject.send(configuration)
-      }
-      .store(in: &self.cancellables)
-
-    // If reward toggle change fails, trigger error banner and refresh.
-    let updateRewardReceivedError = self.updateRewardReceivedSubject
-      .flatMap { backingId, rewardReceived in
-        AppEnvironment.current.apiService.updateRewardReceived(
-          backingId: backingId, rewardReceived: rewardReceived
-        )
-        .handleEvents()
-        .catch { _ in Just(false) }
-      }
-      .compactMap { success -> MessageBannerConfiguration? in
-        if !success {
-          return (.error, Strings.Something_went_wrong_please_try_again())
-        }
-        return nil
-      }
-
-    updateRewardReceivedError
-      .sink { [weak self] configuration in
-        self?.showBannerSubject.send(configuration)
-      }
-      .store(in: &self.cancellables)
-
     // Force the view to refresh
     Publishers.Merge4(
       self.actionFinishedPerformingSubject,
@@ -145,7 +102,7 @@ final class PPOContainerViewModel: PPOContainerViewModelInputs, PPOContainerView
       self.showBannerSubject
         .filter { $0.type == .success }
         .withEmptyValues(),
-      updateRewardReceivedError.withEmptyValues()
+      self.receiptFailureSubject
     )
     .sink { [weak self] () in
       self?.shouldRefreshSubject.send(())
@@ -171,12 +128,37 @@ final class PPOContainerViewModel: PPOContainerViewModelInputs, PPOContainerView
     self.process3DSAuthenticationState.send(state)
   }
 
-  func confirmAddress(addressId: String, backingId: String, onProgress: @escaping (PPOActionState) -> Void) {
-    self.confirmAddressSubject.send((addressId: addressId, backingId: backingId, onProgress: onProgress))
+  func confirmAddress(
+    addressId: String, backingId: String, onProgress: @escaping (PPOActionState) -> Void
+  ) {
+    onProgress(.confirmed)
+    self.observations += self.feature.confirmAddressResult(
+      backingID: backingId, addressID: addressId
+    )
+    .startWithResult { [weak self] result in
+      guard let self else { return }
+      let success: Bool
+      switch result {
+      case .success(let acknowledged):
+        onProgress(.succeeded)
+        success = acknowledged
+      case .failure: success = false
+      }
+      self.showBannerSubject.send(
+        success
+          ? (.success, Strings.Address_confirmed_need_to_change_your_address_before_it_locks())
+          : (.error, Strings.Something_went_wrong_please_try_again()))
+    }
   }
 
   func updateRewardReceived(backingId: String, rewardReceived: Bool) {
-    self.updateRewardReceivedSubject.send((backingId, rewardReceived))
+    self.observations += self.feature.receiptResult(backingID: backingId, received: rewardReceived)
+      .startWithResult { [weak self] result in
+        guard let self else { return }
+        if case .success(true) = result { return }
+        self.showBannerSubject.send((.error, Strings.Something_went_wrong_please_try_again()))
+        self.receiptFailureSubject.send(())
+      }
   }
 
   func actionFinishedPerforming() {
@@ -219,14 +201,10 @@ final class PPOContainerViewModel: PPOContainerViewModelInputs, PPOContainerView
   private let showBannerSubject = PassthroughSubject<MessageBannerConfiguration, Never>()
   private let process3DSAuthenticationState = PassthroughSubject<PPOActionState, Never>()
   private let stripeConfigurationSubject = PassthroughSubject<PPOStripeConfiguration, Never>()
-  private let confirmAddressSubject = PassthroughSubject<
-    (addressId: String, backingId: String, onProgress: (PPOActionState) -> Void),
-    Never
-  >()
-  private let updateRewardReceivedSubject = PassthroughSubject<
-    (backingId: String, rewardReceived: Bool),
-    Never
-  >()
+  private let feature: PledgeFeature
+  private let observations = CompositeDisposable()
+  private let receiptFailureSubject = PassthroughSubject<Void, Never>()
+  deinit { self.observations.dispose() }
   private let actionFinishedPerformingSubject = PassthroughSubject<Void, Never>()
   private let shouldRefreshSubject = PassthroughSubject<Void, Never>()
 

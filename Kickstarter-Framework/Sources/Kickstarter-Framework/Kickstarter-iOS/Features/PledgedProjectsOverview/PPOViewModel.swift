@@ -13,6 +13,7 @@ typealias PPOViewModelPaginator = Paginator<
   Void
 >
 
+@MainActor
 protocol PPOViewModelInputs {
   func viewDidAppear()
   func refresh() async
@@ -21,6 +22,7 @@ protocol PPOViewModelInputs {
   func handleCardEvent(_: PPOCardEvent, from: PPOProjectCardModel)
 }
 
+@MainActor
 protocol PPOViewModelOutputs {
   var results: PPOViewModelPaginator.Results { get }
   var preparedEvents: AnyPublisher<PPOPreparedEvent, Never> { get }
@@ -48,38 +50,39 @@ enum PPOPreparedEvent: Equatable {
   // swiftlint:disable:next cyclomatic_complexity
   static func == (lhs: PPOPreparedEvent, rhs: PPOPreparedEvent) -> Bool {
     switch (lhs, rhs) {
-    case let (.survey(lhsUrl), .survey(rhsUrl)):
+    case (.survey(let lhsUrl), .survey(let rhsUrl)):
       return lhsUrl == rhsUrl
-    case let (.openPledgeManager(lhsUrl), .openPledgeManager(rhsUrl)):
+    case (.openPledgeManager(let lhsUrl), .openPledgeManager(let rhsUrl)):
       return lhsUrl == rhsUrl
-    case let (.projectDetails(lhsParam), .projectDetails(rhsParam)):
+    case (.projectDetails(let lhsParam), .projectDetails(let rhsParam)):
       return lhsParam.param == rhsParam.param
-    case let (.editAddress(lhsUrl), .editAddress(rhsUrl)):
+    case (.editAddress(let lhsUrl), .editAddress(let rhsUrl)):
       return lhsUrl == rhsUrl
-    case let (.contactCreator(lhsSubject), .contactCreator(rhsSubject)):
+    case (.contactCreator(let lhsSubject), .contactCreator(let rhsSubject)):
       return lhsSubject == rhsSubject
-    case let (
-      .fix3DSChallenge(clientSecret: lhsSecret, onProgress: _),
-      .fix3DSChallenge(clientSecret: rhsSecret, onProgress: _)
+    case (
+      .fix3DSChallenge(clientSecret: let lhsSecret, onProgress: _),
+      .fix3DSChallenge(clientSecret: let rhsSecret, onProgress: _)
     ):
       return lhsSecret == rhsSecret
-    case let (
-      .confirmAddress(lhsBackingId, lhsAddressId, lhsAddress, _),
-      .confirmAddress(rhsBackingId, rhsAddressId, rhsAddress, _)
+    case (
+      .confirmAddress(let lhsBackingId, let lhsAddressId, let lhsAddress, _),
+      .confirmAddress(let rhsBackingId, let rhsAddressId, let rhsAddress, _)
     ):
-      return lhsBackingId == rhsBackingId && lhsAddressId == rhsAddressId && lhsAddress == rhsAddress
-    case let (
-      .fixPaymentMethod(lhsProjectId, lhsBackingId),
-      .fixPaymentMethod(rhsProjectId, rhsBackingId)
+      return lhsBackingId == rhsBackingId && lhsAddressId == rhsAddressId
+        && lhsAddress == rhsAddress
+    case (
+      .fixPaymentMethod(let lhsProjectId, let lhsBackingId),
+      .fixPaymentMethod(let rhsProjectId, let rhsBackingId)
     ):
       return lhsProjectId == rhsProjectId && lhsBackingId == rhsBackingId
     case (.backedProjects, .backedProjects):
       return true
     case (.exploreProjects, .exploreProjects):
       return true
-    case let (
-      .updateRewardReceived(lhsBackingId, lhsRewardReceived),
-      .updateRewardReceived(rhsBackingId, rhsRewardReceived)
+    case (
+      .updateRewardReceived(let lhsBackingId, let lhsRewardReceived),
+      .updateRewardReceived(let rhsBackingId, let rhsRewardReceived)
     ):
       return lhsBackingId == rhsBackingId && lhsRewardReceived == rhsRewardReceived
     default:
@@ -88,35 +91,17 @@ enum PPOPreparedEvent: Equatable {
   }
 }
 
+@MainActor
 final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutputs {
-  init() {
-    let paginator: PPOViewModelPaginator = Paginator(
-      valuesFromEnvelope: { data -> [PPOProjectCardViewModel] in
-        data.pledgeProjectsOverview?.pledges?.edges?
-          .compactMap { edge in edge?.node }
-          .compactMap { node in PPOProjectCardModel(node: node) }
-          .compactMap { model in PPOProjectCardViewModel(card: model) } ?? []
-      },
-      cursorFromEnvelope: { data in data.pledgeProjectsOverview?.pledges?.pageInfo.endCursor },
-      totalFromEnvelope: { data in data.pledgeProjectsOverview?.pledges?.totalCount },
-      requestFromParams: { () in
-        AppEnvironment.current.apiService.fetchPledgedProjects(
-          tierTypes: Self.tierTypes(),
-          cursor: nil,
-          limit: Constants.pageSize
-        )
-      },
-      requestFromCursor: { cursor in
-        AppEnvironment.current.apiService.fetchPledgedProjects(
-          tierTypes: Self.tierTypes(),
-          cursor: cursor,
-          limit: Constants.pageSize
-        )
-      }
-    )
-    self.paginator = paginator
+  init(feature injectedFeature: PledgedProjectsFeature? = nil) {
+    let feature = injectedFeature ?? AppModel.shared.pledgedProjectsFeature
+    self.feature = feature
+    feature.snapshots(route: self.route)
+      .map(Self.present)
+      .subscribe(self.snapshots)
+      .store(in: &self.cancellables)
 
-    paginator.$results
+    self.snapshots
       .drop(while: { results in
         if case .unloaded = results {
           return true
@@ -130,41 +115,25 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
       .removeDuplicates(by: { left, right in
         left.hasLoaded && right.hasLoaded && left.values == right.values
       })
-      .receive(on: RunLoop.main)
-      .sink(receiveValue: { results in
-        self.results = results
+      .sink(receiveValue: { [weak self] results in
+        self?.results = results
       })
-      .store(in: &self.cancellables)
-
-    Publishers.Merge(
-      self.viewDidAppearSubject
-        .withEmptyValues(),
-      self.pullToRefreshSubject
-    )
-    .sink { () in
-      paginator.requestFirstPage()
-    }
-    .store(in: &self.cancellables)
-
-    self.loadMoreSubject
-      .sink { () in
-        paginator.requestNextPage()
-      }
       .store(in: &self.cancellables)
 
     // Prepare and route events
     self.handleCardEventSubject
-      .map { event, card in
-        self.preparedEvent(for: event, cardModel: card)
+      .compactMap { [weak self] event, card in
+        self?.preparedEvent(for: event, cardModel: card)
       }
       .eraseToAnyPublisher()
       .subscribe(self.preparedEventSubject)
       .store(in: &self.cancellables)
 
-    let latestLoadedResults = self.paginator.$results
+    let latestLoadedResults = self.snapshots
       .compactMap { results in
-        results.hasLoaded ? results.values
-          .ppoAnalyticsProperties(page: results.page) : nil
+        results.hasLoaded
+          ? results.values
+            .ppoAnalyticsProperties(page: results.page) : nil
       }
 
     // Analytics: When view appears, the next time it loads, send a PPO dashboard open
@@ -181,15 +150,15 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
       .map { eventAndCardModel, overallProperties in
         (eventAndCardModel.0, eventAndCardModel.1, overallProperties)
       }
-      .sink { event, card, overallProperties in
-        self.trackCardEvent(event, cardModel: card, overallProperties: overallProperties)
+      .sink { [weak self] event, card, overallProperties in
+        self?.trackCardEvent(event, cardModel: card, overallProperties: overallProperties)
       }
       .store(in: &self.cancellables)
 
     // Analytics: Finish confirming address
     self.confirmAddressProgressSubject
       .filter { $0.1 == .confirmed }
-      .map { $0.0 } // we just need the card
+      .map { $0.0 }  // we just need the card
       .withFirst(from: latestLoadedResults)
       .sink { card, overallProperties in
         AppEnvironment.current.ksrAnalytics.trackPPOSubmitAddressConfirmation(
@@ -248,7 +217,7 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
         project: cardModel.projectAnalytics,
         properties: overallProperties
       )
-    case let .updateRewardReceived(rewardReceived):
+    case .updateRewardReceived(let rewardReceived):
       AppEnvironment.current.ksrAnalytics.trackPPOUpdateRewardReceived(
         toggleOn: rewardReceived,
         project: cardModel.projectAnalytics,
@@ -267,9 +236,9 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
     cardModel: PPOProjectCardModel
   ) -> PPOPreparedEvent {
     switch event {
-    case let .editAddress(url):
+    case .editAddress(let url):
       return PPOPreparedEvent.editAddress(url: url)
-    case let .viewProjectDetails(projectPageParam):
+    case .viewProjectDetails(let projectPageParam):
       return PPOPreparedEvent.projectDetails(param: projectPageParam)
     case .sendMessage:
       let messageSubject = MessageSubject.project(
@@ -277,21 +246,21 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
         name: cardModel.projectName
       )
       return PPOPreparedEvent.contactCreator(messageSubject: messageSubject)
-    case let .updateRewardReceived(rewardReceived: rewardReceived):
+    case .updateRewardReceived(rewardReceived: let rewardReceived):
       return PPOPreparedEvent.updateRewardReceived(
         backingId: cardModel.backingGraphId,
         rewardReceived: rewardReceived
       )
-    case let .completeSurvey(url):
+    case .completeSurvey(let url):
       return PPOPreparedEvent.survey(url: url)
     case .fixPayment:
       return PPOPreparedEvent.fixPaymentMethod(
         projectId: cardModel.projectId,
         backingId: cardModel.backingId
       )
-    case let .openPledgeManager(url):
+    case .openPledgeManager(let url):
       return PPOPreparedEvent.openPledgeManager(url: url)
-    case let .confirmAddress(address, addressId):
+    case .confirmAddress(let address, let addressId):
       return PPOPreparedEvent.confirmAddress(
         backingId: cardModel.backingGraphId,
         addressId: addressId,
@@ -300,7 +269,7 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
           self?.confirmAddressProgressSubject.send((cardModel, state))
         }
       )
-    case let .authenticateCard(clientSecret, onProgress):
+    case .authenticateCard(let clientSecret, let onProgress):
       return PPOPreparedEvent.fix3DSChallenge(
         clientSecret: clientSecret,
         onProgress: onProgress
@@ -313,30 +282,36 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
     }
   }
 
-  static func tierTypes() -> [PledgeProjectsOverviewSort] {
-    if featurePledgedProjectsOverviewV4Enabled() {
-      return PPOTierType.allGraphQLTypes()
+  private static func present(_ snapshot: PledgedProjectsFeature.Snapshot)
+    -> PPOViewModelPaginator.Results
+  {
+    switch snapshot {
+    case .unloaded: return .unloaded
+    case .empty: return .empty
+    case .error(let error): return .error(error)
+    case .loading(let previous): return .loading(previous: Self.present(previous))
+    case .allLoaded(let cards, let page):
+      return .allLoaded(values: cards.map { PPOProjectCardViewModel(card: $0) }, page: page)
+    case .someLoaded(let cards, let cursor, let total, let page):
+      return .someLoaded(
+        values: cards.map { PPOProjectCardViewModel(card: $0) }, cursor: cursor, total: total,
+        page: page)
     }
-    if featurePledgedProjectsOverviewV2Enabled() {
-      return PPOTierType.fundedProjectGraphQLTypes()
-    }
-    return PPOTierType.projectAlertGraphQLTypes()
   }
 
   // MARK: - Inputs
 
   func viewDidAppear() {
+    self.feature.requestFirstPage(route: self.route)
     self.viewDidAppearSubject.send()
   }
 
   func loadMore() async {
-    self.loadMoreSubject.send(())
-    _ = await self.paginator.nextResult()
+    await self.feature.loadMore(route: self.route)
   }
 
   func refresh() async {
-    self.pullToRefreshSubject.send(())
-    _ = await self.paginator.nextResult()
+    await self.feature.refresh(route: self.route)
   }
 
   func handleCardEvent(_ cardAction: PPOCardEvent, from cardModel: PPOProjectCardModel) {
@@ -353,11 +328,16 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
 
   // MARK: - Private
 
-  private let paginator: PPOViewModelPaginator
+  private let feature: PledgedProjectsFeature
+  private let route = UUID()
+  private let snapshots = CurrentValueSubject<PPOViewModelPaginator.Results, Never>(.unloaded)
+  deinit {
+    let feature = self.feature
+    let route = self.route
+    Task { @MainActor in feature.release(route: route) }
+  }
 
   private let viewDidAppearSubject = PassthroughSubject<Void, Never>()
-  private let loadMoreSubject = PassthroughSubject<Void, Never>()
-  private let pullToRefreshSubject = PassthroughSubject<Void, Never>()
   private let confirmAddressProgressSubject = PassthroughSubject<
     (PPOProjectCardModel, PPOActionState),
     Never
@@ -372,9 +352,6 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
 
   private var cancellables: Set<AnyCancellable> = []
 
-  private enum Constants {
-    static let pageSize = 10
-  }
 }
 
 extension Sequence where Element == PPOProjectCardViewModel {
@@ -429,8 +406,11 @@ extension Publisher {
   /// - Warning: This is not a direct replacement for `withLatestFrom` from other ReactiveX libraries.
   /// - Parameter other: The publisher to grab the first value from
   /// - Returns: A publisher that emits tuples of values from this publisher paired with the first value from the other publisher
-  func withFirst<B>(from other: B) -> AnyPublisher<(Self.Output, B.Output), Self.Failure> where B: Publisher,
-    B.Failure == Self.Failure {
+  func withFirst<B>(from other: B) -> AnyPublisher<(Self.Output, B.Output), Self.Failure>
+  where
+    B: Publisher,
+    B.Failure == Self.Failure
+  {
     return self.flatMap { foo in
       other.first().map { (foo, $0) }
     }.eraseToAnyPublisher()

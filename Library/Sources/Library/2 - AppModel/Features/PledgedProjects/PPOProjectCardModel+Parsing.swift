@@ -2,7 +2,6 @@ import Foundation
 import GraphAPI
 import Kingfisher
 import KsApi
-import Library
 
 private struct PPOParsedAction {
   let action: PPOProjectCardModel.ButtonAction?
@@ -10,7 +9,7 @@ private struct PPOParsedAction {
 }
 
 extension PPOProjectCardModel {
-  init?(node: GraphAPI.FetchPledgedProjectsQuery.Data.PledgeProjectsOverview.Pledges.Edge.Node) {
+  public init?(node: GraphAPI.FetchPledgedProjectsQuery.Data.PledgeProjectsOverview.Pledges.Edge.Node) {
     let card = node.fragments.pPOCardFragment
     let backing = card.backing?.fragments.pPOBackingFragment
     let ppoProject = backing?.project?.fragments.pPOProjectFragment
