@@ -43,6 +43,53 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Creator draft editing and images — 28 October 2026
+
+CreatorDraftsFeature owns draft reads and ordered per-project/account saves,
+uploads and image deletions. Native REST/URLSession transport preserves routes,
+authentication, form fields and response decoding. Multipart preparation runs off
+the UI actor and invalid input fails instead of trapping. Public demo rejects
+creator operations. Repeated pending edits share; changed edits queue; closing an
+observer cannot undo an admitted write. Session changes suppress old delivery and
+queued dispatch. Preview/Close results retain their action; a later upload cannot
+restore a deleted image. Current attachments now drive Preview validation, and
+unsupported video deletion uses the existing failure UI rather than fatalError.
+
+Baseline: **29 original tests passed**. Focused: **40 tests passed**. Final:
+**1,294 Library + 199 framework + 91 API = 1,584 passed**, zero failures/skips.
+**14 new draft regression cases** (10 Feature/lifetime, 4 API/multipart), in
+addition to the four attribution cases added in the preceding checkpoint.
+App build succeeded with zero errors/two existing warnings.
+Results: /private/tmp/kickstarter-creator-drafts.qsqpXw.
+Evidence: sibling Migration Evidence/kickstarter-creator-drafts.
+Two compile attempts failed: shared REST helper visibility, then use of an internal
+API error constructor from Library. Both corrected; no failed runtime test run or
+human command intervention. The retained UpdateDraftViewModel currently has no
+application constructor call found; tests do not establish editor reachability or
+live upload behavior. Visual/device and live-service validation remain open.
+
+### Remaining implementation inventory (source audit, not a completion claim)
+
+The earlier named-screen list was incomplete. Direct request sites still exist:
+
+1. AppDelegateViewModel: config refresh, push-token registration, deep-link category
+   lookup, survey lookup, shortcut recommendation count, project lookup, update
+   lookup, and two comment-thread lookup paths (nine request sites).
+2. ProjectPageViewModel's creator-blocking action still calls the legacy service;
+   it should cooperate with the existing DiscussionFeature blocking owner.
+3. Beta/example surfaces: RichTextExample and PaginationExample request ownership
+   needs classification/migration; they are not assumed covered by product tests.
+4. Remaining platform/main-queue adapters (audio, push registration, reachability,
+   refresh control and UIKit helpers) need explicit boundary review, followed by
+   strict-concurrency diagnostics and a complete direct-request/callback inventory.
+
+Then broader regression, reference-device snapshots, simulator/device flows and
+live-service gates (including payments) remain. Existing inactive third-party
+advertising calls are not automatically enabled. Final report must preserve timing,
+model evidence and unsuccessful-attempt statistics. **Migration remains in progress.**
+
+### Previous checkpoint
+
 ### Project attribution — 28 October 2026
 
 ProjectDetailsFeature now owns the native attribution mutation. The first event

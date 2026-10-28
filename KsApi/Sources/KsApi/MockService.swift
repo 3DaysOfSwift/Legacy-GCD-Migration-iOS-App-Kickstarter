@@ -2402,6 +2402,29 @@
       return SignalProducer(value: self.fetchUpdateResponse |> Update.lens.id .~ updateId)
     }
 
+    @MainActor public func creatorDraft(project: Project) async throws -> UpdateDraft {
+      try Task.checkCancellation()
+      guard self.demoCatalog == nil else { throw ErrorEnvelope.graphError("Creator drafts are unavailable in public demo mode") }
+      if let error = self.fetchDraftError { throw error }
+      return self.fetchDraftResponse ?? .template
+    }
+    @MainActor public func saveCreatorDraft(_ draft: UpdateDraft, title: String, body: String, isPublic: Bool) async throws -> UpdateDraft {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      if let error = self.updateDraftError { throw error }
+      return draft |> UpdateDraft.lens.update.title .~ title
+        |> UpdateDraft.lens.update.body .~ body |> UpdateDraft.lens.update.isPublic .~ isPublic
+    }
+    @MainActor public func addCreatorDraftImage(file: URL, draft: UpdateDraft) async throws -> UpdateDraft.Image {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      if let error = self.addAttachmentError { throw error }
+      return self.addAttachmentResponse ?? .template
+    }
+    @MainActor public func removeCreatorDraftImage(_ image: UpdateDraft.Image, draft: UpdateDraft) async throws -> UpdateDraft.Image {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      if let error = self.removeAttachmentError { throw error }
+      return self.removeAttachmentResponse ?? .template
+    }
+
     internal func fetchUpdateDraft(forProject _: Project) -> SignalProducer<UpdateDraft, ErrorEnvelope> {
       if let error = self.fetchDraftError {
         return SignalProducer(error: error)

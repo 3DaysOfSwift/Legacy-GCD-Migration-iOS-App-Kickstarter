@@ -173,7 +173,7 @@ extension Service {
     let _: VoidEnvelope = try await self.discussionResponse(route: .followAllFriends)
   }
 
-  private func discussionResponse<Model: Decodable>(
+  func discussionResponse<Model: Decodable>(
     route: Route,
     oauthToken: String? = nil
   ) async throws -> Model {

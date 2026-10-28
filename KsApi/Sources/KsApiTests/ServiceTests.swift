@@ -13,6 +13,66 @@ struct MySwiftModel: Decodable, Equatable {
 }
 
 final class ServiceTests: XCTestCase {
+  func testDraftImageMultipartPreservesRequestAndUsesImageField() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let file = directory.appendingPathComponent("draft.png")
+    let bytes = Data([0x89, 0x50, 0x4e, 0x47])
+    try bytes.write(to: file)
+    let request = try Service().preparedRouteRequest(.addImage(fileUrl: file, toDraft: .template))
+    let upload = try Service.preparedDraftImageRequest(file: file, request: request)
+    XCTAssertEqual(upload.url, request.url)
+    XCTAssertEqual(upload.httpMethod, "POST")
+    XCTAssertEqual(upload.value(forHTTPHeaderField: "Authorization"), request.value(forHTTPHeaderField: "Authorization"))
+    let contentType = try XCTUnwrap(upload.value(forHTTPHeaderField: "Content-Type"))
+    let boundary = try XCTUnwrap(contentType.components(separatedBy: "boundary=").last)
+    let body = try XCTUnwrap(upload.httpBody)
+    let text = String(decoding: body, as: UTF8.self)
+    XCTAssertTrue(text.contains("name=\"image\"; filename=\"draft.png\""))
+    XCTAssertTrue(text.contains("Content-Type: image/png\r\n\r\n"))
+    XCTAssertNotNil(body.range(of: bytes))
+    XCTAssertTrue(text.hasSuffix("\r\n--\(boundary)--\r\n"))
+  }
+
+  func testDraftImageRejectsUnreadableEmptyAndNonFileInputs() throws {
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".png")
+    let request = try Service().preparedRouteRequest(.addImage(fileUrl: file, toDraft: .template))
+    XCTAssertThrowsError(try Service.preparedDraftImageRequest(file: file, request: request))
+    try Data().write(to: file)
+    defer { try? FileManager.default.removeItem(at: file) }
+    XCTAssertThrowsError(try Service.preparedDraftImageRequest(file: file, request: request))
+    let remote = try XCTUnwrap(URL(string: "https://example.invalid/image.png"))
+    XCTAssertThrowsError(try Service.preparedDraftImageRequest(file: remote, request: request))
+  }
+
+  @MainActor func testNativeDraftMockPreservesFieldsAndPublicDemoRejectsWrites() async throws {
+    let draft = try await MockService().saveCreatorDraft(.template, title: "Title", body: "Body", isPublic: false)
+    XCTAssertEqual(draft.update.title, "Title")
+    XCTAssertEqual(draft.update.body, "Body")
+    XCTAssertFalse(draft.update.isPublic)
+    let demo = MockService.publicDemo()
+    do { _ = try await demo.creatorDraft(project: .template); XCTFail("No real creator draft in demo") } catch {}
+    do { _ = try await demo.saveCreatorDraft(.template, title: "Title", body: "Body", isPublic: true); XCTFail("Demo must not save") } catch {}
+    do { _ = try await demo.addCreatorDraftImage(file: URL(fileURLWithPath: "/tmp/image.png"), draft: .template); XCTFail("Demo must not upload") } catch {}
+    do { _ = try await demo.removeCreatorDraftImage(.template, draft: .template); XCTFail("Demo must not delete") } catch {}
+  }
+
+  func testNativeDraftRoutesPreserveMethodsAndProjectPaths() throws {
+    let service = Service()
+    let draft = UpdateDraft.template
+    let root = "/v1/projects/\(draft.update.projectId)/updates/draft"
+    let load = try service.preparedRouteRequest(.fetchUpdateDraft(forProject: .template))
+    XCTAssertEqual(load.httpMethod, "GET")
+    XCTAssertEqual(load.url?.path, root)
+    let save = try service.preparedRouteRequest(.updateUpdateDraft(draft, title: "Title", body: "Body", isPublic: false))
+    XCTAssertEqual(save.httpMethod, "PUT")
+    XCTAssertEqual(save.url?.path, root)
+    let remove = try service.preparedRouteRequest(.deleteImage(.template, fromDraft: draft))
+    XCTAssertEqual(remove.httpMethod, "DELETE")
+    XCTAssertEqual(remove.url?.path, root + "/images/1")
+  }
+
   @MainActor
   func testNativeReportingEmailAndSubmissionUseConfiguredResults() async throws {
     let envelope = try XCTUnwrap(UserEnvelope<GraphUserEmail>.userEnvelope(from: GraphUserEnvelopeTemplates.fetchUserEmail))

@@ -433,6 +433,10 @@ public protocol ServiceType {
   func fetchUpdate(updateId: Int, projectParam: Param) -> SignalProducer<Update, ErrorEnvelope>
 
   /// Fetches a project update draft.
+  @MainActor func creatorDraft(project: Project) async throws -> UpdateDraft
+  @MainActor func saveCreatorDraft(_ draft: UpdateDraft, title: String, body: String, isPublic: Bool) async throws -> UpdateDraft
+  @MainActor func addCreatorDraftImage(file: URL, draft: UpdateDraft) async throws -> UpdateDraft.Image
+  @MainActor func removeCreatorDraftImage(_ image: UpdateDraft.Image, draft: UpdateDraft) async throws -> UpdateDraft.Image
   func fetchUpdateDraft(forProject project: Project) -> SignalProducer<UpdateDraft, ErrorEnvelope>
 
   /// Fetch the newest data for a particular user.

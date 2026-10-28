@@ -948,3 +948,27 @@ cold third-party advertising producers are not activated by this migration.
 UpdateDraft's 29 original logic tests pass as the baseline for the next stage.
 Only that nonvisual suite opts out of the reference-simulator gate; snapshot suites
 retain their existing checks.
+
+## Creator draft editing and images — 28 October 2026
+
+- Preserve draft read, title/body/public fields, update number, focus/placeholder
+  behavior, picker choices, error outputs, and Preview/Close destinations.
+- CreatorDraftsFeature owns a native read route and a per-project/account command
+  queue. Equivalent pending edits share; changed saves, uploads and deletions execute
+  in admission order. A save uses the latest completed attachment state. Unchanged
+  fields avoid an unnecessary server write. Failures permit an explicit later retry.
+- Read replacement/release and account changes reject obsolete outcomes. Admitted
+  writes settle after observation ends; account changes prevent queued dispatch.
+  A save result retains its initiating action. Replaced save observation cannot
+  trigger navigation for a newer action before that newer command completes.
+- Correct attachment-state defects exposed by ownership: a later upload does not
+  restore a deleted attachment; current attachments participate in Preview validation.
+  Unsupported video deletion uses the existing failure output instead of trapping.
+- REST paths, verbs, field names, authentication and response decoding remain.
+  Image transport uses native URLSession async data, with multipart preparation
+  off the UI actor, valid CRLF framing and errors for unreadable/empty/non-file input.
+  Public demo rejects creator reads/writes rather than claiming live success.
+- Baseline 29 original logic tests passed. They now await owned operations with
+  original assertions retained. This retained model has no application constructor
+  call found in the current checkout; actual editor reachability and device/image
+  picker behavior are not established by these tests.

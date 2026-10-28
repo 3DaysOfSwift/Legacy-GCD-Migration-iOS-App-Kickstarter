@@ -21,6 +21,10 @@ final class AppModelTests: XCTestCase {
         AsyncAccountPreferencesProvider(service: MockService())
       })
     let first = AppModel(
+      creatorDraftsFeature: CreatorDraftsFeature(sessionFeature: firstSession, makeProvider: {
+        XCTFail("Composition must not load creator drafts")
+        return AsyncCreatorDraftsProvider(service: MockService())
+      }),
       recommendationsFeature: RecommendationsFeature(settingsFeature: firstSettings, makeProvider: {
         XCTFail("Composition must not perform recommendation requests")
         return AsyncRecommendationsProvider(service: MockService())
@@ -57,6 +61,10 @@ final class AppModelTests: XCTestCase {
         AsyncAccountPreferencesProvider(service: MockService())
       })
     let second = AppModel(
+      creatorDraftsFeature: CreatorDraftsFeature(sessionFeature: secondSession, makeProvider: {
+        XCTFail("Composition must not load creator drafts")
+        return AsyncCreatorDraftsProvider(service: MockService())
+      }),
       recommendationsFeature: RecommendationsFeature(settingsFeature: secondSettings, makeProvider: {
         XCTFail("Composition must not perform recommendation requests")
         return AsyncRecommendationsProvider(service: MockService())
@@ -90,6 +98,8 @@ final class AppModelTests: XCTestCase {
       })
     )
 
+    XCTAssertTrue(first.creatorDraftsFeature.sessionFeature === first.sessionFeature)
+    XCTAssertFalse(first.creatorDraftsFeature === second.creatorDraftsFeature)
     XCTAssertTrue(first.recommendationsFeature.settingsFeature === first.settingsFeature)
     XCTAssertTrue(first.recommendationsFeature.sessionFeature === first.sessionFeature)
     XCTAssertFalse(first.recommendationsFeature === second.recommendationsFeature)

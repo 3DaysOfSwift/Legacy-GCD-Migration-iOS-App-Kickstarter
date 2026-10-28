@@ -3,6 +3,7 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol UpdateDraftViewModelInputs {
   /// Call when the creator taps "add attachment".
   func addAttachmentButtonTapped(availableSources: [AttachmentSource])
@@ -50,6 +51,7 @@ public protocol UpdateDraftViewModelInputs {
   func viewWillDisappear()
 }
 
+@MainActor
 public protocol UpdateDraftViewModelOutputs {
   /// An attachment was added.
   var attachmentAdded: Signal<UpdateDraft.Attachment, Never> { get }
@@ -121,26 +123,34 @@ public protocol UpdateDraftViewModelOutputs {
   var titleTextFieldBecomeFirstResponder: Signal<(), Never> { get }
 }
 
+@MainActor
 public protocol UpdateDraftViewModelType {
   var inputs: UpdateDraftViewModelInputs { get }
   var outputs: UpdateDraftViewModelOutputs { get }
 }
 
+@MainActor
 public final class UpdateDraftViewModel: UpdateDraftViewModelType, UpdateDraftViewModelInputs,
   UpdateDraftViewModelOutputs {
-  public init() {
+  private let feature: CreatorDraftsFeature
+  private let route = UUID()
+  public init(creatorDraftsFeature: CreatorDraftsFeature? = nil) {
+    let feature = creatorDraftsFeature ?? AppModel.shared.creatorDraftsFeature
+    self.feature = feature
+    let route = self.route
     // MARK: - Loading
 
     let project: Signal<Project, Never> = self.projectProperty.signal.skipNil()
 
-    let draftEvent =
-      Signal.combineLatest(self.viewDidLoadProperty.signal, project)
-        .map(second)
-        .flatMap {
-          AppEnvironment.current.apiService.fetchUpdateDraft(forProject: $0)
-            .materialize()
-            .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+    let draftEvent = feature.loads.filter { $0.0 == route }
+      .map { _, result -> Signal<UpdateDraft, ErrorEnvelope>.Event in
+        switch result {
+        case .success(let draft): return .value(draft)
+        case .failure(let error): return .failed(error)
         }
+      }
+    Signal.combineLatest(self.viewDidLoadProperty.signal, project)
+      .map(second).observeValues { feature.requestLoad(project: $0, route: route) }
 
     let draft: Signal<UpdateDraft, Never> = draftEvent.values()
 
@@ -182,61 +192,28 @@ public final class UpdateDraftViewModel: UpdateDraftViewModelType, UpdateDraftVi
 
     let addAttachmentEvent = draft
       .takePairWhen(self.imagePickedProperty.signal.skipNil().map(first))
-      .switchMap { draft, url in
-        AppEnvironment.current.apiService.addImage(file: url, toDraft: draft)
-          .materialize()
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-      }
+      .flatMap(.merge) { _, url in feature.addResult(file: url, route: route).materialize() }
 
     self.showAddAttachmentFailure = addAttachmentEvent.errors().ignoreValues()
 
     self.attachmentAdded = addAttachmentEvent.values()
       .map(UpdateDraft.Attachment.image)
 
-    let addedAttachments: Signal<[UpdateDraft.Attachment], Never> = Signal
-      .merge(
-        self.attachments,
-        self.attachments
-          .switchMap { [attachmentAdded] attachments in
-            attachmentAdded
-              .scan(attachments) { $0 + [$1] }
-          }
-      )
+    let currentAttachments = feature.attachments.filter { $0.0 == route }.map { $0.1 }
 
-    self.showRemoveAttachmentConfirmation = addedAttachments
+    self.showRemoveAttachmentConfirmation = currentAttachments
       .takePairWhen(self.attachmentTappedProperty.signal)
       .map { attachments, id in attachments.first { $0.id == id } }
       .skipNil()
 
     let removeAttachmentEvent: Signal<Signal<UpdateDraft.Image, ErrorEnvelope>.Event, Never> = draft
       .takePairWhen(self.removeAttachmentProperty.signal.skipNil())
-      .switchMap { draft, attachment
-        -> SignalProducer<Signal<UpdateDraft.Image, ErrorEnvelope>.Event, Never> in
-        guard case let .image(image) = attachment else { fatalError("Video not supported") }
-        return AppEnvironment.current.apiService.delete(image: image, fromDraft: draft)
-          .materialize()
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-      }
+      .flatMap(.merge) { _, attachment in feature.removeResult(attachment: attachment, route: route).materialize() }
 
     self.showRemoveAttachmentFailure = removeAttachmentEvent.errors().ignoreValues()
 
     self.attachmentRemoved = removeAttachmentEvent.values()
       .map(UpdateDraft.Attachment.image)
-
-    let removedAttachments: Signal<[UpdateDraft.Attachment], Never> = addedAttachments
-      .switchMap { [attachmentRemoved] attachments in
-        attachmentRemoved
-          .scan(attachments) { currentAttachments, toRemove in
-            currentAttachments.filter { toRemove != $0 }
-          }
-      }
-
-    let currentAttachments: Signal<[UpdateDraft.Attachment], Never> = Signal
-      .merge(
-        self.attachments,
-        addedAttachments,
-        removedAttachments
-      )
 
     self.isAttachmentsSectionHidden = Signal
       .merge(
@@ -247,7 +224,7 @@ public final class UpdateDraftViewModel: UpdateDraftViewModelType, UpdateDraftVi
 
     // MARK: - Validation
 
-    let hasContent: Signal<Bool, Never> = Signal.combineLatest(currentTitle, currentBody, self.attachments)
+    let hasContent: Signal<Bool, Never> = Signal.combineLatest(currentTitle, currentBody, currentAttachments)
       .map { title, body, attachments in
         !title.trimmed().isEmpty && (!body.trimmed().isEmpty || !attachments.isEmpty)
       }
@@ -291,51 +268,27 @@ public final class UpdateDraftViewModel: UpdateDraftViewModelType, UpdateDraftVi
       self.previewButtonTappedProperty.signal.mapConst(SaveAction.preview)
     )
 
-    let currentDraftEvent = Signal.combineLatest(
-      draft,
-      currentTitle,
-      currentBody,
-      self.isBackersOnly
-    )
-    .takeWhen(saveAction)
-    .flatMap { draft, title, body, isBackersOnly ->
-      SignalProducer<Signal<UpdateDraft, ErrorEnvelope>.Event, Never> in
-
-      let unchanged = draft.update.title == title
-        && draft.update.body == body
-        && draft.update.isPublic == !isBackersOnly
-
-      let producer: SignalProducer<Signal<UpdateDraft, ErrorEnvelope>.Event, Never>
-
-      if unchanged {
-        producer = SignalProducer(value: .value(draft))
-      } else {
-        producer = AppEnvironment.current.apiService
-          .update(draft: draft, title: title, body: body, isPublic: !isBackersOnly)
-          .materialize()
+    let saved = Signal.combineLatest(currentTitle, currentBody, self.isBackersOnly)
+      .takePairWhen(saveAction)
+      .switchMap { fields, action in
+        feature.saveResult(route: route, title: fields.0, body: fields.1, isPublic: !fields.2)
+          .map { (action, $0) }.materialize()
       }
-
-      return producer
-        .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-    }
-    let currentDraft = currentDraftEvent.values()
 
     self.notifyPresenterViewControllerWantsDismissal = Signal.merge(
       self.showLoadFailure,
-      saveAction
-        .takeWhen(currentDraft)
-        .filter { $0 == .dismiss }
-        .ignoreValues()
+      saved.values().filter { $0.0 == .dismiss }.ignoreValues()
     )
-
-    self.showSaveFailure = currentDraftEvent.errors().ignoreValues()
-
-    self.goToPreview = saveAction
-      .takePairWhen(currentDraft)
-      .filter { action, _ in action == .preview }
-      .map(second)
+    self.showSaveFailure = saved.errors().ignoreValues()
+    self.goToPreview = saved.values().filter { $0.0 == .preview }.map { $0.1 }
 
     self.resignFirstResponder = self.viewWillDisappearProperty.signal
+  }
+
+  deinit {
+    let feature = self.feature
+    let route = self.route
+    Task { @MainActor in feature.release(route: route) }
   }
 
   // INPUTS
@@ -490,15 +443,4 @@ public func == (lhs: AttachmentSource, rhs: AttachmentSource) -> Bool {
 private enum SaveAction {
   case dismiss
   case preview
-}
-
-private func hasChanged<T: Equatable>(_ original: Signal<T, Never>, _ updated: Signal<T, Never>)
-  -> Signal<Bool, Never> {
-  return Signal
-    .merge(
-      original.mapConst(false),
-      Signal.combineLatest(original, updated)
-        .map(!=)
-    )
-    .skipRepeats()
 }

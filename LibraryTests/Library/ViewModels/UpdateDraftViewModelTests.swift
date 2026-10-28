@@ -8,9 +8,14 @@ import ReactiveSwift
 import UIKit
 import XCTest
 
+@MainActor
 final class UpdateDraftViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  let vm: UpdateDraftViewModelType = UpdateDraftViewModel()
+  let feature = CreatorDraftsFeature(
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }),
+    makeProvider: { AsyncCreatorDraftsProvider(service: AppEnvironment.current.apiService) }
+  )
+  lazy var vm: UpdateDraftViewModelType = UpdateDraftViewModel(creatorDraftsFeature: self.feature)
   let attachmentAdded = TestObserver<UpdateDraft.Attachment, Never>()
   let attachmentRemoved = TestObserver<UpdateDraft.Attachment, Never>()
   let attachments = TestObserver<[UpdateDraft.Attachment], Never>()
@@ -38,6 +43,10 @@ final class UpdateDraftViewModelTests: TestCase {
   override func setUp() {
     super.setUp()
 
+    MainActor.assumeIsolated { self.bindOutputs() }
+  }
+
+  private func bindOutputs() {
     self.vm.outputs.attachmentAdded.observe(self.attachmentAdded.observer)
     self.vm.outputs.attachmentRemoved.observe(self.attachmentRemoved.observer)
     self.vm.outputs.attachments.observe(self.attachments.observer)
@@ -65,11 +74,12 @@ final class UpdateDraftViewModelTests: TestCase {
       .observe(self.titleTextFieldBecomeFirstResponder.observer)
   }
 
-  func testConfiguredBlank() {
-    withEnvironment(apiService: MockService(fetchDraftResponse: .blank)) {
+  func testConfiguredBlank() async {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: .blank)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.title.assertValues([""])
       self.body.assertValues([""])
@@ -78,12 +88,13 @@ final class UpdateDraftViewModelTests: TestCase {
     }
   }
 
-  func testConfiguredWithNavigationItemTitle() {
+  func testConfiguredWithNavigationItemTitle() async {
     let draft = .template |> UpdateDraft.lens.update.sequence .~ 7
-    withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.navigationItemTitle.assertValues([
         Strings.dashboard_post_update_compose_update_number(
@@ -93,112 +104,122 @@ final class UpdateDraftViewModelTests: TestCase {
     }
   }
 
-  func testConfiguredWithTitle() {
+  func testConfiguredWithTitle() async {
     let draft = .template |> UpdateDraft.lens.update.title .~ "Hello, world!"
-    withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.title.assertValues(["Hello, world!"])
     }
   }
 
-  func testConfiguredWithBody() {
+  func testConfiguredWithBody() async {
     let draft = .template |> UpdateDraft.lens.update.body .~ "Thanks for your support!"
-    withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.body.assertValues(["Thanks for your support!"])
     }
   }
 
-  func testConfiguredWithPublic() {
+  func testConfiguredWithPublic() async {
     let draft = .template |> UpdateDraft.lens.update.isPublic .~ true
-    withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isBackersOnly.assertValues([false])
     }
   }
 
-  func testConfiguredWithPrivate() {
+  func testConfiguredWithPrivate() async {
     let draft = .template |> UpdateDraft.lens.update.isPublic .~ false
-    withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isBackersOnly.assertValues([true])
     }
   }
 
-  func testConfiguredWithVideo() {
+  func testConfiguredWithVideo() async {
     let video = UpdateDraft.Video.template
     let draft = .template |> UpdateDraft.lens.video .~ video
-    withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.attachments.assertValues([[.video(video)]])
     }
   }
 
-  func testConfiguredWithImages() {
+  func testConfiguredWithImages() async {
     let images = [.template, .template |> UpdateDraft.Image.lens.id %~ { $0 + 1 }]
     let draft = .template |> UpdateDraft.lens.images .~ images
-    withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.attachments.assertValues([images.map(UpdateDraft.Attachment.image)])
     }
   }
 
-  func testConfiguredWithVideoAndImages() {
+  func testConfiguredWithVideoAndImages() async {
     let video = UpdateDraft.Video.template
     let images = [.template, .template |> UpdateDraft.Image.lens.id %~ { $0 + 1 }]
     let draft = .template
       |> UpdateDraft.lens.video .~ video
       |> UpdateDraft.lens.images .~ images
-    withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.attachments.assertValues([images.map(UpdateDraft.Attachment.image) + [.video(video)]])
     }
   }
 
-  func testIsLoading() {
-    withEnvironment(apiService: MockService(fetchDraftResponse: .blank)) {
+  func testIsLoading() async {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: .blank)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
 
       self.isLoading.assertValues([true], "is loading")
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false], "is loaded")
     }
   }
 
-  func testPreviewButtonEnabled() {
-    withEnvironment(apiService: MockService(fetchDraftResponse: .blank)) {
+  func testPreviewButtonEnabled() async {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: .blank)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isPreviewButtonEnabled.assertValues([false], "emits on view did load")
       self.isBodyPlaceholderHidden.assertValues([false], "emits on view did load")
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.vm.inputs.bodyTextChanged(to: "Thanks for believing in me.")
       self.isPreviewButtonEnabled.assertValues([false])
@@ -230,35 +251,38 @@ final class UpdateDraftViewModelTests: TestCase {
     }
   }
 
-  func testBlankTitleBecomesFirstReponder() {
-    withEnvironment(apiService: MockService(fetchDraftResponse: .blank)) {
+  func testBlankTitleBecomesFirstReponder() async {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: .blank)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.titleTextFieldBecomeFirstResponder.assertValueCount(1)
       self.bodyTextViewBecomeFirstResponder.assertValueCount(0)
     }
   }
 
-  func testBlankBodyBecomesFirstReponderWithTitlePresent() {
+  func testBlankBodyBecomesFirstReponderWithTitlePresent() async {
     let titled = .blank |> UpdateDraft.lens.update.title .~ "Hello, world!"
-    withEnvironment(apiService: MockService(fetchDraftResponse: titled)) {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: titled)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.titleTextFieldBecomeFirstResponder.assertValueCount(0)
       self.bodyTextViewBecomeFirstResponder.assertValueCount(1)
     }
   }
 
-  func testIsBackersOnlyOnTappedFlipsVisibility() {
+  func testIsBackersOnlyOnTappedFlipsVisibility() async {
     let draft = .template |> UpdateDraft.lens.update.isPublic .~ false
-    withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isBackersOnly.assertValues([true])
 
@@ -270,12 +294,13 @@ final class UpdateDraftViewModelTests: TestCase {
     }
   }
 
-  func testAddAttachments() {
+  func testAddAttachments() async {
     let image: UpdateDraft.Image = .template
-    withEnvironment(apiService: MockService(fetchDraftResponse: .blank, addAttachmentResponse: image)) {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: .blank, addAttachmentResponse: image)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.vm.inputs.addAttachmentButtonTapped(availableSources: [.cameraRoll])
       self.showAttachmentActions.assertValues([[.cameraRoll]])
@@ -294,19 +319,21 @@ final class UpdateDraftViewModelTests: TestCase {
       self.vm.inputs.imagePicked(url: URL(string: "/tmp/photo.jpg")!, fromSource: .camera)
 
       self.attachmentAdded.assertValues([])
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
       self.attachmentAdded.assertValues([.image(image)])
     }
   }
 
-  func testAddAttachmentFailure() {
-    withEnvironment(apiService: MockService(
+  func testAddAttachmentFailure() async {
+    await withEnvironment(apiService: MockService(
       fetchDraftResponse: .blank,
       addAttachmentError: .couldNotParseJSON
     )) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.vm.inputs.addAttachmentButtonTapped(availableSources: [.cameraRoll])
       self.showAttachmentActions.assertValues([[.cameraRoll]])
@@ -317,21 +344,23 @@ final class UpdateDraftViewModelTests: TestCase {
       self.vm.inputs.imagePicked(url: URL(string: "/tmp/photo.jpg")!, fromSource: .cameraRoll)
 
       self.showAddAttachmentFailure.assertValueCount(0)
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
       self.attachmentAdded.assertValues([])
       self.showAddAttachmentFailure.assertValueCount(1)
     }
   }
 
-  func testRemoveAttachment() {
+  func testRemoveAttachment() async {
     let id = 1
     let image = .template |> UpdateDraft.Image.lens.id .~ id
     let draft = .template
       |> UpdateDraft.lens.images .~ [image]
-    withEnvironment(apiService: MockService(fetchDraftResponse: draft, removeAttachmentResponse: image)) {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: draft, removeAttachmentResponse: image)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.vm.inputs.attachmentTapped(id: id)
       self.showRemoveAttachmentConfirmation.assertValues([.image(image)])
@@ -342,22 +371,24 @@ final class UpdateDraftViewModelTests: TestCase {
       self.vm.inputs.remove(attachment: .image(image))
 
       self.attachmentRemoved.assertValues([])
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
       self.attachmentRemoved.assertValues([.image(image)])
     }
   }
 
-  func testRemoveAttachmentFailure() {
+  func testRemoveAttachmentFailure() async {
     let id = 1
     let image = .template |> UpdateDraft.Image.lens.id .~ id
     let draft = .template |> UpdateDraft.lens.images .~ [image]
-    withEnvironment(apiService: MockService(
+    await withEnvironment(apiService: MockService(
       fetchDraftResponse: draft,
       removeAttachmentError: .couldNotParseJSON
     )) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.vm.inputs.attachmentTapped(id: id)
       self.showRemoveAttachmentConfirmation.assertValues([.image(image)])
@@ -365,16 +396,17 @@ final class UpdateDraftViewModelTests: TestCase {
       self.vm.inputs.remove(attachment: .image(image))
 
       self.showRemoveAttachmentFailure.assertValueCount(0)
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
       self.attachmentRemoved.assertValues([])
       self.showRemoveAttachmentFailure.assertValueCount(1)
     }
   }
 
-  func testBlankAttachmentVisibility() {
+  func testBlankAttachmentVisibility() async {
     let id = 1
     let image = .template |> UpdateDraft.Image.lens.id .~ id
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(
         fetchDraftResponse: .blank, addAttachmentResponse: image, removeAttachmentResponse: image
       )
@@ -384,7 +416,8 @@ final class UpdateDraftViewModelTests: TestCase {
 
       self.isAttachmentsSectionHidden.assertValues([true])
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isAttachmentsSectionHidden.assertValues([true])
 
@@ -392,25 +425,27 @@ final class UpdateDraftViewModelTests: TestCase {
       self.vm.inputs.addAttachmentSheetButtonTapped(.camera)
       self.vm.inputs.imagePicked(url: URL(string: "/tmp/photo.jpg")!, fromSource: .camera)
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isAttachmentsSectionHidden.assertValues([true, false])
 
       self.vm.inputs.attachmentTapped(id: id)
       self.vm.inputs.remove(attachment: .image(image))
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isAttachmentsSectionHidden.assertValues([true, false, true])
     }
   }
 
-  func testExistingAttachmentVisibility() {
+  func testExistingAttachmentVisibility() async {
     let existingId = 1
     let existingImage = .template |> UpdateDraft.Image.lens.id .~ existingId
     let newImage = .template |> UpdateDraft.Image.lens.id .~ 2
     let draft = .template |> UpdateDraft.lens.images .~ [existingImage]
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(
         fetchDraftResponse: draft, addAttachmentResponse: newImage, removeAttachmentResponse: existingImage
       )
@@ -420,7 +455,8 @@ final class UpdateDraftViewModelTests: TestCase {
 
       self.isAttachmentsSectionHidden.assertValues([true])
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isAttachmentsSectionHidden.assertValues([true, false])
 
@@ -428,24 +464,27 @@ final class UpdateDraftViewModelTests: TestCase {
       self.vm.inputs.addAttachmentSheetButtonTapped(.camera)
       self.vm.inputs.imagePicked(url: URL(string: "/tmp/photo.jpg")!, fromSource: .camera)
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isAttachmentsSectionHidden.assertValues([true, false])
 
       self.vm.inputs.attachmentTapped(id: existingId)
       self.vm.inputs.remove(attachment: .image(existingImage))
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.isAttachmentsSectionHidden.assertValues([true, false])
     }
   }
 
-  func testTitleTextFieldDoneEditing() {
-    withEnvironment(apiService: MockService(fetchDraftResponse: .blank)) {
+  func testTitleTextFieldDoneEditing() async {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: .blank)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.bodyTextViewBecomeFirstResponder.assertValueCount(0)
 
@@ -454,66 +493,74 @@ final class UpdateDraftViewModelTests: TestCase {
     }
   }
 
-  func testDismissalWithoutEdits() {
-    withEnvironment(apiService: MockService(fetchDraftResponse: .blank)) {
+  func testDismissalWithoutEdits() async {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: .blank)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.notifyPresenterViewControllerWantsDismissal.assertValueCount(0)
       self.resignFirstResponder.assertValueCount(0)
 
       self.vm.inputs.closeButtonTapped()
       self.vm.inputs.viewWillDisappear()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.resignFirstResponder.assertValueCount(1)
       self.notifyPresenterViewControllerWantsDismissal.assertValueCount(1)
     }
   }
 
-  func testDismissalWithEdits() {
-    withEnvironment(apiService: MockService(fetchDraftResponse: .blank)) {
+  func testDismissalWithEdits() async {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: .blank)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.vm.inputs.titleTextChanged(to: "Hello, world!")
 
       self.vm.inputs.closeButtonTapped()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.notifyPresenterViewControllerWantsDismissal.assertValueCount(1)
     }
   }
 
-  func testPreviewTapped() {
+  func testPreviewTapped() async {
     let draft = UpdateDraft.template
-    withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.goToPreview.assertValues([])
       self.vm.inputs.previewButtonTapped()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.goToPreview.assertValues([draft])
     }
   }
 
-  func testPreviewTappedWithEdits() {
+  func testPreviewTappedWithEdits() async {
     let draft = UpdateDraft.template
-    withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.vm.inputs.titleTextChanged(to: "Hello, world!")
 
       self.goToPreview.assertValues([])
       self.vm.inputs.previewButtonTapped()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.notifyPresenterViewControllerWantsDismissal.assertValueCount(0)
 
@@ -521,62 +568,69 @@ final class UpdateDraftViewModelTests: TestCase {
     }
   }
 
-  func testTrackEditBody() {
-    withEnvironment(apiService: MockService(fetchDraftResponse: .blank)) {
+  func testTrackEditBody() async {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: .blank)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.vm.inputs.bodyTextChanged(to: "Hello, world!")
 
       self.vm.inputs.closeButtonTapped()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.notifyPresenterViewControllerWantsDismissal.assertValueCount(1)
     }
   }
 
-  func testTrackEditIsBackersOnly() {
+  func testTrackEditIsBackersOnly() async {
     let draft = .blank |> UpdateDraft.lens.update.isPublic .~ true
-    withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
+    await withEnvironment(apiService: MockService(fetchDraftResponse: draft)) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.vm.inputs.isBackersOnlyOn(true)
 
       self.vm.inputs.closeButtonTapped()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.notifyPresenterViewControllerWantsDismissal.assertValueCount(1)
     }
   }
 
-  func testErrorLoadingDraft() {
-    withEnvironment(apiService: MockService(fetchDraftError: .couldNotParseJSON)) {
+  func testErrorLoadingDraft() async {
+    await withEnvironment(apiService: MockService(fetchDraftError: .couldNotParseJSON)) {
       self.showLoadFailure.assertValueCount(0)
       self.notifyPresenterViewControllerWantsDismissal.assertValueCount(0)
 
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.showLoadFailure.assertValueCount(1)
       self.notifyPresenterViewControllerWantsDismissal.assertValueCount(1)
     }
   }
 
-  func testErrorSavingDraft() {
+  func testErrorSavingDraft() async {
     let apiService = MockService(fetchDraftResponse: .blank, updateDraftError: .couldNotParseJSON)
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.vm.inputs.configureWith(project: .template)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.vm.inputs.bodyTextChanged(to: "Hello, world!")
 
       self.vm.inputs.closeButtonTapped()
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.notifyPresenterViewControllerWantsDismissal.assertValueCount(0)
       self.showSaveFailure.assertValueCount(1)

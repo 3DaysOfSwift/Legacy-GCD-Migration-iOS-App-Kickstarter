@@ -4,6 +4,7 @@
 public final class AppModel {
   public static let shared = AppModel.live()
 
+  public let creatorDraftsFeature: CreatorDraftsFeature
   public let recommendationsFeature: RecommendationsFeature
   public let projectReportingFeature: ProjectReportingFeature
   public let friendsFeature: FriendsFeature
@@ -24,6 +25,7 @@ public final class AppModel {
   public let projectMediaFeature: ProjectMediaFeature
 
   public init(
+    creatorDraftsFeature: CreatorDraftsFeature,
     recommendationsFeature: RecommendationsFeature,
     projectReportingFeature: ProjectReportingFeature,
     friendsFeature: FriendsFeature,
@@ -43,6 +45,7 @@ public final class AppModel {
     discussionFeature: DiscussionFeature,
     projectMediaFeature: ProjectMediaFeature
   ) {
+    self.creatorDraftsFeature = creatorDraftsFeature
     self.recommendationsFeature = recommendationsFeature
     self.projectReportingFeature = projectReportingFeature
     self.friendsFeature = friendsFeature
@@ -65,6 +68,7 @@ public final class AppModel {
 
   public func sessionChanged() {
     self.sessionFeature.sessionChanged()
+    self.creatorDraftsFeature.reset()
     self.recommendationsFeature.reset()
     self.friendsFeature.reset()
     self.activityFeature.reset()
@@ -91,6 +95,9 @@ public final class AppModel {
         AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService)
       })
     return AppModel(
+      creatorDraftsFeature: CreatorDraftsFeature(sessionFeature: sessionFeature, makeProvider: {
+        AsyncCreatorDraftsProvider(service: AppEnvironment.current.apiService)
+      }),
       recommendationsFeature: RecommendationsFeature(settingsFeature: settingsFeature, makeProvider: {
         AsyncRecommendationsProvider(service: AppEnvironment.current.apiService)
       }),
