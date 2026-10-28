@@ -41,6 +41,7 @@ final class SimilarProjectsUseCaseTests: TestCase {
 
       // Initialize the use case with our mock service
       self.useCase = SimilarProjectsUseCase(projectDetailsFeature: ProjectDetailsFeature(
+      sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
         makeProvider: { AsyncProjectDetailsProvider(service: AppEnvironment.current.apiService) }
       ))
       self.useCase.navigateToProject.observe(self.projectTappedObserver.observer)

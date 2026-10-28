@@ -2,6 +2,15 @@ import Apollo
 import GraphAPI
 
 extension Service {
+  @MainActor public func recordProjectAttribution(input: GraphAPI.CreateAttributionEventInput) async throws {
+    let _: GraphAPI.CreateAttributionEventMutation.Data = try await CancellableGraphQLRequest.fetch { completion in
+      GraphQL.shared.client.perform(
+        mutation: GraphAPI.CreateAttributionEventMutation(input: input),
+        queue: .global(qos: .userInitiated), resultHandler: completion
+      )
+    }
+  }
+
   @MainActor public func rewardAddOns(slug: String, locationID: String?) async throws -> [Reward]? {
     let data = try await self.cancellableQuery(GraphAPI.FetchAddOnsQuery(
       projectSlug: slug, shippingEnabled: locationID != nil, locationId: .someOrNil(locationID)))

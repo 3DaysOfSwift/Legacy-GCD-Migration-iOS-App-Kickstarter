@@ -11,12 +11,12 @@ final class AppModelTests: XCTestCase {
     let secondProvider = NoRequestSearchProvider()
     let firstFeature = SearchFeature(provider: firstProvider)
     let secondFeature = SearchFeature(provider: secondProvider)
-    let firstDetails =
-      ProjectDetailsFeature(makeProvider: { AsyncProjectDetailsProvider(service: MockService()) })
-    let secondDetails =
-      ProjectDetailsFeature(makeProvider: { AsyncProjectDetailsProvider(service: MockService()) })
     let firstSession = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
     let secondSession = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
+    let firstDetails =
+      ProjectDetailsFeature(sessionFeature: firstSession, makeProvider: { AsyncProjectDetailsProvider(service: MockService()) })
+    let secondDetails =
+      ProjectDetailsFeature(sessionFeature: secondSession, makeProvider: { AsyncProjectDetailsProvider(service: MockService()) })
     let firstSettings = SettingsFeature(sessionFeature: firstSession, makeProvider: {
         AsyncAccountPreferencesProvider(service: MockService())
       })
@@ -115,6 +115,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(second.searchFeature === secondFeature)
     XCTAssertFalse(first.searchFeature === second.searchFeature)
     XCTAssertFalse(first.discoveryFeature === second.discoveryFeature)
+    XCTAssertTrue(first.projectDetailsFeature.sessionFeature === first.sessionFeature)
     XCTAssertTrue(first.projectDetailsFeature === firstDetails)
     XCTAssertTrue(second.projectDetailsFeature === secondDetails)
     XCTAssertFalse(first.projectDetailsFeature === second.projectDetailsFeature)

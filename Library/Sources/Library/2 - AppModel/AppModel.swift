@@ -121,7 +121,7 @@ public final class AppModel {
       profileFeature: profileFeature,
       searchFeature: SearchFeature(provider: searchProvider, lookupProvider: AsyncSearchLookupProvider()),
       discoveryFeature: DiscoveryFeature(provider: AsyncDiscoveryProvider()),
-      projectDetailsFeature: ProjectDetailsFeature(makeProvider: {
+      projectDetailsFeature: ProjectDetailsFeature(sessionFeature: sessionFeature, makeProvider: {
         AsyncProjectDetailsProvider(service: AppEnvironment.current.apiService)
       }),
       rewardsFeature: RewardsFeature(sessionFeature: sessionFeature, makeProvider: {

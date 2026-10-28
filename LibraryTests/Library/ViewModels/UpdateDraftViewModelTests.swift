@@ -9,6 +9,7 @@ import UIKit
 import XCTest
 
 final class UpdateDraftViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   let vm: UpdateDraftViewModelType = UpdateDraftViewModel()
   let attachmentAdded = TestObserver<UpdateDraft.Attachment, Never>()
   let attachmentRemoved = TestObserver<UpdateDraft.Attachment, Never>()

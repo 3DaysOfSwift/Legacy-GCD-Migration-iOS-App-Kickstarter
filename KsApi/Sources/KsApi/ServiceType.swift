@@ -124,6 +124,7 @@ public protocol ServiceType {
     -> SignalProducer<ClearUserUnseenActivityEnvelope, ErrorEnvelope>
 
   /// Let the server know to create/track an attribution event.
+  @MainActor func recordProjectAttribution(input: GraphAPI.CreateAttributionEventInput) async throws
   func createAttributionEvent(input: GraphAPI.CreateAttributionEventInput) ->
     SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 

@@ -480,20 +480,11 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         return (project.graphID, refInfo)
       }
       .take(first: 1)
-      .flatMap { graphId, refInfo in
-        let eventName = AttributionTracking.AttributionEvent.projectPageViewed.rawValue
-        let propsString = AttributionTracking.eventParametersString(refInfo: refInfo)
-        let input = GraphAPI.CreateAttributionEventInput(
-          eventName: eventName,
-          eventProperties: GraphQLNullable.someOrNil(propsString),
-          projectId: GraphQLNullable.someOrNil(graphId)
+      .observeValues { [projectRoute = self.projectRoute] graphId, refInfo in
+        projectDetailsFeature.recordAttribution(
+          route: projectRoute, projectID: graphId,
+          properties: AttributionTracking.eventParametersString(refInfo: refInfo)
         )
-        return AppEnvironment.current.apiService.createAttributionEvent(input: input)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .materialize()
-      }
-      .observeCompleted {
-        // GraphQL mutation only runs if it is observed.
       }
 
     Signal.combineLatest(cookieRefTag.skipNil(), freshProjectAndRefTag.map(first))

@@ -730,6 +730,12 @@
       return client.performWithResult(mutation: mutation, result: self.changePasswordResult)
     }
 
+    @MainActor public func recordProjectAttribution(input: GraphAPI.CreateAttributionEventInput) async throws {
+      try Task.checkCancellation()
+      guard let result = self.createAttributionEventResult else { throw ErrorEnvelope.couldNotParseJSON }
+      _ = try result.get()
+    }
+
     public func createAttributionEvent(input: GraphAPI.CreateAttributionEventInput) ->
       SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
       guard let client = self.apolloClient else {

@@ -2137,6 +2137,7 @@ final class ProjectPageViewModelTests: TestCase {
   // an "Unimplemented mock" error while checking the project-page notification.
   static func isolatedFeature() -> ProjectDetailsFeature {
     ProjectDetailsFeature(
+      sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
       makeProvider: { AsyncProjectDetailsProvider(service: AppEnvironment.current.apiService) },
       sleep: { _ in try Task.checkCancellation() }
     )

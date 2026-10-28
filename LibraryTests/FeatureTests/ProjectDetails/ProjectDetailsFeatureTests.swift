@@ -1,4 +1,5 @@
 import Foundation
+import GraphAPI
 @testable import KsApi
 @testable import Library
 @testable import LibraryTestHelpers
@@ -113,11 +114,75 @@ final class ProjectDetailsFeatureTests: TestCase {
     }
   }
 
+  func testAttributionSharesOneEventPerRouteAndPreservesPayload() async throws {
+    let provider = ControlledProjectDetailsProvider()
+    provider.pauseAttribution = true
+    defer { provider.attributionGate.releaseAll() }
+    let feature = self.feature(provider)
+    let route = UUID()
+    let first = feature.recordAttribution(route: route, projectID: "project", properties: "{\"ref\":\"search\"}")
+    let duplicate = feature.recordAttribution(route: route, projectID: "project", properties: "changed")
+    await provider.attributionGate.waitFor(1)
+    let input = try XCTUnwrap(provider.attributions.first)
+    XCTAssertEqual(input.eventName, AttributionTracking.AttributionEvent.projectPageViewed.rawValue)
+    XCTAssertEqual(input.projectId, .some("project"))
+    XCTAssertEqual(input.eventProperties, .some("{\"ref\":\"search\"}"))
+    try provider.attributionGate.finish(0, .success(()))
+    try await first.value
+    try await duplicate.value
+    try await feature.recordAttribution(route: route, projectID: "project", properties: nil).value
+    XCTAssertEqual(provider.attributions.count, 1)
+  }
+
+  func testAttributionFailureIsNotRetriedAndAnotherPageIsIndependent() async throws {
+    let provider = ControlledProjectDetailsProvider()
+    provider.pauseAttribution = true
+    defer { provider.attributionGate.releaseAll() }
+    let feature = self.feature(provider)
+    let route = UUID()
+    let first = feature.recordAttribution(route: route, projectID: "project", properties: nil)
+    await provider.attributionGate.waitFor(1)
+    try provider.attributionGate.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
+    do { try await first.value; XCTFail("Expected failure") } catch {}
+    do { try await feature.recordAttribution(route: route, projectID: "project", properties: nil).value; XCTFail("Must retain failure") } catch {}
+    let other = feature.recordAttribution(route: UUID(), projectID: "project", properties: nil)
+    await provider.attributionGate.waitFor(2)
+    try provider.attributionGate.finish(1, .success(()))
+    try await other.value
+    XCTAssertEqual(provider.attributions.count, 2)
+  }
+
+  func testAdmittedAttributionSettlesAfterScreenRelease() async throws {
+    let provider = ControlledProjectDetailsProvider()
+    provider.pauseAttribution = true
+    defer { provider.attributionGate.releaseAll() }
+    let feature = self.feature(provider)
+    let route = UUID()
+    let task = feature.recordAttribution(route: route, projectID: "project", properties: nil)
+    await provider.attributionGate.waitFor(1)
+    feature.release(route: route)
+    XCTAssertFalse(task.isCancelled)
+    try provider.attributionGate.finish(0, .success(()))
+    try await task.value
+    await feature.waitForAttribution()
+  }
+
+  func testSessionChangeBeforeAttributionDispatchPreventsSending() async {
+    let provider = ControlledProjectDetailsProvider()
+    let feature = self.feature(provider)
+    let task = feature.recordAttribution(route: UUID(), projectID: "project", properties: nil)
+    feature.sessionFeature.sessionChanged()
+    do { try await task.value; XCTFail("Obsolete account") }
+    catch { XCTAssertTrue(error is CancellationError) }
+    XCTAssertTrue(provider.attributions.isEmpty)
+  }
+
   private func feature(
     _ provider: ControlledProjectDetailsProvider,
     fast: Bool = false
   ) -> ProjectDetailsFeature {
     ProjectDetailsFeature(
+      sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
       makeProvider: { provider },
       useFastLoading: { fast },
       includeRichText: { true },
@@ -331,6 +396,14 @@ final class ProjectDetailsFeatureTests: TestCase {
 
 @MainActor
 private final class ControlledProjectDetailsProvider: ProjectDetailsProvider {
+  var pauseAttribution = false
+  var attributions: [GraphAPI.CreateAttributionEventInput] = []
+  let attributionGate = AccountRequestGate<Void>()
+  func recordAttribution(input: GraphAPI.CreateAttributionEventInput) async throws {
+    self.attributions.append(input)
+    if self.pauseAttribution { try await self.attributionGate.request() }
+  }
+
   var pauseRelated = false
   private var related: [CheckedContinuation<[ProjectCardProperties], Error>?] = []
 

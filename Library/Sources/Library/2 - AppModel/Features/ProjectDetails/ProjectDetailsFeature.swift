@@ -1,11 +1,13 @@
 import Experimentation
 import Foundation
+import GraphAPI
 import KsApi
 import ReactiveSwift
 
 /// The API substitution boundary; one instance captures the service for a whole load.
 @MainActor
 public protocol ProjectDetailsProvider {
+  func recordAttribution(input: GraphAPI.CreateAttributionEventInput) async throws
   func relatedProjects(projectID: String) async throws -> [ProjectCardProperties]
   func enroll(token: String, param: Param) async throws
   func project(param: Param, richText: Bool) async throws -> Project.ProjectPamphletData
@@ -20,6 +22,9 @@ public struct AsyncProjectDetailsProvider: ProjectDetailsProvider {
   private let service: any ServiceType
 
   public init(service: any ServiceType) { self.service = service }
+  public func recordAttribution(input: GraphAPI.CreateAttributionEventInput) async throws {
+    try await self.service.recordProjectAttribution(input: input)
+  }
   public func relatedProjects(projectID: String) async throws -> [ProjectCardProperties] {
     let response = try await self.service.relatedProjects(projectID: projectID)
     return (response.projects?.nodes ?? []).compactMap { node in
@@ -58,6 +63,44 @@ public struct AsyncProjectDetailsProvider: ProjectDetailsProvider {
 /// it. Cancellation invalidates publication even if a provider completes late.
 @MainActor
 public final class ProjectDetailsFeature {
+  public let sessionFeature: SessionFeature
+  private var attributionRoutes: [UUID: Task<Void, Error>] = [:]
+  private var attributionOperations: [UUID: Task<Void, Error>] = [:]
+
+  /// One admitted page-view event per route, including after failure. Repeated
+  /// callbacks share its task; there is no automatic retry or global deduplication.
+  /// Once sent, the event settles independently of the screen's lifetime.
+  @discardableResult
+  public func recordAttribution(
+    route: UUID, projectID: String, properties: String?
+  ) -> Task<Void, Error> {
+    if let existing = self.attributionRoutes[route] { return existing }
+    let userID = self.sessionFeature.currentUser?.id
+    let generation = self.sessionFeature.generation
+    let provider = self.makeProvider()
+    let id = UUID()
+    let input = GraphAPI.CreateAttributionEventInput(
+      eventName: AttributionTracking.AttributionEvent.projectPageViewed.rawValue,
+      eventProperties: .someOrNil(properties), projectId: .someOrNil(projectID)
+    )
+    let task = Task { [self] in
+      defer { self.attributionOperations[id] = nil }
+      guard self.sessionFeature.isCurrent(userID: userID, generation: generation) else {
+        throw CancellationError()
+      }
+      try await provider.recordAttribution(input: input)
+    }
+    self.attributionRoutes[route] = task
+    self.attributionOperations[id] = task
+    return task
+  }
+
+  public func waitForAttribution() async {
+    while !self.attributionOperations.isEmpty {
+      for task in Array(self.attributionOperations.values) { _ = await task.result }
+    }
+  }
+
   public struct RelatedSnapshot {
     public fileprivate(set) var projects: [ProjectCardProperties] = []
     public fileprivate(set) var isLoading = false
@@ -168,6 +211,7 @@ public final class ProjectDetailsFeature {
   public var loading: Signal<(UUID, Bool), Never> { self.loadingPipe.output }
 
   public init(
+    sessionFeature: SessionFeature,
     makeProvider: @escaping @MainActor () -> any ProjectDetailsProvider,
     useFastLoading: @escaping @MainActor () -> Bool = {
       InstantPledgeButtonExperiment().boolValue(forKey: .instant_pledge_enabled) == true
@@ -179,6 +223,7 @@ public final class ProjectDetailsFeature {
       try Task.checkCancellation()
     }
   ) {
+    self.sessionFeature = sessionFeature
     self.makeProvider = makeProvider
     self.useFastLoading = useFastLoading
     self.includeRichText = includeRichText
@@ -291,6 +336,7 @@ public final class ProjectDetailsFeature {
   }
 
   public func release(route: UUID) {
+    self.attributionRoutes[route] = nil
     self.cancel(route: route)
     self.pages.removeValue(forKey: route)
   }

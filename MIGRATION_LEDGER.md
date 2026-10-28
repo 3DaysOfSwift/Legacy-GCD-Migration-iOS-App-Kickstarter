@@ -43,6 +43,35 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Project attribution — 28 October 2026
+
+ProjectDetailsFeature now owns the native attribution mutation. The first event
+for a page route is retained (including failure), repeated callbacks share it,
+and different pages remain independent. Admitted writes settle after dismissal;
+a session change before dispatch prevents sending under a replacement account.
+The event name, project ID, optional properties and existing no-retry behavior
+are retained. Presentation does not await or react to this analytics result.
+AppModel now explicitly supplies this owner with the shared SessionFeature.
+
+**128 focused tests passed**, zero failures/skips, including four new attribution
+cases and **29 original creator-draft baseline tests**. App build succeeded with
+zero errors/two existing warnings. No compile/test failures or human intervention.
+Results: /private/tmp/kickstarter-attribution-draft-baseline.xcresult and
+/private/tmp/kickstarter-attribution-build.xcresult. Evidence: sibling
+Migration Evidence/kickstarter-attribution. This focused count is not comparable
+to the previous 1,537-test integrated run and is not added to it.
+
+Audit finding: third-party advertising callers in Thanks, ProjectPage,
+PledgePaymentMethods and RewardsCollection construct cold producers without
+starting them. Preserve this existing inactive behavior; enabling new tracking
+requires a separate explicit product decision. It is not a migrated live event.
+
+Remaining named implementation: creator UpdateDraft editing/images. Then app-wide
+concurrency, broader regression, visual/device and live-service checks.
+**The app-wide migration remains in progress.**
+
+### Previous checkpoint
+
 ### Curated and post-backing recommendations — 28 October 2026
 
 RecommendationsFeature owns both request policies through native awaitable APIs.

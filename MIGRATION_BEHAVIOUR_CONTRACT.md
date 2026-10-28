@@ -935,3 +935,16 @@ The display adapter retains each result's requesting project/reward/shipping dat
 - The 24 original CuratedProjects/Thanks logic tests passed before production edits.
   CuratedProjects alone newly opts out of the visual reference-device gate; no
   snapshot suite or global gate changes. Live recommendations remain unverified.
+
+## Project attribution — 28 October 2026
+
+Preserve one page-view mutation per ProjectPage instance, the current event name,
+project graph ID and optional ref-info properties. Failure remains silent with no
+automatic retry. The Feature owns admission; closing a page does not undo an event
+already sent. An account change before dispatch rejects the obsolete event.
+The native Apollo boundary retains cancellation/error handling. Existing unrelated
+cold third-party advertising producers are not activated by this migration.
+
+UpdateDraft's 29 original logic tests pass as the baseline for the next stage.
+Only that nonvisual suite opts out of the reference-simulator gate; snapshot suites
+retain their existing checks.

@@ -13,6 +13,7 @@ final class ProjectCreatorViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   fileprivate let vm: ProjectCreatorViewModelType =
     ProjectCreatorViewModel(projectDetailsFeature: ProjectDetailsFeature(
+      sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
       makeProvider: { AsyncProjectDetailsProvider(service: MockService()) }
     ))
 
