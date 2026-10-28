@@ -14,7 +14,7 @@ public enum RewardAddOnSelectionDataSourceItem: Equatable {
 
   public var rewardAddOnCardViewData: RewardAddOnCardViewData? {
     switch self {
-    case let .rewardAddOn(data): return data
+    case .rewardAddOn(let data): return data
     case .emptyState: return nil
     }
   }
@@ -22,11 +22,12 @@ public enum RewardAddOnSelectionDataSourceItem: Equatable {
   public var emptyStateViewType: EmptyStateViewType? {
     switch self {
     case .rewardAddOn: return nil
-    case let .emptyState(viewType): return viewType
+    case .emptyState(let viewType): return viewType
     }
   }
 }
 
+@MainActor
 public protocol RewardAddOnSelectionViewModelInputs {
   func beginRefresh()
   func configure(with data: PledgeViewData)
@@ -36,8 +37,11 @@ public protocol RewardAddOnSelectionViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol RewardAddOnSelectionViewModelOutputs {
-  var configureContinueCTAViewWithData: Signal<RewardAddOnSelectionContinueCTAViewData, Never> { get }
+  var configureContinueCTAViewWithData: Signal<RewardAddOnSelectionContinueCTAViewData, Never> {
+    get
+  }
   var configurePledgeAmountViewWithData: Signal<PledgeAmountViewConfigData, Never> { get }
   var endRefreshing: Signal<(), Never> { get }
   var goToPledge: Signal<PledgeViewData, Never> { get }
@@ -45,19 +49,32 @@ public protocol RewardAddOnSelectionViewModelOutputs {
   var pageTitle: Signal<String, Never> { get }
   var loadAddOnRewardsIntoDataSource: Signal<[RewardAddOnSelectionDataSourceItem], Never> { get }
   var loadAddOnRewardsIntoDataSourceAndReloadTableView:
-    Signal<[RewardAddOnSelectionDataSourceItem], Never> { get }
+    Signal<[RewardAddOnSelectionDataSourceItem], Never>
+  { get }
   var startRefreshing: Signal<(), Never> { get }
 }
 
+@MainActor
 public protocol RewardAddOnSelectionViewModelType {
   var inputs: RewardAddOnSelectionViewModelInputs { get }
   var outputs: RewardAddOnSelectionViewModelOutputs { get }
 }
 
+@MainActor
 public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelType,
   RewardAddOnSelectionViewModelInputs,
-  RewardAddOnSelectionViewModelOutputs {
-  public init() {
+  RewardAddOnSelectionViewModelOutputs
+{
+  private let feature: RewardsFeature
+  private let addOnsRoute = UUID()
+  deinit {
+    let feature = self.feature
+    let route = self.addOnsRoute
+    Task { @MainActor in feature.releaseAddOns(route: route) }
+  }
+  public init(feature: RewardsFeature = AppModel.shared.rewardsFeature) {
+    self.feature = feature
+    let route = self.addOnsRoute
     let configData = Signal.combineLatest(
       self.configureWithDataProperty.signal.skipNil(),
       self.viewDidLoadProperty.signal
@@ -101,19 +118,19 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       let baseReward = data.rewards.first
       let shippingRule = data.selectedShippingRule
 
-      return addOnsProducer(
+      return feature.addOnsResult(
+        route: route,
         slug: slug,
         baseReward: baseReward,
         shippingRule: shippingRule
       )
-      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      .map { ($0, data) }
       .materialize()
     }
 
     self.startRefreshing = self.beginRefreshSignal
     self.endRefreshing = addOnsEvent.filter { $0.isTerminating }.ignoreValues()
 
-    let addOns = addOnsEvent.values().skipNil()
     let requestErrored = addOnsEvent.map(\.error).map(isNotNil)
 
     // Quantities updated as the user selects them, merged with an empty initial value.
@@ -158,15 +175,19 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       selectedQuantities
     )
 
-    let rewardAddOnCardsViewData = Signal.combineLatest(
-      addOns,
-      project,
-      baseReward,
-      context,
-      shippingRule
-    )
+    let rewardAddOnCardsViewData = addOnsEvent.values().compactMap {
+      response
+        -> ([Reward], Project, Reward, PledgeViewContext, ShippingRule?)? in
+      let (addOns, data) = response
+      guard let addOns, let reward = data.rewards.first else { return nil }
+      return (
+        addOns, data.project, reward, data.context,
+        reward.shipping.enabled ? data.selectedShippingRule : nil
+      )
+    }
 
-    let reloadRewardsIntoDataSource = rewardAddOnCardsViewData
+    let reloadRewardsIntoDataSource =
+      rewardAddOnCardsViewData
       .withLatest(from: latestSelectedQuantities)
       .map(unpack)
       .map(rewardsData)
@@ -176,7 +197,8 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       requestErrored.filter(isTrue).mapConst([.emptyState(.errorPullToRefresh)])
     )
 
-    self.loadAddOnRewardsIntoDataSource = rewardAddOnCardsViewData
+    self.loadAddOnRewardsIntoDataSource =
+      rewardAddOnCardsViewData
       .takePairWhen(latestSelectedQuantities)
       .map(unpack)
       .map(rewardsData)
@@ -248,15 +270,18 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     )
     .map(isValid)
 
-    let selectedRewards = baseRewardAndAddOnRewards
+    let selectedRewards =
+      baseRewardAndAddOnRewards
       .combineLatest(with: latestSelectedQuantities)
       .map(unpack)
       .map { baseReward, addOnRewards, selectedQuantities -> [Reward] in
-        let selectedRewardIds = selectedQuantities
+        let selectedRewardIds =
+          selectedQuantities
           .filter { _, qty in qty > 0 }
           .keys
 
-        return [baseReward] + addOnRewards
+        return [baseReward]
+          + addOnRewards
           .filter { reward in selectedRewardIds.contains(reward.id) }
       }
 
@@ -322,7 +347,9 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     )
     .take(first: 1)
     .observeForUI()
-    .observeValues { project, baseReward, selectedRewards, refTag, configData, additionalPledgeAmount, pledgeTotal in
+    .observeValues {
+      project, baseReward, selectedRewards, refTag, configData, additionalPledgeAmount, pledgeTotal
+      in
       let checkoutPropertiesData = checkoutProperties(
         from: project,
         baseReward: baseReward,
@@ -352,7 +379,9 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       pledgeTotal,
       refTag
     ).takeWhen(self.continueButtonTappedProperty.signal)
-      .observeValues { project, baseReward, selectedRewards, selectedQuantities, additionalPledgeAmount, pledgeTotal, refTag in
+      .observeValues {
+        project, baseReward, selectedRewards, selectedQuantities, additionalPledgeAmount,
+        pledgeTotal, refTag in
 
         let checkoutData = checkoutProperties(
           from: project,
@@ -391,7 +420,8 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     self.continueButtonTappedProperty.value = ()
   }
 
-  private let (pledgeAmountDataSignal, pledgeAmountObserver) = Signal<PledgeAmountData, Never>.pipe()
+  private let (pledgeAmountDataSignal, pledgeAmountObserver) = Signal<PledgeAmountData, Never>
+    .pipe()
   public func pledgeAmountViewControllerDidUpdate(with data: PledgeAmountData) {
     self.pledgeAmountObserver.send(value: data)
   }
@@ -401,8 +431,9 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     self.viewDidLoadProperty.value = ()
   }
 
-  private let rewardAddOnCardViewDidSelectQuantityProperty
-    = MutableProperty<(SelectedRewardQuantity, SelectedRewardId)?>(nil)
+  private let rewardAddOnCardViewDidSelectQuantityProperty = MutableProperty<
+    (SelectedRewardQuantity, SelectedRewardId)?
+  >(nil)
   public func rewardAddOnCardViewDidSelectQuantity(
     quantity: SelectedRewardQuantity,
     rewardId: SelectedRewardId
@@ -412,7 +443,8 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 
   // MARK: - Outputs
 
-  public let configureContinueCTAViewWithData: Signal<RewardAddOnSelectionContinueCTAViewData, Never>
+  public let configureContinueCTAViewWithData:
+    Signal<RewardAddOnSelectionContinueCTAViewData, Never>
   public let configurePledgeAmountViewWithData: Signal<PledgeAmountViewConfigData, Never>
   public let endRefreshing: Signal<(), Never>
   public let goToPledge: Signal<PledgeViewData, Never>
@@ -429,47 +461,13 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 
 // MARK: - Functions
 
-private func addOnsProducer(
-  slug: String,
-  baseReward: Reward?,
-  shippingRule: ShippingRule?
-) -> SignalProducer<[Reward]?, ErrorEnvelope> {
-  // You can't add add-ons to No Reward.
-  guard let baseReward, baseReward.isNoReward == false else {
-    return SignalProducer(value: nil)
-  }
-
-  // Only fetch add-ons if the base reward has add-ons.
-  guard baseReward.hasAddOns else {
-    return SignalProducer(value: nil)
-  }
-
-  let experiment = SpeedyCheckoutExperiment()
-  if experiment.boolValue(forKey: .speedy_checkout_enabled) == true {
-    // Shipping rule may be nil if the backer selected no reward or a digital reward.
-    let shippingCountryCode = shippingRule?.location.country ?? AppEnvironment.current.countryCode
-
-    return AppEnvironment.current.apiService.fastFetchRewardAddOnsSelection(
-      baseRewardId: baseReward.id,
-      countryCode: shippingCountryCode
-    ).map { .some($0) }
-  }
-
-  return AppEnvironment.current.apiService.fetchRewardAddOnsSelectionViewRewards(
-    slug: slug,
-    shippingEnabled: shippingRule?.location.graphID != nil,
-    locationId: shippingRule?.location.graphID
-  )
-  .map { project in
-    project.rewardData.addOns
-  }
-}
-
 private func unpack(
   rewardsData: ([Reward], Project, Reward, PledgeViewContext, ShippingRule?),
   selectedQuantities: SelectedRewardQuantities
 ) -> ([Reward], Project, Reward, PledgeViewContext, ShippingRule?, SelectedRewardQuantities) {
-  return (rewardsData.0, rewardsData.1, rewardsData.2, rewardsData.3, rewardsData.4, selectedQuantities)
+  return (
+    rewardsData.0, rewardsData.1, rewardsData.2, rewardsData.3, rewardsData.4, selectedQuantities
+  )
 }
 
 private func rewardsData(
@@ -480,19 +478,15 @@ private func rewardsData(
   shippingRule: ShippingRule?,
   selectedQuantities: SelectedRewardQuantities
 ) -> [RewardAddOnSelectionDataSourceItem] {
-  let addOnsFilteredByAvailability = addOns.filter { addOnIsAvailable($0, in: project) }
-
-  let addOnsFilteredByExpandedShippingRule = filteredAddOns(
-    addOnsFilteredByAvailability,
-    filteredBy: shippingRule,
-    baseReward: baseReward
-  )
+  let addOnsFilteredByExpandedShippingRule = RewardsFeature.availableAddOns(
+    addOns, project: project, baseReward: baseReward, shippingRule: shippingRule)
 
   guard !addOnsFilteredByExpandedShippingRule.isEmpty else {
     return [.emptyState(.addOnsUnavailable)]
   }
 
-  return addOnsFilteredByExpandedShippingRule
+  return
+    addOnsFilteredByExpandedShippingRule
     .map { reward in
       RewardAddOnCardViewData(
         project: project,
@@ -507,74 +501,6 @@ private func rewardsData(
     .map(RewardAddOnSelectionDataSourceItem.rewardAddOn)
 }
 
-private func addOnIsAvailable(_ addOn: Reward, in project: Project) -> Bool {
-  // If the user is backing this addOn, it's available for editing
-  if let backedAddOns = project.personalization.backing?.addOns, backedAddOns.map(\.id).contains(addOn.id) {
-    return true
-  }
-
-  return addOn.isAvailable ?? false
-}
-
-private func filteredAddOns(
-  _ addOns: [Reward],
-  filteredBy shippingRule: ShippingRule?,
-  baseReward: Reward
-) -> [Reward] {
-  let isBaseRewardDigital = isRewardDigital(baseReward)
-  let isBaseRewardLocalPickup = isRewardLocalPickup(baseReward)
-
-  return addOns.filter { addOn in
-    var isValidAddonToDisplay = false
-    let isAddOnDigital = isRewardDigital(addOn)
-    let isAddOnLocalPickup = isRewardLocalPickup(addOn)
-    let isAddOnLocalOrDigital = isAddOnDigital || isAddOnLocalPickup
-    // For digital-only base rewards only return add-ons that are also digital-only.
-    if isBaseRewardDigital, isAddOnDigital {
-      isValidAddonToDisplay = true
-    } else if isBaseRewardLocalPickup, isAddOnLocalOrDigital {
-      isValidAddonToDisplay = true // return all addons that are digital for local base reward
-
-      if isAddOnLocalPickup {
-        if let addOnLocationId = addOn.localPickup?.id,
-           let baseRewardLocationId = baseReward.localPickup?.id,
-           addOnLocationId ==
-           baseRewardLocationId {
-          // if add on is local for local base, ensure locations are equal before displaying
-          isValidAddonToDisplay = true
-        } else {
-          isValidAddonToDisplay = false
-        }
-      }
-    } else if !isBaseRewardDigital, !isBaseRewardLocalPickup {
-      /**
-       For restricted or unrestricted shipping base rewards, unrestricted shipping
-       or digital-only add-ons are available.
-       */
-      isValidAddonToDisplay = isAddOnDigital || addOnReward(addOn, shipsTo: shippingRule?.location.id)
-    }
-
-    return isValidAddonToDisplay
-  }
-}
-
-/**
- For base rewards that have restricted or unrestricted shipping, only return
- add-ons that can ship to the selected shipping location.
- */
-private func addOnReward(
-  _ addOn: Reward,
-  shipsTo locationId: Int?
-) -> Bool {
-  guard let selectedLocationId = locationId else { return false }
-
-  let addOnShippingLocationIds: Set<Int> = Set(
-    addOn.shippingRulesExpanded?.map(\.location).map(\.id) ?? []
-  )
-
-  return addOnShippingLocationIds.contains(selectedLocationId)
-}
-
 private func isValid(
   project: Project,
   initialAdditionalPledgeAmount: Double,
@@ -586,7 +512,8 @@ private func isValid(
 
   guard let backing = project.personalization.backing else { return true }
 
-  let addOnChanged = latestSelectedQuantities != selectedRewardQuantities(in: backing)
+  let addOnChanged =
+    latestSelectedQuantities != selectedRewardQuantities(in: backing)
     || backing.locationId != selectedShippingRule?.location.id
   let bonusChanged = pledgeAmountData.amount != initialAdditionalPledgeAmount
 

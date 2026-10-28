@@ -14,6 +14,32 @@ struct MySwiftModel: Decodable, Equatable {
 
 final class ServiceTests: XCTestCase {
   @MainActor
+  func testFastAddOnsRejectInvalidCountryBeforeNetworkAdmission() async {
+    do {
+      _ = try await Service().fastRewardAddOns(baseRewardID: 1, country: "INVALID")
+      XCTFail("Invalid country must fail without asserting or starting a request")
+    } catch { XCTAssertTrue(error is ErrorEnvelope) }
+  }
+
+  @MainActor
+  func testNativeAddOnsMockPreservesNilEmptyAndFailureResponses() async throws {
+    var project = Project.template
+    project.rewardData.addOns = nil
+    let absent = try await MockService(fetchRewardAddOnsSelectionViewRewardsResult: .success(project))
+      .rewardAddOns(slug: project.slug, locationID: nil)
+    XCTAssertNil(absent)
+    project.rewardData.addOns = []
+    let empty = try await MockService(fetchRewardAddOnsSelectionViewRewardsResult: .success(project))
+      .rewardAddOns(slug: project.slug, locationID: nil)
+    XCTAssertEqual(empty, [])
+    do {
+      _ = try await MockService(fetchRewardAddOnsSelectionViewRewardsResult: .failure(.couldNotParseJSON))
+        .rewardAddOns(slug: project.slug, locationID: nil)
+      XCTFail("Expected explicit request failure")
+    } catch { XCTAssertTrue(error is ErrorEnvelope) }
+  }
+
+  @MainActor
   func testPublicDemoRejectsNativeMessagingOperations() async {
     let service = MockService.publicDemo()
     let operations: [() async throws -> Void] = [

@@ -103,7 +103,7 @@ public final class AppModel {
       projectDetailsFeature: ProjectDetailsFeature(makeProvider: {
         AsyncProjectDetailsProvider(service: AppEnvironment.current.apiService)
       }),
-      rewardsFeature: RewardsFeature(makeProvider: {
+      rewardsFeature: RewardsFeature(sessionFeature: sessionFeature, makeProvider: {
         AsyncRewardsProvider(service: AppEnvironment.current.apiService)
       }),
       discussionFeature: DiscussionFeature(makeProvider: {

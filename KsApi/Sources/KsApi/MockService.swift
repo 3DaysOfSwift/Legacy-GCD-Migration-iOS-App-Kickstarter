@@ -1546,6 +1546,19 @@
       return producer(for: self.fetchManagePledgeViewBackingResult)
     }
 
+    @MainActor public func rewardAddOns(slug _: String, locationID _: String?) async throws -> [Reward]? {
+      try Task.checkCancellation()
+      guard let result = self.fetchRewardAddOnsSelectionViewRewardsResult else {
+        throw ErrorEnvelope.couldNotParseJSON
+      }
+      return try result.get().rewardData.addOns
+    }
+    @MainActor public func fastRewardAddOns(baseRewardID _: Int, country _: String) async throws -> [Reward] {
+      try Task.checkCancellation()
+      // Retain the mock's explicit unsupported fast-query behavior.
+      throw ErrorEnvelope.graphError("Unimplemented mock")
+    }
+
     func fetchRewardAddOnsSelectionViewRewards(slug: String, shippingEnabled: Bool, locationId: String?)
       -> SignalProducer<Project, ErrorEnvelope> {
       guard let client = self.apolloClient else {

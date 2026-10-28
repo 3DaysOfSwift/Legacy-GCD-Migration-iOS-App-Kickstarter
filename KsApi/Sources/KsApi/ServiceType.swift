@@ -397,6 +397,9 @@ public protocol ServiceType {
   func fetchProjectStats(projectId: Int) -> SignalProducer<ProjectStatsEnvelope, ErrorEnvelope>
 
   /// Fetch the add-on rewards for the add-on selection view with a `Project` slug and optional `Location` ID.
+  @MainActor func rewardAddOns(slug: String, locationID: String?) async throws -> [Reward]?
+  @MainActor func fastRewardAddOns(baseRewardID: Int, country: String) async throws -> [Reward]
+
   func fetchRewardAddOnsSelectionViewRewards(slug: String, shippingEnabled: Bool, locationId: String?)
     -> SignalProducer<Project, ErrorEnvelope>
 

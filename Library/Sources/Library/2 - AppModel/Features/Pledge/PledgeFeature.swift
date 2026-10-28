@@ -5,6 +5,8 @@ import ReactiveSwift
 
 @MainActor
 public protocol PledgeProvider {
+  func projectForUpdate(_ param: Param) async throws -> Project
+  func projectUpdate(_ id: Int, param: Param) async throws -> Update
   func confirmAddress(backingID: String, addressID: String) async throws -> Bool
   func receipt(backingID: String, received: Bool) async throws -> Bool
   func paymentPlan(slug: String, amount: String) async throws -> GraphAPI.BuildPaymentPlanQuery.Data
@@ -26,6 +28,12 @@ public protocol PledgeProvider {
 public struct AsyncPledgeProvider: PledgeProvider {
   private let service: any ServiceType
   public init(service: any ServiceType) { self.service = service }
+  public func projectForUpdate(_ param: Param) async throws -> Project {
+    try await self.service.discussionProject(param: param)
+  }
+  public func projectUpdate(_ id: Int, param: Param) async throws -> Update {
+    try await self.service.projectUpdate(id: id, project: param)
+  }
   public func confirmAddress(backingID: String, addressID: String) async throws -> Bool {
     try await self.service.confirmPledgeAddress(backingID: backingID, addressID: addressID)
   }
@@ -373,11 +381,13 @@ public final class PledgeFeature {
   }
 
   private enum Read: Equatable {
+    case updateContext(Param, Int)
     case plan(String, String)
     case project(Param)
     case backing(Int)
   }
   private enum ReadValue {
+    case updateContext(Project, Update)
     case plan(GraphAPI.BuildPaymentPlanQuery.Data)
     case project(Project)
     case backing(Backing)
@@ -390,6 +400,7 @@ public final class PledgeFeature {
     let task: Task<ReadValue, Error>
   }
   private var reads: [UUID: PendingRead] = [:]
+  private var readVersions: [UUID: UUID] = [:]
   private var readTasks: [UUID: Task<ReadValue, Error>] = [:]
 
   private func requestRead(route: UUID, input: Read) -> Task<ReadValue, Error> {
@@ -415,6 +426,11 @@ public final class PledgeFeature {
       do {
         let value: ReadValue
         switch input {
+        case .updateContext(let param, let updateID):
+          let project = try await provider.projectForUpdate(param)
+          try self.requireCurrent(session)
+          let update = try await provider.projectUpdate(updateID, param: param)
+          value = .updateContext(project, update)
         case .plan(let slug, let amount):
           value = .plan(try await provider.paymentPlan(slug: slug, amount: amount))
         case .project(let param): value = .project(try await provider.project(param))
@@ -427,10 +443,43 @@ public final class PledgeFeature {
         throw error
       }
     }
+    self.readVersions[route] = id
     self.reads[route] = PendingRead(
       id: id, input: input, version: version, session: session, task: task)
     self.readTasks[id] = task
     return task
+  }
+
+  /// A web-to-native update destination is one coherent read. Replacing or
+  /// closing the route invalidates both stages, including a late project result.
+  public func updateContext(route: UUID, param: Param, updateID: Int) async throws -> (
+    Project, Update
+  ) {
+    try Task.checkCancellation()
+    let session = self.session
+    do {
+      let request = self.requestRead(route: route, input: .updateContext(param, updateID))
+      let version = self.readVersions[route]
+      let value = try await request.value
+      try self.requireCurrent(session)
+      guard self.readVersions[route] == version else { throw CancellationError() }
+      return try Self.updateContext(value)
+    } catch {
+      try self.requireCurrent(session)
+      throw error
+    }
+  }
+  public func updateContextResult(route: UUID, param: Param, updateID: Int)
+    -> SignalProducer<(Project, Update), ErrorEnvelope>
+  {
+    self.readResult(
+      route: route, input: .updateContext(param, updateID), transform: Self.updateContext)
+  }
+  private static func updateContext(_ value: ReadValue) throws -> (Project, Update) {
+    guard case .updateContext(let project, let update) = value else {
+      throw ErrorEnvelope.couldNotParseJSON
+    }
+    return (project, update)
   }
 
   public func paymentPlan(route: UUID, slug: String, amount: String) async throws
@@ -439,8 +488,11 @@ public final class PledgeFeature {
     try Task.checkCancellation()
     let session = self.session
     do {
-      let value = try await self.requestRead(route: route, input: .plan(slug, amount)).value
+      let request = self.requestRead(route: route, input: .plan(slug, amount))
+      let version = self.readVersions[route]
+      let value = try await request.value
       try self.requireCurrent(session)
+      guard self.readVersions[route] == version else { throw CancellationError() }
       return try Self.plan(value)
     } catch {
       try self.requireCurrent(session)
@@ -460,8 +512,11 @@ public final class PledgeFeature {
     try Task.checkCancellation()
     let session = self.session
     do {
-      let value = try await self.requestRead(route: route, input: .project(param)).value
+      let request = self.requestRead(route: route, input: .project(param))
+      let version = self.readVersions[route]
+      let value = try await request.value
       try self.requireCurrent(session)
+      guard self.readVersions[route] == version else { throw CancellationError() }
       return try Self.project(value)
     } catch {
       try self.requireCurrent(session)
@@ -472,8 +527,11 @@ public final class PledgeFeature {
     try Task.checkCancellation()
     let session = self.session
     do {
-      let value = try await self.requestRead(route: route, input: .backing(id)).value
+      let request = self.requestRead(route: route, input: .backing(id))
+      let version = self.readVersions[route]
+      let value = try await request.value
       try self.requireCurrent(session)
+      guard self.readVersions[route] == version else { throw CancellationError() }
       return try Self.backing(value)
     } catch {
       try self.requireCurrent(session)
@@ -506,16 +564,19 @@ public final class PledgeFeature {
           return
         }
         let request = self.requestRead(route: route, input: input)
+        let version = self.readVersions[route]
         let id = UUID()
         let task = Task { [self] in
           defer { self.observations[id] = nil }
           do {
             let value = try await request.value
             try self.requireCurrent(session)
+            guard self.readVersions[route] == version else { throw CancellationError() }
             observer.send(value: try transform(value))
             observer.sendCompleted()
           } catch {
-            guard !Task.isCancelled, !(error is CancellationError), self.session == session
+            guard !Task.isCancelled, !(error is CancellationError), self.session == session,
+              self.readVersions[route] == version
             else {
               observer.sendInterrupted()
               return
@@ -529,12 +590,14 @@ public final class PledgeFeature {
     }
   }
   public func releaseRead(route: UUID) {
+    self.readVersions[route] = nil
     self.reads.removeValue(forKey: route)?.task.cancel()
   }
 
   public func reset() {
     for pending in self.reads.values { pending.task.cancel() }
     self.reads.removeAll()
+    self.readVersions.removeAll()
     self.writeVersion.removeAll()
     for task in self.observations.values { task.cancel() }
     // In-flight writes settle. Old queued writes fail their generation check

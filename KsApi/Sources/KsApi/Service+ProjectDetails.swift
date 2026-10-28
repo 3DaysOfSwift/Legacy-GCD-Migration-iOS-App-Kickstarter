@@ -2,6 +2,22 @@ import Apollo
 import GraphAPI
 
 extension Service {
+  @MainActor public func rewardAddOns(slug: String, locationID: String?) async throws -> [Reward]? {
+    let data = try await self.cancellableQuery(GraphAPI.FetchAddOnsQuery(
+      projectSlug: slug, shippingEnabled: locationID != nil, locationId: .someOrNil(locationID)))
+    guard let project = Project.project(from: data) else { throw ErrorEnvelope.couldNotParseJSON }
+    return project.rewardData.addOns
+  }
+  @MainActor public func fastRewardAddOns(baseRewardID: Int, country: String) async throws -> [Reward] {
+    guard let code = GraphAPI.CountryCode(rawValue: country) else {
+      throw ErrorEnvelope.graphError("Invalid country code")
+    }
+    let data = try await self.cancellableQuery(GraphAPI.FastFetchAddOnsQuery(
+      baseRewardId: "\(baseRewardID)", country: .case(code)))
+    guard let rewards = Reward.addOns(from: data) else { throw ErrorEnvelope.couldNotParseJSON }
+    return rewards
+  }
+
   @MainActor public func shippingLocations(projectID: Int) async throws -> [Location] {
     let data = try await self.cancellableQuery(GraphAPI.ShippableLocationsForProjectQuery(id: projectID))
     return Location.locations(from: data)

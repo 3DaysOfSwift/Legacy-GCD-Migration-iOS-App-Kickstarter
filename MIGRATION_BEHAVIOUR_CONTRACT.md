@@ -840,3 +840,20 @@ that Explore is migrated or baseline-tested.
   two error/header events before a successful retry. Other business assertions are
   retained. Only the nonvisual ManagePledge suite newly opts out of the reference-
   simulator gate; visual/snapshot checks remain separate.
+
+
+## Pledge-manager navigation and reward add-ons — 28 October 2026
+
+| ID | Requirement | Baseline / protection | Scope limit |
+| --- | --- | --- | --- |
+| BEH-PM-01 | Opening a native update from pledge-manager loads its project and then its update; failures remain silent and never navigate with a partial pair. | 14 original PledgeManagerWebViewModel tests; new PledgeFeature paired-request, replacement, close and session tests. | Live web/server navigation remains unverified. |
+| BEH-RA-01 | No-reward, missing reward and rewards without add-ons do not fetch add-ons; a successful nullable add-on response retains bonus-only behavior. | Original selection tests; Feature eligibility and nullable-result tests; native mock nil/empty/failure checks. | API fixture coverage does not prove live integration. |
+| BEH-RA-02 | Preserve standard versus fast-query choice, reward ID, shipping location/country and country fallback. Preserve backed/unavailable, digital, local-pickup and shipping eligibility rules. | Original selection tests; Feature provider-input/fast-country cases and existing GraphQL mapper suite. | No product redesign or experiment-default change. |
+| BEH-RA-03 | Preserve quantities, amounts, loading, pull-to-refresh error/retry, bonus support and continue navigation. | 15 original RewardAddOnSelectionViewModel tests; asynchronous completion awaited, business assertions retained. | Logic suite opts out of the snapshot reference-device gate; visual checks remain separate. |
+| BEH-RA-04 | Replacing a request, releasing a screen or replacing its session prevents obsolete data/errors reaching the current screen. Equivalent pending reads share; explicit refresh after completion starts a new request. | Controlled noncooperative providers, cancelled-caller test and request/configuration coherence test. | Local sharing is not persistent caching or server idempotency. |
+
+The unused RewardsUseCase enrollment helper had no application or test callers.
+It is removed; the active ProjectDetailsFeature enrollment sequence and its tests
+remain. Existing four login-gating tests remain intact. Add-on API delay now belongs
+to the owned async task, so cancellation/account checks also cover that delay.
+The display adapter retains each result's requesting project/reward/shipping data.

@@ -620,6 +620,18 @@ final class PledgeFeatureTests: TestCase {
 
 @MainActor
 private final class ControlledPledgeProvider: PledgeProvider {
+  let updateProjects = AccountRequestGate<Project>()
+  let projectUpdates = AccountRequestGate<Update>()
+  var updateProjectInputs: [Param] = []
+  var projectUpdateInputs: [(Int, Param)] = []
+  func projectForUpdate(_ param: Param) async throws -> Project {
+    self.updateProjectInputs.append(param)
+    return try await self.updateProjects.request()
+  }
+  func projectUpdate(_ id: Int, param: Param) async throws -> Update {
+    self.projectUpdateInputs.append((id, param))
+    return try await self.projectUpdates.request()
+  }
   let addresses = AccountRequestGate<Bool>()
   let overviewReceipts = AccountRequestGate<Bool>()
   let plans = AccountRequestGate<GraphAPI.BuildPaymentPlanQuery.Data>()
@@ -702,6 +714,8 @@ private final class ControlledPledgeProvider: PledgeProvider {
     return try await self.receipts.request()
   }
   func releaseAll() {
+    self.updateProjects.releaseAll()
+    self.projectUpdates.releaseAll()
     self.addresses.releaseAll()
     self.overviewReceipts.releaseAll()
     self.plans.releaseAll()
@@ -714,5 +728,108 @@ private final class ControlledPledgeProvider: PledgeProvider {
     self.updates.releaseAll()
     self.cancellations.releaseAll()
     self.receipts.releaseAll()
+  }
+}
+
+extension PledgeFeatureTests {
+  func testUpdateNavigationSharesPairAndPreservesIdentity() async throws {
+    let route = UUID()
+    var values: [(Project, Update)] = []
+    let first = self.feature.updateContextResult(route: route, param: .slug("first"), updateID: 42)
+      .startWithResult {
+        if case .success(let value) = $0 {
+          values.append(value)
+        } else {
+          XCTFail("Unexpected request error")
+        }
+      }
+    let second = self.feature.updateContextResult(route: route, param: .slug("first"), updateID: 42)
+      .startWithResult {
+        if case .success(let value) = $0 {
+          values.append(value)
+        } else {
+          XCTFail("Unexpected request error")
+        }
+      }
+    defer {
+      first.dispose()
+      second.dispose()
+    }
+    await self.provider.updateProjects.waitFor(1)
+    XCTAssertEqual(self.provider.projectUpdates.count, 0)
+    try self.provider.updateProjects.finish(0, .success(.template))
+    await self.provider.projectUpdates.waitFor(1)
+    XCTAssertEqual(self.provider.projectUpdateInputs.map { $0.0 }, [42])
+    XCTAssertEqual(self.provider.projectUpdateInputs.map { $0.1 }, [.slug("first")])
+    try self.provider.projectUpdates.finish(0, .success(.template))
+    await self.feature.waitForOperations()
+    XCTAssertEqual(values.count, 2)
+    XCTAssertEqual(values.first?.0.id, Project.template.id)
+    XCTAssertEqual(values.first?.1.id, Update.template.id)
+  }
+
+  func testChangedUpdateDestinationSuppressesLateProjectBeforeSecondStage() async throws {
+    let route = UUID()
+    var oldValues = 0
+    let first = self.feature.updateContextResult(route: route, param: .slug("old"), updateID: 1)
+      .startWithResult {
+        if case .success = $0 { oldValues += 1 } else { XCTFail("Unexpected request error") }
+      }
+    await self.provider.updateProjects.waitFor(1)
+    let second = self.feature.updateContextResult(route: route, param: .slug("new"), updateID: 2)
+      .start()
+    defer {
+      first.dispose()
+      second.dispose()
+    }
+    await self.provider.updateProjects.waitFor(2)
+    try self.provider.updateProjects.finish(0, .success(.template))
+    try self.provider.updateProjects.finish(1, .success(.template))
+    await self.provider.projectUpdates.waitFor(1)
+    XCTAssertEqual(self.provider.projectUpdateInputs.map { $0.0 }, [2])
+    try self.provider.projectUpdates.finish(0, .success(.template))
+    await self.feature.waitForOperations()
+    XCTAssertEqual(oldValues, 0)
+  }
+
+  func testClosingWebScreenSuppressesLateUpdate() async throws {
+    let vm = PledgeManagerWebViewModel(feature: self.feature)
+    var navigation = 0
+    let observation = vm.outputs.presentUpdateVC.observeValues { _ in navigation += 1 }
+    defer { observation?.dispose() }
+    vm.inputs.fetchUpdateVCData(param: .id(1), updateId: 2)
+    await self.provider.updateProjects.waitFor(1)
+    try self.provider.updateProjects.finish(0, .success(.template))
+    await self.provider.projectUpdates.waitFor(1)
+    vm.inputs.closeButtonTapped()
+    try self.provider.projectUpdates.finish(0, .success(.template))
+    await self.feature.waitForOperations()
+    XCTAssertEqual(navigation, 0)
+  }
+
+  func testUpdateNavigationRejectsReplacedSessionAndCanRetryAfterFailure() async throws {
+    let route = UUID()
+    var values = 0
+    var errors = 0
+    let first = self.feature.updateContextResult(route: route, param: .id(1), updateID: 2)
+      .startWithResult { if case .success = $0 { values += 1 } else { errors += 1 } }
+    await self.provider.updateProjects.waitFor(1)
+    self.session.sessionChanged()
+    try self.provider.updateProjects.finish(0, .success(.template))
+    await self.feature.waitForOperations()
+    XCTAssertEqual(self.provider.projectUpdates.count, 0)
+    XCTAssertEqual(values, 0)
+    XCTAssertEqual(errors, 0)
+    let retry = self.feature.updateContextResult(route: route, param: .id(1), updateID: 2)
+      .startWithFailed { _ in errors += 1 }
+    defer {
+      first.dispose()
+      retry.dispose()
+    }
+    await self.provider.updateProjects.waitFor(2)
+    try self.provider.updateProjects.finish(1, .failure(ErrorEnvelope.couldNotParseJSON))
+    await self.feature.waitForOperations()
+    XCTAssertEqual(errors, 1)
+    XCTAssertEqual(self.provider.projectUpdates.count, 0)
   }
 }

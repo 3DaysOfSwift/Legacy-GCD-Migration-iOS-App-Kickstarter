@@ -10,17 +10,15 @@ estimate. These groups differ substantially in size and risk.
 
 | Group | Remaining application paths | Exit condition |
 | --- | --- | --- |
-| 1. Pledge and backing management | Pledge/overview/address/receipt paths verified; remaining PledgeManagerWeb project/update loading | Shared ownership, ordered mutations, session guards and existing screen regressions verified |
-| 2. Reward add-ons | RewardAddOnSelection loading; RewardsUseCase secret reward-group write | Feature-owned requests with cancellation/order tests and unchanged selection behavior |
-| 3. Friends and following | FindFriends lists/stats/pagination/follow-all; two follow-cell adapters | Shared follow state and ordered writes; obsolete-account results rejected |
-| 4. Residual project, creator and account actions | WatchProject save/unsave; CuratedProjects and Thanks recommendations; project attribution; UpdateDraft editing/images; ReportProjectInfo options; SettingsAccount user read | Each remaining production request has an explicit owner and documented lifetime |
+| 1. Friends and following | FindFriends lists/stats/pagination/follow-all; two follow-cell adapters | Shared follow state and ordered writes; obsolete-account results rejected |
+| 2. Residual project, creator and account actions | WatchProject save/unsave; CuratedProjects and Thanks recommendations; project attribution; UpdateDraft editing/images; ReportProjectInfo options; SettingsAccount user read | Each remaining production request has an explicit owner and documented lifetime |
 
-Checkout creation/validation/completion and payment-plan loading now have verified
-checkpoints. Four implementation groups remain; they are not equal units of effort.
+Checkout, payment plans, pledge-manager project/update navigation and reward add-on
+loading now have migrated implementations. Two implementation groups remain; they
+are not equal units of effort. See the ledger for the verified checkpoint status.
 
 The named paths are source-audit findings, not evidence that every call in those
-files is legacy. For example, PledgeManagerWeb currently mixes migrated interactions
-with remaining project/update reads. Configuration access such as serverConfig is
+files is legacy. Configuration access such as serverConfig is
 not itself an asynchronous ownership gap. Developer-only examples will be listed
 separately in the final audit, not counted as migrated product journeys.
 

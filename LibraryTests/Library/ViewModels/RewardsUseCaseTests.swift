@@ -7,6 +7,7 @@ import ReactiveSwift
 import XCTest
 
 final class RewardsUseCaseTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private var vm: RewardsUseCase!
 
   private let goToLoginWithIntent = TestObserver<LoginIntent, Never>()

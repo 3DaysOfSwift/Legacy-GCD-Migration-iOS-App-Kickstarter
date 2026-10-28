@@ -43,6 +43,45 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+
+### Pledge-manager navigation and reward add-ons — 28 October 2026
+
+PledgeFeature now owns the pledge-manager project/update pair as one sequential
+read. Equivalent pending reads share; changed destinations, screen closure and
+session replacement suppress obsolete navigation. Route versions also guard
+publication after a completed read's awaiting observer resumes.
+
+RewardsFeature owns both standard and fast add-on requests, eligibility, shipping
+and availability policy. It shares AppModel's SessionFeature. Independent screen
+routes share equivalent pending work, replace changed input, and cancel on release.
+The native APIs reuse the existing pure GraphQL mappers and cancellation boundary.
+API delay is inside the async task, so account/cancellation checks cover it too.
+The UI adapter keeps results paired with their requesting project/reward/shipping
+configuration. Quantities, amounts, bonus support, errors and navigation retain
+existing behavior. Invalid fast-query countries now throw instead of asserting.
+
+The unused RewardsUseCase enrollment helper had no callers and was removed.
+Active enrollment remains in ProjectDetailsFeature; login-gating tests remain.
+No screens, branding, persistence or identifiers were redesigned.
+
+Baseline: 33 original tests passed (14 pledge-manager, 15 add-on selection,
+4 rewards login-gating). Final: **1,146 Library + 192 framework + 75 API = 1,413
+passed**, zero failures/skips; **15 new regression cases**. App build succeeded
+with zero errors and two existing warnings: Crashlytics outputs and missing
+Frameworks search path. Results: /private/tmp/kickstarter-reward-addons.3rR5sc.
+Evidence: sibling Migration Evidence/kickstarter-reward-addons.
+
+Six unsuccessful compile attempts corrected nullable API/mock signatures, XCTest
+actor setup, observer APIs, an overly broad route-guard edit and immutable fixture
+construction. No executed test run failed. An earlier integrated run passed 1,412;
+the final deferred-session test and guard raised this to 1,413. These repeated runs
+are not additive coverage. No human command execution was required. Only the two
+newly included logic-only suites opt out of the snapshot reference-device gate.
+
+Two implementation groups remain: friends/following and residual project, creator
+and account actions. Then app-wide concurrency, broader regression and visual/device
+validation. **App-wide migration remains in progress; live payments remain unverified.**
+
 ### Pledged-project overview, address/receipt and payment plans — 28 October 2026
 
 PledgedProjectsFeature owns overview pagination and tier selection, with independent

@@ -1,16 +1,21 @@
 import Foundation
+import Prelude
+import ReactiveSwift
+import XCTest
+
 @testable import KsApi
 @testable import Library
 @testable import LibraryTestHelpers
-import Prelude
-import XCTest
 
 @MainActor
 final class RewardsFeatureTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private func feature(_ provider: ControlledRewardsProvider, move: Bool = false) -> RewardsFeature {
+  private func feature(_ provider: ControlledRewardsProvider, move: Bool = false) -> RewardsFeature
+  {
     RewardsFeature(
+      sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }
+      ),
       makeProvider: { provider },
       moveNoReward: { move },
       sleep: { _ in try Task.checkCancellation() }
@@ -98,7 +103,8 @@ final class RewardsFeatureTests: TestCase {
     provider.pause = true
     defer { provider.releaseAll() }
     let feature = self.feature(provider)
-    let firstRoute = UUID(), secondRoute = UUID()
+    let firstRoute = UUID()
+    let secondRoute = UUID()
     let first = feature.requestLoad(route: firstRoute, project: .template, location: nil)
     let second = feature.requestLoad(route: secondRoute, project: .template, location: nil)
     await provider.waitForRequests(2)
@@ -145,7 +151,9 @@ final class RewardsFeatureTests: TestCase {
   }
 
   private func shippingFeature(_ provider: ControlledShippingProvider) -> RewardsFeature {
-    RewardsFeature(makeProvider: { provider }, sleep: { _ in try Task.checkCancellation() })
+    RewardsFeature(
+      sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }
+      ), makeProvider: { provider }, sleep: { _ in try Task.checkCancellation() })
   }
 
   func testShippingSelectionPriorityAndExplicitChanges() async {
@@ -155,7 +163,8 @@ final class RewardsFeatureTests: TestCase {
     let route = UUID()
     await withEnvironment(config: .template |> Config.lens.countryCode .~ "AU") {
       await feature.loadShippingLocations(
-        route: route, projectID: 1, selectedLocationID: Location.canada.id, hasShippableRewards: true
+        route: route, projectID: 1, selectedLocationID: Location.canada.id,
+        hasShippableRewards: true
       )
       XCTAssertEqual(feature.shippingSnapshot(for: route).selectedLocation, .canada)
       await feature.loadShippingLocations(
@@ -253,7 +262,8 @@ final class RewardsFeatureTests: TestCase {
     provider.pause = true
     defer { provider.releaseAll() }
     let feature = self.shippingFeature(provider)
-    let firstRoute = UUID(), secondRoute = UUID()
+    let firstRoute = UUID()
+    let secondRoute = UUID()
     let first = feature.requestShippingLocations(
       route: firstRoute, projectID: 1, selectedLocationID: nil, hasShippableRewards: true
     )
@@ -313,6 +323,12 @@ final class RewardsFeatureTests: TestCase {
 
 @MainActor
 private final class ControlledShippingProvider: RewardsProvider {
+  func addOns(slug: String, locationID: String?) async throws -> [Reward]? {
+    throw ErrorEnvelope.couldNotParseJSON
+  }
+  func fastAddOns(baseRewardID: Int, country: String) async throws -> [Reward] {
+    throw ErrorEnvelope.couldNotParseJSON
+  }
   var locations: [Location] = []
   var projectIDs: [Int] = []
   var fail = false
@@ -333,7 +349,9 @@ private final class ControlledShippingProvider: RewardsProvider {
     if self.pause {
       return try await withCheckedThrowingContinuation { continuation in
         self.pending.append(continuation)
-        for (count, expectation) in self.waits where self.projectIDs.count == count { expectation.fulfill() }
+        for (count, expectation) in self.waits where self.projectIDs.count == count {
+          expectation.fulfill()
+        }
       }
     }
     if self.fail { throw ErrorEnvelope.graphError("Shipping fixture failure") }
@@ -349,7 +367,10 @@ private final class ControlledShippingProvider: RewardsProvider {
   }
 
   func finish(_ index: Int, locations: [Location]) throws {
-    guard self.pending.indices.contains(index) else { XCTFail("Missing request"); return }
+    guard self.pending.indices.contains(index) else {
+      XCTFail("Missing request")
+      return
+    }
     let continuation = try XCTUnwrap(self.pending[index])
     self.pending[index] = nil
     continuation.resume(returning: locations)
@@ -363,6 +384,12 @@ private final class ControlledShippingProvider: RewardsProvider {
 
 @MainActor
 private final class ControlledRewardsProvider: RewardsProvider {
+  func addOns(slug: String, locationID: String?) async throws -> [Reward]? {
+    throw ErrorEnvelope.couldNotParseJSON
+  }
+  func fastAddOns(baseRewardID: Int, country: String) async throws -> [Reward] {
+    throw ErrorEnvelope.couldNotParseJSON
+  }
   func shippingLocations(projectID _: Int) async throws -> [Location] { [] }
   var rewards = [Reward.digitalReward]
   var countries: [String?] = []
@@ -371,12 +398,16 @@ private final class ControlledRewardsProvider: RewardsProvider {
   private var pending: [CheckedContinuation<[Reward], Error>?] = []
   private var waits: [(Int, XCTestExpectation)] = []
 
-  func rewards(projectID _: Int, country: String?, inserter: any NoRewardInserter) async throws -> [Reward] {
+  func rewards(projectID _: Int, country: String?, inserter: any NoRewardInserter) async throws
+    -> [Reward]
+  {
     self.countries.append(country)
     if self.pause {
       return try await withCheckedThrowingContinuation { continuation in
         self.pending.append(continuation)
-        for (count, expectation) in self.waits where self.countries.count == count { expectation.fulfill() }
+        for (count, expectation) in self.waits where self.countries.count == count {
+          expectation.fulfill()
+        }
       }
     }
     if self.fail { throw ErrorEnvelope.graphError("fixture failure") }
@@ -392,7 +423,10 @@ private final class ControlledRewardsProvider: RewardsProvider {
   }
 
   func finish(_ index: Int, rewards: [Reward]) throws {
-    guard self.pending.indices.contains(index) else { XCTFail("Missing request"); return }
+    guard self.pending.indices.contains(index) else {
+      XCTFail("Missing request")
+      return
+    }
     let continuation = try XCTUnwrap(self.pending[index])
     self.pending[index] = nil
     continuation.resume(returning: rewards)
@@ -401,5 +435,260 @@ private final class ControlledRewardsProvider: RewardsProvider {
   func releaseAll() {
     for continuation in self.pending { continuation?.resume(throwing: CancellationError()) }
     self.pending.removeAll()
+  }
+}
+
+extension RewardsFeatureTests {
+  func testDeferredAddOnsObservationCannotStartInReplacementSession() async {
+    let fixture = AddOnsFixture()
+    let result = fixture.result(UUID())
+    fixture.session.sessionChanged()
+    var interrupted = false
+    let observation = result.startWithInterrupted { interrupted = true }
+    defer { observation.dispose() }
+    await fixture.feature.waitForAddOns()
+    XCTAssertTrue(interrupted)
+    XCTAssertEqual(fixture.provider.gate.count, 0)
+  }
+
+  func testCancelledAddOnsCallerDoesNotAdmitRequest() async {
+    let fixture = AddOnsFixture()
+    let task = Task {
+      try await fixture.feature.addOns(
+        route: UUID(), slug: "fixture",
+        baseReward: fixture.reward, shippingRule: nil)
+    }
+    task.cancel()
+    do {
+      _ = try await task.value
+      XCTFail("Expected cancellation")
+    } catch { XCTAssertTrue(error is CancellationError) }
+    XCTAssertEqual(fixture.provider.gate.count, 0)
+  }
+
+  func testAddOnCardsDoNotCombineOldRewardsWithNewProject() async throws {
+    let fixture = AddOnsFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    let vm = RewardAddOnSelectionViewModel(feature: fixture.feature)
+    var cards: [RewardAddOnCardViewData] = []
+    let subscription = vm.outputs.loadAddOnRewardsIntoDataSourceAndReloadTableView.observeValues {
+      cards.append(contentsOf: $0.compactMap(\.rewardAddOnCardViewData))
+    }
+    defer { subscription?.dispose() }
+    var project = Project.template
+    let reward = Reward.digitalReward
+      |> Reward.lens.hasAddOns .~ true
+      |> Reward.lens.isAvailable .~ true
+    func configuration() -> PledgeViewData {
+      PledgeViewData(
+        project: project, rewards: [reward], bonusSupport: nil,
+        selectedShippingRule: nil, selectedQuantities: [reward.id: 1],
+        selectedLocationId: nil, refTag: nil, context: .pledge)
+    }
+    vm.inputs.configure(with: configuration())
+    vm.inputs.viewDidLoad()
+    await fixture.provider.gate.waitFor(1)
+    try fixture.provider.gate.finish(0, .success([reward]))
+    await fixture.feature.waitForAddOns()
+    XCTAssertEqual(cards.count, 1)
+    project.id += 1
+    project.slug = "replacement"
+    vm.inputs.configure(with: configuration())
+    await fixture.provider.gate.waitFor(2)
+    XCTAssertEqual(
+      cards.count, 1, "Changing configuration must not redraw old add-ons in the new project")
+    try fixture.provider.gate.finish(1, .success([reward]))
+    await fixture.feature.waitForAddOns()
+    XCTAssertEqual(cards.count, 2)
+    XCTAssertEqual(cards.last?.project.id, project.id)
+  }
+
+  func testAddOnsSkipMissingNoRewardAndRewardsWithoutAddOns() async throws {
+    let fixture = AddOnsFixture()
+    for reward: Reward? in [nil, .noReward, Reward.template |> Reward.lens.hasAddOns .~ false] {
+      let value = try await fixture.feature.addOns(
+        route: UUID(), slug: "test", baseReward: reward, shippingRule: nil)
+      XCTAssertNil(value)
+    }
+    XCTAssertEqual(fixture.provider.gate.count, 0)
+  }
+
+  func testAddOnsShareEquivalentPendingReadsAndRefreshAfterCompletion() async throws {
+    let fixture = AddOnsFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    let route = UUID()
+    var values = 0
+    let first = fixture.result(route).startWithResult {
+      if case .success = $0 { values += 1 } else { XCTFail("Unexpected request error") }
+    }
+    let second = fixture.result(route).startWithResult {
+      if case .success = $0 { values += 1 } else { XCTFail("Unexpected request error") }
+    }
+    defer {
+      first.dispose()
+      second.dispose()
+    }
+    await fixture.provider.gate.waitFor(1)
+    try fixture.provider.gate.finish(0, .success([.template]))
+    await fixture.feature.waitForAddOns()
+    XCTAssertEqual(values, 2)
+    XCTAssertEqual(fixture.provider.gate.count, 1)
+    let refresh = fixture.result(route).start()
+    defer { refresh.dispose() }
+    await fixture.provider.gate.waitFor(2)
+    try fixture.provider.gate.finish(1, .success([]))
+    await fixture.feature.waitForAddOns()
+  }
+
+  func testChangedAddOnLocationRejectsLateOldResponseAndOtherRouteSurvives() async throws {
+    let fixture = AddOnsFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    let route = UUID()
+    var old = 0
+    var new = 0
+    var other = 0
+    let first = fixture.result(route).startWithResult {
+      if case .success = $0 { old += 1 } else { XCTFail("Unexpected request error") }
+    }
+    await fixture.provider.gate.waitFor(1)
+    let second = fixture.result(route, shipping: .template).startWithResult {
+      if case .success = $0 { new += 1 } else { XCTFail("Unexpected request error") }
+    }
+    let third = fixture.result(UUID()).startWithResult {
+      if case .success = $0 { other += 1 } else { XCTFail("Unexpected request error") }
+    }
+    defer {
+      first.dispose()
+      second.dispose()
+      third.dispose()
+    }
+    await fixture.provider.gate.waitFor(3)
+    try fixture.provider.gate.finish(2, .success([.template]))
+    try fixture.provider.gate.finish(1, .success([]))
+    try fixture.provider.gate.finish(0, .success([.template]))
+    await fixture.feature.waitForAddOns()
+    XCTAssertEqual(old, 0)
+    XCTAssertEqual(new, 1)
+    XCTAssertEqual(other, 1)
+    XCTAssertEqual(fixture.provider.locations[1], ShippingRule.template.location.graphID)
+  }
+
+  func testReleasedAddOnsAndReplacedSameUserSessionSuppressLateResults() async throws {
+    let fixture = AddOnsFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    let route = UUID()
+    var values = 0
+    let first = fixture.result(route).startWithResult {
+      if case .success = $0 { values += 1 } else { XCTFail("Unexpected request error") }
+    }
+    await fixture.provider.gate.waitFor(1)
+    fixture.feature.releaseAddOns(route: route)
+    try fixture.provider.gate.finish(0, .success([.template]))
+    await fixture.feature.waitForAddOns()
+    let second = fixture.result(route).startWithResult {
+      if case .success = $0 { values += 1 } else { XCTFail("Unexpected request error") }
+    }
+    defer {
+      first.dispose()
+      second.dispose()
+    }
+    await fixture.provider.gate.waitFor(2)
+    fixture.session.sessionChanged()
+    try fixture.provider.gate.finish(1, .success([.template]))
+    await fixture.feature.waitForAddOns()
+    XCTAssertEqual(values, 0)
+  }
+
+  func testAddOnsFailureDoesNotAutomaticallyRetryAndExplicitRetryRecovers() async throws {
+    let fixture = AddOnsFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    let route = UUID()
+    var errors = 0
+    var values = 0
+    let first = fixture.result(route).startWithFailed { _ in errors += 1 }
+    await fixture.provider.gate.waitFor(1)
+    try fixture.provider.gate.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
+    await fixture.feature.waitForAddOns()
+    XCTAssertEqual(errors, 1)
+    XCTAssertEqual(fixture.provider.gate.count, 1)
+    let retry = fixture.result(route).startWithResult {
+      if case .success = $0 { values += 1 } else { XCTFail("Unexpected request error") }
+    }
+    defer {
+      first.dispose()
+      retry.dispose()
+    }
+    await fixture.provider.gate.waitFor(2)
+    try fixture.provider.gate.finish(1, .success(nil))
+    await fixture.feature.waitForAddOns()
+    XCTAssertEqual(values, 1, "A successful nil response retains the bonus-only behavior")
+  }
+
+  func testFastAddOnsUseBaseRewardAndShippingCountryOrCountryFallback() async throws {
+    let fixture = AddOnsFixture(fast: true)
+    defer { fixture.provider.gate.releaseAll() }
+    let first = fixture.result(UUID(), shipping: .template).start()
+    await fixture.provider.gate.waitFor(1)
+    try fixture.provider.gate.finish(0, .success([]))
+    await fixture.feature.waitForAddOns()
+    let second = fixture.result(UUID()).start()
+    defer {
+      first.dispose()
+      second.dispose()
+    }
+    await fixture.provider.gate.waitFor(2)
+    try fixture.provider.gate.finish(1, .success([]))
+    await fixture.feature.waitForAddOns()
+    XCTAssertEqual(fixture.provider.fastIDs, [fixture.reward.id, fixture.reward.id])
+    XCTAssertEqual(
+      fixture.provider.countries,
+      [ShippingRule.template.location.country, AppEnvironment.current.countryCode])
+    XCTAssertTrue(fixture.provider.slugs.isEmpty)
+  }
+}
+
+@MainActor
+private final class AddOnsFixture {
+  let provider = ControlledAddOnsProvider()
+  let session = SessionFeature(
+    makeProvider: { AsyncSessionProvider(service: MockService()) }, currentUser: { .template })
+  let reward = Reward.template |> Reward.lens.hasAddOns .~ true
+  let fast: Bool
+  init(fast: Bool = false) { self.fast = fast }
+  lazy var feature = RewardsFeature(
+    sessionFeature: self.session, makeProvider: { self.provider }, fastCheckout: { self.fast })
+  func result(_ route: UUID, shipping: ShippingRule? = nil) -> SignalProducer<
+    [Reward]?, ErrorEnvelope
+  > {
+    self.feature.addOnsResult(
+      route: route, slug: "fixture", baseReward: self.reward, shippingRule: shipping)
+  }
+}
+
+@MainActor
+private final class ControlledAddOnsProvider: RewardsProvider {
+  let gate = AccountRequestGate<[Reward]?>()
+  var slugs: [String] = []
+  var locations: [String?] = []
+  var fastIDs: [Int] = []
+  var countries: [String] = []
+  func addOns(slug: String, locationID: String?) async throws -> [Reward]? {
+    self.slugs.append(slug)
+    self.locations.append(locationID)
+    return try await self.gate.request()
+  }
+  func fastAddOns(baseRewardID: Int, country: String) async throws -> [Reward] {
+    self.fastIDs.append(baseRewardID)
+    self.countries.append(country)
+    let value = try await self.gate.request()
+    return try XCTUnwrap(value)
+  }
+  func shippingLocations(projectID: Int) async throws -> [Location] {
+    throw ErrorEnvelope.couldNotParseJSON
+  }
+  func rewards(projectID: Int, country: String?, inserter: any NoRewardInserter) async throws
+    -> [Reward]
+  {
+    throw ErrorEnvelope.couldNotParseJSON
   }
 }

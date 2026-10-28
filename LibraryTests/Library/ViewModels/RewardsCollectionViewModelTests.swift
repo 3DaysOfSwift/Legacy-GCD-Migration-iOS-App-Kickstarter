@@ -45,7 +45,7 @@ final class RewardsCollectionViewModelTests: TestCase {
   private let goToCustomizeYourReward = TestObserver<PledgeViewData, Never>()
   private let showPlaceholderRewardCards = TestObserver<Int, Never>()
 
-  private let vm = RewardsCollectionViewModel(rewardsFeature: RewardsFeature(
+  private let vm = RewardsCollectionViewModel(rewardsFeature: RewardsFeature(sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
     makeProvider: { AsyncRewardsProvider(service: AppEnvironment.current.apiService) },
     sleep: { _ in try Task.checkCancellation() }
   ))

@@ -13,6 +13,7 @@ public enum PledgeManagerNativeNatigationRequest: Equatable {
   case goToPledge(param: Param)
 }
 
+@MainActor
 public protocol PledgeManagerWebViewModelInputs {
   /// Call when the close button is tapped.
   func closeButtonTapped()
@@ -33,6 +34,7 @@ public protocol PledgeManagerWebViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol PledgeManagerWebViewModelOutputs {
   /// Emits when the view controller should be dismissed.
   var dismissViewController: Signal<Void, Never> { get }
@@ -54,14 +56,21 @@ public protocol PledgeManagerWebViewModelOutputs {
   var webViewLoadRequest: Signal<URLRequest, Never> { get }
 }
 
+@MainActor
 public protocol PledgeManagerWebViewModelType: PledgeManagerWebViewModelInputs,
-  PledgeManagerWebViewModelOutputs {
+  PledgeManagerWebViewModelOutputs
+{
   var inputs: PledgeManagerWebViewModelInputs { get }
   var outputs: PledgeManagerWebViewModelOutputs { get }
 }
 
+@MainActor
 public final class PledgeManagerWebViewModel: PledgeManagerWebViewModelType {
-  public init() {
+  private let feature: PledgeFeature
+  private let updateRoute = UUID()
+  public init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
+    self.feature = feature
+    let route = self.updateRoute
     let initialIsLoggedIn = self.viewDidLoadProperty.signal.compactMap {
       AppEnvironment.current.currentUser != nil
     }
@@ -83,7 +92,8 @@ public final class PledgeManagerWebViewModel: PledgeManagerWebViewModelType {
     )
     .map(first)
 
-    let initialRequest = surveyResponse
+    let initialRequest =
+      surveyResponse
       .map { surveyUrlString -> URLRequest? in
         guard let url = URL(string: surveyUrlString) else { return nil }
         return URLRequest(url: url)
@@ -113,34 +123,26 @@ public final class PledgeManagerWebViewModel: PledgeManagerWebViewModelType {
         }
       }
 
-    let newUnpreparedRequest = newRequest
+    let newUnpreparedRequest =
+      newRequest
       .filter { request in
         isUnpreparedSupportedRequest(request: request)
       }
 
     self.dismissViewController = self.closeButtonTappedProperty.signal
 
-    self.goToNativeScreen = newRequest
+    self.goToNativeScreen =
+      newRequest
       .map(nativeNavigationRequestForURLRequest)
       .skipNil()
 
     self.presentUpdateVC = self.fetchUpdateVCDataProperty.signal.skipNil()
-      .switchMap { (param: Param, updateId: Int) in
-        AppEnvironment.current.apiService.fetchProject(param: param)
-          .demoteErrors()
-          .map { project -> (Param, Project, Int) in
-            (param, project, updateId)
-          }
-      }
-      .switchMap { (param: Param, project: Project, updateId: Int) in
-        AppEnvironment.current.apiService.fetchUpdate(updateId: updateId, projectParam: param)
-          .demoteErrors()
-          .map { update -> (Project, Update) in
-            (project, update)
-          }
+      .switchMap { param, updateID in
+        feature.updateContextResult(route: route, param: param, updateID: updateID).demoteErrors()
       }
 
-    self.policyDecisionProperty <~ newNavigationAction
+    self.policyDecisionProperty
+      <~ newNavigationAction
       .map { action in
         if isStripeNavigationAction(action) {
           return true
@@ -182,11 +184,20 @@ public final class PledgeManagerWebViewModel: PledgeManagerWebViewModelType {
   }
 
   fileprivate let closeButtonTappedProperty = MutableProperty(())
-  public func closeButtonTapped() { self.closeButtonTappedProperty.value = () }
+  public func closeButtonTapped() {
+    self.feature.releaseRead(route: self.updateRoute)
+    self.closeButtonTappedProperty.value = ()
+  }
+  deinit {
+    let feature = self.feature
+    let route = self.updateRoute
+    Task { @MainActor in feature.releaseRead(route: route) }
+  }
 
   fileprivate let policyForNavigationActionProperty = MutableProperty<WKNavigationActionData?>(nil)
   fileprivate let policyDecisionProperty = MutableProperty(WKNavigationActionPolicy.allow)
-  public func decidePolicyFor(navigationAction: WKNavigationActionData) -> WKNavigationActionPolicy {
+  public func decidePolicyFor(navigationAction: WKNavigationActionData) -> WKNavigationActionPolicy
+  {
     self.policyForNavigationActionProperty.value = navigationAction
     return self.policyDecisionProperty.value
   }
@@ -225,13 +236,14 @@ public final class PledgeManagerWebViewModel: PledgeManagerWebViewModelType {
 // doesn't have a corresponding native request will either be displayed in the
 // webview or be discarded.
 private func nativeNavigationRequestForURLRequest(_ request: URLRequest)
-  -> PledgeManagerNativeNatigationRequest? {
+  -> PledgeManagerNativeNatigationRequest?
+{
   switch Navigation.match(request) {
-  case let (.project(param, .root, refInfo, _))?:
+  case (.project(let param, .root, let refInfo, _))?:
     return .goToProject(param: param, refTag: refInfo?.refTag)
-  case let (.project(param, .pledge, _, _))?:
+  case (.project(let param, .pledge, _, _))?:
     return .goToPledge(param: param)
-  case let (.project(param, .update(id, _), _, _))?:
+  case (.project(let param, .update(let id, _), _, _))?:
     return .goToUpdate(param: param, updateId: id)
   default: return nil
   }
@@ -260,7 +272,8 @@ private func isStripeNavigationAction(_ actionData: WKNavigationActionData) -> B
     return true
   }
   if let securityOriginHost = actionData.navigationAction?.targetFrame?.securityOrigin.host,
-     isStripeHost(securityOriginHost) {
+    isStripeHost(securityOriginHost)
+  {
     return true
   }
   return false
@@ -300,7 +313,8 @@ private func errorForUnrecognizedUrl(request: URLRequest) -> NSError? {
     domain: errorDomain,
     code: ErrorCode.unrecognizedUrl.rawValue,
     userInfo: [
-      NSLocalizedDescriptionKey: "Found unrecongnized url request with host: \(url.host() ?? "Unknown")"
+      NSLocalizedDescriptionKey:
+        "Found unrecongnized url request with host: \(url.host() ?? "Unknown")"
     ]
   )
 }

@@ -62,30 +62,6 @@ public final class RewardsUseCase: RewardsUseCaseType, RewardsUseCaseOutputs {
       }
   }
 
-  // MARK: Utilities
-
-  /// Attempts to add the user to the secret reward group if logged in and a valid token is present.
-  /// - Returns: `true` if the GraphQL mutation `addUserToSecretRewardGroup` was triggered successfully.
-  ///            `false` if the user is not logged in or the token is missing/empty, thus skipping the mutation.
-  static func addUserToSecretRewardGroupIfNeeded(
-    project param: Param,
-    secretRewardToken: String?
-  ) -> SignalProducer<Bool, ErrorEnvelope> {
-    let isUserLoggedIn = AppEnvironment.current.currentUser != nil
-
-    guard isUserLoggedIn,
-          let secretRewardToken = secretRewardToken,
-          !secretRewardToken.isEmpty else {
-      return SignalProducer(value: false)
-    }
-    return AppEnvironment.current.apiService
-      .addUserToSecretRewardGroup(token: secretRewardToken, forProject: param)
-      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-      .switchMap { _ -> SignalProducer<Bool, ErrorEnvelope> in
-        SignalProducer(value: true)
-      }
-  }
-
   // MARK: Properties
 
   public var goToLoginWithIntent: ReactiveSwift.Signal<LoginIntent, Never>

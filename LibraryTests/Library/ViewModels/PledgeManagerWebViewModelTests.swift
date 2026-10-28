@@ -1,16 +1,22 @@
-@testable import KsApi
-@testable import KsApiTestHelpers
-@testable import Library
-@testable import LibraryTestHelpers
 import Prelude
 import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import WebKit
 import XCTest
 
+@testable import KsApi
+@testable import KsApiTestHelpers
+@testable import Library
+@testable import LibraryTestHelpers
+
+@MainActor
 final class PledgeManagerWebViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  fileprivate let vm: PledgeManagerWebViewModelType = PledgeManagerWebViewModel()
+  private let feature = PledgeFeature(
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+    makeProvider: { AsyncPledgeProvider(service: AppEnvironment.current.apiService) })
+  private lazy var vm: PledgeManagerWebViewModelType = PledgeManagerWebViewModel(
+    feature: self.feature)
 
   fileprivate let dismissViewController = TestObserver<Void, Never>()
   fileprivate let goToNativeScreen = TestObserver<PledgeManagerNativeNatigationRequest, Never>()
@@ -22,18 +28,20 @@ final class PledgeManagerWebViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated {
 
-    self.vm.outputs.dismissViewController.observe(self.dismissViewController.observer)
-    self.vm.outputs.goToNativeScreen.observe(self.goToNativeScreen.observer)
-    self.vm.outputs.presentUpdateVC.observe(self.presentUpdateVC.observer)
-    self.vm.outputs.goToLoginSignup.observe(self.goToLoginSignup.observer)
-    self.vm.outputs.title.observe(self.title.observer)
-    self.vm.outputs.webViewLoadRequest
-      .map { AppEnvironment.current.apiService.isPrepared(request: $0) }
-      .observe(self.webViewLoadRequestIsPrepared.observer)
-    self.vm.outputs.webViewLoadRequest.observe(self.webViewLoadRequest.observer)
+      self.vm.outputs.dismissViewController.observe(self.dismissViewController.observer)
+      self.vm.outputs.goToNativeScreen.observe(self.goToNativeScreen.observer)
+      self.vm.outputs.presentUpdateVC.observe(self.presentUpdateVC.observer)
+      self.vm.outputs.goToLoginSignup.observe(self.goToLoginSignup.observer)
+      self.vm.outputs.title.observe(self.title.observer)
+      self.vm.outputs.webViewLoadRequest
+        .map { AppEnvironment.current.apiService.isPrepared(request: $0) }
+        .observe(self.webViewLoadRequestIsPrepared.observer)
+      self.vm.outputs.webViewLoadRequest.observe(self.webViewLoadRequest.observer)
 
-    AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
+      AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
+    }
   }
 
   func testDismissViewControllerOnCloseButtonTapped() {
@@ -47,7 +55,8 @@ final class PledgeManagerWebViewModelTests: TestCase {
 
   func testRespondToSurvey() {
     let project = Project.template
-    let surveyResponse = .template
+    let surveyResponse =
+      .template
       |> SurveyResponse.lens.id .~ 123
       |> SurveyResponse.lens.project .~ project
 
@@ -74,7 +83,8 @@ final class PledgeManagerWebViewModelTests: TestCase {
     XCTAssertEqual(WKNavigationActionPolicy.allow.rawValue, surveyPreparedGetRequestPolicy.rawValue)
 
     // 2. Submit unprepared survey with non-nil body.
-    var surveyUnpreparedPostRequest = surveyRequest(project: project, prepared: false, method: .POST)
+    var surveyUnpreparedPostRequest = surveyRequest(
+      project: project, prepared: false, method: .POST)
     surveyUnpreparedPostRequest.httpBody = "data=data".data(using: .utf8)
 
     let surveyUnpreparedPostRequestNavigationAction = WKNavigationActionData(
@@ -149,7 +159,8 @@ final class PledgeManagerWebViewModelTests: TestCase {
 
   func testGoToPledge() {
     let project = Project.template
-    let surveyResponse = .template
+    let surveyResponse =
+      .template
       |> SurveyResponse.lens.project .~ project
 
     self.vm.inputs.configureWith(url: surveyResponse.urls.web.survey)
@@ -174,7 +185,8 @@ final class PledgeManagerWebViewModelTests: TestCase {
 
   func testGoToProject() {
     let project = Project.template
-    let surveyResponse = .template
+    let surveyResponse =
+      .template
       |> SurveyResponse.lens.project .~ project
 
     self.vm.inputs.configureWith(url: surveyResponse.urls.web.survey)
@@ -198,9 +210,10 @@ final class PledgeManagerWebViewModelTests: TestCase {
     self.goToNativeScreen.assertLastValue(.goToProject(param: .slug(project.slug), refTag: nil))
   }
 
-  func testGoToUpdate() {
+  func testGoToUpdate() async {
     let project = Project.template
-    let surveyResponse = .template
+    let surveyResponse =
+      .template
       |> SurveyResponse.lens.project .~ project
 
     let update = Update.template
@@ -208,10 +221,12 @@ final class PledgeManagerWebViewModelTests: TestCase {
     self.vm.inputs.configureWith(url: surveyResponse.urls.web.survey)
     self.vm.inputs.viewDidLoad()
 
-    withEnvironment(apiService: MockService(
-      fetchProjectResult: .success(project),
-      fetchUpdateResponse: update
-    )) {
+    await withEnvironment(
+      apiService: MockService(
+        fetchProjectResult: .success(project),
+        fetchUpdateResponse: update
+      )
+    ) {
       self.presentUpdateVC.assertDidNotEmitValue()
       self.goToNativeScreen.assertDidNotEmitValue()
 
@@ -227,9 +242,11 @@ final class PledgeManagerWebViewModelTests: TestCase {
       let policy = self.vm.inputs.decidePolicyFor(navigationAction: navigationAction)
       XCTAssertEqual(WKNavigationActionPolicy.cancel.rawValue, policy.rawValue)
 
-      self.goToNativeScreen.assertLastValue(.goToUpdate(param: .slug(project.slug), updateId: updateId))
+      self.goToNativeScreen.assertLastValue(
+        .goToUpdate(param: .slug(project.slug), updateId: updateId))
 
       self.vm.inputs.fetchUpdateVCData(param: .slug(project.slug), updateId: updateId)
+      await self.feature.waitForOperations()
 
       self.dismissViewController.assertDidNotEmitValue()
       self.presentUpdateVC.assertValueCount(1)

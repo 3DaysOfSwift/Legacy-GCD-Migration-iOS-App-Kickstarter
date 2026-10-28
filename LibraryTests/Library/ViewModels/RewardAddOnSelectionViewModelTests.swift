@@ -1,59 +1,83 @@
-@testable import KsApi
-@testable import KsApiTestHelpers
-@testable import Library
-@testable import LibraryTestHelpers
 import Prelude
 import ReactiveExtensions
 import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@testable import KsApi
+@testable import KsApiTestHelpers
+@testable import Library
+@testable import LibraryTestHelpers
+
+@MainActor
 final class RewardAddOnSelectionViewModelTests: TestCase {
-  private let vm: RewardAddOnSelectionViewModelType = RewardAddOnSelectionViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = RewardsFeature(
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+    makeProvider: {
+      precondition(AppEnvironment.current.apiService is MockService)
+      return AsyncRewardsProvider(service: AppEnvironment.current.apiService)
+    })
+  private lazy var vm: RewardAddOnSelectionViewModelType = RewardAddOnSelectionViewModel(
+    feature: self.feature)
+  private func advanceAddOns() async {
+    await self.feature.waitForAddOns()
+    await self.scheduler.advance()
+  }
 
   private let configureContinueCTAViewWithDataIsLoading = TestObserver<Bool, Never>()
   private let configureContinueCTAViewWithDataIsValid = TestObserver<Bool, Never>()
   private let configureContinueCTAViewWithDataQuantity = TestObserver<Int, Never>()
-  private let configureContinueCTAViewWithDataPledgeAmount = TestObserver<NSAttributedString?, Never>()
+  private let configureContinueCTAViewWithDataPledgeAmount = TestObserver<
+    NSAttributedString?, Never
+  >()
   private let configurePledgeAmountViewWithData = TestObserver<PledgeAmountViewConfigData, Never>()
   private let endRefreshing = TestObserver<(), Never>()
   private let goToPledge = TestObserver<PledgeViewData, Never>()
-  private let loadAddOnRewardsIntoDataSource = TestObserver<[RewardAddOnSelectionDataSourceItem], Never>()
-  private let loadAddOnRewardsIntoDataSourceAndReloadTableView
-    = TestObserver<[RewardAddOnSelectionDataSourceItem], Never>()
+  private let loadAddOnRewardsIntoDataSource = TestObserver<
+    [RewardAddOnSelectionDataSourceItem], Never
+  >()
+  private let loadAddOnRewardsIntoDataSourceAndReloadTableView = TestObserver<
+    [RewardAddOnSelectionDataSourceItem], Never
+  >()
   private let startRefreshing = TestObserver<(), Never>()
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated {
 
-    self.vm.outputs.configureContinueCTAViewWithData.map(\.selectedQuantity)
-      .observe(self.configureContinueCTAViewWithDataQuantity.observer)
-    self.vm.outputs.configureContinueCTAViewWithData.map(\.isValid)
-      .observe(self.configureContinueCTAViewWithDataIsValid.observer)
-    self.vm.outputs.configureContinueCTAViewWithData.map(\.isLoading)
-      .observe(self.configureContinueCTAViewWithDataIsLoading.observer)
-    self.vm.outputs.configureContinueCTAViewWithData.map(\.pledgeAmount)
-      .observe(self.configureContinueCTAViewWithDataPledgeAmount.observer)
-    self.vm.outputs.configurePledgeAmountViewWithData
-      .observe(self.configurePledgeAmountViewWithData.observer)
-    self.vm.outputs.endRefreshing.observe(self.endRefreshing.observer)
-    self.vm.outputs.goToPledge.observe(self.goToPledge.observer)
-    self.vm.outputs.loadAddOnRewardsIntoDataSource.observe(self.loadAddOnRewardsIntoDataSource.observer)
-    self.vm.outputs.loadAddOnRewardsIntoDataSourceAndReloadTableView
-      .observe(self.loadAddOnRewardsIntoDataSourceAndReloadTableView.observer)
-    self.vm.outputs.startRefreshing.observe(self.startRefreshing.observer)
+      self.vm.outputs.configureContinueCTAViewWithData.map(\.selectedQuantity)
+        .observe(self.configureContinueCTAViewWithDataQuantity.observer)
+      self.vm.outputs.configureContinueCTAViewWithData.map(\.isValid)
+        .observe(self.configureContinueCTAViewWithDataIsValid.observer)
+      self.vm.outputs.configureContinueCTAViewWithData.map(\.isLoading)
+        .observe(self.configureContinueCTAViewWithDataIsLoading.observer)
+      self.vm.outputs.configureContinueCTAViewWithData.map(\.pledgeAmount)
+        .observe(self.configureContinueCTAViewWithDataPledgeAmount.observer)
+      self.vm.outputs.configurePledgeAmountViewWithData
+        .observe(self.configurePledgeAmountViewWithData.observer)
+      self.vm.outputs.endRefreshing.observe(self.endRefreshing.observer)
+      self.vm.outputs.goToPledge.observe(self.goToPledge.observer)
+      self.vm.outputs.loadAddOnRewardsIntoDataSource.observe(
+        self.loadAddOnRewardsIntoDataSource.observer)
+      self.vm.outputs.loadAddOnRewardsIntoDataSourceAndReloadTableView
+        .observe(self.loadAddOnRewardsIntoDataSourceAndReloadTableView.observer)
+      self.vm.outputs.startRefreshing.observe(self.startRefreshing.observer)
+    }
   }
 
-  func testLoadAddOnRewardsIntoDataSource() {
+  func testLoadAddOnRewardsIntoDataSource() async {
     self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertDidNotEmitValue()
 
-    let reward = Reward.template
+    let reward =
+      Reward.template
       |> Reward.lens.shipping.enabled .~ false
       |> Reward.lens.shipping.preference .~ Reward.Shipping.Preference.none
       |> Reward.lens.isAvailable .~ true
       |> Reward.lens.hasAddOns .~ true
 
-    let project = Project.template
+    let project =
+      Project.template
       |> Project.lens.rewardData.addOns .~ [reward]
 
     let expected = RewardAddOnCardViewData(
@@ -69,7 +93,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     self.startRefreshing.assertDidNotEmitValue()
     self.endRefreshing.assertDidNotEmitValue()
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -87,7 +111,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       self.startRefreshing.assertValueCount(0)
       self.endRefreshing.assertValueCount(0)
 
-      self.scheduler.advance()
+      await self.advanceAddOns()
 
       self.startRefreshing.assertValueCount(0)
       self.endRefreshing.assertValueCount(1)
@@ -99,27 +123,32 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     }
   }
 
-  func testLoadAddOnRewards_NotLoadedIntoDataSource_IfLocalPickupLocationsNotMatching_Success() {
+  func testLoadAddOnRewards_NotLoadedIntoDataSource_IfLocalPickupLocationsNotMatching_Success()
+    async
+  {
     self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertDidNotEmitValue()
 
-    let reward = Reward.template
+    let reward =
+      Reward.template
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ Reward.Shipping.Preference.local
       |> Reward.lens.localPickup .~ .brooklyn
       |> Reward.lens.hasAddOns .~ true
 
-    let addOn = Reward.template
+    let addOn =
+      Reward.template
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ Reward.Shipping.Preference.local
       |> Reward.lens.localPickup .~ .australia
 
-    let project = Project.template
+    let project =
+      Project.template
       |> Project.lens.rewardData.rewards .~ [reward]
       |> Project.lens.rewardData.addOns .~ [addOn]
 
     let mockService = MockService(fetchRewardAddOnsSelectionViewRewardsResult: .success(project))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -134,23 +163,27 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.advanceAddOns()
 
-      self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertValues([[.emptyState(.addOnsUnavailable)]])
+      self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertValues([
+        [.emptyState(.addOnsUnavailable)]
+      ])
     }
   }
 
-  func testLoadAddOnRewardsIntoDataSource_Error() {
+  func testLoadAddOnRewardsIntoDataSource_Error() async {
     self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertDidNotEmitValue()
 
-    let reward = Reward.template
+    let reward =
+      Reward.template
       |> Reward.lens.hasAddOns .~ true
 
     let project = Project.template
 
-    let mockService = MockService(fetchRewardAddOnsSelectionViewRewardsResult: .failure(.couldNotParseJSON))
+    let mockService = MockService(
+      fetchRewardAddOnsSelectionViewRewardsResult: .failure(.couldNotParseJSON))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -165,30 +198,35 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.advanceAddOns()
 
-      self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertValues([[.emptyState(.errorPullToRefresh)]])
+      self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertValues([
+        [.emptyState(.errorPullToRefresh)]
+      ])
     }
   }
 
-  func testLoadAddOnRewardsIntoDataSource_Error_SuccessOnRefresh() {
+  func testLoadAddOnRewardsIntoDataSource_Error_SuccessOnRefresh() async {
     self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertDidNotEmitValue()
 
-    let reward = Reward.template
+    let reward =
+      Reward.template
       |> Reward.lens.shipping.enabled .~ false
       |> Reward.lens.shipping.preference .~ Reward.Shipping.Preference.none
       |> Reward.lens.isAvailable .~ true
       |> Reward.lens.hasAddOns .~ true
 
-    let project = Project.template
+    let project =
+      Project.template
       |> Project.lens.rewardData.addOns .~ [reward]
 
-    let mockService1 = MockService(fetchRewardAddOnsSelectionViewRewardsResult: .failure(.couldNotParseJSON))
+    let mockService1 = MockService(
+      fetchRewardAddOnsSelectionViewRewardsResult: .failure(.couldNotParseJSON))
 
     self.startRefreshing.assertDidNotEmitValue()
     self.endRefreshing.assertDidNotEmitValue()
 
-    withEnvironment(apiService: mockService1) {
+    await withEnvironment(apiService: mockService1) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -206,12 +244,14 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       self.startRefreshing.assertValueCount(0)
       self.endRefreshing.assertValueCount(0)
 
-      self.scheduler.advance()
+      await self.advanceAddOns()
 
       self.startRefreshing.assertValueCount(0)
       self.endRefreshing.assertValueCount(1)
 
-      self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertValues([[.emptyState(.errorPullToRefresh)]])
+      self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertValues([
+        [.emptyState(.errorPullToRefresh)]
+      ])
     }
 
     let expected = RewardAddOnCardViewData(
@@ -224,53 +264,58 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
 
     let mockService2 = MockService(fetchRewardAddOnsSelectionViewRewardsResult: .success(project))
 
-    withEnvironment(apiService: mockService2) {
+    await withEnvironment(apiService: mockService2) {
       self.vm.inputs.beginRefresh()
 
       self.startRefreshing.assertValueCount(1)
       self.endRefreshing.assertValueCount(1)
 
-      self.scheduler.advance()
+      await self.advanceAddOns()
 
       self.startRefreshing.assertValueCount(1)
       self.endRefreshing.assertValueCount(2)
 
       self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertValues([
         [.emptyState(.errorPullToRefresh)],
-        [.rewardAddOn(expected)]
+        [.rewardAddOn(expected)],
       ])
     }
   }
 
-  func testLoadAddOnRewardsIntoDataSource_DigitalOnlyBaseReward() {
+  func testLoadAddOnRewardsIntoDataSource_DigitalOnlyBaseReward() async {
     self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertDidNotEmitValue()
 
-    let reward = Reward.template
+    let reward =
+      Reward.template
       |> Reward.lens.id .~ 99
       |> Reward.lens.shipping.enabled .~ false
       |> Reward.lens.shipping.preference .~ Reward.Shipping.Preference.none
       |> Reward.lens.isAvailable .~ true
       |> Reward.lens.hasAddOns .~ true
 
-    let noShippingAddOn = Reward.template
+    let noShippingAddOn =
+      Reward.template
       |> Reward.lens.id .~ 1
       |> Reward.lens.shipping.enabled .~ false
       |> Reward.lens.shipping.preference .~ Reward.Shipping.Preference.none
       |> Reward.lens.isAvailable .~ true
 
-    let shippingAddOn1 = Reward.template
+    let shippingAddOn1 =
+      Reward.template
       |> Reward.lens.id .~ 2
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ Reward.Shipping.Preference.restricted
       |> Reward.lens.isAvailable .~ true
 
-    let shippingAddOn2 = Reward.template
+    let shippingAddOn2 =
+      Reward.template
       |> Reward.lens.id .~ 3
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ Reward.Shipping.Preference.restricted
       |> Reward.lens.isAvailable .~ true
 
-    let project = Project.template
+    let project =
+      Project.template
       |> Project.lens.rewardData.rewards .~ [reward]
       |> Project.lens.rewardData.addOns .~ [shippingAddOn1, noShippingAddOn, shippingAddOn2]
 
@@ -284,7 +329,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
 
     let mockService = MockService(fetchRewardAddOnsSelectionViewRewardsResult: .success(project))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward, noShippingAddOn],
@@ -299,7 +344,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.advanceAddOns()
 
       self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertValues([
         [.rewardAddOn(expected)]
@@ -311,15 +356,17 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     }
   }
 
-  func testLoadAddOnRewardsIntoDataSource_FilteredOutUnavailableUnbackedAddOns() {
+  func testLoadAddOnRewardsIntoDataSource_FilteredOutUnavailableUnbackedAddOns() async {
     self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertDidNotEmitValue()
 
-    let baseReward = Reward.template
+    let baseReward =
+      Reward.template
       |> Reward.lens.id .~ 99
       |> Reward.lens.hasAddOns .~ true
 
     // regular, no limit add-on.
-    let addOn1 = Reward.template
+    let addOn1 =
+      Reward.template
       |> Reward.lens.id .~ 1
       |> Reward.lens.limit .~ nil
       |> Reward.lens.remaining .~ nil
@@ -327,7 +374,8 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       |> Reward.lens.isAvailable .~ true
 
     // timebased add-on, ended 60 secs ago.
-    let addOn2 = Reward.template
+    let addOn2 =
+      Reward.template
       |> Reward.lens.id .~ 2
       |> Reward.lens.limit .~ nil
       |> Reward.lens.remaining .~ nil
@@ -335,20 +383,23 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       |> Reward.lens.isAvailable .~ false
 
     // timebased add-on, ended 60 secs ago (backed).
-    let addOn3 = Reward.template
+    let addOn3 =
+      Reward.template
       |> Reward.lens.id .~ 3
       |> Reward.lens.endsAt .~ (MockDate().timeIntervalSince1970 - 60)
       |> Reward.lens.isAvailable .~ false
 
     // limited, unavailable add-on.
-    let addOn4 = Reward.template
+    let addOn4 =
+      Reward.template
       |> Reward.lens.id .~ 4
       |> Reward.lens.limit .~ 5
       |> Reward.lens.remaining .~ 0
       |> Reward.lens.isAvailable .~ false
 
     // time-based, available add-on, ends in 60 secs.
-    let addOn5 = Reward.template
+    let addOn5 =
+      Reward.template
       |> Reward.lens.id .~ 5
       |> Reward.lens.limit .~ nil
       |> Reward.lens.remaining .~ nil
@@ -356,14 +407,16 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       |> Reward.lens.isAvailable .~ true
 
     // limited, available add-on.
-    let addOn6 = Reward.template
+    let addOn6 =
+      Reward.template
       |> Reward.lens.id .~ 6
       |> Reward.lens.limit .~ 5
       |> Reward.lens.remaining .~ 2
       |> Reward.lens.isAvailable .~ true
 
     // timebased add-on, starts in 60 seconds
-    let addOn7 = Reward.template
+    let addOn7 =
+      Reward.template
       |> Reward.lens.id .~ 7
       |> Reward.lens.limit .~ nil
       |> Reward.lens.remaining .~ nil
@@ -371,7 +424,8 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       |> Reward.lens.isAvailable .~ false
 
     // timebased add-on, started 60 seconds ago.
-    let addOn8 = Reward.template
+    let addOn8 =
+      Reward.template
       |> Reward.lens.id .~ 8
       |> Reward.lens.limit .~ nil
       |> Reward.lens.remaining .~ nil
@@ -379,7 +433,8 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       |> Reward.lens.isAvailable .~ true
 
     // timebased add-on, both startsAt and endsAt are within a valid range
-    let addOn9 = Reward.template
+    let addOn9 =
+      Reward.template
       |> Reward.lens.id .~ 9
       |> Reward.lens.limit .~ nil
       |> Reward.lens.remaining .~ nil
@@ -388,7 +443,8 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       |> Reward.lens.isAvailable .~ true
 
     // timebased add-on, invalid range
-    let addOn10 = Reward.template
+    let addOn10 =
+      Reward.template
       |> Reward.lens.id .~ 10
       |> Reward.lens.limit .~ nil
       |> Reward.lens.remaining .~ nil
@@ -396,20 +452,21 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       |> Reward.lens.endsAt .~ (MockDate().timeIntervalSince1970 + 60)
       |> Reward.lens.isAvailable .~ false
 
-    let project = Project.template
+    let project =
+      Project.template
       |> Project.lens.rewardData.rewards .~ [baseReward]
       |> Project.lens.rewardData
       .addOns .~ [addOn1, addOn2, addOn3, addOn4, addOn5, addOn6, addOn7, addOn8, addOn9, addOn10]
-      |> Project.lens.personalization.backing .~ (
-        .template
-          |> Backing.lens.addOns .~ [addOn3]
-          |> Backing.lens.reward .~ baseReward
-          |> Backing.lens.rewardId .~ baseReward.id
-      )
+      |> Project.lens.personalization.backing
+      .~ (.template
+        |> Backing.lens.addOns .~ [addOn3]
+        |> Backing.lens.reward .~ baseReward
+        |> Backing.lens.rewardId .~ baseReward.id)
 
     let expectedAddOns = [addOn1, addOn3, addOn5, addOn6, addOn8, addOn9]
 
-    let expected = expectedAddOns
+    let expected =
+      expectedAddOns
       .map { reward in
         RewardAddOnCardViewData(
           project: project,
@@ -423,7 +480,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
 
     let mockService = MockService(fetchRewardAddOnsSelectionViewRewardsResult: .success(project))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let data = PledgeViewData(
         project: project,
         rewards: [baseReward],
@@ -438,49 +495,55 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.advanceAddOns()
 
       self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertValues([expected])
     }
   }
 
-  func testLoadAddOnRewardsIntoDataSource_UnrestrictedShippingBaseReward() {
+  func testLoadAddOnRewardsIntoDataSource_UnrestrictedShippingBaseReward() async {
     self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertDidNotEmitValue()
 
-    let shippingRule = ShippingRule.template
+    let shippingRule =
+      ShippingRule.template
       |> ShippingRule.lens.location .~ (.template |> Location.lens.id .~ 8)
 
-    let reward = Reward.template
+    let reward =
+      Reward.template
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.id .~ 99
       |> Reward.lens.hasAddOns .~ true
 
-    let noShippingAddOn = Reward.template
+    let noShippingAddOn =
+      Reward.template
       |> Reward.lens.id .~ 1
       |> Reward.lens.shipping.enabled .~ false
       |> Reward.lens.shipping.preference .~ Reward.Shipping.Preference.none
       |> Reward.lens.isAvailable .~ true
 
-    let shippingAddOn1 = Reward.template
+    let shippingAddOn1 =
+      Reward.template
       |> Reward.lens.id .~ 2
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shippingRulesExpanded .~ [
         shippingRule,
-        shippingRule |> ShippingRule.lens.location .~ (.template |> Location.lens.id .~ 99)
+        shippingRule |> ShippingRule.lens.location .~ (.template |> Location.lens.id .~ 99),
       ]
       |> Reward.lens.isAvailable .~ true
 
-    let shippingAddOn2 = Reward.template
+    let shippingAddOn2 =
+      Reward.template
       |> Reward.lens.id .~ 3
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shippingRulesExpanded .~ [
         shippingRule,
-        shippingRule |> ShippingRule.lens.location .~ (.template |> Location.lens.id .~ 99)
+        shippingRule |> ShippingRule.lens.location .~ (.template |> Location.lens.id .~ 99),
       ]
       |> Reward.lens.isAvailable .~ true
 
-    let shippingAddOn3 = Reward.template
+    let shippingAddOn3 =
+      Reward.template
       |> Reward.lens.id .~ 4
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shippingRulesExpanded .~ [
@@ -488,25 +551,28 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       ]
       |> Reward.lens.isAvailable .~ true
 
-    let shippingAddOn4 = Reward.template
+    let shippingAddOn4 =
+      Reward.template
       |> Reward.lens.id .~ 5
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
       |> Reward.lens.isAvailable .~ true
 
-    let project = Project.template
+    let project =
+      Project.template
       |> Project.lens.rewardData.rewards .~ [reward]
       |> Project.lens.rewardData.addOns .~ [
         shippingAddOn1,
         noShippingAddOn,
         shippingAddOn2,
         shippingAddOn3,
-        shippingAddOn4
+        shippingAddOn4,
       ]
 
     let expectedAddOns = [shippingAddOn1, noShippingAddOn, shippingAddOn2, shippingAddOn4]
 
-    let expected = expectedAddOns
+    let expected =
+      expectedAddOns
       .map { reward in
         RewardAddOnCardViewData(
           project: project,
@@ -520,7 +586,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
 
     let mockService = MockService(fetchRewardAddOnsSelectionViewRewardsResult: .success(project))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -539,7 +605,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
         "Nothing is emitted until a shipping location is selected"
       )
 
-      self.scheduler.advance()
+      await self.advanceAddOns()
 
       self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertValues([expected])
       XCTAssertEqual(
@@ -552,39 +618,45 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     }
   }
 
-  func testLoadAddOnRewardsIntoDataSource_RestrictedShippingBaseReward() {
+  func testLoadAddOnRewardsIntoDataSource_RestrictedShippingBaseReward() async {
     self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertDidNotEmitValue()
 
-    let shippingRule = ShippingRule.template
+    let shippingRule =
+      ShippingRule.template
       |> ShippingRule.lens.location .~ (.template |> Location.lens.id .~ 99)
 
-    let reward = Reward.template
+    let reward =
+      Reward.template
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .restricted
       |> Reward.lens.id .~ 99
       |> Reward.lens.isAvailable .~ true
       |> Reward.lens.hasAddOns .~ true
 
-    let noShippingAddOn = Reward.template
+    let noShippingAddOn =
+      Reward.template
       |> Reward.lens.id .~ 1
       |> Reward.lens.shipping.enabled .~ false
       |> Reward.lens.shipping.preference .~ Reward.Shipping.Preference.none
       |> Reward.lens.isAvailable .~ true
 
-    let shippingAddOn1 = Reward.template
+    let shippingAddOn1 =
+      Reward.template
       |> Reward.lens.id .~ 2
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
       |> Reward.lens.isAvailable .~ true
 
-    let shippingAddOn2 = Reward.template
+    let shippingAddOn2 =
+      Reward.template
       |> Reward.lens.id .~ 3
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
       |> Reward.lens.isAvailable .~ true
       |> Reward.lens.isAvailable .~ true
 
-    let shippingAddOn3 = Reward.template
+    let shippingAddOn3 =
+      Reward.template
       |> Reward.lens.id .~ 4
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shippingRulesExpanded .~ [
@@ -592,24 +664,27 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       ]
       |> Reward.lens.isAvailable .~ true
 
-    let shippingAddOn4 = Reward.template
+    let shippingAddOn4 =
+      Reward.template
       |> Reward.lens.id .~ 5
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.isAvailable .~ true
 
-    let project = Project.template
+    let project =
+      Project.template
       |> Project.lens.rewardData.rewards .~ [reward]
       |> Project.lens.rewardData.addOns .~ [
         shippingAddOn1,
         noShippingAddOn,
         shippingAddOn2,
         shippingAddOn3,
-        shippingAddOn4
+        shippingAddOn4,
       ]
 
     let expectedAddOns = [shippingAddOn1, noShippingAddOn, shippingAddOn2]
 
-    let expected = expectedAddOns
+    let expected =
+      expectedAddOns
       .map { reward in
         RewardAddOnCardViewData(
           project: project,
@@ -623,7 +698,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
 
     let mockService = MockService(fetchRewardAddOnsSelectionViewRewardsResult: .success(project))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -642,7 +717,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
         "Nothing is emitted until a shipping location is selected"
       )
 
-      self.scheduler.advance()
+      await self.advanceAddOns()
 
       self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertValues([expected])
       XCTAssertEqual(
@@ -655,19 +730,24 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     }
   }
 
-  func testLoadAddOnRewardsIntoDataSource_RestrictedShippingBaseReward_MatchBasedOnAddOnLocation() {
+  func testLoadAddOnRewardsIntoDataSource_RestrictedShippingBaseReward_MatchBasedOnAddOnLocation()
+    async
+  {
     self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertDidNotEmitValue()
 
-    let shippingRule = ShippingRule.template
+    let shippingRule =
+      ShippingRule.template
       |> ShippingRule.lens.location .~ (.template |> Location.lens.id .~ 99)
 
-    let reward = Reward.template
+    let reward =
+      Reward.template
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .restricted
       |> Reward.lens.isAvailable .~ true
       |> Reward.lens.hasAddOns .~ true
 
-    let shippingAddOn1 = Reward.template
+    let shippingAddOn1 =
+      Reward.template
       |> Reward.lens.id .~ 2
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shippingRulesExpanded .~ [
@@ -675,7 +755,8 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       ]
       |> Reward.lens.isAvailable .~ true
 
-    let shippingAddOn2 = Reward.template
+    let shippingAddOn2 =
+      Reward.template
       |> Reward.lens.id .~ 3
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shippingRulesExpanded .~ [
@@ -683,7 +764,8 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       ]
       |> Reward.lens.isAvailable .~ true
 
-    let shippingAddOn3 = Reward.template
+    let shippingAddOn3 =
+      Reward.template
       |> Reward.lens.id .~ 4
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shippingRulesExpanded .~ [
@@ -691,7 +773,8 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       ]
       |> Reward.lens.isAvailable .~ true
 
-    let shippingAddOn4 = Reward.template
+    let shippingAddOn4 =
+      Reward.template
       |> Reward.lens.id .~ 5
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shippingRulesExpanded .~ [
@@ -699,18 +782,20 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       ]
       |> Reward.lens.isAvailable .~ true
 
-    let project = Project.template
+    let project =
+      Project.template
       |> Project.lens.rewardData.rewards .~ [reward]
       |> Project.lens.rewardData.addOns .~ [
         shippingAddOn1,
         shippingAddOn2,
         shippingAddOn3,
-        shippingAddOn4
+        shippingAddOn4,
       ]
 
     let expectedAddOns = [shippingAddOn1, shippingAddOn2]
 
-    let expected = expectedAddOns
+    let expected =
+      expectedAddOns
       .map { addOn in
         RewardAddOnCardViewData(
           project: project,
@@ -724,7 +809,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
 
     let mockService = MockService(fetchRewardAddOnsSelectionViewRewardsResult: .success(project))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -743,7 +828,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
         "Nothing is emitted until a shipping location is selected"
       )
 
-      self.scheduler.advance()
+      await self.advanceAddOns()
 
       self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertValues([expected])
       XCTAssertEqual(
@@ -753,16 +838,18 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     }
   }
 
-  func testUpdatingQuantities() {
+  func testUpdatingQuantities() async {
     self.configureContinueCTAViewWithDataQuantity.assertDidNotEmitValue()
     self.configureContinueCTAViewWithDataIsValid.assertDidNotEmitValue()
     self.loadAddOnRewardsIntoDataSource.assertDidNotEmitValue()
     self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertDidNotEmitValue()
 
-    let shippingRule = ShippingRule.template
+    let shippingRule =
+      ShippingRule.template
       |> ShippingRule.lens.location .~ (.template |> Location.lens.id .~ 99)
 
-    let reward = Reward.template
+    let reward =
+      Reward.template
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.id .~ 99
@@ -770,35 +857,40 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       |> Reward.lens.hasAddOns .~ true
       |> Reward.lens.pledgeAmount .~ 10.0
 
-    let addOn1 = Reward.template
+    let addOn1 =
+      Reward.template
       |> Reward.lens.id .~ 1
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
       |> Reward.lens.isAvailable .~ true
 
-    let addOn2 = Reward.template
+    let addOn2 =
+      Reward.template
       |> Reward.lens.id .~ 2
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
       |> Reward.lens.isAvailable .~ true
 
-    let addOn3 = Reward.template
+    let addOn3 =
+      Reward.template
       |> Reward.lens.id .~ 3
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
       |> Reward.lens.isAvailable .~ true
 
-    let addOn4 = Reward.template
+    let addOn4 =
+      Reward.template
       |> Reward.lens.id .~ 4
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
       |> Reward.lens.isAvailable .~ true
 
-    let project = Project.template
+    let project =
+      Project.template
       |> Project.lens.rewardData.rewards .~ [reward]
       |> Project.lens.rewardData.addOns .~ [addOn1, addOn2, addOn3, addOn4]
 
@@ -823,7 +915,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     self.loadAddOnRewardsIntoDataSource.assertDidNotEmitValue()
     self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertDidNotEmitValue()
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -846,7 +938,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
         "Nothing is emitted until a shipping location is selected"
       )
 
-      self.scheduler.advance()
+      await self.advanceAddOns()
 
       self.loadAddOnRewardsIntoDataSource.assertDidNotEmitValue()
       self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertValues([expected])
@@ -878,7 +970,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     }
   }
 
-  func testUpdatingQuantities_ProjectBacked() {
+  func testUpdatingQuantities_ProjectBacked() async {
     self.configureContinueCTAViewWithDataQuantity.assertDidNotEmitValue()
     self.configureContinueCTAViewWithDataIsValid.assertDidNotEmitValue()
     self.loadAddOnRewardsIntoDataSource.assertDidNotEmitValue()
@@ -886,58 +978,64 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
 
     let bonusAmount = 680.0
 
-    let shippingRule = ShippingRule.template
+    let shippingRule =
+      ShippingRule.template
       |> ShippingRule.lens.location .~ (.template |> Location.lens.id .~ 99)
 
-    let reward = Reward.template
+    let reward =
+      Reward.template
       |> Reward.lens.id .~ 99
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.isAvailable .~ true
       |> Reward.lens.hasAddOns .~ true
 
-    let addOn1 = Reward.template
+    let addOn1 =
+      Reward.template
       |> Reward.lens.id .~ 1
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
       |> Reward.lens.isAvailable .~ true
 
-    let addOn2 = Reward.template
+    let addOn2 =
+      Reward.template
       |> Reward.lens.id .~ 2
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
       |> Reward.lens.isAvailable .~ true
 
-    let addOn3 = Reward.template
+    let addOn3 =
+      Reward.template
       |> Reward.lens.id .~ 3
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
       |> Reward.lens.isAvailable .~ true
 
-    let addOn4 = Reward.template
+    let addOn4 =
+      Reward.template
       |> Reward.lens.id .~ 4
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
       |> Reward.lens.isAvailable .~ true
 
-    let project = Project.template
+    let project =
+      Project.template
       |> Project.lens.rewardData.rewards .~ [reward]
       |> Project.lens.rewardData.addOns .~ [addOn1, addOn2, addOn3, addOn4]
-      |> Project.lens.personalization.backing .~ (
-        .template
-          |> Backing.lens.paymentSource .~ Backing.PaymentSource.template
-          |> Backing.lens.status .~ .pledged
-          |> Backing.lens.addOns .~ [addOn1, addOn1, addOn2]
-          |> Backing.lens.reward .~ reward
-          |> Backing.lens.rewardId .~ reward.id
-          |> Backing.lens.locationId .~ shippingRule.location.id
-          |> Backing.lens.bonusAmount .~ bonusAmount
-          |> Backing.lens.amount .~ 690.0
-      )
+      |> Project.lens.personalization.backing
+      .~ (.template
+        |> Backing.lens.paymentSource .~ Backing.PaymentSource.template
+        |> Backing.lens.status .~ .pledged
+        |> Backing.lens.addOns .~ [addOn1, addOn1, addOn2]
+        |> Backing.lens.reward .~ reward
+        |> Backing.lens.rewardId .~ reward.id
+        |> Backing.lens.locationId .~ shippingRule.location.id
+        |> Backing.lens.bonusAmount .~ bonusAmount
+        |> Backing.lens.amount .~ 690.0)
 
     let expected = [addOn1, addOn2, addOn3, addOn4].map { addOn in
       RewardAddOnCardViewData(
@@ -948,7 +1046,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
         selectedQuantities: [
           addOn1.id: 2,
           addOn2.id: 1,
-          reward.id: 1
+          reward.id: 1,
         ]
       )
     }
@@ -963,7 +1061,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     self.loadAddOnRewardsIntoDataSource.assertDidNotEmitValue()
     self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertDidNotEmitValue()
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -982,7 +1080,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
         "Nothing is emitted until a shipping location is selected"
       )
 
-      self.scheduler.advance()
+      await self.advanceAddOns()
 
       // Validate and set bonus support
       XCTAssertEqual(self.configurePledgeAmountViewWithData.lastValue?.currentAmount, bonusAmount)
@@ -990,7 +1088,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
         PledgeAmountData(amount: bonusAmount, min: 0, max: 10_000, isValid: true)
       self.vm.inputs.pledgeAmountViewControllerDidUpdate(with: pledgeAmountData)
 
-      self.scheduler.advance()
+      await self.advanceAddOns()
 
       self.loadAddOnRewardsIntoDataSource.assertDidNotEmitValue()
       self.loadAddOnRewardsIntoDataSourceAndReloadTableView.assertValues([expected])
@@ -1001,7 +1099,8 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       self.configureContinueCTAViewWithDataQuantity.assertValues([0, 3])
       self.configureContinueCTAViewWithDataIsValid.assertValues([true, false])
       self.configureContinueCTAViewWithDataIsLoading.assertValues([true, false])
-      XCTAssertEqual(self.configureContinueCTAViewWithDataPledgeAmount.lastValue??.string, "$720.00")
+      XCTAssertEqual(
+        self.configureContinueCTAViewWithDataPledgeAmount.lastValue??.string, "$720.00")
 
       self.vm.inputs.rewardAddOnCardViewDidSelectQuantity(quantity: 5, rewardId: 1)
 
@@ -1018,44 +1117,52 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
       self.configureContinueCTAViewWithDataQuantity.assertLastValue(6)
       self.configureContinueCTAViewWithDataIsValid.assertLastValue(true)
       self.configureContinueCTAViewWithDataIsLoading.assertLastValue(false)
-      XCTAssertEqual(self.configureContinueCTAViewWithDataPledgeAmount.lastValue??.string, "$750.00")
+      XCTAssertEqual(
+        self.configureContinueCTAViewWithDataPledgeAmount.lastValue??.string, "$750.00")
     }
   }
 
-  func testGoToPledge_AddOnsSkipped() {
-    let shippingRule = ShippingRule.template
+  func testGoToPledge_AddOnsSkipped() async {
+    let shippingRule =
+      ShippingRule.template
       |> ShippingRule.lens.location .~ (.template |> Location.lens.id .~ 99)
 
-    let reward = Reward.template
+    let reward =
+      Reward.template
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.id .~ 99
 
-    let addOn1 = Reward.template
+    let addOn1 =
+      Reward.template
       |> Reward.lens.id .~ 1
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
 
-    let addOn2 = Reward.template
+    let addOn2 =
+      Reward.template
       |> Reward.lens.id .~ 2
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
 
-    let addOn3 = Reward.template
+    let addOn3 =
+      Reward.template
       |> Reward.lens.id .~ 3
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
 
-    let addOn4 = Reward.template
+    let addOn4 =
+      Reward.template
       |> Reward.lens.id .~ 4
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
 
-    let project = Project.template
+    let project =
+      Project.template
       |> Project.lens.rewardData.rewards .~ [reward]
       |> Project.lens.rewardData.addOns .~ [addOn1, addOn2, addOn3, addOn4]
 
@@ -1078,10 +1185,11 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     self.vm.inputs.configure(with: data)
     self.vm.inputs.viewDidLoad()
 
-    self.scheduler.advance()
+    await self.advanceAddOns()
 
     XCTAssertEqual(["Page Viewed"], self.segmentTrackingClient.events)
-    XCTAssertEqual("add_ons", self.segmentTrackingClient.properties.last?["context_page"] as? String)
+    XCTAssertEqual(
+      "add_ons", self.segmentTrackingClient.properties.last?["context_page"] as? String)
 
     self.vm.inputs.continueButtonTapped()
 
@@ -1108,45 +1216,52 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     self.goToPledge.assertValues([expectedGoToPledgeData])
   }
 
-  func testGoToPledge_AddOnsAndBonus() {
-    let shippingRule = ShippingRule.template
+  func testGoToPledge_AddOnsAndBonus() async {
+    let shippingRule =
+      ShippingRule.template
       |> ShippingRule.lens.location .~ (.template |> Location.lens.id .~ 99)
 
-    let reward = Reward.template
+    let reward =
+      Reward.template
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.id .~ 99
       |> Reward.lens.hasAddOns .~ true
 
-    let addOn1 = Reward.template
+    let addOn1 =
+      Reward.template
       |> Reward.lens.id .~ 1
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
       |> Reward.lens.isAvailable .~ true
 
-    let addOn2 = Reward.template
+    let addOn2 =
+      Reward.template
       |> Reward.lens.id .~ 2
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
       |> Reward.lens.isAvailable .~ true
 
-    let addOn3 = Reward.template
+    let addOn3 =
+      Reward.template
       |> Reward.lens.id .~ 3
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
       |> Reward.lens.isAvailable .~ true
 
-    let addOn4 = Reward.template
+    let addOn4 =
+      Reward.template
       |> Reward.lens.id .~ 4
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.shippingRulesExpanded .~ [shippingRule]
       |> Reward.lens.isAvailable .~ true
 
-    let project = Project.template
+    let project =
+      Project.template
       |> Project.lens.rewardData.rewards .~ [reward]
       |> Project.lens.rewardData.addOns .~ [addOn1, addOn2, addOn3, addOn4]
 
@@ -1169,10 +1284,11 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     self.vm.inputs.configure(with: data)
     self.vm.inputs.viewDidLoad()
 
-    self.scheduler.advance()
+    await self.advanceAddOns()
 
     XCTAssertEqual(["Page Viewed"], self.segmentTrackingClient.events)
-    XCTAssertEqual("add_ons", self.segmentTrackingClient.properties.last?["context_page"] as? String)
+    XCTAssertEqual(
+      "add_ons", self.segmentTrackingClient.properties.last?["context_page"] as? String)
 
     self.vm.inputs.rewardAddOnCardViewDidSelectQuantity(quantity: 3, rewardId: 2)
     self.vm.inputs.rewardAddOnCardViewDidSelectQuantity(quantity: 2, rewardId: 1)
@@ -1216,10 +1332,11 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     XCTAssertEqual(self.goToPledge.values.last?.context, .pledge)
   }
 
-  func testGoToPledge_NoReward() {
+  func testGoToPledge_NoReward() async {
     let reward = Reward.noReward
 
-    let project = Project.template
+    let project =
+      Project.template
       |> Project.lens.rewardData.rewards .~ [reward]
 
     let mockService = MockService(fetchRewardAddOnsSelectionViewRewardsResult: .success(project))
@@ -1241,7 +1358,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     self.vm.inputs.configure(with: data)
     self.vm.inputs.viewDidLoad()
 
-    self.scheduler.advance()
+    await self.advanceAddOns()
 
     self.goToPledge.assertValueCount(0)
 
@@ -1252,16 +1369,19 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     XCTAssertEqual(self.goToPledge.values.last?.rewards.count, 1)
   }
 
-  func testGoToPledge_NoAddOns() {
-    let shippingRule = ShippingRule.template
+  func testGoToPledge_NoAddOns() async {
+    let shippingRule =
+      ShippingRule.template
       |> ShippingRule.lens.location .~ (.template |> Location.lens.id .~ 99)
 
-    let reward = Reward.template
+    let reward =
+      Reward.template
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.shipping.preference .~ .unrestricted
       |> Reward.lens.id .~ 99
 
-    let project = Project.template
+    let project =
+      Project.template
       |> Project.lens.rewardData.rewards .~ [reward]
 
     let mockService = MockService(fetchRewardAddOnsSelectionViewRewardsResult: .success(project))
@@ -1283,7 +1403,7 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     self.vm.inputs.configure(with: data)
     self.vm.inputs.viewDidLoad()
 
-    self.scheduler.advance()
+    await self.advanceAddOns()
 
     let bonusAmount = 20.0
     let pledgeAmountData = PledgeAmountData(
