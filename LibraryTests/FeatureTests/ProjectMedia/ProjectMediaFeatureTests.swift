@@ -10,6 +10,119 @@ import XCTest
 final class ProjectMediaFeatureTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
+  func testOrdinaryAndVideoSavesShareTheMutationQueueAndCache() async throws {
+    let provider = ControlledMediaProvider()
+    provider.pauseWatch = true
+    defer { provider.releaseAll() }
+    let project = Project.template
+    provider.feedItems = [ControlledMediaProvider.item(project.graphID)]
+    let feature = ProjectMediaFeature(makeProvider: { provider })
+    let route = UUID()
+    await feature.loadFeed(route: route)
+    let intent = feature.prepareWatch(projectID: project.graphID, watched: true, previous: false)
+    var received = 0
+    let observation = feature.watchResult(project: project, intent: intent).startWithValues { _ in received += 1 }
+    defer { observation.dispose() }
+    await provider.waitForWatches(1)
+    let duplicate = feature.toggleSaved(route: route, projectID: project.graphID)
+    XCTAssertEqual(provider.watches.count, 1)
+    let unsave = feature.toggleSaved(route: route, projectID: project.graphID)
+    try provider.finishWatch(0)
+    await provider.waitForWatches(2)
+    XCTAssertEqual(provider.watches.map(\.watched), [true, false])
+    try provider.finishWatch(1)
+    await duplicate?.value
+    await unsave?.value
+    await feature.waitForOperations()
+    await self.scheduler.advance()
+    XCTAssertEqual(received, 0, "Newer video intent supersedes the older button response")
+    XCTAssertEqual(feature.cached(project).personalization.isStarred, false)
+    XCTAssertFalse(feature.feedState(route: route).items[0].isSaved)
+  }
+
+  func testDisposedSaveObservationStillSettlesAdmittedWrite() async throws {
+    let provider = ControlledMediaProvider()
+    provider.pauseWatch = true
+    defer { provider.releaseAll() }
+    let feature = ProjectMediaFeature(makeProvider: { provider })
+    let project = Project.template
+    let intent = feature.prepareWatch(projectID: project.graphID, watched: true, previous: false)
+    var received = false
+    let observation = feature.watchResult(project: project, intent: intent).startWithValues { _ in received = true }
+    await provider.waitForWatches(1)
+    observation.dispose()
+    try provider.finishWatch(0)
+    await feature.waitForOperations()
+    await self.scheduler.advance()
+    XCTAssertFalse(received)
+    XCTAssertEqual(feature.cached(project).personalization.isStarred, true)
+  }
+
+  func testNewerSaveIntentCannotBeRolledBackByEarlierFailure() async throws {
+    let provider = ControlledMediaProvider()
+    provider.pauseWatch = true
+    defer { provider.releaseAll() }
+    let feature = ProjectMediaFeature(makeProvider: { provider })
+    let project = Project.template
+    let first = feature.prepareWatch(projectID: project.graphID, watched: true, previous: false)
+    let request = feature.submitWatch(first)
+    await provider.waitForWatches(1)
+    let second = feature.prepareWatch(projectID: project.graphID, watched: false, previous: true)
+    let next = feature.submitWatch(second)
+    try provider.finishWatch(0, failure: true)
+    _ = await request.result
+    await provider.waitForWatches(2)
+    XCTAssertEqual(feature.cached(project).personalization.isStarred, false)
+    try provider.finishWatch(1)
+    _ = try await next.value
+  }
+
+  func testSameUserSessionReplacementRejectsSaveCompletion() async throws {
+    let provider = ControlledMediaProvider()
+    provider.pauseWatch = true
+    defer { provider.releaseAll() }
+    let feature = ProjectMediaFeature(makeProvider: { provider })
+    let project = Project.template
+    let intent = feature.prepareWatch(projectID: project.graphID, watched: true, previous: false)
+    let task = feature.submitWatch(intent)
+    await provider.waitForWatches(1)
+    feature.sessionFeature.sessionChanged()
+    try provider.finishWatch(0)
+    do { _ = try await task.value; XCTFail("Old session must not commit") }
+    catch { XCTAssertTrue(error is CancellationError) }
+    XCTAssertFalse(feature.cached(project).personalization.isStarred ?? false)
+  }
+
+  func testReusedCellDiscardsDebouncedRequestAndItsOptimisticCache() async {
+    let provider = ControlledMediaProvider()
+    let feature = ProjectMediaFeature(makeProvider: { provider })
+    let vm = WatchProjectViewModel(feature: feature)
+    await withEnvironment(currentUser: .template) {
+      let original = Project.template
+      var replacement = original
+      replacement.id += 1
+      vm.configure(with: (original, .project, nil))
+      vm.viewDidLoad()
+      vm.saveButtonTapped(selected: false)
+      XCTAssertEqual(feature.cached(original).personalization.isStarred, true)
+      vm.configure(with: (replacement, .project, nil))
+      await self.scheduler.advance(by: .seconds(1))
+      await feature.waitForOperations()
+      XCTAssertTrue(provider.watches.isEmpty)
+      XCTAssertEqual(feature.cached(original).personalization.isStarred, false)
+    }
+  }
+
+  func testCancellingOldPreparationDoesNotRevertNewerIntent() {
+    let provider = ControlledMediaProvider()
+    let feature = ProjectMediaFeature(makeProvider: { provider })
+    let project = Project.template
+    let old = feature.prepareWatch(projectID: project.graphID, watched: true, previous: false)
+    _ = feature.prepareWatch(projectID: project.graphID, watched: false, previous: true)
+    feature.cancelPreparedWatch(old)
+    XCTAssertEqual(feature.cached(project).personalization.isStarred, false)
+  }
+
   func testFeedObservationPublishesInitialFlagBeforeReloadAndSaveDoesNotReload() async {
     let provider = ControlledMediaProvider()
     let feature = ProjectMediaFeature(makeProvider: { provider })
@@ -296,13 +409,14 @@ private final class ControlledMediaProvider: ProjectMediaProvider {
     }
   }
 
-  func setWatched(id: String, watched: Bool) async throws {
+  func setWatched(id: String, watched: Bool) async throws -> WatchProjectResponseEnvelope {
     self.watches.append((id, watched))
-    if !self.pauseWatch { return }
+    if !self.pauseWatch { return watched ? .watchTemplate : .unwatchTemplate }
     try await withCheckedThrowingContinuation { continuation in
       self.pendingWatches.append(continuation)
       for (count, expectation) in self.watchWaits where count == self.watches.count { expectation.fulfill() }
     }
+    return watched ? .watchTemplate : .unwatchTemplate
   }
 
   func waitForFeeds(_ count: Int) async {

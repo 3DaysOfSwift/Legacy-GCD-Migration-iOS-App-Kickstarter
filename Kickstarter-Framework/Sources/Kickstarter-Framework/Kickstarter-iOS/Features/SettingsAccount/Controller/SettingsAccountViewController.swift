@@ -11,9 +11,7 @@ final class SettingsAccountViewController: UIViewController, MessageBannerViewCo
   private let dataSource = SettingsAccountDataSource()
   internal var messageBannerViewController: MessageBannerViewController?
 
-  fileprivate let viewModel: SettingsAccountViewModelType = SettingsAccountViewModel(
-    SettingsAccountViewController.viewController(for:currency:)
-  )
+  fileprivate let viewModel: SettingsAccountViewModelType = SettingsAccountViewModel()
 
   internal static func instantiate() -> SettingsAccountViewController {
     return Storyboard.Settings.instantiate(SettingsAccountViewController.self)
@@ -84,7 +82,8 @@ final class SettingsAccountViewController: UIViewController, MessageBannerViewCo
 
     self.viewModel.outputs.transitionToViewController
       .observeForControllerAction()
-      .observeValues { [weak self] viewController in
+      .observeValues { [weak self] cellType, currency in
+        guard let viewController = Self.viewController(for: cellType, currency: currency) else { return }
         self?.navigationController?.pushViewController(viewController, animated: true)
       }
   }

@@ -1,5 +1,34 @@
 # Kickstarter migration behaviour contract
 
+## Saved projects, reporting and account fields — 28 October 2026
+
+- SAVE-01: Keep login gating, the 500ms debounce, optimistic selection, notification
+  payloads, counts, saved-project prompts, accessibility, haptics and analytics.
+- SAVE-02: Ordinary buttons and video-feed saves share ProjectMediaFeature's native
+  queue and transient cache. Equivalent pending writes share; changed desired states
+  execute in order per session/project. No automatic mutation retry is introduced.
+- SAVE-03: Reused cells discard unadmitted debounced requests and their optimistic
+  cache entry. Disposed observers do not cancel admitted mutations. Latest-intent
+  and session-generation checks reject obsolete rollback, cache and UI results.
+- REPORT-01: Keep option hierarchy, labels, email display, details, banners and
+  dismissal behavior. ProjectReportingFeature owns these requests; screen-owned read tasks cancel on disappearance.
+- REPORT-02: Equivalent pending reports share; different reports execute in session
+  order. Missing context fails gracefully rather than force-unwrapping. Send is
+  disabled and its existing spinner is active while submission is pending; explicit
+  retry is restored on failure. Cancellation never claims to undo an accepted report.
+- ACCOUNT-01: Account fields use SettingsFeature's shared async read, which waits
+  for admitted account edits. Retain refresh timing, currency/email/warning/password
+  decisions and navigation. Delayed output and deferred admission retain session
+  identity. Controllers construct destinations; the ViewModel receives only a Feature.
+- ACTION-01: Public-demo reporting and save writes fail explicitly. Live mutations,
+  visual parity and physical-device behavior remain separate unverified gates.
+
+Baseline: 30 original logic tests passed (23 saving/reporting, 7 account fields).
+Original behavior assertions are retained with explicit async waits; one unsave
+fixture now supplies an unsave response instead of silently completing without data.
+The report submit spinner activates an existing loading control during the request;
+this small pending-state correction is explicit, not a screen redesign.
+
 ## Friends and following — 28 October 2026
 
 - FRIEND-01: Preserve Facebook connection gating, source attribution, friend order,

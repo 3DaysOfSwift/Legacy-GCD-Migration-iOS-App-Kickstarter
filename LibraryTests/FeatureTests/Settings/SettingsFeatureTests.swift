@@ -328,6 +328,30 @@ private final class PreferencesFixture {
 
 @MainActor
 extension SettingsFeatureTests {
+  func testDeferredEmailObservationCannotStartUnderReplacementSession() async {
+    let fixture = AccountWritesFixture()
+    let producer = fixture.feature.emailUserResult()
+    fixture.session.sessionChanged()
+    var received = false
+    let observation = producer.startWithResult { _ in received = true }
+    defer { observation.dispose(); fixture.provider.emails.releaseAll() }
+    await fixture.feature.waitForOperations()
+    XCTAssertEqual(fixture.provider.emails.count, 0)
+    XCTAssertFalse(received)
+  }
+
+  func testDisposedAccountFieldsReadCannotPublishLateValue() async throws {
+    let fixture = AccountWritesFixture()
+    defer { fixture.provider.emails.releaseAll() }
+    var received = false
+    let observation = fixture.feature.accountFieldsResult().startWithResult { _ in received = true }
+    await fixture.provider.emails.waitFor(1)
+    observation.dispose()
+    try fixture.provider.emails.finish(0, .success(.template))
+    await fixture.feature.waitForOperations()
+    XCTAssertFalse(received)
+  }
+
   func testEmailLookupSharesAndAccountEditRejectsLateResult() async throws {
     let fixture = AccountWritesFixture()
     defer { fixture.provider.emails.releaseAll(); fixture.provider.gate.releaseAll() }

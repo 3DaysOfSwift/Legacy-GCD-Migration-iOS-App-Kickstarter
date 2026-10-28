@@ -1157,7 +1157,7 @@
     @MainActor public func setProjectWatched(
       id: String, watched: Bool
     ) async throws -> WatchProjectResponseEnvelope {
-      try Task.checkCancellation()
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
       guard let result = watched ? self.watchProjectMutationResult : self.unwatchProjectMutationResult
       else { throw ErrorEnvelope.couldNotParseJSON }
       return try result.get()
@@ -1335,7 +1335,18 @@
       return client.fetchWithResult(query: fetchGraphCategoriesQuery, result: self.fetchGraphCategoriesResult)
     }
 
+    @MainActor public func reportingEmail() async throws -> String? {
+      try Task.checkCancellation()
+      guard let result = self.fetchGraphUserEmailResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get().me.email
+    }
+
+    @MainActor public func submitProjectReport(input: CreateFlaggingInput) async throws {
+      try self.completeAccountWrite(self.createFlaggingResult)
+    }
+
     func fetchProjectFlaggingOptions() async throws -> [ReportProjectInfoListItem] {
+      try Task.checkCancellation()
       switch self.fetchFlaggingOptionsResult {
       case let .success(data):
         return ReportProjectInfoListItem.items(from: data)

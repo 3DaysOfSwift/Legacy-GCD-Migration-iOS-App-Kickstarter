@@ -9,6 +9,7 @@ public typealias WatchProjectValue = (
   discoveryParams: DiscoveryParams?
 )
 
+@MainActor
 public protocol WatchProjectViewModelInputs {
   func awakeFromNib()
   func configure(with value: WatchProjectValue)
@@ -20,6 +21,7 @@ public protocol WatchProjectViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol WatchProjectViewModelOutputs {
   /// Emits when haptic feedback should be generated
   var generateImpactFeedback: Signal<(), Never> { get }
@@ -49,14 +51,20 @@ public protocol WatchProjectViewModelOutputs {
   var showProjectSavedAlert: Signal<Void, Never> { get }
 }
 
+@MainActor
 public protocol WatchProjectViewModelType {
   var inputs: WatchProjectViewModelInputs { get }
   var outputs: WatchProjectViewModelOutputs { get }
 }
 
+@MainActor
 public final class WatchProjectViewModel: WatchProjectViewModelType,
   WatchProjectViewModelInputs, WatchProjectViewModelOutputs {
-  public init() {
+  public init(feature: ProjectMediaFeature? = nil) {
+    let feature = feature ?? AppModel.shared.projectMediaFeature
+    self.feature = feature
+    let revision = self.revision
+    let pendingIntent = self.pendingIntent
     let viewReady = Signal.merge(self.viewDidLoadProperty.signal, self.awakeFromNibProperty.signal)
     let projectProperty = self.configureWithValueProperty.signal.skipNil().map { $0.project }
 
@@ -65,7 +73,7 @@ public final class WatchProjectViewModel: WatchProjectViewModelType,
       viewReady
     )
     .map(first)
-    .map(cached(project:))
+    .map(feature.cached)
 
     let currentUser = Signal.merge([
       viewReady,
@@ -100,36 +108,24 @@ public final class WatchProjectViewModel: WatchProjectViewModelType,
       .takePairWhen(saveButtonTapped)
 
     let watchProjectToggle = projectOnSaveButtonToggle
-      .map { project, selected in (project, !selected) }
-      // immediately cache and return the project with the correct watch value
-      .map(watchAndCacheProject(_:shouldWatch:))
-
-    // make the mutation request to the watch/unwatch and flip the result only if the call fails
-    let watchProjectResult = watchProjectToggle
-      .ksr_debounce(.milliseconds(500), on: AppEnvironment.current.scheduler)
-      .switchMap { project, shouldWatch in
-        watchProjectProducer(with: project, shouldWatch: shouldWatch)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .map { watchProjectEnvelope in
-            let updatedWatchCount = watchProjectEnvelope.watchProject.project.watchesCount
-
-            let updatedProjectWithWatchCount = project
-              |> \.watchesCount .~ updatedWatchCount
-
-            return (
-              updatedProjectWithWatchCount,
-              updatedProjectWithWatchCount.personalization.isStarred ?? false,
-              success: true
-            )
-          }
-          .flatMapError { _ in .init(value: (project, !shouldWatch, success: false)) }
-          .take(until: saveButtonTapped.ignoreValues())
+      .map { project, selected -> (Project, ProjectMediaFeature.WatchIntent, UUID) in
+        let intent = feature.prepareWatch(projectID: project.graphID, watched: !selected, previous: selected)
+        pendingIntent.value = intent
+        var project = project
+        project.personalization.isStarred = !selected
+        return (project, intent, revision.value)
       }
 
-    // update the cache with the result and return it
-    let projectResultUpdatingCache = watchProjectResult
-      .map { project, shouldWatch, _ in (project, shouldWatch) }
-      .map(watchAndCacheProject(_:shouldWatch:))
+    let invalidation = Signal.merge(
+      saveButtonTapped.ignoreValues(), projectProperty.ignoreValues(),
+      self.userSessionEndedProperty.signal, self.userSessionStartedProperty.signal
+    )
+    let watchProjectResult = watchProjectToggle
+      .ksr_debounce(.milliseconds(500), on: AppEnvironment.current.scheduler)
+      .switchMap { project, intent, capturedRevision -> SignalProducer<Project, Never> in
+        guard revision.value == capturedRevision else { return .empty }
+        return feature.watchResult(project: project, intent: intent).take(until: invalidation)
+      }
 
     let projectSavedFromNotification = configuredProject
       .takePairWhen(self.projectFromNotificationProperty.signal.skipNil())
@@ -140,8 +136,8 @@ public final class WatchProjectViewModel: WatchProjectViewModelType,
     let project = Signal.merge(
       configuredProject,
       projectSavedFromNotification,
-      watchProjectToggle.map(first),
-      projectResultUpdatingCache.map(first)
+      watchProjectToggle.map { $0.0 },
+      watchProjectResult
     )
 
     self.goToLoginTout = loggedOutUserTappedSaveButton.ignoreValues()
@@ -188,6 +184,7 @@ public final class WatchProjectViewModel: WatchProjectViewModelType,
     self.postNotificationWithProject = project
 
     // Tracking
+    let saveButtonTappedProperty = self.saveButtonTappedProperty
 
     self.configureWithValueProperty.signal.skipNil()
       .takeWhen(self.saveButtonTappedProperty.signal)
@@ -196,11 +193,19 @@ public final class WatchProjectViewModel: WatchProjectViewModelType,
           project: project,
           page: context,
           params: discoveryParams,
-          typeContext: self.saveButtonTappedProperty.value ? .unwatch : .watch
+          typeContext: saveButtonTappedProperty.value ? .unwatch : .watch
         )
       }
   }
 
+  private let feature: ProjectMediaFeature
+  private let pendingIntent = MutableProperty<ProjectMediaFeature.WatchIntent?>(nil)
+  deinit {
+    let feature = self.feature
+    let intent = self.pendingIntent.value
+    if let intent { Task { @MainActor in feature.cancelPreparedWatch(intent) } }
+  }
+  private let revision = MutableProperty(UUID())
   private let awakeFromNibProperty = MutableProperty(())
   public func awakeFromNib() {
     self.awakeFromNibProperty.value = ()
@@ -208,6 +213,9 @@ public final class WatchProjectViewModel: WatchProjectViewModelType,
 
   fileprivate let configureWithValueProperty = MutableProperty<WatchProjectValue?>(nil)
   public func configure(with value: WatchProjectValue) {
+    if let intent = self.pendingIntent.value { self.feature.cancelPreparedWatch(intent) }
+    self.pendingIntent.value = nil
+    self.revision.value = UUID()
     self.configureWithValueProperty.value = value
   }
 
@@ -228,11 +236,17 @@ public final class WatchProjectViewModel: WatchProjectViewModelType,
 
   fileprivate let userSessionEndedProperty = MutableProperty(())
   public func userSessionEnded() {
+    if let intent = self.pendingIntent.value { self.feature.cancelPreparedWatch(intent) }
+    self.pendingIntent.value = nil
+    self.revision.value = UUID()
     self.userSessionEndedProperty.value = ()
   }
 
   fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
+    if let intent = self.pendingIntent.value { self.feature.cancelPreparedWatch(intent) }
+    self.pendingIntent.value = nil
+    self.revision.value = UUID()
     self.userSessionStartedProperty.value = ()
   }
 
@@ -253,45 +267,6 @@ public final class WatchProjectViewModel: WatchProjectViewModelType,
 
   public var inputs: WatchProjectViewModelInputs { return self }
   public var outputs: WatchProjectViewModelOutputs { return self }
-}
-
-private func watchProjectProducer(
-  with project: Project,
-  shouldWatch: Bool
-) -> SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope> {
-  guard shouldWatch else {
-    return AppEnvironment.current.apiService.unwatchProject(input: .init(id: project.graphID))
-  }
-
-  return AppEnvironment.current.apiService.watchProject(input: .init(id: project.graphID))
-}
-
-private func cached(project: Project) -> Project {
-  guard
-    let projectCache = AppEnvironment.current.cache[KSCache.ksr_projectSaved] as? [Int: Bool],
-    let isSaved = projectCache[project.id] ?? project.personalization.isStarred
-  else { return project }
-
-  return project |> Project.lens.personalization.isStarred .~ isSaved
-}
-
-private func watchAndCacheProject(_ project: Project, shouldWatch: Bool) -> (Project, Bool) {
-  // create cache if it doesn't exist yet
-  let tryCache = AppEnvironment.current.cache[KSCache.ksr_projectSaved]
-  AppEnvironment.current.cache[KSCache.ksr_projectSaved] = tryCache ?? [Int: Bool]()
-
-  // prepare result
-  let result = (project |> Project.lens.personalization.isStarred .~ shouldWatch, shouldWatch)
-
-  guard var cache = AppEnvironment.current.cache[KSCache.ksr_projectSaved] as? [Int: Bool] else {
-    return result
-  }
-
-  // write to cache
-  cache[project.id] = shouldWatch
-  AppEnvironment.current.cache[KSCache.ksr_projectSaved] = cache
-
-  return result
 }
 
 private func shouldShowNotificationDialog() -> Bool {

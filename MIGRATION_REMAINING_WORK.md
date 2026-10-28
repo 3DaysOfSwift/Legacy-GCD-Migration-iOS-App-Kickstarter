@@ -10,11 +10,11 @@ estimate. These groups differ substantially in size and risk.
 
 | Group | Remaining application paths | Exit condition |
 | --- | --- | --- |
-| 1. Residual project, creator and account actions | WatchProject save/unsave; CuratedProjects and Thanks recommendations; project attribution; UpdateDraft editing/images; ReportProjectInfo options; SettingsAccount user read | Each remaining production request has an explicit owner and documented lifetime |
+| 1. Residual project, creator and account actions | CuratedProjects and Thanks recommendations; project attribution; UpdateDraft editing/images | Each remaining production request has an explicit owner and documented lifetime |
 
-Checkout, payment plans, pledge-manager project/update navigation, reward add-ons
-and friends/following now have verified migrated checkpoints. One implementation
-group remains, followed by the validation gates below. This is a scope count,
+Checkout, payment plans, pledge-manager project/update navigation, reward add-ons,
+friends/following, saved projects, reporting and account-field reads now have
+verified migrated checkpoints. One implementation group remains, followed by the validation gates below. This is a scope count,
 not a percentage estimate. See the ledger for exact checkpoint evidence.
 
 The named paths are source-audit findings, not evidence that every call in those

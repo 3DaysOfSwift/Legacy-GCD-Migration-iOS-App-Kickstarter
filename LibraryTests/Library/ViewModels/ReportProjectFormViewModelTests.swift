@@ -7,7 +7,9 @@ import ReactiveSwift
 
 import XCTest
 
+@MainActor
 final class ReportProjectFormViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   // MARK: Computed Properties
 
   private var userEmailSuccessMockService: MockService {
@@ -24,12 +26,15 @@ final class ReportProjectFormViewModelTests: TestCase {
     return mockService
   }
 
-  func testEmailText_AfterFetchingUsersEmail() {
-    let vm = ReportProjectFormViewModel()
+  func testEmailText_AfterFetchingUsersEmail() async {
+    let vm = ReportProjectFormViewModel(feature: ProjectReportingFeature(
+      sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+      makeProvider: { AsyncProjectReportingProvider(service: AppEnvironment.current.apiService) }
+    ))
     vm.projectID = "123"
     vm.projectFlaggingKind = GraphAPI.NonDeprecatedFlaggingKind.commentDoxxing
 
-    withEnvironment(apiService: self.userEmailSuccessMockService) {
+    await withEnvironment(apiService: self.userEmailSuccessMockService) {
       let userEmail = CombineTestObserver<String?, Never>()
       userEmail.observe(vm.$retrievedEmail)
 
@@ -39,8 +44,8 @@ final class ReportProjectFormViewModelTests: TestCase {
         XCTAssertEqual(value, nil)
       }
 
-      vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+      await vm.inputs.viewDidLoad().value
+      await self.scheduler.advance()
 
       XCTAssertEqual(userEmail.events.count, 2)
 
@@ -53,7 +58,10 @@ final class ReportProjectFormViewModelTests: TestCase {
   }
 
   func test_submitIsDisabled_untilDetailTextIsNotEmpty() {
-    let vm = ReportProjectFormViewModel()
+    let vm = ReportProjectFormViewModel(feature: ProjectReportingFeature(
+      sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+      makeProvider: { AsyncProjectReportingProvider(service: AppEnvironment.current.apiService) }
+    ))
     vm.projectID = "123"
     vm.projectFlaggingKind = GraphAPI.NonDeprecatedFlaggingKind.commentDoxxing
 

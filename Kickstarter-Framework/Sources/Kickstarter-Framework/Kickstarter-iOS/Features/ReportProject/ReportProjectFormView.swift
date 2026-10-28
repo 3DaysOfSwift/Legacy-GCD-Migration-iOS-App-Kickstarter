@@ -86,6 +86,7 @@ struct ReportProjectFormView: View {
 
         self.viewModel.inputs.viewDidLoad()
       }
+      .onDisappear { self.viewModel.stop() }
       .onReceive(self.viewModel.$bannerMessage) { newValue in
         /// bannerMessage is set to nil when its done presenting. When it is done, and submit was successful,  dismiss this view.
         if newValue == nil, self.viewModel.submitSuccess {

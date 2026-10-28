@@ -1,7 +1,3 @@
-/**
- FIXME: This VM and its tests should be moved to the Library framework and refactored to not need the
- `viewControllerFactory` passed to its initializer.
- */
 import KsApi
 import Library
 import Prelude
@@ -16,42 +12,44 @@ public typealias SettingsAccountData = (
   isAppleConnectedAccount: Bool
 )
 
+@MainActor
 public protocol SettingsAccountViewModelInputs {
   func didSelectRow(cellType: SettingsAccountCellType)
   func viewWillAppear()
   func viewDidLoad()
 }
 
+@MainActor
 public protocol SettingsAccountViewModelOutputs {
   var fetchAccountFieldsError: Signal<Void, Never> { get }
   var reloadData: Signal<SettingsAccountData, Never> { get }
-  var transitionToViewController: Signal<UIViewController, Never> { get }
+  var transitionToViewController: Signal<(SettingsAccountCellType, Currency), Never> { get }
 
   func shouldShowCreatePasswordFooter() -> (Bool, String?)?
 }
 
+@MainActor
 public protocol SettingsAccountViewModelType {
   var inputs: SettingsAccountViewModelInputs { get }
   var outputs: SettingsAccountViewModelOutputs { get }
 }
 
+@MainActor
 public final class SettingsAccountViewModel: SettingsAccountViewModelInputs,
   SettingsAccountViewModelOutputs, SettingsAccountViewModelType {
-  public init(_ viewControllerFactory: @escaping (SettingsAccountCellType, Currency) -> UIViewController?) {
+  public init(feature: SettingsFeature? = nil) {
+    let feature = feature ?? AppModel.shared.settingsFeature
     let userAccountFields = Signal.merge(
       self.viewDidLoadProperty.signal,
       self.viewWillAppearProperty.signal.skip(first: 1)
     )
     .switchMap { _ in
-      AppEnvironment.current.apiService
-        .fetchGraphUser(withStoredCards: false)
-        .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-        .materialize()
+      feature.accountFieldsResult().materialize()
     }
 
     self.fetchAccountFieldsError = userAccountFields.errors().ignoreValues()
 
-    let user = userAccountFields.values().map(\.me)
+    let user = userAccountFields.values()
 
     let shouldHideEmailWarning = user
       .map { user -> Bool in
@@ -97,8 +95,7 @@ public final class SettingsAccountViewModel: SettingsAccountViewModelInputs,
     self.transitionToViewController = chosenCurrency
       .takePairWhen(self.selectedCellTypeProperty.signal.skipNil())
       .map { ($1, $0) }
-      .map(viewControllerFactory)
-      .skipNil()
+
   }
 
   private let selectedCellTypeProperty = MutableProperty<SettingsAccountCellType?>(nil)
@@ -123,7 +120,7 @@ public final class SettingsAccountViewModel: SettingsAccountViewModelInputs,
 
   public let fetchAccountFieldsError: Signal<Void, Never>
   public let reloadData: Signal<SettingsAccountData, Never>
-  public let transitionToViewController: Signal<UIViewController, Never>
+  public let transitionToViewController: Signal<(SettingsAccountCellType, Currency), Never>
 
   public var inputs: SettingsAccountViewModelInputs { return self }
   public var outputs: SettingsAccountViewModelOutputs { return self }

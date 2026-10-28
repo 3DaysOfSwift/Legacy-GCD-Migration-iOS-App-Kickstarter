@@ -43,6 +43,47 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Saved projects, reporting and account fields — 28 October 2026
+
+Ordinary save buttons now share ProjectMediaFeature's native watch/unwatch queue
+and transient cache with the video feed. Session-generation and latest-intent
+checks protect writes, rollback and delayed presentation. Reused cells discard
+unadmitted debounced taps; admitted writes settle independently of observation.
+The 500ms debounce, login prompts, haptics, notifications, counts and analytics remain.
+AppModel supplies the shared SessionFeature to this owner.
+
+ProjectReportingFeature owns option/email reads and ordered report submissions.
+The form's read/observation tasks stop on disappearance; duplicate pending reports
+share and changed reports queue. No automatic retry is added. Missing context now
+produces the existing error banner instead of force-unwrapping. The existing Send
+loading control is active during submission and retry is restored on failure.
+Account fields now use SettingsFeature's shared async read, retaining refresh and
+presentation decisions. Navigation construction stays in the controller rather
+than a factory injected into the ViewModel. No screen layout or storage redesign.
+Native Apollo cancellation is retained at the SDK boundary; public demo rejects
+reporting and save mutations rather than presenting mock success as a live write.
+
+Baseline: **30 original tests passed**. Final: **1,232 Library + 199 framework +
+84 API = 1,515 tests passed**, zero failures/skips. **22 new regression cases**
+(11 reporting, 6 media/save, 2 settings, 3 API). App build succeeded with zero
+errors and the two existing Crashlytics-script and Frameworks-path warnings.
+Final results: /private/tmp/kickstarter-project-actions.ChCP0M.
+Evidence: sibling Migration Evidence/kickstarter-project-actions.
+
+Four integration compile attempts failed: missing test await, navigation-helper
+actor isolation, async test setup isolation, and snapshot-helper actor annotations.
+One focused test failed because its unsave fixture supplied only a save response;
+the fixture now supplies the intended unsave response with its assertion unchanged.
+Snapshot tests retain their reference-device gate and were not part of this run.
+All commands were run by the agent; no human terminal intervention was required.
+
+Remaining named implementation paths: CuratedProjects/Thanks recommendations,
+project attribution, and UpdateDraft editing/images. App-wide concurrency,
+broader regression, visual/device and live-service validation remain open.
+**The app-wide migration is still in progress.**
+
+### Previous checkpoint
+
 ### Friends and following — 28 October 2026
 
 FriendsFeature owns Find Friends list/statistics reads, pagination, and the ordered

@@ -8,12 +8,16 @@ import XCTest
 
 @MainActor
 final class ReportProjectInfoViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private var viewModel: ReportProjectInfoViewModel!
   private var cancellables = Set<AnyCancellable>()
 
   override func setUp() async throws {
     try await super.setUp()
-    self.viewModel = ReportProjectInfoViewModel()
+    self.viewModel = ReportProjectInfoViewModel(feature: ProjectReportingFeature(
+      sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+      makeProvider: { AsyncProjectReportingProvider(service: AppEnvironment.current.apiService) }
+    ))
   }
 
   override func tearDown() async throws {
@@ -50,7 +54,7 @@ final class ReportProjectInfoViewModelTests: TestCase {
   func testListItems_IsEmpty_OnError() async {
     let expectation = expectation(description: "fetch completed")
 
-    withEnvironment(apiService: MockService(fetchFlaggingOptionsResult: .failure(.couldNotParseJSON))) {
+    await withEnvironment(apiService: MockService(fetchFlaggingOptionsResult: .failure(.couldNotParseJSON))) {
       self.viewModel.$isLoading
         .filter { !$0 }
         .dropFirst()
@@ -61,7 +65,7 @@ final class ReportProjectInfoViewModelTests: TestCase {
         }
         .store(in: &self.cancellables)
 
-      self.viewModel.viewDidLoad()
+      await self.viewModel.viewDidLoad().value
     }
 
     await fulfillment(of: [expectation], timeout: 1.0)
@@ -75,7 +79,7 @@ final class ReportProjectInfoViewModelTests: TestCase {
     let expectation = expectation(description: "loading cycle complete")
     var states: [Bool] = []
 
-    withEnvironment(apiService: MockService(fetchFlaggingOptionsResult: .success(.mock))) {
+    await withEnvironment(apiService: MockService(fetchFlaggingOptionsResult: .success(.mock))) {
       self.viewModel.$isLoading
         .sink { isLoading in
           states.append(isLoading)
@@ -86,7 +90,7 @@ final class ReportProjectInfoViewModelTests: TestCase {
         }
         .store(in: &self.cancellables)
 
-      self.viewModel.viewDidLoad()
+      await self.viewModel.viewDidLoad().value
     }
 
     await fulfillment(of: [expectation], timeout: 1.0)
@@ -96,7 +100,7 @@ final class ReportProjectInfoViewModelTests: TestCase {
   func testIsLoading_ReturnsFalse_OnError() async {
     let expectation = expectation(description: "loading ends after error")
 
-    withEnvironment(apiService: MockService(fetchFlaggingOptionsResult: .failure(.couldNotParseJSON))) {
+    await withEnvironment(apiService: MockService(fetchFlaggingOptionsResult: .failure(.couldNotParseJSON))) {
       self.viewModel.$isLoading
         .filter { !$0 }
         .dropFirst()
@@ -104,7 +108,7 @@ final class ReportProjectInfoViewModelTests: TestCase {
         .sink { _ in expectation.fulfill() }
         .store(in: &self.cancellables)
 
-      self.viewModel.viewDidLoad()
+      await self.viewModel.viewDidLoad().value
     }
 
     await fulfillment(of: [expectation], timeout: 1.0)

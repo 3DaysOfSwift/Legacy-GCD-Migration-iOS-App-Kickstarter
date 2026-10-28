@@ -7,7 +7,7 @@ import ReactiveSwift
 public protocol ProjectMediaProvider {
   func report(project: any HasProjectWebURL, completed: Bool) async throws -> VoidEnvelope
   func feed() async throws -> [VideoFeedItem]
-  func setWatched(id: String, watched: Bool) async throws
+  func setWatched(id: String, watched: Bool) async throws -> WatchProjectResponseEnvelope
 }
 
 @MainActor
@@ -23,8 +23,8 @@ public struct AsyncProjectMediaProvider: ProjectMediaProvider {
     return data.videoFeed?.nodes?.compactMap { $0 }.map(VideoFeedItem.init) ?? []
   }
 
-  public func setWatched(id: String, watched: Bool) async throws {
-    _ = try await self.service.setProjectWatched(id: id, watched: watched)
+  public func setWatched(id: String, watched: Bool) async throws -> WatchProjectResponseEnvelope {
+    try await self.service.setProjectWatched(id: id, watched: watched)
   }
 }
 
@@ -49,12 +49,13 @@ public final class ProjectMediaFeature {
   private var feedRequests: [UUID: (userID: Int?, token: UUID, task: Task<Void, Never>)] = [:]
   private var feedSaves: [UUID: [String: (token: UUID, task: Task<Void, Never>)]] = [:]
 
-  private struct WatchIdentity: Hashable {
+  fileprivate struct WatchIdentity: Hashable {
     let projectID: String
     let userID: Int?
+    let generation: Int
   }
 
-  private var watchWrites: [WatchIdentity: (watched: Bool, token: UUID, task: Task<Void, Error>)] = [:]
+  private var watchWrites: [WatchIdentity: (watched: Bool, token: UUID, task: Task<WatchProjectResponseEnvelope, Error>)] = [:]
 
   public func feedState(route: UUID) -> FeedState {
     if let feed = self.feeds[route] { return feed }
@@ -118,23 +119,143 @@ public final class ProjectMediaFeature {
   /// preceding write for this account/project. Disposing a request cannot undo
   /// a server mutation, so save→unsave must not race on separate connections.
   @discardableResult
-  public func requestWatch(projectID: String, watched: Bool) -> Task<Void, Error> {
-    let key = WatchIdentity(projectID: projectID, userID: AppEnvironment.current.currentUser?.id)
+  public func requestWatch(projectID: String, watched: Bool) -> Task<WatchProjectResponseEnvelope, Error> {
+    let key = self.watchIdentity(projectID)
     if let pending = self.watchWrites[key], pending.watched == watched { return pending.task }
     let predecessor = self.watchWrites[key]?.task
     let provider = self.makeProvider()
     let token = UUID()
-    let task = Task { [self] in
+    let task = Task<WatchProjectResponseEnvelope, Error> { [self] in
       defer { if self.watchWrites[key]?.token == token { self.watchWrites[key] = nil } }
       if let predecessor { _ = await predecessor.result }
       try Task.checkCancellation()
-      guard key.userID == AppEnvironment.current.currentUser?.id else { throw CancellationError() }
-      try await provider.setWatched(id: projectID, watched: watched)
+      guard self.isCurrent(key) else { throw CancellationError() }
+      let result = try await provider.setWatched(id: projectID, watched: watched)
       try Task.checkCancellation()
-      guard key.userID == AppEnvironment.current.currentUser?.id else { throw CancellationError() }
+      guard self.isCurrent(key) else { throw CancellationError() }
+      return result
     }
     self.watchWrites[key] = (watched, token, task)
     return task
+  }
+
+  public struct WatchIntent {
+    fileprivate let key: WatchIdentity
+    fileprivate let token: UUID
+    public let watched: Bool
+    fileprivate let previous: Bool
+  }
+  private var watchIntents: [WatchIdentity: (token: UUID, admitted: Bool)] = [:]
+  private var watchSettlements: [UUID: Task<WatchProjectResponseEnvelope, Error>] = [:]
+  private var watchObservations: [UUID: Task<Void, Never>] = [:]
+  private var cacheIdentity: WatchIdentity?
+
+  private func watchIdentity(_ projectID: String) -> WatchIdentity {
+    WatchIdentity(projectID: projectID, userID: self.sessionFeature.currentUser?.id,
+                  generation: self.sessionFeature.generation)
+  }
+  private func isCurrent(_ key: WatchIdentity) -> Bool {
+    key.userID == self.sessionFeature.currentUser?.id && key.generation == self.sessionFeature.generation
+  }
+  private func prepareCache() {
+    let identity = self.watchIdentity("")
+    if let previous = self.cacheIdentity, previous != identity {
+      AppEnvironment.current.cache[KSCache.ksr_projectSaved] = [Int: Bool]()
+      self.watchIntents.removeAll()
+    }
+    self.cacheIdentity = identity
+  }
+  public func cached(_ project: Project) -> Project {
+    self.prepareCache()
+    var project = project
+    if let cache = AppEnvironment.current.cache[KSCache.ksr_projectSaved] as? [Int: Bool],
+       let saved = cache[project.id] { project.personalization.isStarred = saved }
+    return project
+  }
+  private func cache(_ saved: Bool, for key: WatchIdentity) {
+    guard self.isCurrent(key), let id = decompose(id: key.projectID) else { return }
+    self.prepareCache()
+    var cache = AppEnvironment.current.cache[KSCache.ksr_projectSaved] as? [Int: Bool] ?? [:]
+    cache[id] = saved
+    AppEnvironment.current.cache[KSCache.ksr_projectSaved] = cache
+  }
+  public func prepareWatch(projectID: String, watched: Bool, previous: Bool) -> WatchIntent {
+    self.prepareCache()
+    let intent = WatchIntent(key: self.watchIdentity(projectID), token: UUID(), watched: watched, previous: previous)
+    self.watchIntents[intent.key] = (intent.token, false)
+    self.cache(watched, for: intent.key)
+    return intent
+  }
+  public func isCurrentIntent(_ intent: WatchIntent) -> Bool {
+    self.isCurrent(intent.key) && self.watchIntents[intent.key]?.token == intent.token
+  }
+  public func cancelPreparedWatch(_ intent: WatchIntent) {
+    guard self.isCurrentIntent(intent), self.watchIntents[intent.key]?.admitted == false else { return }
+    self.cache(intent.previous, for: intent.key)
+    self.watchIntents[intent.key] = nil
+  }
+  public func submitWatch(_ intent: WatchIntent) -> Task<WatchProjectResponseEnvelope, Error> {
+    if let pending = self.watchSettlements[intent.token] { return pending }
+    guard self.isCurrentIntent(intent) else { return Task { throw CancellationError() } }
+    self.watchIntents[intent.key]?.admitted = true
+    let command = self.requestWatch(projectID: intent.key.projectID, watched: intent.watched)
+    let task = Task { [self] in
+      defer { self.watchSettlements[intent.token] = nil }
+      do {
+        let value = try await command.value
+        guard self.isCurrent(intent.key) else { throw CancellationError() }
+        if self.isCurrentIntent(intent) { self.cache(intent.watched, for: intent.key) }
+        return value
+      } catch {
+        guard self.isCurrent(intent.key) else { throw CancellationError() }
+        if self.isCurrentIntent(intent) { self.cache(intent.previous, for: intent.key) }
+        throw error
+      }
+    }
+    self.watchSettlements[intent.token] = task
+    return task
+  }
+
+  /// Ordinary save buttons retain their debounce and optimistic UI. Both entry
+  /// points submit to the same account/project queue and settle the shared cache.
+  public func watchResult(project: Project, intent: WatchIntent) -> SignalProducer<Project, Never> {
+    let result = SignalProducer<Project, Never> { observer, lifetime in
+      MainActor.assumeIsolated {
+        guard self.isCurrentIntent(intent) else { observer.sendInterrupted(); return }
+        let command = self.submitWatch(intent)
+        let id = UUID()
+        let task = Task { [self] in
+          defer { self.watchObservations[id] = nil }
+          var project = project
+          do {
+            let response = try await command.value
+            try Task.checkCancellation()
+            guard self.isCurrentIntent(intent) else { observer.sendInterrupted(); return }
+            project.watchesCount = response.watchProject.project.watchesCount
+            project.personalization.isStarred = intent.watched
+          } catch {
+            guard !Task.isCancelled, !(error is CancellationError), self.isCurrentIntent(intent) else {
+              observer.sendInterrupted(); return
+            }
+            project.personalization.isStarred = intent.previous
+          }
+          observer.send(value: project)
+          observer.sendCompleted()
+        }
+        self.watchObservations[id] = task
+        lifetime.observeEnded { task.cancel() }
+      }
+    }
+    return result.ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      .filter { _ in MainActor.assumeIsolated { self.isCurrentIntent(intent) } }
+  }
+
+  public func waitForOperations() async {
+    while !self.watchWrites.isEmpty || !self.watchSettlements.isEmpty || !self.watchObservations.isEmpty {
+      for pending in Array(self.watchWrites.values) { _ = await pending.task.result }
+      for task in Array(self.watchSettlements.values) { _ = await task.result }
+      for task in Array(self.watchObservations.values) { await task.value }
+    }
   }
 
   @discardableResult
@@ -149,7 +270,8 @@ public final class ProjectMediaFeature {
     AppEnvironment.current.ksrAnalytics.trackVideoFeedCTAClicked(
       ctaContext: .videoFeedSave, videoId: item.id, projectId: item.projectId
     )
-    let mutation = self.requestWatch(projectID: item.projectId, watched: !wasSaved)
+    let intent = self.prepareWatch(projectID: item.projectId, watched: !wasSaved, previous: wasSaved)
+    let mutation = self.submitWatch(intent)
     let token = UUID()
     let task = Task { [self] in
       defer {
@@ -158,11 +280,11 @@ public final class ProjectMediaFeature {
         }
       }
       do {
-        try await mutation.value
+        _ = try await mutation.value
       } catch {
         guard !(error is CancellationError), self.feeds[route] === feed,
               self.feedSaves[route]?[projectID]?.token == token,
-              userID == AppEnvironment.current.currentUser?.id,
+              userID == AppEnvironment.current.currentUser?.id, self.isCurrentIntent(intent),
               let index = feed.items.firstIndex(where: { $0.id == projectID }) else { return }
         // Preserve rollback and toast for the latest visible intent only.
         feed.items[index].isSaved = wasSaved
@@ -184,6 +306,7 @@ public final class ProjectMediaFeature {
   }
 
   public func reconcileSavedProjects(route: UUID) {
+    self.prepareCache()
     guard let feed = self.feeds[route],
           let cache = AppEnvironment.current.cache[KSCache.ksr_projectSaved] as? [Int: Bool] else { return }
     for index in feed.items.indices {
@@ -207,7 +330,11 @@ public final class ProjectMediaFeature {
   private let completionPipe = Signal<(UUID, Bool, VoidEnvelope), Never>.pipe()
   public var completions: Signal<(UUID, Bool, VoidEnvelope), Never> { self.completionPipe.output }
 
-  public init(makeProvider: @escaping () -> any ProjectMediaProvider) {
+  public let sessionFeature: SessionFeature
+  public init(sessionFeature: SessionFeature? = nil, makeProvider: @escaping () -> any ProjectMediaProvider) {
+    self.sessionFeature = sessionFeature ?? SessionFeature(makeProvider: {
+      AsyncSessionProvider(service: AppEnvironment.current.apiService)
+    })
     self.makeProvider = makeProvider
   }
 

@@ -4,6 +4,7 @@
 public final class AppModel {
   public static let shared = AppModel.live()
 
+  public let projectReportingFeature: ProjectReportingFeature
   public let friendsFeature: FriendsFeature
   public let pledgedProjectsFeature: PledgedProjectsFeature
   public let pledgeFeature: PledgeFeature
@@ -22,6 +23,7 @@ public final class AppModel {
   public let projectMediaFeature: ProjectMediaFeature
 
   public init(
+    projectReportingFeature: ProjectReportingFeature,
     friendsFeature: FriendsFeature,
     pledgedProjectsFeature: PledgedProjectsFeature,
     pledgeFeature: PledgeFeature,
@@ -39,6 +41,7 @@ public final class AppModel {
     discussionFeature: DiscussionFeature,
     projectMediaFeature: ProjectMediaFeature
   ) {
+    self.projectReportingFeature = projectReportingFeature
     self.friendsFeature = friendsFeature
     self.pledgedProjectsFeature = pledgedProjectsFeature
     self.pledgeFeature = pledgeFeature
@@ -81,6 +84,9 @@ public final class AppModel {
       makeProvider: { AsyncProfileProvider(service: AppEnvironment.current.apiService) }
     )
     return AppModel(
+      projectReportingFeature: ProjectReportingFeature(sessionFeature: sessionFeature, makeProvider: {
+        AsyncProjectReportingProvider(service: AppEnvironment.current.apiService)
+      }),
       friendsFeature: FriendsFeature(sessionFeature: sessionFeature, makeProvider: {
         AsyncFriendsProvider(service: AppEnvironment.current.apiService)
       }),
@@ -116,7 +122,7 @@ public final class AppModel {
       discussionFeature: DiscussionFeature(makeProvider: {
         AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
       }),
-      projectMediaFeature: ProjectMediaFeature(makeProvider: {
+      projectMediaFeature: ProjectMediaFeature(sessionFeature: sessionFeature, makeProvider: {
         AsyncProjectMediaProvider(service: AppEnvironment.current.apiService)
       })
     )

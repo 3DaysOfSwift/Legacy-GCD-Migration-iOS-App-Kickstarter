@@ -7,8 +7,11 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class WatchProjectViewModelTests: TestCase {
-  internal let vm = WatchProjectViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  internal var vm: WatchProjectViewModel!
+  private var feature: ProjectMediaFeature!
 
   internal let generateImpactFeedback = TestObserver<(), Never>()
   internal let generateSelectionFeedback = TestObserver<(), Never>()
@@ -20,8 +23,10 @@ internal final class WatchProjectViewModelTests: TestCase {
   internal let showNotificationDialog = TestObserver<Notification.Name, Never>()
   internal let showProjectSavedAlert = TestObserver<Void, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
+    self.feature = ProjectMediaFeature(makeProvider: { AsyncProjectMediaProvider(service: AppEnvironment.current.apiService) })
+    self.vm = WatchProjectViewModel(feature: self.feature)
 
     self.vm.outputs.generateImpactFeedback.observe(self.generateImpactFeedback.observer)
     self.vm.outputs.generateSelectionFeedback.observe(self.generateSelectionFeedback.observer)
@@ -36,18 +41,24 @@ internal final class WatchProjectViewModelTests: TestCase {
     self.vm.outputs.showProjectSavedAlert.observe(self.showProjectSavedAlert.observer)
   }
 
-  func testSaveAlertNotification() {
-    withEnvironment(currentUser: .template) {
+  private func advance(by interval: DispatchTimeInterval = .seconds(0)) async {
+    await self.scheduler.advance(by: interval)
+    await self.feature.waitForOperations()
+    await self.scheduler.advance()
+  }
+
+  func testSaveAlertNotification() async {
+    await withEnvironment(currentUser: .template) {
       self.vm.inputs.configure(with: (.template, .project, nil))
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.saveButtonTapped(selected: true)
-      self.scheduler.advance(by: .seconds(1))
+      await self.advance(by: .seconds(1))
       self.showProjectSavedAlert.assertValueCount(1)
     }
   }
 
-  func testGenerateImpactFeedback() {
-    withEnvironment(currentUser: .template) {
+  func testGenerateImpactFeedback() async {
+    await withEnvironment(currentUser: .template) {
       self.vm.inputs.configure(with: (.template, .project, nil))
       self.vm.inputs.viewDidLoad()
 
@@ -56,34 +67,34 @@ internal final class WatchProjectViewModelTests: TestCase {
     }
   }
 
-  func testGenerateSelectionFeedback() {
-    withEnvironment(currentUser: .template) {
+  func testGenerateSelectionFeedback() async {
+    await withEnvironment(currentUser: .template) {
       self.vm.inputs.configure(with: (.template, .project, nil))
       self.vm.inputs.viewDidLoad()
 
       self.vm.inputs.saveButtonTapped(selected: true)
-      self.scheduler.advance()
+      await self.advance()
       self.generateSelectionFeedback.assertValueCount(1)
       self.generateNotificationSuccessFeedback.assertValueCount(0)
     }
   }
 
-  func testGenerateNotificationSuccessFeedback() {
-    withEnvironment(currentUser: .template) {
+  func testGenerateNotificationSuccessFeedback() async {
+    await withEnvironment(currentUser: .template) {
       self.vm.inputs.configure(with: (.template, .project, nil))
       self.vm.inputs.viewDidLoad()
 
       self.vm.inputs.saveButtonTapped(selected: false)
-      self.scheduler.advance()
+      await self.advance()
       self.generateSelectionFeedback.assertValueCount(0)
       self.generateNotificationSuccessFeedback.assertValueCount(1)
     }
   }
 
-  func testWatchProject_WithError() {
+  func testWatchProject_WithError() async {
     let project = Project.template
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(watchProjectMutationResult: .failure(.couldNotParseJSON)),
       currentUser: .template
     ) {
@@ -99,7 +110,7 @@ internal final class WatchProjectViewModelTests: TestCase {
         "Emits true because it's toggled immmediately."
       )
 
-      self.scheduler.advance(by: .milliseconds(500))
+      await self.advance(by: .milliseconds(500))
 
       self.saveButtonSelected.assertValues(
         [false, true, false],
@@ -108,12 +119,12 @@ internal final class WatchProjectViewModelTests: TestCase {
     }
   }
 
-  func testUnwatchProject_LoggedIn_User() {
+  func testUnwatchProject_LoggedIn_User() async {
     let project = Project.template
       |> Project.lens.personalization.isStarred .~ true
       |> Project.lens.watchesCount .~ 1
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(unwatchProjectMutationResult: .success(.unwatchTemplate)),
       currentUser: .template
     ) {
@@ -127,7 +138,7 @@ internal final class WatchProjectViewModelTests: TestCase {
 
       self.saveButtonSelected.assertValues([true, false], "Emits false immediately.")
 
-      self.scheduler.advance(by: .milliseconds(500))
+      await self.advance(by: .milliseconds(500))
 
       self.saveButtonSelected.assertValues(
         [true, false],
@@ -137,11 +148,11 @@ internal final class WatchProjectViewModelTests: TestCase {
     }
   }
 
-  func testUnwatchProject_LoggedIn_User_Debouncing() {
+  func testUnwatchProject_LoggedIn_User_Debouncing() async {
     let project = Project.template
       |> Project.lens.personalization.isStarred .~ true
 
-    withEnvironment(
+    await withEnvironment(
       apiService: MockService(unwatchProjectMutationResult: .success(.unwatchTemplate)),
       currentUser: .template
     ) {
@@ -155,20 +166,20 @@ internal final class WatchProjectViewModelTests: TestCase {
       self.saveButtonSelected.assertValues([true, false], "Emits false immediately.")
 
       self.vm.inputs.saveButtonTapped(selected: false)
-      self.scheduler.advance(by: .milliseconds(250))
+      await self.advance(by: .milliseconds(250))
 
       self.vm.inputs.saveButtonTapped(selected: true)
-      self.scheduler.advance(by: .milliseconds(250))
+      await self.advance(by: .milliseconds(250))
 
       self.vm.inputs.saveButtonTapped(selected: false)
-      self.scheduler.advance(by: .milliseconds(250))
+      await self.advance(by: .milliseconds(250))
 
       self.saveButtonSelected.assertValues(
         [true, false, true, false, true], "State flips back and forth as button is tapped."
       )
 
       self.vm.inputs.saveButtonTapped(selected: true)
-      self.scheduler.advance(by: .milliseconds(500))
+      await self.advance(by: .milliseconds(500))
 
       self.saveButtonSelected.assertValues(
         [true, false, true, false, true, false],
@@ -177,11 +188,11 @@ internal final class WatchProjectViewModelTests: TestCase {
     }
   }
 
-  func testWatchProject_LoggedOut_User() {
+  func testWatchProject_LoggedOut_User() async {
     let project = Project.template
       |> Project.lens.personalization.isStarred .~ false
 
-    withEnvironment(apiService: MockService(watchProjectMutationResult: .success(.watchTemplate))) {
+    await withEnvironment(apiService: MockService(watchProjectMutationResult: .success(.watchTemplate))) {
       self.vm.inputs.configure(with: (project, .project, nil))
       self.vm.inputs.viewDidLoad()
 
@@ -207,14 +218,14 @@ internal final class WatchProjectViewModelTests: TestCase {
         "Once logged in, the save button is selected immediately."
       )
 
-      self.scheduler.advance(by: .milliseconds(500))
+      await self.advance(by: .milliseconds(500))
 
       self.saveButtonSelected.assertValues(
         [false, true],
         "Save button stays selected after API request."
       )
 
-      withEnvironment(apiService: MockService(watchProjectMutationResult: .success(.watchTemplate))) {
+      await withEnvironment(apiService: MockService(unwatchProjectMutationResult: .success(.unwatchTemplate))) {
         self.vm.inputs.saveButtonTapped(selected: true)
 
         self.saveButtonSelected.assertValues(
@@ -222,7 +233,7 @@ internal final class WatchProjectViewModelTests: TestCase {
           "Save button is deselected."
         )
 
-        self.scheduler.advance(by: .milliseconds(500))
+        await self.advance(by: .milliseconds(500))
 
         self.saveButtonSelected.assertValues(
           [false, true, false],
@@ -232,7 +243,7 @@ internal final class WatchProjectViewModelTests: TestCase {
     }
   }
 
-  func testWatchProjectFromPamphlet() {
+  func testWatchProjectFromPamphlet() async {
     let project = Project.template
       |> Project.lens.personalization.isStarred .~ false
     let projectUpdated = project
@@ -248,42 +259,42 @@ internal final class WatchProjectViewModelTests: TestCase {
     self.saveButtonSelected.assertValues([false, true])
   }
 
-  func testShowNotificationDialogEmits_IfStarredProjectsCountIsZero() {
+  func testShowNotificationDialogEmits_IfStarredProjectsCountIsZero() async {
     let user = User.template |> \.stats.starredProjectsCount .~ 0
 
-    withEnvironment(currentUser: user) {
+    await withEnvironment(currentUser: user) {
       self.vm.inputs.configure(with: (.template, .project, nil))
       self.vm.inputs.viewDidLoad()
 
       self.vm.inputs.saveButtonTapped(selected: false)
-      self.scheduler.advance(by: .milliseconds(500))
+      await self.advance(by: .milliseconds(500))
 
       self.showNotificationDialog.assertDidEmitValue()
     }
   }
 
-  func testShowNotificationDialogDoesNotEmit_IfStarredProjectsCountIsNotZero() {
+  func testShowNotificationDialogDoesNotEmit_IfStarredProjectsCountIsNotZero() async {
     let project = Project.template
     let user = User.template |> \.stats.starredProjectsCount .~ 3
 
-    withEnvironment(currentUser: user) {
+    await withEnvironment(currentUser: user) {
       self.vm.inputs.configure(with: (project, .project, nil))
       self.vm.inputs.viewDidLoad()
 
       self.vm.inputs.saveButtonTapped(selected: true)
-      self.scheduler.advance(by: .milliseconds(500))
+      await self.advance(by: .milliseconds(500))
 
       self.showNotificationDialog.assertDidNotEmitValue()
     }
   }
 
-  func testLoggedInUser_WatchesAndUnwatchesProject_SegmentEvents_Success() {
+  func testLoggedInUser_WatchesAndUnwatchesProject_SegmentEvents_Success() async {
     AppEnvironment.login(.init(accessToken: "deadbeef", user: .template))
 
     let project = Project.template
       |> Project.lens.personalization.isStarred .~ false
 
-    withEnvironment(apiService: MockService(watchProjectMutationResult: .success(.watchTemplate))) {
+    await withEnvironment(apiService: MockService(watchProjectMutationResult: .success(.watchTemplate))) {
       self.vm.inputs.configure(with: (project, .project, nil))
       self.vm.inputs.viewDidLoad()
 
@@ -303,7 +314,7 @@ internal final class WatchProjectViewModelTests: TestCase {
       self.saveButtonSelected.assertValues([false, true], "Save button selects immediately.")
       self.saveButtonAccessibilityValue.assertValues(["Unsaved", "Saved"])
 
-      self.scheduler.advance(by: .milliseconds(500))
+      await self.advance(by: .milliseconds(500))
 
       self.saveButtonSelected.assertValues(
         [false, true],
@@ -312,7 +323,7 @@ internal final class WatchProjectViewModelTests: TestCase {
 
       self.showProjectSavedAlert.assertValueCount(1, "The save project prompt shows.")
 
-      withEnvironment(apiService: MockService(unwatchProjectMutationResult: .success(.unwatchTemplate))) {
+      await withEnvironment(apiService: MockService(unwatchProjectMutationResult: .success(.unwatchTemplate))) {
         self.vm.inputs.saveButtonTapped(selected: true)
 
         XCTAssertEqual(
@@ -338,7 +349,7 @@ internal final class WatchProjectViewModelTests: TestCase {
         )
         self.saveButtonAccessibilityValue.assertValues(["Unsaved", "Saved", "Unsaved"])
 
-        self.scheduler.advance(by: .milliseconds(500))
+        await self.advance(by: .milliseconds(500))
 
         self.saveButtonSelected.assertValues(
           [false, true, false],
@@ -351,14 +362,14 @@ internal final class WatchProjectViewModelTests: TestCase {
     }
   }
 
-  func testLoggedInUser_WatchEndingSoonProject() {
+  func testLoggedInUser_WatchEndingSoonProject() async {
     AppEnvironment.login(.init(accessToken: "deadbeef", user: .template))
 
     let project = .template
       |> Project.lens.personalization.isStarred .~ false
       |> Project.lens.dates.deadline .~ (MockDate().date.timeIntervalSince1970 + 60.0 * 60.0 * 24.0)
 
-    withEnvironment(apiService: MockService(watchProjectMutationResult: .success(.watchTemplate))) {
+    await withEnvironment(apiService: MockService(watchProjectMutationResult: .success(.watchTemplate))) {
       self.vm.inputs.configure(with: (project, .project, nil))
       self.vm.inputs.viewDidLoad()
 
@@ -372,7 +383,7 @@ internal final class WatchProjectViewModelTests: TestCase {
       XCTAssertEqual(["watch_project"], self.segmentTrackingClient.properties(forKey: "context_cta"))
       XCTAssertEqual(["watch"], self.segmentTrackingClient.properties(forKey: "context_type"))
 
-      self.scheduler.advance(by: .milliseconds(500))
+      await self.advance(by: .milliseconds(500))
 
       self.showProjectSavedAlert.assertValueCount(
         0, "The save project prompt doesn't show cause it's less than 48hrs."
@@ -380,14 +391,14 @@ internal final class WatchProjectViewModelTests: TestCase {
     }
   }
 
-  func testPostNotificationEmits_WhenProjectIsSavedSuccessfully() {
+  func testPostNotificationEmits_WhenProjectIsSavedSuccessfully() async {
     AppEnvironment.login(.init(accessToken: "deadbeef", user: .template))
 
     let project = Project.template
       |> Project.lens.personalization.isStarred .~ false
       |> Project.lens.watchesCount .~ 8
 
-    withEnvironment(apiService: MockService(watchProjectMutationResult: .success(.watchTemplate))) {
+    await withEnvironment(apiService: MockService(watchProjectMutationResult: .success(.watchTemplate))) {
       self.vm.inputs.configure(with: (project, .project, nil))
       self.vm.inputs.viewDidLoad()
 
@@ -395,15 +406,15 @@ internal final class WatchProjectViewModelTests: TestCase {
       XCTAssertEqual(self.postNotificationWithProject.lastValue!.watchesCount, 8)
 
       self.vm.inputs.saveButtonTapped(selected: false)
-      self.scheduler.advance(by: .milliseconds(500))
+      await self.advance(by: .milliseconds(500))
 
       self.postNotificationWithProject.assertValueCount(3)
       XCTAssertEqual(self.postNotificationWithProject.lastValue!.watchesCount, 10)
     }
   }
 
-  func testWatchProjectTracking_DiscoverContext() {
-    withEnvironment {
+  func testWatchProjectTracking_DiscoverContext() async {
+    await withEnvironment {
       self.vm.inputs.configure(with: (.template, .discovery, DiscoveryParams.recommendedDefaults))
       self.vm.inputs.viewDidLoad()
 

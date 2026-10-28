@@ -440,12 +440,15 @@ public final class SettingsFeature {
   }
 
   public func emailUserResult() -> SignalProducer<GraphUser, ErrorEnvelope> {
-    SignalProducer { observer, lifetime in
+    let generation = self.session.generation
+    let userID = self.session.currentUser?.id
+    return SignalProducer { observer, lifetime in
       MainActor.assumeIsolated {
         let id = UUID()
         let task = Task { [self] in
           defer { self.reads[id] = nil }
           do {
+            guard self.session.isCurrent(userID: userID, generation: generation) else { throw CancellationError() }
             let user = try await self.emailUser()
             observer.send(value: user)
             observer.sendCompleted()
@@ -456,6 +459,24 @@ public final class SettingsFeature {
         lifetime.observeEnded { task.cancel() }
       }
     }
+  }
+
+  /// Preserve presentation delay while rejecting results from an earlier session
+  /// or an account read invalidated by a later settings write.
+  public func accountFieldsResult() -> SignalProducer<GraphUser, ErrorEnvelope> {
+    let generation = self.session.generation
+    let userID = self.session.currentUser?.id
+    return self.emailUserResult()
+      .materialize()
+      .map { ($0, self.session.readGeneration) }
+      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      .filter { _, revision in
+        MainActor.assumeIsolated {
+          self.session.isCurrent(userID: userID, generation: generation) && self.session.readGeneration == revision
+        }
+      }
+      .map { $0.0 }
+      .dematerialize()
   }
 
   /// App lifecycle receives only a freshly committed user, not the cached initial emission.

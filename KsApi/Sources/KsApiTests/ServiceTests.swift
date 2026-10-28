@@ -14,6 +14,38 @@ struct MySwiftModel: Decodable, Equatable {
 
 final class ServiceTests: XCTestCase {
   @MainActor
+  func testNativeReportingEmailAndSubmissionUseConfiguredResults() async throws {
+    let envelope = try XCTUnwrap(UserEnvelope<GraphUserEmail>.userEnvelope(from: GraphUserEnvelopeTemplates.fetchUserEmail))
+    let service = MockService(createFlaggingResult: .success(EmptyResponseEnvelope()), fetchGraphUserEmailResult: .success(envelope))
+    let email = try await service.reportingEmail()
+    XCTAssertEqual(email, "user@example.com")
+    try await service.submitProjectReport(input: .init(contentId: "123", kind: .guidelinesViolation, details: "Report", clientMutationId: nil))
+  }
+
+  @MainActor
+  func testNativeReportingFailuresRemainFailures() async {
+    do { _ = try await MockService().reportingEmail(); XCTFail("Missing response must fail") }
+    catch { XCTAssertTrue(error is ErrorEnvelope) }
+    do {
+      try await MockService(createFlaggingResult: .failure(.couldNotParseJSON)).submitProjectReport(
+        input: .init(contentId: "123", kind: .guidelinesViolation, details: "Report", clientMutationId: nil)
+      )
+      XCTFail("Configured failure must propagate")
+    } catch { XCTAssertTrue(error is ErrorEnvelope) }
+  }
+
+  @MainActor
+  func testPublicDemoRejectsReportingAndSavingMutations() async {
+    let service = MockService.publicDemo()
+    do {
+      try await service.submitProjectReport(input: .init(contentId: "123", kind: .guidelinesViolation, details: "Report", clientMutationId: nil))
+      XCTFail("Demo must not report")
+    } catch { XCTAssertTrue(error is ErrorEnvelope) }
+    do { _ = try await service.setProjectWatched(id: "123", watched: true); XCTFail("Demo must not save") }
+    catch { XCTAssertTrue(error is ErrorEnvelope) }
+  }
+
+  @MainActor
   func testNativeFriendsRoutesPreserveReadAndWriteSemantics() throws {
     let service = Service()
     for (route, method, path) in [

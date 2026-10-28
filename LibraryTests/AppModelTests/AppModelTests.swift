@@ -18,6 +18,7 @@ final class AppModelTests: XCTestCase {
     let firstSession = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
     let secondSession = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
     let first = AppModel(
+      projectReportingFeature: ProjectReportingFeature(sessionFeature: firstSession, makeProvider: { AsyncProjectReportingProvider(service: MockService()) }),
       friendsFeature: FriendsFeature(sessionFeature: firstSession, makeProvider: { AsyncFriendsProvider(service: MockService()) }),
       pledgedProjectsFeature: PledgedProjectsFeature(sessionFeature: firstSession, makeProvider: { AsyncPledgedProjectsProvider(service: MockService()) }),
       pledgeFeature: PledgeFeature(sessionFeature: firstSession, makeProvider: { AsyncPledgeProvider(service: MockService()) }),
@@ -43,11 +44,12 @@ final class AppModelTests: XCTestCase {
       projectDetailsFeature: firstDetails,
       rewardsFeature: RewardsFeature(sessionFeature: firstSession, makeProvider: { AsyncRewardsProvider(service: MockService()) }),
       discussionFeature: DiscussionFeature(makeProvider: { AsyncDiscussionProvider(service: MockService()) }),
-      projectMediaFeature: ProjectMediaFeature(makeProvider: {
+      projectMediaFeature: ProjectMediaFeature(sessionFeature: firstSession, makeProvider: {
         AsyncProjectMediaProvider(service: MockService())
       })
     )
     let second = AppModel(
+      projectReportingFeature: ProjectReportingFeature(sessionFeature: secondSession, makeProvider: { AsyncProjectReportingProvider(service: MockService()) }),
       friendsFeature: FriendsFeature(sessionFeature: secondSession, makeProvider: { AsyncFriendsProvider(service: MockService()) }),
       pledgedProjectsFeature: PledgedProjectsFeature(sessionFeature: secondSession, makeProvider: { AsyncPledgedProjectsProvider(service: MockService()) }),
       pledgeFeature: PledgeFeature(sessionFeature: secondSession, makeProvider: { AsyncPledgeProvider(service: MockService()) }),
@@ -73,11 +75,13 @@ final class AppModelTests: XCTestCase {
       projectDetailsFeature: secondDetails,
       rewardsFeature: RewardsFeature(sessionFeature: secondSession, makeProvider: { AsyncRewardsProvider(service: MockService()) }),
       discussionFeature: DiscussionFeature(makeProvider: { AsyncDiscussionProvider(service: MockService()) }),
-      projectMediaFeature: ProjectMediaFeature(makeProvider: {
+      projectMediaFeature: ProjectMediaFeature(sessionFeature: secondSession, makeProvider: {
         AsyncProjectMediaProvider(service: MockService())
       })
     )
 
+    XCTAssertTrue(first.projectReportingFeature.sessionFeature === first.sessionFeature)
+    XCTAssertFalse(first.projectReportingFeature === second.projectReportingFeature)
     XCTAssertTrue(first.friendsFeature.sessionFeature === first.sessionFeature)
     XCTAssertFalse(first.friendsFeature === second.friendsFeature)
     XCTAssertFalse(first.pledgedProjectsFeature === second.pledgedProjectsFeature)
@@ -104,6 +108,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertFalse(first.rewardsFeature === second.rewardsFeature)
     XCTAssertFalse(first.discussionFeature === second.discussionFeature)
     XCTAssertFalse(first.projectMediaFeature === second.projectMediaFeature)
+    XCTAssertTrue(first.projectMediaFeature.sessionFeature === first.sessionFeature)
     XCTAssertTrue(first.discoveryFeature.snapshot(for: .magic).projects.isEmpty)
     XCTAssertEqual(firstProvider.requestCount, 0)
     XCTAssertEqual(secondProvider.requestCount, 0)

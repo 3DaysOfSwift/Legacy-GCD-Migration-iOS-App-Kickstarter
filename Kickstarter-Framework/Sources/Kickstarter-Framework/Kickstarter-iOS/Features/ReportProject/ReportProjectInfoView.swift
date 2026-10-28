@@ -72,6 +72,7 @@ struct ReportProjectInfoView: View {
     .listStyle(.plain)
     .navigationTitle(Strings.Report_this_project())
     .navigationBarTitleDisplayMode(.inline)
+    .onDisappear { self.viewModel.stop() }
     .onAppear {
       self.viewModel.viewDidLoad()
     }

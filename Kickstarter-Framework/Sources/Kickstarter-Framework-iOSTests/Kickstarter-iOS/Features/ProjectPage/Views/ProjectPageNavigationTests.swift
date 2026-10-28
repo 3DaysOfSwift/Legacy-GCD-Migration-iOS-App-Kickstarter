@@ -18,6 +18,7 @@ internal final class ProjectPageNavigationTests: TestCase {
     super.tearDown()
   }
 
+  @MainActor
   func testNavigationBar_Unwatched_Success() {
     combos([Language.en], [Device.phone4inch]).forEach { _, device in
       let navigation = ProjectPageNavigation()
@@ -47,6 +48,7 @@ internal final class ProjectPageNavigationTests: TestCase {
     }
   }
 
+  @MainActor
   func testNavigationBar_Watched_Success() {
     combos([Language.en], [Device.phone4inch]).forEach { _, device in
       let navigation = ProjectPageNavigation()
@@ -76,6 +78,7 @@ internal final class ProjectPageNavigationTests: TestCase {
     }
   }
 
+  @MainActor
   func testNavigationBar_darkMode() {
     combos([Language.en], [Device.phone4inch]).forEach { _, device in
       let navigation = ProjectPageNavigation()
@@ -106,6 +109,7 @@ internal final class ProjectPageNavigationTests: TestCase {
     }
   }
 
+  @MainActor
   private func viewControllerWithNavigation(_ navigation: ProjectPageNavigation) -> UIViewController {
     let vc = UIViewController()
     vc.navigationItem.leftBarButtonItem = navigation.closeButton

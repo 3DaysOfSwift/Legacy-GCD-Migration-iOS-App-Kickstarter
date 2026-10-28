@@ -286,11 +286,9 @@ public struct Service: ServiceType {
   }
 
   public func fetchProjectFlaggingOptions() async throws -> [ReportProjectInfoListItem] {
-    let data: GraphAPI.FlaggingOptionsQuery.Data? = try await self.fetch(
-      query: GraphAPI.FlaggingOptionsQuery(contentType: GraphQLEnum(.project))
+    let data = try await self.cancellableQuery(
+      GraphAPI.FlaggingOptionsQuery(contentType: GraphQLEnum(.project))
     )
-
-    guard let data else { return [] }
 
     return ReportProjectInfoListItem.items(from: data)
   }

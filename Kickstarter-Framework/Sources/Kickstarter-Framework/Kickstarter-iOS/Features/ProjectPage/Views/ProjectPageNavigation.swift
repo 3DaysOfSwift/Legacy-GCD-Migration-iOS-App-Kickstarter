@@ -13,6 +13,7 @@ protocol ProjectPageNavigationDelegate: AnyObject {
 /// The project page used to have a custom navigation bar; this class was originally `ProjectPageNavigationBarView`.
 /// When I cleaned up the custom navigation bar, I decided it made sense to keep the class -
 /// there's plenty of complex behavior in here, so it's nice to keep it wrapped up in one place.
+@MainActor
 final class ProjectPageNavigation {
   // MARK: - Public properties
 

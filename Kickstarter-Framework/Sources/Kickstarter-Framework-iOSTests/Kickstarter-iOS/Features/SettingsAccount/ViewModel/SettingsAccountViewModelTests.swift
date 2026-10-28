@@ -9,9 +9,11 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class SettingsAccountViewModelTests: TestCase {
-  private let vm: SettingsAccountViewModelType
-    = SettingsAccountViewModel(SettingsAccountViewController.viewController(for:currency:))
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private var vm: SettingsAccountViewModelType!
+  private var feature: SettingsFeature!
 
   private let fetchAccountFieldsError = TestObserver<Void, Never>()
   private let reloadDataCurrency = TestObserver<Currency, Never>()
@@ -20,8 +22,13 @@ internal final class SettingsAccountViewModelTests: TestCase {
   private let reloadDataShouldHideEmailPasswordSection = TestObserver<Bool, Never>()
   private let reloadDataShouldHideWarningIcon = TestObserver<Bool, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
+    self.feature = SettingsFeature(
+      sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+      makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
+    )
+    self.vm = SettingsAccountViewModel(feature: self.feature)
     self.vm.outputs.fetchAccountFieldsError.observe(self.fetchAccountFieldsError.observer)
     self.vm.outputs.reloadData.map { $0.currency }.observe(self.reloadDataCurrency.observer)
     self.vm.outputs.reloadData.map { $0.email }.observe(self.reloadDataEmail.observer)
@@ -33,11 +40,11 @@ internal final class SettingsAccountViewModelTests: TestCase {
       .observe(self.reloadDataIsAppleConnectedAccount.observer)
   }
 
-  func testReloadData() {
+  func testReloadData() async {
     let userEnvelope = UserEnvelope(me: GraphUser.template)
     let mockService = MockService(fetchGraphUserResult: .success(userEnvelope))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.reloadDataCurrency.assertValueCount(0)
       self.reloadDataEmail.assertValueCount(0)
       self.reloadDataIsAppleConnectedAccount.assertValueCount(0)
@@ -47,7 +54,8 @@ internal final class SettingsAccountViewModelTests: TestCase {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear()
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.reloadDataCurrency.assertValues([.USD])
       self.reloadDataEmail.assertValues(["user@example.com"])
@@ -59,7 +67,8 @@ internal final class SettingsAccountViewModelTests: TestCase {
 
       self.vm.inputs.viewWillAppear()
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.reloadDataCurrency.assertValueCount(2)
       self.reloadDataEmail.assertValueCount(2)
@@ -71,14 +80,15 @@ internal final class SettingsAccountViewModelTests: TestCase {
     }
   }
 
-  func testFetchUserAccountFields_Failure() {
+  func testFetchUserAccountFields_Failure() async {
     let mockService = MockService(fetchGraphUserResult: .failure(.couldNotParseJSON))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear()
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.reloadDataCurrency.assertValueCount(0)
       self.reloadDataEmail.assertValueCount(0)
@@ -90,17 +100,18 @@ internal final class SettingsAccountViewModelTests: TestCase {
     }
   }
 
-  func testHideEmailPasswordHeaderView_HasNoPassword() {
+  func testHideEmailPasswordHeaderView_HasNoPassword() async {
     let user = GraphUser.template
       |> \.hasPassword .~ false
 
     let mockService = MockService(fetchGraphUserResult: .success(UserEnvelope(me: user)))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear()
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.reloadDataCurrency.assertValues([.USD])
       self.reloadDataEmail.assertValues(["user@example.com"])
@@ -118,17 +129,18 @@ internal final class SettingsAccountViewModelTests: TestCase {
     }
   }
 
-  func testHideEmailPasswordHeaderView_HasPassword() {
+  func testHideEmailPasswordHeaderView_HasPassword() async {
     let user = GraphUser.template
       |> \.hasPassword .~ true
 
     let mockService = MockService(fetchGraphUserResult: .success(UserEnvelope(me: user)))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear()
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.reloadDataCurrency.assertValues([.USD])
       self.reloadDataEmail.assertValues(["user@example.com"])
@@ -146,7 +158,7 @@ internal final class SettingsAccountViewModelTests: TestCase {
     }
   }
 
-  func testHideEmailWarningIcon_WhenEmailIsNotVerified_AndIsDeliverable() {
+  func testHideEmailWarningIcon_WhenEmailIsNotVerified_AndIsDeliverable() async {
     let user = GraphUser.template
       |> \.hasPassword .~ true
       |> \.isEmailVerified .~ false
@@ -154,11 +166,12 @@ internal final class SettingsAccountViewModelTests: TestCase {
 
     let mockService = MockService(fetchGraphUserResult: .success(UserEnvelope(me: user)))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear()
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.reloadDataCurrency.assertValues([.USD])
       self.reloadDataEmail.assertValues(["user@example.com"])
@@ -171,7 +184,7 @@ internal final class SettingsAccountViewModelTests: TestCase {
     }
   }
 
-  func testHideEmailWarningIcon_WhenEmailIsVerified_ButNotDeliverable() {
+  func testHideEmailWarningIcon_WhenEmailIsVerified_ButNotDeliverable() async {
     let user = GraphUser.template
       |> \.hasPassword .~ true
       |> \.isEmailVerified .~ true
@@ -179,11 +192,12 @@ internal final class SettingsAccountViewModelTests: TestCase {
 
     let mockService = MockService(fetchGraphUserResult: .success(UserEnvelope(me: user)))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear()
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.reloadDataCurrency.assertValues([.USD])
       self.reloadDataEmail.assertValues(["user@example.com"])
@@ -196,17 +210,18 @@ internal final class SettingsAccountViewModelTests: TestCase {
     }
   }
 
-  func testIsAppleConnectedAccount() {
+  func testIsAppleConnectedAccount() async {
     let user = GraphUser.template
       |> \.isAppleConnected .~ true
 
     let mockService = MockService(fetchGraphUserResult: .success(UserEnvelope(me: user)))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear()
 
-      self.scheduler.advance()
+      await self.feature.waitForOperations()
+      await self.scheduler.advance()
 
       self.reloadDataCurrency.assertValues([.USD])
       self.reloadDataEmail.assertValues(["user@example.com"])
