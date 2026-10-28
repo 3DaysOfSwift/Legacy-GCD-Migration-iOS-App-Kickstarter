@@ -13,12 +13,14 @@ public struct ManageViewPledgeRewardReceivedViewData: Equatable {
   public let pledgeDisclaimerViewHidden: Bool
 }
 
+@MainActor
 public protocol ManageViewPledgeRewardReceivedViewModelInputs {
   func configureWith(_ data: ManageViewPledgeRewardReceivedViewData)
   func rewardReceivedToggleTapped(isOn: Bool)
   func viewDidLoad()
 }
 
+@MainActor
 public protocol ManageViewPledgeRewardReceivedViewModelOutputs {
   var cornerRadius: Signal<CGFloat, Never> { get }
   var estimatedDeliveryDateLabelAttributedText: Signal<NSAttributedString, Never> { get }
@@ -31,16 +33,18 @@ public protocol ManageViewPledgeRewardReceivedViewModelOutputs {
   var rewardReceivedHidden: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol ManageViewPledgeRewardReceivedViewModelType {
   var inputs: ManageViewPledgeRewardReceivedViewModelInputs { get }
   var outputs: ManageViewPledgeRewardReceivedViewModelOutputs { get }
 }
 
+@MainActor
 public class ManageViewPledgeRewardReceivedViewModel:
   ManageViewPledgeRewardReceivedViewModelType,
   ManageViewPledgeRewardReceivedViewModelInputs,
   ManageViewPledgeRewardReceivedViewModelOutputs {
-  public init() {
+  public init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
     let data = Signal.combineLatest(
       self.configureWithDataProperty.signal,
       self.viewDidLoadSignal
@@ -61,10 +65,9 @@ public class ManageViewPledgeRewardReceivedViewModel:
     .takePairWhen(self.rewardReceivedToggleTappedProperty.signal)
     .map(unpack)
     .switchMap { project, backer, received in
-      AppEnvironment.current.apiService.backingUpdate(
-        forProject: project, forUser: backer, received: received
-      )
-      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      feature.delayedResult(feature.receivedResult(
+        projectID: project.id, userID: backer.id, received: received
+      ))
       .materialize()
     }
 

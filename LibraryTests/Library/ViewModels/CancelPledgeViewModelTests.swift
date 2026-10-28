@@ -9,8 +9,31 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class CancelPledgeViewModelTests: TestCase {
-  private let vm: CancelPledgeViewModelType = CancelPledgeViewModel()
+
+  private func advancePledges(by interval: DispatchTimeInterval = .seconds(0)) async {
+    await self.feature.waitForOperations()
+    await self.scheduler.advance(by: interval)
+    await self.feature.waitForOperations()
+    await self.scheduler.advance()
+  }
+  private func runPledges() async {
+    await self.feature.waitForOperations()
+    await self.scheduler.run()
+    await self.feature.waitForOperations()
+    await self.scheduler.run()
+  }
+
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = PledgeFeature(
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+    makeProvider: {
+      precondition(AppEnvironment.current.apiService is MockService)
+      return AsyncPledgeProvider(service: AppEnvironment.current.apiService)
+    }
+  )
+  private lazy var vm: CancelPledgeViewModelType = CancelPledgeViewModel(feature: self.feature)
 
   private let cancellationDetailsAttributedTextString = TestObserver<String, Never>()
   private let cancellationDetailsAttributedTextAttributedString = TestObserver<NSAttributedString, Never>()
@@ -23,20 +46,22 @@ final class CancelPledgeViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated {
 
-    self.vm.outputs.cancellationDetailsAttributedText
-      .observe(self.cancellationDetailsAttributedTextAttributedString.observer)
-    self.vm.outputs.cancellationDetailsAttributedText.map { $0.string }
-      .observe(self.cancellationDetailsAttributedTextString.observer)
-    self.vm.outputs.cancelPledgeButtonEnabled.observe(self.cancelPledgeButtonEnabled.observer)
-    self.vm.outputs.cancelPledgeError.observe(self.cancelPledgeError.observer)
-    self.vm.outputs.dismissKeyboard.observe(self.dismissKeyboard.observer)
-    self.vm.outputs.isLoading.observe(self.isLoading.observer)
-    self.vm.outputs.notifyDelegateCancelPledgeSuccess.observe(self.notifyDelegateCancelPledgeSuccess.observer)
-    self.vm.outputs.popCancelPledgeViewController.observe(self.popCancelPledgeViewController.observer)
+      self.vm.outputs.cancellationDetailsAttributedText
+        .observe(self.cancellationDetailsAttributedTextAttributedString.observer)
+      self.vm.outputs.cancellationDetailsAttributedText.map { $0.string }
+        .observe(self.cancellationDetailsAttributedTextString.observer)
+      self.vm.outputs.cancelPledgeButtonEnabled.observe(self.cancelPledgeButtonEnabled.observer)
+      self.vm.outputs.cancelPledgeError.observe(self.cancelPledgeError.observer)
+      self.vm.outputs.dismissKeyboard.observe(self.dismissKeyboard.observer)
+      self.vm.outputs.isLoading.observe(self.isLoading.observer)
+      self.vm.outputs.notifyDelegateCancelPledgeSuccess.observe(self.notifyDelegateCancelPledgeSuccess.observer)
+      self.vm.outputs.popCancelPledgeViewController.observe(self.popCancelPledgeViewController.observer)
+    }
   }
 
-  func testConfigureCancelPledgeView() {
+  func testConfigureCancelPledgeView() async {
     let project = Project.cosmicSurgery
       |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
 
@@ -104,9 +129,10 @@ final class CancelPledgeViewModelTests: TestCase {
         ) } as? [UIFont],
       [boldFontAttribute, boldFontAttribute]
     )
+    await self.feature.waitForOperations()
   }
 
-  func testGoBackButtonTapped() {
+  func testGoBackButtonTapped() async {
     let project = Project.template
 
     let data = CancelPledgeViewData(
@@ -126,9 +152,10 @@ final class CancelPledgeViewModelTests: TestCase {
     self.vm.inputs.goBackButtonTapped()
 
     self.popCancelPledgeViewController.assertValueCount(1)
+    await self.feature.waitForOperations()
   }
 
-  func testDismissKeyboard() {
+  func testDismissKeyboard() async {
     let project = Project.template
 
     let data = CancelPledgeViewData(
@@ -148,9 +175,10 @@ final class CancelPledgeViewModelTests: TestCase {
     self.vm.inputs.textFieldShouldReturn()
 
     self.dismissKeyboard.assertValueCount(1)
+    await self.feature.waitForOperations()
   }
 
-  func testViewTapped() {
+  func testViewTapped() async {
     let project = Project.template
 
     let data = CancelPledgeViewData(
@@ -170,13 +198,14 @@ final class CancelPledgeViewModelTests: TestCase {
     self.vm.inputs.viewTapped()
 
     self.dismissKeyboard.assertValueCount(1)
+    await self.feature.waitForOperations()
   }
 
-  func testCancelPledgeButtonEnabled() {
+  func testCancelPledgeButtonEnabled() async {
     let envelope = EmptyResponseEnvelope()
     let mockService = MockService(cancelBackingResult: .success(envelope))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let project = Project.template
 
       let data = CancelPledgeViewData(
@@ -204,20 +233,22 @@ final class CancelPledgeViewModelTests: TestCase {
         "Cancel button disabled when request in flight"
       )
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.cancelPledgeButtonEnabled.assertValues(
         [true, false, true],
         "Cancel button enabled when request completes"
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testCancelPledge_Success() {
+  func testCancelPledge_Success() async {
     let envelope = EmptyResponseEnvelope()
     let mockService = MockService(cancelBackingResult: .success(envelope))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let project = Project.template
 
       let data = CancelPledgeViewData(
@@ -240,7 +271,7 @@ final class CancelPledgeViewModelTests: TestCase {
       self.notifyDelegateCancelPledgeSuccess.assertDidNotEmitValue()
       self.cancelPledgeError.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.notifyDelegateCancelPledgeSuccess.assertValues(["You\'ve canceled your pledge."])
       self.cancelPledgeError.assertDidNotEmitValue()
@@ -252,23 +283,25 @@ final class CancelPledgeViewModelTests: TestCase {
       self.notifyDelegateCancelPledgeSuccess.assertValueCount(1)
       self.cancelPledgeError.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.notifyDelegateCancelPledgeSuccess.assertValues([
         "You\'ve canceled your pledge.",
         "You\'ve canceled your pledge."
       ])
       self.cancelPledgeError.assertDidNotEmitValue()
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testCancelPledge_Error() {
+  func testCancelPledge_Error() async {
     let mockService = MockService(
       cancelBackingResult:
       .failure(.couldNotParseJSON)
     )
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let project = Project.template
 
       let data = CancelPledgeViewData(
@@ -291,18 +324,20 @@ final class CancelPledgeViewModelTests: TestCase {
       self.notifyDelegateCancelPledgeSuccess.assertDidNotEmitValue()
       self.cancelPledgeError.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.notifyDelegateCancelPledgeSuccess.assertDidNotEmitValue()
       self.cancelPledgeError.assertValues(["Something went wrong."])
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testTrackingEvents() {
+  func testTrackingEvents() async {
     let envelope = EmptyResponseEnvelope()
     let mockService = MockService(cancelBackingResult: .success(envelope))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let project = Project.template
 
       let data = CancelPledgeViewData(
@@ -322,10 +357,12 @@ final class CancelPledgeViewModelTests: TestCase {
       self.vm.inputs.cancelPledgeButtonTapped()
 
       XCTAssertEqual([], self.segmentTrackingClient.events)
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testIsLoading() {
+  func testIsLoading() async {
     self.isLoading.assertDidNotEmitValue()
 
     let project = Project.template
@@ -341,7 +378,7 @@ final class CancelPledgeViewModelTests: TestCase {
     let envelope = EmptyResponseEnvelope()
     let mockService = MockService(cancelBackingResult: .success(envelope))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.vm.inputs.configure(with: data)
 
       self.vm.inputs.viewDidLoad()
@@ -352,9 +389,11 @@ final class CancelPledgeViewModelTests: TestCase {
 
       self.isLoading.assertValues([true])
 
-      self.scheduler.advance()
+      await self.advancePledges()
 
       self.isLoading.assertValues([true, false])
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 }

@@ -15,8 +15,31 @@ private struct MockStripePaymentHandlerActionStatus: StripePaymentHandlerActionS
   let status: StripePaymentHandlerActionStatus
 }
 
+@MainActor
 final class PledgeViewModelTests: TestCase {
-  private let vm: PledgeViewModelType = PledgeViewModel()
+
+  private func advancePledges(by interval: DispatchTimeInterval = .seconds(0)) async {
+    await self.feature.waitForOperations()
+    await self.scheduler.advance(by: interval)
+    await self.feature.waitForOperations()
+    await self.scheduler.advance()
+  }
+  private func runPledges() async {
+    await self.feature.waitForOperations()
+    await self.scheduler.run()
+    await self.feature.waitForOperations()
+    await self.scheduler.run()
+  }
+
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = PledgeFeature(
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+    makeProvider: {
+      precondition(AppEnvironment.current.apiService is MockService)
+      return AsyncPledgeProvider(service: AppEnvironment.current.apiService)
+    }
+  )
+  private lazy var vm: PledgeViewModelType = PledgeViewModel(feature: self.feature)
 
   private let beginSCAFlowWithClientSecret = TestObserver<String, Never>()
 
@@ -76,109 +99,113 @@ final class PledgeViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated {
 
-    self.vm.outputs.beginSCAFlowWithClientSecret.observe(self.beginSCAFlowWithClientSecret.observer)
+      self.vm.outputs.beginSCAFlowWithClientSecret.observe(self.beginSCAFlowWithClientSecret.observer)
 
-    self.vm.outputs.configureLocalPickupViewWithData.observe(self.configureLocalPickupViewWithData.observer)
-    self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.0 }
-      .observe(self.configurePaymentMethodsViewControllerWithUser.observer)
-    self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.1 }
-      .observe(self.configurePaymentMethodsViewControllerWithProject.observer)
-    self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.2 }
-      .observe(self.configurePaymentMethodsViewControllerWithCheckoutId.observer)
-    self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.3 }
-      .observe(self.configurePaymentMethodsViewControllerWithReward.observer)
-    self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.4 }
-      .observe(self.configurePaymentMethodsViewControllerWithContext.observer)
+      self.vm.outputs.configureLocalPickupViewWithData.observe(self.configureLocalPickupViewWithData.observer)
+      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.0 }
+        .observe(self.configurePaymentMethodsViewControllerWithUser.observer)
+      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.1 }
+        .observe(self.configurePaymentMethodsViewControllerWithProject.observer)
+      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.2 }
+        .observe(self.configurePaymentMethodsViewControllerWithCheckoutId.observer)
+      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.3 }
+        .observe(self.configurePaymentMethodsViewControllerWithReward.observer)
+      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.4 }
+        .observe(self.configurePaymentMethodsViewControllerWithContext.observer)
 
-    self.vm.outputs.configurePledgeRewardsSummaryViewWithData.map(\.0.rewards)
-      .observe(self.configurePledgeRewardsSummaryViewRewards.observer)
-    self.vm.outputs.configurePledgeRewardsSummaryViewWithData.map(\.0.selectedQuantities)
-      .observe(self.configurePledgeRewardsSummaryViewSelectedQuantities.observer)
-    self.vm.outputs.configurePledgeRewardsSummaryViewWithData.map(\.0.currencyCode)
-      .observe(self.configurePledgeRewardsSummaryViewProjectCurrency.observer)
-    self.vm.outputs.configurePledgeRewardsSummaryViewWithData.map(\.0.omitCurrencyCode)
-      .observe(self.configurePledgeRewardsSummaryViewOmitCurrencyCode.observer)
-    self.vm.outputs.configurePledgeRewardsSummaryViewWithData.map(\.0.shipping)
-      .observe(self.configurePledgeRewardsSummaryViewShipping.observer)
+      self.vm.outputs.configurePledgeRewardsSummaryViewWithData.map(\.0.rewards)
+        .observe(self.configurePledgeRewardsSummaryViewRewards.observer)
+      self.vm.outputs.configurePledgeRewardsSummaryViewWithData.map(\.0.selectedQuantities)
+        .observe(self.configurePledgeRewardsSummaryViewSelectedQuantities.observer)
+      self.vm.outputs.configurePledgeRewardsSummaryViewWithData.map(\.0.currencyCode)
+        .observe(self.configurePledgeRewardsSummaryViewProjectCurrency.observer)
+      self.vm.outputs.configurePledgeRewardsSummaryViewWithData.map(\.0.omitCurrencyCode)
+        .observe(self.configurePledgeRewardsSummaryViewOmitCurrencyCode.observer)
+      self.vm.outputs.configurePledgeRewardsSummaryViewWithData.map(\.0.shipping)
+        .observe(self.configurePledgeRewardsSummaryViewShipping.observer)
 
-    self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.2 }
-      .observe(self.configurePledgeViewCTAContainerViewIsLoggedIn.observer)
-    self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.3 }
-      .observe(self.configurePledgeViewCTAContainerViewIsEnabled.observer)
-    self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.4 }
-      .observe(self.configurePledgeViewCTAContainerViewContext.observer)
-    self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.5 }
-      .observe(self.configurePledgeViewCTAContainerViewWillRetryPaymentMethod.observer)
+      self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.2 }
+        .observe(self.configurePledgeViewCTAContainerViewIsLoggedIn.observer)
+      self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.3 }
+        .observe(self.configurePledgeViewCTAContainerViewIsEnabled.observer)
+      self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.4 }
+        .observe(self.configurePledgeViewCTAContainerViewContext.observer)
+      self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.5 }
+        .observe(self.configurePledgeViewCTAContainerViewWillRetryPaymentMethod.observer)
 
-    self.vm.outputs.configureStripeIntegration.map(first)
-      .observe(self.configureStripeIntegrationMerchantId.observer)
-    self.vm.outputs.configureStripeIntegration.map(second)
-      .observe(self.configureStripeIntegrationPublishableKey.observer)
+      self.vm.outputs.configureStripeIntegration.map(first)
+        .observe(self.configureStripeIntegrationMerchantId.observer)
+      self.vm.outputs.configureStripeIntegration.map(second)
+        .observe(self.configureStripeIntegrationPublishableKey.observer)
 
-    self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.project }
-      .observe(self.goToApplePayPaymentAuthorizationProject.observer)
-    self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.reward }
-      .observe(self.goToApplePayPaymentAuthorizationReward.observer)
-    self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.allRewardsTotal }
-      .observe(self.goToApplePayPaymentAuthorizationAllRewardsTotal.observer)
-    self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.additionalPledgeAmount }
-      .observe(self.goToApplePayPaymentAuthorizationAdditionalPledgeAmount.observer)
-    self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.allRewardsShippingTotal }
-      .observe(self.goToApplePayPaymentAuthorizationAllRewardsShippingTotal.observer)
-    self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.merchantIdentifier }
-      .observe(self.goToApplePayPaymentAuthorizationMerchantId.observer)
+      self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.project }
+        .observe(self.goToApplePayPaymentAuthorizationProject.observer)
+      self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.reward }
+        .observe(self.goToApplePayPaymentAuthorizationReward.observer)
+      self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.allRewardsTotal }
+        .observe(self.goToApplePayPaymentAuthorizationAllRewardsTotal.observer)
+      self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.additionalPledgeAmount }
+        .observe(self.goToApplePayPaymentAuthorizationAdditionalPledgeAmount.observer)
+      self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.allRewardsShippingTotal }
+        .observe(self.goToApplePayPaymentAuthorizationAllRewardsShippingTotal.observer)
+      self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.merchantIdentifier }
+        .observe(self.goToApplePayPaymentAuthorizationMerchantId.observer)
 
-    self.vm.outputs.goToThanks.map { $0.project }.observe(self.goToThanksProject.observer)
-    self.vm.outputs.goToThanks.map { $0.reward }.observe(self.goToThanksReward.observer)
-    self.vm.outputs.goToThanks.map { $0.checkoutData }.observe(self.goToThanksCheckoutData.observer)
-    self.vm.outputs.localPickupViewHidden.observe(self.localPickupViewHidden.observer)
+      self.vm.outputs.goToThanks.map { $0.project }.observe(self.goToThanksProject.observer)
+      self.vm.outputs.goToThanks.map { $0.reward }.observe(self.goToThanksReward.observer)
+      self.vm.outputs.goToThanks.map { $0.checkoutData }.observe(self.goToThanksCheckoutData.observer)
+      self.vm.outputs.localPickupViewHidden.observe(self.localPickupViewHidden.observer)
 
-    self.vm.outputs.notifyDelegateUpdatePledgeDidSucceedWithMessage
-      .observe(self.notifyDelegateUpdatePledgeDidSucceedWithMessage.observer)
+      self.vm.outputs.notifyDelegateUpdatePledgeDidSucceedWithMessage
+        .observe(self.notifyDelegateUpdatePledgeDidSucceedWithMessage.observer)
 
-    self.vm.outputs.paymentMethodsViewHidden.observe(self.paymentMethodsViewHidden.observer)
-    self.vm.outputs.pledgeAmountSummaryViewHidden.observe(self.pledgeAmountSummaryViewHidden.observer)
-    self.vm.outputs.popToRootViewController.observe(self.popToRootViewController.observer)
-    self.vm.outputs.processingViewIsHidden.observe(self.processingViewIsHidden.observer)
+      self.vm.outputs.paymentMethodsViewHidden.observe(self.paymentMethodsViewHidden.observer)
+      self.vm.outputs.pledgeAmountSummaryViewHidden.observe(self.pledgeAmountSummaryViewHidden.observer)
+      self.vm.outputs.popToRootViewController.observe(self.popToRootViewController.observer)
+      self.vm.outputs.processingViewIsHidden.observe(self.processingViewIsHidden.observer)
 
-    self.vm.outputs.showWebHelp.observe(self.showWebHelp.observer)
-    self.vm.outputs.showErrorBannerWithMessage.observe(self.showErrorBannerWithMessage.observer)
+      self.vm.outputs.showWebHelp.observe(self.showWebHelp.observer)
+      self.vm.outputs.showErrorBannerWithMessage.observe(self.showErrorBannerWithMessage.observer)
 
-    self.vm.outputs.title.observe(self.title.observer)
+      self.vm.outputs.title.observe(self.title.observer)
 
-    self.vm.outputs.showPledgeOverTimeUI.observe(self.showPledgeOverTimeUI.observer)
+      self.vm.outputs.showPledgeOverTimeUI.observe(self.showPledgeOverTimeUI.observer)
 
-    self.vm.outputs.pledgeOverTimeConfigData
-      .skipNil()
-      .map { $0.selectedPlan }
-      .observe(self.plotSelectedPlan.observer)
+      self.vm.outputs.pledgeOverTimeConfigData
+        .skipNil()
+        .map { $0.selectedPlan }
+        .observe(self.plotSelectedPlan.observer)
 
-    self.vm.outputs.pledgeOverTimeConfigData
-      .skipNil()
-      .observe(self.pledgeOverTimeConfigData.observer)
+      self.vm.outputs.pledgeOverTimeConfigData
+        .skipNil()
+        .observe(self.pledgeOverTimeConfigData.observer)
+    }
   }
 
-  func testShowWebHelp() {
+  func testShowWebHelp() async {
     self.vm.inputs.viewDidLoad()
 
     self.vm.inputs.termsOfUseTapped(with: .terms)
 
     self.showWebHelp.assertValues([HelpType.terms])
+    await self.feature.waitForOperations()
   }
 
-  func testShowWebHelpLearnMore() {
+  func testShowWebHelpLearnMore() async {
     self.vm.inputs.viewDidLoad()
 
     self.vm.inputs.pledgeDisclaimerViewDidTapLearnMore()
 
     self.showWebHelp.assertValues([HelpType.trust])
+    await self.feature.waitForOperations()
   }
 
-  func testPledgeContext_LoggedIn() {
+  func testPledgeContext_LoggedIn() async {
     let mockService = MockService(serverConfig: ServerConfig.staging)
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let project = Project.template
       let reward = Reward.template
         |> Reward.lens.shipping.enabled .~ true
@@ -217,13 +244,15 @@ final class PledgeViewModelTests: TestCase {
 
       self.paymentMethodsViewHidden.assertLastValue(false)
       self.pledgeAmountSummaryViewHidden.assertLastValue(true)
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testPledgeContext_LoggedOut() {
+  func testPledgeContext_LoggedOut() async {
     let mockService = MockService(serverConfig: ServerConfig.staging)
 
-    withEnvironment(apiService: mockService, currentUser: nil) {
+    await withEnvironment(apiService: mockService, currentUser: nil) {
       let project = Project.template
       let reward = Reward.template
         |> Reward.lens.shipping.enabled .~ true
@@ -262,13 +291,15 @@ final class PledgeViewModelTests: TestCase {
 
       self.paymentMethodsViewHidden.assertLastValue(true)
       self.pledgeAmountSummaryViewHidden.assertLastValue(true)
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testUpdateRewardContext() {
+  func testUpdateRewardContext() async {
     let mockService = MockService(serverConfig: ServerConfig.staging)
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let project = Project.template
       let reward = Reward.template
         |> Reward.lens.shipping.enabled .~ true
@@ -314,13 +345,15 @@ final class PledgeViewModelTests: TestCase {
 
       self.paymentMethodsViewHidden.assertLastValue(true)
       self.pledgeAmountSummaryViewHidden.assertLastValue(true)
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testChangePaymentMethodContext() {
+  func testChangePaymentMethodContext() async {
     let mockService = MockService(serverConfig: ServerConfig.staging)
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let shippingRule = ShippingRule.template
         |> ShippingRule.lens.id .~ 123
         |> ShippingRule.lens.cost .~ 10.0
@@ -378,13 +411,15 @@ final class PledgeViewModelTests: TestCase {
         true,
         "Selecting new payment method enables CTA"
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testFixPaymentMethodContext() {
+  func testFixPaymentMethodContext() async {
     let mockService = MockService(serverConfig: ServerConfig.staging)
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let shippingRule = ShippingRule.template
         |> ShippingRule.lens.id .~ 123
         |> ShippingRule.lens.cost .~ 10.0
@@ -448,10 +483,12 @@ final class PledgeViewModelTests: TestCase {
         true,
         "CTA is disabled until new payment method is selected"
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testChangePaymentMethodContext_NoReward() {
+  func testChangePaymentMethodContext_NoReward() async {
     let backing = Backing.template
       |> Backing.lens.amount .~ 10
       |> Backing.lens.bonusAmount .~ 10
@@ -465,7 +502,7 @@ final class PledgeViewModelTests: TestCase {
 
     let mockService = MockService(serverConfig: ServerConfig.staging)
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -500,10 +537,12 @@ final class PledgeViewModelTests: TestCase {
 
       self.paymentMethodsViewHidden.assertLastValue(false)
       self.pledgeAmountSummaryViewHidden.assertLastValue(false)
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testChangePaymentMethodContext_RewardWithShipping() {
+  func testChangePaymentMethodContext_RewardWithShipping() async {
     let backing = Backing.template
     let reward = Reward.template
     let project = Project.template
@@ -513,7 +552,7 @@ final class PledgeViewModelTests: TestCase {
 
     let mockService = MockService(serverConfig: ServerConfig.staging)
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -558,11 +597,13 @@ final class PledgeViewModelTests: TestCase {
         total: backing.shippingAmount!
       )
       self.configurePledgeRewardsSummaryViewShipping.assertLastValue(expectedShipping)
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testPledgeView_Logged_Out_Shipping_Disabled() {
-    withEnvironment(currentUser: nil) {
+  func testPledgeView_Logged_Out_Shipping_Disabled() async {
+    await withEnvironment(currentUser: nil) {
       let project = Project.template
       let reward = Reward.template
         |> Reward.lens.shipping.enabled .~ false
@@ -592,11 +633,13 @@ final class PledgeViewModelTests: TestCase {
 
       self.paymentMethodsViewHidden.assertLastValue(true)
       self.pledgeAmountSummaryViewHidden.assertLastValue(true)
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testPledgeView_Logged_Out_Shipping_Enabled() {
-    withEnvironment(currentUser: nil) {
+  func testPledgeView_Logged_Out_Shipping_Enabled() async {
+    await withEnvironment(currentUser: nil) {
       let project = Project.template
       let reward = Reward.template
         |> Reward.lens.shipping.enabled .~ true
@@ -626,15 +669,17 @@ final class PledgeViewModelTests: TestCase {
 
       self.paymentMethodsViewHidden.assertLastValue(true)
       self.pledgeAmountSummaryViewHidden.assertLastValue(true)
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testPledgeView_Logged_In_Shipping_Disabled() {
+  func testPledgeView_Logged_In_Shipping_Disabled() async {
     let project = Project.template
     let reward = Reward.template
       |> Reward.lens.shipping.enabled .~ false
 
-    withEnvironment(currentUser: .template) {
+    await withEnvironment(currentUser: .template) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -660,15 +705,17 @@ final class PledgeViewModelTests: TestCase {
 
       self.paymentMethodsViewHidden.assertLastValue(false)
       self.pledgeAmountSummaryViewHidden.assertLastValue(true)
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testPledgeView_Logged_In_Shipping_Enabled() {
+  func testPledgeView_Logged_In_Shipping_Enabled() async {
     let project = Project.template
     let reward = Reward.template
       |> Reward.lens.shipping.enabled .~ true
 
-    withEnvironment(currentUser: .template) {
+    await withEnvironment(currentUser: .template) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -694,15 +741,17 @@ final class PledgeViewModelTests: TestCase {
 
       self.paymentMethodsViewHidden.assertLastValue(false)
       self.pledgeAmountSummaryViewHidden.assertLastValue(true)
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testShippingRuleSelectedUpdatedShippingRule() {
+  func testShippingRuleSelectedUpdatedShippingRule() async {
     let project = Project.template
     let reward = Reward.template
       |> Reward.lens.shipping .~ (.template |> Reward.Shipping.lens.enabled .~ true)
 
-    withEnvironment(currentUser: .template) {
+    await withEnvironment(currentUser: .template) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -728,15 +777,17 @@ final class PledgeViewModelTests: TestCase {
 
       self.paymentMethodsViewHidden.assertLastValue(false)
       self.pledgeAmountSummaryViewHidden.assertLastValue(true)
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testLoginSignup() {
+  func testLoginSignup() async {
     let project = Project.template
     let reward = Reward.template
     let user = User.template
 
-    withEnvironment(currentUser: nil) {
+    await withEnvironment(currentUser: nil) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -763,7 +814,7 @@ final class PledgeViewModelTests: TestCase {
       self.paymentMethodsViewHidden.assertLastValue(true)
       self.pledgeAmountSummaryViewHidden.assertLastValue(true)
 
-      withEnvironment(currentUser: user) {
+      await withEnvironment(currentUser: user) {
         self.vm.inputs.userSessionDidChange()
 
         self.configurePaymentMethodsViewControllerWithUser.assertValues([user])
@@ -776,14 +827,17 @@ final class PledgeViewModelTests: TestCase {
         self.configurePledgeViewCTAContainerViewContext.assertValues([.pledge, .pledge])
 
         self.paymentMethodsViewHidden.assertValues([true, false])
+        await self.feature.waitForOperations()
       }
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testStripeConfiguration_StagingEnvironment() {
+  func testStripeConfiguration_StagingEnvironment() async {
     let mockService = MockService(serverConfig: ServerConfig.staging)
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.configureStripeIntegrationMerchantId.assertDidNotEmitValue()
       self.configureStripeIntegrationPublishableKey.assertDidNotEmitValue()
 
@@ -806,13 +860,15 @@ final class PledgeViewModelTests: TestCase {
 
       self.configureStripeIntegrationMerchantId.assertValues([Secrets.ApplePay.merchantIdentifier])
       self.configureStripeIntegrationPublishableKey.assertValues([Secrets.StripePublishableKey.staging])
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testStripeConfiguration_ProductionEnvironment() {
+  func testStripeConfiguration_ProductionEnvironment() async {
     let mockService = MockService(serverConfig: ServerConfig.production)
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.configureStripeIntegrationMerchantId.assertDidNotEmitValue()
       self.configureStripeIntegrationPublishableKey.assertDidNotEmitValue()
 
@@ -835,10 +891,12 @@ final class PledgeViewModelTests: TestCase {
 
       self.configureStripeIntegrationMerchantId.assertValues([Secrets.ApplePay.merchantIdentifier])
       self.configureStripeIntegrationPublishableKey.assertValues([Secrets.StripePublishableKey.production])
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testGoToApplePayPaymentAuthorization_WhenApplePayButtonTapped_ShippingDisabled() {
+  func testGoToApplePayPaymentAuthorization_WhenApplePayButtonTapped_ShippingDisabled() async {
     let project = Project.template
     let reward = Reward.noReward
       |> Reward.lens.minimum .~ 1
@@ -874,9 +932,10 @@ final class PledgeViewModelTests: TestCase {
     self.goToApplePayPaymentAuthorizationAdditionalPledgeAmount.assertValues([5])
     self.goToApplePayPaymentAuthorizationAllRewardsShippingTotal.assertValues([0])
     self.goToApplePayPaymentAuthorizationMerchantId.assertValues([Secrets.ApplePay.merchantIdentifier])
+    await self.feature.waitForOperations()
   }
 
-  func testGoToApplePayPaymentAuthorization_WhenApplePayButtonTapped_ShippingEnabled() {
+  func testGoToApplePayPaymentAuthorization_WhenApplePayButtonTapped_ShippingEnabled() async {
     let project = Project.template
     let reward = Reward.template
       |> Reward.lens.minimum .~ 20
@@ -914,9 +973,10 @@ final class PledgeViewModelTests: TestCase {
     self.goToApplePayPaymentAuthorizationAdditionalPledgeAmount.assertValues([25])
     self.goToApplePayPaymentAuthorizationAllRewardsShippingTotal.assertValues([5])
     self.goToApplePayPaymentAuthorizationMerchantId.assertValues([Secrets.ApplePay.merchantIdentifier])
+    await self.feature.waitForOperations()
   }
 
-  func testPaymentAuthorizationViewControllerDidFinish_WithoutCompletingTransaction() {
+  func testPaymentAuthorizationViewControllerDidFinish_WithoutCompletingTransaction() async {
     let project = Project.template
     let reward = Reward.template
       |> Reward.lens.minimum .~ 20
@@ -950,9 +1010,10 @@ final class PledgeViewModelTests: TestCase {
 
     self.goToThanksProject.assertDidNotEmitValue()
     self.showErrorBannerWithMessage.assertDidNotEmitValue()
+    await self.feature.waitForOperations()
   }
 
-  func testStripeTokenCreated_ReturnsStatusFailure_WhenPKPaymentData_IsNil() {
+  func testStripeTokenCreated_ReturnsStatusFailure_WhenPKPaymentData_IsNil() async {
     let project = Project.template
     let reward = Reward.noReward
       |> Reward.lens.minimum .~ 5
@@ -981,9 +1042,10 @@ final class PledgeViewModelTests: TestCase {
       PKPaymentAuthorizationStatus.failure,
       self.vm.inputs.stripeTokenCreated(token: "stripe_token", error: nil)
     )
+    await self.feature.waitForOperations()
   }
 
-  func testStripeTokenCreated_ReturnsStatusFailure_WhenStripeTokenNil_ErrorNotNil() {
+  func testStripeTokenCreated_ReturnsStatusFailure_WhenStripeTokenNil_ErrorNotNil() async {
     let project = Project.template
     let reward = Reward.noReward
       |> Reward.lens.minimum .~ 5
@@ -1014,9 +1076,10 @@ final class PledgeViewModelTests: TestCase {
       PKPaymentAuthorizationStatus.failure,
       self.vm.inputs.stripeTokenCreated(token: nil, error: stripeError)
     )
+    await self.feature.waitForOperations()
   }
 
-  func testStripeTokenCreated_ReturnsStatusFailure_WhenStripeTokenNil_ErrorNil() {
+  func testStripeTokenCreated_ReturnsStatusFailure_WhenStripeTokenNil_ErrorNil() async {
     let project = Project.template
     let reward = Reward.noReward
       |> Reward.lens.minimum .~ 5
@@ -1045,9 +1108,10 @@ final class PledgeViewModelTests: TestCase {
       PKPaymentAuthorizationStatus.failure,
       self.vm.inputs.stripeTokenCreated(token: nil, error: nil)
     )
+    await self.feature.waitForOperations()
   }
 
-  func testStripeTokenCreated_ReturnsStatusFailure_WhenStripeTokenNotNil_ErrorNotNil() {
+  func testStripeTokenCreated_ReturnsStatusFailure_WhenStripeTokenNotNil_ErrorNotNil() async {
     let project = Project.template
     let reward = Reward.noReward
 
@@ -1077,9 +1141,10 @@ final class PledgeViewModelTests: TestCase {
       PKPaymentAuthorizationStatus.failure,
       self.vm.inputs.stripeTokenCreated(token: "stripe-token", error: stripeError)
     )
+    await self.feature.waitForOperations()
   }
 
-  func testStripeTokenCreated_ReturnsStatusSuccess() {
+  func testStripeTokenCreated_ReturnsStatusSuccess() async {
     let project = Project.template
     let reward = Reward.noReward
       |> Reward.lens.minimum .~ 5
@@ -1108,9 +1173,10 @@ final class PledgeViewModelTests: TestCase {
       PKPaymentAuthorizationStatus.success,
       self.vm.inputs.stripeTokenCreated(token: "stripe_token", error: nil)
     )
+    await self.feature.waitForOperations()
   }
 
-  func testApplePay_GoToThanks() {
+  func testApplePay_GoToThanks() async {
     let createBacking = CreateBackingEnvelope.CreateBacking(
       checkout: Checkout(
         id: "Q2hlY2tvdXQtMQ==",
@@ -1123,7 +1189,7 @@ final class PledgeViewModelTests: TestCase {
       Result.success(CreateBackingEnvelope(createBacking: createBacking))
     )
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let project = Project.template
       let reward = Reward.template
         |> Reward.lens.minimum .~ 5
@@ -1166,7 +1232,7 @@ final class PledgeViewModelTests: TestCase {
       self.goToThanksProject.assertDidNotEmitValue("Signal waits for Create Backing to complete")
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       let checkoutData = KSRAnalytics.CheckoutPropertiesData(
         addOnsCountTotal: 0,
@@ -1196,10 +1262,12 @@ final class PledgeViewModelTests: TestCase {
         ["Page Viewed", "CTA Clicked"],
         self.segmentTrackingClient.events
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testApplePay_GoToThanks_NonUSDProject() {
+  func testApplePay_GoToThanks_NonUSDProject() async {
     let createBacking = CreateBackingEnvelope.CreateBacking(
       checkout: Checkout(
         id: "Q2hlY2tvdXQtMQ==",
@@ -1212,7 +1280,7 @@ final class PledgeViewModelTests: TestCase {
       Result.success(CreateBackingEnvelope(createBacking: createBacking))
     )
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let project = Project.cosmicSurgery
       let reward = Reward.template
         |> Reward.lens.minimum .~ 5
@@ -1255,7 +1323,7 @@ final class PledgeViewModelTests: TestCase {
       self.goToThanksProject.assertDidNotEmitValue("Signal waits for Create Backing to complete")
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       let checkoutData = KSRAnalytics.CheckoutPropertiesData(
         addOnsCountTotal: 0,
@@ -1285,10 +1353,12 @@ final class PledgeViewModelTests: TestCase {
         ["Page Viewed", "CTA Clicked"],
         self.segmentTrackingClient.events
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testApplePay_GoToThanks_WhenRefTag_IsNil() {
+  func testApplePay_GoToThanks_WhenRefTag_IsNil() async {
     let createBacking = CreateBackingEnvelope.CreateBacking(
       checkout: Checkout(
         id: "Q2hlY2tvdXQtMQ==",
@@ -1301,7 +1371,7 @@ final class PledgeViewModelTests: TestCase {
       Result.success(CreateBackingEnvelope(createBacking: createBacking))
     )
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let project = Project.template
 
       let shippingRule = ShippingRule.template
@@ -1350,7 +1420,7 @@ final class PledgeViewModelTests: TestCase {
 
       self.goToThanksProject.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       let checkoutData = KSRAnalytics.CheckoutPropertiesData(
         addOnsCountTotal: 0,
@@ -1378,11 +1448,13 @@ final class PledgeViewModelTests: TestCase {
         ["Page Viewed", "CTA Clicked"],
         self.segmentTrackingClient.events
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testApplePay_WhenStripeTokenCreated_IsNil_ReturnsFailure() {
-    withEnvironment(apiService: MockService()) {
+  func testApplePay_WhenStripeTokenCreated_IsNil_ReturnsFailure() async {
+    await withEnvironment(apiService: MockService()) {
       let project = Project.template
       let reward = Reward.noReward
 
@@ -1413,7 +1485,7 @@ final class PledgeViewModelTests: TestCase {
         self.vm.inputs.stripeTokenCreated(token: nil, error: GraphError.invalidInput)
       )
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.vm.inputs.paymentAuthorizationViewControllerDidFinish()
 
@@ -1424,13 +1496,15 @@ final class PledgeViewModelTests: TestCase {
         ["Page Viewed", "CTA Clicked"],
         self.segmentTrackingClient.events
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testCreateApplePayBackingError() {
+  func testCreateApplePayBackingError() async {
     let mockService = MockService(createBackingResult: .failure(.couldNotParseJSON))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let project = Project.template
       let reward = Reward.noReward
         |> Reward.lens.minimum .~ 5
@@ -1467,7 +1541,7 @@ final class PledgeViewModelTests: TestCase {
       self.goToThanksProject.assertDidNotEmitValue()
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.processingViewIsHidden.assertValues([false, true])
       self.showErrorBannerWithMessage.assertDidNotEmitValue(
@@ -1482,10 +1556,12 @@ final class PledgeViewModelTests: TestCase {
         ["Page Viewed", "CTA Clicked"],
         self.segmentTrackingClient.events
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testCreateBacking_Success() {
+  func testCreateBacking_Success() async {
     let createBacking = CreateBackingEnvelope.CreateBacking(
       checkout: Checkout(
         id: "Q2hlY2tvdXQtMQ==",
@@ -1498,7 +1574,7 @@ final class PledgeViewModelTests: TestCase {
       Result.success(CreateBackingEnvelope(createBacking: createBacking))
     )
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let shippingRule = ShippingRule.template
 
       let reward = Reward.template
@@ -1557,7 +1633,7 @@ final class PledgeViewModelTests: TestCase {
       self.goToThanksProject.assertDidNotEmitValue()
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.processingViewIsHidden.assertValues([false, true])
       self.beginSCAFlowWithClientSecret.assertDidNotEmitValue()
@@ -1590,10 +1666,12 @@ final class PledgeViewModelTests: TestCase {
         ["Page Viewed", "CTA Clicked"],
         self.segmentTrackingClient.events
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testCreateBacking_Success_AddOns() {
+  func testCreateBacking_Success_AddOns() async {
     let createBacking = CreateBackingEnvelope.CreateBacking(
       checkout: Checkout(
         id: "Q2hlY2tvdXQtMQ==",
@@ -1606,7 +1684,7 @@ final class PledgeViewModelTests: TestCase {
       Result.success(CreateBackingEnvelope(createBacking: createBacking))
     )
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let project = Project.template
       let reward = Reward.template
         |> Reward.lens.hasAddOns .~ true
@@ -1650,7 +1728,7 @@ final class PledgeViewModelTests: TestCase {
       self.goToThanksProject.assertDidNotEmitValue()
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.processingViewIsHidden.assertValues([false, true])
       self.beginSCAFlowWithClientSecret.assertDidNotEmitValue()
@@ -1683,13 +1761,15 @@ final class PledgeViewModelTests: TestCase {
         ["Page Viewed", "CTA Clicked"],
         self.segmentTrackingClient.events
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testCreateBacking_Failure() {
+  func testCreateBacking_Failure() async {
     let mockService = MockService(createBackingResult: .failure(.couldNotParseJSON))
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let project = Project.template
       let reward = Reward.template
 
@@ -1727,7 +1807,7 @@ final class PledgeViewModelTests: TestCase {
       self.goToThanksProject.assertDidNotEmitValue()
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.processingViewIsHidden.assertValues([false, true])
       self.beginSCAFlowWithClientSecret.assertDidNotEmitValue()
@@ -1739,10 +1819,12 @@ final class PledgeViewModelTests: TestCase {
         ["Page Viewed", "CTA Clicked"],
         self.segmentTrackingClient.events
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testUpdateReward_Success() {
+  func testUpdateReward_Success() async {
     let reward = Reward.postcards
       |> Reward.lens.shipping.enabled .~ true
 
@@ -1776,7 +1858,7 @@ final class PledgeViewModelTests: TestCase {
       updateBackingResult: .success(updateBackingEnvelope)
     )
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -1807,7 +1889,7 @@ final class PledgeViewModelTests: TestCase {
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(false)
       self.processingViewIsHidden.assertLastValue(false)
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.processingViewIsHidden.assertValues([false, true])
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(true)
@@ -1817,10 +1899,12 @@ final class PledgeViewModelTests: TestCase {
       ])
       self.popToRootViewController.assertValueCount(1)
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testUpdateReward_Failure() {
+  func testUpdateReward_Failure() async {
     let reward = Reward.postcards
       |> Reward.lens.shipping.enabled .~ true
 
@@ -1841,7 +1925,7 @@ final class PledgeViewModelTests: TestCase {
       updateBackingResult: .failure(.couldNotParseJSON)
     )
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -1872,7 +1956,7 @@ final class PledgeViewModelTests: TestCase {
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(false)
       self.processingViewIsHidden.assertLastValue(false)
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.processingViewIsHidden.assertValues([false, true])
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(true)
@@ -1880,10 +1964,12 @@ final class PledgeViewModelTests: TestCase {
       self.notifyDelegateUpdatePledgeDidSucceedWithMessage.assertDidNotEmitValue()
       self.popToRootViewController.assertDidNotEmitValue()
       self.showErrorBannerWithMessage.assertValueCount(1)
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testChangingPaymentMethod_SubmitButtonEnabled_OnlyWhenNewMethodIsSelected() {
+  func testChangingPaymentMethod_SubmitButtonEnabled_OnlyWhenNewMethodIsSelected() async {
     let reward = Reward.postcards
       |> Reward.lens.shipping.enabled .~ true
       |> Reward.lens.minimum .~ 10
@@ -1944,9 +2030,10 @@ final class PledgeViewModelTests: TestCase {
       false,
       "Selected original payment method again"
     )
+    await self.feature.waitForOperations()
   }
 
-  func testGoToApplePayPaymentAuthorization_HasAddOns() {
+  func testGoToApplePayPaymentAuthorization_HasAddOns() async {
     self.goToApplePayPaymentAuthorizationProject.assertDidNotEmitValue()
     self.goToApplePayPaymentAuthorizationReward.assertDidNotEmitValue()
     self.goToApplePayPaymentAuthorizationAllRewardsTotal.assertDidNotEmitValue()
@@ -1986,9 +2073,10 @@ final class PledgeViewModelTests: TestCase {
     self.goToApplePayPaymentAuthorizationAllRewardsTotal.assertValues([40])
     self.goToApplePayPaymentAuthorizationAdditionalPledgeAmount.assertValues([15])
     self.goToApplePayPaymentAuthorizationMerchantId.assertValues([Secrets.ApplePay.merchantIdentifier])
+    await self.feature.waitForOperations()
   }
 
-  func testChangePaymentMethod_ApplePay_Success() {
+  func testChangePaymentMethod_ApplePay_Success() async {
     let updateBackingEnvelope = UpdateBackingEnvelope(
       updateBacking: .init(
         checkout: .init(
@@ -2019,7 +2107,7 @@ final class PledgeViewModelTests: TestCase {
     self.configurePledgeViewCTAContainerViewIsEnabled.assertDidNotEmitValue()
     self.goToThanksProject.assertDidNotEmitValue()
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let reward = Reward.postcards
         |> Reward.lens.shipping.enabled .~ true
         |> Reward.lens.minimum .~ 10
@@ -2137,7 +2225,7 @@ final class PledgeViewModelTests: TestCase {
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(false)
       self.goToThanksProject.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.goToApplePayPaymentAuthorizationProject.assertValues([project])
       self.goToApplePayPaymentAuthorizationReward.assertValues([reward])
@@ -2153,10 +2241,12 @@ final class PledgeViewModelTests: TestCase {
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(false)
       self.goToThanksProject.assertDidNotEmitValue()
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testChangePaymentMethod_ApplePay_StripeTokenFailure() {
+  func testChangePaymentMethod_ApplePay_StripeTokenFailure() async {
     let updateBackingEnvelope = UpdateBackingEnvelope(
       updateBacking: .init(
         checkout: .init(
@@ -2187,7 +2277,7 @@ final class PledgeViewModelTests: TestCase {
     self.configurePledgeViewCTAContainerViewIsEnabled.assertDidNotEmitValue()
     self.goToThanksProject.assertDidNotEmitValue()
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let reward = Reward.postcards
         |> Reward.lens.shipping.enabled .~ true
 
@@ -2273,7 +2363,7 @@ final class PledgeViewModelTests: TestCase {
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(false)
       self.goToThanksProject.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.goToApplePayPaymentAuthorizationProject.assertValues([project])
       self.goToApplePayPaymentAuthorizationReward.assertValues([reward])
@@ -2302,10 +2392,12 @@ final class PledgeViewModelTests: TestCase {
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(false)
       self.goToThanksProject.assertDidNotEmitValue()
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testChangePaymentMethod_ApplePay_Failure() {
+  func testChangePaymentMethod_ApplePay_Failure() async {
     let mockService = MockService(
       updateBackingResult: .failure(.couldNotParseJSON)
     )
@@ -2322,7 +2414,7 @@ final class PledgeViewModelTests: TestCase {
     self.configurePledgeViewCTAContainerViewIsEnabled.assertDidNotEmitValue()
     self.goToThanksProject.assertDidNotEmitValue()
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let reward = Reward.postcards
         |> Reward.lens.shipping.enabled .~ true
 
@@ -2424,7 +2516,7 @@ final class PledgeViewModelTests: TestCase {
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(false)
       self.goToThanksProject.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.goToApplePayPaymentAuthorizationProject.assertValues([project])
       self.goToApplePayPaymentAuthorizationReward.assertValues([reward])
@@ -2453,10 +2545,12 @@ final class PledgeViewModelTests: TestCase {
       self.showErrorBannerWithMessage.assertValues(["Something went wrong."])
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(false)
       self.goToThanksProject.assertDidNotEmitValue()
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testApplePayBackingFails_ThenSucceeds_SignalsDoNotOverlap_ChangePaymentMethodContext() {
+  func testApplePayBackingFails_ThenSucceeds_SignalsDoNotOverlap_ChangePaymentMethodContext() async {
     let mockService1 = MockService(
       updateBackingResult: .failure(.couldNotParseJSON)
     )
@@ -2489,7 +2583,7 @@ final class PledgeViewModelTests: TestCase {
     self.configurePledgeViewCTAContainerViewIsEnabled.assertDidNotEmitValue()
     self.goToThanksProject.assertDidNotEmitValue()
 
-    withEnvironment(apiService: mockService1) {
+    await withEnvironment(apiService: mockService1) {
       let defaultShippingRule = ShippingRule(
         cost: 10,
         id: 1,
@@ -2586,7 +2680,7 @@ final class PledgeViewModelTests: TestCase {
       )
       self.goToThanksProject.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.goToApplePayPaymentAuthorizationProject.assertValues([project])
       self.goToApplePayPaymentAuthorizationReward.assertValues([reward])
@@ -2621,6 +2715,7 @@ final class PledgeViewModelTests: TestCase {
         "CTA is disabled until payment method is selected"
       )
       self.goToThanksProject.assertDidNotEmitValue()
+      await self.feature.waitForOperations()
     }
 
     let updateBackingEnvelope = UpdateBackingEnvelope(
@@ -2640,7 +2735,7 @@ final class PledgeViewModelTests: TestCase {
       updateBackingResult: .success(updateBackingEnvelope)
     )
 
-    withEnvironment(apiService: mockService2) {
+    await withEnvironment(apiService: mockService2) {
       self.vm.inputs.applePayButtonTapped()
 
       self.goToApplePayPaymentAuthorizationProject.assertValues([project, project])
@@ -2699,7 +2794,7 @@ final class PledgeViewModelTests: TestCase {
       )
       self.goToThanksProject.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.goToApplePayPaymentAuthorizationProject.assertValues([project, project])
       self.goToApplePayPaymentAuthorizationReward.assertValues([reward, reward])
@@ -2742,10 +2837,12 @@ final class PledgeViewModelTests: TestCase {
         "CTA is disabled until payment method is selected"
       )
       self.goToThanksProject.assertDidNotEmitValue()
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testApplePayBackingFails_ThenStoredCardSucceeds_SignalsDoNotOverlap_ChangePaymentMethodContext() {
+  func testApplePayBackingFails_ThenStoredCardSucceeds_SignalsDoNotOverlap_ChangePaymentMethodContext() async {
     let mockService1 = MockService(
       updateBackingResult: .failure(.couldNotParseJSON)
     )
@@ -2779,7 +2876,7 @@ final class PledgeViewModelTests: TestCase {
     self.configurePledgeViewCTAContainerViewIsEnabled.assertDidNotEmitValue()
     self.goToThanksProject.assertDidNotEmitValue()
 
-    withEnvironment(apiService: mockService1) {
+    await withEnvironment(apiService: mockService1) {
       let defaultShippingRule = ShippingRule(
         cost: 10,
         id: 1,
@@ -2877,7 +2974,7 @@ final class PledgeViewModelTests: TestCase {
       )
       self.goToThanksProject.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.goToApplePayPaymentAuthorizationProject.assertValues([project])
       self.goToApplePayPaymentAuthorizationReward.assertValues([reward])
@@ -2912,6 +3009,7 @@ final class PledgeViewModelTests: TestCase {
         "CTA is disabled until payment method is selected"
       )
       self.goToThanksProject.assertDidNotEmitValue()
+      await self.feature.waitForOperations()
     }
 
     let updateBackingEnvelope = UpdateBackingEnvelope(
@@ -2931,7 +3029,7 @@ final class PledgeViewModelTests: TestCase {
       updateBackingResult: .success(updateBackingEnvelope)
     )
 
-    withEnvironment(apiService: mockService2) {
+    await withEnvironment(apiService: mockService2) {
       let paymentSourceSelected = PaymentSourceSelected.savedCreditCard("123", "pm_fake")
 
       self.vm.inputs.creditCardSelected(with: paymentSourceSelected)
@@ -2970,7 +3068,7 @@ final class PledgeViewModelTests: TestCase {
       )
       self.goToThanksProject.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.goToApplePayPaymentAuthorizationProject.assertValues([project])
       self.goToApplePayPaymentAuthorizationReward.assertValues([reward])
@@ -2989,10 +3087,12 @@ final class PledgeViewModelTests: TestCase {
         "CTA enabled because update backing completed"
       )
       self.goToThanksProject.assertDidNotEmitValue()
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testStoredCardFails_ThenApplePaySucceeds_SignalsDoNotOverlap_ChangePaymentMethodContext() {
+  func testStoredCardFails_ThenApplePaySucceeds_SignalsDoNotOverlap_ChangePaymentMethodContext() async {
     let mockService1 = MockService(
       updateBackingResult: .failure(.couldNotParseJSON)
     )
@@ -3027,7 +3127,7 @@ final class PledgeViewModelTests: TestCase {
     self.configurePledgeViewCTAContainerViewIsEnabled.assertDidNotEmitValue()
     self.goToThanksProject.assertDidNotEmitValue()
 
-    withEnvironment(apiService: mockService1) {
+    await withEnvironment(apiService: mockService1) {
       let defaultShippingRule = ShippingRule(
         cost: 10,
         id: 1,
@@ -3082,7 +3182,7 @@ final class PledgeViewModelTests: TestCase {
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(false)
       self.goToThanksProject.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.goToApplePayPaymentAuthorizationProject.assertDidNotEmitValue()
       self.goToApplePayPaymentAuthorizationReward.assertDidNotEmitValue()
@@ -3096,6 +3196,7 @@ final class PledgeViewModelTests: TestCase {
       self.showErrorBannerWithMessage.assertValues(["Something went wrong."])
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(true)
       self.goToThanksProject.assertDidNotEmitValue()
+      await self.feature.waitForOperations()
     }
 
     let updateBackingEnvelope = UpdateBackingEnvelope(
@@ -3115,7 +3216,7 @@ final class PledgeViewModelTests: TestCase {
       updateBackingResult: .success(updateBackingEnvelope)
     )
 
-    withEnvironment(apiService: mockService2) {
+    await withEnvironment(apiService: mockService2) {
       self.vm.inputs.applePayButtonTapped()
 
       self.goToApplePayPaymentAuthorizationProject.assertValues([project])
@@ -3166,7 +3267,7 @@ final class PledgeViewModelTests: TestCase {
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(true)
       self.goToThanksProject.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.goToApplePayPaymentAuthorizationProject.assertValues([project])
       self.goToApplePayPaymentAuthorizationReward.assertValues([reward])
@@ -3197,10 +3298,12 @@ final class PledgeViewModelTests: TestCase {
       self.showErrorBannerWithMessage.assertValues(["Something went wrong."])
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(true)
       self.goToThanksProject.assertDidNotEmitValue()
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testStoredCardFails_ThenApplePayFails_SignalsDoNotOverlap_ChangePaymentMethodContext() {
+  func testStoredCardFails_ThenApplePayFails_SignalsDoNotOverlap_ChangePaymentMethodContext() async {
     let mockService = MockService(
       updateBackingResult: .failure(.couldNotParseJSON)
     )
@@ -3235,7 +3338,7 @@ final class PledgeViewModelTests: TestCase {
     self.configurePledgeViewCTAContainerViewIsEnabled.assertDidNotEmitValue()
     self.goToThanksProject.assertDidNotEmitValue()
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let defaultShippingRule = ShippingRule(
         cost: 10,
         id: 1,
@@ -3300,7 +3403,7 @@ final class PledgeViewModelTests: TestCase {
       )
       self.goToThanksProject.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.goToApplePayPaymentAuthorizationProject.assertDidNotEmitValue()
       self.goToApplePayPaymentAuthorizationReward.assertDidNotEmitValue()
@@ -3377,7 +3480,7 @@ final class PledgeViewModelTests: TestCase {
       )
       self.goToThanksProject.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.goToApplePayPaymentAuthorizationProject.assertValues([project])
       self.goToApplePayPaymentAuthorizationReward.assertValues([reward])
@@ -3415,10 +3518,12 @@ final class PledgeViewModelTests: TestCase {
         "CTA stays enabled because a payment method has been selected"
       )
       self.goToThanksProject.assertDidNotEmitValue()
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testCreateBacking_RequiresSCA_Success() {
+  func testCreateBacking_RequiresSCA_Success() async {
     let createBacking = CreateBackingEnvelope.CreateBacking(
       checkout: Checkout(
         id: "Q2hlY2tvdXQtMQ==",
@@ -3436,7 +3541,7 @@ final class PledgeViewModelTests: TestCase {
     self.goToThanksProject.assertDidNotEmitValue()
     self.showErrorBannerWithMessage.assertDidNotEmitValue()
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let reward = Reward.template
         |> Reward.lens.shipping.enabled .~ true
       let project = Project.template
@@ -3486,7 +3591,7 @@ final class PledgeViewModelTests: TestCase {
       self.goToThanksProject.assertDidNotEmitValue()
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.processingViewIsHidden.assertValues([false, true])
       self.beginSCAFlowWithClientSecret.assertValues(["client-secret"])
@@ -3537,10 +3642,12 @@ final class PledgeViewModelTests: TestCase {
         KSRAnalytics.TypeContext.creditCard.trackingString,
         self.segmentTrackingClient.properties.last?["context_type"] as? String
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testCreateBacking_RequiresSCA_Failed() {
+  func testCreateBacking_RequiresSCA_Failed() async {
     let createBacking = CreateBackingEnvelope.CreateBacking(
       checkout: Checkout(
         id: "Q2hlY2tvdXQtMQ==",
@@ -3558,7 +3665,7 @@ final class PledgeViewModelTests: TestCase {
     self.goToThanksProject.assertDidNotEmitValue()
     self.showErrorBannerWithMessage.assertDidNotEmitValue()
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let project = Project.template
       let reward = Reward.template
 
@@ -3607,7 +3714,7 @@ final class PledgeViewModelTests: TestCase {
       self.goToThanksProject.assertDidNotEmitValue()
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.processingViewIsHidden.assertValues([false, true])
       self.beginSCAFlowWithClientSecret.assertValues(["client-secret"])
@@ -3639,10 +3746,12 @@ final class PledgeViewModelTests: TestCase {
         KSRAnalytics.TypeContext.creditCard.trackingString,
         self.segmentTrackingClient.properties.last?["context_type"] as? String
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testCreateBacking_RequiresSCA_Canceled() {
+  func testCreateBacking_RequiresSCA_Canceled() async {
     let createBacking = CreateBackingEnvelope.CreateBacking(
       checkout: Checkout(
         id: "Q2hlY2tvdXQtMQ==",
@@ -3660,7 +3769,7 @@ final class PledgeViewModelTests: TestCase {
     self.goToThanksProject.assertDidNotEmitValue()
     self.showErrorBannerWithMessage.assertDidNotEmitValue()
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let project = Project.template
       let reward = Reward.template
 
@@ -3699,7 +3808,7 @@ final class PledgeViewModelTests: TestCase {
       self.goToThanksProject.assertDidNotEmitValue()
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.beginSCAFlowWithClientSecret.assertValues(["client-secret"])
       self.configurePledgeViewCTAContainerViewIsEnabled.assertValues([false, true, false, true])
@@ -3727,10 +3836,12 @@ final class PledgeViewModelTests: TestCase {
         KSRAnalytics.TypeContext.creditCard.trackingString,
         self.segmentTrackingClient.properties.last?["context_type"] as? String
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testChangePaymentMethod_RequiresSCA_Success() {
+  func testChangePaymentMethod_RequiresSCA_Success() async {
     let reward = Reward.postcards
       |> Reward.lens.shipping.enabled .~ true
 
@@ -3764,7 +3875,7 @@ final class PledgeViewModelTests: TestCase {
       updateBackingResult: .success(updateBackingEnvelope)
     )
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -3805,7 +3916,7 @@ final class PledgeViewModelTests: TestCase {
       )
       self.processingViewIsHidden.assertLastValue(false)
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.processingViewIsHidden.assertValues([false, true])
       self.beginSCAFlowWithClientSecret.assertValues(["client-secret"])
@@ -3831,10 +3942,12 @@ final class PledgeViewModelTests: TestCase {
       ])
       self.popToRootViewController.assertValueCount(1)
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testChangePaymentMethod_RequiresSCA_Failed() {
+  func testChangePaymentMethod_RequiresSCA_Failed() async {
     let reward = Reward.postcards
       |> Reward.lens.shipping.enabled .~ true
 
@@ -3868,7 +3981,7 @@ final class PledgeViewModelTests: TestCase {
       updateBackingResult: .success(updateBackingEnvelope)
     )
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -3906,7 +4019,7 @@ final class PledgeViewModelTests: TestCase {
       )
       self.processingViewIsHidden.assertLastValue(false)
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.processingViewIsHidden.assertValues([false, true])
       self.beginSCAFlowWithClientSecret.assertValues(["client-secret"])
@@ -3932,10 +4045,12 @@ final class PledgeViewModelTests: TestCase {
       self.showErrorBannerWithMessage.assertValues(
         ["The operation couldn’t be completed. (KsApi.GraphError error 5.)"]
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testChangePaymentMethod_RequiresSCA_Canceled() {
+  func testChangePaymentMethod_RequiresSCA_Canceled() async {
     let reward = Reward.postcards
       |> Reward.lens.shipping.enabled .~ true
 
@@ -3969,7 +4084,7 @@ final class PledgeViewModelTests: TestCase {
       updateBackingResult: .success(updateBackingEnvelope)
     )
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -4002,7 +4117,7 @@ final class PledgeViewModelTests: TestCase {
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(false)
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.beginSCAFlowWithClientSecret.assertValues(["client-secret"])
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(true)
@@ -4010,10 +4125,12 @@ final class PledgeViewModelTests: TestCase {
       self.notifyDelegateUpdatePledgeDidSucceedWithMessage.assertDidNotEmitValue()
       self.popToRootViewController.assertDidNotEmitValue()
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testLocalRewardViewHidden_IsVisible_RegularReward_Shipping_NoAddOns_RewardIsLocalPckup() {
+  func testLocalRewardViewHidden_IsVisible_RegularReward_Shipping_NoAddOns_RewardIsLocalPckup() async {
     self.localPickupViewHidden.assertDidNotEmitValue()
 
     let reward = Reward.template
@@ -4038,9 +4155,10 @@ final class PledgeViewModelTests: TestCase {
     self.vm.inputs.viewDidLoad()
 
     self.localPickupViewHidden.assertLastValue(false)
+    await self.feature.waitForOperations()
   }
 
-  func testLocalRewardView_IsHidden_RegularReward_Shipping_HasAddOns_RewardIsNotLocalPickup() {
+  func testLocalRewardView_IsHidden_RegularReward_Shipping_HasAddOns_RewardIsNotLocalPickup() async {
     self.localPickupViewHidden.assertDidNotEmitValue()
 
     let reward = Reward.template
@@ -4067,9 +4185,10 @@ final class PledgeViewModelTests: TestCase {
     self.vm.inputs.viewDidLoad()
 
     self.localPickupViewHidden.assertLastValue(true)
+    await self.feature.waitForOperations()
   }
 
-  func testConfigureLocalPickupViewWithData_Success() {
+  func testConfigureLocalPickupViewWithData_Success() async {
     self.configureLocalPickupViewWithData.assertDidNotEmitValue()
 
     let reward = Reward.template
@@ -4102,9 +4221,10 @@ final class PledgeViewModelTests: TestCase {
     self.configureLocalPickupViewWithData.assertValues([
       PledgeLocalPickupViewData(locationName: "Los Angeles, CA")
     ])
+    await self.feature.waitForOperations()
   }
 
-  func testCreateBacking_WithNewPaymentSheetCard_TappedPledgeButton_Success() {
+  func testCreateBacking_WithNewPaymentSheetCard_TappedPledgeButton_Success() async {
     let createBacking = CreateBackingEnvelope.CreateBacking(
       checkout: Checkout(
         id: "Q2hlY2tvdXQtMQ==",
@@ -4117,7 +4237,7 @@ final class PledgeViewModelTests: TestCase {
       Result.success(CreateBackingEnvelope(createBacking: createBacking))
     )
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let project = Project.template
       let reward = Reward.template
         |> Reward.lens.hasAddOns .~ true
@@ -4161,7 +4281,7 @@ final class PledgeViewModelTests: TestCase {
       self.goToThanksProject.assertDidNotEmitValue()
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.processingViewIsHidden.assertValues([false, true])
       self.beginSCAFlowWithClientSecret.assertDidNotEmitValue()
@@ -4194,10 +4314,12 @@ final class PledgeViewModelTests: TestCase {
         ["Page Viewed", "CTA Clicked"],
         self.segmentTrackingClient.events
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testCreateBacking_WithNewPaymentSheetCard_TappedApplePayButton_Success() {
+  func testCreateBacking_WithNewPaymentSheetCard_TappedApplePayButton_Success() async {
     let createBacking = CreateBackingEnvelope.CreateBacking(
       checkout: Checkout(
         id: "Q2hlY2tvdXQtMQ==",
@@ -4210,7 +4332,7 @@ final class PledgeViewModelTests: TestCase {
       Result.success(CreateBackingEnvelope(createBacking: createBacking))
     )
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let project = Project.template
       let reward = Reward.template
         |> Reward.lens.hasAddOns .~ true
@@ -4265,7 +4387,7 @@ final class PledgeViewModelTests: TestCase {
       self.goToThanksProject.assertDidNotEmitValue()
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.beginSCAFlowWithClientSecret.assertDidNotEmitValue()
       self.configurePledgeViewCTAContainerViewIsEnabled.assertValues([false, true])
@@ -4297,12 +4419,14 @@ final class PledgeViewModelTests: TestCase {
         ["Page Viewed", "CTA Clicked"],
         self.segmentTrackingClient.events
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
   // MARK: - Tracking
 
-  func testTrackingEvents_CheckoutPaymentPageViewed_AdvertisingConsentNotAllowed_EventsNotTracked() {
+  func testTrackingEvents_CheckoutPaymentPageViewed_AdvertisingConsentNotAllowed_EventsNotTracked() async {
     let project = Project.template
     let reward = Reward.template
       |> Reward.lens.shipping .~ (.template |> Reward.Shipping.lens.enabled .~ true)
@@ -4324,9 +4448,10 @@ final class PledgeViewModelTests: TestCase {
     self.vm.inputs.viewDidLoad()
 
     XCTAssertNil(self.segmentTrackingClient.properties.last)
+    await self.feature.waitForOperations()
   }
 
-  func testTrackingEvents_ChangePaymentMethod_AdvertisingConsentAllowed_EventsTracked() {
+  func testTrackingEvents_ChangePaymentMethod_AdvertisingConsentAllowed_EventsTracked() async {
     let project = Project.template
     let reward = Reward.template
 
@@ -4350,9 +4475,10 @@ final class PledgeViewModelTests: TestCase {
     self.vm.inputs.submitButtonTapped()
 
     XCTAssertEqual(["Page Viewed", "CTA Clicked"], self.segmentTrackingClient.events)
+    await self.feature.waitForOperations()
   }
 
-  func testTrackingEvents_ContextIsUpdateReward() {
+  func testTrackingEvents_ContextIsUpdateReward() async {
     let project = Project.template
     let reward = Reward.template
 
@@ -4394,9 +4520,10 @@ final class PledgeViewModelTests: TestCase {
       ["Page Viewed", "CTA Clicked"],
       self.segmentTrackingClient.events
     )
+    await self.feature.waitForOperations()
   }
 
-  func testTrackingEvents_PledgeScreenViewed_LoggedOut() {
+  func testTrackingEvents_PledgeScreenViewed_LoggedOut() async {
     let project = Project.template
       |> \.category .~ Project.Category.illustration
 
@@ -4411,7 +4538,7 @@ final class PledgeViewModelTests: TestCase {
       appTrackingTransparency: MockAppTrackingTransparency()
     )
 
-    withEnvironment(currentUser: nil, ksrAnalytics: ksrAnalytics) {
+    await withEnvironment(currentUser: nil, ksrAnalytics: ksrAnalytics) {
       let data = PledgeViewData(
         project: project,
         rewards: [reward],
@@ -4437,10 +4564,12 @@ final class PledgeViewModelTests: TestCase {
 
       XCTAssertEqual(segmentClient.properties(forKey: "project_subcategory"), ["Illustration"])
       XCTAssertEqual(segmentClient.properties(forKey: "project_category"), ["Art"])
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testTrackingEvents_PledgeScreenViewed_LoggedIn() {
+  func testTrackingEvents_PledgeScreenViewed_LoggedIn() async {
     let user = User.template
       |> \.location .~ Location.template
       |> \.stats.backedProjectsCount .~ 50
@@ -4455,7 +4584,7 @@ final class PledgeViewModelTests: TestCase {
       appTrackingTransparency: MockAppTrackingTransparency()
     )
 
-    withEnvironment(currentUser: user, ksrAnalytics: ksrAnalytics) {
+    await withEnvironment(currentUser: user, ksrAnalytics: ksrAnalytics) {
       let project = Project.template
         |> \.category .~ Project.Category.illustration
         |> Project.lens.stats.userCurrency .~ "USD"
@@ -4495,10 +4624,12 @@ final class PledgeViewModelTests: TestCase {
         segmentClient.properties(forKey: "project_user_has_watched", as: Bool.self),
         [true]
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testTrackingEvents_PledgeSubmitButtonClicked() {
+  func testTrackingEvents_PledgeSubmitButtonClicked() async {
     let project = Project.template
     let reward = Reward.template
       |> Reward.lens.shipping.enabled .~ true
@@ -4562,12 +4693,13 @@ final class PledgeViewModelTests: TestCase {
       KSRAnalytics.TypeContext.creditCard.trackingString,
       segmentClientProps?["context_type"] as? String
     )
+    await self.feature.waitForOperations()
   }
 
-  func testTrackingEvents_UpdatePledgeButtonSubmit_ContextIsFixPayment() {
+  func testTrackingEvents_UpdatePledgeButtonSubmit_ContextIsFixPayment() async {
     let mockService = MockService(serverConfig: ServerConfig.staging)
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let backing = Backing.template
         |> Backing.lens.amount .~ 100
         |> Backing.lens.locationId .~ .some(123)
@@ -4604,11 +4736,13 @@ final class PledgeViewModelTests: TestCase {
         ["CTA Clicked"],
         self.segmentTrackingClient.events
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testShowPledgeOverTimeUI_False() {
-    withEnvironment {
+  func testShowPledgeOverTimeUI_False() async {
+    await withEnvironment {
       let project = Project.template
         |> Project.lens.isPledgeOverTimeAllowed .~ false
       let reward = Reward.template
@@ -4630,17 +4764,19 @@ final class PledgeViewModelTests: TestCase {
       self.showPledgeOverTimeUI.assertLastValue(false)
       self.pledgeOverTimeConfigData.assertDidNotEmitValue()
       self.plotSelectedPlan.assertDidNotEmitValue()
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testPledgeOverTime_PledgeInFullSelected() {
+  func testPledgeOverTime_PledgeInFullSelected() async {
     let mockQuery: GraphAPI.BuildPaymentPlanQuery
       .Data = try! testGraphObject(
         jsonString: buildPaymentPlanQueryJson(eligible: true)
       )
     let mockService = MockService(buildPaymentPlanResult: .success(mockQuery))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let project = Project.template
         |> Project.lens.isPledgeOverTimeAllowed .~ true
       let reward = Reward.template
@@ -4663,17 +4799,19 @@ final class PledgeViewModelTests: TestCase {
       self.showPledgeOverTimeUI.assertLastValue(true)
       self.pledgeOverTimeConfigData.assertDidEmitValue()
       self.plotSelectedPlan.assertValues([.pledgeInFull, .pledgeInFull])
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testPledgeOverTime_PledgeOverTimeSelected() {
+  func testPledgeOverTime_PledgeOverTimeSelected() async {
     let mockQuery: GraphAPI.BuildPaymentPlanQuery
       .Data = try! testGraphObject(
         jsonString: buildPaymentPlanQueryJson(eligible: true)
       )
     let mockService = MockService(buildPaymentPlanResult: .success(mockQuery))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let project = Project.template
         |> Project.lens.isPledgeOverTimeAllowed .~ true
       let reward = Reward.template
@@ -4696,17 +4834,19 @@ final class PledgeViewModelTests: TestCase {
       self.showPledgeOverTimeUI.assertLastValue(true)
       self.pledgeOverTimeConfigData.assertDidEmitValue()
       self.plotSelectedPlan.assertValues([.pledgeInFull, .pledgeOverTime])
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testPledgeOverTimeConfigData_LoadsAfterBuildPledgeQuery() {
+  func testPledgeOverTimeConfigData_LoadsAfterBuildPledgeQuery() async {
     let mockQuery: GraphAPI.BuildPaymentPlanQuery
       .Data = try! testGraphObject(
         jsonString: buildPaymentPlanQueryJson(eligible: true)
       )
     let mockService = MockService(buildPaymentPlanResult: .success(mockQuery))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let project = Project.template
         |> Project.lens.isPledgeOverTimeAllowed .~ true
       let reward = Reward.template
@@ -4739,13 +4879,15 @@ final class PledgeViewModelTests: TestCase {
       self.vm.inputs.creditCardSelected(with: paymentSourceSelected)
       // Should be true, since pledge over time loaded and everything else is correct
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(true)
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testShowPledgeOverTimeUI_IsFalseWhenBuildPaymentPlanQueryFails() {
+  func testShowPledgeOverTimeUI_IsFalseWhenBuildPaymentPlanQueryFails() async {
     let mockService = MockService(buildPaymentPlanResult: .failure(.couldNotParseJSON))
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let project = Project.template
         |> Project.lens.isPledgeOverTimeAllowed .~ true
       let reward = Reward.template
@@ -4772,11 +4914,13 @@ final class PledgeViewModelTests: TestCase {
 
       // Should be true, since pledge over time never loaded and everything else is correct
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(true)
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testPledgeIsDisabled_whenShowPledgeOverUIIsTrue_andPledgeOverTimeIsLoading() {
-    withEnvironment {
+  func testPledgeIsDisabled_whenShowPledgeOverUIIsTrue_andPledgeOverTimeIsLoading() async {
+    await withEnvironment {
       let project = Project.template
         |> Project.lens.isPledgeOverTimeAllowed .~ true
       let reward = Reward.template
@@ -4806,10 +4950,12 @@ final class PledgeViewModelTests: TestCase {
 
       // Should still be disabled, since pledge over time never loaded
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(false)
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testCreateBacking_projectEligibleForPledgeOverTime_Success() {
+  func testCreateBacking_projectEligibleForPledgeOverTime_Success() async {
     let createBacking = CreateBackingEnvelope.CreateBacking(
       checkout: Checkout(
         id: "Q2hlY2tvdXQtMQ==",
@@ -4828,7 +4974,7 @@ final class PledgeViewModelTests: TestCase {
       createBackingResult: Result.success(CreateBackingEnvelope(createBacking: createBacking))
     )
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let shippingRule = ShippingRule.template
 
       let reward = Reward.template
@@ -4890,7 +5036,7 @@ final class PledgeViewModelTests: TestCase {
       self.goToThanksProject.assertDidNotEmitValue()
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPledges()
 
       self.processingViewIsHidden.assertValues([false, true])
       self.beginSCAFlowWithClientSecret.assertDidNotEmitValue()
@@ -4923,6 +5069,8 @@ final class PledgeViewModelTests: TestCase {
         ["Page Viewed", "CTA Clicked"],
         self.segmentTrackingClient.events
       )
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 }

@@ -5,6 +5,10 @@ import ReactiveExtensions
 import ReactiveSwift
 
 extension Service {
+  @MainActor public func markPledgeReceived(projectID: Int, userID: Int, received: Bool) async throws -> Backing {
+    try await self.discussionResponse(route: .backingUpdate(projectId: projectID, backerId: userID, received: received))
+  }
+
   @MainActor public func messageThreadsPage(
     mailbox: Mailbox, project: Project?, cursor: String?
   ) async throws -> MessageThreadsEnvelope {

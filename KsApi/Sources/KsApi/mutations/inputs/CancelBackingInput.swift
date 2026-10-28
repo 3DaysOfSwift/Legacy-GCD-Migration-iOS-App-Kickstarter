@@ -1,6 +1,6 @@
 import Foundation
 
-public struct CancelBackingInput: GraphMutationInput {
+public struct CancelBackingInput: GraphMutationInput, Equatable {
   let backingId: String
   let cancellationReason: String?
 

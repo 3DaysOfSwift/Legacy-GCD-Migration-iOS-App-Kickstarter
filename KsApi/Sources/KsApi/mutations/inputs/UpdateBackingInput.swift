@@ -1,6 +1,6 @@
 import Foundation
 
-public struct UpdateBackingInput: GraphMutationInput, Encodable {
+public struct UpdateBackingInput: GraphMutationInput, Encodable, Equatable {
   let amount: String?
   let applePay: ApplePayParams?
   let id: String

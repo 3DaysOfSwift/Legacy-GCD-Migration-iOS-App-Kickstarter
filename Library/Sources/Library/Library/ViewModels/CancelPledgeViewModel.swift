@@ -11,6 +11,7 @@ public struct CancelPledgeViewData {
   public let pledgeAmount: Double
 }
 
+@MainActor
 public protocol CancelPledgeViewModelInputs {
   func cancelPledgeButtonTapped()
   func configure(with data: CancelPledgeViewData)
@@ -22,6 +23,7 @@ public protocol CancelPledgeViewModelInputs {
   func viewTapped()
 }
 
+@MainActor
 public protocol CancelPledgeViewModelOutputs {
   var cancellationDetailsAttributedText: Signal<NSAttributedString, Never> { get }
   var cancelPledgeButtonEnabled: Signal<Bool, Never> { get }
@@ -32,14 +34,16 @@ public protocol CancelPledgeViewModelOutputs {
   var popCancelPledgeViewController: Signal<Void, Never> { get }
 }
 
+@MainActor
 public protocol CancelPledgeViewModelType {
   var inputs: CancelPledgeViewModelInputs { get }
   var outputs: CancelPledgeViewModelOutputs { get }
 }
 
+@MainActor
 public final class CancelPledgeViewModel: CancelPledgeViewModelType, CancelPledgeViewModelInputs,
   CancelPledgeViewModelOutputs {
-  public init() {
+  public init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
     let data = Signal.combineLatest(
       self.configureWithDataProperty.signal.skipNil(),
       self.viewDidLoadProperty.signal
@@ -82,8 +86,7 @@ public final class CancelPledgeViewModel: CancelPledgeViewModelType, CancelPledg
     let cancelPledgeEvent = cancelPledgeSubmit
       .map(CancelBackingInput.init(backingId:cancellationReason:))
       .switchMap { input in
-        AppEnvironment.current.apiService.cancelBacking(input: input)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+        feature.delayedResult(feature.cancelResult(input))
           .materialize()
       }
 

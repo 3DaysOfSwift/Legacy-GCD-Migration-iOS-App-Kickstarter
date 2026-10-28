@@ -59,6 +59,7 @@ public struct PledgeViewData: Equatable {
   public let context: PledgeViewContext
 }
 
+@MainActor
 public protocol PledgeViewModelInputs {
   func applePayButtonTapped()
   func configure(with data: PledgeViewData)
@@ -78,6 +79,7 @@ public protocol PledgeViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol PledgeViewModelOutputs {
   var beginSCAFlowWithClientSecret: Signal<String, Never> { get }
   var configureEstimatedShippingView: Signal<(String?, String?), Never> { get }
@@ -108,14 +110,16 @@ public protocol PledgeViewModelOutputs {
   var pledgeOverTimeConfigData: Signal<PledgePaymentPlansAndSelectionData?, Never> { get }
 }
 
+@MainActor
 public protocol PledgeViewModelType {
   var inputs: PledgeViewModelInputs { get }
   var outputs: PledgeViewModelOutputs { get }
 }
 
+@MainActor
 public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   PledgeViewModelOutputs {
-  public init() {
+  public init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
     let initialData = Signal.combineLatest(
       self.configureWithDataProperty.signal,
       self.viewDidLoadProperty.signal
@@ -566,8 +570,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     let createBackingEvents = createBackingDataAndIsApplePay
       .map(CreateBackingInput.input(from:isApplePay:))
       .switchMap { [checkoutIdProperty] input in
-        AppEnvironment.current.apiService.createBacking(input: input)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+        feature.delayedResult(feature.createResult(input))
           .on(
             starting: {
               processingViewIsHidden.value = false
@@ -645,8 +648,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     let updateBackingEvents = updateBackingDataAndIsApplePay
       .map(UpdateBackingInput.input(from:isApplePay:))
       .switchMap { input in
-        AppEnvironment.current.apiService.updateBacking(input: input)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+        feature.delayedResult(feature.updateResult(input))
           .on(
             starting: {
               processingViewIsHidden.value = false

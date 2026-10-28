@@ -43,6 +43,55 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Pledge creation, updates, cancellation and receipt — 28 October 2026
+
+AppModel now owns PledgeFeature alongside PaymentsFeature and the shared session.
+PledgeViewModel, CancelPledgeViewModel and ManageViewPledgeRewardReceivedViewModel
+use awaitable native service commands through presentation-only result adapters.
+No application callers remain for legacy createBacking/updateBacking/cancelBacking/
+backingUpdate methods; compatibility service signatures remain.
+
+Distinct commands execute in account-generation admission order. Equivalent
+pending tails share, while true/false/true receipt toggles remain three commands.
+This deliberately serializes unrelated pledge writes within the same account too.
+A failure allows the next command to proceed without automatic retry. Disposing a
+screen observation does not abandon an admitted mutation. Cancellation and old
+sessions suppress both successful and failed delivery; queued obsolete commands
+never call the provider. Already sent mutations settle. New account generations
+have independent queues. Pending sharing is not server idempotency.
+
+Input payloads, Apple Pay/SCA checkout responses, loading/errors/navigation and
+analytics remain unchanged. The existing cancellation GraphQL contract sends only
+the backing ID; the optional cancellation note was already omitted and remains so.
+All four mutations are rejected by the public-demo service.
+
+Baseline: **88 original screen tests passed**. Their existing assertions remain,
+with async fixture lifetimes explicitly awaited. Three nonvisual suites alone opt
+out of the snapshot-device gate. Two initial compile attempts caught missing await
+in test scheduler calls and optional chaining on nonoptional Checkout.Backing;
+both were corrected. A focused run passed 100 tests. A final canceled-caller failure
+case was then added alongside the successful-result case.
+
+Final: **1,038 Library + 165 framework + 65 API = 1,268 tests passed**, zero
+failures/skips. All twelve PledgeFeature cases individually confirmed. App built
+with zero errors and one existing Crashlytics script-output warning. Results:
+/private/tmp/kickstarter-pledges.kHYs2O. Evidence: sibling Migration Evidence/
+kickstarter-pledges. No human command execution was needed for this checkpoint.
+
+Live payments, server-accepted pledge changes, Apple Pay/3DS, physical-device and
+visual parity remain unverified. These tests use controlled providers and fixtures.
+The migration still uses Swift 5 mode; this is not strict-concurrency completion.
+
+**Five implementation groups remain open**, at different stages and sizes:
+pledge/backing management, checkout/payment plans, reward add-ons, friends/following,
+and residual project/creator/account actions. See [remaining work inventory](MIGRATION_REMAINING_WORK.md)
+for concrete paths and final validation gates. No percentage is inferred from test
+counts or groups. Next: backing reads/PPO and checkout creation/validation/completion.
+
+App-wide migration remains IN PROGRESS.
+
+## Earlier verified checkpoints
+
 ### Payment methods and Stripe intents — 28 October 2026
 
 Stored-card reads, addition/deletion and Stripe setup/payment intent creation now

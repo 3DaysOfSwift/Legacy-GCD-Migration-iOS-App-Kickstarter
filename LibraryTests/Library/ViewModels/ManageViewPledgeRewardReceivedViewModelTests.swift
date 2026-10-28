@@ -9,8 +9,31 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class ManageViewPledgeRewardReceivedViewModelTests: TestCase {
-  private let vm: ManageViewPledgeRewardReceivedViewModelType = ManageViewPledgeRewardReceivedViewModel()
+
+  private func advancePledges(by interval: DispatchTimeInterval = .seconds(0)) async {
+    await self.feature.waitForOperations()
+    await self.scheduler.advance(by: interval)
+    await self.feature.waitForOperations()
+    await self.scheduler.advance()
+  }
+  private func runPledges() async {
+    await self.feature.waitForOperations()
+    await self.scheduler.run()
+    await self.feature.waitForOperations()
+    await self.scheduler.run()
+  }
+
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = PledgeFeature(
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+    makeProvider: {
+      precondition(AppEnvironment.current.apiService is MockService)
+      return AsyncPledgeProvider(service: AppEnvironment.current.apiService)
+    }
+  )
+  private lazy var vm: ManageViewPledgeRewardReceivedViewModelType = ManageViewPledgeRewardReceivedViewModel(feature: self.feature)
 
   private let estimatedDeliveryDateLabelAttributedText = TestObserver<String, Never>()
   private let estimatedShippingAttributedText = TestObserver<String, Never>()
@@ -23,22 +46,24 @@ final class ManageViewPledgeRewardReceivedViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated {
 
-    self.vm.outputs.estimatedDeliveryDateLabelAttributedText
-      .map { $0.string }
-      .observe(self.estimatedDeliveryDateLabelAttributedText.observer)
-    self.vm.outputs.estimatedShippingAttributedText
-      .map { $0.string }
-      .observe(self.estimatedShippingAttributedText.observer)
-    self.vm.outputs.cornerRadius.observe(self.cornerRadius.observer)
-    self.vm.outputs.layoutMargins.observe(self.layoutMargins.observer)
-    self.vm.outputs.marginWidth.observe(self.marginWidth.observer)
-    self.vm.outputs.rewardReceived.observe(self.rewardReceived.observer)
-    self.vm.outputs.rewardReceivedHidden.observe(self.rewardReceivedHidden.observer)
-    self.vm.outputs.pledgeDisclaimerViewHidden.observe(self.pledgeDisclaimerViewHidden.observer)
+      self.vm.outputs.estimatedDeliveryDateLabelAttributedText
+        .map { $0.string }
+        .observe(self.estimatedDeliveryDateLabelAttributedText.observer)
+      self.vm.outputs.estimatedShippingAttributedText
+        .map { $0.string }
+        .observe(self.estimatedShippingAttributedText.observer)
+      self.vm.outputs.cornerRadius.observe(self.cornerRadius.observer)
+      self.vm.outputs.layoutMargins.observe(self.layoutMargins.observer)
+      self.vm.outputs.marginWidth.observe(self.marginWidth.observer)
+      self.vm.outputs.rewardReceived.observe(self.rewardReceived.observer)
+      self.vm.outputs.rewardReceivedHidden.observe(self.rewardReceivedHidden.observer)
+      self.vm.outputs.pledgeDisclaimerViewHidden.observe(self.pledgeDisclaimerViewHidden.observer)
+    }
   }
 
-  func testAttributedText() {
+  func testAttributedText() async {
     let backing = Backing.template
       |> Backing.lens.backerCompleted .~ false
 
@@ -61,9 +86,10 @@ final class ManageViewPledgeRewardReceivedViewModelTests: TestCase {
 
     self.estimatedDeliveryDateLabelAttributedText.assertValues(["Estimated delivery October 2016"])
     self.estimatedShippingAttributedText.assertValues(["Estimated Shipping About $1-$10"])
+    await self.feature.waitForOperations()
   }
 
-  func testRewardReceived_NotReceived() {
+  func testRewardReceived_NotReceived() async {
     let backing = Backing.template
       |> Backing.lens.backerCompleted .~ false
 
@@ -83,9 +109,10 @@ final class ManageViewPledgeRewardReceivedViewModelTests: TestCase {
     self.vm.inputs.viewDidLoad()
 
     self.rewardReceived.assertValues([false])
+    await self.feature.waitForOperations()
   }
 
-  func testRewardReceived_Received() {
+  func testRewardReceived_Received() async {
     let backing = Backing.template
       |> Backing.lens.backerCompleted .~ true
 
@@ -105,9 +132,10 @@ final class ManageViewPledgeRewardReceivedViewModelTests: TestCase {
     self.vm.inputs.viewDidLoad()
 
     self.rewardReceived.assertValues([true])
+    await self.feature.waitForOperations()
   }
 
-  func testRewardReceived_Toggle() {
+  func testRewardReceived_Toggle() async {
     let backing = Backing.template
       |> Backing.lens.backerCompleted .~ false
 
@@ -123,7 +151,7 @@ final class ManageViewPledgeRewardReceivedViewModelTests: TestCase {
       pledgeDisclaimerViewHidden: false
     )
 
-    withEnvironment(apiService: MockService(backingUpdate: .template), currentUser: User.template) {
+    await withEnvironment(apiService: MockService(backingUpdate: .template), currentUser: User.template) {
       self.vm.inputs.configureWith(data)
       self.vm.inputs.viewDidLoad()
 
@@ -131,19 +159,21 @@ final class ManageViewPledgeRewardReceivedViewModelTests: TestCase {
 
       self.vm.inputs.rewardReceivedToggleTapped(isOn: true)
 
-      self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+      await self.advancePledges(by: AppEnvironment.current.apiDelayInterval)
 
       self.rewardReceived.assertValues([false, true])
 
       self.vm.inputs.rewardReceivedToggleTapped(isOn: false)
 
-      self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+      await self.advancePledges(by: AppEnvironment.current.apiDelayInterval)
 
       self.rewardReceived.assertValues([false, true, false])
+      await self.feature.waitForOperations()
     }
+    await self.feature.waitForOperations()
   }
 
-  func testRewardReceivedHidden_Dropped() {
+  func testRewardReceivedHidden_Dropped() async {
     let backing = Backing.template
       |> Backing.lens.backerCompleted .~ false
 
@@ -164,12 +194,13 @@ final class ManageViewPledgeRewardReceivedViewModelTests: TestCase {
     self.vm.inputs.configureWith(data)
     self.vm.inputs.viewDidLoad()
 
-    self.scheduler.advance()
+    await self.advancePledges()
 
     self.rewardReceivedHidden.assertValues([true])
+    await self.feature.waitForOperations()
   }
 
-  func testRewardReceivedHidden_Pledged() {
+  func testRewardReceivedHidden_Pledged() async {
     let backing = Backing.template
       |> Backing.lens.backerCompleted .~ false
 
@@ -190,12 +221,13 @@ final class ManageViewPledgeRewardReceivedViewModelTests: TestCase {
     self.vm.inputs.configureWith(data)
     self.vm.inputs.viewDidLoad()
 
-    self.scheduler.advance()
+    await self.advancePledges()
 
     self.rewardReceivedHidden.assertValues([true])
+    await self.feature.waitForOperations()
   }
 
-  func testRewardReceivedHidden_Preauth() {
+  func testRewardReceivedHidden_Preauth() async {
     let backing = Backing.template
       |> Backing.lens.backerCompleted .~ false
 
@@ -216,12 +248,13 @@ final class ManageViewPledgeRewardReceivedViewModelTests: TestCase {
     self.vm.inputs.configureWith(data)
     self.vm.inputs.viewDidLoad()
 
-    self.scheduler.advance()
+    await self.advancePledges()
 
     self.rewardReceivedHidden.assertValues([true])
+    await self.feature.waitForOperations()
   }
 
-  func testRewardReceivedHidden_Canceled() {
+  func testRewardReceivedHidden_Canceled() async {
     let backing = Backing.template
       |> Backing.lens.backerCompleted .~ false
 
@@ -242,12 +275,13 @@ final class ManageViewPledgeRewardReceivedViewModelTests: TestCase {
     self.vm.inputs.configureWith(data)
     self.vm.inputs.viewDidLoad()
 
-    self.scheduler.advance()
+    await self.advancePledges()
 
     self.rewardReceivedHidden.assertValues([true])
+    await self.feature.waitForOperations()
   }
 
-  func testRewardReceivedHidden_Collected() {
+  func testRewardReceivedHidden_Collected() async {
     let backing = Backing.template
       |> Backing.lens.backerCompleted .~ false
 
@@ -268,12 +302,13 @@ final class ManageViewPledgeRewardReceivedViewModelTests: TestCase {
     self.vm.inputs.configureWith(data)
     self.vm.inputs.viewDidLoad()
 
-    self.scheduler.advance()
+    await self.advancePledges()
 
     self.rewardReceivedHidden.assertValues([true])
+    await self.feature.waitForOperations()
   }
 
-  func testPledgeDisclaimerViewHidden() {
+  func testPledgeDisclaimerViewHidden() async {
     let backing = Backing.template
       |> Backing.lens.backerCompleted .~ false
 
@@ -294,8 +329,9 @@ final class ManageViewPledgeRewardReceivedViewModelTests: TestCase {
     self.vm.inputs.configureWith(data)
     self.vm.inputs.viewDidLoad()
 
-    self.scheduler.advance()
+    await self.advancePledges()
 
     self.pledgeDisclaimerViewHidden.assertValues([true])
+    await self.feature.waitForOperations()
   }
 }

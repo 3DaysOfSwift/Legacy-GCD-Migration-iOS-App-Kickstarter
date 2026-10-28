@@ -1,6 +1,6 @@
 import Foundation
 
-public struct CreateBackingInput: GraphMutationInput, Encodable {
+public struct CreateBackingInput: GraphMutationInput, Encodable, Equatable {
   let amount: String
   let applePay: ApplePayParams?
   let incremental: Bool?

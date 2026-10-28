@@ -763,3 +763,27 @@ shared TestCase and all visual suites retain the reference-device guard. The
 consolidated verification selects these alongside Search's expected 133 tests:
 188 expected total, followed by the app build. This preparation is not a claim
 that Explore is migrated or baseline-tested.
+
+
+## Pledge mutation ownership — 28 October 2026
+
+- Preserve create/update input fields: amount, reward/add-on identifiers, location,
+  payment source, Apple Pay input, incremental mode, setup intent and create ref tag.
+  Use the existing GraphQL input adapters and checkout/SCA response mappings.
+- Preserve current cancellation wire behavior: backing ID is sent; the legacy
+  client does not transmit its optional cancellation note. No new payload implied.
+- Preserve reward-received REST route, project/backer IDs and Boolean value.
+- PledgeFeature owns admitted writes independently of screen observation. Equivalent
+  pending tails share; distinct commands execute in admission order within one
+  account generation, including across create/update/cancel/received screens.
+- Disposal/caller cancellation suppresses presentation but does not undo an admitted
+  server write. Failed writes do not automatically retry or block later commands.
+  This is local pending-request sharing, not a server idempotency guarantee.
+- Account changes invalidate queued commands before admission and suppress old
+  success/error delivery, including after artificial presentation delays. Already
+  sent writes settle; a new generation has an independent command queue.
+- Preserve existing loading/error/navigation, Apple Pay and SCA presentation,
+  analytics and reward checkbox behavior. Public demo rejects all four writes.
+- Original screen assertions remain; async test fixtures wait for owned operations
+  before temporary environments end. Only the three nonvisual suites opt out of
+  the reference-simulator gate. Real payments and visual/device parity remain open.

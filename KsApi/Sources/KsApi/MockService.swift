@@ -938,6 +938,30 @@
       return self.fetchUserSelfResponse ?? .template
     }
 
+    @MainActor public func submitPledge(_ input: CreateBackingInput) async throws -> CreateBackingEnvelope {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      guard let result = self.createBackingResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
+    @MainActor public func revisePledge(_ input: UpdateBackingInput) async throws -> UpdateBackingEnvelope {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      guard let result = self.updateBackingResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
+    @MainActor public func cancelPledge(_ input: CancelBackingInput) async throws {
+      try self.completeAccountWrite(self.cancelBackingResult)
+    }
+
+    @MainActor public func markPledgeReceived(projectID: Int, userID: Int, received: Bool) async throws -> Backing {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      return self.fetchBackingResponse
+        |> Backing.lens.backerId .~ userID
+        |> Backing.lens.projectId .~ projectID
+        |> Backing.lens.backerCompleted .~ received
+    }
+
     @MainActor public func paymentCards() async throws -> UserEnvelope<GraphUser> {
       try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
       guard let result = self.fetchGraphUserResult else { throw ErrorEnvelope.couldNotParseJSON }
