@@ -4,6 +4,7 @@ import Prelude
 import ReactiveSwift
 import StripePaymentSheet
 
+@MainActor
 public protocol PaymentMethodSettingsViewModelInputs {
   func failedToAddNewCard()
   func didDelete(_ creditCard: UserCreditCards.CreditCard, visibleCellCount: Int)
@@ -16,6 +17,7 @@ public protocol PaymentMethodSettingsViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol PaymentMethodSettingsViewModelOutputs {
   var cancelAddNewCardLoadingState: Signal<Void, Never> { get }
   var editButtonIsEnabled: Signal<Bool, Never> { get }
@@ -30,17 +32,20 @@ public protocol PaymentMethodSettingsViewModelOutputs {
   var tableViewIsEditing: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol PaymentMethodsViewModelType {
   var inputs: PaymentMethodSettingsViewModelInputs { get }
   var outputs: PaymentMethodSettingsViewModelOutputs { get }
 }
 
+@MainActor
 public final class PaymentMethodSettingsViewModel: PaymentMethodsViewModelType,
   PaymentMethodSettingsViewModelInputs, PaymentMethodSettingsViewModelOutputs {
   let stripeIntentService: StripeIntentServiceType
 
   public init(stripeIntentService: StripeIntentServiceType) {
     self.stripeIntentService = stripeIntentService
+    let paymentsFeature = stripeIntentService.paymentsFeature
 
     self.reloadData = self.viewDidLoadProperty.signal
 
@@ -50,8 +55,10 @@ public final class PaymentMethodSettingsViewModel: PaymentMethodsViewModelType,
       self.failedToAddNewCardProperty.signal
     )
     .switchMap { _ in
-      AppEnvironment.current.apiService.fetchGraphUser(withStoredCards: true)
-        .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      paymentsFeature.currentResult {
+        paymentsFeature.result { try await paymentsFeature.cards() }
+          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      }
         .materialize()
     }
 
@@ -60,8 +67,10 @@ public final class PaymentMethodSettingsViewModel: PaymentMethodsViewModelType,
     let deletePaymentMethodEvents = self.didDeleteCreditCardSignal
       .map(first)
       .switchMap { creditCard in
-        AppEnvironment.current.apiService.deletePaymentMethod(input: .init(paymentSourceId: creditCard.id))
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+        paymentsFeature.currentResult {
+          paymentsFeature.removeResult(id: creditCard.id)
+            .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+        }
           .materialize()
       }
 
@@ -85,12 +94,11 @@ public final class PaymentMethodSettingsViewModel: PaymentMethodsViewModelType,
     )
 
     let newSetupIntentCards = self.newSetupIntentCreditCardProperty.signal.skipNil()
-      .map { setupIntent in
-        CreatePaymentSourceSetupIntentInput.init(intentClientSecret: setupIntent, reuseable: true)
-      }
-      .switchMap { inputValue in
-        AppEnvironment.current.apiService.addPaymentSheetPaymentSource(input: inputValue)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      .switchMap { secret in
+        paymentsFeature.currentResult {
+          paymentsFeature.storeResult(secret: secret)
+            .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+        }
           .map { (envelope: CreatePaymentSourceEnvelope) in envelope.createPaymentSource }
           .materialize()
       }
@@ -131,24 +139,25 @@ public final class PaymentMethodSettingsViewModel: PaymentMethodsViewModelType,
       .switchMap { SignalProducer(value: paymentSheetEnabled) }
       .filter(isTrue)
       .switchMap { (_: Bool) -> SignalProducer<Signal<PaymentSheetSetupData, ErrorEnvelope>.Event, Never> in
-        stripeIntentService.createSetupIntent(for: nil, context: .profileSettings)
-          .ksr_debounce(.seconds(1), on: AppEnvironment.current.scheduler)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .switchMap { envelope -> SignalProducer<PaymentSheetSetupData, ErrorEnvelope> in
-            var configuration = PaymentSheet.Configuration()
-            configuration.merchantDisplayName = Strings.general_accessibility_kickstarter()
-            configuration.allowsDelayedPaymentMethods = true
+        paymentsFeature.currentResult {
+          stripeIntentService.createSetupIntent(for: nil, context: .profileSettings)
+            .ksr_debounce(.seconds(1), on: AppEnvironment.current.scheduler)
+            .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+            .switchMap { envelope -> SignalProducer<PaymentSheetSetupData, ErrorEnvelope> in
+              var configuration = PaymentSheet.Configuration()
+              configuration.merchantDisplayName = Strings.general_accessibility_kickstarter()
+              configuration.allowsDelayedPaymentMethods = true
 
-            // Log in to Stripe Link
-            configuration.defaultBillingDetails.email = AppEnvironment.current.currentUserEmail
+              // Log in to Stripe Link
+              configuration.defaultBillingDetails.email = AppEnvironment.current.currentUserEmail
 
-            let data = PaymentSheetSetupData(
-              clientSecret: envelope.clientSecret,
-              configuration: configuration
-            )
-            return SignalProducer(value: data)
-          }
-          .materialize()
+              let data = PaymentSheetSetupData(
+                clientSecret: envelope.clientSecret,
+                configuration: configuration
+              )
+              return SignalProducer(value: data)
+            }
+        }.materialize()
       }
 
     self.cancelAddNewCardLoadingState = self.shouldCancelPaymentSheetAppearance.signal.filter(isTrue)

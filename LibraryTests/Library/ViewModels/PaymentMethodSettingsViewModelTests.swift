@@ -9,7 +9,24 @@ import ReactiveSwift
 @testable import Stripe
 import XCTest
 
+@MainActor
 internal final class PaymentMethodSettingsViewModelTests: TestCase {
+
+  private func advancePayments(by interval: DispatchTimeInterval = .seconds(0)) async {
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.scheduler.advance(by: interval)
+    // A successful store can trigger a card reload during delivery.
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.scheduler.advance()
+  }
+  private func runPayments() async {
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.scheduler.run()
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.scheduler.run()
+  }
+
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private var vm = PaymentMethodSettingsViewModel(stripeIntentService: MockStripeIntentService())
   private let mockStripeIntentService = MockStripeIntentService()
 
@@ -28,94 +45,100 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
 
   internal override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated {
 
-    self.vm = PaymentMethodSettingsViewModel(stripeIntentService: self.mockStripeIntentService)
+      self.vm = PaymentMethodSettingsViewModel(stripeIntentService: self.mockStripeIntentService)
 
-    self.vm.outputs.cancelAddNewCardLoadingState.observe(self.cancelLoadingState.observer)
-    self.vm.outputs.editButtonIsEnabled.observe(self.editButtonIsEnabled.observer)
-    self.vm.outputs.editButtonTitle.observe(self.editButtonTitle.observer)
-    self.vm.outputs.errorLoadingPaymentMethodsOrSetupIntent
-      .observe(self.errorLoadingPaymentMethodsOrSetupIntent.observer)
-    self.vm.outputs.goToPaymentSheet.observe(self.goToPaymentSheet.observer)
-    self.vm.outputs.paymentMethods.observe(self.paymentMethods.observer)
-    self.vm.outputs.presentBanner.observe(self.presentBanner.observer)
-    self.vm.outputs.reloadData.observe(self.reloadData.observer)
-    self.vm.outputs.setStripePublishableKey.observe(self.setStripePublishableKey.observer)
-    self.vm.outputs.showAlert.observe(self.showAlert.observer)
-    self.vm.outputs.tableViewIsEditing.observe(self.tableViewIsEditing.observer)
+      self.vm.outputs.cancelAddNewCardLoadingState.observe(self.cancelLoadingState.observer)
+      self.vm.outputs.editButtonIsEnabled.observe(self.editButtonIsEnabled.observer)
+      self.vm.outputs.editButtonTitle.observe(self.editButtonTitle.observer)
+      self.vm.outputs.errorLoadingPaymentMethodsOrSetupIntent
+        .observe(self.errorLoadingPaymentMethodsOrSetupIntent.observer)
+      self.vm.outputs.goToPaymentSheet.observe(self.goToPaymentSheet.observer)
+      self.vm.outputs.paymentMethods.observe(self.paymentMethods.observer)
+      self.vm.outputs.presentBanner.observe(self.presentBanner.observer)
+      self.vm.outputs.reloadData.observe(self.reloadData.observer)
+      self.vm.outputs.setStripePublishableKey.observe(self.setStripePublishableKey.observer)
+      self.vm.outputs.showAlert.observe(self.showAlert.observer)
+      self.vm.outputs.tableViewIsEditing.observe(self.tableViewIsEditing.observer)
+    }
   }
 
-  func testPaymentMethodsFetch_OnViewDidLoad() {
+  func testPaymentMethodsFetch_OnViewDidLoad() async {
     let response = UserEnvelope<GraphUser>(me: userTemplate)
     let apiService = MockService(fetchGraphUserResult: .success(response))
 
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.vm.inputs.viewDidLoad()
 
       self.reloadData.assertDidEmitValue()
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.paymentMethods.assertValues([UserCreditCards.template.storedCards])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testSetStripePublishableKey_OnViewDidLoad_Success() {
-    withEnvironment {
+  func testSetStripePublishableKey_OnViewDidLoad_Success() async {
+    await withEnvironment {
       self.setStripePublishableKey.assertDidNotEmitValue()
 
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.setStripePublishableKey.assertDidEmitValue()
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testPaymentMethodsFetch_errorFetchingPaymentMethods() {
+  func testPaymentMethodsFetch_errorFetchingPaymentMethods() async {
     let apiService = MockService(fetchGraphUserResult: .failure(.couldNotParseJSON))
 
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.vm.inputs.viewDidLoad()
 
       self.reloadData.assertDidEmitValue()
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.errorLoadingPaymentMethodsOrSetupIntent
         .assertValue(ErrorEnvelope.couldNotParseJSON.localizedDescription)
       self.paymentMethods.assertDidNotEmitValue()
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testPaymentMethodsFetch_errorFetchingSetupIntent() {
+  func testPaymentMethodsFetch_errorFetchingSetupIntent() async {
     let mockService = MockService(createStripeSetupIntentResult: .failure(.couldNotParseJSON))
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService
     ) {
       self.errorLoadingPaymentMethodsOrSetupIntent.assertDidNotEmitValue()
 
       self.vm.inputs.paymentMethodsFooterViewDidTapAddNewCardButton()
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.errorLoadingPaymentMethodsOrSetupIntent
         .assertValue(ErrorEnvelope.couldNotParseJSON.localizedDescription)
 
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testPaymentSheetDidAdd_OnAddNewCardSucceeded() {
+  func testPaymentSheetDidAdd_OnAddNewCardSucceeded() async {
     let response = UserEnvelope<GraphUser>(me: userTemplate)
     let apiService = MockService(
       addPaymentSheetPaymentSourceResult: .success(.paymentSourceSuccessTemplate),
       fetchGraphUserResult: .success(response)
     )
 
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.paymentMethods.assertValues([])
 
       guard let paymentMethod = STPPaymentMethod.visaStripePaymentMethod else {
@@ -135,48 +158,51 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
       self.paymentMethods.assertValueCount(0)
       self.errorLoadingPaymentMethodsOrSetupIntent.assertDidNotEmitValue()
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.paymentMethods.assertValueCount(1)
       self.errorLoadingPaymentMethodsOrSetupIntent.assertDidNotEmitValue()
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testCancelLoadingState_Success() {
+  func testCancelLoadingState_Success() async {
     let response = UserEnvelope<GraphUser>(me: userTemplate)
     let apiService = MockService(
       fetchGraphUserResult: .success(response)
     )
 
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.cancelLoadingState.assertDidNotEmitValue()
 
       self.vm.inputs
         .shouldCancelPaymentSheetAppearance(state: false)
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.cancelLoadingState.assertDidNotEmitValue()
 
       self.vm.inputs
         .shouldCancelPaymentSheetAppearance(state: true)
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.cancelLoadingState.assertDidEmitValue()
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testEditButtonIsNotEnabled_OnViewDidLoad() {
+  func testEditButtonIsNotEnabled_OnViewDidLoad() async {
     self.editButtonIsEnabled.assertDidNotEmitValue()
     self.vm.viewDidLoad()
     self.editButtonIsEnabled.assertValue(false)
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
   }
 
-  func testEditButtonIsEnabledAndTitle_HasPaymentMethods() {
+  func testEditButtonIsEnabledAndTitle_HasPaymentMethods() async {
     let response = UserEnvelope<GraphUser>(me: GraphUser.template)
     let apiService = MockService(fetchGraphUserResult: .success(response))
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.editButtonIsEnabled.assertDidNotEmitValue()
       self.editButtonTitle.assertDidNotEmitValue()
 
@@ -184,7 +210,7 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
       self.editButtonIsEnabled.assertValues([false])
       self.editButtonTitle.assertValues(["Edit"])
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.editButtonIsEnabled.assertValues([false, true])
       self.editButtonTitle.assertValues(["Edit"])
@@ -196,26 +222,28 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
       self.vm.inputs.editButtonTapped()
       self.editButtonIsEnabled.assertValues([false, true])
       self.editButtonTitle.assertValues(["Edit", "Done", "Edit"])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testEditButtonIsNotEnabled_NoPaymentMethods() {
+  func testEditButtonIsNotEnabled_NoPaymentMethods() async {
     let emptyTemplate = GraphUser.template |> \.storedCards .~ .emptyTemplate
     let response = UserEnvelope<GraphUser>(me: emptyTemplate)
     let apiService = MockService(fetchGraphUserResult: .success(response))
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.editButtonIsEnabled.assertDidNotEmitValue()
       self.vm.inputs.viewDidLoad()
 
       self.editButtonIsEnabled.assertValues([false])
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.editButtonIsEnabled.assertValues([false])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testEditButtonEnabled_AfterDeletePaymentMethod() {
+  func testEditButtonEnabled_AfterDeletePaymentMethod() async {
     guard let card = UserCreditCards.template.storedCards.first else {
       XCTFail("Card should exist")
       return
@@ -227,14 +255,14 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
       deletePaymentMethodResult: .success(result),
       fetchGraphUserResult: .success(response)
     )
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.editButtonIsEnabled.assertDidNotEmitValue()
 
       self.vm.inputs.viewDidLoad()
 
       self.editButtonIsEnabled.assertValues([false])
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.editButtonIsEnabled.assertValues([false, true])
 
@@ -242,13 +270,14 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
 
       self.editButtonIsEnabled.assertValues([false, true])
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.editButtonIsEnabled.assertValues([false, true])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testEditButtonNotEnabled_AfterDeleteLastPaymentMethod() {
+  func testEditButtonNotEnabled_AfterDeleteLastPaymentMethod() async {
     guard let card = UserCreditCards.template.storedCards.first else {
       XCTFail("Card should exist")
       return
@@ -260,14 +289,14 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
       deletePaymentMethodResult: .success(result),
       fetchGraphUserResult: .success(response)
     )
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.editButtonIsEnabled.assertDidNotEmitValue()
 
       self.vm.inputs.viewDidLoad()
 
       self.editButtonIsEnabled.assertValues([false])
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.editButtonIsEnabled.assertValues([false, true])
 
@@ -275,37 +304,42 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
 
       self.editButtonIsEnabled.assertValues([false, true, false])
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.editButtonIsEnabled.assertValues([false, true, false])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testGoToPaymentSheet_WhenAddNewCardIsTapped_Success() {
+  func testGoToPaymentSheet_WhenAddNewCardIsTapped_Success() async {
     let envelope = ClientSecretEnvelope(clientSecret: "UHJvamVjdC0yMzEyODc5ODc")
     let mockService = MockService(createStripeSetupIntentResult: .success(envelope))
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService
     ) {
       self.goToPaymentSheet.assertValueCount(0)
 
       self.vm.inputs.paymentMethodsFooterViewDidTapAddNewCardButton()
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
 
       self.goToPaymentSheet.assertValueCount(1)
 
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testTableViewIsEditing_isFalse_WhenAddNewCardIsPresented() {
+  func testTableViewIsEditing_isFalse_WhenAddNewCardIsPresented() async {
     let envelope = ClientSecretEnvelope(clientSecret: "UHJvamVjdC0yMzEyODc5ODc")
-    let mockService = MockService(createStripeSetupIntentResult: .success(envelope))
+    let mockService = MockService(
+      createStripeSetupIntentResult: .success(envelope),
+      fetchGraphUserResult: .success(UserEnvelope(me: self.userTemplate))
+    )
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService
     ) {
       self.tableViewIsEditing.assertValueCount(0)
@@ -317,24 +351,26 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
 
       self.vm.inputs.paymentMethodsFooterViewDidTapAddNewCardButton()
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
 
       self.tableViewIsEditing.assertValues([false, true, false])
 
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testPresentMessageBanner() {
+  func testPresentMessageBanner() async {
     self.presentBanner.assertValues([])
 
     self.vm.addNewCardSucceeded(with: Strings.Got_it_your_changes_have_been_saved())
 
     self.presentBanner.assertValues([Strings.Got_it_your_changes_have_been_saved()])
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
   }
 
-  func testDeletePaymentMethod() {
+  func testDeletePaymentMethod() async {
     guard let card = UserCreditCards.template.storedCards.first else {
       XCTFail("Card should exist")
       return
@@ -346,10 +382,10 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
       deletePaymentMethodResult: .success(result),
       fetchGraphUserResult: .success(response)
     )
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.tableViewIsEditing.assertValues([false])
       self.showAlert.assertValues([])
@@ -362,7 +398,7 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
       self.paymentMethods.assertValues([UserCreditCards.template.storedCards])
 
       self.vm.inputs.didDelete(card, visibleCellCount: 1)
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.tableViewIsEditing.assertValues([false, true], "Editing mode remains enabled")
       self.showAlert.assertValues([], "No errors emitted")
@@ -370,10 +406,11 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
         [UserCreditCards.template.storedCards],
         "Emits once"
       )
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testDeletePaymentMethod_Error() {
+  func testDeletePaymentMethod_Error() async {
     guard let card = UserCreditCards.template.storedCards.first else {
       XCTFail("Card should exist")
       return
@@ -384,10 +421,10 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
       deletePaymentMethodResult: .failure(.couldNotParseJSON),
       fetchGraphUserResult: .success(response)
     )
-    withEnvironment(apiService: apiService) {
+    await withEnvironment(apiService: apiService) {
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.tableViewIsEditing.assertValues([false])
       self.showAlert.assertValues([])
@@ -400,7 +437,7 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
       self.paymentMethods.assertValues([UserCreditCards.template.storedCards])
 
       self.vm.inputs.didDelete(card, visibleCellCount: 1)
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.tableViewIsEditing.assertValues([false, true], "Editing mode remains enabled")
       self.showAlert.assertValues([
@@ -410,10 +447,11 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
         [UserCreditCards.template.storedCards, UserCreditCards.template.storedCards],
         "Emits again to reload the tableview after an error occurred"
       )
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testDeletePaymentMethod_SuccessThenError() {
+  func testDeletePaymentMethod_SuccessThenError() async {
     guard let card = UserCreditCards.template.storedCards.first else {
       XCTFail("Card should exist")
       return
@@ -425,10 +463,10 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
       deletePaymentMethodResult: .success(result1),
       fetchGraphUserResult: .success(response)
     )
-    withEnvironment(apiService: apiService1) {
+    await withEnvironment(apiService: apiService1) {
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.tableViewIsEditing.assertValues([false])
       self.showAlert.assertValues([])
@@ -444,10 +482,11 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
       self.vm.inputs.didDelete(card, visibleCellCount: 1)
       self.editButtonIsEnabled.assertValues([false, true], "Editing button remains enabled")
 
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.tableViewIsEditing.assertValues([false, true], "Editing mode remains enabled")
       self.showAlert.assertValues([])
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
 
     let response2 = UserEnvelope<GraphUser>(me: userTemplate)
@@ -456,7 +495,7 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
       fetchGraphUserResult: .success(response2)
     )
 
-    withEnvironment(apiService: apiService2) {
+    await withEnvironment(apiService: apiService2) {
       self.vm.inputs.didDelete(card, visibleCellCount: 0)
 
       self.editButtonIsEnabled.assertValues(
@@ -464,7 +503,7 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
       )
       self.tableViewIsEditing.assertValues([false, true, false], "Editing mode disabled as last card removed")
 
-      self.scheduler.advance()
+      await self.advancePayments()
       self.showAlert.assertValues([
         "Something went wrong and we were unable to remove your payment method, please try again."
       ])
@@ -474,7 +513,7 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
       )
 
       self.vm.failedToAddNewCard()
-      self.scheduler.advance()
+      await self.advancePayments()
 
       self.editButtonIsEnabled.assertValues(
         [false, true, false, true], "Editing mode disabled as last card removal failed"
@@ -490,6 +529,7 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
         ],
         "Cards are refreshed normally"
       )
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 }

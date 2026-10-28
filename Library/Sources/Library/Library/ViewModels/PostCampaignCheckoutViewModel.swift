@@ -38,6 +38,7 @@ public struct PostCampaignPaymentAuthorizationData: Equatable {
   public let paymentIntent: String
 }
 
+@MainActor
 public protocol PostCampaignCheckoutViewModelInputs {
   func checkoutTerminated()
   func configure(with data: PledgeViewData)
@@ -54,6 +55,7 @@ public protocol PostCampaignCheckoutViewModelInputs {
   func applePayContextDidComplete()
 }
 
+@MainActor
 public protocol PostCampaignCheckoutViewModelOutputs {
   var configureEstimatedShippingView: Signal<(String?, String?), Never> { get }
   var configurePaymentMethodsViewControllerWithValue: Signal<PledgePaymentMethodsValue, Never> { get }
@@ -75,6 +77,7 @@ public protocol PostCampaignCheckoutViewModelOutputs {
   var checkoutError: Signal<ErrorEnvelope, Never> { get }
 }
 
+@MainActor
 public protocol PostCampaignCheckoutViewModelType {
   var inputs: PostCampaignCheckoutViewModelInputs { get }
   var outputs: PostCampaignCheckoutViewModelOutputs { get }

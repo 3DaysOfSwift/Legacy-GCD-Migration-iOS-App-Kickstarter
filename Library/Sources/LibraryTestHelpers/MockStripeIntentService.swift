@@ -3,11 +3,19 @@ import GraphAPI
 @testable import Library
 import ReactiveSwift
 
+@MainActor
 public class MockStripeIntentService: StripeIntentServiceType {
   public private(set) var setupIntentRequests: Int = 0
   public private(set) var paymentIntentRequests: Int = 0
 
-  public init() {}
+  public let paymentsFeature: PaymentsFeature
+  public init() {
+    let session = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
+    self.paymentsFeature = PaymentsFeature(sessionFeature: session, makeProvider: {
+      precondition(AppEnvironment.current.apiService is MockService)
+      return AsyncPaymentsProvider(service: AppEnvironment.current.apiService)
+    })
+  }
 
   public func createPaymentIntent(
     for projectId: String,
@@ -22,14 +30,7 @@ public class MockStripeIntentService: StripeIntentServiceType {
 
     self.paymentIntentRequests += 1
 
-    return AppEnvironment.current.apiService
-      .createPaymentIntentInput(input: CreatePaymentIntentInput(
-        projectId: projectId,
-        backingId: backingId,
-        amountDollars: String(format: "%.2f", pledgeTotal),
-        checkoutId: checkoutId,
-        digitalMarketingAttributed: nil
-      ))
+    return self.paymentsFeature.intentResult(projectID: projectId, backingID: backingId, checkoutID: checkoutId, total: pledgeTotal)
   }
 
   public func createSetupIntent(
@@ -43,9 +44,6 @@ public class MockStripeIntentService: StripeIntentServiceType {
 
     self.setupIntentRequests += 1
 
-    return AppEnvironment.current.apiService
-      .createStripeSetupIntent(
-        input: CreateSetupIntentInput(projectId: projectId, context: context)
-      )
+    return self.paymentsFeature.setupResult(projectID: projectId, context: context)
   }
 }

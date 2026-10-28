@@ -9,7 +9,24 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class PostCampaignCheckoutViewModelTests: TestCase {
+
+  private func advancePayments(by interval: DispatchTimeInterval = .seconds(0)) async {
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.scheduler.advance(by: interval)
+    // A successful store can trigger a card reload during delivery.
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.scheduler.advance()
+  }
+  private func runPayments() async {
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.scheduler.run()
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.scheduler.run()
+  }
+
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private var vm = PostCampaignCheckoutViewModel(stripeIntentService: MockStripeIntentService())
   private let mockStripeIntentService = MockStripeIntentService()
 
@@ -44,66 +61,70 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated {
 
-    self.vm = PostCampaignCheckoutViewModel(stripeIntentService: self.mockStripeIntentService)
+      self.vm = PostCampaignCheckoutViewModel(stripeIntentService: self.mockStripeIntentService)
 
-    self.vm.goToApplePayPaymentAuthorization.observe(self.goToApplePayPaymentAuthorization.observer)
-    self.vm.checkoutComplete.observe(self.checkoutComplete.observer)
-    self.vm.processingViewIsHidden.observe(self.processingViewIsHidden.observer)
-    self.vm.validateCheckoutSuccess.observe(self.validateCheckoutSuccess.observer)
-    self.vm.checkoutError.observe(self.checkoutError.observer)
-    self.vm.goToLoginSignup.observe(self.goToLoginSignup.observer)
+      self.vm.goToApplePayPaymentAuthorization.observe(self.goToApplePayPaymentAuthorization.observer)
+      self.vm.checkoutComplete.observe(self.checkoutComplete.observer)
+      self.vm.processingViewIsHidden.observe(self.processingViewIsHidden.observer)
+      self.vm.validateCheckoutSuccess.observe(self.validateCheckoutSuccess.observer)
+      self.vm.checkoutError.observe(self.checkoutError.observer)
+      self.vm.goToLoginSignup.observe(self.goToLoginSignup.observer)
 
-    self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.0 }
-      .observe(self.configurePaymentMethodsViewControllerWithUser.observer)
-    self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.1 }
-      .observe(self.configurePaymentMethodsViewControllerWithProject.observer)
-    self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.2 }
-      .observe(self.configurePaymentMethodsViewControllerWithCheckoutId.observer)
-    self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.3 }
-      .observe(self.configurePaymentMethodsViewControllerWithReward.observer)
-    self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.4 }
-      .observe(self.configurePaymentMethodsViewControllerWithContext.observer)
+      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.0 }
+        .observe(self.configurePaymentMethodsViewControllerWithUser.observer)
+      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.1 }
+        .observe(self.configurePaymentMethodsViewControllerWithProject.observer)
+      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.2 }
+        .observe(self.configurePaymentMethodsViewControllerWithCheckoutId.observer)
+      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.3 }
+        .observe(self.configurePaymentMethodsViewControllerWithReward.observer)
+      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.4 }
+        .observe(self.configurePaymentMethodsViewControllerWithContext.observer)
 
-    self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.2 }
-      .observe(self.configurePledgeViewCTAContainerViewIsLoggedIn.observer)
-    self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.3 }
-      .observe(self.configurePledgeViewCTAContainerViewIsEnabled.observer)
-    self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.4 }
-      .observe(self.configurePledgeViewCTAContainerViewContext.observer)
+      self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.2 }
+        .observe(self.configurePledgeViewCTAContainerViewIsLoggedIn.observer)
+      self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.3 }
+        .observe(self.configurePledgeViewCTAContainerViewIsEnabled.observer)
+      self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.4 }
+        .observe(self.configurePledgeViewCTAContainerViewContext.observer)
 
-    self.vm.outputs.configureStripeIntegration.map(first)
-      .observe(self.configureStripeIntegrationMerchantId.observer)
-    self.vm.outputs.configureStripeIntegration.map(second)
-      .observe(self.configureStripeIntegrationPublishableKey.observer)
+      self.vm.outputs.configureStripeIntegration.map(first)
+        .observe(self.configureStripeIntegrationMerchantId.observer)
+      self.vm.outputs.configureStripeIntegration.map(second)
+        .observe(self.configureStripeIntegrationPublishableKey.observer)
 
-    self.vm.outputs.showWebHelp.observe(self.showWebHelp.observer)
+      self.vm.outputs.showWebHelp.observe(self.showWebHelp.observer)
+    }
   }
 
   // MARK: - Web Help
 
-  func testShowWebHelp() {
+  func testShowWebHelp() async {
     self.vm.inputs.viewDidLoad()
 
     self.vm.inputs.termsOfUseTapped(with: .terms)
 
     self.showWebHelp.assertValues([HelpType.terms])
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
   }
 
-  func testShowWebHelpLearnMore() {
+  func testShowWebHelpLearnMore() async {
     self.vm.inputs.viewDidLoad()
 
     self.vm.inputs.pledgeDisclaimerViewDidTapLearnMore()
 
     self.showWebHelp.assertValues([HelpType.trust])
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
   }
 
   // MARK: - Stripe
 
-  func testStripeConfiguration_StagingEnvironment() {
+  func testStripeConfiguration_StagingEnvironment() async {
     let mockService = MockService(serverConfig: ServerConfig.staging)
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.configureStripeIntegrationMerchantId.assertDidNotEmitValue()
       self.configureStripeIntegrationPublishableKey.assertDidNotEmitValue()
 
@@ -126,13 +147,14 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       self.configureStripeIntegrationMerchantId.assertValues([Secrets.ApplePay.merchantIdentifier])
       self.configureStripeIntegrationPublishableKey.assertValues([Secrets.StripePublishableKey.staging])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testStripeConfiguration_ProductionEnvironment() {
+  func testStripeConfiguration_ProductionEnvironment() async {
     let mockService = MockService(serverConfig: ServerConfig.production)
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       self.configureStripeIntegrationMerchantId.assertDidNotEmitValue()
 
       let project = Project.template
@@ -154,12 +176,13 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       self.configureStripeIntegrationMerchantId.assertValues([Secrets.ApplePay.merchantIdentifier])
       self.configureStripeIntegrationPublishableKey.assertValues([Secrets.StripePublishableKey.production])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
   // MARK: - Apple Pay
 
-  func testApplePayAuthorization_noReward_isCorrect() {
+  func testApplePayAuthorization_noReward_isCorrect() async {
     let project = Project.cosmicSurgery
     let reward = Reward.noReward
 
@@ -180,15 +203,15 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       createPaymentIntentResult: .success(paymentIntent)
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.vm.inputs.applePayButtonTapped()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.goToApplePayPaymentAuthorization.assertValueCount(1)
       let output = self.goToApplePayPaymentAuthorization.lastValue!
@@ -202,10 +225,11 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testApplePayAuthorization_reward_isCorrect() {
+  func testApplePayAuthorization_reward_isCorrect() async {
     let project = Project.cosmicSurgery
     let reward = project.rewards.first!
 
@@ -228,15 +252,15 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       createPaymentIntentResult: .success(paymentIntent)
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.vm.inputs.applePayButtonTapped()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.goToApplePayPaymentAuthorization.assertValueCount(1)
       let output = self.goToApplePayPaymentAuthorization.lastValue!
@@ -250,10 +274,11 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testApplePayAuthorization_rewardAndShipping_isCorrect() {
+  func testApplePayAuthorization_rewardAndShipping_isCorrect() async {
     let project = Project.cosmicSurgery
     let reward = project.rewards.first!
 
@@ -278,15 +303,15 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       createPaymentIntentResult: .success(paymentIntent)
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.vm.inputs.applePayButtonTapped()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.goToApplePayPaymentAuthorization.assertValueCount(1)
       let output = self.goToApplePayPaymentAuthorization.lastValue!
@@ -300,10 +325,11 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testApplePayAuthorization_rewardAndShippingAndBonus_isCorrect() {
+  func testApplePayAuthorization_rewardAndShippingAndBonus_isCorrect() async {
     let shippingRule = ShippingRule.template
     var project = Project.cosmicSurgery
     let reward1 = project.rewards[0]
@@ -333,15 +359,15 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       createPaymentIntentResult: .success(paymentIntent)
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.vm.inputs.applePayButtonTapped()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.goToApplePayPaymentAuthorization.assertValueCount(1)
       let output = self.goToApplePayPaymentAuthorization.lastValue!
@@ -355,10 +381,11 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testTapApplePayButton_createsPaymentIntent_beforePresentingAuthorizationController() {
+  func testTapApplePayButton_createsPaymentIntent_beforePresentingAuthorizationController() async {
     let paymentIntent = PaymentIntentEnvelope(clientSecret: "foo")
     let mockService = MockService(
       createCheckoutResult: .success(self.checkoutResponse),
@@ -379,12 +406,12 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       context: .latePledge
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.run()
+      await self.runPayments()
       self.vm.inputs.applePayButtonTapped()
-      self.scheduler.run()
+      await self.runPayments()
       self.goToApplePayPaymentAuthorization.assertDidEmitValue()
 
       let output = self.goToApplePayPaymentAuthorization.lastValue!
@@ -392,10 +419,11 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testTapApplePayButton_processingViewShows_createCheckoutSuccess() {
+  func testTapApplePayButton_processingViewShows_createCheckoutSuccess() async {
     let mockService = MockService(
       createCheckoutResult: .success(self.checkoutResponse)
     )
@@ -414,17 +442,18 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       context: .latePledge
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.run()
+      await self.runPayments()
       self.vm.inputs.applePayButtonTapped()
-      self.scheduler.run()
+      await self.runPayments()
       self.processingViewIsHidden.assertLastValue(false)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testTapApplePayButton_processingViewStaysHidden_createCheckoutFail() {
+  func testTapApplePayButton_processingViewStaysHidden_createCheckoutFail() async {
     let mockService = MockService(
       createCheckoutResult: .failure(.couldNotParseErrorEnvelopeJSON)
     )
@@ -443,18 +472,19 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       context: .latePledge
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.run()
+      await self.runPayments()
       self.vm.inputs.applePayButtonTapped()
-      self.scheduler.run()
+      await self.runPayments()
       // Processing view starts hidden and should stay hidden.
       self.processingViewIsHidden.assertDidNotEmitValue()
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testApplePay_completesCheckoutFlow() {
+  func testApplePay_completesCheckoutFlow() async {
     // Mock data for API requests
     let paymentIntent = PaymentIntentEnvelope(clientSecret: "foo")
     let validateCheckout = ValidateCheckoutEnvelope(messages: ["message"])
@@ -498,15 +528,15 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       context: .latePledge
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.configure(with: data)
       self.vm.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.vm.inputs.applePayButtonTapped()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.processingViewIsHidden.assertLastValue(false)
       self.goToApplePayPaymentAuthorization.assertDidEmitValue()
@@ -518,17 +548,18 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       self.vm.inputs.applePayContextDidComplete()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.checkoutComplete.assertDidEmitValue()
       self.processingViewIsHidden.assertLastValue(true)
 
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testApplePay_paymentIntentFails() {
+  func testApplePay_paymentIntentFails() async {
     // Mock data for API requests
     let mockService = MockService(
       createCheckoutResult: .success(self.checkoutResponse),
@@ -549,29 +580,30 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       context: .latePledge
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.configure(with: data)
       self.vm.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.vm.inputs.applePayButtonTapped()
 
       self.processingViewIsHidden.assertLastValue(false)
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.goToApplePayPaymentAuthorization.assertDidNotEmitValue()
       self.processingViewIsHidden.assertValues([true, false])
 
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
   // MARK: - Pledge
 
-  func testPledge_completesCheckoutFlow() {
+  func testPledge_completesCheckoutFlow() async {
     // Mock data for API requests
     let validateCheckout = ValidateCheckoutEnvelope(messages: ["message"])
     let completeSessionJsonString = """
@@ -621,18 +653,18 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       context: .latePledge
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.configure(with: data)
       self.vm.viewDidLoad()
 
-      scheduler.run()
+      await self.runPayments()
 
       self.vm.inputs
         .creditCardSelected(
           source: .savedCreditCard(UserCreditCards.visa.id, "pm_fake")
         )
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.configurePledgeViewCTAContainerViewIsLoggedIn.assertValues([true, true])
       self.configurePledgeViewCTAContainerViewIsEnabled.assertValues([false, true])
@@ -642,7 +674,7 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       self.processingViewIsHidden.assertLastValue(false)
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.validateCheckoutSuccess.assertDidEmitValue()
       self.checkoutComplete.assertDidNotEmitValue()
@@ -651,10 +683,11 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       self.checkoutComplete.assertDidEmitValue()
       self.processingViewIsHidden.assertLastValue(true)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testPledge_validationFails() {
+  func testPledge_validationFails() async {
     // Mock data for API requests
     let paymentIntent = PaymentIntentEnvelope(clientSecret: "foo")
     let graphUser = GraphUser.template |> \.storedCards .~ UserCreditCards.withCards([UserCreditCards.visa])
@@ -681,10 +714,10 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       context: .latePledge
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.configure(with: data)
       self.vm.viewDidLoad()
-      self.scheduler.run()
+      await self.runPayments()
 
       self.vm.inputs
         .creditCardSelected(
@@ -699,14 +732,15 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       self.processingViewIsHidden.assertLastValue(false)
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.validateCheckoutSuccess.assertDidNotEmitValue()
       self.processingViewIsHidden.assertValues([false, true])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testCheckoutTerminated_cancelsCheckoutFlow() {
+  func testCheckoutTerminated_cancelsCheckoutFlow() async {
     // Mock data for API requests
     let validateCheckout = ValidateCheckoutEnvelope(messages: ["message"])
     let paymentIntent = PaymentIntentEnvelope(clientSecret: "foo")
@@ -731,10 +765,10 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       context: .latePledge
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.configure(with: data)
       self.vm.viewDidLoad()
-      self.scheduler.run()
+      await self.runPayments()
 
       self.vm.inputs
         .creditCardSelected(
@@ -749,7 +783,7 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       self.processingViewIsHidden.assertLastValue(false)
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.validateCheckoutSuccess.assertDidEmitValue()
 
@@ -757,12 +791,13 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       self.checkoutComplete.assertDidNotEmitValue()
       self.processingViewIsHidden.assertLastValue(true)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
   // MARK: - Login
 
-  func testPledgeViewCTAEnabled_afterSelectingNewPaymentMethod_LoggedIn() {
+  func testPledgeViewCTAEnabled_afterSelectingNewPaymentMethod_LoggedIn() async {
     let paymentIntent = PaymentIntentEnvelope(clientSecret: "foo")
     let mockService = MockService(
       serverConfig: ServerConfig.staging,
@@ -770,7 +805,7 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       createPaymentIntentResult: .success(paymentIntent)
     )
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let project = Project.cosmicSurgery
       let reward = Reward.noReward |> Reward.lens.minimum .~ 5
 
@@ -787,7 +822,7 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.run()
+      await self.runPayments()
 
       self.vm.inputs
         .creditCardSelected(
@@ -797,13 +832,14 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       self.configurePledgeViewCTAContainerViewIsLoggedIn.assertValues([true, true])
       self.configurePledgeViewCTAContainerViewIsEnabled.assertValues([false, true])
       self.configurePledgeViewCTAContainerViewContext.assertValues([.latePledge, .latePledge])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testPledgeViewCTADisabled_onViewDidLoad_LoggedIn() {
+  func testPledgeViewCTADisabled_onViewDidLoad_LoggedIn() async {
     let mockService = MockService(serverConfig: ServerConfig.staging)
 
-    withEnvironment(apiService: mockService, currentUser: .template) {
+    await withEnvironment(apiService: mockService, currentUser: .template) {
       let project = Project.cosmicSurgery
       let reward = Reward.noReward |> Reward.lens.minimum .~ 5
 
@@ -820,18 +856,19 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.run()
+      await self.runPayments()
 
       self.configurePledgeViewCTAContainerViewIsLoggedIn.assertLastValue(true)
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(false)
       self.configurePledgeViewCTAContainerViewContext.assertValues([.latePledge])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testPledgeViewCTADisabled_onViewDidLoad_LoggedOut() {
+  func testPledgeViewCTADisabled_onViewDidLoad_LoggedOut() async {
     let mockService = MockService(serverConfig: ServerConfig.staging)
 
-    withEnvironment(apiService: mockService) {
+    await withEnvironment(apiService: mockService) {
       let project = Project.cosmicSurgery
       let reward = Reward.noReward |> Reward.lens.minimum .~ 5
 
@@ -848,18 +885,19 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.run()
+      await self.runPayments()
 
       self.configurePledgeViewCTAContainerViewIsLoggedIn.assertLastValue(false)
       self.configurePledgeViewCTAContainerViewIsEnabled.assertLastValue(false)
       self.configurePledgeViewCTAContainerViewContext.assertValues([.latePledge])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testGoToLoginSignup_emitsWhenLoggedOut_CheckoutErrorDoesNotEmit() {
+  func testGoToLoginSignup_emitsWhenLoggedOut_CheckoutErrorDoesNotEmit() async {
     let mockService = MockService(createCheckoutResult: .failure(.couldNotParseJSON))
 
-    withEnvironment(apiService: mockService, currentUser: nil) {
+    await withEnvironment(apiService: mockService, currentUser: nil) {
       let data = PledgeViewData(
         project: Project.template,
         rewards: [Reward.template],
@@ -878,10 +916,11 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
       self.goToLoginSignup.assertDidEmitValue()
       self.checkoutError.assertDidNotEmitValue()
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testCreatePaymentIntent_emitsOnViewDidLoad() {
+  func testCreatePaymentIntent_emitsOnViewDidLoad() async {
     let paymentIntent = PaymentIntentEnvelope(clientSecret: "foo")
     let mockService = MockService(
       createCheckoutResult: .success(self.checkoutResponse),
@@ -902,13 +941,14 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       context: .latePledge
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.inputs.configure(with: data)
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 1)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 }

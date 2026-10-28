@@ -938,6 +938,36 @@
       return self.fetchUserSelfResponse ?? .template
     }
 
+    @MainActor public func paymentCards() async throws -> UserEnvelope<GraphUser> {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      guard let result = self.fetchGraphUserResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
+    @MainActor public func removePaymentMethod(id: String) async throws -> DeletePaymentMethodEnvelope {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      guard let result = self.deletePaymentMethodResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
+    @MainActor public func storePaymentMethod(secret: String) async throws -> CreatePaymentSourceEnvelope {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      guard let result = self.addPaymentSheetPaymentSourceResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
+    @MainActor public func paymentSetupIntent(input: CreateSetupIntentInput) async throws -> ClientSecretEnvelope {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      guard let result = self.createStripeSetupIntentResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
+    @MainActor public func paymentIntent(input: CreatePaymentIntentInput) async throws -> PaymentIntentEnvelope {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      guard let result = self.createPaymentIntentResult else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
+
     @MainActor private func completeAccountWrite(
       _ result: Result<EmptyResponseEnvelope, ErrorEnvelope>?
     ) throws {

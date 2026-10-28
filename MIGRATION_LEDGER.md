@@ -43,6 +43,61 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Payment methods and Stripe intents — 28 October 2026
+
+Stored-card reads, addition/deletion and Stripe setup/payment intent creation now
+run through one AppModel-owned PaymentsFeature and native async service methods.
+The existing Stripe adapter is an output-only UIKit compatibility boundary.
+There are no remaining application callers of the migrated legacy card/intent
+request methods. Existing service signatures remain for compatibility.
+
+Equivalent pending intents share one request; different contexts/checkouts keep
+their identities. Card writes are admitted in order, with equivalent pending
+tails shared. Failed writes do not retry or block the next command. Screen
+disposal stops delivery without abandoning an admitted write. Card reloads wait
+for admitted writes and refetch if another write overtakes a read. Session
+generations gate commands, completion and delayed presentation. Demo payments
+are rejected. Native card queries bypass cache to reflect confirmed changes.
+
+Existing screens, card availability/order, optimistic deletion/rollback, error
+copy, Stripe configuration and the missing stripeCardId workaround remain.
+Payment amount formatting, Checkout-ID base64 encoding, context and nullable
+marketing input are preserved. The legacy GraphQL payment-intent mapping does
+not send backingId; this checkpoint retains that wire contract.
+
+Baseline: 69 original payment-screen tests passed. Those three nonvisual suites
+alone opt out of the snapshot-device gate. Final: 938 Library + 165 framework +
+44 API = **1,147 tests passed**, zero failures/skips; all ten new PaymentsFeature
+cases individually confirmed. App build succeeded with zero errors and one
+reported existing Crashlytics script-output warning in this incremental build.
+Results: /private/tmp/kickstarter-payments.HBdEzT.
+Evidence: sibling Migration Evidence/kickstarter-payments.
+
+Unsuccessful attempts are retained. Compile integration needed qualified input
+types and explicit actor isolation. A focused run passed 77/80 with two fixture
+crashes and one presentation assertion failure. Temporary test environments were
+ending before their async work; fixtures now await owned work before exit and
+retain the established synchronous XCTest setup order. The test guard prevented
+live requests. The next run passed 79/80. The remaining test omitted its card-list
+fixture: the native mock correctly failed instead of the old mock's silent empty
+producer, canceling payment-sheet presentation. Supplying the intended card-list
+response preserved the original assertions; the integrated run then passed.
+
+No live Stripe/account mutation, 3DS/Apple Pay authorization, actual charge or
+authenticated visual/device parity is verified. Creating an intent is not proof
+of completing payment. Server idempotency is not established; no automatic retry
+is introduced. Post-campaign checkout creation/validation/completion and pledge
+mutation ownership remain legacy and are the next stage.
+
+Remaining work:
+1. Pledge create/update/cancel, checkout validation/completion, backing management,
+   reward-received writes and payment-plan loading.
+2. Remaining application request/dispatch audit and full regression.
+3. App-wide concurrency validation, authenticated visual/physical-device journeys,
+   live-service validation and the final evidence/timing report.
+
+App-wide migration remains IN PROGRESS.
+
 ### Messaging — 28 October 2026
 
 Mailbox pagination, message search, thread/backing reads, sending and read status

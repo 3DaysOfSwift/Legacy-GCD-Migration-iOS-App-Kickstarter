@@ -18,6 +18,7 @@ final class AppModelTests: XCTestCase {
     let firstSession = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
     let secondSession = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
     let first = AppModel(
+      paymentsFeature: PaymentsFeature(sessionFeature: firstSession, makeProvider: { AsyncPaymentsProvider(service: MockService()) }),
       messagingFeature: MessagingFeature(sessionFeature: firstSession, makeProvider: { AsyncMessagingProvider(service: MockService()) }),
       sessionFeature: firstSession,
       authenticationFeature: AuthenticationFeature(sessionFeature: firstSession, makeProvider: {
@@ -44,6 +45,7 @@ final class AppModelTests: XCTestCase {
       })
     )
     let second = AppModel(
+      paymentsFeature: PaymentsFeature(sessionFeature: secondSession, makeProvider: { AsyncPaymentsProvider(service: MockService()) }),
       messagingFeature: MessagingFeature(sessionFeature: secondSession, makeProvider: { AsyncMessagingProvider(service: MockService()) }),
       sessionFeature: secondSession,
       authenticationFeature: AuthenticationFeature(sessionFeature: secondSession, makeProvider: {
@@ -70,6 +72,8 @@ final class AppModelTests: XCTestCase {
       })
     )
 
+    XCTAssertTrue(first.paymentsFeature.sessionFeature === first.sessionFeature)
+    XCTAssertFalse(first.paymentsFeature === second.paymentsFeature)
     XCTAssertTrue(first.messagingFeature.sessionFeature === first.sessionFeature)
     XCTAssertFalse(first.messagingFeature === second.messagingFeature)
     XCTAssertTrue(first.activityFeature.sessionFeature === first.sessionFeature)

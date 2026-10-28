@@ -23,6 +23,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		CFA030300000000000000001 /* PaymentsFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA030300000000000000002 /* PaymentsFeatureTests.swift */; };
 		CFA030200000000000000001 /* MessagingFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA030200000000000000002 /* MessagingFeatureTests.swift */; };
 		CFA030100000000000000001 /* SettingsProjectNotificationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA030100000000000000002 /* SettingsProjectNotificationsTests.swift */; };
 		CFA029000000000000000001 /* AuthenticationFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA029000000000000000002 /* AuthenticationFeatureTests.swift */; };
@@ -395,6 +396,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		CFA030300000000000000002 /* PaymentsFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentsFeatureTests.swift; sourceTree = "<group>"; };
 		CFA030200000000000000002 /* MessagingFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagingFeatureTests.swift; sourceTree = "<group>"; };
 		CFA030100000000000000002 /* SettingsProjectNotificationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsProjectNotificationsTests.swift; sourceTree = "<group>"; };
 		CFA029000000000000000002 /* AuthenticationFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationFeatureTests.swift; sourceTree = "<group>"; };
@@ -842,6 +844,7 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		CFA030300000000000000003 /* Payments */ = {isa = PBXGroup; children = (CFA030300000000000000002 /* PaymentsFeatureTests.swift */,); path = Payments; sourceTree = "<group>"; };
 		CFA030200000000000000003 /* Messaging */ = {isa = PBXGroup; children = (CFA030200000000000000002 /* MessagingFeatureTests.swift */,); path = Messaging; sourceTree = "<group>"; };
 		CFA029000000000000000003 /* Authentication */ = {isa = PBXGroup; children = (CFA029000000000000000002 /* AuthenticationFeatureTests.swift */,); path = Authentication; sourceTree = "<group>"; };
 		CFA028000000000000000003 /* Settings */ = {isa = PBXGroup; children = (CFA028000000000000000002 /* SettingsFeatureTests.swift */, CFA030100000000000000002 /* SettingsProjectNotificationsTests.swift */,); path = Settings; sourceTree = "<group>"; };
@@ -877,7 +880,7 @@
 		};
 		CFA026100000000000000004 /* FeatureTests */ = {
 			isa = PBXGroup;
-			children = (CFA030200000000000000003 /* Messaging */, CFA029000000000000000003 /* Authentication */, CFA028000000000000000003 /* Settings */, CFA026100000000000000003 /* Search */, CFA027100000000000000003 /* Discovery */, CFA027200000000000000003 /* ProjectDetails */, CFA027300000000000000003 /* Rewards */, CFA027400000000000000003 /* Discussion */, CFA027500000000000000003 /* ProjectMedia */, CFA027600000000000000003 /* Session */, CFA027700000000000000003 /* Activity */, CFA027800000000000000003 /* Profile */,);
+			children = (CFA030300000000000000003 /* Payments */, CFA030200000000000000003 /* Messaging */, CFA029000000000000000003 /* Authentication */, CFA028000000000000000003 /* Settings */, CFA026100000000000000003 /* Search */, CFA027100000000000000003 /* Discovery */, CFA027200000000000000003 /* ProjectDetails */, CFA027300000000000000003 /* Rewards */, CFA027400000000000000003 /* Discussion */, CFA027500000000000000003 /* ProjectMedia */, CFA027600000000000000003 /* Session */, CFA027700000000000000003 /* Activity */, CFA027800000000000000003 /* Profile */,);
 			path = FeatureTests;
 			sourceTree = "<group>";
 		};
@@ -1940,6 +1943,7 @@
 				CFA028000000000000000001 /* SettingsFeatureTests.swift in Sources */,
 				CFA030100000000000000001 /* SettingsProjectNotificationsTests.swift in Sources */,
 				CFA030200000000000000001 /* MessagingFeatureTests.swift in Sources */,
+				CFA030300000000000000001 /* PaymentsFeatureTests.swift in Sources */,
 				CFA027900000000000000001 /* AccountRequestGate.swift in Sources */,
 				CFA026100000000000000010 /* SearchLookupTests.swift in Sources */,
 				CFA026100000000000000008 /* SearchRequestCancellationTests.swift in Sources */,

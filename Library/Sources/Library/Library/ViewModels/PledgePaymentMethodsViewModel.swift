@@ -26,6 +26,7 @@ public typealias PaymentSheetSetupData = (
   configuration: PaymentSheet.Configuration
 )
 
+@MainActor
 public protocol PledgePaymentMethodsViewModelInputs {
   func shouldCancelPaymentSheetAppearance(state: Bool)
   func stripePaymentSheetDidAppear()
@@ -39,6 +40,7 @@ public protocol PledgePaymentMethodsViewModelInputs {
   func willSelectRowAtIndexPath(_ indexPath: IndexPath) -> IndexPath?
 }
 
+@MainActor
 public protocol PledgePaymentMethodsViewModelOutputs {
   var goToAddCardViaStripeScreen: Signal<PaymentSheetSetupData, Never> { get }
   var notifyDelegateCreditCardSelected: Signal<PaymentSourceSelected, Never> { get }
@@ -47,17 +49,20 @@ public protocol PledgePaymentMethodsViewModelOutputs {
   var updateAddNewCardLoading: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol PledgePaymentMethodsViewModelType {
   var inputs: PledgePaymentMethodsViewModelInputs { get }
   var outputs: PledgePaymentMethodsViewModelOutputs { get }
 }
 
+@MainActor
 public final class PledgePaymentMethodsViewModel: PledgePaymentMethodsViewModelType,
   PledgePaymentMethodsViewModelInputs, PledgePaymentMethodsViewModelOutputs {
   let stripeIntentService: StripeIntentServiceType
 
   public init(stripeIntentService: StripeIntentServiceType) {
     self.stripeIntentService = stripeIntentService
+    let paymentsFeature = stripeIntentService.paymentsFeature
 
     let configureWithValue = Signal.combineLatest(
       self.viewDidLoadProperty.signal,
@@ -74,9 +79,10 @@ public final class PledgePaymentMethodsViewModel: PledgePaymentMethodsViewModelT
 
     let storedCardsEvent = configureWithValue
       .switchMap { _ in
-        AppEnvironment.current.apiService
-          .fetchGraphUser(withStoredCards: true)
-          .ksr_debounce(.seconds(1), on: AppEnvironment.current.scheduler)
+        paymentsFeature.currentResult {
+          paymentsFeature.result { try await paymentsFeature.cards() }
+            .ksr_debounce(.seconds(1), on: AppEnvironment.current.scheduler)
+        }
           .map { envelope in (envelope, false) }
           .prefix(value: (nil, true))
           .materialize()
@@ -106,9 +112,10 @@ public final class PledgePaymentMethodsViewModel: PledgePaymentMethodsViewModelT
         Signal<UserCreditCards.CreditCard, ErrorEnvelope>.Event,
         Never
       > in
-        let input = CreatePaymentSourceSetupIntentInput.init(intentClientSecret: setupIntent, reuseable: true)
-        return AppEnvironment.current.apiService.addPaymentSheetPaymentSource(input: input)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+        return paymentsFeature.currentResult {
+          paymentsFeature.storeResult(secret: setupIntent)
+            .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+        }
           .map { (envelope: CreatePaymentSourceEnvelope) -> UserCreditCards.CreditCard? in
             guard envelope.createPaymentSource.isSuccessful else {
               return nil
@@ -317,26 +324,27 @@ public final class PledgePaymentMethodsViewModel: PledgePaymentMethodsViewModelT
       )
       .map { $0.clientSecret }
 
-      return clientSecretSignal
-        .ksr_debounce(.seconds(1), on: AppEnvironment.current.scheduler)
-        .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-        .switchMap { clientSecret -> SignalProducer<PaymentSheetSetupData, ErrorEnvelope> in
+      return paymentsFeature.currentResult {
+        clientSecretSignal
+          .ksr_debounce(.seconds(1), on: AppEnvironment.current.scheduler)
+          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+          .switchMap { clientSecret -> SignalProducer<PaymentSheetSetupData, ErrorEnvelope> in
 
-          var configuration = PaymentSheet.Configuration()
-          configuration.merchantDisplayName = Strings.general_accessibility_kickstarter()
-          configuration.allowsDelayedPaymentMethods = true
+            var configuration = PaymentSheet.Configuration()
+            configuration.merchantDisplayName = Strings.general_accessibility_kickstarter()
+            configuration.allowsDelayedPaymentMethods = true
 
-          // Log in to Stripe Link
-          configuration.defaultBillingDetails.email = AppEnvironment.current.currentUserEmail
+            // Log in to Stripe Link
+            configuration.defaultBillingDetails.email = AppEnvironment.current.currentUserEmail
 
-          let data = PaymentSheetSetupData(
-            clientSecret: clientSecret,
-            configuration: configuration
-          )
+            let data = PaymentSheetSetupData(
+              clientSecret: clientSecret,
+              configuration: configuration
+            )
 
-          return SignalProducer(value: data)
-        }
-        .materialize()
+            return SignalProducer(value: data)
+          }
+      }.materialize()
     }
 
     self.goToAddCardViaStripeScreen = createSetupIntentEvent.values()

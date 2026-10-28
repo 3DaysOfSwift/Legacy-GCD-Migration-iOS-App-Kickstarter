@@ -3,7 +3,9 @@ import GraphAPI
 import KsApi
 import ReactiveSwift
 
+@MainActor
 public protocol StripeIntentServiceType {
+  var paymentsFeature: PaymentsFeature { get }
   func createPaymentIntent(
     for projectId: String,
     backingId: String,
@@ -17,8 +19,12 @@ public protocol StripeIntentServiceType {
 }
 
 /// This is the module that creates either a Stripe payment intent or a setup intent.
+@MainActor
 public class StripeIntentService: StripeIntentServiceType {
-  public init() {}
+  public let paymentsFeature: PaymentsFeature
+  public init(paymentsFeature: PaymentsFeature = AppModel.shared.paymentsFeature) {
+    self.paymentsFeature = paymentsFeature
+  }
 
   /**
    Returns a signal producer that emits a `PaymentIntentEnvelope` or `ErrorEnvelope` value representing whether or not a payment intent was created and returned successfully.
@@ -38,14 +44,7 @@ public class StripeIntentService: StripeIntentServiceType {
     checkoutId: String,
     pledgeTotal: Double
   ) -> SignalProducer<PaymentIntentEnvelope, ErrorEnvelope> {
-    AppEnvironment.current.apiService
-      .createPaymentIntentInput(input: CreatePaymentIntentInput(
-        projectId: projectId,
-        backingId: backingId,
-        amountDollars: String(format: "%.2f", pledgeTotal),
-        checkoutId: encodeToBase64("Checkout-\(checkoutId)"),
-        digitalMarketingAttributed: nil
-      ))
+    self.paymentsFeature.intentResult(projectID: projectId, backingID: backingId, checkoutID: checkoutId, total: pledgeTotal)
   }
 
   /**
@@ -62,9 +61,6 @@ public class StripeIntentService: StripeIntentServiceType {
     for projectId: String?,
     context: GraphAPI.StripeIntentContextTypes
   ) -> SignalProducer<ClientSecretEnvelope, ErrorEnvelope> {
-    AppEnvironment.current.apiService
-      .createStripeSetupIntent(
-        input: CreateSetupIntentInput(projectId: projectId, context: context)
-      )
+    self.paymentsFeature.setupResult(projectID: projectId, context: context)
   }
 }

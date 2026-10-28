@@ -10,7 +10,24 @@ import ReactiveSwift
 @testable import StripePaymentSheet
 import XCTest
 
+@MainActor
 final class PledgePaymentMethodsViewModelTests: TestCase {
+
+  private func advancePayments(by interval: DispatchTimeInterval = .seconds(0)) async {
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.scheduler.advance(by: interval)
+    // A successful store can trigger a card reload during delivery.
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.scheduler.advance()
+  }
+  private func runPayments() async {
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.scheduler.run()
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    await self.scheduler.run()
+  }
+
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private var vm: PledgePaymentMethodsViewModelType =
     PledgePaymentMethodsViewModel(stripeIntentService: MockStripeIntentService())
   private var mockStripeIntentService = MockStripeIntentService()
@@ -37,40 +54,42 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
+    MainActor.assumeIsolated {
 
-    self.vm = PledgePaymentMethodsViewModel(stripeIntentService: self.mockStripeIntentService)
+      self.vm = PledgePaymentMethodsViewModel(stripeIntentService: self.mockStripeIntentService)
 
-    self.vm.outputs.notifyDelegateCreditCardSelected
-      .observe(self.notifyDelegateCreditCardSelected.observer)
-    self.vm.outputs.notifyDelegateLoadPaymentMethodsError
-      .observe(self.notifyDelegateLoadPaymentMethodsError.observer)
+      self.vm.outputs.notifyDelegateCreditCardSelected
+        .observe(self.notifyDelegateCreditCardSelected.observer)
+      self.vm.outputs.notifyDelegateLoadPaymentMethodsError
+        .observe(self.notifyDelegateLoadPaymentMethodsError.observer)
 
-    // swiftlint:disable line_length
-    self.vm.outputs.reloadPaymentMethods.map { $0.existingPaymentMethods }.map { $0.map { $0.card } }
-      .observe(self.reloadPaymentMethodsCards.observer)
-    self.vm.outputs.reloadPaymentMethods.map { $0.existingPaymentMethods }.map { $0.map { $0.isEnabled } }
-      .observe(self.reloadPaymentMethodsAvailableCardTypes.observer)
-    self.vm.outputs.reloadPaymentMethods.map { $0.existingPaymentMethods }.map { $0.map { $0.isSelected } }
-      .observe(self.reloadPaymentMethodsIsSelected.observer)
-    self.vm.outputs.reloadPaymentMethods.map { $0.existingPaymentMethods }
-      .map { $0.map { $0.projectCountry } }
-      .observe(self.reloadPaymentMethodsProjectCountry.observer)
-    self.vm.outputs.reloadPaymentMethods.map { $0.newPaymentMethods }
-      .observe(self.reloadPaymentSheetPaymentMethodsCards.observer)
-    self.vm.outputs.reloadPaymentMethods.map { data in data.selectedPaymentMethod?.savedCreditCardId }
-      .observe(self.reloadPaymentMethodsSelectedCardId.observer)
-    self.vm.outputs.reloadPaymentMethods.map { $0.shouldReload }
-      .observe(self.reloadPaymentMethodsShouldReload.observer)
-    self.vm.outputs.reloadPaymentMethods.map { $0.isLoading }
-      .observe(self.reloadPaymentMethodsIsLoading.observer)
-    self.vm.outputs.updateAddNewCardLoading.map { $0 }.observe(self.addNewCardLoadingState.observer)
-    self.vm.outputs.goToAddCardViaStripeScreen.map { $0 }.observe(self.goToAddStripeCardIntent.observer)
-    // swiftlint:enable line_length
+      // swiftlint:disable line_length
+      self.vm.outputs.reloadPaymentMethods.map { $0.existingPaymentMethods }.map { $0.map { $0.card } }
+        .observe(self.reloadPaymentMethodsCards.observer)
+      self.vm.outputs.reloadPaymentMethods.map { $0.existingPaymentMethods }.map { $0.map { $0.isEnabled } }
+        .observe(self.reloadPaymentMethodsAvailableCardTypes.observer)
+      self.vm.outputs.reloadPaymentMethods.map { $0.existingPaymentMethods }.map { $0.map { $0.isSelected } }
+        .observe(self.reloadPaymentMethodsIsSelected.observer)
+      self.vm.outputs.reloadPaymentMethods.map { $0.existingPaymentMethods }
+        .map { $0.map { $0.projectCountry } }
+        .observe(self.reloadPaymentMethodsProjectCountry.observer)
+      self.vm.outputs.reloadPaymentMethods.map { $0.newPaymentMethods }
+        .observe(self.reloadPaymentSheetPaymentMethodsCards.observer)
+      self.vm.outputs.reloadPaymentMethods.map { data in data.selectedPaymentMethod?.savedCreditCardId }
+        .observe(self.reloadPaymentMethodsSelectedCardId.observer)
+      self.vm.outputs.reloadPaymentMethods.map { $0.shouldReload }
+        .observe(self.reloadPaymentMethodsShouldReload.observer)
+      self.vm.outputs.reloadPaymentMethods.map { $0.isLoading }
+        .observe(self.reloadPaymentMethodsIsLoading.observer)
+      self.vm.outputs.updateAddNewCardLoading.map { $0 }.observe(self.addNewCardLoadingState.observer)
+      self.vm.outputs.goToAddCardViaStripeScreen.map { $0 }.observe(self.goToAddStripeCardIntent.observer)
+      // swiftlint:enable line_length
+    }
   }
 
   // MARK: - New card added
 
-  func testReloadPaymentMethods_NewCardAdded_UnavailableIsLast() {
+  func testReloadPaymentMethods_NewCardAdded_UnavailableIsLast() async {
     let sampleSetupIntent = "seti_1LVlHO4VvJ2PtfhK43R6p7FI_secret_MEDiGbxfYVnHGsQy8v8TbZJTQhlNKLZ"
 
     let response = UserEnvelope<GraphUser>(me: userTemplate)
@@ -81,7 +100,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       fetchGraphUserResult: .success(response)
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.reloadPaymentMethodsCards.assertDidNotEmitValue()
       self.reloadPaymentMethodsAvailableCardTypes.assertDidNotEmitValue()
       self.reloadPaymentMethodsIsSelected.assertDidNotEmitValue()
@@ -101,7 +120,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.reloadPaymentMethodsCards.assertValues([[], response.me.storedCards.storedCards])
       self.reloadPaymentMethodsAvailableCardTypes.assertValues([
@@ -137,7 +156,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       let paymentOption = STPPaymentMethod.sampleStringPaymentOption(paymentMethod)
       let paymentOptionsDisplayData = STPPaymentMethod.samplePaymentOptionsDisplayData(paymentOption)
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
 
       self.vm.inputs
         .paymentSheetDidAdd(
@@ -145,7 +164,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
 
       XCTAssertEqual(self.reloadPaymentSheetPaymentMethodsCards.values.count, 3)
       XCTAssertTrue(
@@ -209,10 +228,11 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         addPaymentSheetResponse.createPaymentSource.paymentSource.id
       ])
       self.reloadPaymentMethodsShouldReload.assertValues([true, true, true])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testReloadPaymentMethods_NewCardAdded_ProjectHasBacking() {
+  func testReloadPaymentMethods_NewCardAdded_ProjectHasBacking() async {
     let setupIntent = "seti_1LVlHO4VvJ2PtfhK43R6p7FI_secret_MEDiGbxfYVnHGsQy8v8TbZJTQhlNKLZ"
     let cards = UserCreditCards.withCards([
       UserCreditCards.amex,
@@ -238,7 +258,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
     self.reloadPaymentMethodsShouldReload.assertDidNotEmitValue()
     self.reloadPaymentMethodsIsLoading.assertDidNotEmitValue()
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       let paymentSource = Backing.PaymentSource.template
         |> \.id .~ "2" // Matches UserCreditCards.visa template id
 
@@ -259,7 +279,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.reloadPaymentMethodsCards.assertValues([
         [],
@@ -305,7 +325,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       let paymentOption = STPPaymentMethod.sampleStringPaymentOption(paymentMethod)
       let paymentOptionsDisplayData = STPPaymentMethod.samplePaymentOptionsDisplayData(paymentOption)
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
 
       self.vm.inputs
         .paymentSheetDidAdd(
@@ -313,7 +333,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
 
       XCTAssertEqual(self.reloadPaymentSheetPaymentMethodsCards.values.count, 3)
       XCTAssertTrue(
@@ -373,10 +393,11 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         "No changes"
       )
       self.reloadPaymentMethodsShouldReload.assertValues([true, true, true])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testReloadPaymentMethods_NewCardAdded_NoStoredCards() {
+  func testReloadPaymentMethods_NewCardAdded_NoStoredCards() async {
     let emptyTemplate = GraphUser.template |> \.storedCards .~ .emptyTemplate
     let response = UserEnvelope<GraphUser>(me: emptyTemplate)
     let addPaymentSheetResponse = CreatePaymentSourceEnvelope.paymentSourceSuccessTemplateWithId("999")
@@ -386,7 +407,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       fetchGraphUserResult: .success(response)
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.reloadPaymentMethodsCards.assertDidNotEmitValue()
       self.reloadPaymentMethodsCards.assertDidNotEmitValue()
       self.reloadPaymentSheetPaymentMethodsCards.assertDidNotEmitValue()
@@ -408,7 +429,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.reloadPaymentMethodsCards.assertValues([[], []])
       XCTAssertEqual(self.reloadPaymentSheetPaymentMethodsCards.values.count, 2)
@@ -432,7 +453,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       let paymentOption = STPPaymentMethod.sampleStringPaymentOption(paymentMethod)
       let paymentOptionsDisplayData = STPPaymentMethod.samplePaymentOptionsDisplayData(paymentOption)
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
 
       self.vm.inputs
         .paymentSheetDidAdd(
@@ -440,7 +461,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
 
       XCTAssertEqual(self.reloadPaymentSheetPaymentMethodsCards.values.count, 3)
       XCTAssertTrue(
@@ -461,10 +482,11 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       self.reloadPaymentMethodsSelectedCardId
         .assertValues([nil, nil, addPaymentSheetResponse.createPaymentSource.paymentSource.id])
       self.reloadPaymentMethodsShouldReload.assertValues([true, true, true])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testReloadPaymentMethods_NewPaymentSheetCardAdded_WithExistingStoredCard_Success() {
+  func testReloadPaymentMethods_NewPaymentSheetCardAdded_WithExistingStoredCard_Success() async {
     let userTemplate = GraphUser.template |> \.storedCards .~ UserCreditCards.withCards([
       UserCreditCards.masterCard
     ])
@@ -475,7 +497,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       fetchGraphUserResult: .success(response)
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.reloadPaymentMethodsCards.assertDidNotEmitValue()
       self.reloadPaymentSheetPaymentMethodsCards.assertDidNotEmitValue()
       self.reloadPaymentMethodsSelectedCardId.assertDidNotEmitValue()
@@ -493,7 +515,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.reloadPaymentMethodsCards.assertValues([[], [UserCreditCards.masterCard]])
       self.reloadPaymentSheetPaymentMethodsCards.assertValueCount(2)
@@ -529,7 +551,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.advance(by: 1)
+      await self.advancePayments(by: .seconds(1))
 
       self.reloadPaymentMethodsCards
         .assertValues(
@@ -556,10 +578,11 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         )
       self.reloadPaymentMethodsShouldReload.assertValues([true, true, true])
       self.reloadPaymentMethodsIsLoading.assertValues([true, false, false])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testReloadPaymentMethods_NewPaymentSheetCardAdded_WithExistingStoredCard_ErroredBacking_Success() {
+  func testReloadPaymentMethods_NewPaymentSheetCardAdded_WithExistingStoredCard_ErroredBacking_Success() async {
     let userTemplate = GraphUser.template |> \.storedCards .~ UserCreditCards.withCards([
       UserCreditCards.masterCard
     ])
@@ -573,7 +596,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       fetchGraphUserResult: .success(response)
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.reloadPaymentMethodsCards.assertDidNotEmitValue()
       self.reloadPaymentSheetPaymentMethodsCards.assertDidNotEmitValue()
       self.reloadPaymentMethodsSelectedCardId.assertDidNotEmitValue()
@@ -591,7 +614,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.reloadPaymentMethodsCards.assertValues([[], [UserCreditCards.masterCard]])
       self.reloadPaymentSheetPaymentMethodsCards.assertValueCount(2)
@@ -624,7 +647,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.advance(by: 1)
+      await self.advancePayments(by: .seconds(1))
 
       self.reloadPaymentMethodsCards
         .assertValues(
@@ -652,10 +675,11 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         )
       self.reloadPaymentMethodsShouldReload.assertValues([true, true, true])
       self.reloadPaymentMethodsIsLoading.assertValues([true, false, false])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testSelectNewPaymentSheetCard_ViceVersa_AfterNewPaymentSheetCardsAdded_Success() {
+  func testSelectNewPaymentSheetCard_ViceVersa_AfterNewPaymentSheetCardsAdded_Success() async {
     let userTemplate = GraphUser.template |> \.storedCards .~ UserCreditCards.withCards([
       UserCreditCards.masterCard
     ])
@@ -666,7 +690,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       fetchGraphUserResult: .success(response)
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.reloadPaymentMethodsCards.assertDidNotEmitValue()
       self.reloadPaymentSheetPaymentMethodsCards.assertDidNotEmitValue()
       self.reloadPaymentMethodsSelectedCardId.assertDidNotEmitValue()
@@ -682,7 +706,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.reloadPaymentMethodsSelectedCardId
         .assertValues(
@@ -704,7 +728,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.advance(by: 1)
+      await self.advancePayments(by: .seconds(1))
 
       self.reloadPaymentMethodsSelectedCardId
         .assertValues(
@@ -738,10 +762,11 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           ],
           "No card to select after payment sheet card added."
         )
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testReloadPaymentMethods_FirstCardUnavailable_UnavailableCardOrderedLast() {
+  func testReloadPaymentMethods_FirstCardUnavailable_UnavailableCardOrderedLast() async {
     let cards = UserCreditCards.withCards([
       UserCreditCards.discover,
       UserCreditCards.visa,
@@ -754,7 +779,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
     let project = Project.template
       |> \.availableCardTypes .~ ["AMEX", "VISA", "MASTERCARD"]
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.reloadPaymentMethodsCards.assertDidNotEmitValue()
       self.reloadPaymentMethodsAvailableCardTypes.assertDidNotEmitValue()
       self.reloadPaymentMethodsIsSelected.assertDidNotEmitValue()
@@ -774,7 +799,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.reloadPaymentMethodsCards.assertValues([
         [],
@@ -792,14 +817,15 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       ])
       self.reloadPaymentMethodsSelectedCardId.assertValues([nil, UserCreditCards.visa.id])
       self.reloadPaymentMethodsShouldReload.assertValues([true, true])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testReloadPaymentMethods_LoggedOut() {
+  func testReloadPaymentMethods_LoggedOut() async {
     let response = UserEnvelope<GraphUser>(me: GraphUser.template)
     let mockService = MockService(fetchGraphUserResult: .success(response))
 
-    withEnvironment(apiService: mockService, currentUser: nil) {
+    await withEnvironment(apiService: mockService, currentUser: nil) {
       self.vm.inputs.viewDidLoad()
 
       self.reloadPaymentMethodsCards.assertDidNotEmitValue()
@@ -811,7 +837,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       self.reloadPaymentMethodsIsLoading.assertDidNotEmitValue()
       self.notifyDelegateLoadPaymentMethodsError.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.reloadPaymentMethodsCards.assertDidNotEmitValue()
       self.reloadPaymentMethodsAvailableCardTypes.assertDidNotEmitValue()
@@ -821,14 +847,15 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       self.reloadPaymentMethodsShouldReload.assertDidNotEmitValue()
       self.reloadPaymentMethodsIsLoading.assertDidNotEmitValue()
       self.notifyDelegateLoadPaymentMethodsError.assertDidNotEmitValue()
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testCreditCardSelected() {
+  func testCreditCardSelected() async {
     let response = UserEnvelope<GraphUser>(me: userTemplate)
     let mockService = MockService(fetchGraphUserResult: .success(response))
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.inputs
         .configure(with: (
           User.template,
@@ -840,7 +867,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.notifyDelegateCreditCardSelected.assertValues(
         [PaymentSourceSelected.savedCreditCard(UserCreditCards.amex.id, "pm_fake_amex")],
@@ -858,10 +885,11 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         PaymentSourceSelected.savedCreditCard(UserCreditCards.amex.id, "pm_fake_amex"),
         PaymentSourceSelected.savedCreditCard(UserCreditCards.discover.id, "pm_fake_discover")
       ])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testPaymentSheetCardSetupIntent_UsedToNotifyDelegate_WhenPaymentSheetCardAdded_Success() {
+  func testPaymentSheetCardSetupIntent_UsedToNotifyDelegate_WhenPaymentSheetCardAdded_Success() async {
     let userTemplateWithCards = self.userTemplate
       |> \.storedCards .~ UserCreditCards.withCards([UserCreditCards.visa])
     let response = UserEnvelope<GraphUser>(me: userTemplateWithCards)
@@ -874,7 +902,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       fetchGraphUserResult: .success(response)
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.inputs
         .configure(with: (
           User.template,
@@ -886,7 +914,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.notifyDelegateCreditCardSelected.assertValues(
         [PaymentSourceSelected.savedCreditCard(UserCreditCards.visa.id, "pm_fake_visa")],
@@ -907,7 +935,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake_from_viewmodel"
         )
 
-      self.scheduler.advance(by: 1)
+      await self.advancePayments(by: .seconds(1))
 
       self.notifyDelegateCreditCardSelected.assertValues([
         PaymentSourceSelected.savedCreditCard(UserCreditCards.visa.id, "pm_fake_visa"),
@@ -917,10 +945,11 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
             "pm_fake_from_viewmodel"
           )
       ])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testPaymentSheetCardPaymentIntent_UsedToNotifyDelegate_WhenPaymentSheetCardAdded_Success() {
+  func testPaymentSheetCardPaymentIntent_UsedToNotifyDelegate_WhenPaymentSheetCardAdded_Success() async {
     let userTemplateWithCards = self.userTemplate
       |> \.storedCards .~ UserCreditCards.withCards([UserCreditCards.visa])
     let response = UserEnvelope<GraphUser>(me: userTemplateWithCards)
@@ -933,7 +962,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       fetchGraphUserResult: .success(response)
     )
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.inputs
         .configure(with: (
           User.template,
@@ -945,7 +974,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.notifyDelegateCreditCardSelected.assertValues(
         [PaymentSourceSelected.savedCreditCard(UserCreditCards.visa.id, "pm_fake_visa")],
@@ -966,7 +995,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake_from_response"
         )
 
-      self.scheduler.advance(by: 1)
+      await self.advancePayments(by: .seconds(1))
 
       self.notifyDelegateCreditCardSelected.assertValues([
         PaymentSourceSelected.savedCreditCard(UserCreditCards.visa.id, "pm_fake_visa"),
@@ -976,10 +1005,11 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
             "pm_fake_from_response"
           )
       ])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testCantSelectUnavailableCards() {
+  func testCantSelectUnavailableCards() async {
     let cards = UserCreditCards.withCards([
       UserCreditCards.visa,
       UserCreditCards.discover,
@@ -991,7 +1021,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
     let project = Project.template
       |> \.availableCardTypes .~ ["AMEX", "VISA", "MASTERCARD"]
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.inputs
         .configure(with: (
           User.template,
@@ -1003,7 +1033,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.reloadPaymentMethodsCards.assertValues([
         [],
@@ -1030,15 +1060,16 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         row: 1, section: PaymentMethodsTableViewSection.loading.rawValue
       )
       XCTAssertNil(self.vm.inputs.willSelectRowAtIndexPath(outOfBoundsIndexPath))
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testGoToAddNewCard_PledgeContext_Failure() {
+  func testGoToAddNewCard_PledgeContext_Failure() async {
     let project = Project.template
     let envelope = ClientSecretEnvelope(clientSecret: "test")
     let mockService = MockService(createStripeSetupIntentResult: .success(envelope))
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService,
       currentUser: User.template
     ) {
@@ -1061,20 +1092,21 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       self.goToAddStripeCardIntent.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       XCTAssertEqual(self.goToAddStripeCardIntent.values.count, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testGoToAddNewCard_UpdatePledgeContext_Failure() {
+  func testGoToAddNewCard_UpdatePledgeContext_Failure() async {
     let project = Project.template
     let envelope = ClientSecretEnvelope(clientSecret: "test")
     let mockService = MockService(createStripeSetupIntentResult: .success(envelope))
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService,
       currentUser: User.template
     ) {
@@ -1097,20 +1129,21 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       self.goToAddStripeCardIntent.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       XCTAssertEqual(self.goToAddStripeCardIntent.values.count, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testGoToAddNewCard_UpdateRewardContexts_Failure() {
+  func testGoToAddNewCard_UpdateRewardContexts_Failure() async {
     let project = Project.template
     let envelope = ClientSecretEnvelope(clientSecret: "test")
     let mockService = MockService(createStripeSetupIntentResult: .success(envelope))
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService,
       currentUser: User.template
     ) {
@@ -1133,20 +1166,21 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       self.goToAddStripeCardIntent.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       XCTAssertEqual(self.goToAddStripeCardIntent.values.count, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testGoToAddNewCard_ChangePaymentMethodContext_Failure() {
+  func testGoToAddNewCard_ChangePaymentMethodContext_Failure() async {
     let project = Project.template
     let envelope = ClientSecretEnvelope(clientSecret: "test")
     let mockService = MockService(createStripeSetupIntentResult: .success(envelope))
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService,
       currentUser: User.template
     ) {
@@ -1169,20 +1203,21 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       self.goToAddStripeCardIntent.assertDidNotEmitValue()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       XCTAssertEqual(self.goToAddStripeCardIntent.values.count, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testGoToAddNewCard_FixPaymentMethodContext_Failure() {
+  func testGoToAddNewCard_FixPaymentMethodContext_Failure() async {
     let project = Project.template
     let envelope = ClientSecretEnvelope(clientSecret: "test")
     let mockService = MockService(createStripeSetupIntentResult: .success(envelope))
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService,
       currentUser: User.template
     ) {
@@ -1205,15 +1240,16 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       XCTAssertEqual(self.goToAddStripeCardIntent.values.count, 0)
 
-      self.scheduler.run()
+      await self.runPayments()
 
       XCTAssertEqual(self.goToAddStripeCardIntent.values.count, 1)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testGoToAddNewStripeCard_NoStoredCards_Success() {
+  func testGoToAddNewStripeCard_NoStoredCards_Success() async {
     let project = Project.template
     let graphUser = GraphUser.template |> \.storedCards .~ UserCreditCards.withCards([])
     let response = UserEnvelope<GraphUser>(me: graphUser)
@@ -1223,7 +1259,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       fetchGraphUserResult: .success(response)
     )
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService,
       currentUser: User.template
     ) {
@@ -1246,7 +1282,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       let paymentOption = STPPaymentMethod.sampleStringPaymentOption(paymentMethod)
       let paymentOptionsDisplayData = STPPaymentMethod.samplePaymentOptionsDisplayData(paymentOption)
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
 
       self.vm.inputs
         .paymentSheetDidAdd(
@@ -1254,7 +1290,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.advance(by: 1)
+      await self.advancePayments(by: .seconds(1))
 
       XCTAssertEqual(self.reloadPaymentMethodsCards.lastValue, [])
       XCTAssertNotNil(self.reloadPaymentSheetPaymentMethodsCards.lastValue?.last?.card)
@@ -1262,10 +1298,11 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         self.reloadPaymentSheetPaymentMethodsCards.lastValue?.last?.card.id,
         addPaymentSheetResponse.createPaymentSource.paymentSource.id
       )
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testGoToAddNewStripeCard_NoStoredCards_NewCardIsUnavailable_AddsButIsNotSelected() {
+  func testGoToAddNewStripeCard_NoStoredCards_NewCardIsUnavailable_AddsButIsNotSelected() async {
     let project = Project.template
       |> \.availableCardTypes .~ []
 
@@ -1277,7 +1314,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       fetchGraphUserResult: .success(response)
     )
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService,
       currentUser: User.template
     ) {
@@ -1300,7 +1337,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       let paymentOption = STPPaymentMethod.sampleStringPaymentOption(paymentMethod)
       let paymentOptionsDisplayData = STPPaymentMethod.samplePaymentOptionsDisplayData(paymentOption)
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
 
       self.vm.inputs
         .paymentSheetDidAdd(
@@ -1308,7 +1345,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.advance(by: 1)
+      await self.advancePayments(by: .seconds(1))
 
       XCTAssertEqual(self.reloadPaymentMethodsCards.lastValue, [])
       let paymentSheetCard = self.reloadPaymentSheetPaymentMethodsCards.lastValue?.last
@@ -1323,10 +1360,11 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       self.reloadPaymentMethodsSelectedCardId
         .assertValues([nil, nil, nil])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testGoToAddNewStripeCard_WithStoredCards_NewCardIsUnavailable_AddsButIsNotSelected() {
+  func testGoToAddNewStripeCard_WithStoredCards_NewCardIsUnavailable_AddsButIsNotSelected() async {
     let project = Project.template
       |> \.availableCardTypes .~ [CreditCardType.amex.rawValue]
 
@@ -1338,7 +1376,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       fetchGraphUserResult: .success(response)
     )
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService,
       currentUser: User.template
     ) {
@@ -1361,7 +1399,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       let paymentOption = STPPaymentMethod.sampleStringPaymentOption(paymentMethod)
       let paymentOptionsDisplayData = STPPaymentMethod.samplePaymentOptionsDisplayData(paymentOption)
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
 
       self.vm.inputs
         .paymentSheetDidAdd(
@@ -1369,7 +1407,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.advance(by: 1)
+      await self.advancePayments(by: .seconds(1))
 
       XCTAssertEqual(self.reloadPaymentMethodsCards.lastValue?.last?.id, UserCreditCards.amex.id)
 
@@ -1385,10 +1423,11 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       self.reloadPaymentMethodsSelectedCardId
         .assertValues([nil, UserCreditCards.amex.id, UserCreditCards.amex.id])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testGoToAddNewStripeCard_WithStoredCards_Sucess() {
+  func testGoToAddNewStripeCard_WithStoredCards_Sucess() async {
     let project = Project.template
     let graphUser = GraphUser.template |> \.storedCards .~ UserCreditCards.withCards([UserCreditCards.visa])
     let response = UserEnvelope<GraphUser>(me: graphUser)
@@ -1398,7 +1437,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       fetchGraphUserResult: .success(response)
     )
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService,
       currentUser: User.template
     ) {
@@ -1422,7 +1461,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       let paymentOption = STPPaymentMethod.sampleStringPaymentOption(paymentMethod)
       let paymentOptionsDisplayData = STPPaymentMethod.samplePaymentOptionsDisplayData(paymentOption)
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
 
       self.vm.inputs
         .paymentSheetDidAdd(
@@ -1430,7 +1469,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.advance(by: 1)
+      await self.advancePayments(by: .seconds(1))
 
       XCTAssertEqual(self.reloadPaymentMethodsCards.lastValue, [UserCreditCards.visa])
       XCTAssertNotNil(self.reloadPaymentSheetPaymentMethodsCards.lastValue?.last?.card.lastFour)
@@ -1438,10 +1477,11 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         self.reloadPaymentSheetPaymentMethodsCards.lastValue?.last?.card.id,
         addPaymentSheetResponse.createPaymentSource.paymentSource.id
       )
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testAddNewStripeCard_SavingCardReturnsError_NotifiesDelegateOfError() {
+  func testAddNewStripeCard_SavingCardReturnsError_NotifiesDelegateOfError() async {
     let project = Project.template
     let graphUser = GraphUser.template |> \.storedCards .~ UserCreditCards.withCards([UserCreditCards.visa])
     let response = UserEnvelope<GraphUser>(me: graphUser)
@@ -1452,7 +1492,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       fetchGraphUserResult: .success(response)
     )
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService,
       currentUser: User.template
     ) {
@@ -1473,7 +1513,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         return
       }
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
 
       self.vm.inputs
         .paymentSheetDidAdd(
@@ -1481,13 +1521,14 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.advance(by: 1)
+      await self.advancePayments(by: .seconds(1))
 
       XCTAssertEqual(self.notifyDelegateLoadPaymentMethodsError.lastValue, error.localizedDescription)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testAddNewStripeCard_MultipleCards_StoresAllCards_WithMostRecentCardFirst() {
+  func testAddNewStripeCard_MultipleCards_StoresAllCards_WithMostRecentCardFirst() async {
     let project = Project.template
     let graphUser = GraphUser.template |> \.storedCards .~ UserCreditCards.withCards([UserCreditCards.visa])
     let response = UserEnvelope<GraphUser>(me: graphUser)
@@ -1510,7 +1551,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       addPaymentSheetPaymentSourceResult: .success(addPaymentSheetResponse3)
     )
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockServiceInitial,
       currentUser: User.template
     ) {
@@ -1525,11 +1566,12 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .discovery
         ))
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
       XCTAssertEqual(self.reloadPaymentSheetPaymentMethodsCards.lastValue?.count, 0)
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService1,
       currentUser: User.template
     ) {
@@ -1539,15 +1581,16 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
 
       XCTAssertEqual(self.reloadPaymentSheetPaymentMethodsCards.lastValue?.count, 1)
       let firstCardInList = self.reloadPaymentSheetPaymentMethodsCards.lastValue?[0]
       XCTAssertEqual(firstCardInList?.card.id, "1")
       XCTAssertTrue(firstCardInList?.isSelected ?? false)
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService2,
       currentUser: User.template
     ) {
@@ -1557,15 +1600,16 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
 
       XCTAssertEqual(self.reloadPaymentSheetPaymentMethodsCards.lastValue?.count, 2)
       let firstCardInList = self.reloadPaymentSheetPaymentMethodsCards.lastValue?[0]
       XCTAssertEqual(firstCardInList?.card.id, "2")
       XCTAssertTrue(firstCardInList?.isSelected ?? false)
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService3,
       currentUser: User.template
     ) {
@@ -1575,16 +1619,17 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
 
       XCTAssertEqual(self.reloadPaymentSheetPaymentMethodsCards.lastValue?.count, 3)
       let firstCardInList = self.reloadPaymentSheetPaymentMethodsCards.lastValue?[0]
       XCTAssertEqual(firstCardInList?.card.id, "3")
       XCTAssertTrue(firstCardInList?.isSelected ?? false)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testLoadingStateAddNewCard_ShowAndHide_Success() {
+  func testLoadingStateAddNewCard_ShowAndHide_Success() async {
     let project = Project.template
     let addNewCardIndexPath = IndexPath(
       row: 0,
@@ -1593,7 +1638,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
     let mockService = MockService(createStripeSetupIntentResult: .failure(.couldNotParseErrorEnvelopeJSON))
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService,
       currentUser: User.template
     ) {
@@ -1609,21 +1654,22 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.didSelectRowAtIndexPath(addNewCardIndexPath)
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.addNewCardLoadingState.assertValues([true, false])
 
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testLoadingStateAddNewCard_ShowAndHide_NonCardSelectionNonAddNewCardContext_Success() {
+  func testLoadingStateAddNewCard_ShowAndHide_NonCardSelectionNonAddNewCardContext_Success() async {
     let project = Project.template
 
     let mockService = MockService(createStripeSetupIntentResult: .failure(.couldNotParseErrorEnvelopeJSON))
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService,
       currentUser: User.template
     ) {
@@ -1642,16 +1688,17 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       self.vm.inputs.shouldCancelPaymentSheetAppearance(state: false)
       self.vm.inputs.shouldCancelPaymentSheetAppearance(state: false)
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.addNewCardLoadingState.assertValues([false, true, true, true])
 
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 0)
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testLoadingStateAddNewCard_ShowAndHide_CardSelectionContext_Success() {
+  func testLoadingStateAddNewCard_ShowAndHide_CardSelectionContext_Success() async {
     let cards = UserCreditCards.withCards([
       UserCreditCards.visa,
       UserCreditCards.masterCard,
@@ -1667,7 +1714,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       section: PaymentMethodsTableViewSection.paymentMethods.rawValue
     )
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService,
       currentUser: User.template
     ) {
@@ -1683,16 +1730,17 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.shouldCancelPaymentSheetAppearance(state: false)
 
-      self.scheduler.advance(by: .seconds(1))
+      await self.advancePayments(by: .seconds(1))
       self.vm.inputs.didSelectRowAtIndexPath(paymentMethodSelectionIndexPath)
 
-      self.scheduler.run()
+      await self.runPayments()
 
       self.addNewCardLoadingState.assertValues([true, false])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testGoToAddNewStripeCardScreen_PledgeContext_Success() {
+  func testGoToAddNewStripeCardScreen_PledgeContext_Success() async {
     let project = Project.template
     let addNewCardIndexPath = IndexPath(
       row: 0,
@@ -1704,7 +1752,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
     configuration.merchantDisplayName = Strings.general_accessibility_kickstarter()
     configuration.allowsDelayedPaymentMethods = true
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService,
       currentUser: User.template
     ) {
@@ -1720,7 +1768,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.didSelectRowAtIndexPath(addNewCardIndexPath)
 
-      self.scheduler.run()
+      await self.runPayments()
 
       XCTAssertEqual(self.goToAddStripeCardIntent.values.count, 1)
       XCTAssertEqual(self.goToAddStripeCardIntent.lastValue?.clientSecret, "test")
@@ -1739,10 +1787,11 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       XCTAssertTrue(allowedDelayedPaymentMethods)
       XCTAssertEqual(self.mockStripeIntentService.setupIntentRequests, 1)
       XCTAssertEqual(self.mockStripeIntentService.paymentIntentRequests, 0)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testGoToAddNewStripeCardScreen_LatePledgeContext_Success() {
+  func testGoToAddNewStripeCardScreen_LatePledgeContext_Success() async {
     let project = Project.template
     let addNewCardIndexPath = IndexPath(
       row: 0,
@@ -1754,7 +1803,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
     configuration.merchantDisplayName = Strings.general_accessibility_kickstarter()
     configuration.allowsDelayedPaymentMethods = true
 
-    withEnvironment(
+    await withEnvironment(
       apiService: mockService,
       currentUser: User.template
     ) {
@@ -1770,7 +1819,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.didSelectRowAtIndexPath(addNewCardIndexPath)
 
-      self.scheduler.run()
+      await self.runPayments()
 
       XCTAssertEqual(self.goToAddStripeCardIntent.values.count, 1)
       XCTAssertEqual(self.goToAddStripeCardIntent.lastValue?.clientSecret, "test")
@@ -1787,11 +1836,12 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       }
 
       XCTAssertTrue(allowedDelayedPaymentMethods)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
   // A test for MBL-1550
-  func testAddNewUnavailablePaymentMethod_userAlreadyHasCard_selectsValidPaymentMethod() {
+  func testAddNewUnavailablePaymentMethod_userAlreadyHasCard_selectsValidPaymentMethod() async {
     let cards = UserCreditCards.withCards([
       UserCreditCards.visa
     ])
@@ -1807,7 +1857,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
     let project = Project.template
       |> \.availableCardTypes .~ ["VISA"]
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.inputs
         .configure(with: (
           User.template,
@@ -1819,7 +1869,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       // There is one card, it's enabled, and it's selected
       XCTAssertEqual(self.reloadPaymentMethodsIsSelected.lastValue, [true])
@@ -1833,7 +1883,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.run()
+      await self.runPayments()
 
       // There are now two cards, one in each section
       XCTAssertEqual(self.reloadPaymentSheetPaymentMethodsCards.lastValue?.count, 1)
@@ -1848,10 +1898,11 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       XCTAssertEqual(self.reloadPaymentMethodsSelectedCardId.lastValue, UserCreditCards.visa.id)
       XCTAssertEqual(self.reloadPaymentMethodsIsSelected.lastValue, [true])
       XCTAssertEqual(self.reloadPaymentMethodsAvailableCardTypes.lastValue, [true])
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testAddNewUnavailablePaymentMethod_userHasNoCards_noCardSelected() {
+  func testAddNewUnavailablePaymentMethod_userHasNoCards_noCardSelected() async {
     let cards = UserCreditCards.withCards([])
 
     let graphUser = GraphUser.template |> \.storedCards .~ cards
@@ -1865,7 +1916,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
     let project = Project.template
       |> \.availableCardTypes .~ ["VISA"]
 
-    withEnvironment(apiService: mockService, currentUser: User.template) {
+    await withEnvironment(apiService: mockService, currentUser: User.template) {
       self.vm.inputs
         .configure(with: (
           User.template,
@@ -1877,7 +1928,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       // There are no cards
       XCTAssertEqual(self.reloadPaymentMethodsIsSelected.lastValue, [])
@@ -1891,7 +1942,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.run()
+      await self.runPayments()
 
       // There is now one card, in the new section
       XCTAssertEqual(self.reloadPaymentSheetPaymentMethodsCards.lastValue?.count, 1)
@@ -1902,10 +1953,11 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       XCTAssertEqual(newCardData?.isEnabled, false)
       XCTAssertEqual(newCardData?.isSelected, false)
       XCTAssertNil(self.reloadPaymentMethodsSelectedCardId.lastValue ?? nil)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 
-  func testAddNewUnavailablePaymentMethod_afterAddingAvailableCard_onlyAvailableCardSelected() {
+  func testAddNewUnavailablePaymentMethod_afterAddingAvailableCard_onlyAvailableCardSelected() async {
     let cards = UserCreditCards.withCards([])
 
     let graphUser = GraphUser.template |> \.storedCards .~ cards
@@ -1929,7 +1981,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
     let project = Project.template
       |> \.availableCardTypes .~ ["VISA"]
 
-    withEnvironment(apiService: mockService1, currentUser: User.template) {
+    await withEnvironment(apiService: mockService1, currentUser: User.template) {
       self.vm.inputs
         .configure(with: (
           User.template,
@@ -1941,7 +1993,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         ))
       self.vm.inputs.viewDidLoad()
 
-      self.scheduler.run()
+      await self.runPayments()
 
       // There are no cards
       XCTAssertEqual(self.reloadPaymentMethodsIsSelected.lastValue, [])
@@ -1955,7 +2007,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.run()
+      await self.runPayments()
 
       // There is now one card, in the new section
       XCTAssertEqual(self.reloadPaymentSheetPaymentMethodsCards.lastValue?.count, 1)
@@ -1966,9 +2018,10 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       XCTAssertEqual(newCardData?.isEnabled, true)
       XCTAssertEqual(newCardData?.isSelected, true)
       XCTAssertEqual(self.reloadPaymentMethodsSelectedCardId.lastValue, UserCreditCards.visa.id)
+    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
 
-    withEnvironment(apiService: mockService2, currentUser: User.template) {
+    await withEnvironment(apiService: mockService2, currentUser: User.template) {
       // Add another new card (the discover)
       self.vm.inputs
         .paymentSheetDidAdd(
@@ -1976,7 +2029,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           paymentMethod: "pm_fake"
         )
 
-      self.scheduler.run()
+      await self.runPayments()
 
       // There are now two cards, in the new section
       XCTAssertEqual(self.reloadPaymentSheetPaymentMethodsCards.lastValue?.count, 2)
@@ -2014,6 +2067,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       // The visa is still selected
       XCTAssertEqual(self.reloadPaymentMethodsSelectedCardId.lastValue, UserCreditCards.visa.id)
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
 }

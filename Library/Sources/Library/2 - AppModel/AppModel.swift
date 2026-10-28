@@ -4,6 +4,7 @@
 public final class AppModel {
   public static let shared = AppModel.live()
 
+  public let paymentsFeature: PaymentsFeature
   public let messagingFeature: MessagingFeature
   public let sessionFeature: SessionFeature
   public let authenticationFeature: AuthenticationFeature
@@ -18,6 +19,7 @@ public final class AppModel {
   public let projectMediaFeature: ProjectMediaFeature
 
   public init(
+    paymentsFeature: PaymentsFeature,
     messagingFeature: MessagingFeature,
     sessionFeature: SessionFeature,
     authenticationFeature: AuthenticationFeature,
@@ -31,6 +33,7 @@ public final class AppModel {
     discussionFeature: DiscussionFeature,
     projectMediaFeature: ProjectMediaFeature
   ) {
+    self.paymentsFeature = paymentsFeature
     self.messagingFeature = messagingFeature
     self.sessionFeature = sessionFeature
     self.authenticationFeature = authenticationFeature
@@ -50,6 +53,7 @@ public final class AppModel {
     self.activityFeature.reset()
     self.profileFeature.reset()
     self.messagingFeature.reset()
+    self.paymentsFeature.reset()
   }
 
   public static func live() -> AppModel {
@@ -65,6 +69,9 @@ public final class AppModel {
       makeProvider: { AsyncProfileProvider(service: AppEnvironment.current.apiService) }
     )
     return AppModel(
+      paymentsFeature: PaymentsFeature(sessionFeature: sessionFeature, makeProvider: {
+        AsyncPaymentsProvider(service: AppEnvironment.current.apiService)
+      }),
       messagingFeature: MessagingFeature(sessionFeature: sessionFeature, makeProvider: {
         AsyncMessagingProvider(service: AppEnvironment.current.apiService)
       }),

@@ -1,5 +1,29 @@
 # Kickstarter migration behaviour contract
 
+## Payment methods and Stripe intents — 28 October 2026
+
+- PAY-01: Preserve card ordering/availability, selection, optimistic deletion and
+  rollback, edit/loading state, error/banner copy and payment-sheet configuration.
+  Preserve the workaround filling a newly stored card's missing stripeCardId.
+- PAY-02: Keep intent contexts, two-decimal amount formatting, encoded Checkout ID
+  and existing nullable input mapping. Native stored-card reads fetch fresh data.
+- PAY-03: Share equivalent pending intents and equivalent pending card-write tails.
+  Distinct card writes run in order; failure does not retry or block later commands.
+  Reads wait for writes and refetch when overtaken.
+- PAY-04: Screen disposal cancels observation, not an admitted mutation. Native
+  reads honor cancellation; obsolete session values/errors and delayed secrets
+  cannot be delivered to a replacement session.
+- PAY-05: Public demo rejects every payment entry point. Never infer a successful
+  payment from an intent, or assume cancellation reverses a server-accepted write.
+
+Baseline: 69 original tests passed. Final integrated run: 1,147 passed with zero
+failures/skips and successful app build; includes ten new controlled Feature tests.
+Original screen assertions retained with explicit async fixture lifetimes and one
+completed card-list fixture. Compile failures and two test-fixture crashes are
+recorded in the ledger/evidence. Real Stripe authorization/charges, live account
+operations, visual/device parity, remaining checkout/pledge ownership and full
+app-wide validation are still open.
+
 ## Messaging — 28 October 2026
 
 - MSG-01: Preserve inbox/sent/project scope, refresh clearing, concatenation,
