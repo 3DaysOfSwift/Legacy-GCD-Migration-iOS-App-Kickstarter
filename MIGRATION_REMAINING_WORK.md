@@ -21,8 +21,9 @@ creator draft work is superseded by their completed checkpoints.
    checkout/backing/watch value graphs and payment command results are checkpointed.
    All five payment service operations now map Apollo data before callback-to-task
    transfer. Other generated-response providers and legacy generic callers remain.
-   Next concrete service boundaries: pledge mutation envelopes/boolean acknowledgements,
-   followed by remaining query/provider generated-response graphs. Classify global style/lens
+   Six pledge mutation envelope/acknowledgement paths now map before transfer.
+   Next: checkout validation/completion, managed backing/rewards, pledged-project
+   overview/payment-plan and remaining query/provider generated-response graphs. Classify global style/lens
    and generated Apollo diagnostics; resolve unsafe migrated application boundaries.
    A warning-free Swift 6 language conversion is a separate scope, not an implied
    requirement to rewrite all generated/third-party compatibility machinery.

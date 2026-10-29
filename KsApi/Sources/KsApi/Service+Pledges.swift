@@ -5,46 +5,45 @@ extension Service {
   @MainActor public func submitPledge(_ input: CreateBackingInput) async throws
     -> CreateBackingEnvelope
   {
-    let data: GraphAPI.CreateBackingMutation.Data = try await CancellableGraphQLRequest.fetch {
-      completion in
+    try await CancellableGraphQLRequest.fetch(start: { completion in
       GraphQL.shared.client.perform(
         mutation: GraphAPI.CreateBackingMutation(input: GraphAPI.CreateBackingInput.from(input)),
         queue: .global(qos: .userInitiated), resultHandler: completion
       )
-    }
-    guard let envelope = CreateBackingEnvelope.from(data) else {
-      throw ErrorEnvelope.couldNotParseJSON
-    }
-    return envelope
+    }, map: { data in
+      guard let envelope = CreateBackingEnvelope.from(data) else {
+        throw ErrorEnvelope.couldNotParseJSON
+      }
+      return envelope
+    })
   }
 
   @MainActor public func revisePledge(_ input: UpdateBackingInput) async throws
     -> UpdateBackingEnvelope
   {
-    let data: GraphAPI.UpdateBackingMutation.Data = try await CancellableGraphQLRequest.fetch {
-      completion in
+    try await CancellableGraphQLRequest.fetch(start: { completion in
       GraphQL.shared.client.perform(
         mutation: GraphAPI.UpdateBackingMutation(input: GraphAPI.UpdateBackingInput.from(input)),
         queue: .global(qos: .userInitiated), resultHandler: completion
       )
-    }
-    guard let envelope = UpdateBackingEnvelope.from(data) else {
-      throw ErrorEnvelope.couldNotParseJSON
-    }
-    return envelope
+    }, map: { data in
+      guard let envelope = UpdateBackingEnvelope.from(data) else {
+        throw ErrorEnvelope.couldNotParseJSON
+      }
+      return envelope
+    })
   }
 
   @MainActor public func cancelPledge(_ input: CancelBackingInput) async throws {
     // Preserve the current GraphQL contract: only the backing ID is transmitted.
     // The legacy client does not transmit its optional cancellation note.
-    let _: GraphAPI.CancelBackingMutation.Data = try await CancellableGraphQLRequest.fetch {
-      completion in
+    let _: Void = try await CancellableGraphQLRequest.fetch(start: { completion in
       GraphQL.shared.client.perform(
         mutation: GraphAPI.CancelBackingMutation(
           input: GraphAPI.CancelBackingInput(id: input.backingId)),
         queue: .global(qos: .userInitiated), resultHandler: completion
       )
-    }
+    }, map: { _ in () })
   }
 }
 
@@ -52,8 +51,7 @@ extension Service {
   @MainActor public func openPledgeCheckout(_ input: CreateCheckoutInput) async throws
     -> CreateCheckoutEnvelope
   {
-    let data: GraphAPI.CreateCheckoutMutation.Data = try await CancellableGraphQLRequest.fetch {
-      completion in
+    try await CancellableGraphQLRequest.fetch(start: { completion in
       GraphQL.shared.client.perform(
         mutation: GraphAPI.CreateCheckoutMutation(
           input: .init(
@@ -61,11 +59,12 @@ extension Service {
             locationId: .someOrNil(input.locationId), rewardIds: .someOrNil(input.rewardIds),
             refParam: .someOrNil(input.refParam)
           )), queue: .global(qos: .userInitiated), resultHandler: completion)
-    }
-    guard let envelope = CreateCheckoutEnvelope.from(data) else {
-      throw ErrorEnvelope.couldNotParseJSON
-    }
-    return envelope
+    }, map: { data in
+      guard let envelope = CreateCheckoutEnvelope.from(data) else {
+        throw ErrorEnvelope.couldNotParseJSON
+      }
+      return envelope
+    })
   }
 
   @MainActor public func checkPledgeCheckout(
@@ -125,24 +124,20 @@ extension Service {
   @MainActor public func confirmPledgeAddress(backingID: String, addressID: String) async throws
     -> Bool
   {
-    let data: GraphAPI.CreateOrUpdateBackingAddressMutation.Data =
-      try await CancellableGraphQLRequest.fetch { completion in
-        GraphQL.shared.client.perform(
-          mutation: GraphAPI.CreateOrUpdateBackingAddressMutation(
-            input: .init(backingId: backingID, addressId: addressID)),
-          queue: .global(qos: .userInitiated), resultHandler: completion)
-      }
-    return data.createOrUpdateBackingAddress?.success ?? false
+    try await CancellableGraphQLRequest.fetch(start: { completion in
+      GraphQL.shared.client.perform(
+        mutation: GraphAPI.CreateOrUpdateBackingAddressMutation(
+          input: .init(backingId: backingID, addressId: addressID)),
+        queue: .global(qos: .userInitiated), resultHandler: completion)
+    }, map: { $0.createOrUpdateBackingAddress?.success ?? false })
   }
   @MainActor public func setPledgeReceipt(backingID: String, received: Bool) async throws -> Bool {
-    let data: GraphAPI.UpdateBackerCompletedMutation.Data =
-      try await CancellableGraphQLRequest.fetch { completion in
-        GraphQL.shared.client.perform(
-          mutation: GraphAPI.UpdateBackerCompletedMutation(
-            input: .init(id: backingID, backerCompleted: received)),
-          queue: .global(qos: .userInitiated), resultHandler: completion)
-      }
-    return data.updateBackerCompleted?.backing?.backerCompleted == received
+    try await CancellableGraphQLRequest.fetch(start: { completion in
+      GraphQL.shared.client.perform(
+        mutation: GraphAPI.UpdateBackerCompletedMutation(
+          input: .init(id: backingID, backerCompleted: received)),
+        queue: .global(qos: .userInitiated), resultHandler: completion)
+    }, map: { $0.updateBackerCompleted?.backing?.backerCompleted == received })
   }
   @MainActor public func pledgePaymentPlan(slug: String, amount: String) async throws
     -> GraphAPI.BuildPaymentPlanQuery.Data

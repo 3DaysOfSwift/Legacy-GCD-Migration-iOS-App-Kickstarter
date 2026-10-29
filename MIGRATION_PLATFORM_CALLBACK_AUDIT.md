@@ -17,6 +17,21 @@ The primitive scan matched **40 lines in 25 files**. None matched the Feature
 implementation directory. That does not make every Feature concurrency-clean:
 complete compiler diagnostics also expose non-Sendable transfer boundaries.
 
+## Latest refresh: mapped pledge mutation transport — 29 October 2026
+
+submitPledge, revisePledge, cancelPledge, openPledgeCheckout, confirmPledgeAddress and
+setPledgeReceipt map on Apollo's existing callback executor and return checked values.
+Inputs, GraphQL error precedence and cancellation tokens remain unchanged. Four
+new mapped-envelope regressions join existing cancellation/duplicate-callback cases.
+Final 1,953 selected tests, normal app build and complete-check build passed.
+
+Generated-return paths still include checkPledgeCheckout, finishPledgeCheckout,
+managedPledgeBacking/rewards, pledgedProjects and pledgePaymentPlan, plus other
+query/provider modules. These need their own typed snapshot boundary; generic bridge
+compatibility remains deliberately retained. No blanket generated Sendable annotation.
+Syntax inventory remains eight lines/five files. Live mutations and visual/device
+checks remain open. Evidence: sibling `Migration Evidence/kickstarter-pledge-transport/`.
+
 ## Latest refresh: PaymentSheet and Apple Pay token callbacks — 29 October 2026
 
 PaymentSheetOperation owns load/selection/confirmation/enrichment observation, with

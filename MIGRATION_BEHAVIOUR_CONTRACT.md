@@ -1,5 +1,31 @@
 # Kickstarter migration behaviour contract
 
+## Pledge mutation transport snapshot contract — 29 October 2026
+
+Author: Matthew Thomas. 29 October 2026.
+
+Pledge and backing-management ViewModels continue to use their existing AppModel
+Features. Native Service submitPledge, revisePledge, cancelPledge, openPledgeCheckout,
+confirmPledgeAddress and setPledgeReceipt now map generated GraphQL responses on the
+Apollo callback executor, before returning through the asynchronous continuation.
+Only existing checked Sendable envelopes, Bool and Void cross into the awaiting actor.
+No generated GraphQL type gains Sendable or unchecked conformance.
+
+Preserve input construction, existing omitted cancellation-note behavior, SDK queue,
+GraphQL-error priority, missing-data/invalid-envelope errors, token cancellation and
+no automatic retry. Address success defaults to false for absent payload; receipt
+acknowledgement still compares the returned value to the requested value. No server
+accepted write can be undone by local cancellation.
+
+The SDK executor remains its existing native callback queue; this patch does not add
+GCD work. Existing mapped-bridge tests cover duplicate callbacks, cancellation and
+error precedence. New typed-envelope tests check checkout/authentication fields and
+missing-checkout rejection. These tests do not exercise live pledge/payment mutations.
+
+Other generated-response query/checkout completion providers and UI protocol isolation
+remain open. Public ServiceType APIs are unchanged; legacy generic bridges remain for
+callers that still require individual conversion.
+
 ## PaymentSheet and Apple Pay token contract — 29 October 2026
 
 Author: Matthew Thomas. 29 October 2026. Local draft.

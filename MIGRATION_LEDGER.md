@@ -43,6 +43,30 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Pledge mutation transport snapshots — 29 October 2026
+
+Native pledge creation/update/cancellation, checkout opening, address confirmation
+and receipt updates now map generated Apollo objects on the callback executor.
+Only existing checked Sendable envelopes, Bool or Void resume the awaiting Feature.
+Request inputs, omitted cancellation-note behavior, SDK executor, error precedence
+and cancellation token semantics are preserved. No automatic retry or generated
+Sendable/unchecked annotation was added. Accepted writes cannot be undone locally.
+
+Final verification: **1,435 Library + 397 framework + 121 API = 1,953 passed**,
+zero failures/skips; app build succeeded with zero errors/two warnings. Four new
+transport cases cover checkout/authentication fields, nullable secrets and rejection
+of a missing checkout. Existing cancellation/duplicate/error-precedence regressions
+remain selected. One API-test compilation error used whole-object equality on a
+non-Equatable error; corrected to code/messages and reran the API target. Passing
+Library/framework/build results were retained because production source was unchanged.
+No runtime failures or human command runs. Complete checking succeeded in Swift 5.
+
+Evidence: sibling `Migration Evidence/kickstarter-pledge-transport/`. Generated
+checkout-completion and query/provider graphs remain open; no whole-file or app-wide
+concurrency safety claim follows from a successful diagnostic build. Primitive syntax
+inventory remains eight lines/five files. Full visual/device and live-operation
+validation remain open. **Migration remains in progress.**
+
 ### PaymentSheet and Apple Pay token ownership — 29 October 2026
 
 Settings and pledge card-entry flows now own PaymentSheet creation, selection,
