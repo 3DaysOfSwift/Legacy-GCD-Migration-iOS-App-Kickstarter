@@ -19,7 +19,7 @@ private enum Constants {
 
 public struct OnboardingView: View {
   @SwiftUI.Environment(\.dismiss) private var dismiss
-  @ObservedObject var viewModel: OnboardingViewModel
+  @StateObject private var viewModel = OnboardingViewModel()
   @Namespace private var animation
   @State private var currentIndex: Int = 0
   @State private var onboardingItems: [OnboardingItem] = []
@@ -29,9 +29,7 @@ public struct OnboardingView: View {
     return Double(self.currentIndex + 1) / onboardingItemsCount
   }
 
-  public init(viewModel: OnboardingViewModel) {
-    self.viewModel = viewModel
-  }
+  public init() {}
 
   public var body: some View {
     ZStack {
@@ -71,22 +69,9 @@ public struct OnboardingView: View {
     .onAppear {
       self.viewModel.inputs.onAppear()
 
-      /// Bind onboarding items
-      self.viewModel.outputs.onboardingItems.startWithValues { items in
-        self.onboardingItems = items
-      }
-      /// Handle push notification system dialog completion
-      self.viewModel.outputs.didCompletePushNotificationSystemDialog
-        .observeForUI()
-        .observeValues {
-          self.didCompletePushNotificationSystemDialog()
-        }
-
-      /// Trigger app tracking permission popup
-      self.viewModel.outputs.triggerAppTrackingTransparencyPopup.observeValues {
-        self.presentAppTrackingPopup()
-      }
+      self.viewModel.bind(items: { self.onboardingItems = $0 }, advance: { self.goToNextItem() })
     }
+    .onDisappear { self.viewModel.stopObserving() }
   }
 
   // MARK: - ViewBuilders
@@ -148,35 +133,19 @@ public struct OnboardingView: View {
   }
 
   private func handleClose() {
+    self.viewModel.stopObserving()
     self.viewModel.inputs.onboardingFlowEnded()
     self.hasSeenOnboarding()
     self.dismiss()
   }
 
   private func goToNextItem() {
+    self.viewModel.cancelCompletion()
     guard self.currentIndex < self.onboardingItems.count - 1 else { return }
 
     self.currentIndex += 1
 
     self.viewModel.inputs.goToNextItemTapped(item: self.onboardingItems[self.currentIndex])
-  }
-
-  private func presentAppTrackingPopup() {
-    Library.AppEnvironment.current.appTrackingTransparency.requestAndSetAuthorizationStatus { authStatus in
-      DispatchQueue.main.async {
-        self.viewModel.inputs.didCompleteAppTrackingDialog(with: authStatus)
-        self.goToNextItem()
-      }
-    }
-  }
-
-  private func didCompletePushNotificationSystemDialog() {
-    UNUserNotificationCenter.current().getNotificationSettings { settings in
-      DispatchQueue.main.async {
-        self.viewModel.inputs.didCompletePushNotificationsDialog(with: settings.authorizationStatus)
-        self.goToNextItem()
-      }
-    }
   }
 
   private func hasSeenOnboarding() {

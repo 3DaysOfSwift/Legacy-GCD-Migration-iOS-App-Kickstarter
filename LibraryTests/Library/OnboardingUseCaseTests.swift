@@ -8,6 +8,7 @@ import ReactiveSwift
 import XCTest
 
 final class OnboardingUseCaseTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   var useCase: OnboardingUseCase!
 
   let onboardingItems = TestObserver<[OnboardingItem], Never>()

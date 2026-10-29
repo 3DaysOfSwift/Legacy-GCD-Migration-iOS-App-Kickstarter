@@ -1036,3 +1036,18 @@ appear briefly on a cache hit. Do not let a changed account/session, avatar URL,
 logout or rebuilt tab index accept an obsolete image. The Profile Feature shares
 equivalent pending reads; canceling a presentation waiter need not cancel a shared
 cache fill. Logout/reset cancels the Feature read. Disk work runs on a storage actor.
+
+## Permission/onboarding/configuration ownership — 29 October 2026
+
+- PERMISSION-01: Preserve notification options and registration only on grant.
+  Share equivalent pending prompts; serialize differing options. Observer cancellation
+  suppresses delivery but never claims to retract admitted system consent.
+- ONBOARDING-01: Keep pages, styling, navigation/analytics and already-authorized
+  behavior. Appearance owns subscriptions; close/advance invalidates async completion.
+  ATT keeps its existing authorization/ad-identifier updates.
+- REMOTECONFIG-01: Keep public-demo guards, defaults, activation success/failure inputs
+  and Crashlytics filtering. Retain/remove the SDK listener; realtime updates remain
+  log-only. Share pending refreshes per client and reject replaced-client completion.
+  An SDK activation already accepted may still change its cache.
+- PERMISSION-02: Controlled tests do not prove physical-device consent UI or live
+  Firebase behavior; those gates remain open.

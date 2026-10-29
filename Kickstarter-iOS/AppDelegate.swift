@@ -33,6 +33,10 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
   private var analytics: Segment.Analytics?
   private weak var braze: Braze?
 
+  private var remoteConfigListener: ConfigUpdateListenerRegistration?
+  private var remoteConfigTask: Task<Void, Never>?
+  private var remoteConfigVersion = UUID()
+
   // Never enable demo integration policy in a production build, even with a public config.
   private var isPublicDemo: Bool {
     #if DEBUG
@@ -208,7 +212,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       .observeValues { [weak self] in
         guard let rootTabBarController = self?.rootTabBarController else { return }
 
-        let onboardingVC = UIHostingController(rootView: OnboardingView(viewModel: OnboardingViewModel()))
+        let onboardingVC = UIHostingController(rootView: OnboardingView())
         /// Onboarding flow should not respond to light/dark mode preference.
         onboardingVC.overrideUserInterfaceStyle = .light
         onboardingVC.modalPresentationStyle = .fullScreen
@@ -513,7 +517,8 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     self.fetchAndActivateRemoteConfig()
 
-    _ = AppEnvironment.current.remoteConfigClient?
+    self.remoteConfigListener?.remove()
+    self.remoteConfigListener = AppEnvironment.current.remoteConfigClient?
       .addOnConfigUpdateListener { configUpdate, error in
         guard let realtimeUpdateError = error else {
           print("🔮 Remote Config Keys Update: \(String(describing: configUpdate?.updatedKeys))")
@@ -533,28 +538,28 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
   }
 
   private func fetchAndActivateRemoteConfig() {
-    AppEnvironment.current.remoteConfigClient?.fetchAndActivate { _, error in
-      guard let remoteConfigActivationError = error else {
-        print("🔮 Remote Config SDK Successfully Activated")
-
+    guard let client = AppEnvironment.current.remoteConfigClient else { return }
+    self.remoteConfigTask?.cancel()
+    let version = UUID()
+    self.remoteConfigVersion = version
+    let request = AppModel.shared.appLifecycleFeature.requestRemoteConfiguration(client: client) {
+      try await client.fetchAndActivateAsync()
+    }
+    self.remoteConfigTask = Task { [weak self] in
+      do {
+        try await request.value
+        try Task.checkCancellation()
+        guard let self, self.remoteConfigVersion == version else { return }
         self.viewModel.inputs.didUpdateRemoteConfigClient()
-        return
+      } catch {
+        guard !Task.isCancelled, !(error is CancellationError), let self,
+          self.remoteConfigVersion == version else { return }
+        let value = error as NSError
+        if value.domain != RemoteConfigErrorDomain || value.code != RemoteConfigError.internalError.rawValue {
+          Crashlytics.crashlytics().record(error: error)
+        }
+        self.viewModel.inputs.remoteConfigClientConfigurationFailed()
       }
-
-      let errorAsNSError = remoteConfigActivationError as NSError
-
-      if errorAsNSError.domain == RemoteConfigErrorDomain,
-         errorAsNSError.code == RemoteConfigError.internalError.rawValue {
-        // This is (almost certainly) just a connection error; we won't log it.
-      } else {
-        Crashlytics.crashlytics().record(error: remoteConfigActivationError)
-      }
-
-      print(
-        "🔴 Remote Config SDK Activation Failed with Error: \(remoteConfigActivationError.localizedDescription)"
-      )
-
-      self.viewModel.inputs.remoteConfigClientConfigurationFailed()
     }
   }
 

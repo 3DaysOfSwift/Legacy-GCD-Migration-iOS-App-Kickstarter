@@ -1,12 +1,14 @@
 import AppTrackingTransparency
-import KsApi
-import Library
+@testable import KsApi
+@testable import Library
 @testable import LibraryTestHelpers
 import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
+import UserNotifications
 
 final class OnboardingViewModelTest: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   // MARK: Properties
 
   private var viewModel: OnboardingViewModel!
@@ -25,6 +27,51 @@ final class OnboardingViewModelTest: TestCase {
       .observe(self.appTrackingTransparencyDialogObserver.observer)
     self.viewModel.outputs.didCompletePushNotificationSystemDialog
       .observe(self.didCompletePushNotificationSystemDialog.observer)
+  }
+
+  @MainActor
+  func testClosingOnboardingSuppressesLateNotificationCompletion() async throws {
+    let gate = AccountRequestGate<UNAuthorizationStatus>()
+    defer { gate.releaseAll() }
+    let session = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
+    let feature = AppLifecycleFeature(
+      sessionFeature: session,
+      settingsFeature: SettingsFeature(sessionFeature: session, makeProvider: { AsyncAccountPreferencesProvider(service: MockService()) }),
+      messagingFeature: MessagingFeature(sessionFeature: session, makeProvider: { AsyncMessagingProvider(service: MockService()) }),
+      makeProvider: { AsyncAppLifecycleProvider(service: MockService()) },
+      readNotificationStatus: { (try? await gate.request()) ?? .denied })
+    let model = OnboardingViewModel(lifecycleFeature: feature)
+    let advance = expectation(description: "Closed onboarding must not advance")
+    advance.isInverted = true
+    model.bind(items: { _ in }, advance: { advance.fulfill() })
+    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
+    MockPushRegistration.registerProducer = .init(value: true)
+    withEnvironment(pushRegistrationType: MockPushRegistration.self) { model.getNotifiedTapped() }
+    await gate.waitFor(1)
+    model.stopObserving()
+    try gate.finish(0, .success(.authorized))
+    await fulfillment(of: [advance], timeout: 0.1)
+  }
+
+  @MainActor
+  func testRebindingOnboardingDeliversNotificationCompletionOnce() async throws {
+    let session = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
+    let feature = AppLifecycleFeature(
+      sessionFeature: session,
+      settingsFeature: SettingsFeature(sessionFeature: session, makeProvider: { AsyncAccountPreferencesProvider(service: MockService()) }),
+      messagingFeature: MessagingFeature(sessionFeature: session, makeProvider: { AsyncMessagingProvider(service: MockService()) }),
+      makeProvider: { AsyncAppLifecycleProvider(service: MockService()) },
+      readNotificationStatus: { .denied })
+    let model = OnboardingViewModel(lifecycleFeature: feature)
+    defer { model.stopObserving() }
+    model.bind(items: { _ in }, advance: { XCTFail("Old appearance advanced") })
+    let advance = expectation(description: "Current appearance advances")
+    advance.assertForOverFulfill = true
+    model.bind(items: { _ in }, advance: { advance.fulfill() })
+    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
+    MockPushRegistration.registerProducer = .init(value: true)
+    withEnvironment(pushRegistrationType: MockPushRegistration.self) { model.getNotifiedTapped() }
+    await fulfillment(of: [advance], timeout: 2)
   }
 
   func testOnboardingItems_AreReturned_OnInit() {

@@ -2,6 +2,7 @@ import FirebaseRemoteConfig
 import Foundation
 
 public protocol RemoteConfigClientType: AnyObject {
+  @MainActor func fetchAndActivateAsync() async throws
   func activate(completion: ((Bool, Error?) -> Void)?)
   func fetch(completionHandler: ((RemoteConfigFetchStatus, Error?) -> Void)?)
   func fetchAndActivate(completionHandler: ((RemoteConfigFetchAndActivateStatus, Error?) -> Void)?)

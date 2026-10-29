@@ -1,6 +1,9 @@
 import FirebaseRemoteConfig
 
 public class RemoteConfigClient: RemoteConfigClientType {
+  @MainActor public func fetchAndActivateAsync() async throws {
+    _ = try await self.sharedClient.fetchAndActivate()
+  }
   public func fetchAndActivate(completionHandler: ((RemoteConfigFetchAndActivateStatus, Error?) -> Void)?) {
     self.sharedClient.fetchAndActivate(completionHandler: completionHandler)
   }

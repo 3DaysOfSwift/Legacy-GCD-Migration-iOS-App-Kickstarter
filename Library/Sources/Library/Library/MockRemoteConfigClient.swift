@@ -8,6 +8,9 @@ private class MockRemoteConfigValue: RemoteConfigValue {
 }
 
 public class MockRemoteConfigClient: RemoteConfigClientType {
+  @MainActor public func fetchAndActivateAsync() async throws {
+    throw URLError(.unsupportedURL)
+  }
   public func fetchAndActivate(completionHandler _: (
     (RemoteConfigFetchAndActivateStatus, Error?)
       -> Void

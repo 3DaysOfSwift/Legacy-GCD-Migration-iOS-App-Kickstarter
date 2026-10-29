@@ -43,6 +43,39 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Notification permissions, onboarding and remote configuration — 29 October 2026
+
+AppLifecycleFeature owns admitted notification/ATT prompts. Equivalent pending
+requests share; distinct notification option sets serialize. Grant registers for
+remote notifications once per admitted request. Closing a screen stops its observer,
+not a system prompt already displayed. Native notification settings reads and the
+existing ATT wrapper preserve authorization and advertising-identifier side effects.
+Onboarding now constructs its own ViewModel inline and owns subscriptions per
+appearance; exit/advance invalidates pending completion and prevents late navigation.
+Existing page content, analytics, login behavior and already-authorized behavior remain.
+
+Remote configuration uses Firebase's native async activation. Same-client pending
+refreshes share; replacement rejects old completion. AppDelegate retains the realtime
+listener and removes it on reconfiguration. The listener remains log-only, preserving
+existing behavior. SDK activation itself cannot be undone after cancellation;
+obsolete application delivery is suppressed. Public-demo integration guards remain.
+
+**40 Library + 208 framework = 248 selected tests passed**, zero failures/skips;
+**seven new regressions** cover prompt sharing/order/observer cancellation, tracking
+retry, remote-client replacement/failure/retry and onboarding exit/rebinding. App
+build passed with zero errors and two existing warnings (missing Frameworks search
+path and Crashlytics outputs). Result: /private/tmp/kickstarter-permission-config.3FDIUE.
+Two earlier compilation attempts failed: method placement, then missing test-only
+MockService import. Both corrected; no runtime test failures or human test commands.
+Only two nonvisual onboarding suites opt out of the reference-simulator guard;
+snapshot suites retain it. Evidence: sibling Migration Evidence/kickstarter-permission-config.
+
+System prompt/device behavior and live Firebase activation remain unverified.
+Next: media lifetimes, remaining platform callbacks and app-wide concurrency/regression
+validation. Migration remains in progress; visual/device and live operations stay open.
+
+### Previous verified checkpoint
+
 ### Root-tab avatar ownership — 29 October 2026
 
 ProfileFeature owns shared avatar reads and validates session generation, account,

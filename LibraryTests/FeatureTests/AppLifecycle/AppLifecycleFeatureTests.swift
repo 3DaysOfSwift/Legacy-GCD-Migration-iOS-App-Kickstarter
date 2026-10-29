@@ -1,3 +1,5 @@
+import UserNotifications
+import AppTrackingTransparency
 import Prelude
 import ReactiveSwift
 import XCTest
@@ -23,7 +25,13 @@ final class AppLifecycleFeatureTests: XCTestCase {
       sessionFeature: session, makeProvider: { AsyncMessagingProvider(service: MockService()) })
     self.feature = AppLifecycleFeature(
       sessionFeature: session, settingsFeature: settings, messagingFeature: messaging,
-      makeProvider: { provider }, resolveRedirect: { _ in try await provider.redirects.request() }, sleep: { _ in try Task.checkCancellation() })
+      makeProvider: { provider },
+      authorizeNotifications: { options in
+        provider.permissionOptions.append(options.rawValue)
+        return (try? await provider.permissions.request()) ?? false
+      }, registerNotifications: { provider.registrationCount += 1 },
+      authorizeTracking: { (try? await provider.tracking.request()) ?? 0 },
+      resolveRedirect: { _ in try await provider.redirects.request() }, sleep: { _ in try Task.checkCancellation() })
   }
   override func tearDown() async throws {
     self.feature.reset()
@@ -41,6 +49,87 @@ final class AppLifecycleFeatureTests: XCTestCase {
     } else {
       XCTFail("Obsolete result escaped its owner", file: file, line: line)
     }
+  }
+
+  func testNotificationPromptSharesPendingRequestAndSurvivesObserverCancellation() async throws {
+    let first = Task { await self.feature.notificationAuthorization(options: [.alert]) }
+    await self.provider.permissions.waitFor(1)
+    let second = Task { await self.feature.notificationAuthorization(options: [.alert]) }
+    await Task.yield()
+    first.cancel()
+    self.feature.reset()
+    try self.provider.permissions.finish(0, .success(true))
+    let firstValue = await first.value
+    let secondValue = await second.value
+    XCTAssertTrue(firstValue)
+    XCTAssertTrue(secondValue)
+    XCTAssertEqual(self.provider.permissions.count, 1)
+    XCTAssertEqual(self.provider.registrationCount, 1)
+  }
+
+  func testDistinctNotificationOptionsSerializeAndDeniedRequestDoesNotRegister() async throws {
+    let first = Task { await self.feature.notificationAuthorization(options: [.alert]) }
+    await self.provider.permissions.waitFor(1)
+    let second = Task { await self.feature.notificationAuthorization(options: [.sound]) }
+    await Task.yield()
+    XCTAssertEqual(self.provider.permissions.count, 1)
+    try self.provider.permissions.finish(0, .success(false))
+    await self.provider.permissions.waitFor(2)
+    try self.provider.permissions.finish(1, .success(true))
+    _ = await first.value
+    _ = await second.value
+    XCTAssertEqual(self.provider.permissionOptions, [UNAuthorizationOptions.alert.rawValue, UNAuthorizationOptions.sound.rawValue])
+    XCTAssertEqual(self.provider.registrationCount, 1)
+  }
+
+  func testTrackingPromptSharesAndAllowsLaterRequest() async throws {
+    let first = Task { await self.feature.trackingAuthorization() }
+    await self.provider.tracking.waitFor(1)
+    let second = Task { await self.feature.trackingAuthorization() }
+    await Task.yield()
+    first.cancel()
+    try self.provider.tracking.finish(0, .success(ATTrackingManager.AuthorizationStatus.authorized.rawValue))
+    _ = await first.value
+    let status = await second.value
+    XCTAssertEqual(status, .authorized)
+    XCTAssertEqual(self.provider.tracking.count, 1)
+    let next = Task { await self.feature.trackingAuthorization() }
+    await self.provider.tracking.waitFor(2)
+    try self.provider.tracking.finish(1, .success(ATTrackingManager.AuthorizationStatus.denied.rawValue))
+    let nextStatus = await next.value
+    XCTAssertEqual(nextStatus, .denied)
+  }
+
+  func testRemoteConfigurationSharesClientAndRetriesAfterFailure() async throws {
+    let client = NSObject()
+    let gate = AccountRequestGate<Void>()
+    defer { gate.releaseAll() }
+    let first = self.feature.requestRemoteConfiguration(client: client) { try await gate.request() }
+    let second = self.feature.requestRemoteConfiguration(client: client) { XCTFail("Duplicate activation") }
+    await gate.waitFor(1)
+    try gate.finish(0, .failure(URLError(.notConnectedToInternet)))
+    for request in [first, second] {
+      if case .success = await request.result { XCTFail("Failure was swallowed") }
+    }
+    let retry = self.feature.requestRemoteConfiguration(client: client) { try await gate.request() }
+    await gate.waitFor(2)
+    try gate.finish(1, .success(()))
+    try await retry.value
+    XCTAssertEqual(gate.count, 2)
+  }
+
+  func testRemoteConfigurationReplacementRejectsLateOldClientCompletion() async throws {
+    let oldClient = NSObject(), newClient = NSObject()
+    let gate = AccountRequestGate<Void>()
+    defer { gate.releaseAll() }
+    let old = self.feature.requestRemoteConfiguration(client: oldClient) { try await gate.request() }
+    await gate.waitFor(1)
+    let new = self.feature.requestRemoteConfiguration(client: newClient) { try await gate.request() }
+    await gate.waitFor(2)
+    try gate.finish(1, .success(()))
+    try await new.value
+    try gate.finish(0, .success(()))
+    await self.assertCancelled(old)
   }
 
   func testRedirectSharesPendingURL() async throws {
@@ -275,6 +364,10 @@ final class AppLifecycleFeatureTests: XCTestCase {
 
 @MainActor
 private final class ControlledLifecycleProvider: AppLifecycleProvider {
+  let permissions = AccountRequestGate<Bool>()
+  let tracking = AccountRequestGate<UInt>()
+  var permissionOptions: [UInt] = []
+  var registrationCount = 0
   let redirects = AccountRequestGate<URL?>()
   let config = AccountRequestGate<Config>()
   let registrations = AccountRequestGate<Void>()
@@ -305,6 +398,8 @@ private final class ControlledLifecycleProvider: AppLifecycleProvider {
     try await self.repliesGate.request()
   }
   func releaseAll() {
+    self.permissions.releaseAll()
+    self.tracking.releaseAll()
     self.redirects.releaseAll()
     self.config.releaseAll()
     self.registrations.releaseAll()

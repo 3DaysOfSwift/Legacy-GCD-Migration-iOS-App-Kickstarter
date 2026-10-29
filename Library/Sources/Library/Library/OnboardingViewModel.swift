@@ -28,8 +28,56 @@ public protocol OnboardingViewModelType {
 
 public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Identifiable & ObservableObject,
   OnboardingViewModelOutputs, OnboardingViewModelInputs {
+  @MainActor private var completionTask: Task<Void, Never>?
+  @MainActor private var completionVersion = UUID()
+  @MainActor private var bindings = CompositeDisposable()
+
+  /// Own the subscriptions for this appearance and invalidate callbacks on exit.
+  @MainActor public func bind(
+    items: @escaping ([OnboardingItem]) -> Void,
+    advance: @escaping () -> Void
+  ) {
+    self.stopObserving()
+    self.bindings = CompositeDisposable()
+    self.bindings += self.onboardingItems.startWithValues(items)
+    self.bindings += self.didCompletePushNotificationSystemDialog.observeForUI().observeValues { [weak self] in
+      self?.completePermission(tracking: false, advance: advance)
+    }
+    self.bindings += self.triggerAppTrackingTransparencyPopup.observeForUI().observeValues { [weak self] in
+      self?.completePermission(tracking: true, advance: advance)
+    }
+  }
+  @MainActor public func cancelCompletion() {
+    self.completionTask?.cancel()
+    self.completionTask = nil
+    self.completionVersion = UUID()
+  }
+  @MainActor public func stopObserving() {
+    self.cancelCompletion()
+    self.bindings.dispose()
+  }
+  @MainActor private func completePermission(tracking: Bool, advance: @escaping () -> Void) {
+    guard self.completionTask == nil else { return }
+    let version = self.completionVersion
+    let feature = self.lifecycleFeature ?? AppModel.shared.appLifecycleFeature
+    self.completionTask = Task { [weak self] in
+      if tracking {
+        let status = await feature.trackingAuthorization()
+        guard !Task.isCancelled, let self, self.completionVersion == version else { return }
+        self.didCompleteAppTrackingDialog(with: status)
+      } else {
+        let status = await feature.notificationStatus()
+        guard !Task.isCancelled, let self, self.completionVersion == version else { return }
+        self.didCompletePushNotificationsDialog(with: status)
+      }
+      guard !Task.isCancelled, self?.completionVersion == version else { return }
+      advance()
+    }
+  }
+
   // MARK: - Properties
 
+  private let lifecycleFeature: AppLifecycleFeature?
   private let useCase: OnboardingUseCaseType
 
   // MARK: - Outputs
@@ -40,7 +88,8 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
 
   // MARK: - Init
 
-  public init(with bundle: Bundle = .library) {
+  public init(with bundle: Bundle = .library, lifecycleFeature: AppLifecycleFeature? = nil) {
+    self.lifecycleFeature = lifecycleFeature
     self.useCase = OnboardingUseCase(for: bundle)
 
     self.onboardingItems = self.useCase.uiOutputs.onboardingItems

@@ -4,47 +4,33 @@ import UIKit
 import UserNotifications
 
 public struct PushRegistration: PushRegistrationType {
-  /**
-   Returns a signal producer that emits an option `Bool` value representing whether or not the user
-   granted the requested push notification permissions. This value is not returned on iOS versions < 10.0.
-   The returned producer emits once and completes.
-
-   - parameter for: The types to register that we will request permissions for.
-
-   - returns: A signal producer.
-   */
+  /// Compatibility output adapter. The lifecycle Feature owns admitted prompts;
+  /// disposing this observer suppresses delivery without retracting system consent.
   public static func register(for options: UNAuthorizationOptions) -> SignalProducer<Bool, Never> {
-    return SignalProducer { observer, _ in
-      UNUserNotificationCenter.current()
-        .requestAuthorization(options: options, completionHandler: { isGranted, _ in
-          if isGranted {
-            DispatchQueue.main.async {
-              UIApplication.shared.registerForRemoteNotifications()
-            }
-          }
-
-          observer.send(value: isGranted)
-          observer.sendCompleted()
-        })
+    SignalProducer { observer, lifetime in
+      let task = Task { @MainActor in
+        guard !Task.isCancelled else { return }
+        let granted = await AppModel.shared.appLifecycleFeature.notificationAuthorization(options: options)
+        guard !Task.isCancelled else { return }
+        observer.send(value: granted)
+        observer.sendCompleted()
+      }
+      lifetime.observeEnded { task.cancel() }
     }
   }
 
-  /**
-   Returns a signal producer that emits a `Bool` value representing whether the user has allowed push
-   notification permissions in the past.
-
-   The returned producer emits once and completes.
-
-   Note that the returned producer will send values _on a background thread_, not on the main thread.
-
-   - returns: A signal producer.
-   */
+  /// Native settings read; no background-thread delivery contract is required by
+  /// consumers, which already observe UI work through their UI scheduler.
   public static func hasAuthorizedNotifications() -> SignalProducer<Bool, Never> {
-    return SignalProducer { observer, _ in
-      UNUserNotificationCenter.current().getNotificationSettings { settings in
+    SignalProducer { observer, lifetime in
+      let task = Task { @MainActor in
+        guard !Task.isCancelled else { return }
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        guard !Task.isCancelled else { return }
         observer.send(value: settings.authorizationStatus == .authorized)
         observer.sendCompleted()
       }
+      lifetime.observeEnded { task.cancel() }
     }
   }
 }
