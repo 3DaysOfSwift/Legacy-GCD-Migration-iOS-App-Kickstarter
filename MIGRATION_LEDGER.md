@@ -43,6 +43,44 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Platform audit and pagination integration — 29 October 2026
+
+The platform callback audit is recorded in `MIGRATION_PLATFORM_CALLBACK_AUDIT.md`.
+Complete concurrency diagnostics in Swift 5 mode expose unresolved isolation and
+non-Sendable boundaries across first-party/generated code. The initial inventory
+contains 3,726 unique matching diagnostics; this is not a proven race count or a
+successful Swift 6 migration. DeveloperExamplesFeature's diagnosed transfers were
+corrected by retaining Apollo payloads on MainActor and using completion-only tasks.
+Discovery transport now explicitly preserves caller isolation. The follow-up
+complete-checking compile emits no warning for this Feature; app-wide findings remain.
+
+Simulator inspection caught an integration bug missed by command-level tests: the
+pagination sentinel appeared before the first page and never retriggered. PaginatingList
+now uses a row-owned task keyed by item count; the example exposes its real terminal
+state instead of leaving pagination enabled forever. The demo progressed beyond six
+to eighteen rows before the sentinel moved below the visible viewport. The final-page
+spinner/no-extra-request contract has a new regression test. Full terminal scrolling
+and pull-to-refresh have not been visually verified. Rich-text demo loading terminates
+in the existing error UI because that query has no public-demo fixture; populated
+rich-text rendering and navigation remain visually unverified.
+
+After isolation changes, **1,639 selected tests passed** again (1,340 Library,
+205 framework, 94 API), zero failures/skips. After the shared-list correction,
+**38 Library + 206 framework = 244 targeted tests passed**, including one new
+terminal-state regression; zero failures/skips. Both app builds passed with zero
+errors/two existing warnings. These are overlapping runs, not 1,883 unique tests.
+Results: /private/tmp/kickstarter-developer-examples.1XVMcS and
+/private/tmp/kickstarter-platform-audit.cvcinu. Evidence is in sibling
+Migration Evidence/kickstarter-platform-audit. No failed compile/test runs or human
+terminal commands; one edit-script mismatch caused no source write and one redundant
+unchanged diagnostic build. The visual inspection found the pagination defect above.
+
+Reference snapshots require iPad mini / iOS 18.6; only iOS 26.2 is installed.
+The reference-device guard was not bypassed. No physical-device, populated media,
+account-write or payment completion is claimed. Migration remains in progress.
+
+### Earlier checkpoint in this stage
+
 ### Beta pagination and rich-text examples — 29 October 2026
 
 DeveloperExamplesFeature now owns both developer screens' requests, pagination and

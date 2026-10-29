@@ -90,11 +90,18 @@ public final class DeveloperExamplesFeature {
     let session: Session
     let task: Task<Void, Never>
   }
-  private struct LookupWork {
-    let id: UUID
+  // Apollo fragments are not Sendable. The task signals completion only;
+  // its payload stays in this MainActor-owned slot, including shared waiters.
+  @MainActor private final class LookupWork {
+    let id = UUID()
     let session: Session
     let slug: String
-    let task: Task<ProjectItem?, Error>
+    var task: Task<Void, Never>?
+    var result: Result<ProjectItem?, Error>?
+    init(session: Session, slug: String) {
+      self.session = session
+      self.slug = slug
+    }
   }
   public let sessionFeature: SessionFeature
   @ObservationIgnored private let makeProvider: () -> any DeveloperExamplesProvider
@@ -238,32 +245,35 @@ public final class DeveloperExamplesFeature {
       work = pending
     } else {
       self.cancelLookup(route: route)
-      let id = UUID()
       let provider = self.makeProvider()
-      let task = Task { [self] in
-        try Task.checkCancellation()
-        guard self.session == session else { throw CancellationError() }
-        let project = try await provider.project(slug: slug)
-        try Task.checkCancellation()
-        guard self.session == session, self.lookupVersions[route] == id else {
-          throw CancellationError()
-        }
-        return project
-      }
-      work = LookupWork(id: id, session: session, slug: slug, task: task)
+      work = LookupWork(session: session, slug: slug)
       self.lookupWork[route] = work
-      self.lookupVersions[route] = id
+      self.lookupVersions[route] = work.id
+      work.task = Task { [self] in
+        defer { work.task = nil }
+        do {
+          try Task.checkCancellation()
+          guard self.session == session else { throw CancellationError() }
+          let project = try await provider.project(slug: slug)
+          try Task.checkCancellation()
+          guard self.session == session, self.lookupVersions[route] == work.id else {
+            throw CancellationError()
+          }
+          work.result = .success(project)
+        } catch { work.result = .failure(error) }
+      }
     }
     defer { if self.lookupWork[route]?.id == work.id { self.lookupWork[route] = nil } }
-    let result = await work.task.result
+    await work.task?.value
     try Task.checkCancellation()
     guard self.session == session, self.lookupVersions[route] == work.id else {
       throw CancellationError()
     }
+    guard let result = work.result else { throw CancellationError() }
     return try result.get()
   }
   public func cancelLookup(route: UUID) {
-    self.lookupWork.removeValue(forKey: route)?.task.cancel()
+    self.lookupWork.removeValue(forKey: route)?.task?.cancel()
     self.lookupVersions[route] = nil
   }
   private func cancelPage(route: UUID) {

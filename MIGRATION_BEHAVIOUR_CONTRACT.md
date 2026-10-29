@@ -1008,3 +1008,11 @@ of verification; use controlled providers and public demo fixtures.
 - All layout, text, navigation callbacks, colors and preview content are retained.
   Existing generic Paginator remains for other consumers; this example no longer uses
   its Combine request/next-event loop. Physical-device and visual parity remain gates.
+
+### Pagination sentinel integration — 29 October 2026
+
+A visible pagination row must re-evaluate after the initial page supplies rows,
+and must disappear once the example reaches a terminal page. The waiter belongs
+to the SwiftUI row; Feature owners coalesce repeated requests. Keep the existing
+list, cell, status and spinner styling. The demo's first-six-row stall was observed
+and corrected; one terminal-state regression and the shared PPO suites passed.

@@ -193,7 +193,7 @@ extension Service {
     return request
   }
 
-  public func discoveryPage(params: DiscoveryParams) async throws -> DiscoveryEnvelope {
+  @MainActor public func discoveryPage(params: DiscoveryParams) async throws -> DiscoveryEnvelope {
     let properties = Route.discover(params).requestProperties
     guard let url = URL(string: properties.path, relativeTo: self.serverConfig.apiBaseUrl as URL) else {
       throw ErrorEnvelope.couldNotParseErrorEnvelopeJSON
@@ -203,7 +203,7 @@ extension Service {
     ))
   }
 
-  public func discoveryPage(paginationURL: String) async throws -> DiscoveryEnvelope {
+  @MainActor public func discoveryPage(paginationURL: String) async throws -> DiscoveryEnvelope {
     guard let url = URL(string: paginationURL) else { throw ErrorEnvelope.invalidPaginationUrl }
     return try await self.discoveryResponse(for: self.preparedRequest(forURL: url))
   }
@@ -224,7 +224,10 @@ extension Service {
 
   /// Native async transport using the existing session, authentication and error contract.
   /// URLSession owns cancellation of its data task; no reactive executor or callback bridge.
-  private func discoveryResponse<Model: Decodable>(for request: URLRequest) async throws -> Model {
+  // Preserve the caller's isolation for non-Sendable decoded models. URLSession
+  // still suspends during I/O; this does not transfer the Service or its models
+  // to an unrelated executor. Other callers retain their own isolation.
+  nonisolated(nonsending) private func discoveryResponse<Model: Decodable>(for request: URLRequest) async throws -> Model {
     try Task.checkCancellation()
     let data: Data
     let response: URLResponse

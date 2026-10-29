@@ -33,6 +33,19 @@ final class PaginationExampleViewModelTests: XCTestCase {
     await vm.refresh()
     XCTAssertEqual(vm.statusText, "No results")
   }
+  func testTerminalPageStopsSpinnerAndDoesNotStartAnotherRequest() async {
+    let provider = ExamplesPresentationProvider()
+    let vm = PaginationExampleViewModel(feature: provider.feature())
+    await vm.load()
+    provider.pageResult = .success(.template |> DiscoveryEnvelope.lens.projects .~ [])
+    await vm.loadNextPage()
+    XCTAssertEqual(vm.projects.count, 1)
+    XCTAssertEqual(vm.statusText, "Loaded all results")
+    XCTAssertFalse(vm.showProgressView)
+    let requestCount = provider.parameters.count
+    await vm.loadNextPage()
+    XCTAssertEqual(provider.parameters.count, requestCount)
+  }
 }
 
 @MainActor

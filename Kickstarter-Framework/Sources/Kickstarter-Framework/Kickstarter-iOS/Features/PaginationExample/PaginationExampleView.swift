@@ -28,7 +28,7 @@ private struct PaginationExampleProjectList: View {
     .background(.purple)
     PaginatingList(
       data: self.projects,
-      canLoadMore: true,
+      canLoadMore: self.showProgressView,
       selectedItem: self.$selectedItem
     ) { data in
       PaginationExampleProjectCell(title: data.title)

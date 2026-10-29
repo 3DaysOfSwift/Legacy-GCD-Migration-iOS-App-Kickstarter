@@ -1548,7 +1548,7 @@
       }
     }
 
-    internal func discoveryPage(params: DiscoveryParams) async throws -> DiscoveryEnvelope {
+    @MainActor internal func discoveryPage(params: DiscoveryParams) async throws -> DiscoveryEnvelope {
       try Task.checkCancellation()
       if let demoCatalog { return try demoCatalog.discovery(params) }
       if let error = self.fetchDiscoveryError { throw error }
@@ -1559,7 +1559,7 @@
       )
     }
 
-    internal func discoveryPage(paginationURL: String) async throws -> DiscoveryEnvelope {
+    @MainActor internal func discoveryPage(paginationURL: String) async throws -> DiscoveryEnvelope {
       try Task.checkCancellation()
       if let demoCatalog { return try demoCatalog.discovery(paginationURL: paginationURL) }
       if let error = self.fetchDiscoveryError { throw error }

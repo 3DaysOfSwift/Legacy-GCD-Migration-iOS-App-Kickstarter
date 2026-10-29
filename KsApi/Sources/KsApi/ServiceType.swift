@@ -276,8 +276,8 @@ public protocol ServiceType {
   @MainActor func richTextExampleProjects() async throws -> GraphAPI.RichTextExampleProjectsQuery.Data
   @MainActor func richTextExampleProject(slug: String) async throws -> GraphAPI.RichTextExampleProjectBySlugQuery.Data
 
-  func discoveryPage(params: DiscoveryParams) async throws -> DiscoveryEnvelope
-  func discoveryPage(paginationURL: String) async throws -> DiscoveryEnvelope
+  @MainActor func discoveryPage(params: DiscoveryParams) async throws -> DiscoveryEnvelope
+  @MainActor func discoveryPage(paginationURL: String) async throws -> DiscoveryEnvelope
   func discoveryActivitySample() async throws -> ActivityEnvelope?
 
   /// Fetch friends for a user.
