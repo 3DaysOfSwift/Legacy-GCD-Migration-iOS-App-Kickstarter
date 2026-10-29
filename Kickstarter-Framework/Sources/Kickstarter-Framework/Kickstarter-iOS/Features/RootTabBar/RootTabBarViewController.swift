@@ -159,6 +159,21 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
       .map(extractViewController)
       .observeValues(scrollToTop)
 
+    self.viewModel.outputs.avatarImage
+      .observeForUI()
+      .observeValues { [weak self] data, url, index in
+        guard let self, let current = self.lastTabBarItemsData, current.isLoggedIn,
+          current.items.contains(where: { item in
+            if case let .profile(currentURL, currentIndex) = item { return currentURL == url && currentIndex == index }
+            return false
+          }) else { return }
+        let (image, selected) = tabbarAvatarImageFromData(data, isFloatingTabBarEnabled: self.isFloatingTabBarEnabled)
+        _ = self.tabBarItem(atIndex: index)
+          ?|> profileTabBarItemStyle(isLoggedIn: true)
+          ?|> UITabBarItem.lens.image .~ image
+          ?|> UITabBarItem.lens.selectedImage .~ selected
+      }
+
     self.viewModel.outputs.tabBarItemsData
       .observeForUI()
       .observeValues { [weak self] in self?.setTabBarItemStyles(withData: $0) }
@@ -275,54 +290,13 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
         _ = self.tabBarItem(atIndex: index)
           ?|> profileTabBarItemStyle(isLoggedIn: data.isLoggedIn)
 
-        self.setProfileImage(with: data, avatarUrl: avatarUrl, index: index)
+        self.viewModel.inputs.requestAvatar(url: avatarUrl, index: index, isLoggedIn: data.isLoggedIn)
       }
     }
 
     if self.isFloatingTabBarEnabled {
       /// Run last so it overwrites the default tab-bar icons/titles
       self.configureFloatingTabBarItems(with: data)
-    }
-  }
-
-  fileprivate func setProfileImage(with data: TabBarItemsData, avatarUrl: URL?, index: Int) {
-    guard
-      data.isLoggedIn == true,
-      let avatarUrl = avatarUrl,
-      let dir = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true).first
-    else { return }
-
-    let hash = avatarUrl.absoluteString.hashValue
-    let imagePath = "\(dir)/tabbar-avatar-image-\(hash).dat"
-    let imageUrl = URL(fileURLWithPath: imagePath)
-
-    if let imageData = try? Data(contentsOf: imageUrl) {
-      let (defaultImage, selectedImage) = tabbarAvatarImageFromData(
-        imageData,
-        isFloatingTabBarEnabled: self.isFloatingTabBarEnabled
-      )
-
-      _ = self.tabBarItem(atIndex: index)
-        ?|> profileTabBarItemStyle(isLoggedIn: true)
-        ?|> UITabBarItem.lens.image .~ defaultImage
-        ?|> UITabBarItem.lens.selectedImage .~ selectedImage
-    } else {
-      let sessionConfig = URLSessionConfiguration.default
-      let session = URLSession(configuration: sessionConfig, delegate: nil, delegateQueue: .main)
-      let dataTask = session.dataTask(with: avatarUrl) { [weak self] avatarData, _, _ in
-        guard let self = self, let avatarData = avatarData else { return }
-        try? avatarData.write(to: imageUrl, options: [.atomic])
-
-        let (defaultImage, selectedImage) = tabbarAvatarImageFromData(
-          avatarData,
-          isFloatingTabBarEnabled: self.isFloatingTabBarEnabled
-        )
-        _ = self.tabBarItem(atIndex: index)
-          ?|> profileTabBarItemStyle(isLoggedIn: true)
-          ?|> UITabBarItem.lens.image .~ defaultImage
-          ?|> UITabBarItem.lens.selectedImage .~ selectedImage
-      }
-      dataTask.resume()
     }
   }
 

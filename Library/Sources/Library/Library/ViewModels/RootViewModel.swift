@@ -63,6 +63,7 @@ public protocol RootViewModelInputs {
   func applicationWillEnterForeground()
 
   /// Call when the controller has received a user updated notification.
+  @discardableResult func requestAvatar(url: URL?, index: Int, isLoggedIn: Bool) -> Task<Void, Never>?
   func currentUserUpdated()
 
   /// Call when a badge value was received via push notification.
@@ -126,6 +127,7 @@ public protocol RootViewModelOutputs {
   var setViewControllers: Signal<[RootViewControllerData], Never> { get }
 
   /// Emits data for setting tab bar item styles.
+  var avatarImage: Signal<(Data, URL, Int), Never> { get }
   var tabBarItemsData: Signal<TabBarItemsData, Never> { get }
 
   /// Emits an already committed User for the existing user-updated notification.
@@ -143,14 +145,21 @@ public protocol RootViewModelType {
 
 @MainActor
 public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootViewModelOutputs {
-  private let sessionFeature: SessionFeature
+  private let profileFeature: ProfileFeature
+  private var sessionFeature: SessionFeature { self.profileFeature.sessionFeature }
+  private var avatarTask: Task<Void, Never>?
+  private var avatarID: UUID?
+  private var avatarInput: (URL, Int, Int)?
+  private let avatarPipe = Signal<(Data, URL, Int), Never>.pipe()
+  public var avatarImage: Signal<(Data, URL, Int), Never> { self.avatarPipe.output }
   private var badgeTask: Task<Void, Never>?
   private var badgeIdentity: (userID: Int, generation: Int, token: UUID)?
   private let badgePipe = Signal<(User, Int), Never>.pipe()
 
-  public init(sessionFeature: SessionFeature? = nil) {
-    let sessionFeature = sessionFeature ?? AppModel.shared.sessionFeature
-    self.sessionFeature = sessionFeature
+  public init(profileFeature: ProfileFeature? = nil) {
+    let profileFeature = profileFeature ?? AppModel.shared.profileFeature
+    self.profileFeature = profileFeature
+    let sessionFeature = profileFeature.sessionFeature
     let currentUser = Signal.merge(
       self.viewDidLoadProperty.signal,
       self.userSessionStartedProperty.signal,
@@ -429,7 +438,31 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
 
   func waitForBadgeUpdate() async { await self.badgeTask?.value }
 
-  deinit { self.badgeTask?.cancel() }
+  @discardableResult public func requestAvatar(url: URL?, index: Int, isLoggedIn: Bool) -> Task<Void, Never>? {
+    let generation = self.sessionFeature.generation
+    if isLoggedIn, let url, let input = self.avatarInput,
+      input.0 == url, input.1 == index, input.2 == generation, self.avatarTask != nil { return self.avatarTask }
+    self.avatarTask?.cancel()
+    self.avatarID = nil
+    self.avatarInput = nil
+    guard isLoggedIn, let url else { self.profileFeature.cancelAvatar(); self.avatarTask = nil; return nil }
+    let id = UUID()
+    self.avatarID = id
+    self.avatarInput = (url, index, generation)
+    let feature = self.profileFeature
+    self.avatarTask = Task { [weak self] in
+      defer { if self?.avatarID == id { self?.avatarTask = nil } }
+      do {
+        let data = try await feature.avatar(url: url)
+        try Task.checkCancellation()
+        guard let self, self.avatarID == id else { return }
+        self.avatarPipe.input.send(value: (data, url, index))
+      } catch { /* Keep the existing profile icon on a failed image read. */ }
+    }
+    return self.avatarTask
+  }
+
+  deinit { self.badgeTask?.cancel(); self.avatarTask?.cancel() }
 
   private let (applicationWillEnterForegroundSignal, applicationWillEnterForegroundObserver)
     = Signal<(), Never>.pipe()

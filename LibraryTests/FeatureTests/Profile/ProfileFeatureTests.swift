@@ -14,6 +14,82 @@ private typealias User = KsApi.User
 final class ProfileFeatureTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
+  func testAvatarSharesPendingReadAndRejectsSessionReplacement() async throws {
+    let gate = AccountRequestGate<Data>()
+    defer { gate.releaseAll() }
+    let session = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }, currentUser: { .template })
+    let feature = ProfileFeature(sessionFeature: session, makeProvider: { ControlledProfileProvider() }, loadAvatar: { _ in try await gate.request() })
+    let url = try XCTUnwrap(URL(string: User.template.avatar.small))
+    let first = _Concurrency.Task { try await feature.avatar(url: url) }
+    await gate.waitFor(1)
+    let second = _Concurrency.Task { try await feature.avatar(url: url) }
+    await _Concurrency.Task.yield()
+    session.sessionChanged()
+    try gate.finish(0, .success(Data([1])))
+    for task in [first, second] {
+      if case .failure(is CancellationError) = await task.result {} else { XCTFail("Stale avatar escaped") }
+    }
+    XCTAssertEqual(gate.count, 1)
+  }
+  func testAvatarSuccessThenFailureCanRetry() async throws {
+    let gate = AccountRequestGate<Data>()
+    defer { gate.releaseAll() }
+    let session = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }, currentUser: { .template })
+    let feature = ProfileFeature(sessionFeature: session, makeProvider: { ControlledProfileProvider() }, loadAvatar: { _ in try await gate.request() })
+    let url = try XCTUnwrap(URL(string: User.template.avatar.small))
+    let first = _Concurrency.Task { try await feature.avatar(url: url) }
+    await gate.waitFor(1); try gate.finish(0, .failure(URLError(.notConnectedToInternet)))
+    if case .success = await first.result { XCTFail("Expected failure") }
+    let retry = _Concurrency.Task { try await feature.avatar(url: url) }
+    await gate.waitFor(2); try gate.finish(1, .success(Data([2])))
+    let value = try await retry.value
+    XCTAssertEqual(value, Data([2]))
+  }
+  func testChangedAvatarURLRejectsOldBytesWithoutChangingAccount() async throws {
+    let gate = AccountRequestGate<Data>()
+    defer { gate.releaseAll() }
+    var user = User.template
+    let session = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }, currentUser: { user })
+    let feature = ProfileFeature(sessionFeature: session, makeProvider: { ControlledProfileProvider() }, loadAvatar: { _ in try await gate.request() })
+    let url = try XCTUnwrap(URL(string: user.avatar.small))
+    let old = _Concurrency.Task { try await feature.avatar(url: url) }
+    await gate.waitFor(1)
+    user.avatar.small = "https://example.test/new-avatar.png"
+    try gate.finish(0, .success(Data([1])))
+    if case .failure(is CancellationError) = await old.result {} else { XCTFail("Old URL escaped") }
+  }
+
+  func testAvatarResetRejectsNonCooperativeRead() async throws {
+    let gate = AccountRequestGate<Data>()
+    defer { gate.releaseAll() }
+    let session = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }, currentUser: { .template })
+    let feature = ProfileFeature(sessionFeature: session, makeProvider: { ControlledProfileProvider() }, loadAvatar: { _ in try await gate.request() })
+    let url = try XCTUnwrap(URL(string: User.template.avatar.small))
+    let request = _Concurrency.Task { try await feature.avatar(url: url) }
+    await gate.waitFor(1); feature.reset(); try gate.finish(0, .success(Data([1])))
+    if case .failure(is CancellationError) = await request.result {} else { XCTFail("Reset avatar escaped") }
+  }
+  func testAvatarStoreUsesExistingCacheBeforeNetwork() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let url = try XCTUnwrap(URL(string: "https://example.test/avatar.png"))
+    let file = directory.appendingPathComponent("tabbar-avatar-image-\(url.absoluteString.hashValue).dat")
+    try Data([1, 2, 3]).write(to: file)
+    let store = ProfileAvatarStore(directory: directory, download: { _ in throw URLError(.notConnectedToInternet) })
+    let value = try await store.data(for: url)
+    XCTAssertEqual(value, Data([1, 2, 3]))
+  }
+  func testAvatarStoreWritesDownloadedBytesToExistingCacheKey() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let url = try XCTUnwrap(URL(string: "https://example.test/avatar.png"))
+    let store = ProfileAvatarStore(directory: directory, download: { _ in Data([4, 5]) })
+    _ = try await store.data(for: url)
+    XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("tabbar-avatar-image-\(url.absoluteString.hashValue).dat")), Data([4, 5]))
+  }
+
   func testPreferenceSaveInvalidatesHeaderAlreadyWaitingInPresentationDelay() async throws {
     let provider = ControlledHeaderProvider()
     let delay = AccountRequestGate<Void>()

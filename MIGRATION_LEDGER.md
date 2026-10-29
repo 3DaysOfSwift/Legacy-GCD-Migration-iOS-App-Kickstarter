@@ -43,6 +43,39 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Root-tab avatar ownership — 29 October 2026
+
+ProfileFeature owns shared avatar reads and validates session generation, account,
+URL and operation identity before returning bytes. RootViewModel now depends on
+ProfileFeature (which exposes its shared SessionFeature) and owns an awaitable image
+waiter. Logout and tab rebuilding invalidate delivery; the controller rechecks its
+current tab data before rendering. RootTabBarViewController no longer reads files
+or starts URLSession tasks. ProfileAvatarStore serializes disk cache access on an
+actor and uses native cancellable URLSession transport with session invalidation.
+
+The existing hash-based cache filename, cache-first lookup, atomic best-effort write,
+silent failure and image shaping/border helpers are retained. Cached images now
+arrive asynchronously like downloads, after tab styling; a placeholder may briefly
+appear on a cache hit. Canceling one UI waiter leaves shared cache fill intact;
+logout/reset cancels the Feature read. No account mutation or live-service check.
+
+**15 Library + 208 framework = 223 selected tests passed**, zero failures/skips;
+**eight new regressions** cover session replacement, changed avatar URL, reset,
+failure/retry, cache hit/write, logout and rebuilt tab index. App build passed:
+zero errors/one warning reported in the final incremental build. Counts differ
+from earlier checkpoints because the Library selection is now Profile-focused.
+Results: /private/tmp/kickstarter-root-avatar.VE29mN. Evidence: sibling Migration
+Evidence/kickstarter-root-avatar.
+
+Two compile attempts failed in test setup: generated Task name collision, then a
+controlled-request helper absent from the framework test target. Both corrected.
+No runtime test failures or human terminal commands. Populated-avatar visual parity,
+reference snapshots and physical-device validation remain open. Next: permission/
+onboarding and remote-configuration ownership, media lifetimes and remaining
+app-wide concurrency diagnostics. Migration remains in progress.
+
+### Previous verified checkpoint
+
 ### Owned email-link redirects — 29 October 2026
 
 AppDelegate no longer creates an unowned data task or receives URLSession redirects.

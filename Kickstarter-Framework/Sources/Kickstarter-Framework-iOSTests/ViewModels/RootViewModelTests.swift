@@ -15,7 +15,9 @@ final class RootViewModelTests: TestCase {
   private let sessionFeature = SessionFeature(makeProvider: {
     AsyncSessionProvider(service: AppEnvironment.current.apiService)
   })
-  private lazy var vm = RootViewModel(sessionFeature: self.sessionFeature)
+  private lazy var vm = RootViewModel(profileFeature: ProfileFeature(
+    sessionFeature: self.sessionFeature,
+    makeProvider: { AsyncProfileProvider(service: AppEnvironment.current.apiService) }))
   let viewControllerNames = TestObserver<[String], Never>()
   let filterDiscovery = TestObserver<DiscoveryParams, Never>()
   let floatingTabBarEnabled = TestObserver<Bool, Never>()
@@ -25,6 +27,41 @@ final class RootViewModelTests: TestCase {
   let scrollToTopControllerName = TestObserver<String, Never>()
   let tabBarItemsData = TestObserver<TabBarItemsData, Never>()
   let updateUserInEnvironment = TestObserver<User, Never>()
+
+  func testAvatarLogoutSuppressesLateImage() async throws {
+    let gate = RootAvatarRequestGate<Data>()
+    defer { gate.releaseAll() }
+    let session = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }, currentUser: { .template })
+    let feature = ProfileFeature(sessionFeature: session, makeProvider: { AsyncProfileProvider(service: MockService()) }, loadAvatar: { _ in try await gate.request() })
+    let vm = RootViewModel(profileFeature: feature)
+    var delivered = 0
+    vm.avatarImage.observeValues { _ in delivered += 1 }
+    let url = try XCTUnwrap(URL(string: User.template.avatar.small))
+    let request = vm.requestAvatar(url: url, index: 3, isLoggedIn: true)
+    await gate.waitFor(1)
+    vm.requestAvatar(url: nil, index: 3, isLoggedIn: false)
+    try gate.finish(0, .success(Data([1])))
+    await request?.value
+    XCTAssertEqual(delivered, 0)
+  }
+  func testAvatarTabRebuildUsesNewIndexAndSharesDownload() async throws {
+    let gate = RootAvatarRequestGate<Data>()
+    defer { gate.releaseAll() }
+    let session = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }, currentUser: { .template })
+    let feature = ProfileFeature(sessionFeature: session, makeProvider: { AsyncProfileProvider(service: MockService()) }, loadAvatar: { _ in try await gate.request() })
+    let vm = RootViewModel(profileFeature: feature)
+    var indices: [Int] = []
+    vm.avatarImage.observeValues { indices.append($0.2) }
+    let url = try XCTUnwrap(URL(string: User.template.avatar.small))
+    let old = vm.requestAvatar(url: url, index: 3, isLoggedIn: true)
+    await gate.waitFor(1)
+    let current = vm.requestAvatar(url: url, index: 2, isLoggedIn: true)
+    await _Concurrency.Task.yield()
+    try gate.finish(0, .success(Data([1])))
+    await old?.value; await current?.value
+    XCTAssertEqual(indices, [2])
+    XCTAssertEqual(gate.count, 1)
+  }
 
   override func setUp() {
     super.setUp()
@@ -750,4 +787,41 @@ private func extractRootName(_ vc: UIViewController) -> String? {
 
 private func extractName(_ vc: UIViewController) -> String {
   return "\(type(of: vc))".replacingOccurrences(of: "ViewController", with: "")
+}
+
+/// Controlled suspension with bounded admission waits. Tests explicitly release
+/// all continuations on exit, including assertion/setup failures.
+@MainActor
+private final class RootAvatarRequestGate<Value> {
+  private(set) var count = 0
+  private var pending: [CheckedContinuation<Value, Error>?] = []
+  private var waits: [(Int, XCTestExpectation)] = []
+
+  func request() async throws -> Value {
+    self.count += 1
+    return try await withCheckedThrowingContinuation { continuation in
+      self.pending.append(continuation)
+      for (count, expectation) in self.waits where count == self.count { expectation.fulfill() }
+    }
+  }
+
+  func waitFor(_ count: Int) async {
+    if self.count >= count { return }
+    let expectation = XCTestExpectation(description: "Account request admission")
+    self.waits.append((count, expectation))
+    let result = await XCTWaiter().fulfillment(of: [expectation], timeout: 2)
+    XCTAssertEqual(result, .completed)
+  }
+
+  func finish(_ index: Int, _ result: Result<Value, Error>) throws {
+    guard self.pending.indices.contains(index) else { XCTFail("Missing request"); return }
+    let continuation = try XCTUnwrap(self.pending[index])
+    self.pending[index] = nil
+    continuation.resume(with: result)
+  }
+
+  func releaseAll() {
+    for continuation in self.pending { continuation?.resume(throwing: CancellationError()) }
+    self.pending.removeAll()
+  }
 }

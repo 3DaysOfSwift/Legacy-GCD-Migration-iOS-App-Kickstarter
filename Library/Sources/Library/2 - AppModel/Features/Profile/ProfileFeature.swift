@@ -60,6 +60,9 @@ public final class ProfileFeature {
   }
 
   public let sessionFeature: SessionFeature
+  private let loadAvatar: (URL) async throws -> Data
+  private var avatarRequest: (url: URL, userID: Int?, generation: Int, id: UUID, task: Task<Data, Error>)?
+  private var avatarVersion: UUID?
   private let makeProvider: () -> any ProfileProvider
   private let sleep: (TimeInterval) async throws -> Void
   private var pages: [ProfileProjectsType: Route] = [:]
@@ -88,6 +91,7 @@ public final class ProfileFeature {
 
   public init(
     sessionFeature: SessionFeature, makeProvider: @escaping () -> any ProfileProvider,
+    loadAvatar: @escaping (URL) async throws -> Data = { try await ProfileAvatarStore.shared.data(for: $0) },
     sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
       if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
     }
@@ -95,9 +99,50 @@ public final class ProfileFeature {
     self.sessionFeature = sessionFeature
     self.makeProvider = makeProvider
     self.sleep = sleep
+    self.loadAvatar = loadAvatar
+  }
+
+  public func cancelAvatar() {
+    self.avatarRequest?.task.cancel()
+    self.avatarRequest = nil
+    self.avatarVersion = nil
+  }
+
+  public func avatar(url: URL) async throws -> Data {
+    try Task.checkCancellation()
+    let userID = self.sessionFeature.currentUser?.id
+    let generation = self.sessionFeature.generation
+    guard userID != nil, self.sessionFeature.currentUser?.avatar.small == url.absoluteString else {
+      throw CancellationError()
+    }
+    let task: Task<Data, Error>
+    let id: UUID
+    if let pending = self.avatarRequest, pending.url == url, pending.userID == userID,
+      pending.generation == generation {
+      task = pending.task; id = pending.id
+    } else {
+      self.cancelAvatar()
+      id = UUID()
+      self.avatarVersion = id
+      task = Task { [loadAvatar] in
+        try Task.checkCancellation()
+        let data = try await loadAvatar(url)
+        try Task.checkCancellation()
+        return data
+      }
+      self.avatarRequest = (url, userID, generation, id, task)
+    }
+    defer { if self.avatarRequest?.id == id { self.avatarRequest = nil } }
+    let data = try await task.value
+    try Task.checkCancellation()
+    guard self.avatarVersion == id,
+      self.sessionFeature.isCurrent(userID: userID, generation: generation),
+      self.sessionFeature.currentUser?.avatar.small == url.absoluteString else { throw CancellationError() }
+    return data
   }
 
   public func reset() {
+    self.cancelAvatar()
     self.headerRequest?.task.cancel()
     self.headerRequest = nil
     for page in self.pages.values { page.request?.task.cancel() }
@@ -251,5 +296,32 @@ public final class ProfileFeature {
     page.request = (token, cursor, task)
     self.loadingPipe.input.send(value: (type, true))
     return task
+  }
+}
+
+/// Serializes the existing disk cache away from UI rendering. URLSession's native
+/// async operation owns transport cancellation; the Feature owns request identity.
+public actor ProfileAvatarStore {
+  public static let shared = ProfileAvatarStore()
+  private let directory: URL?
+  private let download: @Sendable (URL) async throws -> Data
+  public init(
+    directory: URL? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first,
+    download: @escaping @Sendable (URL) async throws -> Data = { url in
+      let session = URLSession(configuration: .default)
+      defer { session.invalidateAndCancel() }
+      return try await session.data(from: url).0
+    }
+  ) { self.directory = directory; self.download = download }
+  public func data(for url: URL) async throws -> Data {
+    try Task.checkCancellation()
+    // Keep the existing cache name and cache-first/failure behavior.
+    guard let directory else { throw URLError(.cannotOpenFile) }
+    let file = directory.appendingPathComponent("tabbar-avatar-image-\(url.absoluteString.hashValue).dat")
+    if let data = try? Data(contentsOf: file) { return data }
+    let data = try await self.download(url)
+    try Task.checkCancellation()
+    try? data.write(to: file, options: .atomic)
+    return data
   }
 }

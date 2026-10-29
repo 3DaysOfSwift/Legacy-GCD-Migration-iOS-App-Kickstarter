@@ -1025,3 +1025,14 @@ part of this resolution. A navigation route owns one current read: equivalent
 pending URLs share, changed links supersede, ordinary new navigation and session
 reset reject obsolete results. Deliver to the existing navigation input on MainActor.
 The delegate only declines redirect following; it never touches UI or ViewModels.
+
+### Root avatar — 29 October 2026
+
+Preserve the cache-first tabbar-avatar-image hash filename, default URLSession
+configuration, atomic best-effort cache write, existing circle/size/border rendering
+and silent read failure. Cached bytes now arrive asynchronously, consistently with
+downloaded bytes after tab styles are installed. A visible placeholder may therefore
+appear briefly on a cache hit. Do not let a changed account/session, avatar URL,
+logout or rebuilt tab index accept an obsolete image. The Profile Feature shares
+equivalent pending reads; canceling a presentation waiter need not cancel a shared
+cache fill. Logout/reset cancels the Feature read. Disk work runs on a storage actor.
