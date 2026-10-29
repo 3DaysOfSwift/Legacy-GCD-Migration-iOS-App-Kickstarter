@@ -5,6 +5,7 @@ import SnapshotTesting
 import SwiftUI
 import UIKit
 
+@MainActor
 final class VideoFeedViewControllerTests: TestCase {
   override func setUp() {
     super.setUp()

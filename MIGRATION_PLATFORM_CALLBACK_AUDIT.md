@@ -26,7 +26,7 @@ complete compiler diagnostics also expose non-Sendable transfer boundaries.
 | Notification permissions and onboarding — implemented 29 October | AppLifecycleFeature owns admitted prompts; native settings reads and appearance-owned onboarding observers reject obsolete completion. | 248 selected regressions/app build passed; actual system-prompt/device behavior remains open. |
 | Remote configuration — implemented 29 October | Native Firebase async activation, per-client shared operation and replacement guards; listener retained/removed on reconfiguration. | Log-only listener behavior preserved. SDK cache changes cannot be retracted; live Firebase validation remains open. |
 | Project-page media preparation | prepareToPlayAudioVideoURL mutates cachedImage from an image callback while AVAsset loads independently; status subscription is locally retained and has no failure/release completion. | Await asset properties with native AVFoundation loading, explicitly own readiness/image lifetime, reject obsolete playback and complete failure paths. Preserve timing/thumbnail fallback intentionally. |
-| Video player and audio | VideoFeedVideoPlayer has two 3-second timers and seek callbacks; audio KVO/reset scheduling exists in both Library and framework implementations. | Own/cancel timeout and seek work on reuse/stop; enforce actor isolation, preserve recovery and hardware-switch behavior. Audit the production implementation separately from its similar Library test type. |
+| Video player — implemented 29 October; audio remains | Player owns cancellable timeout/native seek work and per-item observations on MainActor; 258 selected tests/app build passed. Audio KVO/reset scheduling remains in both implementations. | Populated playback/native seek/visual validation remains open. Next audit production audio separately from its similar Library test type. |
 | UI timers | Toast, link-copy share sheet, message banner and delayed push alert use unowned delayed blocks. | Bind dismissal/presentation to the current message/screen identity. Preserve VoiceOver duration, animation and existing delays. |
 
 ## Classification of all primitive-matching files
@@ -52,7 +52,7 @@ Paths below are relative to the repository. Counts refer to matching lines, not 
 | Framework/VideoFeedAudioController.swift | 2 | KVO delivery and reset-flag turn; explicit controller isolation/lifetime required. |
 | VideoFeedViewController.swift | 8 | Observation re-arming, collection reload/activation and session UI updates; next-turn timing is intentional in several sites, verify visible-cell/lifetime guards. |
 | Library/UIRefreshControl+StartRefreshing.swift | 1 | 10ms layout workaround; preserve behavior pending visual validation. |
-| VideoFeedVideoPlayer.swift | 3 | Recovery/load timers and seek completion; replace unowned timers, guard current item. |
+| VideoFeedVideoPlayer.swift | 3 at baseline | Replaced by retained cancellation-aware timers/native seek; per-item observation guards. Populated playback validation remains open. |
 | VideoFeedShareSheetView.swift | 1 | Delayed dismissal after copy; screen-owned timer. |
 | CommentsViewController.swift | 1 | Table footer layout pass; UIKit scheduling boundary. |
 | MessageBannerView.swift | 1 | VoiceOver-sensitive dismissal; current banner identity required. |

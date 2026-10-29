@@ -2,7 +2,9 @@
 @testable import LibraryTestHelpers
 import XCTest
 
+@MainActor
 final class VideoFeedPlaybackStateTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private let state = VideoFeedPlaybackState()
 
   func testPause_SetsIsPlaying() {

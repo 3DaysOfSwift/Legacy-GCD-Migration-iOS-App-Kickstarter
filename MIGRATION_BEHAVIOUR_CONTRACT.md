@@ -1051,3 +1051,15 @@ cache fill. Logout/reset cancels the Feature read. Disk work runs on a storage a
   An SDK activation already accepted may still change its cache.
 - PERMISSION-02: Controlled tests do not prove physical-device consent UI or live
   Firebase behavior; those gates remain open.
+
+## Video-feed player lifetime — 29 October 2026
+
+- PLAYER-01: Keep the three-second startup/recovery policies, once-per-item failure,
+  progress/watch counter calculations and existing scrub/loop UI. Repeated stalls
+  share the first pending recovery window.
+- PLAYER-02: Stop/reuse/release invalidate timers and per-item progress observation.
+  Seek replacement, pause and stop reject obsolete completions. Current seek failure
+  still reaches recovery UI; invalid-duration completion now arrives asynchronously.
+- PLAYER-03: Platform notifications/periodic observations remain AVFoundation
+  callbacks on their explicitly configured main queue; player/UI state is MainActor
+  isolated. Controlled tests are not populated-video, audio hardware or visual proof.

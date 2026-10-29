@@ -43,6 +43,39 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Video-feed playback lifetimes — 29 October 2026
+
+VideoFeedVideoPlayer and its playback UI state now have explicit MainActor ownership.
+Startup/recovery timers are retained cancellable Tasks; stop, replacement and release
+invalidate them. Repeated stall notifications share the first three-second recovery
+window. Failure remains once per item. Native async seek retains an owned waiter;
+new seek, pause, stop and replacement suppress obsolete completion, preventing an
+old loop/scrub from resuming a paused or reused item. Current seek failures still
+reach the existing recovery UI. Progress observation is installed per item and
+removed on stop/reuse; queued callbacks check item/generation identity.
+
+**36 Library + 222 framework = 258 selected tests passed**, zero failures/skips;
+**seven new regressions** cover seek supersession, pause/stop/release, stale recovery,
+replacement and once-only failure with repeated stalls. App build passed with zero
+errors/two existing warnings (Frameworks search path and Crashlytics outputs).
+Results: /private/tmp/kickstarter-video-player-lifetime.v1YnLP. Evidence: sibling
+Migration Evidence/kickstarter-video-player-lifetime.
+
+Two earlier compile attempts exposed actor isolation gaps in playback state and
+snapshot-test callers. Those callers are now MainActor-isolated. The nonvisual
+playback-state suite opts out of reference-device requirements; the actual video
+snapshot suite retains its guard and was compiled, not run. No runtime test failures
+or human terminal commands. Controlled seek/sleep tests and synthetic notifications
+do not verify populated playback, native seeking timing, decoder/network recovery,
+physical-device audio or visual parity. Existing UI, watch counter semantics and
+three-second policy are retained; invalid-duration seek completion is now async.
+
+Next: project-page asset/thumbnail readiness, audio-session callbacks and remaining
+UI timers, then broader app-wide concurrency/regression and visual/device checks.
+Migration remains in progress; live operations remain unverified.
+
+### Previous verified checkpoint
+
 ### Notification permissions, onboarding and remote configuration — 29 October 2026
 
 AppLifecycleFeature owns admitted notification/ATT prompts. Equivalent pending

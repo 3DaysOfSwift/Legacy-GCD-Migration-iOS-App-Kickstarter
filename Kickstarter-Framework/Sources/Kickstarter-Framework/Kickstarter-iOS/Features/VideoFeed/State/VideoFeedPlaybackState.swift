@@ -1,6 +1,7 @@
 import Foundation
 
 /// Playback UI state for a single video feed cell.
+@MainActor
 @Observable
 final class VideoFeedPlaybackState {
   /// When false the play button is shown, prompting the user to resume.
