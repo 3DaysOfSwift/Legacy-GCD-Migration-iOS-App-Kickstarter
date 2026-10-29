@@ -2,10 +2,9 @@ import KDS
 import SwiftUI
 
 internal struct RichTextExampleProjectsView: View {
-  private var viewModel = RichTextExampleProjectsViewModel()
+  @State private var viewModel = RichTextExampleProjectsViewModel()
   private var onSelectProject: (RichTextExampleProjectsViewModel.ProjectItem) -> Void
   @State private var slug: String = ""
-  @State private var slugError: Bool = false
 
   init(onSelectProject: @escaping (RichTextExampleProjectsViewModel.ProjectItem) -> Void) {
     self.onSelectProject = onSelectProject
@@ -18,18 +17,12 @@ internal struct RichTextExampleProjectsView: View {
         .autocapitalization(.none)
         .keyboardType(.URL)
         .onChange(of: self.slug) { _, _ in
-          self.slugError = false
+          self.viewModel.clearLookup()
         }
         .onSubmit {
-          Task {
-            if let project = await self.viewModel.loadProject(slug: slug) {
-              self.onSelectProject(project)
-            } else {
-              self.slugError = true
-            }
-          }
+          self.viewModel.submit(input: self.slug, onSelect: self.onSelectProject)
         }
-      if self.slugError {
+      if self.viewModel.slugError {
         Text("No project found")
           .foregroundStyle(Colors.Text.Accent.red.swiftUIColor())
       }
@@ -60,5 +53,6 @@ internal struct RichTextExampleProjectsView: View {
     .task {
       await self.viewModel.loadProjects()
     }
+    .onDisappear { self.viewModel.suspend() }
   }
 }

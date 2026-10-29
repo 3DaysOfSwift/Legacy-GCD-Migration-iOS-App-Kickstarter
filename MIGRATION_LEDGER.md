@@ -43,47 +43,47 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
-### Startup, deep links and shared creator blocking — 29 October 2026
+### Beta pagination and rich-text examples — 29 October 2026
 
-AppLifecycleFeature now owns the nine remaining AppDelegate service-request sites:
-config, push registration, category/survey/shortcut lookups and complete project,
-update and reply-thread deep links. Equivalent reads share; newer destinations,
-session changes and route release invalidate old navigation. Project/update/reply
-data resolve as one operation before the original UIKit stack is built. Push
-registrations retain the five-second debounce and execute admitted changed tokens
-in order. Cookie, debug flag, shortcut and Braze behavior remains intact.
+DeveloperExamplesFeature now owns both developer screens' requests, pagination and
+rich-text list caching. ViewModels bind observed snapshots, retain lookup lifetime,
+and never access services. Both Views own their ViewModel inline. Native discovery
+and cancellation-aware Apollo endpoints replace the examples' Combine/generic async
+requests. Initial versus refresh parameters, append semantics, nullable responses,
+status text, error output and cached return navigation are preserved. Empty next
+pages no longer wait indefinitely; editing a submitted slug or closing a screen
+rejects late navigation and errors.
 
-Project-page creator blocking now cooperates with the shared DiscussionFeature.
-Comment/block identities include session generation; delayed block notifications
-cannot survive logging back into the same account. Raw push-token logging removed.
-
-**1,310 Library + 199 framework + 93 API = 1,602 selected tests passed**, zero
-failures/skips; **18 new regression cases**. All 121 original AppDelegate cases
-passed. App build succeeded with zero errors/two existing warnings. Four test
-compilation attempts were corrected; no runtime test failures or human terminal
-intervention. API tests were rerun after a test-only OAuth fixture fix; other
-successful targets were unchanged. Results: /private/tmp/kickstarter-app-lifecycle.UWceFE.
-Evidence: sibling Migration Evidence/kickstarter-app-lifecycle.
+**1,340 Library + 205 framework + 94 API = 1,639 selected tests passed**, zero
+failures/skips. There are **20 new regression cases**; the increase also includes
+17 existing Paginator cases newly selected. Focused run: 31 passed. App build:
+zero errors/two existing warnings. No failed compile/test attempt or human terminal
+command in this checkpoint. Results: /private/tmp/kickstarter-developer-examples.7P18BF.
+Evidence: sibling Migration Evidence/kickstarter-developer-examples.
 
 ### Remaining implementation and validation
 
-1. Beta/example screens: PaginationExample and RichTextExample still need explicit
-   Feature/request ownership. These are accessible developer surfaces, not assumed
-   covered by the product-flow migration.
-2. Platform callback and scheduling boundaries: audio/video, push permission,
-   reachability, images, refresh controls and UIKit presentation helpers. Current
-   scoped text scan found 40 primitive-matching lines across app/framework/Library/API
-   sources, including SDK queues and mocks. Each must be classified; the count is
-   neither a defect total nor an exhaustive callback inventory.
-3. App-wide concurrency diagnostics and broader regression, then reference-device
-   snapshots, simulator/physical-device journeys and live-service gates (payments,
-   push registration and other mutations). Inactive advertising calls stay inactive.
+1. Platform callbacks: the audit found remaining owned-operation work in email-link
+   redirects, root-tab avatar loading, notification permissions/onboarding, remote
+   configuration and project media preparation. Video timeouts and UI scheduling
+   also require lifetime review. SDK-mandated callback queues are separate from
+   business-task migration; primitive text counts are not defect totals.
+2. Complete concurrency diagnostics and broader regression, then reference-device
+   snapshots, simulator/physical-device journeys and live-service gates. Keep the
+   four inactive advertising producers inactive. No live payments or account writes
+   have been verified.
+3. Final evidence-backed report: start/finish boundaries, model attribution, attempts,
+   human intervention and validation limits. Finish time remains unset.
 
-Final reporting still requires evidence-backed dates/times, model attribution,
-attempt statistics and explicit validation limits. Finish time remains unset.
 **Migration remains in progress.**
 
 ### Previous verified checkpoint
+
+### Startup, deep links and shared creator blocking — 29 October 2026
+
+AppLifecycleFeature owns startup and complete destination requests. The previous
+checkpoint passed 1,602 selected tests and app build, with 18 new regression cases.
+Evidence: sibling Migration Evidence/kickstarter-app-lifecycle.
 
 ### Creator draft editing and images — 28 October 2026
 

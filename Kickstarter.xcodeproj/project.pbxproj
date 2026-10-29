@@ -23,6 +23,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		CFA031300000000000000001 /* DeveloperExamplesFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA031300000000000000002 /* DeveloperExamplesFeatureTests.swift */; };
 		CFA031200000000000000001 /* AppLifecycleFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA031200000000000000002 /* AppLifecycleFeatureTests.swift */; };
 		CFA030900000000000000001 /* ProjectReportingFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA030900000000000000002 /* ProjectReportingFeatureTests.swift */; };
 		CFA031000000000000000001 /* RecommendationsFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA031000000000000000002 /* RecommendationsFeatureTests.swift */; };
@@ -403,6 +404,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		CFA031300000000000000002 /* DeveloperExamplesFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperExamplesFeatureTests.swift; sourceTree = "<group>"; };
 		CFA031200000000000000002 /* AppLifecycleFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLifecycleFeatureTests.swift; sourceTree = "<group>"; };
 		CFA030900000000000000002 /* ProjectReportingFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectReportingFeatureTests.swift; sourceTree = "<group>"; };
 		CFA031000000000000000002 /* RecommendationsFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationsFeatureTests.swift; sourceTree = "<group>"; };
@@ -858,6 +860,7 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		CFA031300000000000000003 /* DeveloperExamples */ = {isa = PBXGroup; children = (CFA031300000000000000002 /* DeveloperExamplesFeatureTests.swift */,); path = DeveloperExamples; sourceTree = "<group>"; };
 		CFA031200000000000000003 /* AppLifecycle */ = {isa = PBXGroup; children = (CFA031200000000000000002 /* AppLifecycleFeatureTests.swift */,); path = AppLifecycle; sourceTree = "<group>"; };
 		CFA030900000000000000003 /* ProjectReporting */ = {isa = PBXGroup; children = (CFA030900000000000000002 /* ProjectReportingFeatureTests.swift */,); path = ProjectReporting; sourceTree = "<group>"; };
 		CFA031000000000000000003 /* Recommendations */ = {isa = PBXGroup; children = (CFA031000000000000000002 /* RecommendationsFeatureTests.swift */,); path = Recommendations; sourceTree = "<group>"; };
@@ -901,7 +904,7 @@
 		};
 		CFA026100000000000000004 /* FeatureTests */ = {
 			isa = PBXGroup;
-			children = (CFA031200000000000000003 /* AppLifecycle */, CFA031100000000000000003 /* CreatorDrafts */, CFA031000000000000000003 /* Recommendations */, CFA030900000000000000003 /* ProjectReporting */, CFA030800000000000000003 /* Friends */, CFA030600000000000000003 /* PledgedProjects */, CFA030400000000000000003 /* Pledge */, CFA030300000000000000003 /* Payments */, CFA030200000000000000003 /* Messaging */, CFA029000000000000000003 /* Authentication */, CFA028000000000000000003 /* Settings */, CFA026100000000000000003 /* Search */, CFA027100000000000000003 /* Discovery */, CFA027200000000000000003 /* ProjectDetails */, CFA027300000000000000003 /* Rewards */, CFA027400000000000000003 /* Discussion */, CFA027500000000000000003 /* ProjectMedia */, CFA027600000000000000003 /* Session */, CFA027700000000000000003 /* Activity */, CFA027800000000000000003 /* Profile */,);
+			children = (CFA031300000000000000003 /* DeveloperExamples */, CFA031200000000000000003 /* AppLifecycle */, CFA031100000000000000003 /* CreatorDrafts */, CFA031000000000000000003 /* Recommendations */, CFA030900000000000000003 /* ProjectReporting */, CFA030800000000000000003 /* Friends */, CFA030600000000000000003 /* PledgedProjects */, CFA030400000000000000003 /* Pledge */, CFA030300000000000000003 /* Payments */, CFA030200000000000000003 /* Messaging */, CFA029000000000000000003 /* Authentication */, CFA028000000000000000003 /* Settings */, CFA026100000000000000003 /* Search */, CFA027100000000000000003 /* Discovery */, CFA027200000000000000003 /* ProjectDetails */, CFA027300000000000000003 /* Rewards */, CFA027400000000000000003 /* Discussion */, CFA027500000000000000003 /* ProjectMedia */, CFA027600000000000000003 /* Session */, CFA027700000000000000003 /* Activity */, CFA027800000000000000003 /* Profile */,);
 			path = FeatureTests;
 			sourceTree = "<group>";
 		};
@@ -1965,6 +1968,7 @@
 				CFA030100000000000000001 /* SettingsProjectNotificationsTests.swift in Sources */,
 				CFA030200000000000000001 /* MessagingFeatureTests.swift in Sources */,
 				CFA030300000000000000001 /* PaymentsFeatureTests.swift in Sources */,
+				CFA031300000000000000001 /* DeveloperExamplesFeatureTests.swift in Sources */,
 				CFA031200000000000000001 /* AppLifecycleFeatureTests.swift in Sources */,
 				CFA031100000000000000001 /* CreatorDraftsFeatureTests.swift in Sources */,
 				CFA031000000000000000001 /* RecommendationsFeatureTests.swift in Sources */,

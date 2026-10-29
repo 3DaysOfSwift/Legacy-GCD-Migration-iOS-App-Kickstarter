@@ -273,6 +273,9 @@ public protocol ServiceType {
   /// Fetch the full discovery envelope with specified discovery params.
   func fetchDiscovery(params: DiscoveryParams) -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope>
 
+  @MainActor func richTextExampleProjects() async throws -> GraphAPI.RichTextExampleProjectsQuery.Data
+  @MainActor func richTextExampleProject(slug: String) async throws -> GraphAPI.RichTextExampleProjectBySlugQuery.Data
+
   func discoveryPage(params: DiscoveryParams) async throws -> DiscoveryEnvelope
   func discoveryPage(paginationURL: String) async throws -> DiscoveryEnvelope
   func discoveryActivitySample() async throws -> ActivityEnvelope?

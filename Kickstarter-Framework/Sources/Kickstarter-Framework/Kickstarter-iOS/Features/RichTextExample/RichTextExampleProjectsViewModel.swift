@@ -1,89 +1,71 @@
-import Combine
-import GraphAPI
-import KsApi
+import Foundation
 import Library
 import Observation
-import ReactiveSwift
-import SwiftUI
 
-@Observable
+/// Owns direct-link presentation and its task; the Feature owns request decisions.
+@MainActor @Observable
 internal final class RichTextExampleProjectsViewModel {
-  struct ProjectItem: Identifiable, Hashable {
-    let id: String
-    let name: String
-    let richText: RichTextComponentFragment
+  typealias ProjectItem = DeveloperExamplesFeature.ProjectItem
+  private let feature: DeveloperExamplesFeature
+  private let route = UUID()
+  @ObservationIgnored private var lookupTask: Task<Void, Never>?
+  @ObservationIgnored private var submittedInput: String?
+  @ObservationIgnored private var lookupID: UUID?
+  private(set) var slugError = false
+  var projects: [ProjectItem] { self.feature.richTextSnapshot(route: self.route).projects }
+  var isLoading: Bool { self.feature.richTextSnapshot(route: self.route).isLoading }
+  var errorMessage: String? { self.feature.richTextSnapshot(route: self.route).errorMessage }
+
+  init(feature: DeveloperExamplesFeature? = nil) {
+    self.feature = feature ?? AppModel.shared.developerExamplesFeature
+  }
+  deinit {
+    self.lookupTask?.cancel()
+    let feature = self.feature, route = self.route
+    Task { @MainActor in feature.release(route: route) }
   }
 
-  private(set) var projects: [ProjectItem] = []
-  private(set) var isLoading = true
-  private(set) var errorMessage: String?
+  func loadProjects() async { await self.feature.loadRichTextProjects(route: self.route) }
 
-  private static func extractSlug(from input: String) -> String? {
-    // Test for url slug: foo/bar
-    if input.contains("/"), !input.hasPrefix("http"), !input.hasPrefix("https") {
-      let parts = input.split(separator: "/").map(String.init)
-      if parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty {
-        return parts.joined(separator: "/")
-      }
-    }
-
-    // Test for url: (whatever kickstarter domain)/projects/foo/bar
-    if
-      let url = URL(string: input),
-      let components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
-      let pathComponents = components.path.split(separator: "/").map(String.init)
-      if pathComponents.count >= 3, pathComponents[0].lowercased() == "projects" {
-        let owner = pathComponents[1]
-        let name = pathComponents[2]
-        if !owner.isEmpty, !name.isEmpty {
-          return "\(owner)/\(name)"
+  @discardableResult
+  func submit(input: String, onSelect: @escaping (ProjectItem) -> Void) -> Task<Void, Never> {
+    if self.submittedInput == input, let task = self.lookupTask { return task }
+    self.clearLookup()
+    let id = UUID()
+    let feature = self.feature
+    let route = self.route
+    self.lookupID = id
+    self.submittedInput = input
+    let task = Task { [weak self] in
+      defer {
+        if self?.lookupID == id {
+          self?.lookupTask = nil
+          self?.submittedInput = nil
         }
       }
-    }
-
-    // No correct result found
-    return nil
-  }
-
-  func loadProject(slug slugOrURL: String) async -> ProjectItem? {
-    // Normalize input: accept either a raw slug "foo/bar" or a Kickstarter project URL
-    guard let slug = Self.extractSlug(from: slugOrURL) else {
-      return nil
-    }
-
-    let result = try? await AppEnvironment.current.apiService.fetch(
-      query: RichTextExampleProjectBySlugQuery(slug: slug, storyRichText: true)
-    )
-    guard let project = result?.project else { return nil }
-    let item = ProjectItem(
-      id: project.id,
-      name: project.name,
-      richText: project.storyRichText.fragments.richTextComponentFragment
-    )
-    return item
-  }
-
-  func loadProjects() async {
-    guard self.projects.isEmpty else { return }
-
-    self.isLoading = true
-    self.errorMessage = nil
-
-    do {
-      let results = try await AppEnvironment.current.apiService
-        .fetch(query: RichTextExampleProjectsQuery(storyRichText: true))
-      let nodes = results?.projects?.nodes?.compactMap { $0 } ?? []
-      self.projects = nodes.map { node in
-        ProjectItem(
-          id: node.id,
-          name: node.name,
-          richText: node.storyRichText.fragments.richTextComponentFragment
-        )
+      do {
+        let project = try await feature.loadProject(input: input, route: route)
+        try Task.checkCancellation()
+        guard let self, self.lookupID == id else { return }
+        if let project { onSelect(project) } else { self.slugError = true }
+      } catch {
+        guard !Task.isCancelled, !(error is CancellationError), self?.lookupID == id else { return }
+        self?.slugError = true
       }
-      self.isLoading = false
-    } catch {
-      self.isLoading = false
-      self.errorMessage = error.localizedDescription
     }
+    self.lookupTask = task
+    return task
+  }
+  func clearLookup() {
+    self.lookupTask?.cancel()
+    self.lookupTask = nil
+    self.lookupID = nil
+    self.submittedInput = nil
+    self.slugError = false
+    self.feature.cancelLookup(route: self.route)
+  }
+  func suspend() {
+    self.clearLookup()
+    self.feature.suspend(route: self.route)
   }
 }

@@ -28,6 +28,10 @@ final class AppModelTests: XCTestCase {
       })
     let firstMessaging = MessagingFeature(sessionFeature: firstSession, makeProvider: { AsyncMessagingProvider(service: MockService()) })
     let first = AppModel(
+      developerExamplesFeature: DeveloperExamplesFeature(sessionFeature: firstSession, makeProvider: {
+        XCTFail("Composition must not load developer examples")
+        return AsyncDeveloperExamplesProvider(service: MockService())
+      }),
       appLifecycleFeature: AppLifecycleFeature(sessionFeature: firstSession, settingsFeature: firstSettings,
         messagingFeature: firstMessaging, makeProvider: {
           XCTFail("Composition must not perform startup requests")
@@ -77,6 +81,10 @@ final class AppModelTests: XCTestCase {
       })
     let secondMessaging = MessagingFeature(sessionFeature: secondSession, makeProvider: { AsyncMessagingProvider(service: MockService()) })
     let second = AppModel(
+      developerExamplesFeature: DeveloperExamplesFeature(sessionFeature: secondSession, makeProvider: {
+        XCTFail("Composition must not load developer examples")
+        return AsyncDeveloperExamplesProvider(service: MockService())
+      }),
       appLifecycleFeature: AppLifecycleFeature(sessionFeature: secondSession, settingsFeature: secondSettings,
         messagingFeature: secondMessaging, makeProvider: {
           XCTFail("Composition must not perform startup requests")
@@ -119,6 +127,8 @@ final class AppModelTests: XCTestCase {
       })
     )
 
+    XCTAssertTrue(first.developerExamplesFeature.sessionFeature === first.sessionFeature)
+    XCTAssertFalse(first.developerExamplesFeature === second.developerExamplesFeature)
     XCTAssertTrue(first.creatorDraftsFeature.sessionFeature === first.sessionFeature)
     XCTAssertFalse(first.creatorDraftsFeature === second.creatorDraftsFeature)
     XCTAssertTrue(first.recommendationsFeature.settingsFeature === first.settingsFeature)

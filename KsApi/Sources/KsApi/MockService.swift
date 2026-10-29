@@ -1356,6 +1356,21 @@
       return client.fetchWithResult(query: fetchGraphCategoriesQuery, result: self.fetchGraphCategoriesResult)
     }
 
+    @MainActor public func richTextExampleProjects() async throws -> GraphAPI.RichTextExampleProjectsQuery.Data {
+      try Task.checkCancellation()
+      guard let data = try await self.fetch(query: GraphAPI.RichTextExampleProjectsQuery(storyRichText: true)) else {
+        throw ErrorEnvelope.couldNotParseJSON
+      }
+      return data
+    }
+    @MainActor public func richTextExampleProject(slug: String) async throws -> GraphAPI.RichTextExampleProjectBySlugQuery.Data {
+      try Task.checkCancellation()
+      guard let data = try await self.fetch(query: GraphAPI.RichTextExampleProjectBySlugQuery(slug: slug, storyRichText: true)) else {
+        throw ErrorEnvelope.couldNotParseJSON
+      }
+      return data
+    }
+
     @MainActor public func recommendationCategory(id: String) async throws -> Category {
       try Task.checkCancellation()
       guard let result = self.fetchGraphCategoryResult else { throw ErrorEnvelope.couldNotParseJSON }

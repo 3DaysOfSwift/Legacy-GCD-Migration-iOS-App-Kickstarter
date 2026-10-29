@@ -10,9 +10,9 @@ private struct PaginationExampleProjectCell: View {
 }
 
 private struct PaginationExampleProjectList: View {
-  @Binding var projects: [PaginationExampleViewModel.ProjectData]
-  @Binding var showProgressView: Bool
-  @Binding var statusText: String
+  let projects: [PaginationExampleViewModel.ProjectData]
+  let showProgressView: Bool
+  let statusText: String
   @State var selectedItem: PaginationExampleViewModel.ProjectData?
 
   let onRefresh: () async -> Void
@@ -49,38 +49,37 @@ private struct PaginationExampleProjectList: View {
 }
 
 public struct PaginationExampleView: View {
-  @StateObject private var viewModel = PaginationExampleViewModel()
+  @State private var viewModel = PaginationExampleViewModel()
 
   public var body: some View {
     // Note that PaginationExampleProjectList is decoupled from the view model;
-    // all the information it needs is passed in via bindings.
+    // all the information it needs is passed in as a value snapshot.
     // This makes it easy to write a preview!
     PaginationExampleProjectList(
-      projects: self.$viewModel.projects,
-      showProgressView: self.$viewModel.showProgressView,
-      statusText: self.$viewModel.statusText,
+      projects: self.viewModel.projects,
+      showProgressView: self.viewModel.showProgressView,
+      statusText: self.viewModel.statusText,
       onRefresh: {
-        await self.viewModel.didRefresh()
+        await self.viewModel.refresh()
       },
       onLoadMore: {
-        await self.viewModel.didLoadNextPage()
+        await self.viewModel.loadNextPage()
       }
     )
-    .onAppear {
-      self.viewModel.paginator.requestFirstPage(withParams: .defaults)
-    }
+    .task { await self.viewModel.load() }
+    .onDisappear { self.viewModel.suspend() }
   }
 }
 
 #Preview {
   PaginationExampleProjectList(
-    projects: .constant([
+    projects: [
       .init(id: 1, title: "Cool project one"),
       .init(id: 2, title: "Cool project two"),
       .init(id: 3, title: "Cool project three")
-    ]),
-    showProgressView: .constant(true),
-    statusText: .constant("Example status text"),
+    ],
+    showProgressView: true,
+    statusText: "Example status text",
     onRefresh: {}, onLoadMore: {}
   )
 }

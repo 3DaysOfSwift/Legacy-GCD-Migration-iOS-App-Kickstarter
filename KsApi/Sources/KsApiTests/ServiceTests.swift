@@ -1,3 +1,4 @@
+import GraphAPI
 @testable import KsApi
 @testable import KsApiTestHelpers
 import ReactiveExtensions
@@ -13,6 +14,17 @@ struct MySwiftModel: Decodable, Equatable {
 }
 
 final class ServiceTests: XCTestCase {
+  @MainActor func testRichTextExampleNativeMocksPreserveNullableResponses() async throws {
+    let service = MockService(fetchGraphQLResponses: [
+      (GraphAPI.RichTextExampleProjectsQuery.self, GraphAPI.RichTextExampleProjectsQuery.Data(projects: nil)),
+      (GraphAPI.RichTextExampleProjectBySlugQuery.self, GraphAPI.RichTextExampleProjectBySlugQuery.Data(project: nil))
+    ])
+    let list = try await service.richTextExampleProjects()
+    let project = try await service.richTextExampleProject(slug: "owner/project")
+    XCTAssertNil(list.projects)
+    XCTAssertNil(project.project)
+  }
+
   func testNativeStartupRoutesPreserveMethodsPathsAndPushBody() throws {
     let service = Service(oauthToken: OauthToken(token: "fixture-session"))
     let config = try service.preparedRouteRequest(.config)

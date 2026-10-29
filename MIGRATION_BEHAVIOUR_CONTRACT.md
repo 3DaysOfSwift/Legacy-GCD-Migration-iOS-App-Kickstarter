@@ -988,3 +988,23 @@ publish. Project creator blocking cooperates with the existing DiscussionFeature
 screen release only stops observation of an admitted block. Preserve success
 notifications, errors and analytics. No screen design or live service action is part
 of verification; use controlled providers and public demo fixtures.
+
+
+## Developer pagination and rich-text examples — 29 October 2026
+
+- Pagination first appearance requests default discovery parameters; pull-to-refresh
+  uses staff picks/magic. Preserve rows while loading, append duplicates on the next
+  page, stop at an empty page, and retain the original status/error strings. A failed
+  page clears rows/cursor; an explicit refresh retries. Terminal next-page commands
+  return immediately instead of waiting for a nonexistent publisher event.
+- Rich-text list preserves order, nullable-node filtering, localized error text and
+  nonempty caching when visiting a selected project and returning. Empty/error lists
+  can retry. Accept the same raw owner/slug and project URL formats.
+- Equivalent pending requests share within one screen route. Refresh replaces an
+  old page; edited/cleared slug, screen suspension and session replacement reject late
+  responses. Independent routes cannot cancel each other. No automatic write or live
+  service verification. ViewModels are owned inline by their Views; request and cache
+  policy belongs to DeveloperExamplesFeature composed in AppModel.
+- All layout, text, navigation callbacks, colors and preview content are retained.
+  Existing generic Paginator remains for other consumers; this example no longer uses
+  its Combine request/next-event loop. Physical-device and visual parity remain gates.
