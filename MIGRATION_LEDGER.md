@@ -43,6 +43,40 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Checkout and managed-pledge transport values — 29 October 2026
+
+Five more native response paths now convert before callback-to-task transfer:
+checkout validation/completion, payment plans, managed backing and managed rewards.
+Checkout completion carries Void; payment plans carry checked eligibility/installment
+values. Backing/reward/shipping/order/payment-increment graphs have checked Sendable
+conformances. Generated SDK objects are not annotated unchecked Sendable.
+
+Validation errors/messages, root-data acknowledgement, absent plans, invalid-date
+filtering, installment order, refund/badge/shipping values and empty reward fallback
+are preserved. Request inputs, native cancellation, Feature sharing/session checks,
+legacy service compatibility and UI remain unchanged. No automatic write retry.
+
+The diagnostic run exposed 32 matching warnings in PledgeFeature's mixed ReadValue
+Task result. Read payloads now remain in a MainActor-owned result slot; tasks signal
+completion only. Existing route/session/cancellation and write-before-refresh checks
+remain. The final complete-check build emits no matching diagnostic for PledgeFeature or
+the changed service/plan conversion boundaries. Reward retains two existing
+Prelude comparator/import diagnostics; other app-wide warnings remain.
+
+Final verification: **1,439 Library + 397 framework + 143 API = 1,979 passed**,
+zero failures/skips. App build succeeded with zero errors/two warnings. Seventeen
+new cases cover mapped checkout/plan/backing/reward responses and shared read
+success/error/cancellation. Nine existing API model tests were added to selection;
+repeated intermediate passes are not counted as unique tests. No failed compilation,
+runtime test or human-run command in this checkpoint. Complete checking remains
+Swift 5; unrelated global/style/generated/provider boundaries are still open.
+
+Evidence: sibling `Migration Evidence/kickstarter-checkout-query-transport/`.
+Next: pledged-project overview image/analytics values and remaining project-detail,
+reward/related-project and other query providers. Full visual/device and live payment,
+Apple Pay/3DS and account/pledge validation remain open. **Migration is in progress.**
+
+
 ### Pledge mutation transport snapshots — 29 October 2026
 
 Native pledge creation/update/cancellation, checkout opening, address confirmation

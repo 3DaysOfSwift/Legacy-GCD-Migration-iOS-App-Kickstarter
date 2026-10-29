@@ -2,12 +2,12 @@ import Foundation
 import GraphAPI
 import Prelude
 
-public struct Money: Decodable, Equatable {
+public struct Money: Decodable, Equatable, Sendable {
   public var amount: Double
   public var currency: CurrencyCode?
   public var symbol: String?
 
-  public enum CurrencyCode: String, CaseIterable, Decodable, Equatable {
+  public enum CurrencyCode: String, CaseIterable, Decodable, Equatable, Sendable {
     case aud = "AUD"
     case cad = "CAD"
     case chf = "CHF"

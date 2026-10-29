@@ -959,10 +959,10 @@
       guard let result = self.updateRewardReceivedResult else { throw ErrorEnvelope.couldNotParseJSON }
       return try result.get()
     }
-    @MainActor public func pledgePaymentPlan(slug: String, amount: String) async throws -> GraphAPI.BuildPaymentPlanQuery.Data {
+    @MainActor public func pledgePaymentPlan(slug: String, amount: String) async throws -> PledgePaymentPlan? {
       try Task.checkCancellation()
       guard let result = self.buildPaymentPlanResult else { throw ErrorEnvelope.couldNotParseJSON }
-      return try result.get()
+      return PledgePaymentPlan.from(try result.get())
     }
 
     @MainActor public func openPledgeCheckout(_ input: CreateCheckoutInput) async throws -> CreateCheckoutEnvelope {
@@ -975,10 +975,10 @@
       guard let result = self.validateCheckoutResult else { throw ErrorEnvelope.couldNotParseJSON }
       return try result.get()
     }
-    @MainActor public func finishPledgeCheckout(_ input: GraphAPI.CompleteOnSessionCheckoutInput) async throws -> GraphAPI.CompleteOnSessionCheckoutMutation.Data {
+    @MainActor public func finishPledgeCheckout(_ input: GraphAPI.CompleteOnSessionCheckoutInput) async throws {
       try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
       guard let result = self.completeOnSessionCheckoutResult else { throw ErrorEnvelope.couldNotParseJSON }
-      return try result.get()
+      _ = try result.get()
     }
     @MainActor public func managedPledgeBacking(id: Int) async throws -> Backing {
       try Task.checkCancellation()

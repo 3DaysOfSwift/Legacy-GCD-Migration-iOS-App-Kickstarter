@@ -1315,3 +1315,35 @@ cache fill. Logout/reset cancels the Feature read. Disk work runs on a storage a
 - PLAYER-03: Platform notifications/periodic observations remain AVFoundation
   callbacks on their explicitly configured main queue; player/UI state is MainActor
   isolated. Controlled tests are not populated-video, audio hardware or visual proof.
+
+
+## Checkout and managed-pledge response values — 29 October 2026
+
+- Convert checkout validation, completion, payment-plan, managed backing and reward
+  responses on the existing Apollo callback executor before resuming async callers.
+  Preserve native cancellation, first GraphQL error precedence, request inputs and
+  no automatic retry. A server-accepted write is not reversed by local cancellation.
+- Checkout validation keeps server messages and distinguishes a missing checkout
+  (parse failure) from a present invalid checkout (validation failure).
+- Checkout completion consumes no nested payload: any successful root data still
+  acknowledges completion. Missing root data or GraphQL errors still fail. Existing
+  Feature write sharing/session checks and observer-disposal behavior remain intact.
+- An absent project/payment plan is a successful nil plan. An ineligible plan is
+  retained, including an empty installment list. Invalid installment dates are
+  omitted as before; valid installment order, currency, formatted amount, collection
+  date and unknown refund state remain unchanged. UI preselection still uses the
+  request's project and current eligibility; stale amounts cannot replace a newer plan.
+- Managed backing retains payment/refund/badge, add-on, reward, shipping and order
+  values; missing required backing data remains a parse failure. Managed rewards
+  retain shipping/local-pickup and optional payment-plan explanations. Missing project
+  data retains the existing empty/disabled fallback. No new eligibility rules.
+- Checked Sendable conformances apply only to reviewed value graphs; generated
+  Apollo types and mutable services are not declared unchecked Sendable. Legacy
+  reactive service signatures/fixtures remain compatible. UI and storage are unchanged.
+- Verification covers 1,979 selected tests and an app build, not all repository
+  snapshots or live checkout/payment integration. Final visual/device gates remain open.
+
+- Pledge read tasks carry completion only. Mixed project/update results remain in
+  a MainActor-owned result slot. Equivalent pending reads still share success/error;
+  canceled callers cannot consume a shared result, while other live waiters can.
+  Route/session invalidation, read-after-write ordering and original errors remain.

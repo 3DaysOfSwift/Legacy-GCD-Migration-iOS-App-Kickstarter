@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Backing {
+public struct Backing: Sendable {
   public let addOns: [Reward]?
   public let amount: Double
   public let backer: User?
@@ -32,7 +32,7 @@ public struct Backing {
   public let shippingAmount: Double?
   public let status: Status
 
-  public struct PaymentSource {
+  public struct PaymentSource: Sendable {
     public var expirationDate: String?
     public var id: String?
     public var lastFour: String?
@@ -41,7 +41,7 @@ public struct Backing {
     public var type: CreditCardType?
   }
 
-  public enum Status: String, CaseIterable, Decodable {
+  public enum Status: String, CaseIterable, Decodable, Sendable {
     case canceled
     case collected
     case dropped

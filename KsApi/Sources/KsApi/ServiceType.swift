@@ -19,10 +19,10 @@ public protocol ServiceType {
   @MainActor func pledgedProjects(tiers: [GraphAPI.PledgeProjectsOverviewSort], cursor: String?, limit: Int) async throws -> GraphAPI.FetchPledgedProjectsQuery.Data
   @MainActor func confirmPledgeAddress(backingID: String, addressID: String) async throws -> Bool
   @MainActor func setPledgeReceipt(backingID: String, received: Bool) async throws -> Bool
-  @MainActor func pledgePaymentPlan(slug: String, amount: String) async throws -> GraphAPI.BuildPaymentPlanQuery.Data
+  @MainActor func pledgePaymentPlan(slug: String, amount: String) async throws -> PledgePaymentPlan?
   @MainActor func openPledgeCheckout(_ input: CreateCheckoutInput) async throws -> CreateCheckoutEnvelope
   @MainActor func checkPledgeCheckout(checkoutID: String, sourceID: String, secret: String) async throws -> ValidateCheckoutEnvelope
-  @MainActor func finishPledgeCheckout(_ input: GraphAPI.CompleteOnSessionCheckoutInput) async throws -> GraphAPI.CompleteOnSessionCheckoutMutation.Data
+  @MainActor func finishPledgeCheckout(_ input: GraphAPI.CompleteOnSessionCheckoutInput) async throws
   @MainActor func managedPledgeBacking(id: Int) async throws -> Backing
   @MainActor func managedPledgeRewards(projectID: Int) async throws -> RewardsAndPledgeOverTimeEnvelope
   @MainActor func submitPledge(_ input: CreateBackingInput) async throws -> CreateBackingEnvelope

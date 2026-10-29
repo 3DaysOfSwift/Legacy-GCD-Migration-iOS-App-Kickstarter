@@ -9,6 +9,16 @@ public struct ValidateCheckoutEnvelope: Decodable, Sendable {
 // MARK: - GraphQL Adapters
 
 extension ValidateCheckoutEnvelope {
+  static func validated(from data: GraphAPI.ValidateCheckoutQuery.Data) throws -> ValidateCheckoutEnvelope {
+    guard let envelope = self.validateCheckoutEnvelope(from: data) else {
+      throw ErrorEnvelope.couldNotParseJSON
+    }
+    guard data.checkout?.isValidForOnSessionCheckout.valid == true else {
+      throw ErrorEnvelope.validateCheckoutError(envelope.messages)
+    }
+    return envelope
+  }
+
   static func envelopeProducer(from data: GraphAPI.ValidateCheckoutQuery.Data)
     -> SignalProducer<ValidateCheckoutEnvelope, ErrorEnvelope> {
     guard let envelope = ValidateCheckoutEnvelope.validateCheckoutEnvelope(from: data) else {

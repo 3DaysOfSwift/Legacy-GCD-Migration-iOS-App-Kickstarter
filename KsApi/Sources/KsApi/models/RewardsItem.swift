@@ -1,6 +1,6 @@
 
 
-public struct RewardsItem {
+public struct RewardsItem: Sendable {
   public let id: Int
   public let item: Item
   public let quantity: Int

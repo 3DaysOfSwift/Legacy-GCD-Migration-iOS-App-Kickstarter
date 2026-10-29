@@ -1,7 +1,7 @@
 import Foundation
 import Prelude
 
-public struct Reward {
+public struct Reward: Sendable {
   public let backersCount: Int?
   public private(set) var convertedMinimum: Double
   public let description: String
@@ -89,14 +89,14 @@ public struct Reward {
       ?? otherShippingRule
   }
 
-  public struct Shipping: Decodable {
+  public struct Shipping: Decodable, Sendable {
     public let enabled: Bool
     public let location: Location? /// via v1 if `ShippingType` is `singleLocation`
     public let preference: Preference?
     public let summary: String?
     public let type: ShippingType?
 
-    public struct Location: Equatable, Decodable {
+    public struct Location: Equatable, Decodable, Sendable {
       private enum CodingKeys: String, CodingKey {
         case id
         case localizedName = "localized_name"
@@ -106,14 +106,14 @@ public struct Reward {
       public let localizedName: String
     }
 
-    public enum Preference: String, Decodable {
+    public enum Preference: String, Decodable, Sendable {
       case local
       case none
       case restricted
       case unrestricted
     }
 
-    public enum ShippingType: String, Decodable {
+    public enum ShippingType: String, Decodable, Sendable {
       case anywhere
       case multipleLocations = "multiple_locations"
       case noShipping = "no_shipping"
@@ -121,14 +121,14 @@ public struct Reward {
     }
   }
 
-  public struct Image {
+  public struct Image: Sendable {
     /// Alt text on the image
     public let altText: String
     /// URL of the image
     public let url: String?
   }
 
-  public struct AudienceData {
+  public struct AudienceData: Sendable {
     public let isSecretReward: Bool
   }
 }

@@ -1,6 +1,6 @@
 
 
-public struct Item {
+public struct Item: Sendable {
   public let description: String?
   public let id: Int
   public let name: String

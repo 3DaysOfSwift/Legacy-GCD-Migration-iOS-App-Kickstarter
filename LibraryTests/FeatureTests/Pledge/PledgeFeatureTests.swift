@@ -346,7 +346,7 @@ final class PledgeFeatureTests: TestCase {
     defer { second.dispose() }
     await self.provider.completions.waitFor(1)
     XCTAssertEqual(self.provider.completionInputs, [input])
-    try self.provider.completions.finish(0, .success(.init()))
+    try self.provider.completions.finish(0, .success(()))
     await self.feature.waitForOperations()
     XCTAssertEqual(delivered, 1)
     XCTAssertEqual(self.provider.completions.count, 1)
@@ -397,6 +397,46 @@ final class PledgeFeatureTests: TestCase {
     try self.provider.backings.finish(1, .success(.template))
     _ = try await refresh.value
     XCTAssertEqual(self.provider.backingInputs, [1, 1])
+  }
+
+  func testCanceledReadCallerCannotConsumeSharedSuccess() async throws {
+    let route = UUID()
+    let canceled = Task { try await self.feature.backing(route: route, id: 1) }
+    await self.provider.backings.waitFor(1)
+    var delivered = false
+    let observer = self.feature.backingResult(route: route, id: 1).startWithResult {
+      if case .success = $0 { delivered = true } else { XCTFail("Shared read failed") }
+    }
+    defer { observer.dispose() }
+    canceled.cancel()
+    try self.provider.backings.finish(0, .success(.template))
+    do {
+      _ = try await canceled.value
+      XCTFail("Canceled caller received a result")
+    } catch { XCTAssertTrue(error is CancellationError) }
+    await self.feature.waitForOperations()
+    XCTAssertTrue(delivered)
+    XCTAssertEqual(self.provider.backings.count, 1)
+  }
+
+  func testSharedReadFailureReachesBothWaitersWithoutRetry() async throws {
+    let route = UUID()
+    let failure = ErrorEnvelope(errorMessages: ["Unavailable"], ksrCode: nil, httpCode: 503, exception: nil)
+    var errors: [[String]] = []
+    let first = self.feature.backingResult(route: route, id: 1).startWithResult {
+      if case let .failure(error) = $0 { errors.append(error.errorMessages) }
+      else { XCTFail("Expected read failure") }
+    }
+    let second = self.feature.backingResult(route: route, id: 1).startWithResult {
+      if case let .failure(error) = $0 { errors.append(error.errorMessages) }
+      else { XCTFail("Expected shared read failure") }
+    }
+    defer { first.dispose(); second.dispose() }
+    await self.provider.backings.waitFor(1)
+    try self.provider.backings.finish(0, .failure(failure))
+    await self.feature.waitForOperations()
+    XCTAssertEqual(errors, [["Unavailable"], ["Unavailable"]])
+    XCTAssertEqual(self.provider.backings.count, 1)
   }
 
   func testChangedBackingRejectsOldResponseAndRoutesStayIndependent() async throws {
@@ -549,7 +589,10 @@ final class PledgeFeatureTests: TestCase {
     await self.provider.plans.waitFor(1)
     let latest = self.feature.paymentPlanResult(route: route, slug: "project", amount: "20.00")
       .startWithResult {
-        if case .success = $0 { latestDelivered = true } else { XCTFail("Unexpected plan failure") }
+        if case let .success(plan) = $0 {
+          latestDelivered = true
+          XCTAssertEqual(plan?.amountIsPledgeOverTimeEligible, true)
+        } else { XCTFail("Unexpected plan failure") }
       }
     defer {
       old.dispose()
@@ -557,9 +600,9 @@ final class PledgeFeatureTests: TestCase {
     }
     await self.provider.plans.waitFor(2)
     try self.provider.plans.finish(
-      1, .success(try testGraphObject(jsonString: buildPaymentPlanQueryJson(eligible: true))))
+      1, .success(PledgePaymentPlan(amountIsPledgeOverTimeEligible: true, paymentIncrements: [])))
     try self.provider.plans.finish(
-      0, .success(try testGraphObject(jsonString: buildPaymentPlanQueryJson(eligible: false))))
+      0, .success(PledgePaymentPlan(amountIsPledgeOverTimeEligible: false, paymentIncrements: [])))
     await self.feature.waitForOperations()
     XCTAssertFalse(oldDelivered)
     XCTAssertTrue(latestDelivered)
@@ -579,11 +622,44 @@ final class PledgeFeatureTests: TestCase {
     await self.provider.plans.waitFor(1)
     self.feature.releaseRead(route: route)
     try self.provider.plans.finish(
-      0, .success(try testGraphObject(jsonString: buildPaymentPlanQueryJson(eligible: true))))
+      0, .success(PledgePaymentPlan(amountIsPledgeOverTimeEligible: true, paymentIncrements: [])))
     await self.feature.waitForOperations()
     XCTAssertEqual(delivered, 0)
     XCTAssertEqual(self.provider.planInputs.count, 1)
   }
+  func testAbsentPaymentPlanIsDeliveredAsSuccessfulAbsence() async throws {
+    var delivered = false
+    let observer = self.feature.paymentPlanResult(route: UUID(), slug: "project", amount: "10.00")
+      .startWithResult {
+        if case let .success(plan) = $0 {
+          delivered = true
+          XCTAssertNil(plan)
+        } else { XCTFail("Absent plan is not a request failure") }
+      }
+    defer { observer.dispose() }
+    await self.provider.plans.waitFor(1)
+    try self.provider.plans.finish(0, .success(nil))
+    await self.feature.waitForOperations()
+    XCTAssertTrue(delivered)
+  }
+
+  func testCheckoutCompletionFailureIsDeliveredWithoutAutomaticRetry() async throws {
+    let failure = ErrorEnvelope(errorMessages: ["Declined"], ksrCode: nil, httpCode: 400, exception: nil)
+    var errors: [[String]] = []
+    let observer = self.feature.completeCheckoutResult(
+      .init(checkoutId: "c", paymentIntentClientSecret: "fixture")
+    ).startWithResult {
+      if case let .failure(error) = $0 { errors.append(error.errorMessages) }
+      else { XCTFail("Failed completion acknowledged") }
+    }
+    defer { observer.dispose() }
+    await self.provider.completions.waitFor(1)
+    try self.provider.completions.finish(0, .failure(failure))
+    await self.feature.waitForOperations()
+    XCTAssertEqual(errors, [["Declined"]])
+    XCTAssertEqual(self.provider.completions.count, 1)
+  }
+
   func testPublicDemoRejectsAddressAndReceiptWrites() async {
     let provider = AsyncPledgeProvider(service: MockService.publicDemo())
     do {
@@ -634,7 +710,7 @@ private final class ControlledPledgeProvider: PledgeProvider {
   }
   let addresses = AccountRequestGate<Bool>()
   let overviewReceipts = AccountRequestGate<Bool>()
-  let plans = AccountRequestGate<GraphAPI.BuildPaymentPlanQuery.Data>()
+  let plans = AccountRequestGate<PledgePaymentPlan?>()
   var addressInputs: [(String, String)] = []
   var receiptInputs: [(String, Bool)] = []
   var planInputs: [(String, String)] = []
@@ -646,14 +722,14 @@ private final class ControlledPledgeProvider: PledgeProvider {
     self.receiptInputs.append((backingID, received))
     return try await self.overviewReceipts.request()
   }
-  func paymentPlan(slug: String, amount: String) async throws -> GraphAPI.BuildPaymentPlanQuery.Data
+  func paymentPlan(slug: String, amount: String) async throws -> PledgePaymentPlan?
   {
     self.planInputs.append((slug, amount))
     return try await self.plans.request()
   }
   let checkouts = AccountRequestGate<CreateCheckoutEnvelope>()
   let validations = AccountRequestGate<ValidateCheckoutEnvelope>()
-  let completions = AccountRequestGate<GraphAPI.CompleteOnSessionCheckoutMutation.Data>()
+  let completions = AccountRequestGate<Void>()
   let projects = AccountRequestGate<Project>()
   let backings = AccountRequestGate<Backing>()
   var checkoutInputs: [KsApi.CreateCheckoutInput] = []
@@ -672,7 +748,6 @@ private final class ControlledPledgeProvider: PledgeProvider {
     return try await self.validations.request()
   }
   func completeCheckout(_ input: GraphAPI.CompleteOnSessionCheckoutInput) async throws
-    -> GraphAPI.CompleteOnSessionCheckoutMutation.Data
   {
     self.completionInputs.append(input)
     return try await self.completions.request()

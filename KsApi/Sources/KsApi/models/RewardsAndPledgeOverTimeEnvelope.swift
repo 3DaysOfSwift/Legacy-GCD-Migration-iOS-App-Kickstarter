@@ -1,7 +1,7 @@
 import Foundation
 import ReactiveSwift
 
-public struct RewardsAndPledgeOverTimeEnvelope {
+public struct RewardsAndPledgeOverTimeEnvelope: Sendable {
   public let rewards: [Reward]
   public let isPledgeOverTimeAllowed: Bool
   public let pledgeOverTimeCollectionPlanChargeExplanation: String?

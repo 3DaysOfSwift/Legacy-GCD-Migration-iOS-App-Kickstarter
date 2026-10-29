@@ -17,6 +17,27 @@ The primitive scan matched **40 lines in 25 files**. None matched the Feature
 implementation directory. That does not make every Feature concurrency-clean:
 complete compiler diagnostics also expose non-Sendable transfer boundaries.
 
+## Latest refresh: checkout/query transport and actor-owned reads — 29 October 2026
+
+checkPledgeCheckout, finishPledgeCheckout, pledgePaymentPlan, managedPledgeBacking and
+managedPledgeRewards now map on the callback executor into checked values or Void.
+PledgeFeature read tasks signal completion; mixed project/update payloads remain in
+an explicit MainActor-owned result slot. Shared waiters, route/session freshness,
+read-after-write ordering and cancellation retain their original contracts.
+
+Final regression: 1,979 selected tests, no failures/skips; app build passed with zero
+errors/two warnings. Seventeen new cases and nine newly selected existing API tests.
+The initial complete-check run exposed the read-task boundary and prompted its fix;
+the final complete-check build reports no matching PledgeFeature diagnostic or
+changed service/plan conversion diagnostic. Reward's existing
+shared Prelude comparator remains separately open. No broad suppression or unchecked
+Sendable annotation was added. Generic/raw Apollo compatibility remains retained.
+
+Pledged-project overview and other project-detail/reward/related-project/provider
+graphs still require conversion. Syntax inventory remains eight lines/five files;
+it is not a defect count. Full visual/device and live operations are unverified.
+Evidence: sibling `Migration Evidence/kickstarter-checkout-query-transport/`.
+
 ## Latest refresh: mapped pledge mutation transport — 29 October 2026
 
 submitPledge, revisePledge, cancelPledge, openPledgeCheckout, confirmPledgeAddress and

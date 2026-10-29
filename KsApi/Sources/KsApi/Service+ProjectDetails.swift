@@ -102,6 +102,17 @@ extension Service {
       }
   }
 
+  @MainActor func cancellableQuery<Query: GraphQLQuery, Value: Sendable>(
+    _ query: Query, map: @escaping @Sendable (Query.Data) throws -> Value
+  ) async throws -> Value {
+    try await CancellableGraphQLRequest.fetch(start: { completion in
+      GraphQL.shared.client.fetch(
+        query: query, cachePolicy: .fetchIgnoringCacheCompletely,
+        queue: .global(qos: .userInitiated), resultHandler: completion
+      )
+    }, map: map)
+  }
+
   @MainActor func cancellableQuery<Query: GraphQLQuery>(_ query: Query) async throws -> Query
     .Data {
     try await CancellableGraphQLRequest.fetch { completion in

@@ -1,6 +1,6 @@
 
 
-public struct ShippingRule {
+public struct ShippingRule: Sendable {
   public let cost: Double
   public let id: Int?
   public let location: Location

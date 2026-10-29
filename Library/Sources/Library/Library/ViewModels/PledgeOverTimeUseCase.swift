@@ -87,7 +87,7 @@ public final class PledgeOverTimeUseCase: PledgeOverTimeUseCaseType, PledgeOverT
         (
           paymentPlanInputs: (project: Project, amount: String)
         ) -> SignalProducer<
-          Signal<(Project, GraphAPI.BuildPaymentPlanQuery.Data), ErrorEnvelope>.Event,
+          Signal<(Project, PledgePaymentPlan?), ErrorEnvelope>.Event,
           Never
         > in
         feature.paymentPlanResult(
@@ -127,12 +127,12 @@ public final class PledgeOverTimeUseCase: PledgeOverTimeUseCaseType, PledgeOverT
       .map {
         (
           project: Project,
-          pledgeOverTimeApiValues: GraphAPI.BuildPaymentPlanQuery.Data
+          pledgeOverTimeApiValues: PledgePaymentPlan?
         ) -> PledgePaymentPlansAndSelectionData? in
 
         // Wrap the value in `nil` to ensure the Signal emits consistently,
         // even when the API request fails or Pledge Over Time is disabled.
-        guard let paymentPlan = pledgeOverTimeApiValues.project?.paymentPlan else { return nil }
+        guard let paymentPlan = pledgeOverTimeApiValues else { return nil }
 
         let isPledgeOverTimePreSelected =
           project.personalization.backing?.paymentIncrements.isEmpty == false
@@ -144,8 +144,9 @@ public final class PledgeOverTimeUseCase: PledgeOverTimeUseCaseType, PledgeOverT
           ? PledgePaymentPlansType.pledgeOverTime : PledgePaymentPlansType.pledgeInFull
 
         return PledgePaymentPlansAndSelectionData(
-          withPaymentPlanFragment: paymentPlan,
           selectedPlan: defaultPlan,
+          increments: paymentPlan.paymentIncrements,
+          ineligible: !paymentPlan.amountIsPledgeOverTimeEligible,
           project: project
         )
       }

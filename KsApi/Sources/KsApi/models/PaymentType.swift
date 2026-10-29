@@ -1,6 +1,6 @@
 import Foundation
 
-public enum PaymentType: String, Decodable {
+public enum PaymentType: String, Decodable, Sendable {
   case applePay = "APPLE_PAY"
   case creditCard = "CREDIT_CARD"
   case googlePay = "ANDROID_PAY"

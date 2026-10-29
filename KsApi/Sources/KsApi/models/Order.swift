@@ -1,7 +1,7 @@
 import Foundation
 import GraphAPI
 
-public struct Order: Equatable, Decodable {
+public struct Order: Equatable, Decodable, Sendable {
   public let checkoutState: CheckoutState
   public let currency: String
   public let total: Int?
@@ -17,7 +17,7 @@ public struct Order: Equatable, Decodable {
   }
 }
 
-public enum CheckoutState: String, Decodable {
+public enum CheckoutState: String, Decodable, Sendable {
   case complete
   case inProgress = "in_progress"
   case notStarted = "not_started"

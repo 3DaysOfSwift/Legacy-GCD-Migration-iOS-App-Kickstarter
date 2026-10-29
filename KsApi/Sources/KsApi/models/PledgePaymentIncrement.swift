@@ -1,8 +1,8 @@
 import Foundation
 
-public struct PledgePaymentIncrement: Equatable, Decodable {
-  public struct Badge: Equatable, Decodable {
-    public enum Variant: String, Decodable {
+public struct PledgePaymentIncrement: Equatable, Decodable, Sendable {
+  public struct Badge: Equatable, Decodable, Sendable {
+    public enum Variant: String, Decodable, Sendable {
       case purple = "PURPLE"
       case green = "GREEN"
       case red = "RED"
@@ -34,7 +34,7 @@ public struct PledgePaymentIncrement: Equatable, Decodable {
   }
 }
 
-public struct PledgePaymentIncrementAmount: Equatable, Decodable {
+public struct PledgePaymentIncrementAmount: Equatable, Decodable, Sendable {
   public internal(set) var currency: String
   public internal(set) var amountFormattedInProjectNativeCurrency: String
 
@@ -49,7 +49,7 @@ public struct PledgePaymentIncrementAmount: Equatable, Decodable {
 
 extension PledgePaymentIncrement {
   /// Represents the refund status of a payment increment.
-  public enum RefundStatus: Equatable, Decodable {
+  public enum RefundStatus: Equatable, Decodable, Sendable {
     /// No refund has been issued for this payment increment.
     case notRefunded
     /// A refund has been issued for this payment increment.

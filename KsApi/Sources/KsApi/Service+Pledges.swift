@@ -70,44 +70,41 @@ extension Service {
   @MainActor public func checkPledgeCheckout(
     checkoutID: String, sourceID: String, secret: String
   ) async throws -> ValidateCheckoutEnvelope {
-    let data = try await self.cancellableQuery(
+    try await self.cancellableQuery(
       GraphAPI.ValidateCheckoutQuery(
         checkoutId: checkoutID, paymentSourceId: sourceID, paymentIntentClientSecret: secret
-      ))
-    guard let envelope = ValidateCheckoutEnvelope.validateCheckoutEnvelope(from: data)
-    else { throw ErrorEnvelope.couldNotParseJSON }
-    guard data.checkout?.isValidForOnSessionCheckout.valid == true
-    else { throw ErrorEnvelope.validateCheckoutError(envelope.messages) }
-    return envelope
+      ), map: { try ValidateCheckoutEnvelope.validated(from: $0) })
   }
 
   @MainActor public func finishPledgeCheckout(
     _ input: GraphAPI.CompleteOnSessionCheckoutInput
-  ) async throws -> GraphAPI.CompleteOnSessionCheckoutMutation.Data {
-    try await CancellableGraphQLRequest.fetch { completion in
+  ) async throws {
+    // Completion is an acknowledgement. Preserve success for any root data;
+    // the existing checkout screen never consumes the mutation's nested payload.
+    let _: Void = try await CancellableGraphQLRequest.fetch(start: { completion in
       GraphQL.shared.client.perform(
         mutation: GraphAPI.CompleteOnSessionCheckoutMutation(input: input),
         queue: .global(qos: .userInitiated), resultHandler: completion)
-    }
+    }, map: { _ in () })
   }
 
   @MainActor public func managedPledgeBacking(id: Int) async throws -> Backing {
-    let data = try await self.cancellableQuery(
-      GraphAPI.FetchBackingWithIncrementsRefundedQuery(id: "\(id)"))
-    guard let backing = Backing.managedBacking(from: data) else {
-      throw ErrorEnvelope.couldNotParseJSON
-    }
-    return backing
+    try await self.cancellableQuery(
+      GraphAPI.FetchBackingWithIncrementsRefundedQuery(id: "\(id)"), map: { data in
+        guard let backing = Backing.managedBacking(from: data) else {
+          throw ErrorEnvelope.couldNotParseJSON
+        }
+        return backing
+      })
   }
 
   @MainActor public func managedPledgeRewards(projectID: Int) async throws
     -> RewardsAndPledgeOverTimeEnvelope
   {
-    let data = try await self.cancellableQuery(
+    try await self.cancellableQuery(
       GraphAPI.FetchProjectRewardsByIdQuery(
         projectId: projectID, includeShippingRules: true, includePledgeOverTime: true
-      ))
-    return Project.projectRewardsAndPledgeOverTimeData(from: data)
+      ), map: { Project.projectRewardsAndPledgeOverTimeData(from: $0) })
   }
 }
 
@@ -140,8 +137,10 @@ extension Service {
     }, map: { $0.updateBackerCompleted?.backing?.backerCompleted == received })
   }
   @MainActor public func pledgePaymentPlan(slug: String, amount: String) async throws
-    -> GraphAPI.BuildPaymentPlanQuery.Data
+    -> PledgePaymentPlan?
   {
-    try await self.cancellableQuery(GraphAPI.BuildPaymentPlanQuery(slug: slug, amount: amount))
+    try await self.cancellableQuery(
+      GraphAPI.BuildPaymentPlanQuery(slug: slug, amount: amount),
+      map: { PledgePaymentPlan.from($0) })
   }
 }

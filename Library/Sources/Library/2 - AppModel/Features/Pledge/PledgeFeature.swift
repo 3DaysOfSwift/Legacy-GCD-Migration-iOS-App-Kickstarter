@@ -9,12 +9,11 @@ public protocol PledgeProvider {
   func projectUpdate(_ id: Int, param: Param) async throws -> Update
   func confirmAddress(backingID: String, addressID: String) async throws -> Bool
   func receipt(backingID: String, received: Bool) async throws -> Bool
-  func paymentPlan(slug: String, amount: String) async throws -> GraphAPI.BuildPaymentPlanQuery.Data
+  func paymentPlan(slug: String, amount: String) async throws -> PledgePaymentPlan?
   func openCheckout(_ input: KsApi.CreateCheckoutInput) async throws -> CreateCheckoutEnvelope
   func validateCheckout(checkoutID: String, sourceID: String, secret: String) async throws
     -> ValidateCheckoutEnvelope
   func completeCheckout(_ input: GraphAPI.CompleteOnSessionCheckoutInput) async throws
-    -> GraphAPI.CompleteOnSessionCheckoutMutation.Data
   func project(_ param: Param) async throws -> Project
   func backing(_ id: Int) async throws -> Backing
 
@@ -41,7 +40,7 @@ public struct AsyncPledgeProvider: PledgeProvider {
     try await self.service.setPledgeReceipt(backingID: backingID, received: received)
   }
   public func paymentPlan(slug: String, amount: String) async throws
-    -> GraphAPI.BuildPaymentPlanQuery.Data
+    -> PledgePaymentPlan?
   {
     try await self.service.pledgePaymentPlan(slug: slug, amount: amount)
   }
@@ -57,7 +56,6 @@ public struct AsyncPledgeProvider: PledgeProvider {
       checkoutID: checkoutID, sourceID: sourceID, secret: secret)
   }
   public func completeCheckout(_ input: GraphAPI.CompleteOnSessionCheckoutInput) async throws
-    -> GraphAPI.CompleteOnSessionCheckoutMutation.Data
   {
     try await self.service.finishPledgeCheckout(input)
   }
@@ -134,7 +132,7 @@ public final class PledgeFeature {
     case acknowledged(Bool)
     case checkout(CreateCheckoutEnvelope)
     case validated(ValidateCheckoutEnvelope)
-    case completed(GraphAPI.CompleteOnSessionCheckoutMutation.Data)
+    case completed
     case created(CreateBackingEnvelope)
     case updated(UpdateBackingEnvelope)
     case canceled
@@ -179,7 +177,8 @@ public final class PledgeFeature {
             try await provider.validateCheckout(
               checkoutID: checkoutID, sourceID: sourceID, secret: secret))
         case .completeCheckout(let input):
-          value = .completed(try await provider.completeCheckout(input))
+          try await provider.completeCheckout(input)
+          value = .completed
         case .create(let input): value = .created(try await provider.create(input))
         case .update(let input): value = .updated(try await provider.update(input))
         case .cancel(let input):
@@ -262,7 +261,6 @@ public final class PledgeFeature {
         .validateCheckout(checkoutID: checkoutID, sourceID: sourceID, secret: secret)))
   }
   public func completeCheckout(_ input: GraphAPI.CompleteOnSessionCheckoutInput) async throws
-    -> GraphAPI.CompleteOnSessionCheckoutMutation.Data
   {
     try Self.completed(await self.execute(.completeCheckout(input)))
   }
@@ -279,7 +277,7 @@ public final class PledgeFeature {
       transform: Self.validated)
   }
   public func completeCheckoutResult(_ input: GraphAPI.CompleteOnSessionCheckoutInput)
-    -> SignalProducer<GraphAPI.CompleteOnSessionCheckoutMutation.Data, ErrorEnvelope>
+    -> SignalProducer<Void, ErrorEnvelope>
   {
     self.result(.completeCheckout(input), transform: Self.completed)
   }
@@ -292,10 +290,8 @@ public final class PledgeFeature {
     return envelope
   }
   private static func completed(_ value: Value) throws
-    -> GraphAPI.CompleteOnSessionCheckoutMutation.Data
   {
-    guard case .completed(let data) = value else { throw ErrorEnvelope.couldNotParseJSON }
-    return data
+    guard case .completed = value else { throw ErrorEnvelope.couldNotParseJSON }
   }
 
   private static func created(_ value: Value) throws -> CreateBackingEnvelope {
@@ -388,42 +384,55 @@ public final class PledgeFeature {
   }
   private enum ReadValue {
     case updateContext(Project, Update)
-    case plan(GraphAPI.BuildPaymentPlanQuery.Data)
+    case plan(PledgePaymentPlan?)
     case project(Project)
     case backing(Backing)
   }
-  private struct PendingRead {
+  // Mixed project/update values remain on MainActor. The task transports only
+  // completion; shared waiters inspect this actor-owned result after it finishes.
+  @MainActor private final class ReadOutcome {
+    var result: Result<ReadValue, Error>?
+  }
+  @MainActor private struct PendingRead {
     let id: UUID
     let input: Read
     let version: Int
     let session: Session
-    let task: Task<ReadValue, Error>
+    let task: Task<Void, Never>
+    let outcome: ReadOutcome
+
+    func value() async throws -> ReadValue {
+      await self.task.value
+      guard let result = self.outcome.result else { throw ErrorEnvelope.couldNotParseJSON }
+      return try result.get()
+    }
   }
   private var reads: [UUID: PendingRead] = [:]
   private var readVersions: [UUID: UUID] = [:]
-  private var readTasks: [UUID: Task<ReadValue, Error>] = [:]
+  private var readTasks: [UUID: Task<Void, Never>] = [:]
 
-  private func requestRead(route: UUID, input: Read) -> Task<ReadValue, Error> {
+  private func requestRead(route: UUID, input: Read) -> PendingRead {
     let session = self.session
     let version = self.writeVersion[session, default: 0]
     if let pending = self.reads[route], pending.input == input, pending.session == session,
       pending.version == version
     {
-      return pending.task
+      return pending
     }
     self.reads[route]?.task.cancel()
     let id = UUID()
     let provider = self.makeProvider()
     let precedingWrite = self.tails[session]?.task
+    let outcome = ReadOutcome()
     let task = Task { [self] in
       defer {
         self.readTasks[id] = nil
         if self.reads[route]?.id == id { self.reads[route] = nil }
       }
-      // A refresh must not overtake a write that the screen has already admitted.
-      if let precedingWrite { _ = await precedingWrite.result }
-      try self.requireCurrent(session)
       do {
+        // A refresh must not overtake a write that the screen has already admitted.
+        if let precedingWrite { _ = await precedingWrite.result }
+        try self.requireCurrent(session)
         let value: ReadValue
         switch input {
         case .updateContext(let param, let updateID):
@@ -437,17 +446,18 @@ public final class PledgeFeature {
         case .backing(let id): value = .backing(try await provider.backing(id))
         }
         try self.requireCurrent(session)
-        return value
+        outcome.result = .success(value)
       } catch {
-        try self.requireCurrent(session)
-        throw error
+        outcome.result = .failure(
+          Task.isCancelled || self.session != session ? CancellationError() : error)
       }
     }
+    let pending = PendingRead(
+      id: id, input: input, version: version, session: session, task: task, outcome: outcome)
     self.readVersions[route] = id
-    self.reads[route] = PendingRead(
-      id: id, input: input, version: version, session: session, task: task)
+    self.reads[route] = pending
     self.readTasks[id] = task
-    return task
+    return pending
   }
 
   /// A web-to-native update destination is one coherent read. Replacing or
@@ -460,7 +470,7 @@ public final class PledgeFeature {
     do {
       let request = self.requestRead(route: route, input: .updateContext(param, updateID))
       let version = self.readVersions[route]
-      let value = try await request.value
+      let value = try await request.value()
       try self.requireCurrent(session)
       guard self.readVersions[route] == version else { throw CancellationError() }
       return try Self.updateContext(value)
@@ -483,14 +493,14 @@ public final class PledgeFeature {
   }
 
   public func paymentPlan(route: UUID, slug: String, amount: String) async throws
-    -> GraphAPI.BuildPaymentPlanQuery.Data
+    -> PledgePaymentPlan?
   {
     try Task.checkCancellation()
     let session = self.session
     do {
       let request = self.requestRead(route: route, input: .plan(slug, amount))
       let version = self.readVersions[route]
-      let value = try await request.value
+      let value = try await request.value()
       try self.requireCurrent(session)
       guard self.readVersions[route] == version else { throw CancellationError() }
       return try Self.plan(value)
@@ -500,11 +510,11 @@ public final class PledgeFeature {
     }
   }
   public func paymentPlanResult(route: UUID, slug: String, amount: String) -> SignalProducer<
-    GraphAPI.BuildPaymentPlanQuery.Data, ErrorEnvelope
+    PledgePaymentPlan?, ErrorEnvelope
   > {
     self.readResult(route: route, input: .plan(slug, amount), transform: Self.plan)
   }
-  private static func plan(_ value: ReadValue) throws -> GraphAPI.BuildPaymentPlanQuery.Data {
+  private static func plan(_ value: ReadValue) throws -> PledgePaymentPlan? {
     guard case .plan(let data) = value else { throw ErrorEnvelope.couldNotParseJSON }
     return data
   }
@@ -514,7 +524,7 @@ public final class PledgeFeature {
     do {
       let request = self.requestRead(route: route, input: .project(param))
       let version = self.readVersions[route]
-      let value = try await request.value
+      let value = try await request.value()
       try self.requireCurrent(session)
       guard self.readVersions[route] == version else { throw CancellationError() }
       return try Self.project(value)
@@ -529,7 +539,7 @@ public final class PledgeFeature {
     do {
       let request = self.requestRead(route: route, input: .backing(id))
       let version = self.readVersions[route]
-      let value = try await request.value
+      let value = try await request.value()
       try self.requireCurrent(session)
       guard self.readVersions[route] == version else { throw CancellationError() }
       return try Self.backing(value)
@@ -569,7 +579,7 @@ public final class PledgeFeature {
         let task = Task { [self] in
           defer { self.observations[id] = nil }
           do {
-            let value = try await request.value
+            let value = try await request.value()
             try self.requireCurrent(session)
             guard self.readVersions[route] == version else { throw CancellationError() }
             observer.send(value: try transform(value))
@@ -605,7 +615,7 @@ public final class PledgeFeature {
   }
   public func waitForOperations() async {
     while !self.commands.isEmpty || !self.observations.isEmpty || !self.readTasks.isEmpty {
-      for task in Array(self.readTasks.values) { _ = await task.result }
+      for task in Array(self.readTasks.values) { await task.value }
       for task in Array(self.commands.values) { _ = await task.result }
       for task in Array(self.observations.values) { await task.value }
     }
