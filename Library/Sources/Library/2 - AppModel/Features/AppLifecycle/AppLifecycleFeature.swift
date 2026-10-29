@@ -82,6 +82,10 @@ public final class AppLifecycleFeature {
     let task: Task<Value, Error>
   }
   private let makeProvider: () -> any AppLifecycleProvider
+  private let resolveRedirect: (URL) async throws -> URL?
+  private var redirects: [UUID: (url: URL, request: Pending<URL?>)] = [:]
+  private var redirectVersions: [UUID: UUID] = [:]
+  private var redirectTasks: [UUID: Task<URL?, Error>] = [:]
   private let sleep: (TimeInterval) async throws -> Void
   private var config: Pending<Config>?
   private var recommendations: (userID: Int?, request: Pending<Bool>)?
@@ -96,6 +100,7 @@ public final class AppLifecycleFeature {
   public init(
     sessionFeature: SessionFeature, settingsFeature: SettingsFeature,
     messagingFeature: MessagingFeature, makeProvider: @escaping () -> any AppLifecycleProvider,
+    resolveRedirect: @escaping (URL) async throws -> URL? = { try await FirstRedirectResolver.resolve($0) },
     sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
       if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
     }
@@ -105,6 +110,7 @@ public final class AppLifecycleFeature {
     self.messagingFeature = messagingFeature
     self.makeProvider = makeProvider
     self.sleep = sleep
+    self.resolveRedirect = resolveRedirect
   }
   private var session: Session {
     Session(userID: self.sessionFeature.currentUser?.id, generation: self.sessionFeature.generation)
@@ -204,6 +210,39 @@ public final class AppLifecycleFeature {
     return task
   }
 
+  /// One replaceable email-link read per navigation route. URL is Sendable;
+  /// the session and operation identity are checked again after every waiter resumes.
+  public func firstRedirect(_ url: URL, route: UUID) async throws -> URL? {
+    try Task.checkCancellation()
+    let session = self.session
+    let pending: Pending<URL?>
+    if let current = self.redirects[route], current.url == url, current.request.session == session {
+      pending = current.request
+    } else {
+      self.release(route: route)
+      let id = UUID()
+      let task = Task { [self] in
+        defer {
+          self.redirectTasks[id] = nil
+          if self.redirects[route]?.request.id == id { self.redirects[route] = nil }
+        }
+        try self.requireCurrent(session)
+        let value = try await self.resolveRedirect(url)
+        try self.requireCurrent(session)
+        guard self.redirectVersions[route] == id else { throw CancellationError() }
+        return value
+      }
+      pending = Pending(id: id, session: session, task: task)
+      self.redirects[route] = (url, pending)
+      self.redirectVersions[route] = id
+      self.redirectTasks[id] = task
+    }
+    let value = try await pending.task.value
+    try self.requireCurrent(session)
+    guard self.redirectVersions[route] == pending.id else { throw CancellationError() }
+    return value
+  }
+
   public func resolve(_ navigation: Navigation, route: UUID) async throws -> Destination? {
     try Task.checkCancellation()
     let result = try await self.requestDestination(navigation, route: route).value
@@ -298,19 +337,22 @@ public final class AppLifecycleFeature {
 
   public func release(route: UUID) {
     self.destinations.removeValue(forKey: route)?.request.task.cancel()
+    self.redirects.removeValue(forKey: route)?.request.task.cancel()
+    self.redirectVersions[route] = nil
   }
   public func reset() {
     self.config?.task.cancel()
     self.recommendations?.request.task.cancel()
-    for route in Array(self.destinations.keys) { self.release(route: route) }
+    for route in Set(self.destinations.keys).union(self.redirectVersions.keys) { self.release(route: route) }
     for task in self.observers.values { task.cancel() }
   }
   public func waitForOperations() async {
     while !self.configTasks.isEmpty || !self.recommendationTasks.isEmpty
-      || !self.destinationTasks.isEmpty || !self.pushTasks.isEmpty || !self.observers.isEmpty
+      || !self.redirectTasks.isEmpty || !self.destinationTasks.isEmpty || !self.pushTasks.isEmpty || !self.observers.isEmpty
     {
       for task in Array(self.configTasks.values) { _ = await task.result }
       for task in Array(self.recommendationTasks.values) { _ = await task.result }
+      for task in Array(self.redirectTasks.values) { _ = await task.result }
       for task in Array(self.destinationTasks.values) { _ = await task.result }
       for task in Array(self.pushTasks.values) { _ = await task.result }
       for task in Array(self.observers.values) { await task.value }
@@ -346,5 +388,31 @@ public final class AppLifecycleFeature {
         lifetime.observeEnded { task.cancel() }
       }
     }
+  }
+}
+
+/// The SDK requires a delegate to stop redirects. It has no mutable state or UI
+/// callbacks; native URLSession async transport owns completion and cancellation.
+public final class FirstRedirectResolver: NSObject, URLSessionTaskDelegate {
+  public static func resolve(_ url: URL) async throws -> URL? {
+    let session = URLSession(configuration: .default)
+    defer { session.invalidateAndCancel() }
+    let (_, response) = try await session.data(for: URLRequest(url: url), delegate: FirstRedirectResolver())
+    try Task.checkCancellation()
+    return self.destination(in: response)
+  }
+  static func destination(in response: URLResponse) -> URL? {
+    guard let response = response as? HTTPURLResponse,
+      [301, 302, 303, 307, 308].contains(response.statusCode),
+      let location = response.value(forHTTPHeaderField: "Location"), !location.isEmpty,
+      let base = response.url else { return nil }
+    return URL(string: location, relativeTo: base)?.absoluteURL
+  }
+  public func urlSession(
+    _ session: URLSession, task: URLSessionTask,
+    willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
+    completionHandler: @escaping (URLRequest?) -> Void
+  ) {
+    completionHandler(nil)
   }
 }

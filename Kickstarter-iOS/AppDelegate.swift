@@ -283,7 +283,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     self.viewModel.outputs.findRedirectUrl
       .observeForUI()
-      .observeValues { [weak self] in self?.findRedirectUrl($0) }
+      .observeValues { [weak self] in self?.viewModel.inputs.resolveEmailRedirect($0) }
 
     self.viewModel.outputs.emailVerificationCompleted
       .observeForUI()
@@ -481,12 +481,6 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
     self.rootTabBarController?.switchToMessageThread(messageThread)
   }
 
-  private func findRedirectUrl(_ url: URL) {
-    let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
-    let task = session.dataTask(with: url)
-    task.resume()
-  }
-
   private func appTrackingAuthorizationChanged(status: AppTrackingAuthorization) {
     guard !self.isPublicDemo else { return }
     self.updateFirebaseConsent(status: status)
@@ -606,21 +600,6 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
     automation.requestAuthorizationAtLaunch = false
     automation.registerDeviceToken = false
     return automation
-  }
-}
-
-// MARK: - URLSessionTaskDelegate
-
-extension AppDelegate: URLSessionTaskDelegate {
-  public func urlSession(
-    _: URLSession,
-    task _: URLSessionTask,
-    willPerformHTTPRedirection _: HTTPURLResponse,
-    newRequest request: URLRequest,
-    completionHandler: @escaping (URLRequest?) -> Void
-  ) {
-    request.url.doIfSome(self.viewModel.inputs.foundRedirectUrl)
-    completionHandler(nil)
   }
 }
 

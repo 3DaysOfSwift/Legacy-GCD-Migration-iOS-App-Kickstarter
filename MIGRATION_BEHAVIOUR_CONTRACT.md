@@ -1016,3 +1016,12 @@ and must disappear once the example reaches a terminal page. The waiter belongs
 to the SwiftUI row; Feature owners coalesce repeated requests. Keep the existing
 list, cell, status and spinner styling. The demo's first-six-row stall was observed
 and corrected; one terminal-state regression and the shared PPO suites passed.
+
+### Email-click redirects — 29 October 2026
+
+Resolve the first HTTP redirect only, preserving default URLSession configuration
+and existing silent failure/no-destination behavior. Never follow its target as
+part of this resolution. A navigation route owns one current read: equivalent
+pending URLs share, changed links supersede, ordinary new navigation and session
+reset reject obsolete results. Deliver to the existing navigation input on MainActor.
+The delegate only declines redirect following; it never touches UI or ViewModels.

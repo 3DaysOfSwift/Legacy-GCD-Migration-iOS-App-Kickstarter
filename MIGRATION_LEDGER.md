@@ -43,6 +43,34 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Owned email-link redirects — 29 October 2026
+
+AppDelegate no longer creates an unowned data task or receives URLSession redirects.
+AppDelegateViewModel routes the intent to AppLifecycleFeature and owns its delivery
+waiter. The Feature shares equivalent pending URLs and invalidates replaced routes,
+session changes and resets. A newer ordinary navigation cancels the presentation
+waiter synchronously, including requests not yet started. The stateless URLSession
+delegate declines following; native async transport returns the first redirect's
+Location and invalidates its session on all exits. Failures/no redirect stay silent.
+No UI, navigation matching or persistence redesign.
+
+**19 Library + 206 framework = 225 selected tests passed**, zero failures/skips,
+including four new redirect cases. App build passed: zero errors/two existing
+warnings. A separate native transport probe against a temporary loopback HTTP server
+verified first-redirect resolution, no redirect following, ordinary-response nil and
+cancellation. It did not contact the email service. Results:
+/private/tmp/kickstarter-email-redirect.xzonfm. Evidence: sibling Migration
+Evidence/kickstarter-email-redirect.
+
+Two compile attempts failed before correction: capturing self before all ViewModel
+outputs were initialized, then accessing actor-owned cleanup state from deinit.
+No runtime test failures or human terminal commands. The final code retains cleanup
+on its owner. Live email-service integration, rendered navigation, reference snapshots
+and physical-device validation remain open. Next: root-tab avatar loading, then
+permissions/configuration/media ownership and broader concurrency remediation.
+
+### Previous verified checkpoint
+
 ### Platform audit and pagination integration — 29 October 2026
 
 The platform callback audit is recorded in `MIGRATION_PLATFORM_CALLBACK_AUDIT.md`.

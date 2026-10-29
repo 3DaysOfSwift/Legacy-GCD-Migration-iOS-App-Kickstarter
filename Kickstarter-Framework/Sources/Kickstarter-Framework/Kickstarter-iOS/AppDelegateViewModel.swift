@@ -68,6 +68,7 @@ public protocol AppDelegateViewModelInputs {
   func didUpdateRemoteConfigClient()
 
   /// Call when the redirect URL has been found, see `findRedirectUrl` for more information.
+  func resolveEmailRedirect(_ url: URL)
   func foundRedirectUrl(_ url: URL)
 
   /// Call when the users taps 'Log in or Sign up' from the onboarding flow (`OnboardingView`).
@@ -200,11 +201,19 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   AppDelegateViewModelOutputs {
   private let lifecycleFeature: AppLifecycleFeature
   private let navigationRoute = UUID()
+  @MainActor private final class RedirectObservation {
+    var task: Task<Void, Never>?
+    var input: URL?
+    var id: UUID?
+    func cancel() { self.task?.cancel(); self.task = nil; self.input = nil; self.id = nil }
+  }
+  private let redirectObservation = RedirectObservation()
 
   public init(lifecycleFeature: AppLifecycleFeature? = nil) {
     let lifecycleFeature = lifecycleFeature ?? AppModel.shared.appLifecycleFeature
     self.lifecycleFeature = lifecycleFeature
     let route = self.navigationRoute
+    let redirectObservation = self.redirectObservation
     let settingsFeature = lifecycleFeature.settingsFeature
     let currentUserEvent = Signal
       .merge(
@@ -404,7 +413,9 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       .skipNil()
 
     let deepLink = deeplinkActivated
-    let destinations = deepLink.switchMap { navigation in
+    let destinations = deepLink.switchMap { navigation -> SignalProducer<AppLifecycleFeature.Destination, Never> in
+      if navigation == .emailClick { return .empty }
+      redirectObservation.cancel()
       // Admit synchronously so every newer link invalidates old work immediately.
       let request = lifecycleFeature.requestDestination(navigation, route: route)
       return lifecycleFeature.result { try await request.value }.demoteErrors().skipNil()
@@ -589,13 +600,37 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   }
 
   deinit {
+    let redirectObservation = self.redirectObservation
     let feature = self.lifecycleFeature
     let route = self.navigationRoute
-    Task { @MainActor in feature.release(route: route) }
+    Task { @MainActor in
+      redirectObservation.cancel()
+      feature.release(route: route)
+    }
   }
 
   public var inputs: AppDelegateViewModelInputs { return self }
   public var outputs: AppDelegateViewModelOutputs { return self }
+
+  public func resolveEmailRedirect(_ url: URL) {
+    if self.redirectObservation.input == url, self.redirectObservation.task != nil { return }
+    self.redirectObservation.task?.cancel()
+    self.redirectObservation.input = url
+    let id = UUID()
+    self.redirectObservation.id = id
+    let feature = self.lifecycleFeature, route = self.navigationRoute
+    self.redirectObservation.task = Task { [weak self] in
+      defer {
+        if self?.redirectObservation.id == id { self?.redirectObservation.task = nil; self?.redirectObservation.input = nil }
+      }
+      do {
+        let destination = try await feature.firstRedirect(url, route: route)
+        try Task.checkCancellation()
+        guard let self, self.redirectObservation.id == id, let destination else { return }
+        self.foundRedirectUrl(destination)
+      } catch { /* Preserve the existing silent failure/no-redirect behavior. */ }
+    }
+  }
 
   fileprivate let applicationContinueUserActivityProperty = MutableProperty<NSUserActivity?>(nil)
   public func applicationContinueUserActivity(_ userActivity: NSUserActivity) -> Bool {
