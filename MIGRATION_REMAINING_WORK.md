@@ -9,13 +9,17 @@ creator draft work is superseded by their completed checkpoints.
 
 ## Remaining implementation and audit work
 
-1. **Remaining UIKit callback contracts:** audit remaining checkout/controller
-   notification callbacks, haptic helpers and UI protocol/delegate boundaries.
+1. **Remaining UIKit callback contracts:** audit Stripe authentication/Apple Pay delegate
+   callbacks, remaining controller observations and other UI protocol boundaries.
    Shared ValueCell/data-source ownership, discovery observations, nib entry points,
-   processing/overlay protocols and the checkout release path are now checkpointed.
+   processing/overlay protocols, checkout release, four checkout/login session
+   observers, checkout UI delegates and haptic helpers are now checkpointed.
 2. **Task-boundary values and shared state:** finish Feature result/provider graphs,
    separating immutable snapshots from actor-owned mutable objects. Account and
-   checkout/backing/watch value graphs are checkpointed. Classify global style/lens
+   checkout/backing/watch value graphs and payment command results are checkpointed.
+   All five payment service operations now map Apollo data before callback-to-task
+   transfer. Other generated-response providers and legacy generic callers remain.
+   Classify global style/lens
    and generated Apollo diagnostics; resolve unsafe migrated application boundaries.
    A warning-free Swift 6 language conversion is a separate scope, not an implied
    requirement to rewrite all generated/third-party compatibility machinery.

@@ -2,7 +2,7 @@ import Foundation
 import GraphAPI
 import ReactiveSwift
 
-public struct PaymentIntentEnvelope: Decodable {
+public struct PaymentIntentEnvelope: Decodable, Sendable {
   public let clientSecret: String
 }
 

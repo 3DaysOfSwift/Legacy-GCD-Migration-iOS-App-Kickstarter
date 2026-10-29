@@ -64,7 +64,7 @@ public final class PaymentsFeature {
       switch self { case .remove, .store: return true; default: return false }
     }
   }
-  private enum Value {
+  private enum Value: Sendable {
     case removed(DeletePaymentMethodEnvelope)
     case stored(CreatePaymentSourceEnvelope)
     case setup(ClientSecretEnvelope)

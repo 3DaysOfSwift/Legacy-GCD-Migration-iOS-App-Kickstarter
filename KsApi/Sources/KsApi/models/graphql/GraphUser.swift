@@ -2,7 +2,7 @@ import Foundation
 import Prelude
 
 // TODO: Remove public access
-public struct GraphUser: Decodable {
+public struct GraphUser: Decodable, Sendable {
   public var chosenCurrency: String?
   public var email: String?
   public var hasPassword: Bool?

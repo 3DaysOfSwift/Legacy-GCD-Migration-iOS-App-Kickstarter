@@ -3,6 +3,7 @@ import UIKit
 
 // MARK: - Haptic feedback
 
+@MainActor
 func generateImpactFeedback(
   feedbackGenerator: UIImpactFeedbackGeneratorType = UIImpactFeedbackGenerator(style: .light)
 ) {
@@ -10,6 +11,7 @@ func generateImpactFeedback(
   feedbackGenerator.impactOccurred()
 }
 
+@MainActor
 func generateNotificationSuccessFeedback(
   feedbackGenerator: UINotificationFeedbackGeneratorType = UINotificationFeedbackGenerator()
 ) {
@@ -17,6 +19,7 @@ func generateNotificationSuccessFeedback(
   feedbackGenerator.notificationOccurred(.success)
 }
 
+@MainActor
 func generateNotificationWarningFeedback(
   feedbackGenerator: UINotificationFeedbackGeneratorType = UINotificationFeedbackGenerator()
 ) {
@@ -24,6 +27,7 @@ func generateNotificationWarningFeedback(
   feedbackGenerator.notificationOccurred(.warning)
 }
 
+@MainActor
 func generateSelectionFeedback(
   feedbackGenerator: UISelectionFeedbackGeneratorType = UISelectionFeedbackGenerator()
 ) {

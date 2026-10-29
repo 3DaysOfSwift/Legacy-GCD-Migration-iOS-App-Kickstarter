@@ -51,7 +51,7 @@ public final class LoginToutViewController: UIViewController, MFMailComposeViewC
   }()
 
   private lazy var separatorView: UIView = { UIView(frame: .zero) }()
-  private var sessionStartedObserver: Any?
+  private var sessionStartedObserver: MainActorNotificationObservation?
   private let oauth = OAuth()
 
   private let viewModel: LoginToutViewModelType = LoginToutViewModel()
@@ -79,10 +79,9 @@ public final class LoginToutViewController: UIViewController, MFMailComposeViewC
 
     self.fbLoginManager.logOut()
 
-    self.sessionStartedObserver = NotificationCenter.default
-      .addObserver(forName: .ksr_sessionStarted, object: nil, queue: .main) { [weak self] _ in
-        MainActor.assumeIsolated { self?.viewModel.inputs.userSessionStarted() }
-      }
+    self.sessionStartedObserver = MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
+      self?.viewModel.inputs.userSessionStarted()
+    }
 
     if self.presentingViewController != nil {
       self.navigationItem.leftBarButtonItem = .close(self, selector: #selector(self.closeButtonPressed))
@@ -96,10 +95,6 @@ public final class LoginToutViewController: UIViewController, MFMailComposeViewC
     super.viewWillAppear(animated)
     self.viewModel.inputs.view(isPresented: self.presentingViewController != nil)
     self.viewModel.inputs.viewWillAppear()
-  }
-
-  deinit {
-    self.sessionStartedObserver.doIfSome(NotificationCenter.default.removeObserver)
   }
 
   // MARK: - Styles

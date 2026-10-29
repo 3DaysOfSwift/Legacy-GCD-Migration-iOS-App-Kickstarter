@@ -1,10 +1,10 @@
 
 
 // TODO: Remove public access
-public struct UserCreditCards: Decodable {
+public struct UserCreditCards: Decodable, Sendable {
   public var storedCards: [CreditCard]
 
-  public struct CreditCard: Decodable, Equatable {
+  public struct CreditCard: Decodable, Equatable, Sendable {
     public var expirationDate: String
     public var id: String
     public var lastFour: String

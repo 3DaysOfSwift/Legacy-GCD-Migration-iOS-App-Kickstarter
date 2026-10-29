@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 
+@MainActor
 protocol PledgeViewControllerMessageDisplaying: AnyObject {
   func pledgeViewController(
     _ pledgeViewController: UIViewController,

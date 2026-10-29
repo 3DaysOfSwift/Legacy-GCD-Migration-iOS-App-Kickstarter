@@ -1,5 +1,27 @@
 # Kickstarter migration behaviour contract
 
+## Checkout callbacks and payment transport — 29 October 2026
+
+Preserve synchronous main-actor session delivery to pledge, post-campaign checkout,
+pledge-manager web and login controllers. Observer lifetime follows its controller;
+rebinding replaces registration. Existing main-actor publisher audit applies.
+
+UI delegates, message banners, haptics and checkout styling belong to MainActor.
+Keep presentation, feedback kind and prepare-before-feedback order unchanged.
+Video feed readiness/failure callbacks execute on the same UI actor.
+
+Payment reads and writes preserve request inputs, cache policy, SDK executor,
+error mapping and cancellation/token lifetime. Convert generated GraphQL data on
+its callback executor before resuming the Feature with a checked Sendable snapshot.
+GraphQL errors outrank partial data; missing/invalid data retains parsing failure.
+No payment is retried automatically; cancellation cannot undo a server-accepted write.
+
+Retain the legacy generic bridge for other callers pending their individual audits.
+The lock-protected continuation/token holder's existing unchecked conformance is
+not permission to mark Apollo object graphs globally Sendable. No new unchecked
+conformance is added. Source SDK protocol/Apple Pay validation and live payments
+remain open. No visual redesign or language-mode conversion is part of this change.
+
 ## UIKit ownership and checkout values — 29 October 2026
 
 - Shared cell/data-source, layout and overlay UI contracts belong to MainActor.

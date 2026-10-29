@@ -255,6 +255,76 @@ final class SearchRequestCancellationTests: TestCase {
     }
   }
 
+  func testMappedResponseReturnsSnapshotAndIgnoresDuplicateCompletion() async throws {
+    let data = try self.fixture()
+    let token = CancellationProbe()
+    let count: Int? = try await CancellableGraphQLRequest.fetch(start: { completion in
+      completion(.success(self.response(data)))
+      completion(.failure(ProbeError.failed))
+      return token
+    }, map: { $0.projects?.totalCount })
+    XCTAssertEqual(count, data.projects?.totalCount)
+    XCTAssertEqual(token.count, 0)
+  }
+
+  func testMappedResponsePreservesConversionFailure() async throws {
+    let data = try self.fixture()
+    do {
+      let _: Int = try await CancellableGraphQLRequest.fetch(start: { completion in
+        completion(.success(self.response(data)))
+        return CancellationProbe()
+      }, map: { _ in throw ProbeError.failed })
+      XCTFail("Expected conversion failure")
+    } catch ProbeError.failed {
+      // The conversion error reaches the caller unchanged.
+    }
+  }
+
+  func testMappedResponseRejectsGraphQLErrorBeforeConversion() async throws {
+    let data = try self.fixture()
+    do {
+      let _: Int = try await CancellableGraphQLRequest.fetch(start: { completion in
+        completion(.success(GraphQLResult(
+          data: data, extensions: nil,
+          errors: [GraphQLError(["message": "Denied"])], source: .server, dependentKeys: nil
+        )))
+        return CancellationProbe()
+      }, map: { _ in
+        XCTFail("Partial GraphQL data must not be converted into success")
+        return 0
+      })
+      XCTFail("Expected GraphQL failure")
+    } catch let error as ErrorEnvelope {
+      XCTAssertEqual(error.ksrCode, .GraphQLError)
+      XCTAssertEqual(error.errorMessages, ["Denied"])
+    }
+  }
+
+  func testMappedResponseCancellationRejectsLateSuccess() async throws {
+    let data = try self.fixture()
+    let started = expectation(description: "mapped request started")
+    let token = CancellationProbe()
+    var callback: GraphQLResultHandler<GraphAPI.SearchQuery.Data>?
+    let task = Task<Int?, Error> { @MainActor in
+      try await CancellableGraphQLRequest.fetch(start: { completion in
+        callback = completion
+        started.fulfill()
+        return token
+      }, map: { $0.projects?.totalCount })
+    }
+    defer { task.cancel() }
+    await fulfillment(of: [started], timeout: 2)
+    task.cancel()
+    do {
+      _ = try await task.value
+      XCTFail("Expected cancellation")
+    } catch is CancellationError {
+      XCTAssertEqual(token.count, 1)
+    }
+    callback?(.success(self.response(data)))
+    XCTAssertEqual(token.count, 1)
+  }
+
   private func fixture() throws -> GraphAPI.SearchQuery.Data {
     let url = try XCTUnwrap(Bundle(for: Self.self).url(
       forResource: "SearchQuery_FiveResults", withExtension: "json"

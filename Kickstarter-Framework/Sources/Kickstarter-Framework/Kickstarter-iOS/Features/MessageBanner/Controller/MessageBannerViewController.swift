@@ -2,6 +2,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 public protocol MessageBannerViewControllerPresenting {
   var messageBannerViewController: MessageBannerViewController? { get set }
 
@@ -9,6 +10,7 @@ public protocol MessageBannerViewControllerPresenting {
     -> MessageBannerViewController?
 }
 
+@MainActor
 public protocol MessageBannerViewControllerDelegate: AnyObject {
   // Called when banner view hides if dismissType is `.bannerOnly`.
   func messageBannerViewDidHide(type: MessageBannerType)

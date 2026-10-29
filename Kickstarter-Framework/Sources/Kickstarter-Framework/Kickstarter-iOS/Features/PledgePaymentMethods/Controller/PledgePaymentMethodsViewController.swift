@@ -5,6 +5,7 @@ import Prelude
 import StripePaymentSheet
 import UIKit
 
+@MainActor
 protocol PledgePaymentMethodsViewControllerDelegate: AnyObject {
   func pledgePaymentMethodsViewController(
     _ viewController: PledgePaymentMethodsViewController,

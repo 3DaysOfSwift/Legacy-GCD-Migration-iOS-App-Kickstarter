@@ -1,6 +1,6 @@
 
 
-public struct ChangePaymentMethodEnvelope {
+public struct ChangePaymentMethodEnvelope: Sendable {
   public let newCheckoutUrl: String?
   public let status: Int
 }

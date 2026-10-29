@@ -122,7 +122,7 @@ final class PledgeViewController: UIViewController,
       |> \.translatesAutoresizingMaskIntoConstraints .~ false
   }()
 
-  private var sessionStartedObserver: Any?
+  private var sessionStartedObserver: MainActorNotificationObservation?
   private let viewModel: PledgeViewModelType = PledgeViewModel()
 
   // MARK: - Lifecycle
@@ -155,10 +155,6 @@ final class PledgeViewController: UIViewController,
 
     // Sending `.pledgeInFull` as default option
     self.viewModel.inputs.paymentPlanSelected(.pledgeInFull)
-  }
-
-  deinit {
-    self.sessionStartedObserver.doIfSome(NotificationCenter.default.removeObserver)
   }
 
   // MARK: - Configuration
@@ -340,10 +336,9 @@ final class PledgeViewController: UIViewController,
         self?.goToLoginSignup(with: intent)
       }
 
-    self.sessionStartedObserver = NotificationCenter.default
-      .addObserver(forName: .ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
-        self?.viewModel.inputs.userSessionDidChange()
-      }
+    self.sessionStartedObserver = MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
+      self?.viewModel.inputs.userSessionDidChange()
+    }
 
     self.viewModel.outputs.goToApplePayPaymentAuthorization
       .observeForControllerAction()

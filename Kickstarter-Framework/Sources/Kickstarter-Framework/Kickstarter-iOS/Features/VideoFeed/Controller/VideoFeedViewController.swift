@@ -47,10 +47,10 @@ final class VideoFeedViewController: UIViewController {
   private var isShareSheetPresented = false
 
   /// Called once the first batch of items has loaded and the feed is ready to present.
-  var onReadyToPresent: (() -> Void)?
+  var onReadyToPresent: (@MainActor () -> Void)?
 
   /// Called if the initial fetch fails.
-  var onFetchFailed: (() -> Void)?
+  var onFetchFailed: (@MainActor () -> Void)?
 
   private lazy var collectionView: UICollectionView = {
     let layout = UICollectionViewFlowLayout()

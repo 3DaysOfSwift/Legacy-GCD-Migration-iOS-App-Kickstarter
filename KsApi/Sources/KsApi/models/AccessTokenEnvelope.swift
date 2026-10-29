@@ -1,6 +1,6 @@
 
 
-public struct AccessTokenEnvelope {
+public struct AccessTokenEnvelope: Sendable {
   public let accessToken: String
   public let user: User
 

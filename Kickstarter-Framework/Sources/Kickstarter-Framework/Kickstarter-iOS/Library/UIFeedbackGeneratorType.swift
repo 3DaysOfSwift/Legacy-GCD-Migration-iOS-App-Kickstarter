@@ -2,6 +2,7 @@ import UIKit
 
 // MARK: - UIFeedbackGenerator
 
+@MainActor
 protocol UIFeedbackGeneratorType {
   func prepare()
 }

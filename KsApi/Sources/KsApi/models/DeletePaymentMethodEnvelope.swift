@@ -1,6 +1,6 @@
 import Foundation
 
-public struct DeletePaymentMethodEnvelope {
+public struct DeletePaymentMethodEnvelope: Sendable {
   public let storedCards: [UserCreditCards.CreditCard]
 }
 

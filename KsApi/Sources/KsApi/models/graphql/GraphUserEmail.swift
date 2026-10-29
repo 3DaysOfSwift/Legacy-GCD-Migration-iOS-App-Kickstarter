@@ -1,7 +1,7 @@
 import Foundation
 import Prelude
 
-public struct GraphUserEmail: Decodable {
+public struct GraphUserEmail: Decodable, Sendable {
   public var email: String?
 }
 

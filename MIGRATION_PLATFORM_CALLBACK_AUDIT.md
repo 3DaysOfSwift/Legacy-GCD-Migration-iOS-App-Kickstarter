@@ -17,6 +17,26 @@ The primitive scan matched **40 lines in 25 files**. None matched the Feature
 implementation directory. That does not make every Feature concurrency-clean:
 complete compiler diagnostics also expose non-Sendable transfer boundaries.
 
+## Latest refresh: checkout callbacks and mapped payment transport — 29 October 2026
+
+Four checkout/login session observers use the owned synchronous MainActor adapter.
+Checkout UI delegates, banners, haptics and video-feed presentation callbacks now
+state UI isolation. Post-campaign checkout retains two Stripe SDK conformance
+warnings; inspect their native callback contracts and lifetime before bridging them.
+
+Payment cards/remove/store/setup/intent operations convert Apollo selection sets on
+the callback executor, returning only checked Sendable snapshots. No generated type
+is broadly declared Sendable. Legacy generic callers remain supported through the
+original fetch entry point and retain their non-Sendable transfer diagnostics.
+The existing lock-protected token/continuation holder remains narrowly unchecked;
+this checkpoint adds no unchecked conformance or suppression.
+
+Final selected regression: 1,923 passed; app and complete-check builds succeeded.
+Recompiled payment service/Feature emit no matching concurrency warnings. Inventory
+remains eight lines/five files (syntax only; shorthand SDK queue arguments are not
+counted by this regex). Incremental diagnostics: 3,034, not a comparable full count.
+No new visual/device/live-service validation is claimed. See sibling evidence.
+
 ## Latest refresh: UIKit and response-value contracts — 29 October 2026
 
 ValueCell/data-source ownership, UI factories and overlay/processing protocols now

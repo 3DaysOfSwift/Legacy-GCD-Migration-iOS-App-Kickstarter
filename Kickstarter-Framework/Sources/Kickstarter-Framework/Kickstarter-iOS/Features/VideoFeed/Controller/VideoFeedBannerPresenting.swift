@@ -1,6 +1,7 @@
 import Library
 import UIKit
 
+@MainActor
 protocol VideoFeedBannerPresenting: UIViewController, MessageBannerViewControllerPresenting {
   /// Retained across opens so VM state persists. Also prevents double-tapping while loading.
   var videoFeedVC: VideoFeedViewController? { get set }

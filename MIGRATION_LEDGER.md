@@ -43,6 +43,49 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Checkout callbacks and payment transport snapshots — 29 October 2026
+
+Pledge, post-campaign checkout, pledge-manager web and login controllers now retain
+main-actor session observations with automatic registration cleanup. Delivery keeps
+its synchronous order; controller release/rebinding does not leave an untyped token.
+Checkout delegates, banner presentation, haptics and UI styling state MainActor
+ownership. Video-feed readiness/failure callbacks carry the same explicit contract.
+
+All five native payment service operations now convert generated Apollo response
+objects inside the transport callback and resume with checked Sendable value
+snapshots. Card storage/removal, setup/payment intents and card reads retain their
+inputs, cache policy, executor, errors and cancellation. The Payment Feature's
+internal command result and reviewed card/user/intent/envelope graphs have checked
+conformances. UserEnvelope is conditionally Sendable only for Sendable payloads.
+No new unchecked conformance or blanket generated-object annotation was added.
+
+Final verification: **1,435 Library + 371 framework + 117 API = 1,923 passed**,
+zero failures/skips; app build succeeded with zero errors and two warnings.
+Four new mapped-transport tests cover snapshot return/duplicate callback, conversion
+failure, GraphQL-error precedence over partial data and late success after cancellation.
+Thirteen existing decoding cases extend API selection. Existing UI and snapshot
+requirements are preserved. One unsuccessful compile exposed a video-feed callback
+actor contract, corrected before passing runs. No runtime failures or human commands.
+
+Complete checking succeeded in Swift 5. Recompiled Service+Payments and
+PaymentsFeature emit no matching concurrency warnings. PostCampaignCheckout reduced
+from 19 matching diagnostics to two SDK delegate conformance warnings:
+STPAuthenticationContext and STPApplePayContextDelegate. Framework haptic helpers
+emit none; Library's separate table-height helpers still emit two diagnostics.
+The latest incremental scan observes 3,034 unique matching warnings; differing
+compilation scope means totals are not a global before/after defect comparison.
+
+Legacy unmapped Apollo callers remain, including the generic bridge's non-Sendable
+payload diagnostics. The new mapped API constrains its returned Value to Sendable;
+its conversion closure must be pure and safe on the callback executor. Existing
+lock-protected token/continuation lifetime remains. No automatic payment retries.
+Evidence: `../Migration Evidence/kickstarter-checkout-boundaries/`; final results:
+`/private/tmp/kickstarter-checkout-boundaries.ic5SPw/`.
+
+Next: Stripe delegate/confirmation lifetime and remaining generated-response
+provider boundaries. **App-wide migration remains in progress. Full visual/device,
+3DS/Apple Pay and live operations remain unverified.**
+
 ### UIKit callback ownership and checked checkout values — 29 October 2026
 
 Shared ValueCell/data-source and processing/overlay presentation contracts now state

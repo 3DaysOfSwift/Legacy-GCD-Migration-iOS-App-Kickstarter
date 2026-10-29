@@ -5,6 +5,7 @@ import PassKit
 import Prelude
 import UIKit
 
+@MainActor
 protocol PledgeViewCTAContainerViewDelegate: AnyObject {
   func applePayButtonTapped()
   func goToLoginSignup()

@@ -79,7 +79,7 @@ final class PostCampaignCheckoutViewController: UIViewController,
       |> \.translatesAutoresizingMaskIntoConstraints .~ false
   }()
 
-  private var sessionStartedObserver: Any?
+  private var sessionStartedObserver: MainActorNotificationObservation?
 
   private let viewModel: PostCampaignCheckoutViewModelType =
     PostCampaignCheckoutViewModel(stripeIntentService: StripeIntentService())
@@ -119,7 +119,6 @@ final class PostCampaignCheckoutViewController: UIViewController,
     // removes it; never capture or resurrect the checkout controller.
     let processingView = self.processingView
     Task { @MainActor in processingView?.removeFromSuperview() }
-    self.sessionStartedObserver.doIfSome(NotificationCenter.default.removeObserver)
   }
 
   // MARK: - Configuration
@@ -263,10 +262,9 @@ final class PostCampaignCheckoutViewController: UIViewController,
         self.presentHelpWebViewController(with: helpType, presentationStyle: .formSheet)
       }
 
-    self.sessionStartedObserver = NotificationCenter.default
-      .addObserver(forName: .ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
-        self?.viewModel.inputs.userSessionDidChange()
-      }
+    self.sessionStartedObserver = MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
+      self?.viewModel.inputs.userSessionDidChange()
+    }
 
     self.viewModel.outputs.goToLoginSignup
       .observeForControllerAction()
@@ -529,6 +527,7 @@ extension PostCampaignCheckoutViewController: STPApplePayContextDelegate {
   }
 }
 
+@MainActor
 private func rootInsetStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = NSLayoutConstraint.Axis.vertical
   stackView.spacing = Styles.grid(4)
@@ -539,6 +538,7 @@ private func rootInsetStackViewStyle(_ stackView: UIStackView) {
   )
 }
 
+@MainActor
 public func roundedStyle(_ view: UIView, cornerRadius: CGFloat = Dimension.CornerRadius.small) {
   view.clipsToBounds = true
   view.layer.masksToBounds = true

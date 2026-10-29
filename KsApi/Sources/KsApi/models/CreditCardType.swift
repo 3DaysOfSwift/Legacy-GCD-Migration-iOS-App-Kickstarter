@@ -1,6 +1,6 @@
 import Foundation
 
-public enum CreditCardType: String, Decodable, CaseIterable {
+public enum CreditCardType: String, Decodable, CaseIterable, Sendable {
   case amex = "AMEX"
   case diners = "DINERS"
   case discover = "DISCOVER"

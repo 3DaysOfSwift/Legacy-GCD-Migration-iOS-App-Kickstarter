@@ -9,7 +9,23 @@ internal enum CancellableGraphQLRequest {
   @MainActor static func fetch<Data: RootSelectionSet>(
     start: (@escaping GraphQLResultHandler<Data>) -> Cancellable
   ) async throws -> Data {
-    let pending = PendingGraphQLRequest<Data>()
+    try await self.perform(start: start, map: { $0 })
+  }
+
+  /// Decode a checked value snapshot on the callback executor. Generated Apollo
+  /// selection sets stay there instead of crossing into the awaiting Feature.
+  @MainActor static func fetch<Data: RootSelectionSet, Value: Sendable>(
+    start: (@escaping GraphQLResultHandler<Data>) -> Cancellable,
+    map: @escaping @Sendable (Data) throws -> Value
+  ) async throws -> Value {
+    try await self.perform(start: start, map: map)
+  }
+
+  @MainActor private static func perform<Data: RootSelectionSet, Value>(
+    start: (@escaping GraphQLResultHandler<Data>) -> Cancellable,
+    map: @escaping @Sendable (Data) throws -> Value
+  ) async throws -> Value {
+    let pending = PendingGraphQLRequest<Value>()
     let data = try await withTaskCancellationHandler {
       try Task.checkCancellation()
       return try await withCheckedThrowingContinuation { continuation in
@@ -20,7 +36,8 @@ internal enum CancellableGraphQLRequest {
             if let message = result.errors?.first?.errorDescription {
               pending.complete(.failure(ErrorEnvelope.graphError(message)))
             } else if let data = result.data {
-              pending.complete(.success(data))
+              do { pending.complete(.success(try map(data))) }
+              catch { pending.complete(.failure(error)) }
             } else {
               pending.complete(.failure(ErrorEnvelope.couldNotParseJSON))
             }
@@ -44,7 +61,7 @@ internal enum CancellableGraphQLRequest {
 /// resumption runs under the lock (both can re-enter through callbacks).
 /// This narrowly scoped unchecked conformance protects a callback/cancellation
 /// race; it does not declare Apollo payloads or the client globally Sendable.
-internal final class PendingGraphQLRequest<Data: RootSelectionSet>: @unchecked Sendable {
+internal final class PendingGraphQLRequest<Data>: @unchecked Sendable {
   private let lock = NSLock()
   private var continuation: CheckedContinuation<Data, Error>?
   private var request: Cancellable?

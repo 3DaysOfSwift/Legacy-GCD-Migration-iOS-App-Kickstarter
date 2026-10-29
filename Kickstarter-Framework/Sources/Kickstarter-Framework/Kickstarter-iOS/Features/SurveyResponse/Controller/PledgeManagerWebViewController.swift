@@ -11,7 +11,7 @@ internal protocol PledgeManagerWebViewControllerDelegate: AnyObject {
 
 internal final class PledgeManagerWebViewController: WebViewController {
   internal weak var delegate: PledgeManagerWebViewControllerDelegate?
-  private var sessionStartedObserver: Any?
+  private var sessionStartedObserver: MainActorNotificationObservation?
   fileprivate let viewModel: PledgeManagerWebViewModelType = PledgeManagerWebViewModel()
 
   internal static func configuredWith(url: String)
@@ -41,10 +41,6 @@ internal final class PledgeManagerWebViewController: WebViewController {
       }
   }
 
-  deinit {
-    self.sessionStartedObserver.doIfSome(NotificationCenter.default.removeObserver)
-  }
-
   internal override func bindViewModel() {
     super.bindViewModel()
 
@@ -61,10 +57,9 @@ internal final class PledgeManagerWebViewController: WebViewController {
         self?.goToLoginSignup(with: intent)
       }
 
-    self.sessionStartedObserver = NotificationCenter.default
-      .addObserver(forName: .ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
-        self?.viewModel.inputs.userSessionStarted()
-      }
+    self.sessionStartedObserver = MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
+      self?.viewModel.inputs.userSessionStarted()
+    }
 
     self.viewModel.outputs.goToNativeScreen
       .observeForControllerAction()

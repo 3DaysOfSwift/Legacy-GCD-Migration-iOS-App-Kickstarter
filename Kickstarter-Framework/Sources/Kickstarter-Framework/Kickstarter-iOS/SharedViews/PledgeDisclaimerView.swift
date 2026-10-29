@@ -3,6 +3,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 protocol PledgeDisclaimerViewDelegate: AnyObject {
   func pledgeDisclaimerView(_ view: PledgeDisclaimerView, didTapURL: URL)
 }
