@@ -43,6 +43,64 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Layout lifetimes, synchronous HTML and checked value transfer — 29 October 2026
+
+UIKit owns the remaining layout work: Discovery applies current refresh/reload state
+in its layout callback, comments resize their footer there, card shadows use resolved
+bounds, and the reward header measures rows before updating height. Pending state is
+cleared before layout to avoid reentrant replay. Reward-arrow transforms now describe
+the current state instead of accumulating rotations when requests coalesce. Report
+cells retain one hosted view and update its content/insets when configured again.
+
+DeferredRefreshControl replaces the unowned 10ms callback used by manage-pledge and
+add-on screens. It shares a pending start, preserves zero-offset reveal behaviour and
+cancels on end/removal/release. A late completion cannot restart an ended refresh.
+The pledged-card 300ms Combine debounce remains deliberately; its sink now captures
+weakly, breaking the subscription cycle and suppressing events after card release.
+
+The synchronous UIKit HTML formatter and four UI-only Activity ViewModels now state
+MainActor ownership. Fonts, links and fallback remain; SwiftSoup plain-text helpers
+are unchanged. The blocking main-queue hop is removed. Reviewed User/Location nested
+value graphs, ProjectNotification and email-verification envelopes have checked
+Sendable conformances. UI styling helpers state their main-actor contract.
+Complete checking found a Profile avatar-loader default-isolation error; the loader
+now explicitly belongs to MainActor and its default is constructed inside the owner.
+No unchecked conformance or warning suppression was added.
+
+Final verification: **1,413 Library + 270 framework + 104 API = 1,787 passed**, zero
+failures/skips. App build succeeded with zero errors and two existing warnings.
+Seven new regressions cover refresh end/replacement/removal/release, released-card
+callbacks, hosted-cell reuse, current shadow geometry and child-controller expansion.
+Existing HTML, Activity-formatting and model-decoding suites extend the selected
+scope; the count increase is not all new tests. Seven original HTML tests passed
+before editing. Three logic-only Activity suites opt out of snapshot device checks;
+reference snapshot suites are unchanged.
+
+One normal compile attempt needed main-actor test setup, and the first complete-
+checking build exposed the avatar error above. A geometry test run had three fixture
+failures (subpixel comparisons, UIKit-generated constraints, and full-screen rather
+than child-controller hosting). Corrected geometry/lifetime tests passed, then the
+complete selected regression passed. No human-run verification was needed.
+
+Complete-checking builds succeeded in Swift 5 mode, but warnings remain. The last
+incremental diagnostic pass emitted 2,349 unique matching warnings in recompiled
+modules; this is not comparable to the earlier full 3,726 baseline and is not a
+Swift 6 or warning-free claim. Raw diagnostic evidence distinguishes each pass.
+The final normal run also covers the subsequent hosted-cell inset-preservation edit.
+
+The demo launched on iPhone Air/iOS 26.2. Popular sorting, advancing the card list,
+and switching to Newest were observed through the simulator; populated artwork was
+captured. This is a limited smoke check, not full visual/device parity.
+Results: `/private/tmp/kickstarter-layout-html.HKdD2y`; evidence:
+`../Migration Evidence/kickstarter-layout-html/`.
+
+The scoped primitive inventory is now **8 matching lines in 5 files**. The remaining
+SDK queues, retained Combine scheduling and unused generic Apollo compatibility
+bridge are classified in the callback audit. Next: compiler isolation for UIKit
+protocol/lifecycle callbacks and remaining task-result/transport boundaries.
+**App-wide migration remains in progress; full visual/device and live-operation
+validation remain open.**
+
 ### Project-video observation and campaign images — 29 October 2026
 
 Project video now has a controller-owned async event consumer. Native KVO and boundary

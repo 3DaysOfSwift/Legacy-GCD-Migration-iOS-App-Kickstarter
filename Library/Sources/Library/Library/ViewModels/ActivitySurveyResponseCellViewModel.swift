@@ -4,6 +4,7 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol ActivitySurveyResponseCellViewModelInputs {
   /// Call to configure with survey response, number of surveys, and the cell's position in the survey stack.
   func configureWith(surveyResponse: SurveyResponse, count: Int, position: Int)
@@ -12,6 +13,7 @@ public protocol ActivitySurveyResponseCellViewModelInputs {
   func respondNowButtonTapped()
 }
 
+@MainActor
 public protocol ActivitySurveyResponseCellViewModelOutputs {
   /// Emits image url to creator's avatar.
   var creatorImageURL: Signal<URL?, Never> { get }
@@ -32,11 +34,13 @@ public protocol ActivitySurveyResponseCellViewModelOutputs {
   var surveyLabelText: Signal<NSAttributedString, Never> { get }
 }
 
+@MainActor
 public protocol ActivitySurveyResponseCellViewModelType {
   var inputs: ActivitySurveyResponseCellViewModelInputs { get }
   var outputs: ActivitySurveyResponseCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class ActivitySurveyResponseCellViewModel: ActivitySurveyResponseCellViewModelType,
   ActivitySurveyResponseCellViewModelInputs, ActivitySurveyResponseCellViewModelOutputs {
   public init() {

@@ -1,13 +1,13 @@
 
 import Foundation
 
-public struct ProjectNotification {
+public struct ProjectNotification: Sendable {
   public let email: Bool
   public let id: Int
   public let mobile: Bool
   public let project: Project
 
-  public struct Project {
+  public struct Project: Sendable {
     public let id: Int
     public let name: String
   }

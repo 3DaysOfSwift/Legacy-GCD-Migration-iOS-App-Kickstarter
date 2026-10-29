@@ -25,7 +25,7 @@ final class RewardAddOnSelectionViewController: UIViewController {
 
   public weak var pledgeViewDelegate: PledgeViewControllerDelegate?
 
-  private lazy var refreshControl: UIRefreshControl = { UIRefreshControl() }()
+  private lazy var refreshControl = DeferredRefreshControl(frame: .zero)
 
   private lazy var tableView: UITableView = {
     let tv = UITableView(frame: .zero)
@@ -198,7 +198,7 @@ final class RewardAddOnSelectionViewController: UIViewController {
     self.viewModel.outputs.startRefreshing
       .observeForUI()
       .observeValues { [weak self] in
-        self?.refreshControl.ksr_beginRefreshing()
+        self?.refreshControl.beginRefreshingAfterLayout()
       }
 
     self.viewModel.outputs.endRefreshing

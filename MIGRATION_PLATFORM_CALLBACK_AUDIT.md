@@ -17,6 +17,37 @@ The primitive scan matched **40 lines in 25 files**. None matched the Feature
 implementation directory. That does not make every Feature concurrency-clean:
 complete compiler diagnostics also expose non-Sendable transfer boundaries.
 
+## Latest refresh: layout/HTML and compiler contracts — 29 October 2026
+
+The same scoped scan now matches **8 lines in 5 files**:
+
+| Current file | Matches | Disposition |
+| --- | ---: | --- |
+| KsApi/AsyncApolloClient.swift | 2 | Unused generic compatibility bridge; queue is an SDK argument, but cancellation/unchecked conformance remain legacy audit items. No active application consumers were identified in the prior pass. |
+| KsApi/MockService.swift | 1 | Combine delay in mock compatibility code; retain while legacy tests/consumers require it. |
+| Framework/Library/UIImageView+URL.swift | 2 | Required AlamofireImage progress queues; per-view receipts, cancellation and UI binding reviewed. |
+| Library/Reachability.swift | 2 | SDK callback queue registration/unregistration, retained native context and Feature-owned async consumer. |
+| PPOProjectCardViewModel.swift | 1 | Retained 300ms Combine debounce; subscription is owned/cancelled on release. Weak sink fixes retain cycle; writes already belong to Feature. |
+
+Discovery refresh/reload, comments footer, reward-header height and postcard shadows
+now use current UIKit layout passes. Report-cell reconfiguration updates one retained
+host. DeferredRefreshControl owns/cancels the existing 10ms timer. HTML parsing stays
+synchronous on MainActor; UI-only Activity callers now carry that contract. Styling
+helpers in the affected files are main-actor-isolated without redesign.
+
+Checked Sendable conformances cover reviewed value-only User/Location nested fields,
+ProjectNotification and email-verification envelopes. Complete checking caught an
+avatar-loader default-isolation error, corrected with explicit MainActor closure
+ownership/default construction. Two subsequent complete-checking builds succeeded.
+The final incremental diagnostic run emitted 2,349 unique matching warnings in its
+recompiled modules only; it is not a new full baseline. UIKit protocols/lifecycle
+hooks, global lens/style state, generated metadata and remaining task-result/provider
+transfers still need work. No unchecked conformance or suppression was added.
+
+Final selected tests: 1,787 passed, zero failures/skips; app build passed. Limited demo
+sorting/scrolling smoke checks passed. Reference-device snapshots, physical-device and
+live-operation validation remain open. Historical inventories below are provenance.
+
 ## Latest refresh: project-video observers and images — 29 October 2026
 
 The same scoped primitive scan matches **16 lines in 12 files**. VideoViewController's
@@ -94,23 +125,23 @@ Paths below are relative to the repository. Counts refer to matching lines, not 
 | Framework/Library/UIImageView+URL.swift | 2 | AlamofireImage progress queue is a UI SDK boundary. Reviewed: preserve cache/filter/transition; per-view receipt/URL checks, weak capture and cancellation. MainActor helper/binding contract. |
 | Library/VideoFeedAudioController.swift | 1 | Implemented: production audio type consolidated; owned stream/reset tasks. |
 | Library/UIPageViewController+ThreadSafety.swift | 1 | Implemented: all six callers reviewed; explicit MainActor synchronous forwarding, no queue hop. |
-| PPOProjectCardViewModel.swift | 1 | Retained Combine debounce; upstream Feature owns the write. Preserve latest-toggle semantics; inspect subscription cycle/lifetime. |
-| DiscoveryPostcardCell.swift | 1 | Next-layout shadow paths, weak cell capture; UIKit timing boundary. |
-| DiscoveryPageViewController.swift | 2 | Deferred refresh animation and table reload; UIKit layout timing, not network work. |
+| PPOProjectCardViewModel.swift | 1 | Retained native Combine debounce; upstream Feature owns writes. Weak sink breaks cycle; release suppression is tested. |
+| DiscoveryPostcardCell.swift | 1 | Implemented: current descendant geometry in layoutSubviews; no deferred closure. |
+| DiscoveryPageViewController.swift | 2 | Implemented: latest pending state applied in UIKit layout callback; animation policy retained. |
 | OnboardingView.swift | 2 at baseline | Replaced by appearance-owned ViewModel delivery; no permission callbacks remain in View. |
-| Library/String+SimpleHTML.swift | 1 | Synchronous HTML parser main-thread requirement; actor contract and callers need review. Do not replace it with a Task returning later. |
+| Library/String+SimpleHTML.swift | 1 | Implemented: synchronous MainActor parser and UI-only caller contracts; no blocking queue hop. |
 | Library/PushRegistration.swift | 1 at baseline | Native async authorization/settings, Feature-owned admitted prompt and cancellable compatibility observer. |
 | VideoFeedToastContainerView.swift | 1 | Implemented: view-owned task retains change-triggered policy. |
-| PledgeExpandableRewardsHeaderViewController.swift | 1 | Deferred layout/animation; preserve layout ordering. |
+| PledgeExpandableRewardsHeaderViewController.swift | 1 | Implemented: row measurement in layout callback and current expansion state; child-controller geometry tested. |
 | Framework/VideoFeedAudioController.swift | 2 | Deleted duplicate; shared production Library controller now tested. |
 | VideoFeedViewController.swift | 8 | Current checkpoint: one observation loop; owned deferred activation and main-queue notification boundaries. |
-| Library/UIRefreshControl+StartRefreshing.swift | 1 | 10ms layout workaround; preserve behavior pending visual validation. |
+| Library/UIRefreshControl+StartRefreshing.swift | 1 | Replaced by DeferredRefreshControl: same delay, owned sharing/cancellation and stale-start rejection. |
 | VideoFeedVideoPlayer.swift | 3 at baseline | Replaced by retained cancellation-aware timers/native seek; per-item observation guards. Populated playback validation remains open. |
 | VideoFeedShareSheetView.swift | 1 | Implemented: SwiftUI-owned confirmation timer. |
-| CommentsViewController.swift | 1 | Table footer layout pass; UIKit scheduling boundary. |
+| CommentsViewController.swift | 1 | Implemented: UIKit layout callback resizes current footer. |
 | MessageBannerView.swift | 1 | Implemented: identity-keyed task; hosted replacement/removal regressions. |
 | Library/Reachability.swift | 2 | Implemented: native handle/context retained and unregistered on release; callback queue yields immutable values to Feature-owned consumer. Retained SDK semantics/deprecation, no NWPathMonitor substitution. |
-| ReportProjectCell.swift | 1 | Deferred hosting-view setup; reuse/ordering review. |
+| ReportProjectCell.swift | 1 | Implemented: one retained host updated synchronously; reuse and accessibility tested. |
 | VideoViewController.swift | 1 | Implemented: native source owns KVO/boundary tokens; async consumer validates boundary identity, cancellation and release. Queue remains a platform requirement. |
 | ProjectPageViewController.swift | 1 | Implemented: Feature-owned native media preparation; stale rows rejected. |
 

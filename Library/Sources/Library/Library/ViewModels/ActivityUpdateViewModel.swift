@@ -4,6 +4,7 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol ActivityUpdateViewModelInputs {
   /// Call to configure with the activity.
   func configureWith(activity: Activity)
@@ -12,6 +13,7 @@ public protocol ActivityUpdateViewModelInputs {
   func tappedProjectImage()
 }
 
+@MainActor
 public protocol ActivityUpdateViewModelOutputs {
   /// Emits the update's body to be displayed.
   var body: Signal<String, Never> { get }
@@ -38,11 +40,13 @@ public protocol ActivityUpdateViewModelOutputs {
   var title: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol ActivityUpdateViewModelType {
   var inputs: ActivityUpdateViewModelInputs { get }
   var outputs: ActivityUpdateViewModelOutputs { get }
 }
 
+@MainActor
 public final class ActivityUpdateViewModel: ActivityUpdateViewModelType, ActivityUpdateViewModelInputs,
   ActivityUpdateViewModelOutputs {
   public init() {
@@ -60,7 +64,7 @@ public final class ActivityUpdateViewModel: ActivityUpdateViewModelType, Activit
 
     self.title = update.map { $0.title }
 
-    self.sequenceTitle = activity.map(updatePostedString(forActivity:))
+    self.sequenceTitle = activity.map { updatePostedString(forActivity: $0) }
 
     self.notifyDelegateTappedProjectImage = activity
       .takeWhen(self.tappedProjectImageProperty.signal)
@@ -94,6 +98,7 @@ public final class ActivityUpdateViewModel: ActivityUpdateViewModelType, Activit
 
 private let decimalCharacterSet = NSCharacterSet.decimalDigits.inverted
 
+@MainActor
 private func updatePostedString(forActivity activity: Activity) -> NSAttributedString {
   let updateNum = Format.wholeNumber(activity.update?.sequence ?? 1)
   let time = Format.relative(secondsInUTC: activity.createdAt)

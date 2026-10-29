@@ -4,6 +4,7 @@ import ReactiveExtensions
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol ActivitySampleBackingCellViewModelInputs {
   /// Call to configure cell with activity value.
   func configureWith(activity: Activity)
@@ -12,6 +13,7 @@ public protocol ActivitySampleBackingCellViewModelInputs {
   func seeAllActivityTapped()
 }
 
+@MainActor
 public protocol ActivitySampleBackingCellViewModelOutputs {
   /// Emits the backer image url to be displayed.
   var backerImageURL: Signal<URL?, Never> { get }
@@ -23,11 +25,13 @@ public protocol ActivitySampleBackingCellViewModelOutputs {
   var goToActivity: Signal<Void, Never> { get }
 }
 
+@MainActor
 public protocol ActivitySampleBackingCellViewModelType {
   var inputs: ActivitySampleBackingCellViewModelInputs { get }
   var outputs: ActivitySampleBackingCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class ActivitySampleBackingCellViewModel: ActivitySampleBackingCellViewModelInputs,
   ActivitySampleBackingCellViewModelOutputs, ActivitySampleBackingCellViewModelType {
   public init() {

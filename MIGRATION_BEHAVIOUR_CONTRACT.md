@@ -1,5 +1,27 @@
 # Kickstarter migration behaviour contract
 
+## Layout, HTML and value-transfer contracts — 29 October 2026
+
+- Keep UIKit HTML import synchronous and preserve fonts, links, formatting and nil
+  fallback. Its formatter and UI-only Activity inputs run on MainActor; background
+  callers must explicitly await the actor rather than block a queue. SwiftSoup text
+  stripping and Markdown conversion keep their existing independent behaviour.
+- Preserve the refresh control's 10ms settling delay and zero-offset reveal policy.
+  Ending loading, removal or release cancels a pending start; repeated pending starts
+  share. A fast completion must never restart the spinner after it ended.
+- Discovery refresh/reload, comment footer sizing, reward expansion and card shadows
+  use UIKit's layout lifecycle and current geometry. Latest pending state wins;
+  preserve animation durations, ordering relative to data load and screen styling.
+- Reconfiguring a report cell updates one retained hosted view, with the existing
+  labels, spacing and accessibility policy; reuse must not accumulate hosted views.
+- Pledged-card toggle retains its 300ms Combine debounce and existing Feature-owned
+  write. Subscription lifetime must not retain the card or emit after release.
+- User, Location, ProjectNotification and email-verification response data remain
+  value types with the same fields/decoding/equality. Checked Sendable conformance
+  is limited to their reviewed value-only stored-property graphs; no unchecked
+  annotation or warning suppression is introduced.
+
+
 ## Project video and campaign images — 29 October 2026
 
 - Preserve playback/pause/replay controls, positive finite duration updates, 85%

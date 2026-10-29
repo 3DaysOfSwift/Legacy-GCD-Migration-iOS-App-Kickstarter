@@ -2,6 +2,7 @@ import KDS
 @testable import Library
 import XCTest
 
+@MainActor
 final class StringSimpleHTMLTests: XCTestCase {
   // FIXME: MBL-2857
   func testHtmlParsing() {

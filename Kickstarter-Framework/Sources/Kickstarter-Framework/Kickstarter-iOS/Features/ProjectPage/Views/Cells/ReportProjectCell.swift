@@ -4,6 +4,10 @@ import SwiftUI
 import UIKit
 
 internal final class ReportProjectCell: UITableViewCell, ValueCell {
+  private var reportHost: UIHostingController<ReportProjectLabelView>?
+  private var leadingInset: NSLayoutConstraint?
+  private var trailingInset: NSLayoutConstraint?
+
   internal func configureWith(value projectFlagged: Bool) {
     self.setupTableViewCellStyle(projectFlagged: projectFlagged)
     self.setupReportProjectLabelView(projectFlagged: projectFlagged)
@@ -33,27 +37,33 @@ internal final class ReportProjectCell: UITableViewCell, ValueCell {
   }
 
   private func setupReportProjectLabelView(projectFlagged: Bool) {
-    DispatchQueue.main.async {
-      let hostingController =
-        UIHostingController(rootView: ReportProjectLabelView(flagged: projectFlagged))
-
-      hostingController.view.translatesAutoresizingMaskIntoConstraints = false
-      hostingController.view.backgroundColor = .clear
-
-      self.contentView.addSubview(hostingController.view)
-
-      let leftRightInset = self.traitCollection.isRegularRegular ? Styles.grid(16) : Styles.gridHalf(5)
-
-      NSLayoutConstraint.activate([
-        hostingController.view.topAnchor
-          .constraint(equalTo: self.contentView.topAnchor, constant: Styles.gridHalf(5)),
-        hostingController.view.bottomAnchor
-          .constraint(equalTo: self.contentView.bottomAnchor, constant: -Styles.gridHalf(5)),
-        hostingController.view.leadingAnchor
-          .constraint(equalTo: self.contentView.leadingAnchor, constant: leftRightInset),
-        hostingController.view.trailingAnchor
-          .constraint(equalTo: self.contentView.trailingAnchor, constant: -leftRightInset)
-      ])
+    let inset = self.traitCollection.isRegularRegular ? Styles.grid(16) : Styles.gridHalf(5)
+    if let host = self.reportHost {
+      self.leadingInset?.constant = inset
+      self.trailingInset?.constant = -inset
+      host.rootView = ReportProjectLabelView(flagged: projectFlagged)
+      return
     }
+    let hostingController =
+      UIHostingController(rootView: ReportProjectLabelView(flagged: projectFlagged))
+
+    self.reportHost = hostingController
+    hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+    hostingController.view.backgroundColor = .clear
+
+    self.contentView.addSubview(hostingController.view)
+
+    let leading = hostingController.view.leadingAnchor.constraint(equalTo: self.contentView.leadingAnchor, constant: inset)
+    let trailing = hostingController.view.trailingAnchor.constraint(equalTo: self.contentView.trailingAnchor, constant: -inset)
+    self.leadingInset = leading
+    self.trailingInset = trailing
+
+    NSLayoutConstraint.activate([
+      hostingController.view.topAnchor
+        .constraint(equalTo: self.contentView.topAnchor, constant: Styles.gridHalf(5)),
+      hostingController.view.bottomAnchor
+        .constraint(equalTo: self.contentView.bottomAnchor, constant: -Styles.gridHalf(5)),
+      leading, trailing
+    ])
   }
 }

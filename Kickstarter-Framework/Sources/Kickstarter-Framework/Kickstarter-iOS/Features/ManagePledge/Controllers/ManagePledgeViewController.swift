@@ -119,7 +119,7 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
       |> \.translatesAutoresizingMaskIntoConstraints .~ false
   }()
 
-  private lazy var refreshControl: UIRefreshControl = { UIRefreshControl() }()
+  private lazy var refreshControl = DeferredRefreshControl(frame: .zero)
 
   private lazy var rootStackView: UIStackView = {
     UIStackView(frame: .zero)
@@ -247,7 +247,7 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
     self.viewModel.outputs.startRefreshing
       .observeForUI()
       .observeValues { [weak self] in
-        self?.refreshControl.ksr_beginRefreshing()
+        self?.refreshControl.beginRefreshingAfterLayout()
       }
 
     self.viewModel.outputs.endRefreshing
@@ -577,11 +577,13 @@ extension ManagePledgeViewController: PledgeViewControllerDelegate {
 
 // MARK: Styles
 
+@MainActor
 private let pledgeDetailsSectionLabelStyle: LabelStyle = { label in
   label
     |> checkoutTitleLabelStyle
 }
 
+@MainActor
 private func applyPlotPaymentScheduleStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
   stackView.spacing = Styles.grid(4)

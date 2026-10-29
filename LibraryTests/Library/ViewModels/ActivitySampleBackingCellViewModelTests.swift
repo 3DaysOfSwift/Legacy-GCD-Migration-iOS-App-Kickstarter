@@ -8,7 +8,9 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class ActivitySampleBackingCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   internal let vm = ActivitySampleBackingCellViewModel()
   internal let backingTitleText = TestObserver<String, Never>()
   internal let backerImage = TestObserver<String?, Never>()
@@ -16,9 +18,11 @@ internal final class ActivitySampleBackingCellViewModelTests: TestCase {
 
   internal override func setUp() {
     super.setUp()
-    self.vm.outputs.backingTitleText.map { $0.string }.observe(self.backingTitleText.observer)
-    self.vm.outputs.backerImageURL.map { $0?.absoluteString }.observe(self.backerImage.observer)
-    self.vm.outputs.goToActivity.observe(self.goToActivity.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.backingTitleText.map { $0.string }.observe(self.backingTitleText.observer)
+      self.vm.outputs.backerImageURL.map { $0?.absoluteString }.observe(self.backerImage.observer)
+      self.vm.outputs.goToActivity.observe(self.goToActivity.observer)
+    }
   }
 
   func testBackingDataEmits() {

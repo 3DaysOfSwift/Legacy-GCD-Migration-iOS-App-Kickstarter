@@ -258,6 +258,7 @@ extension PledgeViewCTAContainerView: UITextViewDelegate {
 
 // MARK: - Styles
 
+@MainActor
 private func ctaStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .horizontal
   stackView.distribution = .fillEqually
@@ -266,6 +267,7 @@ private func ctaStackViewStyle(_ stackView: UIStackView) {
   stackView.isLayoutMarginsRelativeArrangement = true
 }
 
+@MainActor
 private func disclaimerStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
   stackView.spacing = Styles.grid(2)
@@ -278,6 +280,7 @@ private func disclaimerStackViewStyle(_ stackView: UIStackView) {
   stackView.isLayoutMarginsRelativeArrangement = true
 }
 
+@MainActor
 private let layerStyle: LayerStyle = { layer in
   layer
     |> checkoutLayerCardRoundedStyle
@@ -292,6 +295,7 @@ private let layerStyle: LayerStyle = { layer in
     ]
 }
 
+@MainActor
 private func termsTextViewStyle(_ textView: UITextView) {
   textView.isScrollEnabled = false
   textView.isEditable = false
@@ -306,6 +310,7 @@ private func termsTextViewStyle(_ textView: UITextView) {
   textView.textAlignment = .center
 }
 
+@MainActor
 private func attributedTermsText() -> NSAttributedString? {
   let baseUrl = AppEnvironment.current.apiService.serverConfig.webBaseUrl
 
@@ -324,6 +329,7 @@ private func attributedTermsText() -> NSAttributedString? {
   return checkoutAttributedLink(with: string)
 }
 
+@MainActor
 private func pledgeImmediatelyText() -> NSAttributedString? {
   let rawText = Strings.Your_payment_method_will_be_charged()
   return rawText.simpleHtmlAttributedString(font: UIFont.ksr_caption2())

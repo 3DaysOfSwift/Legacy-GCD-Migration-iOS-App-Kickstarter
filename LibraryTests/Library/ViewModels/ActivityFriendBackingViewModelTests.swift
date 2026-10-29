@@ -7,7 +7,9 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class ActivityFriendBackingViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   fileprivate let vm: ActivityFriendBackingViewModelType = ActivityFriendBackingViewModel()
 
   fileprivate let cellAccessibilityLabel = TestObserver<String, Never>()
@@ -15,9 +17,10 @@ internal final class ActivityFriendBackingViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
-
-    self.vm.outputs.friendTitle.map { $0.string }.observe(self.friendTitleLabel.observer)
-    self.vm.outputs.cellAccessibilityLabel.observe(self.cellAccessibilityLabel.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.friendTitle.map { $0.string }.observe(self.friendTitleLabel.observer)
+      self.vm.outputs.cellAccessibilityLabel.observe(self.cellAccessibilityLabel.observer)
+    }
   }
 
   func testFrientTitle_ParentCategory() {

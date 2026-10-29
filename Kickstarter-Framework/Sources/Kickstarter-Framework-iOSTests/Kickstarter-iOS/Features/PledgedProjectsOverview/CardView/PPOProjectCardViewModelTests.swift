@@ -6,6 +6,19 @@ import Combine
 import XCTest
 
 final class PPOProjectCardViewModelTests: XCTestCase {
+  func testPendingToggleDoesNotRetainCardOrEmitAfterRelease() {
+    var model: PPOProjectCardViewModel? = PPOProjectCardViewModel(card: .authenticateCardTemplate)
+    let event = expectation(description: "Released card must not emit a delayed write")
+    event.isInverted = true
+    let subscription = model?.handleEvent.sink { _ in event.fulfill() }
+    model?.rewardToggleTapped(toggleOn: true)
+    weak var released = model
+    model = nil
+    XCTAssertNil(released)
+    wait(for: [event], timeout: 0.4)
+    withExtendedLifetime(subscription) {}
+  }
+
   func testAuthenticateCardButtonAction() throws {
     var cancellables: [AnyCancellable] = []
     let viewModel = PPOProjectCardViewModel(

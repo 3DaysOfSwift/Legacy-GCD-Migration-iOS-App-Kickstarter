@@ -1,6 +1,6 @@
 
 
-public struct User {
+public struct User: Sendable {
   public var avatar: Avatar
   public var chosenCurrency: String?
   public var erroredBackingsCount: Int?
@@ -22,13 +22,13 @@ public struct User {
   public var stats: Stats
   public var unseenActivityCount: Int?
 
-  public struct Avatar {
+  public struct Avatar: Sendable {
     public var large: String?
     public var medium: String
     public var small: String
   }
 
-  public struct NewsletterSubscriptions {
+  public struct NewsletterSubscriptions: Sendable {
     public var arts: Bool?
     public var games: Bool?
     public var happening: Bool?
@@ -56,7 +56,7 @@ public struct User {
     }
   }
 
-  public struct Notifications {
+  public struct Notifications: Sendable {
     public var backings: Bool?
     public var commentReplies: Bool?
     public var comments: Bool?
@@ -77,7 +77,7 @@ public struct User {
     public var updates: Bool?
   }
 
-  public struct Stats {
+  public struct Stats: Sendable {
     public var backedProjectsCount: Int?
     public var createdProjectsCount: Int?
     public var draftProjectsCount: Int?

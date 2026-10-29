@@ -1,4 +1,4 @@
-public struct Location {
+public struct Location: Sendable {
   public let country: String
   public let displayableName: String
   public let id: Int

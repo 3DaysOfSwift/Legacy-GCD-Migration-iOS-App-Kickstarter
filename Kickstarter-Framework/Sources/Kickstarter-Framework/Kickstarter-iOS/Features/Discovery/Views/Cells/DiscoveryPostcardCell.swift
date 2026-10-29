@@ -354,13 +354,10 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
   internal override func layoutSubviews() {
     super.layoutSubviews()
 
-    DispatchQueue.main.async { [weak self] in
-      guard let strongSelf = self else { return }
-
-      strongSelf.cardView.layer.shadowPath = UIBezierPath.init(rect: strongSelf.cardView.bounds).cgPath
-      strongSelf.metadataView.layer.shadowPath =
-        UIBezierPath.init(rect: strongSelf.metadataView.bounds).cgPath
-    }
+    // Resolve descendant geometry now, while UIKit owns this layout pass.
+    self.contentView.layoutIfNeeded()
+    self.cardView.layer.shadowPath = UIBezierPath(rect: self.cardView.bounds).cgPath
+    self.metadataView.layer.shadowPath = UIBezierPath(rect: self.metadataView.bounds).cgPath
   }
 
   @objc fileprivate func saveButtonPressed(_: UIButton) {
@@ -374,6 +371,7 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
 
 // MARK: - Styles
 
+@MainActor
 private let locationStackViewStyle: StackViewStyle = { stackView in
   stackView
     |> \.alignment .~ .center
@@ -381,6 +379,7 @@ private let locationStackViewStyle: StackViewStyle = { stackView in
     |> \.spacing .~ Styles.grid(1)
 }
 
+@MainActor
 private let locationLabelStyle: LabelStyle = { label in
   label
     |> \.font .~ .ksr_footnote()
@@ -389,6 +388,7 @@ private let locationLabelStyle: LabelStyle = { label in
     |> \.numberOfLines .~ 1
 }
 
+@MainActor
 private let locationImageViewStyle: ImageViewStyle = { imageView in
   imageView
     |> UIImageView.lens.image .~ Library.image(named: "location-icon")

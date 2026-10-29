@@ -9,21 +9,21 @@ creator draft work is superseded by their completed checkpoints.
 
 ## Remaining implementation and audit work
 
-1. **Remaining platform/UI inventory:** finish the non-queue callback audit and
-   classify retained SDK boundaries. Project-video observers, campaign-image ownership
-   and UIImageView consumer review now have verified checkpoints.
-2. **Layout and compatibility helpers:** synchronous main-thread HTML helper,
-   refresh/collection/table layout deferrals and the pledged-card Combine debounce.
-   Preserve their required ordering; do not replace queue syntax mechanically.
-3. **Compiler isolation boundaries:** resolve or explicitly classify the complete
-   concurrency diagnostic baseline. Passing Swift 5 builds do not establish strict
-   concurrency compliance or Swift 6 readiness.
+1. **Compiler isolation at UIKit boundaries:** ValueCell/delegate contracts,
+   legacy awakeFromNib hooks, notification delivery and nonisolated release.
+2. **Remaining value-transfer and shared-state diagnostics:** Feature task results,
+   transport providers, global style/lens values and generated Apollo metadata.
+   Complete checking builds in Swift 5 mode; warnings still prevent a Swift 6 claim.
+3. **Compatibility callback inventory:** finish the non-queue callback audit and
+   decide the unused generic Apollo bridge's disposition after checking consumers.
+   Keep necessary platform queues and documented Combine operator scheduling.
 
-The refreshed primitive scan finds 16 matching lines in 12 first-party files.
-Some are SDK queue arguments or mock compatibility code. See
-MIGRATION_PLATFORM_CALLBACK_AUDIT.md for scope, classification and limits.
-Project-video and image-loading ownership are the latest checkpoint. A populated
-demo launch passed; remote video and full visual/device parity remain open.
+The scoped primitive scan finds 8 matching lines in 5 first-party files. These are
+SDK queue arguments/registration functions, retained Combine debounce and legacy
+compatibility/mock code. Counts are syntax inventory, not remaining defect totals.
+Layout/HTML ownership, refresh cancellation, report-cell reuse and checked account
+value transfer are verified checkpoints. The demo's sorting and card scrolling were
+observed; full visual/device parity and live operations remain open.
 
 ## Final validation gates
 

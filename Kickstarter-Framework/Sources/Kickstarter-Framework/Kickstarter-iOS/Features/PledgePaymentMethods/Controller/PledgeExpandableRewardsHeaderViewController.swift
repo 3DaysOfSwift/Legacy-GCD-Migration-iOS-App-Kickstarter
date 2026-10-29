@@ -143,31 +143,40 @@ final class PledgeExpandableRewardsHeaderViewController: UIViewController {
   }
 
   private func updateTableViewContainerHeight(expanded: Bool, animated: Bool) {
-    DispatchQueue.main.async {
-      guard animated else {
-        self.tableViewContainerHeightConstraint?.constant = self.collapsedHeight()
-        self.expandButton.transform = self.expandButton.transform.rotated(by: .pi)
-        return
-      }
+    self.pendingExpansion = (expanded, animated)
+    self.view.setNeedsLayout()
+  }
 
-      if expanded {
-        self.tableViewContainerHeightConstraint?.constant = self.expandedHeight()
-      } else {
-        self.tableViewContainerHeightConstraint?.constant = self.collapsedHeight()
-      }
+  private var pendingExpansion: (expanded: Bool, animated: Bool)?
 
-      UIView.animate(
-        withDuration: 0.33,
-        delay: 0,
-        usingSpringWithDamping: 0.65,
-        initialSpringVelocity: 0.88,
-        options: .curveEaseInOut,
-        animations: {
-          self.expandButton.transform = expanded ? .identity : self.expandButton.transform.rotated(by: .pi)
-          self.animatingViewDelegate?.layoutIfNeeded()
-        }
-      ) { _ in }
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    guard let (expanded, animated) = self.pendingExpansion else { return }
+    self.pendingExpansion = nil
+    self.tableView.layoutIfNeeded()
+    guard animated else {
+      self.tableViewContainerHeightConstraint?.constant = self.collapsedHeight()
+      self.expandButton.transform = CGAffineTransform(rotationAngle: .pi)
+      return
     }
+
+    if expanded {
+      self.tableViewContainerHeightConstraint?.constant = self.expandedHeight()
+    } else {
+      self.tableViewContainerHeightConstraint?.constant = self.collapsedHeight()
+    }
+
+    UIView.animate(
+      withDuration: 0.33,
+      delay: 0,
+      usingSpringWithDamping: 0.65,
+      initialSpringVelocity: 0.88,
+      options: .curveEaseInOut,
+      animations: {
+        self.expandButton.transform = expanded ? .identity : CGAffineTransform(rotationAngle: .pi)
+        self.animatingViewDelegate?.layoutIfNeeded()
+      }
+    ) { _ in }
   }
 
   // MARK: - Actions
@@ -197,6 +206,7 @@ final class PledgeExpandableRewardsHeaderViewController: UIViewController {
 
 // MARK: - Styles
 
+@MainActor
 private let expandButtonStyle: ButtonStyle = { button in
   button
     |> UIButton.lens.image(for: .normal) .~ Library.image(named: "icon-expand-chevron")

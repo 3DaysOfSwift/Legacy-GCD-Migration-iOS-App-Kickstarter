@@ -19,6 +19,7 @@ public extension String {
    - returns: The attributed string, or `nil` if something goes wrong with interpreting the string
    as html.
    */
+  @MainActor
   func simpleHtmlAttributedString(
     base: Attributes,
     bold optionalBold: Attributes? = nil,
@@ -66,13 +67,9 @@ public extension String {
       return string
     }
 
-    if Thread.isMainThread {
-      return parsedHtml()
-    } else {
-      return DispatchQueue.main.sync {
-        parsedHtml()
-      }
-    }
+    // UIKit HTML import is synchronous and main-actor-only. Callers must establish
+    // that boundary rather than synchronously blocking a background executor.
+    return parsedHtml()
   }
 
   /**
@@ -86,6 +83,7 @@ public extension String {
    - returns: The attributed string, or `nil` if something goes wrong with interpreting the string
               as html.
    */
+  @MainActor
   func simpleHtmlAttributedString(
     font: UIFont,
     bold optionalBold: UIFont? = nil,

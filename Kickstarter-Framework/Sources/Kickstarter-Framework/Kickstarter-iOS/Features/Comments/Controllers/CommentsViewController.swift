@@ -96,9 +96,16 @@ internal final class CommentsViewController: UITableViewController, MessageBanne
     return true
   }
 
+  private var footerNeedsLayout = false
+
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
 
+    if self.footerNeedsLayout {
+      self.footerNeedsLayout = false
+      self.tableView.tableFooterView = nil
+      self.tableView.tableFooterView = self.footerView
+    }
     self.tableView.ksr_sizeHeaderFooterViewsToFit()
   }
 
@@ -166,12 +173,8 @@ internal final class CommentsViewController: UITableViewController, MessageBanne
       .observeValues { [weak self] state in
         self?.footerView.configureWith(value: state)
 
-        // Force tableFooterView to layout
-        DispatchQueue.main.async {
-          self?.tableView.tableFooterView = nil
-          self?.tableView.tableFooterView = self?.footerView
-          self?.tableView.layoutIfNeeded()
-        }
+        self?.footerNeedsLayout = true
+        self?.view.setNeedsLayout()
       }
 
     self.viewModel.outputs.cellSeparatorHidden

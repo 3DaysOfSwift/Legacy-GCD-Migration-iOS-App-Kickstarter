@@ -4,11 +4,13 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol ActivityFriendBackingViewModelInputs {
   /// Call to configure with an Activity.
   func configureWith(activity: Activity)
 }
 
+@MainActor
 public protocol ActivityFriendBackingViewModelOutputs {
   /// Emits an a11y label for the cell.
   var cellAccessibilityLabel: Signal<String, Never> { get }
@@ -35,11 +37,13 @@ public protocol ActivityFriendBackingViewModelOutputs {
   var projectName: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol ActivityFriendBackingViewModelType {
   var inputs: ActivityFriendBackingViewModelInputs { get }
   var outputs: ActivityFriendBackingViewModelOutputs { get }
 }
 
+@MainActor
 public final class ActivityFriendBackingViewModel: ActivityFriendBackingViewModelType,
   ActivityFriendBackingViewModelInputs, ActivityFriendBackingViewModelOutputs {
   public init() {

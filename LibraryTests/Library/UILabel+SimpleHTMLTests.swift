@@ -1,6 +1,7 @@
 @testable import Library
 import XCTest
 
+@MainActor
 final class UILabelSimpleHTMLTests: XCTestCase {
   // FIXME: MBL-2857
   func testSetHTML() {

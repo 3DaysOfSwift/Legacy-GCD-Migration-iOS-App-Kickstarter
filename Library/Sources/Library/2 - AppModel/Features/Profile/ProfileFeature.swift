@@ -60,7 +60,7 @@ public final class ProfileFeature {
   }
 
   public let sessionFeature: SessionFeature
-  private let loadAvatar: (URL) async throws -> Data
+  private let loadAvatar: @MainActor (URL) async throws -> Data
   private var avatarRequest: (url: URL, userID: Int?, generation: Int, id: UUID, task: Task<Data, Error>)?
   private var avatarVersion: UUID?
   private let makeProvider: () -> any ProfileProvider
@@ -91,7 +91,7 @@ public final class ProfileFeature {
 
   public init(
     sessionFeature: SessionFeature, makeProvider: @escaping () -> any ProfileProvider,
-    loadAvatar: @escaping (URL) async throws -> Data = { try await ProfileAvatarStore.shared.data(for: $0) },
+    loadAvatar: (@MainActor (URL) async throws -> Data)? = nil,
     sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
       if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
     }
@@ -99,7 +99,7 @@ public final class ProfileFeature {
     self.sessionFeature = sessionFeature
     self.makeProvider = makeProvider
     self.sleep = sleep
-    self.loadAvatar = loadAvatar
+    self.loadAvatar = loadAvatar ?? { try await ProfileAvatarStore.shared.data(for: $0) }
   }
 
   public func cancelAvatar() {

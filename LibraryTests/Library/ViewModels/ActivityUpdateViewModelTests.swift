@@ -7,7 +7,9 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class ActivityUpdateViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   fileprivate let vm: ActivityUpdateViewModelType = ActivityUpdateViewModel()
   fileprivate let body = TestObserver<String, Never>()
   fileprivate let cellAccessibilityLabel = TestObserver<String, Never>()
@@ -20,14 +22,16 @@ internal final class ActivityUpdateViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
-    self.vm.outputs.body.observe(self.body.observer)
-    self.vm.outputs.cellAccessibilityLabel.observe(self.cellAccessibilityLabel.observer)
-    self.vm.outputs.notifyDelegateTappedProjectImage.observe(self.notifyDelegateTappedProjectImage.observer)
-    self.vm.outputs.projectButtonAccessibilityLabel.observe(self.projectButtonAccessibilityLabel.observer)
-    self.vm.outputs.projectImageURL.map { $0?.absoluteString }.observe(self.projectImageURL.observer)
-    self.vm.outputs.projectName.observe(self.projectName.observer)
-    self.vm.outputs.sequenceTitle.map { $0.string }.observe(self.sequenceTitle.observer)
-    self.vm.outputs.title.observe(self.title.observer)
+    MainActor.assumeIsolated {
+      self.vm.outputs.body.observe(self.body.observer)
+      self.vm.outputs.cellAccessibilityLabel.observe(self.cellAccessibilityLabel.observer)
+      self.vm.outputs.notifyDelegateTappedProjectImage.observe(self.notifyDelegateTappedProjectImage.observer)
+      self.vm.outputs.projectButtonAccessibilityLabel.observe(self.projectButtonAccessibilityLabel.observer)
+      self.vm.outputs.projectImageURL.map { $0?.absoluteString }.observe(self.projectImageURL.observer)
+      self.vm.outputs.projectName.observe(self.projectName.observer)
+      self.vm.outputs.sequenceTitle.map { $0.string }.observe(self.sequenceTitle.observer)
+      self.vm.outputs.title.observe(self.title.observer)
+    }
   }
 
   func testActivityUpdateDataEmits() {

@@ -21,6 +21,8 @@ internal final class DiscoveryPageViewController: UITableViewController,
   // MARK: - Properties
 
   private var observers: [Any] = []
+  private var pendingRefresh: (loading: Bool, animated: Bool)?
+  private var needsDeferredReload = false
   fileprivate let dataSource = DiscoveryProjectsDataSource()
   public weak var delegate: DiscoveryPageViewControllerDelegate?
   fileprivate var emptyStatesController: EmptyStatesViewController?
@@ -124,6 +126,19 @@ internal final class DiscoveryPageViewController: UITableViewController,
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
 
+    // Apply the latest state after UIKit establishes geometry. Clearing first
+    // prevents reload/layout reentrancy from replaying the pending request.
+    if self.needsDeferredReload {
+      self.needsDeferredReload = false
+      self.tableView.reloadData()
+    }
+    if let refresh = self.pendingRefresh {
+      self.pendingRefresh = nil
+      UIView.perform(animated: refresh.loading || refresh.animated) {
+        if refresh.loading { self.refreshControl?.beginRefreshing() }
+        else { self.refreshControl?.endRefreshing() }
+      }
+    }
     self.tableView.ksr_sizeHeaderFooterViewsToFit()
   }
 
@@ -160,17 +175,8 @@ internal final class DiscoveryPageViewController: UITableViewController,
     self.viewModel.outputs.projectsAreLoadingAnimated
       .observeForUI()
       .observeValues { [weak self] isLoading, animated in
-        DispatchQueue.main.async {
-          if isLoading {
-            UIView.perform(animated: true) {
-              self?.refreshControl?.beginRefreshing()
-            }
-          } else {
-            UIView.perform(animated: animated) {
-              self?.refreshControl?.endRefreshing()
-            }
-          }
-        }
+        self?.pendingRefresh = (isLoading, animated)
+        self?.view.setNeedsLayout()
       }
 
     self.viewModel.outputs.activitiesForSample
@@ -183,9 +189,8 @@ internal final class DiscoveryPageViewController: UITableViewController,
     self.viewModel.outputs.asyncReloadData
       .observeForUI()
       .observeValues { [weak self] in
-        DispatchQueue.main.async {
-          self?.tableView.reloadData()
-        }
+        self?.needsDeferredReload = true
+        self?.view.setNeedsLayout()
       }
 
     self.viewModel.outputs.goToActivityProject
@@ -533,6 +538,7 @@ private extension UIView {
 
 // MARK: - Styles
 
+@MainActor
 private let headerLabelStyle: LabelStyle = { label in
   label
     |> \.textColor .~ LegacyColors.ksr_trust_700.uiColor()
