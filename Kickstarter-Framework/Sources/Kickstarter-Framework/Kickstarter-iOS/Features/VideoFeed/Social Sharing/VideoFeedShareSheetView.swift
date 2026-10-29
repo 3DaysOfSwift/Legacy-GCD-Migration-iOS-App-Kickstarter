@@ -68,6 +68,12 @@ struct VideoFeedShareSheetView: View {
       }
       .frame(width: geometry.size.width, alignment: .top)
     }
+    .task(id: self.linkCopied) {
+      guard self.linkCopied else { return }
+      do { try await Task.sleep(for: .seconds(Constants.linkCopiedDismissDelay)) } catch { return }
+      guard !Task.isCancelled else { return }
+      self.dismiss()
+    }
     .background {
       ZStack {
         Color(UIColor(coreColor: .green_04))
@@ -182,9 +188,6 @@ struct VideoFeedShareSheetView: View {
     UIPasteboard.general.string = VideoFeedShareDestination
       .projectURL(for: self.item, refTag: .videoFeedShareCopyLink)?.absoluteString
     withAnimation { self.linkCopied = true }
-    DispatchQueue.main.asyncAfter(deadline: .now() + Constants.linkCopiedDismissDelay) {
-      self.dismiss()
-    }
   }
 
   // MARK: - Image Rendering

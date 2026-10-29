@@ -42,12 +42,12 @@ struct MessageBannerView: View {
       }
       .accessibilityElement()
       .accessibilityLabel(vm.bannerMessageAccessibilityLabel)
-      .onAppear {
+      .task(id: ObjectIdentifier(vm)) {
         let dismissTime =
           self.voiceOverEnabled ? Constants.dismissTimeVoiceoverOn : Constants.dismissTime
-        DispatchQueue.main.asyncAfter(deadline: .now() + dismissTime) {
-          self.viewModel = nil
-        }
+        do { try await Task.sleep(for: .seconds(dismissTime)) } catch { return }
+        guard !Task.isCancelled, self.viewModel === vm else { return }
+        self.viewModel = nil
       }
       .onTapGesture {
         self.viewModel = nil

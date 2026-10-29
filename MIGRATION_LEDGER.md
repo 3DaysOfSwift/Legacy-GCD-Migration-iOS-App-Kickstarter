@@ -43,6 +43,37 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### View-owned banner, toast and copy-link delays — 29 October 2026
+
+Message-banner dismissal is a SwiftUI task keyed by banner identity; a replacement
+cannot be dismissed by its predecessor. Removal cancels the task. Existing four-
+second/default and ten-second/VoiceOver policies remain. Save-error toasts retain
+change-triggered three-second dismissal, including the original initial-content
+behavior. Copy-link confirmation retains its 2.5-second delay. Both now cancel on
+view removal. No text, layout, colors or sharing destinations were changed.
+
+Two new hosted SwiftUI runtime tests passed: replacement survives the old deadline
+and still auto-dismisses at its own deadline; removing the view leaves the former
+binding untouched. No failures/skips. App build succeeded with zero errors and 381
+reported warnings on this framework recompilation, including existing design-system
+deprecations, preview warnings and generated asset-name collisions. This is not
+comparable to the preceding incremental build's two warnings. One test compilation
+attempt incorrectly tried to override a read-only accessibility environment value;
+the tests now assert the actual simulator setting instead. No runtime test failures.
+
+Results: /private/tmp/kickstarter-ui-timers-tests-repair.xcresult and
+/private/tmp/kickstarter-ui-timers-build.xcresult. Prior media checkpoint has 377
+passing selected tests; those suites were not redundantly rerun for these three
+view-only timer changes. Toast/share-sheet gestures, VoiceOver, visual parity and
+physical-device behavior remain unverified. Snapshot guards are unchanged.
+Evidence: sibling Migration Evidence/kickstarter-ui-timers.
+
+Next: video-feed observation/rebinding and deferred UIKit activation, then remaining
+platform callbacks and broader app-wide validation. Migration remains in progress;
+visual/device and live-operation gates remain open.
+
+### Previous verified checkpoint
+
 ### Project-page media preparation and audio callbacks — 29 October 2026
 
 ProjectMediaFeature owns native asset preparation per page/slot. Equivalent pending

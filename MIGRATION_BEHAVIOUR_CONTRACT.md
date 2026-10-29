@@ -1,5 +1,14 @@
 # Kickstarter migration behaviour contract
 
+## View-owned transient-message delays — 29 October 2026
+
+Keep the existing banner (4/10 seconds), save-error toast (3 seconds) and copy-link
+confirmation (2.5 seconds) timing, content and animation. SwiftUI owns these tasks;
+removal cancels them. Banner replacement restarts its lifetime and stale identity
+cannot clear a replacement binding. Toast dismissal remains change-triggered rather
+than starting for an initially supplied error. Hosted runtime checks cover banner
+replacement and removal; other gesture/accessibility/device behavior remains open.
+
 ## Project-page media and audio-session lifetime — 29 October 2026
 
 - Preserve per-row AVPlayer instances, optional cached WebP thumbnails and the

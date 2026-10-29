@@ -8,6 +8,8 @@ struct VideoFeedToastContainerView: View {
     static let autoDismissDelay: Double = 3.0
   }
 
+  @State private var dismissalRequest: UUID?
+
   var videoErrorMessage: String?
   var saveErrorMessage: String?
   var onSaveErrorDismissed: (() -> Void)?
@@ -32,13 +34,14 @@ struct VideoFeedToastContainerView: View {
     .animation(.spring(duration: 0.35, bounce: 0.2), value: self.saveErrorMessage)
     .animation(.spring(duration: 0.35, bounce: 0.2), value: self.videoErrorMessage)
     .onChange(of: self.saveErrorMessage) { _, newValue in
-      guard newValue != nil else { return }
-
-      DispatchQueue.main.asyncAfter(deadline: .now() + Constants.autoDismissDelay) {
-        withAnimation {
-          self.onSaveErrorDismissed?()
-        }
-      }
+      // Preserve the existing change-triggered timer, including initial content.
+      self.dismissalRequest = newValue == nil ? nil : UUID()
+    }
+    .task(id: self.dismissalRequest) {
+      guard self.dismissalRequest != nil else { return }
+      do { try await Task.sleep(for: .seconds(Constants.autoDismissDelay)) } catch { return }
+      guard !Task.isCancelled else { return }
+      withAnimation { self.onSaveErrorDismissed?() }
     }
   }
 }
