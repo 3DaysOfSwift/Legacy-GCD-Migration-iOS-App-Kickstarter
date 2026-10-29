@@ -25,7 +25,9 @@ final class PostCampaignCheckoutViewController: UIViewController,
 
   internal var messageBannerViewController: MessageBannerViewController?
 
-  fileprivate var applePayPaymentIntent: String?
+  private var applePayPaymentIntent: String?
+  private var applePaySessionGeneration: Int?
+  private var activeApplePayContext: STPApplePayContext?
 
   private lazy var titleLabel = UILabel(frame: .zero)
 
@@ -79,6 +81,8 @@ final class PostCampaignCheckoutViewController: UIViewController,
       |> \.translatesAutoresizingMaskIntoConstraints .~ false
   }()
 
+  private let confirmation = StripeConfirmationOperation()
+
   private var sessionStartedObserver: MainActorNotificationObservation?
 
   private let viewModel: PostCampaignCheckoutViewModelType =
@@ -88,6 +92,16 @@ final class PostCampaignCheckoutViewController: UIViewController,
 
   func configure(with data: PledgeViewData) {
     self.viewModel.inputs.configure(with: data)
+  }
+
+  override func viewWillDisappear(_ animated: Bool) {
+    super.viewWillDisappear(animated)
+    if self.isMovingFromParent || self.isBeingDismissed || self.navigationController?.isBeingDismissed == true {
+      self.confirmation.cancelObservation()
+      self.activeApplePayContext = nil
+      self.applePayPaymentIntent = nil
+      self.applePaySessionGeneration = nil
+    }
   }
 
   override func viewDidLoad() {
@@ -352,24 +366,31 @@ final class PostCampaignCheckoutViewController: UIViewController,
       paymentParams.paymentMethodId = id
     }
 
-    STPPaymentHandler.shared()
-      .confirmPayment(paymentParams, with: self) { status, _, error in
-        guard error == nil, status == .succeeded else {
-          // Only show error banner if confirmation failed instead of being canceled.
-          if status == .failed {
-            self.messageBannerViewController?
-              .showBanner(
-                with: .error,
-                message: Strings.Something_went_wrong_please_try_again(),
-                dismissType: .bannerAndViewController
-              )
+    let session = AppModel.shared.sessionFeature
+    let generation = session.generation
+    self.confirmation.start(
+      identity: .init(kind: .payment, clientSecret: validation.paymentIntentClientSecret,
+                      paymentMethodID: validation.selectedCardStripeCardId),
+      isCurrent: { session.generation == generation },
+      begin: { completion in
+        STPPaymentHandler.shared().confirmPayment(paymentParams, with: self) { status, _, error in
+          completion(.init(status: status, error: error))
+        }
+      }, completed: { [weak self] outcome in
+        guard let self else { return }
+        guard outcome.error == nil, outcome.status == .succeeded else {
+          if outcome.status == .failed {
+            self.messageBannerViewController?.showBanner(
+              with: .error, message: Strings.Something_went_wrong_please_try_again(),
+              dismissType: .bannerAndViewController
+            )
           }
           self.viewModel.inputs.checkoutTerminated()
           return
         }
-
         self.viewModel.inputs.confirmPaymentSuccessful(clientSecret: validation.paymentIntentClientSecret)
       }
+    )
   }
 
   private func configureEstimatedShippingView(_ estimatedCost: String, _ aboutConversion: String?) {
@@ -391,6 +412,7 @@ final class PostCampaignCheckoutViewController: UIViewController,
   }
 
   private func goToPaymentAuthorization(_ paymentAuthorizationData: PostCampaignPaymentAuthorizationData) {
+    guard self.activeApplePayContext == nil else { return }
     let request = PKPaymentRequest.paymentRequest(for: paymentAuthorizationData)
     guard let applePayContext = STPApplePayContext(paymentRequest: request, delegate: self) else {
       self.viewModel.inputs.checkoutTerminated()
@@ -398,6 +420,8 @@ final class PostCampaignCheckoutViewController: UIViewController,
     }
 
     self.applePayPaymentIntent = paymentAuthorizationData.paymentIntent
+    self.applePaySessionGeneration = AppModel.shared.sessionFeature.generation
+    self.activeApplePayContext = applePayContext
     applePayContext.presentApplePay()
   }
 }
@@ -405,7 +429,7 @@ final class PostCampaignCheckoutViewController: UIViewController,
 // MARK: - STPAuthenticationContext
 
 extension PostCampaignCheckoutViewController: STPAuthenticationContext {
-  func authenticationPresentingViewController() -> UIViewController {
+  nonisolated func authenticationPresentingViewController() -> UIViewController {
     return self
   }
 }
@@ -483,46 +507,65 @@ enum PostCampaignCheckoutApplePayError: Error {
 }
 
 extension PostCampaignCheckoutViewController: STPApplePayContextDelegate {
-  func applePayContext(
-    _: StripeApplePay.STPApplePayContext,
+  nonisolated func applePayContext(
+    _ context: StripeApplePay.STPApplePayContext,
     didCreatePaymentMethod paymentMethod: StripePayments.STPPaymentMethod,
     paymentInformation _: PKPayment,
     completion: @escaping StripeApplePay.STPIntentClientSecretCompletionBlock
   ) {
-    guard let paymentIntentClientSecret = self.applePayPaymentIntent else {
-      completion(
-        nil,
-        PostCampaignCheckoutApplePayError.missingPaymentIntent("Missing PaymentIntent")
-      )
-      return
+    // Read SDK values on its callback executor; only identifiers enter the UI actor.
+    let contextID = ObjectIdentifier(context)
+    let paymentMethodID = paymentMethod.stripeId
+    let result: Result<String, PostCampaignCheckoutApplePayError> = MainActor.assumeIsolated {
+      guard self.activeApplePayContext.map(ObjectIdentifier.init) == contextID,
+            self.applePaySessionGeneration == AppModel.shared.sessionFeature.generation,
+            let clientSecret = self.applePayPaymentIntent else {
+        return .failure(.missingPaymentIntent("Missing PaymentIntent"))
+      }
+      self.viewModel.inputs.applePayContextDidCreatePayment(with: paymentMethodID)
+      return .success(clientSecret)
     }
-
-    self.viewModel.inputs.applePayContextDidCreatePayment(with: paymentMethod.stripeId)
-    completion(paymentIntentClientSecret, nil)
+    // The pinned SDK delivers on the main queue. Complete synchronously there,
+    // without capturing its non-Sendable completion block in an actor closure.
+    switch result {
+    case let .success(clientSecret): completion(clientSecret, nil)
+    case let .failure(error): completion(nil, error)
+    }
   }
 
-  func applePayContext(
-    _: StripeApplePay.STPApplePayContext,
+  nonisolated func applePayContext(
+    _ context: StripeApplePay.STPApplePayContext,
     didCompleteWith status: StripePayments.STPPaymentStatus,
     error _: Error?
   ) {
+    let contextID = ObjectIdentifier(context)
+    let outcome: StripePaymentHandlerActionStatus
     switch status {
-    case .success:
-      self.viewModel.inputs.applePayContextDidComplete()
-    case .error:
-      self.viewModel.inputs.checkoutTerminated()
-      self.messageBannerViewController?
-        .showBanner(
-          with: .error,
-          message: Strings.Something_went_wrong_please_try_again(),
+    case .success: outcome = .succeeded
+    case .error: outcome = .failed
+    case .userCancellation: outcome = .canceled
+    @unknown default: outcome = .failed
+    }
+    // Stripe delivers this after its UIKit dismissal, on the main queue.
+    MainActor.assumeIsolated {
+      guard self.activeApplePayContext.map(ObjectIdentifier.init) == contextID else { return }
+      let isCurrentSession = self.applePaySessionGeneration == AppModel.shared.sessionFeature.generation
+      self.activeApplePayContext = nil
+      self.applePayPaymentIntent = nil
+      self.applePaySessionGeneration = nil
+      guard isCurrentSession else { return }
+      switch outcome {
+      case .succeeded:
+        self.viewModel.inputs.applePayContextDidComplete()
+      case .failed:
+        self.viewModel.inputs.checkoutTerminated()
+        self.messageBannerViewController?.showBanner(
+          with: .error, message: Strings.Something_went_wrong_please_try_again(),
           dismissType: .bannerAndViewController
         )
-    case .userCancellation:
-      // User canceled the payment
-      self.viewModel.inputs.checkoutTerminated()
-    @unknown default:
-      self.viewModel.inputs.checkoutTerminated()
-      fatalError()
+      case .canceled:
+        self.viewModel.inputs.checkoutTerminated()
+      }
     }
   }
 }

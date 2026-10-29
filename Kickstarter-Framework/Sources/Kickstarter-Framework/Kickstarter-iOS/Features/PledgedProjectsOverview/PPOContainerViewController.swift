@@ -9,7 +9,15 @@ import SwiftUI
 
 public class PPOContainerViewController: PagedContainerViewController<PPOContainerViewController.Page>,
   MessageBannerViewControllerPresenting {
+  private let confirmation = StripeConfirmationOperation()
   private let viewModel = PPOContainerViewModel()
+
+  public override func viewWillDisappear(_ animated: Bool) {
+    super.viewWillDisappear(animated)
+    if self.isMovingFromParent || self.isBeingDismissed || self.navigationController?.isBeingDismissed == true {
+      self.confirmation.cancelObservation()
+    }
+  }
 
   public override func viewDidLoad() {
     super.viewDidLoad()
@@ -270,45 +278,50 @@ public class PPOContainerViewController: PagedContainerViewController<PPOContain
     confirmParams: STPSetupIntentConfirmParams,
     onProgress: @escaping (PPOActionState) -> Void
   ) {
-    STPPaymentHandler.shared().confirmSetupIntent(
-      confirmParams,
-      with: self,
-      completion: { [weak self] status, _, _ in
-        switch status {
-        case .succeeded:
-          self?.viewModel.process3DSAuthentication(state: .succeeded)
-          onProgress(.succeeded)
-        case .canceled:
-          onProgress(.cancelled)
-        case .failed:
-          self?.viewModel.process3DSAuthentication(state: .failed)
-          onProgress(.failed)
-        }
+    let session = AppModel.shared.sessionFeature
+    let generation = session.generation
+    self.confirmation.start(identity: .init(kind: .setup, clientSecret: confirmParams.clientSecret), isCurrent: { session.generation == generation }, begin: { completion in
+      STPPaymentHandler.shared().confirmSetupIntent(confirmParams, with: self) { status, _, error in
+        completion(.init(status: status, error: error))
       }
-    )
+    }, completed: { [weak self] outcome in
+      self?.completeConfirmation(outcome, onProgress: onProgress)
+    })
   }
 
   private func handle3DSPaymentIntent(
     paymentParams: STPPaymentIntentParams,
     onProgress: @escaping (PPOActionState) -> Void
   ) {
-    STPPaymentHandler.shared().confirmPayment(
-      paymentParams,
-      with: self,
-      completion: { [weak self] status, _, _ in
-        switch status {
-        case .succeeded:
-          self?.viewModel.process3DSAuthentication(state: .succeeded)
-          onProgress(.succeeded)
-        case .canceled:
-          onProgress(.cancelled)
-        case .failed:
-          self?.viewModel.process3DSAuthentication(state: .failed)
-          onProgress(.failed)
+    let session = AppModel.shared.sessionFeature
+    let generation = session.generation
+    self.confirmation.start(
+      identity: .init(kind: .payment, clientSecret: paymentParams.clientSecret,
+                      paymentMethodID: paymentParams.paymentMethodId),
+      isCurrent: { session.generation == generation },
+      begin: { completion in
+        STPPaymentHandler.shared().confirmPayment(paymentParams, with: self) { status, _, error in
+          completion(.init(status: status, error: error))
         }
+      }, completed: { [weak self] outcome in
+        self?.completeConfirmation(outcome, onProgress: onProgress)
       }
     )
   }
+
+  private func completeConfirmation(_ outcome: StripeConfirmationOutcome, onProgress: (PPOActionState) -> Void) {
+    switch outcome.status {
+    case .succeeded:
+      self.viewModel.process3DSAuthentication(state: .succeeded)
+      onProgress(.succeeded)
+    case .canceled:
+      onProgress(.cancelled)
+    case .failed:
+      self.viewModel.process3DSAuthentication(state: .failed)
+      onProgress(.failed)
+    }
+  }
+
 }
 
 extension PPOContainerViewController: MessageDialogViewControllerDelegate {
@@ -320,12 +333,13 @@ extension PPOContainerViewController: MessageDialogViewControllerDelegate {
 }
 
 extension PPOContainerViewController: STPAuthenticationContext {
-  public func authenticationPresentingViewController() -> UIViewController {
+  nonisolated public func authenticationPresentingViewController() -> UIViewController {
     return self
   }
 
-  public func authenticationContextWillDismiss(_: UIViewController) {
-    self.viewModel.actionFinishedPerforming()
+  nonisolated public func authenticationContextWillDismiss(_: UIViewController) {
+    // Stripe invokes this while dismissing its UIKit authentication controller.
+    MainActor.assumeIsolated { self.viewModel.actionFinishedPerforming() }
   }
 }
 

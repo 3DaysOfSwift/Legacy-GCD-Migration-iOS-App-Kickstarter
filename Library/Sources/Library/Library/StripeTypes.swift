@@ -26,7 +26,7 @@ extension CreateBackingEnvelope: StripeSCARequiring {
   }
 }
 
-public enum StripePaymentHandlerActionStatus {
+public enum StripePaymentHandlerActionStatus: Sendable {
   case canceled
   case failed
   case succeeded

@@ -1,5 +1,45 @@
 # Kickstarter migration behaviour contract
 
+## Stripe confirmation lifetimes — 29 October 2026
+
+The native Stripe SDK remains responsible for authentication UI and payment processing.
+The controller owns one async result observer. Equivalent pending identity (kind,
+client secret and selected payment method) shares one native start and one UI result.
+A different pending identity fails explicitly without replacing the admitted operation.
+SDK errors and success/cancel/failure mapping remain available to existing ViewModels.
+
+A temporary authentication sheet does not cancel observation. Permanent navigation
+removal/dismissal, owner release, or a changed session suppresses late UI/checkout
+work. The SDK provides no cancellation token: observation cancellation cannot undo
+an accepted payment, and it must not trigger an automatic retry.
+
+Only checked status/error values enter the async stream; SDK intent objects remain
+in the callback. First completion wins. The stream is finished on cancellation and
+release, so waiting does not depend on an eventual SDK callback.
+
+Post-campaign Apple Pay retains one context/secret/session, rejects obsolete context
+callbacks and clears its state before completion delivery. Its required client-secret
+completion is called even for stale/missing context, with an error. Unknown future
+SDK status follows failure handling rather than crashing or reporting success.
+
+Pinned source evidence: stripe-ios-spm/StripeCore/.../API Bindings/STPAPIClient.swift
+sendRequest delivers completion on DispatchQueue.main; StripeApplePay/.../ApplePayContext/
+STPApplePayContext.swift creates the payment method through that API, delivers completion
+from authorization-controller dismissal, and declares a weak delegate. STPPaymentHandler's
+authenticationContextWillDismiss calls originate in UIKit/Safari dismissal callbacks.
+Only these synchronous delegate boundaries use MainActor.assumeIsolated. Async confirmation
+result observation accepts callbacks from any executor and applies them on MainActor.
+
+No live Stripe, Apple Pay, 3DS, physical-device or full visual validation is claimed.
+PaymentSheet creation/presentation/confirmation and the older PKPayment token callback
+remain separate audit items; this checkpoint does not declare every Stripe path migrated.
+
+During complete checking, the first synchronous Apple Pay actor wrapper still
+captured SDK objects and its callback. The final wrapper extracts ObjectIdentifier,
+String and checked status values first, and returns the client-secret/error value
+before invoking the SDK completion on its original executor. This avoids moving
+SDK objects or closure state into the actor-isolated region.
+
 ## Checkout callbacks and payment transport — 29 October 2026
 
 Preserve synchronous main-actor session delivery to pledge, post-campaign checkout,

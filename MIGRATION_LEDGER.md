@@ -43,6 +43,37 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Stripe confirmation lifetimes — 29 October 2026
+
+Four setup/payment confirmation sites in Pledge, post-campaign checkout and pledged
+projects now retain a controller-owned async result observer. Equivalent pending
+requests start once; conflicting requests fail explicitly. First completion wins.
+Permanent departure, release and session replacement suppress late UI work. Temporary
+authentication presentation retains observation. Stripe exposes no cancellation handle;
+cancelling observation does not cancel a payment or justify retrying it.
+
+Only checked status/error values cross into the observing task. Post-campaign Apple
+Pay owns its context, secret and session generation. Obsolete contexts are rejected;
+its required secret callback always completes. SDK objects remain on their callback
+executor; primitive identities/strings/status bridge the synchronous UI boundary.
+Pinned SDK source supports the narrowly used main-actor assertions. No unchecked
+conformance, blanket SDK annotation or snapshot exemption was added.
+
+Final verification: **1,435 Library + 378 framework + 117 API = 1,930 passed**,
+zero failures/skips; app build succeeded with zero errors and two warnings. Seven new
+cases cover duplicate/synchronous completion, equivalent/conflicting admission,
+cancellation/replacement, release without callback, background completion and session
+replacement. Complete checking succeeded in Swift 5. The helper and post-campaign
+controller emit no matching concurrency warnings; unrelated Pledge/PPO warnings remain.
+The first diagnostic pass exposed five SDK-object/closure transfer warnings; extracting
+primitive values before the actor boundary resolved them. No compile/test failures or
+human command runs occurred. Repeated successful runs are not additional coverage.
+
+Evidence: sibling `Migration Evidence/kickstarter-stripe-lifetimes/`. Remaining:
+PaymentSheet creation/presentation/confirmation, older PKPayment token callbacks,
+other provider boundaries and final app-wide validation. Full visual/device/live
+payment, Apple Pay and 3DS checks remain open. **Migration remains in progress.**
+
 ### Checkout callbacks and payment transport snapshots — 29 October 2026
 
 Pledge, post-campaign checkout, pledge-manager web and login controllers now retain

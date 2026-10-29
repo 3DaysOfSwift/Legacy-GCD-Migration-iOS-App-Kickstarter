@@ -9,8 +9,11 @@ creator draft work is superseded by their completed checkpoints.
 
 ## Remaining implementation and audit work
 
-1. **Remaining UIKit callback contracts:** audit Stripe authentication/Apple Pay delegate
-   callbacks, remaining controller observations and other UI protocol boundaries.
+1. **Remaining UIKit callback contracts:** audit PaymentSheet creation/presentation/
+   confirmation in PaymentMethodSettings and PledgePaymentMethods, older PKPayment
+   token callbacks in Pledge, remaining observations and other UI protocol boundaries.
+   Four native Stripe confirmation paths and post-campaign Apple Pay context/session
+   lifetimes are now checkpointed; their live integration remains unverified.
    Shared ValueCell/data-source ownership, discovery observations, nib entry points,
    processing/overlay protocols, checkout release, four checkout/login session
    observers, checkout UI delegates and haptic helpers are now checkpointed.

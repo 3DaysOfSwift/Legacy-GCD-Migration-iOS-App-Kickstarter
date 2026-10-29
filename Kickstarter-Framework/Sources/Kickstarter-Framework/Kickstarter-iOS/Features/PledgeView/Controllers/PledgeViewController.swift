@@ -122,6 +122,8 @@ final class PledgeViewController: UIViewController,
       |> \.translatesAutoresizingMaskIntoConstraints .~ false
   }()
 
+  private let confirmation = StripeConfirmationOperation()
+
   private var sessionStartedObserver: MainActorNotificationObservation?
   private let viewModel: PledgeViewModelType = PledgeViewModel()
 
@@ -129,6 +131,13 @@ final class PledgeViewController: UIViewController,
 
   func configure(with data: PledgeViewData) {
     self.viewModel.inputs.configure(with: data)
+  }
+
+  override func viewWillDisappear(_ animated: Bool) {
+    super.viewWillDisappear(animated)
+    if self.isMovingFromParent || self.isBeingDismissed || self.navigationController?.isBeingDismissed == true {
+      self.confirmation.cancelObservation()
+    }
   }
 
   override func viewDidLoad() {
@@ -482,10 +491,15 @@ final class PledgeViewController: UIViewController,
   private func beginSCAFlow(withClientSecret secret: String) {
     let setupIntentConfirmParams = STPSetupIntentConfirmParams(clientSecret: secret)
 
-    STPPaymentHandler.shared()
-      .confirmSetupIntent(setupIntentConfirmParams, with: self) { [weak self] status, _, error in
-        self?.viewModel.inputs.scaFlowCompleted(with: status, error: error)
+    let session = AppModel.shared.sessionFeature
+    let generation = session.generation
+    self.confirmation.start(identity: .init(kind: .setup, clientSecret: secret), isCurrent: { session.generation == generation }, begin: { completion in
+      STPPaymentHandler.shared().confirmSetupIntent(setupIntentConfirmParams, with: self) { status, _, error in
+        completion(.init(status: status, error: error))
       }
+    }, completed: { [weak self] outcome in
+      self?.viewModel.inputs.scaFlowCompleted(with: outcome, error: outcome.error)
+    })
   }
 
   private func configurePledgeOverTimeUI(_ isVisible: Bool) {
@@ -534,7 +548,7 @@ final class PledgeViewController: UIViewController,
 // MARK: - STPAuthenticationContext
 
 extension PledgeViewController: STPAuthenticationContext {
-  func authenticationPresentingViewController() -> UIViewController {
+  nonisolated func authenticationPresentingViewController() -> UIViewController {
     return self
   }
 }

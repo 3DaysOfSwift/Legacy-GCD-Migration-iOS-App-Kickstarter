@@ -17,6 +17,29 @@ The primitive scan matched **40 lines in 25 files**. None matched the Feature
 implementation directory. That does not make every Feature concurrency-clean:
 complete compiler diagnostics also expose non-Sendable transfer boundaries.
 
+## Latest refresh: Stripe confirmation lifetimes — 29 October 2026
+
+StripeConfirmationOperation owns observation of four native setup/payment confirmations.
+The SDK retains native processing; one async stream accepts checked status/error values,
+not SDK intents. Controller departure/release cancels observation. Session-generation
+checks reject obsolete outcomes; duplicate callbacks and equivalent starts deliver once.
+Conflicting starts fail explicitly without replacing the active native operation.
+
+Post-campaign Apple Pay retains one context/secret/session and clears ownership before
+completion delivery. SDK source routes these delegates through main-thread API/PassKit
+completion. Extract ObjectIdentifier, payment-method string and checked status before
+MainActor.assumeIsolated; invoke the required SDK completion on its original executor.
+STPAuthenticationContext presenter access returns the controller without mutable UI
+access. Its PPO dismissal hook follows UIKit/Safari's synchronous main-thread contract.
+
+Final 1,930 selected tests and normal/complete-check builds passed. Helper and
+post-campaign controller have zero matching concurrency diagnostics. Pledge retains
+23 and PPO three unrelated matching diagnostics. Incremental total 3,030 is not a
+comparable full baseline. Primitive inventory remains eight lines/five files.
+PaymentSheet flows and older PKPayment token callbacks remain open, along with other
+provider graphs and final visual/device/live-operation validation. See sibling
+`Migration Evidence/kickstarter-stripe-lifetimes/contract.md` for source evidence.
+
 ## Latest refresh: checkout callbacks and mapped payment transport — 29 October 2026
 
 Four checkout/login session observers use the owned synchronous MainActor adapter.
