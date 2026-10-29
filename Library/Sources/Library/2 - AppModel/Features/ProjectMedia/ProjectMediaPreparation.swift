@@ -21,6 +21,14 @@ final class ProjectMediaPreparation {
   private var thumbnail: UIImage?
   private var thumbnailTask: Task<Void, Never>?
 
+  static func loadImage(url: URL) async throws -> UIImage {
+    let result = try await KingfisherManager.shared.retrieveImage(
+      with: url, options: [.processor(WebPProcessor.default), .cacheSerializer(WebPSerializer.default)]
+    )
+    try Task.checkCancellation()
+    return result.image
+  }
+
   static func load(url: URL, thumbnailURL: URL?) async throws -> PreparedProjectMedia {
     try await ProjectMediaPreparation().load(url: url, thumbnailURL: thumbnailURL)
   }
@@ -29,12 +37,9 @@ final class ProjectMediaPreparation {
     if let thumbnailURL {
       self.thumbnailTask = Task { [weak self] in
         // Same cache, WebP processor and serializer as the existing image helper.
-        let result = try? await KingfisherManager.shared.retrieveImage(
-          with: thumbnailURL,
-          options: [.processor(WebPProcessor.default), .cacheSerializer(WebPSerializer.default)]
-        )
+        let image = try? await Self.loadImage(url: thumbnailURL)
         guard !Task.isCancelled else { return }
-        self?.thumbnail = result?.image
+        self?.thumbnail = image
       }
     }
     defer { self.thumbnailTask?.cancel() }

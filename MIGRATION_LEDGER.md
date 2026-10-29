@@ -43,6 +43,50 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Project-video observation and campaign images — 29 October 2026
+
+Project video now has a controller-owned async event consumer. Native KVO and boundary
+observer tokens belong to the exact AVPlayer; replacement removes the previous token,
+and generation checks reject queued completion from a replaced threshold. Callbacks
+send immutable values and existing playback/analytics inputs run on MainActor.
+Duration must be finite and positive. Release invalidates KVO, finishes the stream,
+cancels consumption and performs finite player cleanup without capturing the owner.
+The background notification token is retained and removed. Existing pause/replay,
+85-percent completion analytics, controls and presentation are preserved in source.
+
+ProjectMediaFeature owns campaign image reads by page and URL using Kingfisher's native
+async retrieval, with the same WebP processor/cache serializer. Equivalent pending reads
+share within the page; cancellation and identity checks reject obsolete results. The
+page ViewModel owns slot delivery and cancels it on project replacement, permanent exit
+or release. Global downloader cancellation is removed: exiting one page no longer
+cancels another page's images. Temporary navigation may finish cache preparation.
+Datasource delivery validates section/row/source and preserves current captions/links.
+
+The remaining UIImageView consumers retain AlamofireImage's receipt-based cancellation,
+weak capture and URL/receipt validation, cache, circle filter and transition. Twenty
+direct helper calls and six reactive bindings were reviewed; the binding and helpers
+now state MainActor ownership. Required SDK progress queues remain deliberately.
+No custom network continuation or second image cache was introduced.
+
+Integrated verification: **1,398 Library + 266 framework + 94 API = 1,758 passed**,
+zero failures/skips; app build succeeded with zero errors and two existing warnings.
+Ten new cases cover image sharing/retry, independent pages, replacement/exit/release,
+stale datasource rows, current captions/links, boundary replacement and observer release.
+A local PCM fixture exercises real AVFoundation duration/rate/boundary callbacks.
+Three compile attempts corrected two missing imports and an explicit UI-binding actor
+boundary. Test setup now injects isolated page dependencies. No human-run commands
+were required. Selected regression is not full-repository or snapshot validation.
+
+The Debug demo launched on iPhone Air/iOS 26.2 with populated Explore cards and artwork.
+This smoke check does not validate remote project-video playback or full visual parity.
+Evidence, reproducible verification and screenshot are outside the repository in
+`../Migration Evidence/kickstarter-project-video-images/`.
+
+The scoped primitive inventory is **16 matching lines in 12 files**. Required platform
+callbacks remain with documented ownership. Layout/HTML helpers, compiler isolation,
+reference-device snapshots, physical-device and live-service validation remain open.
+**App-wide migration remains in progress.**
+
 ### Permission alerts, connectivity and page-controller boundary — 29 October 2026
 
 Contextual permission alerts now have an AppDelegate-owned cancellable timer.

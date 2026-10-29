@@ -365,6 +365,13 @@ open class ValueCellDataSource: NSObject, UICollectionViewDataSource, UITableVie
     }
   }
 
+  /// Asynchronous UI results may refer to a row removed by a newer snapshot.
+  public final func value(at indexPath: IndexPath) -> Any? {
+    guard self.values.indices.contains(indexPath.section),
+      self.values[indexPath.section].indices.contains(indexPath.row) else { return nil }
+    return self.values[indexPath.section][indexPath.row].value
+  }
+
   public func items(in section: Int) -> [(value: Any, reusableId: String)] {
     return self.values[section]
   }

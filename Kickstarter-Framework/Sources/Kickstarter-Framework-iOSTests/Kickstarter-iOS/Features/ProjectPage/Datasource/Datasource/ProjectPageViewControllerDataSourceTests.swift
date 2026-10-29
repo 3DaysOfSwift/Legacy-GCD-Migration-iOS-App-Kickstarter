@@ -928,6 +928,43 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
     )
   }
 
+  func testLateImageCannotOverwriteReplacedRowAndOutOfBoundsReadIsSafe() throws {
+    let project = Project.template
+      |> \.extendedProjectProperties .~ ExtendedProjectProperties(
+        environmentalCommitments: [], faqs: [], aiDisclosure: nil, risks: "",
+        story: self.storyViewableElements, minimumPledgeAmount: 1, projectNotice: nil)
+    self.dataSource.load(navigationSection: .campaign, project: .left(project), refTag: nil, isExpandedStates: nil)
+    let path = IndexPath(row: 2, section: ProjectPageViewControllerDataSource.Section.campaign.rawValue)
+    let url = try XCTUnwrap(URL(string: "http://imagetest.com"))
+    let original = try XCTUnwrap(self.dataSource.imageViewElementWith(urls: [url], indexPath: path))
+    self.dataSource.updateImageViewElementWith(
+      ImageViewElement(src: "http://obsolete.example/image", href: nil, caption: nil), image: UIImage(), indexPath: path)
+    let current = try XCTUnwrap(self.dataSource.imageViewElementWith(urls: [url], indexPath: path))
+    XCTAssertNil(current.image)
+    XCTAssertEqual(current.element.src, original.element.src)
+    for invalid in [IndexPath(row: 9999, section: path.section), IndexPath(row: -1, section: path.section), IndexPath(row: 0, section: -1), IndexPath(row: 0, section: 9999)] {
+      XCTAssertNil(self.dataSource.imageViewElementWith(urls: [url], indexPath: invalid))
+      self.dataSource.updateImageViewElementWith(original.element, image: UIImage(), indexPath: invalid)
+    }
+  }
+
+  func testImageCompletionPreservesCurrentCaptionAndLink() throws {
+    let project = Project.template
+      |> \.extendedProjectProperties .~ ExtendedProjectProperties(
+        environmentalCommitments: [], faqs: [], aiDisclosure: nil, risks: "",
+        story: self.storyViewableElements, minimumPledgeAmount: 1, projectNotice: nil)
+    self.dataSource.load(navigationSection: .campaign, project: .left(project), refTag: nil, isExpandedStates: nil)
+    let path = IndexPath(row: 2, section: ProjectPageViewControllerDataSource.Section.campaign.rawValue)
+    let url = try XCTUnwrap(URL(string: "http://imagetest.com"))
+    let image = UIImage()
+    self.dataSource.updateImageViewElementWith(
+      ImageViewElement(src: url.absoluteString, href: "https://old.example", caption: "old"), image: image, indexPath: path)
+    let current = try XCTUnwrap(self.dataSource.imageViewElementWith(urls: [url], indexPath: path))
+    XCTAssertTrue(current.image === image)
+    XCTAssertEqual(current.element.href, "https://href.com")
+    XCTAssertEqual(current.element.caption, "caption")
+  }
+
   func testUpdatingCampaign_WithImageViewElementImage_Success() {
     let project = Project.template
       |> \.extendedProjectProperties .~ ExtendedProjectProperties(

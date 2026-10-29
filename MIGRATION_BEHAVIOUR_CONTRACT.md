@@ -1,5 +1,25 @@
 # Kickstarter migration behaviour contract
 
+## Project video and campaign images — 29 October 2026
+
+- Preserve playback/pause/replay controls, positive finite duration updates, 85%
+  completion threshold and once-per-screen start/completion analytics. Unknown or
+  nonfinite metadata cannot create a boundary observer or reach numeric analytics.
+- One observer owns one exact AVPlayer. Replacement invalidates its KVO/boundary
+  tokens; replacing a threshold removes its earlier token and rejects queued old
+  callbacks. Screen release finishes delivery and cleans up the original player.
+- Campaign-image reads keep the existing Kingfisher cache and WebP processing.
+  Equivalent pending reads share within a page; failure permits retry. Page/row
+  replacement rejects obsolete delivery, and one page cannot cancel another page's
+  image downloads. Temporary navigation retains cache preparation; permanent exit
+  and project replacement cancel the departing page's work.
+- Image assignment checks row bounds and current source URL, retaining the current
+  caption/link. Nil or failed images keep the existing optional-image fallback.
+- UIImageView's AlamofireImage receipt ownership, weak captures, replacement checks,
+  cached-image behavior, circle filter and 300ms uncached transition remain intact.
+- Controlled callbacks/local media validate ownership; remote decoding, real network
+  cancellation, physical-device playback and full visual parity remain open.
+
 ## Permission-alert delay and connectivity — 29 October 2026
 
 - Keep the 500ms web-login settling delay, prompt text/actions, denial accounting

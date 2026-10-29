@@ -180,8 +180,8 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
 
     if self.isMovingFromParent || self.isBeingDismissed || self.navigationController?.isBeingDismissed == true {
       self.viewModel.cancelMediaPreparation()
+      self.viewModel.cancelImagePreparation()
     }
-    UIImageView.ksr_stopFetchingImages()
   }
 
   public override func updateViewConstraints() {
@@ -512,20 +512,19 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
       }
 
     self.viewModel.outputs.prefetchImageURLs
+      .observeForUI()
       .observeValues { [weak self] urls, indexPath in
         self?.prefetchImageDataAndUpdateWith(indexPath, imageUrls: urls)
       }
 
     self.viewModel.outputs.prefetchImageURLsOnFirstLoad
+      .observeForUI()
       .observeValues { [weak self] imageViewElements in
-        imageViewElements.forEach { element in
+        imageViewElements.enumerated().forEach { index, element in
           guard let url = URL(string: element.src) else { return }
 
-          UIImageView.ksr_cacheImageWith(url) { [weak self] image in
-            guard let dataSource = self?.dataSource,
-                  let crossPlatformImage = image else { return }
-
-            dataSource.preloadCampaignImageViewElement(element, image: crossPlatformImage)
+          self?.viewModel.prepareImage(slot: "preload-image-\(index)", url: url) { [weak self] image in
+            self?.dataSource.preloadCampaignImageViewElement(element, image: image)
           }
         }
       }
@@ -898,9 +897,8 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
 
     guard preexistingImageData.image == nil else { return }
 
-    UIImageView.ksr_cacheImageWith(preexistingImageData.url) { [weak self] image in
-      guard let imageData = image,
-            let tableView = self?.tableView,
+    self.viewModel.prepareImage(slot: "image-\(indexPath.section)-\(indexPath.row)", url: preexistingImageData.url) { [weak self] image in
+      guard let tableView = self?.tableView,
             let dataSource = self?.dataSource,
             dataSource.isIndexPathAnImageViewElement(
               tableView: tableView,
@@ -911,7 +909,7 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
       dataSource
         .updateImageViewElementWith(
           preexistingImageData.element,
-          image: imageData,
+          image: image,
           indexPath: preexistingImageData.indexPath
         )
     }

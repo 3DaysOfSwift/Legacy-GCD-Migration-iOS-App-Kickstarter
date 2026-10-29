@@ -5,6 +5,7 @@ import KsApi
 import Prelude
 import ReactiveSwift
 import ServerDrivenUI
+import UIKit
 
 public enum ProjectPageContentView: Equatable {
   case tableView
@@ -238,6 +239,8 @@ public protocol ProjectPageViewModelOutputs {
 @MainActor
 public protocol ProjectPageViewModelType {
   @discardableResult func prepareMedia(slot: String, url: URL, thumbnail: URL?, completion: @escaping (PreparedProjectMedia) -> Void) -> Task<Void, Never>
+  @discardableResult func prepareImage(slot: String, url: URL, completion: @escaping (UIImage) -> Void) -> Task<Void, Never>
+  func cancelImagePreparation()
   func cancelMediaPreparation()
   var inputs: ProjectPageViewModelInputs { get }
   var outputs: ProjectPageViewModelOutputs { get }
@@ -248,6 +251,32 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   ProjectPageViewModelOutputs {
   private let projectMediaFeature: ProjectMediaFeature
   private var mediaWaiters: [String: (id: UUID, url: URL, thumbnail: URL?, task: Task<Void, Never>)] = [:]
+
+  private var imageWaiters: [String: (id: UUID, url: URL, task: Task<Void, Never>)] = [:]
+
+  @discardableResult
+  public func prepareImage(slot: String, url: URL, completion: @escaping (UIImage) -> Void) -> Task<Void, Never> {
+    if let pending = self.imageWaiters[slot], pending.url == url { return pending.task }
+    self.imageWaiters[slot]?.task.cancel()
+    let id = UUID()
+    let request = self.projectMediaFeature.requestImage(route: self.projectRoute, url: url)
+    let task = Task { [weak self] in
+      defer { if self?.imageWaiters[slot]?.id == id { self?.imageWaiters[slot] = nil } }
+      do {
+        let image = try await request.value
+        guard !Task.isCancelled, self?.imageWaiters[slot]?.id == id else { return }
+        completion(image)
+      } catch { /* Optional campaign images retain their existing fallback and may retry. */ }
+    }
+    self.imageWaiters[slot] = (id, url, task)
+    return task
+  }
+
+  public func cancelImagePreparation() {
+    self.imageWaiters.values.forEach { $0.task.cancel() }
+    self.imageWaiters.removeAll()
+    self.projectMediaFeature.cancelImages(route: self.projectRoute)
+  }
 
   @discardableResult
   public func prepareMedia(
@@ -760,6 +789,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
   deinit {
     self.loadingTask?.cancel()
+    self.imageWaiters.values.forEach { $0.task.cancel() }
     self.mediaWaiters.values.forEach { $0.task.cancel() }
     self.featureBindings.dispose()
     let details = self.projectDetailsFeature
@@ -768,6 +798,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     // Finite route cleanup, with no self capture or new network operation.
     Task { @MainActor in
       media.cancelPreparations(route: route)
+      media.cancelImages(route: route)
       details.release(route: route)
     }
   }
@@ -798,6 +829,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     secretRewardToken: String?
   ) {
     self.cancelMediaPreparation()
+    self.cancelImagePreparation()
     self.configDataProperty.value = (projectOrParam, refInfo, secretRewardToken)
   }
 

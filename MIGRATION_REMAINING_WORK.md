@@ -9,8 +9,9 @@ creator draft work is superseded by their completed checkpoints.
 
 ## Remaining implementation and audit work
 
-1. **Platform/UI boundaries:** project video boundary observers and image-loader
-   consumers. Permission-alert and reachability ownership now have verified checkpoints.
+1. **Remaining platform/UI inventory:** finish the non-queue callback audit and
+   classify retained SDK boundaries. Project-video observers, campaign-image ownership
+   and UIImageView consumer review now have verified checkpoints.
 2. **Layout and compatibility helpers:** synchronous main-thread HTML helper,
    refresh/collection/table layout deferrals and the pledged-card Combine debounce.
    Preserve their required ordering; do not replace queue syntax mechanically.
@@ -18,11 +19,11 @@ creator draft work is superseded by their completed checkpoints.
    concurrency diagnostic baseline. Passing Swift 5 builds do not establish strict
    concurrency compliance or Swift 6 readiness.
 
-The refreshed primitive scan finds 17 matching lines in 13 first-party files.
+The refreshed primitive scan finds 16 matching lines in 12 first-party files.
 Some are SDK queue arguments or mock compatibility code. See
 MIGRATION_PLATFORM_CALLBACK_AUDIT.md for scope, classification and limits.
-Permission-alert/connectivity ownership and the MainActor page helper are the latest
-checkpoint. A populated demo launch passed; full visual/device parity remains open.
+Project-video and image-loading ownership are the latest checkpoint. A populated
+demo launch passed; remote video and full visual/device parity remain open.
 
 ## Final validation gates
 

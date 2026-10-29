@@ -17,6 +17,28 @@ The primitive scan matched **40 lines in 25 files**. None matched the Feature
 implementation directory. That does not make every Feature concurrency-clean:
 complete compiler diagnostics also expose non-Sendable transfer boundaries.
 
+## Latest refresh: project-video observers and images — 29 October 2026
+
+The same scoped primitive scan matches **16 lines in 12 files**. VideoViewController's
+queue argument moves into the native adapter as `.main`; this count reduction is not
+removal of the required AVPlayer callback mechanism. A retained native source owns
+KVO/boundary tokens, emits immutable events to one controller-owned MainActor consumer,
+and rejects obsolete boundary generations. Native local-asset playback and release
+are tested. Remote video, visual parity and physical-device playback remain open.
+
+ProjectMediaFeature owns native async Kingfisher campaign-image reads per page/URL.
+Slot/page identity and datasource source/bounds checks suppress stale delivery.
+Global image cancellation is removed. Same WebP/cache behavior is retained.
+AlamofireImage's 20 direct helper calls and six reactive bindings were reviewed:
+its weak image-view capture, URL/receipt check and per-receipt cancellation remain.
+Helpers/bindings state MainActor ownership; required SDK progress queues stay.
+The facepile consumer creates fresh views and cancels each when clearing them.
+Dependency source review is recorded with locations in the checkpoint case study.
+
+Final integrated verification: 1,758 selected tests and app build passed. Demo launch
+showed populated Explore artwork. See the latest ledger and sibling evidence folder.
+Historical counts below remain provenance, not current defect totals.
+
 ## Latest refresh: permission alerts and connectivity — 29 October 2026
 
 The same primitive regex now matches **17 lines in 13 files**. AppDelegate's delayed
@@ -69,7 +91,7 @@ Paths below are relative to the repository. Counts refer to matching lines, not 
 | Kickstarter-iOS/AppDelegate.swift | 1 | Implemented: owned cancellable delay; no queue matches remain. Redirect/config callbacks above do not match queue syntax. |
 | KsApi/AsyncApolloClient.swift | 2 | Legacy generic async bridge ignores cancellation; now no application call sites found for generic async Service.fetch after examples migrated. Verify all consumers before removing or hardening compatibility API. Queue parameter itself is an SDK requirement. |
 | KsApi/MockService.swift | 1 | Legacy Combine mock delay; not a live request. Keep while compatibility tests/consumers require it. |
-| Framework/Library/UIImageView+URL.swift | 2 | AlamofireImage progress queue is a UI SDK boundary. Preserve cache/filter/transition and assess cancellation per consumer. |
+| Framework/Library/UIImageView+URL.swift | 2 | AlamofireImage progress queue is a UI SDK boundary. Reviewed: preserve cache/filter/transition; per-view receipt/URL checks, weak capture and cancellation. MainActor helper/binding contract. |
 | Library/VideoFeedAudioController.swift | 1 | Implemented: production audio type consolidated; owned stream/reset tasks. |
 | Library/UIPageViewController+ThreadSafety.swift | 1 | Implemented: all six callers reviewed; explicit MainActor synchronous forwarding, no queue hop. |
 | PPOProjectCardViewModel.swift | 1 | Retained Combine debounce; upstream Feature owns the write. Preserve latest-toggle semantics; inspect subscription cycle/lifetime. |
@@ -89,7 +111,7 @@ Paths below are relative to the repository. Counts refer to matching lines, not 
 | MessageBannerView.swift | 1 | Implemented: identity-keyed task; hosted replacement/removal regressions. |
 | Library/Reachability.swift | 2 | Implemented: native handle/context retained and unregistered on release; callback queue yields immutable values to Feature-owned consumer. Retained SDK semantics/deprecation, no NWPathMonitor substitution. |
 | ReportProjectCell.swift | 1 | Deferred hosting-view setup; reuse/ordering review. |
-| VideoViewController.swift | 1 | AVPlayer boundary observer requires queue; verify observer-token removal and item identity. |
+| VideoViewController.swift | 1 | Implemented: native source owns KVO/boundary tokens; async consumer validates boundary identity, cancellation and release. Queue remains a platform requirement. |
 | ProjectPageViewController.swift | 1 | Implemented: Feature-owned native media preparation; stale rows rejected. |
 
 ## Callback mechanisms that can legitimately remain

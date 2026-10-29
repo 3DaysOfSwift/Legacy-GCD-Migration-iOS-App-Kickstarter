@@ -6,9 +6,6 @@ import Library
 import Prelude
 import UIKit
 
-private let durationKeyPath = "currentItem.duration"
-private let rateKeyPath = "rate"
-
 public protocol VideoViewControllerDelegate: AnyObject {
   func videoViewControllerDidFinish(_ controller: VideoViewController)
   func videoViewControllerDidStart(_ controller: VideoViewController)
@@ -19,7 +16,8 @@ public final class VideoViewController: UIViewController {
   internal weak var playbackDelegate: AudioVideoViewControllerPlaybackDelegate?
   fileprivate let viewModel: VideoViewModelType = VideoViewModel()
   fileprivate var playerController: AVPlayerViewController!
-  fileprivate var timeObserver: Any?
+  private var videoObservation: ProjectVideoObservation?
+  private var backgroundObserver: (any NSObjectProtocol)?
 
   @IBOutlet fileprivate var playButton: UIButton!
   @IBOutlet fileprivate var projectImageView: UIImageView!
@@ -159,41 +157,21 @@ public final class VideoViewController: UIViewController {
   }
 
   func addCompletionObserver(atTime time: CMTime) {
-    guard let player = self.playerController.player else { return }
-
-    self.timeObserver = player.addBoundaryTimeObserver(
-      forTimes: [NSValue(time: time)],
-      queue: DispatchQueue.main
-    ) { [weak self] in
-      self?.viewModel.inputs.crossedCompletionThreshold()
-    }
+    self.videoObservation?.setCompletionBoundary(time)
   }
 
   internal func configurePlayer(withURL url: URL) {
     try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
-
-    self.playerController.player = AVPlayer(url: url)
-
-    self.playerController.player?.addObserver(self, forKeyPath: durationKeyPath, options: .new, context: nil)
-
-    self.playerController.player?.addObserver(self, forKeyPath: rateKeyPath, options: .new, context: nil)
-  }
-
-  public override func observeValue(
-    forKeyPath keyPath: String?, of _: Any?,
-    change: [NSKeyValueChangeKey: Any]?,
-    context _: UnsafeMutableRawPointer?
-  ) {
-    guard let player = self.playerController.player else { return }
-
-    if keyPath == rateKeyPath {
-      guard let rate = change?[NSKeyValueChangeKey.newKey] as? Double else { return }
-      guard let currentTime = player.currentItem?.currentTime() else { return }
-      self.viewModel.inputs.rateChanged(toNew: rate, atTime: currentTime)
-
-    } else if keyPath == durationKeyPath {
-      guard let duration = player.currentItem?.duration else { return }
-      self.viewModel.inputs.durationChanged(toNew: duration)
+    self.videoObservation?.stop()
+    let player = AVPlayer(url: url)
+    self.playerController.player = player
+    self.videoObservation = ProjectVideoObservation(source: NativeProjectVideoEvents(player: player)) { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .duration(duration): self.viewModel.inputs.durationChanged(toNew: duration)
+      case let .rate(rate, time): self.viewModel.inputs.rateChanged(toNew: rate, atTime: time)
+      case .completion: self.viewModel.inputs.crossedCompletionThreshold()
+      }
     }
   }
 
@@ -202,32 +180,18 @@ public final class VideoViewController: UIViewController {
   }
 
   deinit {
-    if let timeObserver = self.timeObserver {
-      self.playerController.player?.removeTimeObserver(timeObserver)
-    }
-    self.playerController.player?.removeObserver(self, forKeyPath: durationKeyPath)
-    self.playerController.player?.removeObserver(self, forKeyPath: rateKeyPath)
-    self.playerController?.player?.replaceCurrentItem(with: nil)
+    if let observer = self.backgroundObserver { NotificationCenter.default.removeObserver(observer) }
+    // videoObservation releases its exact player's KVO/boundary resources.
   }
 
   private func setupNotifications() {
-    NotificationCenter.default
-      .addObserver(
-        self,
-        selector: #selector(self.pauseVideo),
-        name: .ksr_applicationDidEnterBackground,
-        object: nil
-      )
+    if let observer = self.backgroundObserver { NotificationCenter.default.removeObserver(observer) }
+    self.backgroundObserver = NotificationCenter.default.addObserver(
+      forName: .ksr_applicationDidEnterBackground, object: nil, queue: .main
+    ) { [weak self] _ in
+      MainActor.assumeIsolated { self?.viewModel.inputs.viewWillDisappear() }
+    }
   }
-
-  @objc private func pauseVideo() {
-    self.viewModel.inputs.viewWillDisappear()
-  }
-}
-
-// Helper function inserted by Swift 4.2 migrator.
-private func convertFromAVAudioSessionCategory(_ input: AVAudioSession.Category) -> String {
-  return input.rawValue
 }
 
 extension VideoViewController: AudioVideoViewControllerPlaybackDelegate {

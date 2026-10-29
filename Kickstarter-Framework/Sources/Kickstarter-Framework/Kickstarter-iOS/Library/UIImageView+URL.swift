@@ -1,10 +1,13 @@
 import AlamofireImage
 import Kingfisher
-import KingfisherWebP
 import ReactiveExtensions
 import ReactiveSwift
 import UIKit
 
+// AlamofireImage owns each image-view request receipt, cancels replacement,
+// weakly captures the view and checks both URL and receipt before assigning.
+// Keep its cache, circle filter and cross-dissolve rather than adding a second loader.
+@MainActor
 extension UIImageView {
   #if DEBUG
     /// Install the local demo transport in the image clients' own sessions.
@@ -48,63 +51,13 @@ extension UIImageView {
       completion: nil
     )
   }
-
-  public static func ksr_cacheImageWith(
-    _ url: URL,
-    completionHandler: @escaping (UIImage?) -> Void
-  ) {
-    /* WebPProcessor and WebPSerializer fall back to
-     DefaultImageProcessor and DefaultCacheSerializer, respectively,
-     for non-webp images */
-
-    let options: KingfisherOptionsInfo = [
-      .processor(WebPProcessor.default),
-      .cacheSerializer(WebPSerializer.default)
-    ]
-
-    let prefetcher = ImagePrefetcher(
-      resources: [url],
-      options: options
-    ) { cachedImages, failedImages, downloadedImages in
-      var crossPlatformImage: UIImage?
-
-      guard failedImages.isEmpty,
-            let image = (cachedImages + downloadedImages).first else {
-        completionHandler(crossPlatformImage)
-
-        return
-      }
-
-      ImageCache.default.retrieveImage(
-        forKey: image.cacheKey,
-        options: options
-      ) { result in
-
-        switch result {
-        case let .success(imageResult):
-          if let imageResultImage = imageResult.image {
-            crossPlatformImage = imageResultImage
-          }
-
-          completionHandler(crossPlatformImage)
-        case .failure:
-          completionHandler(crossPlatformImage)
-        }
-      }
-    }
-
-    prefetcher.start()
-  }
-
-  public static func ksr_stopFetchingImages() {
-    ImageDownloader.default.cancelAll()
-  }
 }
 
 private enum Associations {
   fileprivate static var ksr_imageUrl = 0
 }
 
+@MainActor
 extension Rac where Object: UIImageView {
   public var ksr_imageUrl: Signal<URL?, Never> {
     nonmutating set {
@@ -112,10 +65,14 @@ extension Rac where Object: UIImageView {
         object,
         key: &Associations.ksr_imageUrl,
         setter: { [weak object] url in
-          object?.af.cancelImageRequest()
-          object?.image = nil
-          guard let url = url else { return }
-          object?.ksr_setImageWithURL(url)
+          // The binding below delivers through observeForUI; initialization is
+          // also MainActor-isolated. Keep this synchronous image assignment.
+          MainActor.assumeIsolated {
+            object?.af.cancelImageRequest()
+            object?.image = nil
+            guard let url else { return }
+            object?.ksr_setImageWithURL(url)
+          }
         },
         getter: { nil }
       )

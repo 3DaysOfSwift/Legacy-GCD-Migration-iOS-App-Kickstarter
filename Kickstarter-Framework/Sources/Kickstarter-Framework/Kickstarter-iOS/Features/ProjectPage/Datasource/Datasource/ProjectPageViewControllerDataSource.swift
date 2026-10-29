@@ -440,8 +440,11 @@ internal final class ProjectPageViewControllerDataSource: ValueCellDataSource {
     image: UIImage,
     indexPath: IndexPath
   ) {
+    guard let current = self.value(at: indexPath) as? (ImageViewElement, UIImage?),
+      current.0.src == imageViewElement.src else { return }
+    // Keep the current caption/link when the same image URL survives a row refresh.
     self.set(
-      value: (imageViewElement, image),
+      value: (current.0, image),
       cellClass: ImageViewElementCell.self,
       inSection: indexPath.section,
       row: indexPath.row
@@ -480,9 +483,8 @@ internal final class ProjectPageViewControllerDataSource: ValueCellDataSource {
   )? {
     let allURLStrings = urls.map { $0.absoluteString }
 
-    guard let indexPathSection = Section(rawValue: indexPath.section)?.rawValue,
-          let imageViewElementItem = self.items(in: indexPathSection)[indexPath.row]
-          .value as? (element: ImageViewElement, image: UIImage?)
+    guard Section(rawValue: indexPath.section) != nil,
+          let imageViewElementItem = self.value(at: indexPath) as? (element: ImageViewElement, image: UIImage?)
     else {
       return nil
     }

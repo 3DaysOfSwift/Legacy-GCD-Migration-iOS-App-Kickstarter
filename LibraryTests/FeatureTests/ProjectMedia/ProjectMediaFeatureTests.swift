@@ -4,12 +4,107 @@ import Foundation
 @testable import Library
 @testable import LibraryTestHelpers
 import Observation
+import Prelude
 import ReactiveSwift
 import XCTest
+import UIKit
 
 @MainActor
 final class ProjectMediaFeatureTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
+
+  private func pageModel(media: ProjectMediaFeature) -> ProjectPageViewModel {
+    let service = MockService()
+    let discussion = DiscussionFeature(
+      sessionFeature: media.sessionFeature,
+      makeProvider: { AsyncDiscussionProvider(service: service) }
+    )
+    let details = ProjectDetailsFeature(
+      sessionFeature: media.sessionFeature,
+      discussionFeature: discussion,
+      makeProvider: { AsyncProjectDetailsProvider(service: service) },
+      useFastLoading: { false },
+      includeRichText: { true }
+    )
+    return ProjectPageViewModel(projectDetailsFeature: details, projectMediaFeature: media)
+  }
+
+  func testCampaignImageSharesPendingReadAndFailureAllowsRetry() async throws {
+    let gate = AccountRequestGate<UIImage>()
+    defer { gate.releaseAll() }
+    let feature = ProjectMediaFeature(loadImage: { _ in try await gate.request() }, makeProvider: { ControlledMediaProvider() })
+    let route = UUID(), url = URL(fileURLWithPath: "/tmp/campaign-image")
+    let first = feature.requestImage(route: route, url: url)
+    let shared = feature.requestImage(route: route, url: url)
+    await gate.waitFor(1)
+    try gate.finish(0, .failure(URLError(.cannotDecodeContentData)))
+    for request in [first, shared] {
+      if case .success = await request.result { XCTFail("Image error was swallowed") }
+    }
+    let retry = feature.requestImage(route: route, url: url)
+    await gate.waitFor(2)
+    let image = UIImage()
+    try gate.finish(1, .success(image))
+    let result = try await retry.value
+    XCTAssertTrue(result === image)
+    XCTAssertEqual(gate.count, 2)
+  }
+
+  func testPageCancellationDoesNotCancelOtherPagesImage() async throws {
+    let gate = AccountRequestGate<UIImage>()
+    defer { gate.releaseAll() }
+    let feature = ProjectMediaFeature(loadImage: { _ in try await gate.request() }, makeProvider: { ControlledMediaProvider() })
+    let route = UUID(), url = URL(fileURLWithPath: "/tmp/campaign-image")
+    let old = feature.requestImage(route: route, url: url)
+    await gate.waitFor(1)
+    let independent = feature.requestImage(route: UUID(), url: url)
+    await gate.waitFor(2)
+    feature.cancelImages(route: route)
+    let replacement = feature.requestImage(route: route, url: url)
+    await gate.waitFor(3)
+    let image = UIImage()
+    try gate.finish(0, .success(image)) // Deliberately noncooperative late completion.
+    if case .failure(is CancellationError) = await old.result {} else { XCTFail("Cancelled image escaped") }
+    try gate.finish(1, .success(image)); try gate.finish(2, .success(image))
+    let a = try await independent.value, b = try await replacement.value
+    XCTAssertTrue(a === image); XCTAssertTrue(b === image)
+  }
+
+  func testCampaignImageReplacementAndExitRejectObsoleteDelivery() async throws {
+    let gate = AccountRequestGate<UIImage>()
+    defer { gate.releaseAll() }
+    let feature = ProjectMediaFeature(loadImage: { _ in try await gate.request() }, makeProvider: { ControlledMediaProvider() })
+    let model = self.pageModel(media: feature)
+    let first = model.prepareImage(slot: "row", url: URL(fileURLWithPath: "/tmp/old")) { _ in XCTFail("Old row received image") }
+    await gate.waitFor(1)
+    var received = 0
+    let second = model.prepareImage(slot: "row", url: URL(fileURLWithPath: "/tmp/new")) { _ in received += 1 }
+    await gate.waitFor(2)
+    try gate.finish(1, .success(UIImage())); await second.value
+    try gate.finish(0, .success(UIImage())); await first.value
+    XCTAssertEqual(received, 1)
+    let exit = model.prepareImage(slot: "another", url: URL(fileURLWithPath: "/tmp/late")) { _ in XCTFail("Exited page received image") }
+    await gate.waitFor(3)
+    model.cancelImagePreparation()
+    try gate.finish(2, .success(UIImage())); await exit.value
+  }
+
+  func testProjectReplacementAndReleaseCancelImageDelivery() async throws {
+    let gate = AccountRequestGate<UIImage>()
+    defer { gate.releaseAll() }
+    let feature = ProjectMediaFeature(loadImage: { _ in try await gate.request() }, makeProvider: { ControlledMediaProvider() })
+    var model: ProjectPageViewModel? = self.pageModel(media: feature)
+    let request = try XCTUnwrap(model).prepareImage(slot: "row", url: URL(fileURLWithPath: "/tmp/old")) { _ in XCTFail("Old project image escaped") }
+    await gate.waitFor(1)
+    model?.configureWith(projectOrParam: .left(.template), refInfo: nil)
+    try gate.finish(0, .success(UIImage())); await request.value
+    let releasedRequest = try XCTUnwrap(model).prepareImage(slot: "row", url: URL(fileURLWithPath: "/tmp/new")) { _ in XCTFail("Released view model received image") }
+    await gate.waitFor(2)
+    weak var released = model
+    model = nil
+    XCTAssertNil(released)
+    try gate.finish(1, .success(UIImage())); await releasedRequest.value
+  }
 
   func testPreparationSharesSlotAndFailureAllowsRetry() async throws {
     let gate = AccountRequestGate<PreparedProjectMedia>()
@@ -55,7 +150,7 @@ final class ProjectMediaFeatureTests: TestCase {
     let gate = AccountRequestGate<PreparedProjectMedia>()
     defer { gate.releaseAll() }
     let feature = ProjectMediaFeature(preparePlayback: { _, _ in try await gate.request() }, makeProvider: { ControlledMediaProvider() })
-    let model = ProjectPageViewModel(projectMediaFeature: feature)
+    let model = self.pageModel(media: feature)
     let waiter = model.prepareMedia(slot: "row", url: URL(fileURLWithPath: "/tmp/synthetic-video"), thumbnail: nil) { _ in
       XCTFail("Exited page received prepared media")
     }

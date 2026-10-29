@@ -2,6 +2,7 @@ import Foundation
 import KsApi
 import Observation
 import ReactiveSwift
+import UIKit
 
 @MainActor
 public protocol ProjectMediaProvider {
@@ -32,6 +33,35 @@ public struct AsyncProjectMediaProvider: ProjectMediaProvider {
 /// Start and completion may both be in flight; neither cancels the other.
 @MainActor
 public final class ProjectMediaFeature {
+  private struct ImageKey: Hashable { let route: UUID; let url: URL }
+  private var images: [ImageKey: (id: UUID, task: Task<UIImage, Error>)] = [:]
+  private let loadImage: @MainActor (URL) async throws -> UIImage
+
+  public func requestImage(route: UUID, url: URL) -> Task<UIImage, Error> {
+    let key = ImageKey(route: route, url: url)
+    if let pending = self.images[key] { return pending.task }
+    let id = UUID()
+    let load = self.loadImage
+    let task = Task { [weak self] in
+      defer { if self?.images[key]?.id == id { self?.images[key] = nil } }
+      try Task.checkCancellation()
+      let image = try await load(url)
+      try Task.checkCancellation()
+      guard self?.images[key]?.id == id else { throw CancellationError() }
+      return image
+    }
+    self.images[key] = (id, task)
+    return task
+  }
+
+  public func cancelImages(route: UUID) {
+    for key in self.images.keys.filter({ $0.route == route }) {
+      self.images.removeValue(forKey: key)?.task.cancel()
+    }
+  }
+
+  deinit { self.images.values.forEach { $0.task.cancel() } }
+
   private struct PreparationKey: Hashable { let route: UUID; let slot: String }
   private struct Preparation {
     let id: UUID
@@ -373,9 +403,11 @@ public final class ProjectMediaFeature {
   public let sessionFeature: SessionFeature
   public init(
     sessionFeature: SessionFeature? = nil,
+    loadImage: (@MainActor (URL) async throws -> UIImage)? = nil,
     preparePlayback: (@MainActor (URL, URL?) async throws -> PreparedProjectMedia)? = nil,
     makeProvider: @escaping () -> any ProjectMediaProvider
   ) {
+    self.loadImage = loadImage ?? { try await ProjectMediaPreparation.loadImage(url: $0) }
     self.preparePlayback = preparePlayback ?? { try await ProjectMediaPreparation.load(url: $0, thumbnailURL: $1) }
     self.sessionFeature = sessionFeature ?? SessionFeature(makeProvider: {
       AsyncSessionProvider(service: AppEnvironment.current.apiService)
@@ -421,6 +453,8 @@ public final class ProjectMediaFeature {
   }
 
   public func release(route: UUID) {
+    self.cancelImages(route: route)
+    self.cancelPreparations(route: route)
     self.feedRequests.removeValue(forKey: route)?.task.cancel()
     self.feeds[route] = nil
     self.feedSaves[route] = nil
