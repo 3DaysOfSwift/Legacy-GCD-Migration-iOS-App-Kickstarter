@@ -3,6 +3,7 @@ import AppTrackingTransparency
 import Prelude
 import ReactiveSwift
 import XCTest
+import SystemConfiguration
 
 @testable import KsApi
 @testable import Library
@@ -12,6 +13,8 @@ final class AppLifecycleFeatureTests: XCTestCase {
   private var provider: ControlledLifecycleProvider!
   private var feature: AppLifecycleFeature!
   private let route = UUID()
+  private var connectivityMonitor: ControlledReachabilityMonitor!
+  private var monitorStarts = 0
 
   override func setUp() async throws {
     try await super.setUp()
@@ -23,9 +26,15 @@ final class AppLifecycleFeatureTests: XCTestCase {
       makeProvider: { AsyncAccountPreferencesProvider(service: MockService()) })
     let messaging = MessagingFeature(
       sessionFeature: session, makeProvider: { AsyncMessagingProvider(service: MockService()) })
+    self.connectivityMonitor = ControlledReachabilityMonitor()
+    self.monitorStarts = 0
     self.feature = AppLifecycleFeature(
       sessionFeature: session, settingsFeature: settings, messagingFeature: messaging,
       makeProvider: { provider },
+      makeReachabilityMonitor: { [weak self] in
+        self?.monitorStarts += 1
+        return self?.connectivityMonitor
+      },
       authorizeNotifications: { options in
         provider.permissionOptions.append(options.rawValue)
         return (try? await provider.permissions.request()) ?? false
@@ -34,9 +43,9 @@ final class AppLifecycleFeatureTests: XCTestCase {
       resolveRedirect: { _ in try await provider.redirects.request() }, sleep: { _ in try Task.checkCancellation() })
   }
   override func tearDown() async throws {
-    self.feature.reset()
+    self.feature?.reset()
     self.provider.releaseAll()
-    await self.feature.waitForOperations()
+    await self.feature?.waitForOperations()
     try await super.tearDown()
   }
   private func link(_ id: Int = 1, _ subpage: Navigation.Project = .root) -> Navigation {
@@ -49,6 +58,73 @@ final class AppLifecycleFeatureTests: XCTestCase {
     } else {
       XCTFail("Obsolete result escaped its owner", file: file, line: line)
     }
+  }
+
+  func testConnectivitySharesNativeMonitorAndSurvivesSessionReset() async {
+    XCTAssertEqual(self.monitorStarts, 0)
+    XCTAssertEqual(self.feature.connectivity, .wifi)
+    var first: [Reachability] = []
+    var second: [Reachability] = []
+    let delivered = expectation(description: "both observers received offline")
+    delivered.expectedFulfillmentCount = 2
+    let a = self.feature.connectivityProducer.startWithValues {
+      first.append($0)
+      if $0 == .none { delivered.fulfill() }
+    }
+    let b = self.feature.connectivityProducer.startWithValues {
+      second.append($0)
+      if $0 == .none { delivered.fulfill() }
+    }
+    XCTAssertEqual(first, [.wifi])
+    XCTAssertEqual(second, [.wifi])
+    self.feature.reset()
+    self.connectivityMonitor.continuation.yield(.wwan)
+    self.connectivityMonitor.continuation.yield(.none)
+    await fulfillment(of: [delivered], timeout: 2)
+    XCTAssertEqual(first, [.wifi, .wwan, .none])
+    XCTAssertEqual(second, first)
+    XCTAssertEqual(self.monitorStarts, 1)
+    a.dispose(); b.dispose()
+  }
+
+  func testConnectivityDisposalDoesNotStopOtherObserverAndFeatureReleaseStopsStream() async {
+    let monitor = self.connectivityMonitor!
+    let stopped = expectation(description: "stream cancelled")
+    monitor.continuation.onTermination = { _ in stopped.fulfill() }
+    let a = self.feature.connectivityProducer.startWithValues { _ in }
+    a.dispose()
+    let delivered = expectation(description: "remaining observer")
+    let b = self.feature.connectivityProducer.startWithValues { if $0 == .wwan { delivered.fulfill() } }
+    monitor.continuation.yield(.wwan)
+    await fulfillment(of: [delivered], timeout: 2)
+    b.dispose()
+    weak var released = self.feature
+    self.feature = nil
+    XCTAssertNil(released)
+    await fulfillment(of: [stopped], timeout: 2)
+  }
+
+  func testReachabilityPreservesNativeFlagClassification() {
+    XCTAssertEqual(Reachability.from(flags: []), .none)
+    XCTAssertEqual(Reachability.from(flags: [.reachable]), .wifi)
+    XCTAssertEqual(Reachability.from(flags: [.isWWAN]), .wwan)
+    XCTAssertEqual(Reachability.from(flags: [.isWWAN, .reachable]), .wwan)
+    XCTAssertEqual(Reachability.from(flags: [.connectionRequired]), .none)
+  }
+
+  func testNativeReachabilityMonitorReleaseFinishesItsStream() async throws {
+    var monitor: SystemReachabilityMonitor? = try XCTUnwrap(SystemReachabilityMonitor())
+    let stream = try XCTUnwrap(monitor).updates
+    weak var released = monitor
+    monitor = nil
+    XCTAssertNil(released)
+    let ended = expectation(description: "native stream ended")
+    let consumer = Task {
+      for await _ in stream {}
+      ended.fulfill()
+    }
+    await fulfillment(of: [ended], timeout: 2)
+    consumer.cancel()
   }
 
   func testNotificationPromptSharesPendingRequestAndSurvivesObserverCancellation() async throws {
@@ -410,4 +486,11 @@ private final class ControlledLifecycleProvider: AppLifecycleProvider {
     self.updates.releaseAll()
     self.repliesGate.releaseAll()
   }
+}
+
+private final class ControlledReachabilityMonitor: ReachabilityMonitoring {
+  let initial: Reachability = .wifi
+  let updates: AsyncStream<Reachability>
+  let continuation: AsyncStream<Reachability>.Continuation
+  init() { (self.updates, self.continuation) = AsyncStream<Reachability>.makeStream() }
 }

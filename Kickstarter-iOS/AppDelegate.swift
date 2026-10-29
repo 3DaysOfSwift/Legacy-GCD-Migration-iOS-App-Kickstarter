@@ -36,6 +36,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
   private var remoteConfigListener: ConfigUpdateListenerRegistration?
   private var remoteConfigTask: Task<Void, Never>?
   private var remoteConfigVersion = UUID()
+  private let permissionAlertPresenter = ContextualPermissionAlertPresenter()
 
   // Never enable demo integration policy in a production build, even with a public config.
   private var isPublicDemo: Bool {
@@ -386,6 +387,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
   }
 
   func applicationDidEnterBackground(_: UIApplication) {
+    self.permissionAlertPresenter.cancel()
     self.viewModel.inputs.applicationDidEnterBackground()
   }
 
@@ -450,34 +452,12 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
   // MARK: - Functions
 
   fileprivate func presentContextualPermissionAlert(_ notification: Notification) {
-    guard let context = notification.userInfo?.values.first as? PushNotificationDialog.Context else {
-      return
-    }
-
-    let alert = UIAlertController(title: context.title, message: context.message, preferredStyle: .alert)
-
-    alert.addAction(
-      UIAlertAction(title: Strings.project_star_ok(), style: .default) { [weak self] _ in
-        self?.viewModel.inputs.didAcceptReceivingRemoteNotifications()
-      }
-    )
-
-    alert.addAction(
-      UIAlertAction(title: PushNotificationDialog.titleForDismissal, style: .cancel, handler: { _ in
-        PushNotificationDialog.didDenyAccess(for: context)
-      })
-    )
-
-    // Sometimes, the "sign up for push" popup doesn't appear when you sign in via web authentication session.
-    // My best guess is that this happens because the dismissal of the web login screen accidentally dismisses this popup, too.
-    // The delay isn't pretty, but it works.
-
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-      if let viewController = notification.userInfo?[UserInfoKeys.viewController] as? UIViewController {
-        viewController.present(alert, animated: true, completion: nil)
-      } else {
-        self.rootTabBarController?.present(alert, animated: true, completion: nil)
-      }
+    guard UIApplication.shared.applicationState != .background,
+      let context = notification.userInfo?[UserInfoKeys.context] as? PushNotificationDialog.Context,
+      let presenter = (notification.userInfo?[UserInfoKeys.viewController] as? UIViewController)
+        ?? self.rootTabBarController else { return }
+    self.permissionAlertPresenter.schedule(context: context, presenter: presenter) { [weak self] in
+      self?.viewModel.inputs.didAcceptReceivingRemoteNotifications()
     }
   }
 

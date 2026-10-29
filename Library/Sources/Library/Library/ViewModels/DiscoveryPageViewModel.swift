@@ -336,7 +336,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     .ignoreValues()
     .map(shouldShowPersonalization)
 
-    self.reachabilityProperty <~ Reachability.signalProducer
+    self.reachabilityProperty <~ AppEnvironment.current.reachability.observe(on: UIScheduler())
 
     self.showVideoFeedBanner = Signal.merge(
       self.viewWillAppearProperty.signal,
@@ -344,7 +344,9 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
       self.configUpdatedSignal,
       self.reachabilityProperty.signal.ignoreValues()
     )
-    .map { featureVideoFeedEnabled() && Reachability.current != .none }
+    .map { [reachability = self.reachabilityProperty] in
+      featureVideoFeedEnabled() && reachability.value != .none
+    }
     .skipRepeats()
 
     self.goToCuratedProjects = self.personalizationCellTappedProperty.signal
@@ -497,7 +499,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.willDisplayRowProperty.value = (row, totalRows)
   }
 
-  private let reachabilityProperty = MutableProperty(Reachability.current)
+  private let reachabilityProperty = MutableProperty<Reachability>(.none)
 
   public let activitiesForSample: Signal<[Activity], Never>
   public let asyncReloadData: Signal<Void, Never>

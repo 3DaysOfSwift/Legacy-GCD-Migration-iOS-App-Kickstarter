@@ -1,28 +1,20 @@
-import Foundation
 import UIKit
 
 public extension UIPageViewController {
+  /// UIKit lifecycle and controller-action subscribers call this on MainActor.
+  /// Preserve synchronous installation/completion; no blocking queue hop is needed.
+  @MainActor
   func ksr_setViewControllers(
     _ viewControllers: [UIViewController]?,
     direction: UIPageViewController.NavigationDirection,
     animated: Bool,
     completion: ((Bool) -> Void)? = nil
   ) {
-    func commit() {
-      self.setViewControllers(
-        viewControllers,
-        direction: direction,
-        animated: animated,
-        completion: completion
-      )
-    }
-
-    if Thread.isMainThread {
-      commit()
-    } else {
-      DispatchQueue.main.sync {
-        commit()
-      }
-    }
+    self.setViewControllers(
+      viewControllers,
+      direction: direction,
+      animated: animated,
+      completion: completion
+    )
   }
 }

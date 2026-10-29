@@ -84,6 +84,37 @@ public final class AppLifecycleFeature {
     let session: Session
     let task: Task<Value, Error>
   }
+  private let makeReachabilityMonitor: () -> (any ReachabilityMonitoring)?
+  private var reachabilityMonitor: (any ReachabilityMonitoring)?
+  private var connectivityTask: Task<Void, Never>?
+  private var connectivityStarted = false
+  private let connectivityState = MutableProperty<Reachability>(.none)
+
+  public var connectivity: Reachability {
+    self.startConnectivity()
+    return self.connectivityState.value
+  }
+  public var connectivityProducer: SignalProducer<Reachability, Never> {
+    self.startConnectivity()
+    return self.connectivityState.producer
+  }
+  private func startConnectivity() {
+    guard !self.connectivityStarted else { return }
+    self.connectivityStarted = true
+    guard let monitor = self.makeReachabilityMonitor() else { return }
+    self.reachabilityMonitor = monitor
+    self.connectivityState.value = monitor.initial
+    let updates = monitor.updates
+    self.connectivityTask = Task { [weak self] in
+      for await value in updates {
+        guard !Task.isCancelled, let self else { return }
+        self.connectivityState.value = value
+      }
+    }
+  }
+  // Connectivity is application-scoped, so account reset does not stop it.
+  deinit { self.connectivityTask?.cancel() }
+
   private var remoteConfigurationRequest: (client: ObjectIdentifier, id: UUID, task: Task<Void, Error>)?
   private var notificationRequest: (options: UInt, id: UUID, task: Task<Bool, Never>)?
   private var trackingRequest: Task<UInt, Never>?
@@ -110,6 +141,7 @@ public final class AppLifecycleFeature {
   public init(
     sessionFeature: SessionFeature, settingsFeature: SettingsFeature,
     messagingFeature: MessagingFeature, makeProvider: @escaping () -> any AppLifecycleProvider,
+    makeReachabilityMonitor: @escaping () -> (any ReachabilityMonitoring)? = { nil },
     authorizeNotifications: @escaping (UNAuthorizationOptions) async -> Bool = { options in
       (try? await UNUserNotificationCenter.current().requestAuthorization(options: options)) ?? false
     },
@@ -129,6 +161,7 @@ public final class AppLifecycleFeature {
       if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
     }
   ) {
+    self.makeReachabilityMonitor = makeReachabilityMonitor
     self.sessionFeature = sessionFeature
     self.settingsFeature = settingsFeature
     self.messagingFeature = messagingFeature

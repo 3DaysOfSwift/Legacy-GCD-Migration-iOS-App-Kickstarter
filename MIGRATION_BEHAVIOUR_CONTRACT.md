@@ -1,5 +1,24 @@
 # Kickstarter migration behaviour contract
 
+## Permission-alert delay and connectivity — 29 October 2026
+
+- Keep the 500ms web-login settling delay, prompt text/actions, denial accounting
+  and notification authorization path. Read the context from its named payload key.
+- Equivalent pending prompts share; a different prompt replaces the pending request.
+  Backgrounding, owner release or removal of the requesting screen prevents late
+  presentation. Do not present over another modal. Suppression is not a denial.
+- AppLifecycleFeature owns one lazily created connectivity monitor across account
+  resets. Preserve synchronous initial delivery to main-thread compatibility
+  subscribers and the existing SystemConfiguration WWAN/reachable/none mapping.
+- Native callbacks yield immutable values to a Feature-owned async consumer. Retain
+  and unregister the native handle/context on release; observer disposal does not
+  stop application-wide monitoring. Search/Discovery use injected connection state.
+- The page-controller compatibility helper remains synchronous on MainActor. All
+  six production call sites are UIKit lifecycle/configuration or controller-action
+  outputs; preserve native navigation order, animation and completion.
+- Real network switching, permission prompts and visual/device behavior remain
+  separate validation gates; controlled tests do not claim those journeys passed.
+
 ## Video-feed observation and activation — 29 October 2026
 
 - Initial fetch readiness must still notify the presenter before the feed is visible.

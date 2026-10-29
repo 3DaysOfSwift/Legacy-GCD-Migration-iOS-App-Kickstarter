@@ -149,13 +149,15 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.showEmptyState = self.queryParametersPipe.output
       .takePairWhen(shouldShowEmptyState)
 
-    self.reachabilityProperty <~ Reachability.signalProducer
+    self.reachabilityProperty <~ AppEnvironment.current.reachability.observe(on: UIScheduler())
 
     self.showVideoFeedBanner = Signal.merge(
       self.appearancePipe.output,
       self.reachabilityProperty.signal.ignoreValues()
     )
-    .map { featureVideoFeedEnabled() && Reachability.current != .none }
+    .map { [reachability = self.reachabilityProperty] in
+      featureVideoFeedEnabled() && reachability.value != .none
+    }
     .skipRepeats()
 
     self.goToProject = self.projectNavigationPipe.output
@@ -327,7 +329,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   }
 
   private let searchFiltersUseCase: SearchFiltersUseCase
-  private let reachabilityProperty = MutableProperty(Reachability.current)
+  private let reachabilityProperty = MutableProperty<Reachability>(.none)
 
   public let goToProject: Signal<(ProjectPageParam, RefTag), Never>
   public let projects: Signal<[SearchResultCard], Never>

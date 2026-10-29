@@ -1235,6 +1235,21 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
+  func testVideoBannerUsesInjectedConnectivityAcrossOfflineAndCellularChanges() async {
+    let mockStatsig = MockStatsigWrapper()
+    mockStatsig.features = [.videoFeed: true]
+    await withEnvironment(statsigClient: mockStatsig) {
+      self.vm.inputs.viewWillAppear()
+      self.showVideoFeedBanner.assertLastValue(true)
+      self.reachability.value = .none
+      self.showVideoFeedBanner.assertLastValue(false)
+      self.reachability.value = .wwan
+      self.showVideoFeedBanner.assertLastValue(true)
+      self.reachability.value = .wifi
+      self.showVideoFeedBanner.assertValueCount(3)
+    }
+  }
+
   func testShowVideoFeedBanner_featureEnabled_showsOnViewWillAppear() async {
     let mockStatsig = MockStatsigWrapper()
     mockStatsig.features = [.videoFeed: true]

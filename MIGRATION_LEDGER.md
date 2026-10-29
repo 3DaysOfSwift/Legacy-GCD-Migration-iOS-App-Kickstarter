@@ -43,6 +43,51 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Permission alerts, connectivity and page-controller boundary — 29 October 2026
+
+Contextual permission alerts now have an AppDelegate-owned cancellable timer.
+Equivalent pending prompts share; changed requests replace the pending timer.
+The existing 500ms web-login settling delay, localized actions and denial handling
+remain. Backgrounding cancels pending presentation; background requests, detached
+screens and modal-covered presenters do not present a late alert. Both notification
+filtering and presentation now read UserInfoKeys.context, not dictionary value order.
+Two old fixtures used the wrong literal key; they now use the production key and
+include a presenter to exercise a multi-value payload.
+
+AppLifecycleFeature lazily owns one retained SystemConfiguration monitor and async
+consumer, independent of account resets. Native callbacks only yield Sendable enum
+values; the Feature publishes UI state on MainActor. The native C context has explicit
+retain/release callbacks and is held through registration; release unregisters the
+queue/callback and finishes the stream. A subscriber's disposal does not stop shared
+monitoring. The synchronous initial flag classification and main-thread compatibility
+subscription are preserved. Search/Discovery now consume the injected environment
+connection state. SystemConfiguration's required serial queue remains deliberately;
+this checkpoint does not substitute NWPathMonitor's different reachability semantics.
+
+All six page-controller helper call sites were reviewed: UIKit lifecycle/configuration
+or controller-action outputs. Its synchronous navigation now has an explicit MainActor
+contract without a blocking main-queue hop. Animation and completion forwarding remain.
+
+Final integrated verification: **1,394 Library + 260 framework + 94 API = 1,748 passed**,
+zero failures/skips. Ten new cases cover connectivity sharing/reset/disposal/release,
+native handle release and classification, Search/Discovery offline transitions, and
+alert timing/replacement/cancellation/removal/release. App build succeeded with zero
+errors and two existing warnings. The retained native reachability API also produces
+its SDK deprecation diagnostics when recompiled; this is not a warning-free claim.
+Two initial compilation attempts corrected the C retain/release callback signatures;
+there were no runtime test failures or human-run commands in this checkpoint.
+
+The Debug demo was installed and launched on iPhone Air/iOS 26.2; Explore rendered
+populated demo cards, artwork and navigation. This is a launch smoke check, not visual
+parity or authenticated/live-service validation. Final run:
+`/private/tmp/kickstarter-permission-connectivity.EBEhx9`; evidence and screenshot:
+`../Migration Evidence/kickstarter-permission-connectivity/`.
+
+The primitive scan now matches **17 lines in 13 files** across the same four source
+roots. Remaining project-video/image callbacks, layout/HTML helpers and compiler
+isolation are still open. Strict-concurrency, snapshots/physical-device and live
+operations remain unverified. **App-wide migration remains in progress.**
+
 ### Video-feed observation and deferred activation — 29 October 2026
 
 Video-feed output observation has one controller-owned stream/task. Repeated binding

@@ -324,7 +324,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
     self.showAlert = self.showNotificationDialogProperty.signal.skipNil()
       .filter {
-        if let context = $0.userInfo?.values.first as? PushNotificationDialog.Context {
+        if let context = $0.userInfo?[UserInfoKeys.context] as? PushNotificationDialog.Context {
           return PushNotificationDialog.canShowDialog(for: context)
         }
 

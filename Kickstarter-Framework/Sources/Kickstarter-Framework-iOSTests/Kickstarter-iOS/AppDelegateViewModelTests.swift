@@ -2029,7 +2029,8 @@ final class AppDelegateViewModelTests: TestCase {
   func testShowAlertEmitsIf_CanShowDialog() async {
     let notification = Notification(
       name: Notification.Name(rawValue: "deadbeef"),
-      userInfo: ["context": PushNotificationDialog.Context.login]
+      userInfo: [UserInfoKeys.context: PushNotificationDialog.Context.login,
+        UserInfoKeys.viewController: UIViewController()]
     )
 
     userDefaults.set(["message"], forKey: "com.kickstarter.KeyValueStoreType.deniedNotificationContexts")
@@ -2051,7 +2052,8 @@ final class AppDelegateViewModelTests: TestCase {
   func testShowAlertDoesNotEmitIf_CanNotShowDialog() async {
     let notification = Notification(
       name: Notification.Name(rawValue: "deadbeef"),
-      userInfo: ["context": PushNotificationDialog.Context.login]
+      userInfo: [UserInfoKeys.context: PushNotificationDialog.Context.login,
+        UserInfoKeys.viewController: UIViewController()]
     )
 
     userDefaults.set(["login"], forKey: "com.kickstarter.KeyValueStoreType.deniedNotificationContexts")

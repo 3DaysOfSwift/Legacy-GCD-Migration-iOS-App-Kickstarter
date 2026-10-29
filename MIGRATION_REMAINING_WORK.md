@@ -9,20 +9,20 @@ creator draft work is superseded by their completed checkpoints.
 
 ## Remaining implementation and audit work
 
-1. **Platform/UI boundaries:** delayed permission-alert presentation, reachability
-   callback ownership, project video boundary observers and image-loader consumers.
-2. **Layout and compatibility helpers:** synchronous main-thread HTML/page helpers,
+1. **Platform/UI boundaries:** project video boundary observers and image-loader
+   consumers. Permission-alert and reachability ownership now have verified checkpoints.
+2. **Layout and compatibility helpers:** synchronous main-thread HTML helper,
    refresh/collection/table layout deferrals and the pledged-card Combine debounce.
    Preserve their required ordering; do not replace queue syntax mechanically.
 3. **Compiler isolation boundaries:** resolve or explicitly classify the complete
    concurrency diagnostic baseline. Passing Swift 5 builds do not establish strict
    concurrency compliance or Swift 6 readiness.
 
-The refreshed primitive scan finds 18 matching lines in 15 first-party files.
+The refreshed primitive scan finds 17 matching lines in 13 first-party files.
 Some are SDK queue arguments or mock compatibility code. See
 MIGRATION_PLATFORM_CALLBACK_AUDIT.md for scope, classification and limits.
-Video-feed observation/deferred activation is the current checkpoint; verify its
-final outcome in the ledger rather than treating an implementation edit as proof.
+Permission-alert/connectivity ownership and the MainActor page helper are the latest
+checkpoint. A populated demo launch passed; full visual/device parity remains open.
 
 ## Final validation gates
 

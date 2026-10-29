@@ -17,6 +17,21 @@ The primitive scan matched **40 lines in 25 files**. None matched the Feature
 implementation directory. That does not make every Feature concurrency-clean:
 complete compiler diagnostics also expose non-Sendable transfer boundaries.
 
+## Latest refresh: permission alerts and connectivity — 29 October 2026
+
+The same primitive regex now matches **17 lines in 13 files**. AppDelegate's delayed
+permission block is replaced by owned cancellation/replacement and visible-presenter
+checks. Both alert decision/presentation read the named context key. Reachability's
+native handle/C context is retained, unregistered on release and bridged through an
+AsyncStream to AppLifecycleFeature; its callback queue remains an SDK requirement.
+The page helper's six call sites already execute on MainActor, so its blocking queue
+hop is removed while synchronous native navigation/completion are retained.
+Recounting bf428244f with the exact scoped regex gives 19 lines in 15 files;
+the earlier stated 18 was an undercount. The comparable change is 19 to 17,
+not 18 to 17. Counts include SDK function names and are not a defect count.
+Final checkpoint: 1,748 selected tests and app build passed; populated demo launch
+observed on iPhone Air/iOS 26.2. Historical scan counts below remain as provenance.
+
 ## 29 October refresh after media/UI timer and feed-observer work
 
 The current worktree scan matches **18 lines in 15 files**, using
@@ -43,7 +58,7 @@ marked; remaining queue arguments still require consumer/SDK contract review.
 | Remote configuration — implemented 29 October | Native Firebase async activation, per-client shared operation and replacement guards; listener retained/removed on reconfiguration. | Log-only listener behavior preserved. SDK cache changes cannot be retracted; live Firebase validation remains open. |
 | Project-page media — implemented | Feature-owned native loading, cancellable KVO readiness and optional WebP thumbnail read; per-page/slot identity. | 377 selected tests/app build recorded; remote media and device parity remain open. |
 | Video player and audio — implemented | One production audio controller owns callback stream/reset tasks; player owns seeking/timers/observations. Synchronous release regression covers the observed isolated-deinit toolchain crash. | Physical-device routing, populated playback and visual parity remain open. |
-| UI timers — three implemented; push alert remains | Toast, copy-link and banner use view-owned tasks; hosted banner replacement/removal tests pass. AppDelegate permission alert still has a delayed block. | Finish alert lifetime and validate gestures/VoiceOver/device presentation. |
+| UI timers — implemented | Toast, copy-link and banner use view-owned tasks. Permission alert has a retained settling task, replacement/cancellation and screen-lifetime guards. | Controlled presentation tests passed; real permission prompts, gestures/VoiceOver/device presentation remain open. |
 
 ## Classification of all primitive-matching files
 
@@ -51,12 +66,12 @@ Paths below are relative to the repository. Counts refer to matching lines, not 
 
 | File or location | Lines | Classification / next action |
 | --- | ---: | --- |
-| Kickstarter-iOS/AppDelegate.swift | 1 | Delayed permission alert; own presentation lifetime. Redirect/config callbacks above do not match queue syntax. |
+| Kickstarter-iOS/AppDelegate.swift | 1 | Implemented: owned cancellable delay; no queue matches remain. Redirect/config callbacks above do not match queue syntax. |
 | KsApi/AsyncApolloClient.swift | 2 | Legacy generic async bridge ignores cancellation; now no application call sites found for generic async Service.fetch after examples migrated. Verify all consumers before removing or hardening compatibility API. Queue parameter itself is an SDK requirement. |
 | KsApi/MockService.swift | 1 | Legacy Combine mock delay; not a live request. Keep while compatibility tests/consumers require it. |
 | Framework/Library/UIImageView+URL.swift | 2 | AlamofireImage progress queue is a UI SDK boundary. Preserve cache/filter/transition and assess cancellation per consumer. |
 | Library/VideoFeedAudioController.swift | 1 | Implemented: production audio type consolidated; owned stream/reset tasks. |
-| Library/UIPageViewController+ThreadSafety.swift | 1 | Synchronous main-queue compatibility helper; audit callers before replacing with MainActor contract. |
+| Library/UIPageViewController+ThreadSafety.swift | 1 | Implemented: all six callers reviewed; explicit MainActor synchronous forwarding, no queue hop. |
 | PPOProjectCardViewModel.swift | 1 | Retained Combine debounce; upstream Feature owns the write. Preserve latest-toggle semantics; inspect subscription cycle/lifetime. |
 | DiscoveryPostcardCell.swift | 1 | Next-layout shadow paths, weak cell capture; UIKit timing boundary. |
 | DiscoveryPageViewController.swift | 2 | Deferred refresh animation and table reload; UIKit layout timing, not network work. |
@@ -72,7 +87,7 @@ Paths below are relative to the repository. Counts refer to matching lines, not 
 | VideoFeedShareSheetView.swift | 1 | Implemented: SwiftUI-owned confirmation timer. |
 | CommentsViewController.swift | 1 | Table footer layout pass; UIKit scheduling boundary. |
 | MessageBannerView.swift | 1 | Implemented: identity-keyed task; hosted replacement/removal regressions. |
-| Library/Reachability.swift | 2 | SystemConfiguration requires callback queue. Existing local SCNetworkReachability reference lifetime needs explicit ownership review; replacing its network semantics blindly is not a migration. |
+| Library/Reachability.swift | 2 | Implemented: native handle/context retained and unregistered on release; callback queue yields immutable values to Feature-owned consumer. Retained SDK semantics/deprecation, no NWPathMonitor substitution. |
 | ReportProjectCell.swift | 1 | Deferred hosting-view setup; reuse/ordering review. |
 | VideoViewController.swift | 1 | AVPlayer boundary observer requires queue; verify observer-token removal and item identity. |
 | ProjectPageViewController.swift | 1 | Implemented: Feature-owned native media preparation; stale rows rejected. |

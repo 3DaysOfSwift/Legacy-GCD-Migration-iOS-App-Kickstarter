@@ -1506,6 +1506,21 @@ internal final class SearchViewModelTests: TestCase {
     }
   }
 
+  func testVideoBannerUsesInjectedConnectivityAcrossOfflineAndCellularChanges() async {
+    let mockStatsig = MockStatsigWrapper()
+    mockStatsig.features = [.videoFeed: true]
+    await withEnvironment(statsigClient: mockStatsig) {
+      self.vm.inputs.viewWillAppear(animated: true)
+      self.showVideoFeedBanner.assertLastValue(true)
+      self.reachability.value = .none
+      self.showVideoFeedBanner.assertLastValue(false)
+      self.reachability.value = .wwan
+      self.showVideoFeedBanner.assertLastValue(true)
+      self.reachability.value = .wifi
+      self.showVideoFeedBanner.assertValueCount(3)
+    }
+  }
+
   func testShowVideoFeedBanner_featureEnabled_showsOnViewWillAppear() async throws {
     let mockStatsig = MockStatsigWrapper()
     mockStatsig.features = [.videoFeed: true]
