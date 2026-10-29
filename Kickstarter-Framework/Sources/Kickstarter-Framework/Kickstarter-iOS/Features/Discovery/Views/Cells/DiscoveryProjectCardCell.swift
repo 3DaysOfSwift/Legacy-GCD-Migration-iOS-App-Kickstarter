@@ -50,9 +50,9 @@ final class DiscoveryProjectCardCell: UITableViewCell, ValueCell {
 
   // MARK: - Notification Observers
 
-  private var projectSavedObserver: Any?
-  private var sessionEndedObserver: Any?
-  private var sessionStartedObserver: Any?
+  private var projectSavedObserver: MainActorNotificationObservation?
+  private var sessionEndedObserver: MainActorNotificationObservation?
+  private var sessionStartedObserver: MainActorNotificationObservation?
 
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
     super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -69,15 +69,6 @@ final class DiscoveryProjectCardCell: UITableViewCell, ValueCell {
   @available(*, unavailable)
   required init?(coder _: NSCoder) {
     fatalError("init(coder:) has not been implemented")
-  }
-
-  deinit {
-    [
-      self.projectSavedObserver,
-      self.sessionEndedObserver,
-      self.sessionStartedObserver
-    ]
-    .forEach { $0.doIfSome(NotificationCenter.default.removeObserver) }
   }
 
   override func layoutSubviews() {
@@ -477,23 +468,19 @@ final class DiscoveryProjectCardCell: UITableViewCell, ValueCell {
     self.saveButton.addTarget(self, action: #selector(self.saveButtonTapped(_:)), for: .touchUpInside)
     self.saveButton.addTarget(self, action: #selector(self.saveButtonPressed(_:)), for: .touchDown)
 
-    self.sessionStartedObserver = NotificationCenter.default
-      .addObserver(forName: Notification.Name.ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
-        self?.watchProjectViewModel.inputs.userSessionStarted()
-      }
+    self.sessionStartedObserver = MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
+      self?.watchProjectViewModel.inputs.userSessionStarted()
+    }
 
-    self.sessionEndedObserver = NotificationCenter.default
-      .addObserver(forName: Notification.Name.ksr_sessionEnded, object: nil, queue: nil) { [weak self] _ in
-        self?.watchProjectViewModel.inputs.userSessionEnded()
-      }
+    self.sessionEndedObserver = MainActorNotificationObservation(name: .ksr_sessionEnded) { [weak self] _ in
+      self?.watchProjectViewModel.inputs.userSessionEnded()
+    }
 
-    self.projectSavedObserver = NotificationCenter.default
-      .addObserver(forName: Notification.Name.ksr_projectSaved, object: nil, queue: nil) { [weak self]
-        notification in
-          self?.watchProjectViewModel.inputs.projectFromNotification(
-            project: notification.userInfo?["project"] as? Project
-          )
-      }
+    self.projectSavedObserver = MainActorNotificationObservation(name: .ksr_projectSaved) { [weak self] notification in
+      self?.watchProjectViewModel.inputs.projectFromNotification(
+        project: notification.userInfo?["project"] as? Project
+      )
+    }
 
     self.watchProjectViewModel.inputs.awakeFromNib()
   }
@@ -607,6 +594,7 @@ final class DiscoveryProjectCardCell: UITableViewCell, ValueCell {
 
 // MARK: - Styles
 
+@MainActor
 private let avatarImageViewStyle: ImageViewStyle = { imageView in
   imageView
     |> \.translatesAutoresizingMaskIntoConstraints .~ false
@@ -618,28 +606,33 @@ private let avatarImageViewStyle: ImageViewStyle = { imageView in
     |> roundedStyle(cornerRadius: FacepileAvatarSize.width / 2)
 }
 
+@MainActor
 private let collectionViewStyle: ViewStyle = { view in
   view
     |> \.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 }
 
+@MainActor
 private let contentViewStyle: ViewStyle = { view in
   view
     |> \.preservesSuperviewLayoutMargins .~ false
     |> \.backgroundColor .~ LegacyColors.ksr_support_100.uiColor()
 }
 
+@MainActor
 private let cardContainerViewStyle: ViewStyle = { view in
   view
     |> roundedStyle(cornerRadius: Styles.grid(2))
     |> \.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 }
 
+@MainActor
 private let projectStatusContainerViewStyle: ViewStyle = { view in
   view
     |> \.layoutMargins .~ .init(topBottom: Styles.gridHalf(2), leftRight: Styles.gridHalf(3))
 }
 
+@MainActor
 private let goalMetIconImageViewStyle: ImageViewStyle = { imageView in
   imageView
     |> \.image .~ Library.image(named: "icon--star")
@@ -647,6 +640,7 @@ private let goalMetIconImageViewStyle: ImageViewStyle = { imageView in
     |> \.contentMode .~ .center
 }
 
+@MainActor
 private let projectImageViewStyle: ImageViewStyle = { imageView in
   imageView
     |> \.clipsToBounds .~ true
@@ -655,6 +649,7 @@ private let projectImageViewStyle: ImageViewStyle = { imageView in
     |> ignoresInvertColorsImageViewStyle
 }
 
+@MainActor
 private let projectNameLabelStyle: LabelStyle = { label in
   label
     |> \.numberOfLines .~ 2
@@ -664,6 +659,7 @@ private let projectNameLabelStyle: LabelStyle = { label in
     |> \.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 }
 
+@MainActor
 private let projectBlurbLabelStyle: LabelStyle = { label in
   label
     |> \.numberOfLines .~ 2
@@ -673,6 +669,7 @@ private let projectBlurbLabelStyle: LabelStyle = { label in
     |> \.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 }
 
+@MainActor
 private let projectStatusLabelStyle: LabelStyle = { label in
   label
     |> \.numberOfLines .~ 1
@@ -681,6 +678,7 @@ private let projectStatusLabelStyle: LabelStyle = { label in
     |> \.backgroundColor .~ .clear
 }
 
+@MainActor
 private let facepileDescriptionLabelStyle: LabelStyle = { label in
   label
     |> \.numberOfLines .~ 2
@@ -689,12 +687,14 @@ private let facepileDescriptionLabelStyle: LabelStyle = { label in
     |> \.font .~ UIFont.ksr_footnote().bolded
 }
 
+@MainActor
 private let projectStatusIconImageStyle: ImageViewStyle = { imageView in
   imageView
     |> \.tintColor .~ LegacyColors.ksr_support_400.uiColor()
     |> \.contentMode .~ .center
 }
 
+@MainActor
 private let infoStackViewStyle: StackViewStyle = { stackView in
   stackView
     |> \.axis .~ .horizontal
@@ -703,6 +703,7 @@ private let infoStackViewStyle: StackViewStyle = { stackView in
     |> \.distribution .~ .fill
 }
 
+@MainActor
 private let percentFundedLabelStyle: LabelStyle = { label in
   label
     |> \.numberOfLines .~ 1
@@ -711,6 +712,7 @@ private let percentFundedLabelStyle: LabelStyle = { label in
     |> \.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 }
 
+@MainActor
 private let backersCountIconImageViewStyle: ImageViewStyle = { imageView in
   imageView
     |> \.image .~ Library.image(named: "icon--humans")
@@ -718,6 +720,7 @@ private let backersCountIconImageViewStyle: ImageViewStyle = { imageView in
     |> \.contentMode .~ .center
 }
 
+@MainActor
 private let backersCountLabelStyle: LabelStyle = { label in
   label
     |> \.numberOfLines .~ 1
@@ -726,12 +729,14 @@ private let backersCountLabelStyle: LabelStyle = { label in
     |> \.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 }
 
+@MainActor
 private let projectInfoStackViewStyle: StackViewStyle = { stackView in
   stackView
     |> \.distribution .~ .fill
     |> \.spacing .~ Styles.grid(2)
 }
 
+@MainActor
 private let facepileStackViewStyle: StackViewStyle = { stackView in
   stackView
     |> \.alignment .~ .center
@@ -739,6 +744,7 @@ private let facepileStackViewStyle: StackViewStyle = { stackView in
     |> \.spacing .~ Styles.grid(1)
 }
 
+@MainActor
 private let projectDetailsStackViewStyle: StackViewStyle = { stackView in
   stackView
     |> verticalStackViewStyle
@@ -749,6 +755,7 @@ private let projectDetailsStackViewStyle: StackViewStyle = { stackView in
     |> \.insetsLayoutMarginsFromSafeArea .~ false
 }
 
+@MainActor
 private let youreABackerViewStyle: ViewStyle = { view in
   view
     |> roundedStyle(cornerRadius: Styles.grid(1))
@@ -756,6 +763,7 @@ private let youreABackerViewStyle: ViewStyle = { view in
     |> \.layoutMargins .~ .init(topBottom: Styles.grid(1), leftRight: Styles.gridHalf(3))
 }
 
+@MainActor
 private let youreABackerLabelStyle: LabelStyle = { label in
   label
     |> \.font .~ UIFont.ksr_footnote().bolded

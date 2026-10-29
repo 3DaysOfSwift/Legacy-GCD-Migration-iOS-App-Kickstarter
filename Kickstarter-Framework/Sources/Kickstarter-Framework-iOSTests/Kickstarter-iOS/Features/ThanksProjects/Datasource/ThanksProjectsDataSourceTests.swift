@@ -5,6 +5,7 @@
 import Prelude
 import XCTest
 
+@MainActor
 final class ThanksProjectsDataSourceTests: XCTestCase {
   let dataSource = ThanksProjectsDataSource()
   let collectionView = UICollectionView(

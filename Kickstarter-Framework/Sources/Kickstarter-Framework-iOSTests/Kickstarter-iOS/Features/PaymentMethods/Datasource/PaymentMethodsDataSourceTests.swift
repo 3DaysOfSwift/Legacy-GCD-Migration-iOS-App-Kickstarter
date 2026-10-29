@@ -5,6 +5,7 @@
 import Prelude
 import XCTest
 
+@MainActor
 internal final class PaymentMethodsDataSourceTests: XCTestCase {
   let dataSource = PaymentMethodsDataSource()
   let tableView = UITableView(frame: .zero)

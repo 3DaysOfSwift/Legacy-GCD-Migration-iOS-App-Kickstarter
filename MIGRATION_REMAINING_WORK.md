@@ -9,14 +9,20 @@ creator draft work is superseded by their completed checkpoints.
 
 ## Remaining implementation and audit work
 
-1. **Compiler isolation at UIKit boundaries:** ValueCell/delegate contracts,
-   legacy awakeFromNib hooks, notification delivery and nonisolated release.
-2. **Remaining value-transfer and shared-state diagnostics:** Feature task results,
-   transport providers, global style/lens values and generated Apollo metadata.
-   Complete checking builds in Swift 5 mode; warnings still prevent a Swift 6 claim.
-3. **Compatibility callback inventory:** finish the non-queue callback audit and
-   decide the unused generic Apollo bridge's disposition after checking consumers.
-   Keep necessary platform queues and documented Combine operator scheduling.
+1. **Remaining UIKit callback contracts:** audit remaining checkout/controller
+   notification callbacks, haptic helpers and UI protocol/delegate boundaries.
+   Shared ValueCell/data-source ownership, discovery observations, nib entry points,
+   processing/overlay protocols and the checkout release path are now checkpointed.
+2. **Task-boundary values and shared state:** finish Feature result/provider graphs,
+   separating immutable snapshots from actor-owned mutable objects. Account and
+   checkout/backing/watch value graphs are checkpointed. Classify global style/lens
+   and generated Apollo diagnostics; resolve unsafe migrated application boundaries.
+   A warning-free Swift 6 language conversion is a separate scope, not an implied
+   requirement to rewrite all generated/third-party compatibility machinery.
+3. **Compatibility audit closure:** document retained callback paths and ownership,
+   including generic Service.fetch(query:)/AsyncApolloClient. No migrated application
+   consumer was found, but public/default/test consumers require a compatibility
+   decision before removal. Keep necessary SDK queues and Combine scheduling.
 
 The scoped primitive scan finds 8 matching lines in 5 first-party files. These are
 SDK queue arguments/registration functions, retained Combine debounce and legacy

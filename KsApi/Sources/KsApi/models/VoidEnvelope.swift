@@ -1,4 +1,4 @@
 
-public struct VoidEnvelope {}
+public struct VoidEnvelope: Sendable {}
 
 extension VoidEnvelope: Decodable {}

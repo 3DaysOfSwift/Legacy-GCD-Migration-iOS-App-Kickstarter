@@ -5,6 +5,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 internal protocol DiscoveryPostcardCellDelegate: AnyObject {
   /// Called when the heart/save button is tapped
   func discoveryPostcardCellProjectSaveAlert()
@@ -51,60 +52,53 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
   fileprivate weak var projectCategoryView: DiscoveryProjectCategoryView!
   fileprivate weak var projectIsStaffPickView: DiscoveryProjectCategoryView!
 
-  private var projectSavedObserver: Any?
-  private var sessionEndedObserver: Any?
-  private var sessionStartedObserver: Any?
+  private var projectSavedObserver: MainActorNotificationObservation?
+  private var sessionEndedObserver: MainActorNotificationObservation?
+  private var sessionStartedObserver: MainActorNotificationObservation?
 
   internal override func awakeFromNib() {
-    if let categoryView = DiscoveryProjectCategoryView.fromNib(nib: Nib.DiscoveryProjectCategoryView) {
-      self.projectCategoryView = categoryView
+    // UIKit nib loading is synchronous on the main thread.
+    MainActor.assumeIsolated {
+      if let categoryView = DiscoveryProjectCategoryView.fromNib(nib: Nib.DiscoveryProjectCategoryView) {
+        self.projectCategoryView = categoryView
 
-      self.projectCategoryView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-      self.projectCategoryView.setContentHuggingPriority(.required, for: .horizontal)
+        self.projectCategoryView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        self.projectCategoryView.setContentHuggingPriority(.required, for: .horizontal)
 
-      self.projectCategoriesStackView.addArrangedSubview(self.projectCategoryView)
-    }
+        self.projectCategoriesStackView.addArrangedSubview(self.projectCategoryView)
+      }
 
-    if let staffPickView = DiscoveryProjectCategoryView.fromNib(nib: Nib.DiscoveryProjectCategoryView) {
-      self.projectIsStaffPickView = staffPickView
+      if let staffPickView = DiscoveryProjectCategoryView.fromNib(nib: Nib.DiscoveryProjectCategoryView) {
+        self.projectIsStaffPickView = staffPickView
 
-      self.projectIsStaffPickView.setContentCompressionResistancePriority(.required, for: .horizontal)
-      self.projectIsStaffPickView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        self.projectIsStaffPickView.setContentCompressionResistancePriority(.required, for: .horizontal)
+        self.projectIsStaffPickView.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
-      self.projectCategoriesStackView.addArrangedSubview(self.projectIsStaffPickView)
-    }
+        self.projectCategoriesStackView.addArrangedSubview(self.projectIsStaffPickView)
+      }
 
-    self.saveButton.addTarget(self, action: #selector(self.saveButtonTapped(_:)), for: .touchUpInside)
+      self.saveButton.addTarget(self, action: #selector(self.saveButtonTapped(_:)), for: .touchUpInside)
 
-    self.saveButton.addTarget(self, action: #selector(self.saveButtonPressed(_:)), for: .touchDown)
+      self.saveButton.addTarget(self, action: #selector(self.saveButtonPressed(_:)), for: .touchDown)
 
-    self.sessionStartedObserver = NotificationCenter.default
-      .addObserver(forName: Notification.Name.ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
+      self.sessionStartedObserver = MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
         self?.watchProjectViewModel.inputs.userSessionStarted()
       }
 
-    self.sessionEndedObserver = NotificationCenter.default
-      .addObserver(forName: Notification.Name.ksr_sessionEnded, object: nil, queue: nil) { [weak self] _ in
+      self.sessionEndedObserver = MainActorNotificationObservation(name: .ksr_sessionEnded) { [weak self] _ in
         self?.watchProjectViewModel.inputs.userSessionEnded()
       }
 
-    self.projectSavedObserver = NotificationCenter.default
-      .addObserver(forName: Notification.Name.ksr_projectSaved, object: nil, queue: nil) { [weak self]
-        notification in
-          self?.watchProjectViewModel.inputs.projectFromNotification(
-            project: notification.userInfo?["project"] as? Project
-          )
+      self.projectSavedObserver = MainActorNotificationObservation(name: .ksr_projectSaved) { [weak self] notification in
+        self?.watchProjectViewModel.inputs.projectFromNotification(
+          project: notification.userInfo?["project"] as? Project
+        )
       }
 
-    self.watchProjectViewModel.inputs.awakeFromNib()
+      self.watchProjectViewModel.inputs.awakeFromNib()
+    }
 
     super.awakeFromNib()
-  }
-
-  deinit {
-    self.projectSavedObserver.doIfSome(NotificationCenter.default.removeObserver)
-    self.sessionEndedObserver.doIfSome(NotificationCenter.default.removeObserver)
-    self.sessionStartedObserver.doIfSome(NotificationCenter.default.removeObserver)
   }
 
   internal override func bindStyles() {

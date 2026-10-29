@@ -1,5 +1,20 @@
 # Kickstarter migration behaviour contract
 
+## UIKit ownership and checkout values — 29 October 2026
+
+- Shared cell/data-source, layout and overlay UI contracts belong to MainActor.
+  Preserve nib setup ordering, data presentation and synchronous UI behavior.
+- Discovery session/saved-project publishers and observers stay on MainActor.
+  Deliver the original notification synchronously, including full Project payload;
+  cancellation or observer release stops delivery. Background SDK notifications
+  must use a separate adapter that transfers safe values.
+- Checkout release must remove its overlay on MainActor without retaining or
+  resurrecting the released controller. Do not assume deinit runs on MainActor.
+- Checkout/backing/watch response structs keep the same stored values, decoding
+  and equality. Checked Sendable conformances describe reviewed value-only graphs.
+- Retain business assertions and reference-device snapshot requirements. Selected
+  tests and compiler diagnostics do not establish live or full visual parity.
+
 ## Layout, HTML and value-transfer contracts — 29 October 2026
 
 - Keep UIKit HTML import synchronous and preserve fonts, links, formatting and nil

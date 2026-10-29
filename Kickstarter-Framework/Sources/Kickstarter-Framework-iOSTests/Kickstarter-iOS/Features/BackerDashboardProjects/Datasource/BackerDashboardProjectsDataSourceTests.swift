@@ -8,6 +8,7 @@ import GraphAPITestMocks
 import Prelude
 import XCTest
 
+@MainActor
 final class BackerDashboardProjectsDataSourceTests: XCTestCase {
   let dataSource = BackerDashboardProjectsDataSource()
   let tableView = UITableView()

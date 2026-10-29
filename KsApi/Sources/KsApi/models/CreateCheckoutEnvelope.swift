@@ -2,10 +2,10 @@ import Foundation
 import GraphAPI
 import ReactiveSwift
 
-public struct CreateCheckoutEnvelope: Decodable {
+public struct CreateCheckoutEnvelope: Decodable, Sendable {
   public var checkout: Checkout
 
-  public struct Checkout: Decodable {
+  public struct Checkout: Decodable, Sendable {
     public var id: String
     public var paymentUrl: String
     public var backingId: String

@@ -8,6 +8,7 @@ import GraphAPI
 import Prelude
 import XCTest
 
+@MainActor
 final class ProjectPageViewControllerDataSourceTests: XCTestCase {
   private let dataSource = ProjectPageViewControllerDataSource()
   private let tableView = UITableView()

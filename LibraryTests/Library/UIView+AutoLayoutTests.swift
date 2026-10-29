@@ -3,7 +3,9 @@
 import Prelude
 import XCTest
 
+@MainActor
 final class UIViewAutoLayoutExtensionTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   func test_insertSubviewInParentAtIndex_oneSubview() {
     let view1 = UIView(frame: .zero)
     let view2 = UIView(frame: .zero)

@@ -4,6 +4,7 @@
 @testable import Library
 import XCTest
 
+@MainActor
 final class SettingsDataSourceTests: XCTestCase {
   private let dataSource = SettingsDataSource()
   private let tableView = UITableView(frame: .zero)

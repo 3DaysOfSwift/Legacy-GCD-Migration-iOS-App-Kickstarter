@@ -2,6 +2,7 @@
 @testable import Library
 import XCTest
 
+@MainActor
 final class HelpDataSourceTests: XCTestCase {
   private let dataSource = HelpDataSource()
   private let tableView = UITableView(frame: .zero)

@@ -26,6 +26,7 @@ internal final class IntDataSource: ValueCellDataSource {
   }
 }
 
+@MainActor
 internal final class ValueCellDataSourceTests: XCTestCase {
   fileprivate let dataSource = IntDataSource()
   fileprivate let tableView = UITableView()
@@ -34,13 +35,15 @@ internal final class ValueCellDataSourceTests: XCTestCase {
   override func setUp() {
     super.setUp()
 
-    self.dataSource.registerClasses(tableView: self.tableView)
-    self.dataSource.registerClasses(collectionView: self.collectionView)
+    MainActor.assumeIsolated {
+      self.dataSource.registerClasses(tableView: self.tableView)
+      self.dataSource.registerClasses(collectionView: self.collectionView)
 
-    self.dataSource.appendRow(value: 1, cellClass: IntTableCell.self, toSection: 0)
-    self.dataSource.appendRow(value: 2, cellClass: IntTableCell.self, toSection: 0)
-    self.dataSource.appendSection(values: [1, 2, 3], cellClass: IntTableCell.self)
-    self.dataSource.set(values: [1, 2, 3], cellClass: IntTableCell.self, inSection: 5)
+      self.dataSource.appendRow(value: 1, cellClass: IntTableCell.self, toSection: 0)
+      self.dataSource.appendRow(value: 2, cellClass: IntTableCell.self, toSection: 0)
+      self.dataSource.appendSection(values: [1, 2, 3], cellClass: IntTableCell.self)
+      self.dataSource.set(values: [1, 2, 3], cellClass: IntTableCell.self, inSection: 5)
+    }
   }
 
   func testTableViewDataSourceMethods() {

@@ -7,7 +7,9 @@ import Foundation
 import Prelude
 import XCTest
 
+@MainActor
 final class ManagePledgeDataSourceTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   let dataSource = ManagePledgeDataSource()
   let tableView = UITableView()
 

@@ -5,6 +5,7 @@ import XCTest
 
 @testable import Kickstarter_Framework
 
+@MainActor
 final class SettingsAccountDataSourceTests: XCTestCase {
   private let dataSource = SettingsAccountDataSource()
   private let tableView = UITableView()

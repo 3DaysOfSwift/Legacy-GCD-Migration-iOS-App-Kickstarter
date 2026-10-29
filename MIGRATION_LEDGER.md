@@ -43,6 +43,45 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### UIKit callback ownership and checked checkout values — 29 October 2026
+
+Shared ValueCell/data-source and processing/overlay presentation contracts now state
+MainActor ownership. Nib hooks bridge UIKit's main-thread lifecycle explicitly;
+layout factories and affected styles retain their existing geometry and appearance.
+Discovery cards own synchronous main-actor notification observations. Publishers
+were audited as main-actor session/saved-project paths; complete payloads stay on
+that actor, event order is retained, and cancellation/release removes registration.
+This adapter is not suitable for background SDK notifications.
+
+Checkout release schedules removal of only its retained overlay on MainActor,
+without capturing the dying controller. Fourteen checked Sendable conformances
+cover reviewed checkout/backing/watch response values across seven files; fields,
+encoding and API behavior remain unchanged. No unchecked conformance was added.
+
+Verification: **1,431 Library + 371 framework + 104 API = 1,906 selected tests passed**,
+zero failures/skips; app build succeeded with zero errors and five warnings.
+Four new notification ordering/cancellation/release cases were added. Expanded
+selection includes existing data-source suites; it is not 119 new tests. UI test
+classes state their actor contract. Three nonvisual suites opt out of the reference
+snapshot-device gate; business assertions and visual snapshot gates remain intact.
+Seven unsuccessful compile attempts exposed additional protocol/caller isolation
+contracts; all were corrected. No runtime test failures or human-run commands.
+Results are retained per target in sibling evidence `kickstarter-uikit-isolation/`.
+
+Complete-checking build succeeded in Swift 5 mode. Selected recompiled cell,
+layout and overlay files no longer emit their prior isolation diagnostics. The
+incremental scan observed 3,196 matching warnings across recompiled modules; this
+is not comparable to earlier differently scoped/filter runs or a remaining-defect
+count. Other checkout callbacks, provider/result transfers, global style/lens state
+and generated/compatibility contracts remain under review. No warning-free Swift 6
+claim is made; a language-mode conversion is not silently added to migration scope.
+
+The primitive inventory remains eight matching lines in five files. Generic
+AsyncApolloClient is retained behind Service.fetch(query:) and compatibility/default
+paths; no migrated application caller was found. It is not an unused public API to
+delete casually. Full visual/device and live-operation checks remain open. This is
+a completed checkpoint, **not completion of the app-wide migration**.
+
 ### Layout lifetimes, synchronous HTML and checked value transfer — 29 October 2026
 
 UIKit owns the remaining layout work: Discovery applies current refresh/reload state

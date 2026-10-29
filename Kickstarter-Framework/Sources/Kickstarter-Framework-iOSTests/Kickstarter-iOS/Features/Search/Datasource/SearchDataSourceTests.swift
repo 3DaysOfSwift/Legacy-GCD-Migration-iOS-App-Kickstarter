@@ -4,6 +4,7 @@ import Library
 @testable import LibraryTestHelpers
 import XCTest
 
+@MainActor
 class SearchDataSourceTests: XCTestCase {
   func test_indexOfProject_withTitleRow_returnsCorrectProjectIndex() {
     let datasource = SearchDataSource()

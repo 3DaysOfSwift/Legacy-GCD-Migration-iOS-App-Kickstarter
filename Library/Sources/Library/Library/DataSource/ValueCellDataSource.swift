@@ -7,6 +7,7 @@ import UIKit
  values can be appended via public methods that make sure the value you are add to the data source matches
  the type of value the table/collection cell can handle.
  */
+@MainActor
 open class ValueCellDataSource: NSObject, UICollectionViewDataSource, UITableViewDataSource {
   private var values: [[(value: Any, reusableId: String)]] = []
 

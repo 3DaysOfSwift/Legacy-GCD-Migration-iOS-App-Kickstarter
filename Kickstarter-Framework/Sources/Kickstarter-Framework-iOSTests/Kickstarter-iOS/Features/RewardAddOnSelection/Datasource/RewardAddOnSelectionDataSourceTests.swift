@@ -5,6 +5,7 @@
 import Prelude
 import XCTest
 
+@MainActor
 final class RewardsAddOnSelectionDataSourceTests: XCTestCase {
   private let dataSource = RewardAddOnSelectionDataSource()
   private let tableView = UITableView()

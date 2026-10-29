@@ -5,6 +5,7 @@
 import Prelude
 import XCTest
 
+@MainActor
 final class SettingsNewslettersDataSourceTests: XCTestCase {
   let dataSource = SettingsNewslettersDataSource()
   let tableView = UITableView()

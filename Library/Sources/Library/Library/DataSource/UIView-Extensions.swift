@@ -1,5 +1,6 @@
 import UIKit
 
+@MainActor
 private func swizzle(_ v: UIView.Type) {
   [
     (#selector(v.traitCollectionDidChange(_:)), #selector(v.ksr_traitCollectionDidChange(_:))),
@@ -30,6 +31,7 @@ private func swizzle(_ v: UIView.Type) {
   }
 }
 
+@MainActor
 private var hasSwizzled = false
 
 extension UIView {
@@ -42,7 +44,8 @@ extension UIView {
 
   open override func awakeFromNib() {
     super.awakeFromNib()
-    self.bindViewModel()
+    // UIKit instantiates view nibs on the main thread; NSObject does not encode that contract.
+    MainActor.assumeIsolated { self.bindViewModel() }
   }
 
   @objc open func bindStyles() {}

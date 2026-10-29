@@ -5,6 +5,7 @@
 import Prelude
 import XCTest
 
+@MainActor
 final class SettingsPrivacyDataSourceTests: XCTestCase {
   private let dataSource = SettingsPrivacyDataSource()
   private let tableView = UITableView(frame: .zero)

@@ -5,6 +5,7 @@
 import Prelude
 import XCTest
 
+@MainActor
 class CommentsDataSourceTests: XCTestCase {
   private let commentsSection = CommentsDataSource.Section.comments.rawValue
   private let dataSource = CommentsDataSource()
@@ -16,12 +17,16 @@ class CommentsDataSourceTests: XCTestCase {
 
   override func setUp() {
     super.setUp()
-    self.dataSource.load(comments: self.templateComments, project: .template, shouldShowErrorState: false)
+    MainActor.assumeIsolated {
+      self.dataSource.load(comments: self.templateComments, project: .template, shouldShowErrorState: false)
+    }
   }
 
   override func tearDown() {
     super.tearDown()
-    self.dataSource.load(comments: [], project: .template, shouldShowErrorState: false)
+    MainActor.assumeIsolated {
+      self.dataSource.load(comments: [], project: .template, shouldShowErrorState: false)
+    }
   }
 
   func testLoadedComments() {

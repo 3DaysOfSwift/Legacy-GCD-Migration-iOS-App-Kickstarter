@@ -4,6 +4,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 protocol ProcessingViewPresenting {
   var processingView: ProcessingView? { get set }
 
@@ -72,6 +73,7 @@ final class ProcessingView: UIView {
 
 // MARK: - Styles
 
+@MainActor
 private let processingViewStyle: ViewStyle = { view in
   view
     |> \.backgroundColor .~ LegacyColors.ksr_support_700.uiColor(opacity: 0.8)
@@ -79,11 +81,13 @@ private let processingViewStyle: ViewStyle = { view in
     |> \.accessibilityLabel %~ { _ in Strings.project_checkout_finalizing_title() }
 }
 
+@MainActor
 private let activityIndicatorStyle: ActivityIndicatorStyle = { activityIndicator in
   activityIndicator
     |> \.style .~ .medium
 }
 
+@MainActor
 private let processingLabelStyle: LabelStyle = { label in
   label
     |> \.isAccessibilityElement .~ false
@@ -100,6 +104,7 @@ private let processingLabelStyle: LabelStyle = { label in
     }
 }
 
+@MainActor
 private let stackViewStyle: StackViewStyle = { stackView in
   stackView
     |> verticalStackViewStyle

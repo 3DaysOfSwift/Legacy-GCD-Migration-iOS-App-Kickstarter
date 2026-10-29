@@ -5,6 +5,7 @@
 import Prelude
 import XCTest
 
+@MainActor
 class CommentRepliesDataSourceTests: XCTestCase {
   let commentSection = CommentRepliesDataSource.Section.rootComment.rawValue
   let repliesSection = CommentRepliesDataSource.Section.replies.rawValue
@@ -24,7 +25,9 @@ class CommentRepliesDataSourceTests: XCTestCase {
 
   override func setUp() {
     super.setUp()
-    self.dataSource.loadRootComment(.template)
+    MainActor.assumeIsolated {
+      self.dataSource.loadRootComment(.template)
+    }
   }
 
   func testDataSource_WithComment_HasLoadedRootComment() {

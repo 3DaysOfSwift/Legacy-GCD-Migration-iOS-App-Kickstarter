@@ -33,6 +33,7 @@ func generateSelectionFeedback(
 
 // MARK: - Login workflow
 
+@MainActor
 public func logoutAndDismiss(
   viewController: UIViewController,
   appEnvironment: AppEnvironmentType.Type = AppEnvironment.self,

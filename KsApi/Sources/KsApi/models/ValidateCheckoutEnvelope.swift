@@ -2,7 +2,7 @@ import Foundation
 import GraphAPI
 import ReactiveSwift
 
-public struct ValidateCheckoutEnvelope: Decodable {
+public struct ValidateCheckoutEnvelope: Decodable, Sendable {
   public let messages: [String]
 }
 

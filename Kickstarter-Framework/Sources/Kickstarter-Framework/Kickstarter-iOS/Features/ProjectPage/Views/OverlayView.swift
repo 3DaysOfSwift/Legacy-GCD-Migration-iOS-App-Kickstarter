@@ -4,6 +4,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 protocol OverlayViewPresenting {
   var overlayView: OverlayView? { get set }
   var windowTransform: CGAffineTransform? { get }
@@ -42,6 +43,7 @@ final class OverlayView: UIView {
 
 // MARK: - Styles
 
+@MainActor
 private let overlayViewStyle: ViewStyle = { view in
   view
     |> \.backgroundColor .~ LegacyColors.ksr_black.uiColor(opacity: OverlayViewLayout.Alpha.max)

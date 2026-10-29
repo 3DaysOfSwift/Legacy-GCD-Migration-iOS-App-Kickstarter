@@ -17,13 +17,34 @@ The primitive scan matched **40 lines in 25 files**. None matched the Feature
 implementation directory. That does not make every Feature concurrency-clean:
 complete compiler diagnostics also expose non-Sendable transfer boundaries.
 
+## Latest refresh: UIKit and response-value contracts — 29 October 2026
+
+ValueCell/data-source ownership, UI factories and overlay/processing protocols now
+state MainActor. Nib entry points use UIKit's main-thread contract. Discovery cards
+retain MainActorNotificationObservation for audited main-actor publishers; delivery
+is synchronous and complete heterogeneous payloads never cross an actor boundary.
+Four new tests cover ordering, cancellation and release (including another actor).
+Checkout deinit transfers only its overlay to bounded main-actor cleanup.
+Fourteen checked Sendable conformances cover seven value-only response/model files.
+
+1,906 selected tests passed; app build and complete-check diagnostic build succeeded.
+Incremental diagnostics remain and are not a full baseline. See current evidence
+`../Migration Evidence/kickstarter-uikit-isolation/compiler-diagnostics.json`.
+No new visual/device or live-service validation is claimed. Primitive scan: 8/5.
+
+Compatibility clarification: AsyncApolloClient is constructed by public generic
+Service.fetch(query:) async, also reachable through default compatibility paths and
+fixtures. Concrete migrated Service operations use their native implementations;
+no migrated application caller of the generic path was found in this audit. Retain
+it pending explicit compatibility/cancellation review, not as "unused" dead code.
+
 ## Latest refresh: layout/HTML and compiler contracts — 29 October 2026
 
 The same scoped scan now matches **8 lines in 5 files**:
 
 | Current file | Matches | Disposition |
 | --- | ---: | --- |
-| KsApi/AsyncApolloClient.swift | 2 | Unused generic compatibility bridge; queue is an SDK argument, but cancellation/unchecked conformance remain legacy audit items. No active application consumers were identified in the prior pass. |
+| KsApi/AsyncApolloClient.swift | 2 | Retained generic compatibility bridge; queue is an SDK argument, but cancellation/unchecked conformance remain legacy audit items. No active application consumers were identified in the prior pass. |
 | KsApi/MockService.swift | 1 | Combine delay in mock compatibility code; retain while legacy tests/consumers require it. |
 | Framework/Library/UIImageView+URL.swift | 2 | Required AlamofireImage progress queues; per-view receipts, cancellation and UI binding reviewed. |
 | Library/Reachability.swift | 2 | SDK callback queue registration/unregistration, retained native context and Feature-owned async consumer. |

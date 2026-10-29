@@ -1,5 +1,6 @@
 import UIKit
 
+@MainActor
 public func ksr_addSubviewToParent() -> ((UIView, UIView) -> (UIView, UIView)) {
   return { subview, parent in
     parent.addSubview(subview)
@@ -7,6 +8,7 @@ public func ksr_addSubviewToParent() -> ((UIView, UIView) -> (UIView, UIView)) {
   }
 }
 
+@MainActor
 public func ksr_insertSubview(_ subview: UIView, belowSubview otherSubview: UIView)
   -> ((UIView) -> (UIView)) {
   return { view in
@@ -16,6 +18,7 @@ public func ksr_insertSubview(_ subview: UIView, belowSubview otherSubview: UIVi
   }
 }
 
+@MainActor
 public func ksr_insertSubviewInParent(at index: Int) -> ((UIView, UIView) -> (UIView, UIView)) {
   return { subview, parent in
     parent.insertSubview(subview, at: index)
@@ -23,6 +26,7 @@ public func ksr_insertSubviewInParent(at index: Int) -> ((UIView, UIView) -> (UI
   }
 }
 
+@MainActor
 public func ksr_constrainViewToCenterInParent() -> ((UIView, UIView) -> (UIView, UIView)) {
   return { subview, parent in
     subview.translatesAutoresizingMaskIntoConstraints = false
@@ -38,6 +42,7 @@ public func ksr_constrainViewToCenterInParent() -> ((UIView, UIView) -> (UIView,
   }
 }
 
+@MainActor
 public func ksr_addLayoutGuideToView() -> ((UILayoutGuide, UIView) -> (UILayoutGuide, UIView)) {
   return { layoutGuide, view in
     view.addLayoutGuide(layoutGuide)
@@ -45,6 +50,7 @@ public func ksr_addLayoutGuideToView() -> ((UILayoutGuide, UIView) -> (UILayoutG
   }
 }
 
+@MainActor
 public func ksr_constrainViewToEdgesInParent(priority: UILayoutPriority = .required)
   -> ((UIView, UIView) -> (UIView, UIView)) {
   return { subview, parent in
@@ -65,6 +71,7 @@ public func ksr_constrainViewToEdgesInParent(priority: UILayoutPriority = .requi
   }
 }
 
+@MainActor
 public func ksr_constrainViewToMarginsInParent(priority: UILayoutPriority = .required)
   -> ((UIView, UIView) -> (UIView, UIView)) {
   return { subview, parent in
@@ -85,6 +92,7 @@ public func ksr_constrainViewToMarginsInParent(priority: UILayoutPriority = .req
   }
 }
 
+@MainActor
 public func ksr_setContentCompressionResistancePriority(
   _ priority: UILayoutPriority,
   for axis: NSLayoutConstraint.Axis

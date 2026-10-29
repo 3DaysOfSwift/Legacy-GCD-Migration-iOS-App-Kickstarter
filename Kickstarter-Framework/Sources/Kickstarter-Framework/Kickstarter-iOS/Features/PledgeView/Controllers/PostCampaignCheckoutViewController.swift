@@ -115,7 +115,10 @@ final class PostCampaignCheckoutViewController: UIViewController,
   }
 
   deinit {
-    self.hideProcessingView()
+    // Release can occur off-main. Retain only the detached overlay until UIKit
+    // removes it; never capture or resurrect the checkout controller.
+    let processingView = self.processingView
+    Task { @MainActor in processingView?.removeFromSuperview() }
     self.sessionStartedObserver.doIfSome(NotificationCenter.default.removeObserver)
   }
 

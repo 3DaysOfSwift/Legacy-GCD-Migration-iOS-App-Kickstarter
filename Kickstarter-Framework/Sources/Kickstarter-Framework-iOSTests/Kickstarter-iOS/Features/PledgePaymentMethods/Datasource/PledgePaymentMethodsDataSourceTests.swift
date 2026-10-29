@@ -5,6 +5,7 @@
 import Prelude
 import XCTest
 
+@MainActor
 final class PledgePaymentMethodsDataSourceTests: XCTestCase {
   private let dataSource = PledgePaymentMethodsDataSource()
   private let tableView = UITableView()

@@ -6,6 +6,7 @@ import XCTest
 
 private let sorts: [DiscoveryParams.Sort] = [.magic, .popular, .newest]
 
+@MainActor
 internal final class DiscoveryPagesDataSourceTests: XCTestCase {
   fileprivate let dataSource = DiscoveryPagesDataSource(sorts: sorts)
   fileprivate let pageViewController = UIPageViewController()

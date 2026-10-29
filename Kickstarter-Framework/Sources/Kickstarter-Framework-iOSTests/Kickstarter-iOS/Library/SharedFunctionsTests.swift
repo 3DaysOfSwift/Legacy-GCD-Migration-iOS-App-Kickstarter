@@ -3,7 +3,9 @@
 import Prelude
 import XCTest
 
+@MainActor
 internal final class SharedFunctionsTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   func testGenerateImpactFeedback() {
     let mockFeedbackGenerator = MockImpactFeedbackGenerator()
 

@@ -4,6 +4,7 @@
 @testable import Library
 import XCTest
 
+@MainActor
 final class MessageThreadsDataSourceTests: XCTestCase {
   let dataSource = MessageThreadsDataSource()
   let tableView = UITableView()

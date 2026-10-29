@@ -5,6 +5,7 @@
 import Prelude
 import XCTest
 
+@MainActor
 final class FindFriendsDataSourceTests: XCTestCase {
   let dataSource = FindFriendsDataSource()
   let tableView = UITableView()

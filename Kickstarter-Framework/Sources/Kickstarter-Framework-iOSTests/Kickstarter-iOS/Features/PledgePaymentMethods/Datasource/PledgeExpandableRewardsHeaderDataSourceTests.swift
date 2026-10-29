@@ -5,6 +5,7 @@
 import Prelude
 import XCTest
 
+@MainActor
 final class PledgeExpandableRewardsHeaderDataSourceTests: XCTestCase {
   private let dataSource = PledgeExpandableRewardsHeaderDataSource()
   private let tableView = UITableView()

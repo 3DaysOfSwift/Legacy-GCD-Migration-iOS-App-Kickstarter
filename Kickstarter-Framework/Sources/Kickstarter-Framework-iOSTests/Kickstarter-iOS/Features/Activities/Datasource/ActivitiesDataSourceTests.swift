@@ -5,6 +5,7 @@
 import Prelude
 import XCTest
 
+@MainActor
 final class ActivitiesDataSourceTests: XCTestCase {
   let dataSource = ActivitiesDataSource()
   let tableView = UITableView()
