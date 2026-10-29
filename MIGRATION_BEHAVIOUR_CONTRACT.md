@@ -1,5 +1,26 @@
 # Kickstarter migration behaviour contract
 
+## Project-page media and audio-session lifetime — 29 October 2026
+
+- Preserve per-row AVPlayer instances, optional cached WebP thumbnails and the
+  existing audio/video cells. Thumbnail availability must not delay player readiness.
+- ProjectMediaFeature owns pending preparation per page/slot. Equivalent pending
+  requests share; changed media replaces that slot. Page replacement/exit cancels
+  preparation and rejects stale delivery. Separate pages and rows stay independent.
+- Native asset loading is awaited. Readiness observation finishes on ready, failure
+  or cancellation and is always invalidated. KVO notifications may omit their typed
+  new value; capture the item's current status at the callback boundary instead.
+- A late row result may not overwrite a different URL/thumbnail or a removed row.
+- One production audio controller serves both the framework and tests. Retain the
+  existing soloAmbient/playback policy, OS gating and hardware/unmute intentions.
+  Rebinding removes prior observers; dismissal/release finishes event observation.
+  Reset completion belongs to its current generation and cannot reopen a dismissed feed.
+- Resource cleanup must work for synchronous Objective-C/UIKit-style release as well
+  as async release. Finite MainActor cleanup captures resources by value, never the
+  deinitializing owner. Cleanup does not initiate new service work.
+- Local PCM media and controlled callbacks validate ownership, not visual parity,
+  real remote decoding/network behavior or physical-device audio routing/silent switches.
+
 ## Saved projects, reporting and account fields — 28 October 2026
 
 - SAVE-01: Keep login gating, the 500ms debounce, optimistic selection, notification

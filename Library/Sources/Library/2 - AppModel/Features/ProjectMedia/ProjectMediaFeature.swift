@@ -32,6 +32,46 @@ public struct AsyncProjectMediaProvider: ProjectMediaProvider {
 /// Start and completion may both be in flight; neither cancels the other.
 @MainActor
 public final class ProjectMediaFeature {
+  private struct PreparationKey: Hashable { let route: UUID; let slot: String }
+  private struct Preparation {
+    let id: UUID
+    let url: URL
+    let thumbnail: URL?
+    let task: Task<PreparedProjectMedia, Error>
+  }
+  private var preparations: [PreparationKey: Preparation] = [:]
+  private let preparePlayback: @MainActor (URL, URL?) async throws -> PreparedProjectMedia
+
+  /// Each page/element owns an independent player. Equivalent requests for that
+  /// slot share pending work; changed URLs replace it without affecting other rows.
+  public func requestPreparation(
+    route: UUID, slot: String, url: URL, thumbnail: URL?
+  ) -> Task<PreparedProjectMedia, Error> {
+    let key = PreparationKey(route: route, slot: slot)
+    if let pending = self.preparations[key], pending.url == url, pending.thumbnail == thumbnail {
+      return pending.task
+    }
+    self.preparations[key]?.task.cancel()
+    let id = UUID()
+    let prepare = self.preparePlayback
+    let task = Task { [self] in
+      defer { if self.preparations[key]?.id == id { self.preparations[key] = nil } }
+      try Task.checkCancellation()
+      let result = try await prepare(url, thumbnail)
+      try Task.checkCancellation()
+      guard self.preparations[key]?.id == id else { throw CancellationError() }
+      return result
+    }
+    self.preparations[key] = Preparation(id: id, url: url, thumbnail: thumbnail, task: task)
+    return task
+  }
+
+  public func cancelPreparations(route: UUID) {
+    for key in Array(self.preparations.keys) where key.route == route {
+      self.preparations.removeValue(forKey: key)?.task.cancel()
+    }
+  }
+
   /// One authoritative observable feed per screen route. Only this Feature
   /// mutates it; a ViewModel reads its individual properties for presentation.
   @Observable @MainActor
@@ -331,7 +371,12 @@ public final class ProjectMediaFeature {
   public var completions: Signal<(UUID, Bool, VoidEnvelope), Never> { self.completionPipe.output }
 
   public let sessionFeature: SessionFeature
-  public init(sessionFeature: SessionFeature? = nil, makeProvider: @escaping () -> any ProjectMediaProvider) {
+  public init(
+    sessionFeature: SessionFeature? = nil,
+    preparePlayback: (@MainActor (URL, URL?) async throws -> PreparedProjectMedia)? = nil,
+    makeProvider: @escaping () -> any ProjectMediaProvider
+  ) {
+    self.preparePlayback = preparePlayback ?? { try await ProjectMediaPreparation.load(url: $0, thumbnailURL: $1) }
     self.sessionFeature = sessionFeature ?? SessionFeature(makeProvider: {
       AsyncSessionProvider(service: AppEnvironment.current.apiService)
     })

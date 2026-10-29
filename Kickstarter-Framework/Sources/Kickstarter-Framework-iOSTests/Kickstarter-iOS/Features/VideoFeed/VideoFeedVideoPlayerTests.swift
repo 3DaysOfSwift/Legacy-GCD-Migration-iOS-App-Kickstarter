@@ -6,6 +6,13 @@ import XCTest
 final class VideoFeedVideoPlayerTests: XCTestCase {
   private let url = URL(fileURLWithPath: "/tmp/cfa-nonexistent-video-test.mp4")
 
+  func testSynchronousReleaseDoesNotRetainPlayerWrapper() {
+    var player: VideoFeedVideoPlayer? = VideoFeedVideoPlayer()
+    weak var released = player
+    player = nil
+    XCTAssertNil(released)
+  }
+
   func testReplacementSeekDeliversOnlyLatestResult() async throws {
     let gate = PlaybackGate<Bool>()
     defer { gate.releaseAll() }

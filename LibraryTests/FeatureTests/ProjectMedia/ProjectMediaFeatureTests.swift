@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 @testable import KsApi
 @testable import Library
@@ -9,6 +10,106 @@ import XCTest
 @MainActor
 final class ProjectMediaFeatureTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
+
+  func testPreparationSharesSlotAndFailureAllowsRetry() async throws {
+    let gate = AccountRequestGate<PreparedProjectMedia>()
+    defer { gate.releaseAll() }
+    let feature = ProjectMediaFeature(preparePlayback: { _, _ in try await gate.request() }, makeProvider: { ControlledMediaProvider() })
+    let route = UUID(), url = URL(fileURLWithPath: "/tmp/synthetic-video")
+    let first = feature.requestPreparation(route: route, slot: "row", url: url, thumbnail: nil)
+    let shared = feature.requestPreparation(route: route, slot: "row", url: url, thumbnail: nil)
+    await gate.waitFor(1)
+    try gate.finish(0, .failure(URLError(.cannotDecodeContentData)))
+    for request in [first, shared] {
+      if case .success = await request.result { XCTFail("Preparation error was swallowed") }
+    }
+    let retry = feature.requestPreparation(route: route, slot: "row", url: url, thumbnail: nil)
+    await gate.waitFor(2)
+    let player = AVPlayer()
+    try gate.finish(1, .success(PreparedProjectMedia(player: player)))
+    let prepared = try await retry.value
+    XCTAssertTrue(prepared.player === player)
+    XCTAssertEqual(gate.count, 2)
+  }
+
+  func testChangedMediaRejectsOldSlotAndOtherPageRemainsIndependent() async throws {
+    let gate = AccountRequestGate<PreparedProjectMedia>()
+    defer { gate.releaseAll() }
+    let feature = ProjectMediaFeature(preparePlayback: { _, _ in try await gate.request() }, makeProvider: { ControlledMediaProvider() })
+    let route = UUID(), other = UUID(), url = URL(fileURLWithPath: "/tmp/synthetic-video")
+    let old = feature.requestPreparation(route: route, slot: "row", url: url, thumbnail: nil)
+    await gate.waitFor(1)
+    let current = feature.requestPreparation(route: route, slot: "row", url: url, thumbnail: url)
+    await gate.waitFor(2)
+    let independent = feature.requestPreparation(route: other, slot: "row", url: url, thumbnail: nil)
+    await gate.waitFor(3)
+    feature.cancelPreparations(route: route)
+    for index in 0...2 { try gate.finish(index, .success(PreparedProjectMedia(player: AVPlayer()))) }
+    for request in [old, current] {
+      if case .failure(is CancellationError) = await request.result {} else { XCTFail("Obsolete page received media") }
+    }
+    _ = try await independent.value
+  }
+
+  func testPageExitSuppressesLatePreparationDelivery() async throws {
+    let gate = AccountRequestGate<PreparedProjectMedia>()
+    defer { gate.releaseAll() }
+    let feature = ProjectMediaFeature(preparePlayback: { _, _ in try await gate.request() }, makeProvider: { ControlledMediaProvider() })
+    let model = ProjectPageViewModel(projectMediaFeature: feature)
+    let waiter = model.prepareMedia(slot: "row", url: URL(fileURLWithPath: "/tmp/synthetic-video"), thumbnail: nil) { _ in
+      XCTFail("Exited page received prepared media")
+    }
+    await gate.waitFor(1)
+    model.cancelMediaPreparation()
+    try gate.finish(0, .success(PreparedProjectMedia(player: AVPlayer())))
+    await waiter.value
+  }
+
+  func testReadinessObservationCancelsWhileItemRemainsUnknown() async {
+    let item = AVPlayerItem(asset: AVMutableComposition())
+    let request = Task { try await ProjectMediaPreparation.waitUntilReady(item) }
+    await Task.yield()
+    request.cancel()
+    if case .failure(is CancellationError) = await request.result {} else { XCTFail("Readiness did not cancel") }
+  }
+
+  func testNativePreparationRejectsMissingLocalAsset() async {
+    do {
+      _ = try await ProjectMediaPreparation.load(url: URL(fileURLWithPath: "/tmp/" + UUID().uuidString + ".mp4"), thumbnailURL: nil)
+      XCTFail("Missing media must fail")
+    } catch { XCTAssertFalse(error is CancellationError) }
+  }
+
+  func testNativePreparationLoadsLocalAudioWithoutThumbnail() async throws {
+    let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString + ".wav")
+    defer { try? FileManager.default.removeItem(at: url) }
+    // Uncompressed mono PCM, 100ms at 44.1kHz. No encoder or live service needed.
+    var bytes = Data()
+    func text(_ value: String) { bytes.append(contentsOf: value.utf8) }
+    func uint16(_ value: UInt16) { var v = value.littleEndian; withUnsafeBytes(of: &v) { bytes.append(contentsOf: $0) } }
+    func uint32(_ value: UInt32) { var v = value.littleEndian; withUnsafeBytes(of: &v) { bytes.append(contentsOf: $0) } }
+    let length: UInt32 = 4410 * 2
+    text("RIFF"); uint32(36 + length); text("WAVEfmt "); uint32(16)
+    uint16(1); uint16(1); uint32(44100); uint32(88200); uint16(2); uint16(16)
+    text("data"); uint32(length); bytes.append(Data(repeating: 0, count: Int(length)))
+    try bytes.write(to: url)
+    let asset = AVURLAsset(url: url)
+    let duration = try await asset.load(.duration)
+    XCTAssertEqual(duration.seconds, 0.1, accuracy: 0.01)
+    let finished = expectation(description: "Local asset readiness")
+    var result: Result<PreparedProjectMedia, Error>?
+    let task = Task {
+      do { result = .success(try await ProjectMediaPreparation.load(url: url, thumbnailURL: nil)) }
+      catch { result = .failure(error) }
+      finished.fulfill()
+    }
+    await fulfillment(of: [finished], timeout: 5)
+    task.cancel()
+    await task.value
+    let media = try XCTUnwrap(result).get()
+    XCTAssertEqual(media.player.currentItem?.status, .readyToPlay)
+    XCTAssertNil(media.thumbnail)
+  }
 
   func testOrdinaryAndVideoSavesShareTheMutationQueueAndCache() async throws {
     let provider = ControlledMediaProvider()

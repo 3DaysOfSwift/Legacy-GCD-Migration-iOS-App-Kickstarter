@@ -1,5 +1,4 @@
 import AVFoundation
-import Combine
 import Experimentation
 import KDS
 import KsApi
@@ -179,6 +178,9 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
   public override func viewDidDisappear(_ animated: Bool) {
     super.viewDidDisappear(animated)
 
+    if self.isMovingFromParent || self.isBeingDismissed || self.navigationController?.isBeingDismissed == true {
+      self.viewModel.cancelMediaPreparation()
+    }
     UIImageView.ksr_stopFetchingImages()
   }
 
@@ -530,7 +532,8 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
 
     self.viewModel.outputs.precreateAudioVideoURLsOnFirstLoad
       .observeValues { [weak self] elements in
-        elements.forEach { element in
+        self?.viewModel.cancelMediaPreparation()
+        elements.enumerated().forEach { index, element in
           guard let url = URL(string: element.sourceURLString) else { return }
 
           var audioVideoThumbnailURL: URL?
@@ -540,7 +543,7 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
           }
 
           self?.prepareToPlayAudioVideoURL(
-            audioVideoURL: url,
+            slot: "preload-\(index)", audioVideoURL: url,
             thumbnailURL: audioVideoThumbnailURL
           ) { availablePlayer, image in
             guard let usablePlayer = availablePlayer else { return }
@@ -561,15 +564,16 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         }
 
         self?.prepareToPlayAudioVideoURL(
-          audioVideoURL: url,
+          slot: "row-\(indexPath.section)-\(indexPath.row)", audioVideoURL: url,
           thumbnailURL: audioVideoThumbnailURL
         ) { availablePlayer, image in
-          guard let usablePlayer = availablePlayer else { return }
+          guard let self, let usablePlayer = availablePlayer else { return }
 
-          self?.dataSource.updateAudioVideoViewElementWith(
+          self.dataSource.updateAudioVideoViewElementWith(
             element,
             player: usablePlayer,
             thumbnailImage: image,
+            tableView: self.tableView,
             indexPath: indexPath
           )
         }
@@ -730,57 +734,13 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
   }
 
   private func prepareToPlayAudioVideoURL(
+    slot: String,
     audioVideoURL: URL,
     thumbnailURL: URL?,
     completionHandler: @escaping (AVPlayer?, UIImage?) -> Void
   ) {
-    // Fetch the thumbnail
-    var cachedImage: UIImage?
-
-    if let audioVideoThumbnailURL = thumbnailURL {
-      UIImageView.ksr_cacheImageWith(audioVideoThumbnailURL) { image in
-        cachedImage = image
-      }
-    }
-
-    // Create asset to be played
-    let asset = AVAsset(url: audioVideoURL)
-
-    asset.loadValuesAsynchronously(forKeys: ["duration", "tracks"]) {
-      var durationError: NSError?
-      var tracksError: NSError?
-
-      if asset.statusOfValue(forKey: "duration", error: &durationError) == .loaded,
-         asset.statusOfValue(forKey: "tracks", error: &tracksError) == .loaded {
-        let playerItem = AVPlayerItem(
-          asset: asset,
-          automaticallyLoadedAssetKeys: ["duration", "tracks"]
-        )
-
-        var player: AVPlayer?
-        var cancellable: AnyCancellable?
-
-        cancellable = playerItem.publisher(for: \.status)
-          .subscribe(on: DispatchQueue.global(qos: .background))
-          .sink { status in
-            switch status {
-            case .readyToPlay:
-              guard let availablePlayer = player else {
-                completionHandler(nil, nil)
-
-                return
-              }
-
-              completionHandler(availablePlayer, cachedImage)
-
-              cancellable = nil
-            default:
-              return
-            }
-          }
-
-        player = AVPlayer(playerItem: playerItem)
-      }
+    self.viewModel.prepareMedia(slot: slot, url: audioVideoURL, thumbnail: thumbnailURL) { media in
+      completionHandler(media.player, media.thumbnail)
     }
   }
 

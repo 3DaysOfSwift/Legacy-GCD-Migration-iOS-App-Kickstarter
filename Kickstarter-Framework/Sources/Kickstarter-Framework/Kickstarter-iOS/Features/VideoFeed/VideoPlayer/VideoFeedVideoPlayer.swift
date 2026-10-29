@@ -22,17 +22,17 @@ class VideoFeedVideoPlayer {
 
   // MARK: - Private
 
-  private var startupTask: Task<Void, Never>?
-  private var recoveryTask: Task<Void, Never>?
-  private var seekTask: Task<Void, Never>?
+  @ObservationIgnored private var startupTask: Task<Void, Never>?
+  @ObservationIgnored private var recoveryTask: Task<Void, Never>?
+  @ObservationIgnored private var seekTask: Task<Void, Never>?
   private var playbackVersion = UUID()
   private var seekVersion = UUID()
   private let sleep: @MainActor (Duration) async throws -> Void
   private let performSeek: @MainActor (AVPlayer, Double) async -> Bool
-  private var timeObserverToken: Any?
-  private var endObserver: (any NSObjectProtocol)?
-  private var failedObserver: (any NSObjectProtocol)?
-  private var stalledObserver: (any NSObjectProtocol)?
+  @ObservationIgnored private var timeObserverToken: Any?
+  @ObservationIgnored private var endObserver: (any NSObjectProtocol)?
+  @ObservationIgnored private var failedObserver: (any NSObjectProtocol)?
+  @ObservationIgnored private var stalledObserver: (any NSObjectProtocol)?
   /// Once `onReady` has fired, flip this so we don't fire it repeatedly.
   private var hasFiredOnReady = false
   private var hasFiredOnFailed = false
@@ -51,9 +51,20 @@ class VideoFeedVideoPlayer {
     self.performSeek = performSeek
   }
 
-  isolated deinit {
-    self.cancelPendingOperations()
-    self.removeItemObservers()
+  deinit {
+    self.startupTask?.cancel()
+    self.recoveryTask?.cancel()
+    self.seekTask?.cancel()
+    for observer in [self.endObserver, self.failedObserver, self.stalledObserver].compactMap({ $0 }) {
+      NotificationCenter.default.removeObserver(observer)
+    }
+    let player = self.player
+    let token = self.timeObserverToken
+    // Only platform-resource cleanup survives the wrapper; callbacks capture it weakly.
+    Task { @MainActor in
+      player.currentItem?.cancelPendingSeeks()
+      if let token { player.removeTimeObserver(token) }
+    }
   }
 
   /// Replaces the current item with the URL's content and starts playback.

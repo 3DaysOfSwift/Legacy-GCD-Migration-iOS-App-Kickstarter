@@ -452,8 +452,15 @@ internal final class ProjectPageViewControllerDataSource: ValueCellDataSource {
     _ audioVideoViewElement: AudioVideoViewElement,
     player: AVPlayer,
     thumbnailImage: UIImage?,
+    tableView: UITableView,
     indexPath: IndexPath
   ) {
+    guard indexPath.section >= 0, indexPath.row >= 0,
+      indexPath.section < self.numberOfSections(in: tableView),
+      indexPath.row < self.numberOfItems(in: indexPath.section),
+      let current = self.items(in: indexPath.section)[indexPath.row].value as? (AudioVideoViewElement, AVPlayer?, UIImage?),
+      current.0.sourceURLString == audioVideoViewElement.sourceURLString,
+      current.0.thumbnailURLString == audioVideoViewElement.thumbnailURLString else { return }
     self.set(
       value: (audioVideoViewElement, player, thumbnailImage),
       cellClass: AudioVideoViewElementCell.self,

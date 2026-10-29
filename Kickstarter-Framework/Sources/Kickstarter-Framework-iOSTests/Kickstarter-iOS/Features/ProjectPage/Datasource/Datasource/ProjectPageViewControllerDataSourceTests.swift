@@ -135,6 +135,20 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
   private let useOfAIDisclosureDisclaimerSection = ProjectPageViewControllerDataSource.Section
     .aiDisclosureDisclaimer.rawValue
 
+  @MainActor
+  func testLateMediaCannotReplaceChangedOrRemovedRow() throws {
+    let current = AudioVideoViewElement(sourceURLString: "new", thumbnailURLString: nil, seekPosition: .zero)
+    let obsolete = AudioVideoViewElement(sourceURLString: "old", thumbnailURLString: nil, seekPosition: .zero)
+    self.dataSource.set(values: [(current, nil as AVPlayer?, nil as UIImage?)], cellClass: AudioVideoViewElementCell.self, inSection: 0)
+    self.dataSource.updateAudioVideoViewElementWith(obsolete, player: AVPlayer(), thumbnailImage: nil, tableView: self.tableView, indexPath: IndexPath(row: 0, section: 0))
+    let row = try XCTUnwrap(self.dataSource.items(in: 0).first?.value as? (AudioVideoViewElement, AVPlayer?, UIImage?))
+    XCTAssertEqual(row.0.sourceURLString, "new")
+    XCTAssertNil(row.1)
+    self.dataSource.clearValues()
+    self.dataSource.updateAudioVideoViewElementWith(current, player: AVPlayer(), thumbnailImage: nil, tableView: self.tableView, indexPath: IndexPath(row: 0, section: 0))
+    XCTAssertEqual(self.dataSource.numberOfItems(), 0)
+  }
+
   func testLoadFAQs_LoggedIn() {
     let project = Project.template
       |> \.extendedProjectProperties .~ ExtendedProjectProperties(
@@ -1290,6 +1304,7 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
           audioVideoViewElementWithNoPlayer!.0,
           player: AVPlayer(),
           thumbnailImage: camera,
+          tableView: self.tableView,
           indexPath: audioVideoViewElementWithNoPlayer!.1
         )
 
@@ -1342,6 +1357,7 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
           audioVideoViewElementWithNoPlayer!.0,
           player: AVPlayer(),
           thumbnailImage: nil,
+          tableView: self.tableView,
           indexPath: audioVideoViewElementWithNoPlayer!.1
         )
 

@@ -237,6 +237,8 @@ public protocol ProjectPageViewModelOutputs {
 
 @MainActor
 public protocol ProjectPageViewModelType {
+  @discardableResult func prepareMedia(slot: String, url: URL, thumbnail: URL?, completion: @escaping (PreparedProjectMedia) -> Void) -> Task<Void, Never>
+  func cancelMediaPreparation()
   var inputs: ProjectPageViewModelInputs { get }
   var outputs: ProjectPageViewModelOutputs { get }
 }
@@ -244,12 +246,44 @@ public protocol ProjectPageViewModelType {
 @MainActor
 public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageViewModelInputs,
   ProjectPageViewModelOutputs {
+  private let projectMediaFeature: ProjectMediaFeature
+  private var mediaWaiters: [String: (id: UUID, url: URL, thumbnail: URL?, task: Task<Void, Never>)] = [:]
+
+  @discardableResult
+  public func prepareMedia(
+    slot: String, url: URL, thumbnail: URL?, completion: @escaping (PreparedProjectMedia) -> Void
+  ) -> Task<Void, Never> {
+    if let pending = self.mediaWaiters[slot], pending.url == url, pending.thumbnail == thumbnail { return pending.task }
+    self.mediaWaiters[slot]?.task.cancel()
+    let id = UUID()
+    let request = self.projectMediaFeature.requestPreparation(route: self.projectRoute, slot: slot, url: url, thumbnail: thumbnail)
+    let task = Task { [weak self] in
+      defer { if self?.mediaWaiters[slot]?.id == id { self?.mediaWaiters[slot] = nil } }
+      do {
+        let media = try await request.value
+        guard !Task.isCancelled, self?.mediaWaiters[slot]?.id == id else { return }
+        completion(media)
+      } catch {
+        // Preserve the existing optional-player fallback; the slot can retry.
+      }
+    }
+    self.mediaWaiters[slot] = (id, url, thumbnail, task)
+    return task
+  }
+
+  public func cancelMediaPreparation() {
+    self.mediaWaiters.values.forEach { $0.task.cancel() }
+    self.mediaWaiters.removeAll()
+    self.projectMediaFeature.cancelPreparations(route: self.projectRoute)
+  }
+
   private let projectDetailsFeature: ProjectDetailsFeature
   private let projectRoute = UUID()
   private let featureBindings = CompositeDisposable()
   internal private(set) var loadingTask: Task<Void, Never>?
 
-  public init(projectDetailsFeature: ProjectDetailsFeature? = nil) {
+  public init(projectDetailsFeature: ProjectDetailsFeature? = nil, projectMediaFeature: ProjectMediaFeature? = nil) {
+    self.projectMediaFeature = projectMediaFeature ?? AppModel.shared.projectMediaFeature
     let projectDetailsFeature = projectDetailsFeature ?? AppModel.shared.projectDetailsFeature
     self.projectDetailsFeature = projectDetailsFeature
     self.similarProjectsUseCase = SimilarProjectsUseCase(projectDetailsFeature: projectDetailsFeature)
@@ -726,12 +760,16 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
   deinit {
     self.loadingTask?.cancel()
+    self.mediaWaiters.values.forEach { $0.task.cancel() }
     self.featureBindings.dispose()
-    // Deinitialization may occur outside actor isolation. This bounded cleanup
-    // owns no network work and removes the route from the longer-lived Feature.
-    let feature = self.projectDetailsFeature
+    let details = self.projectDetailsFeature
+    let media = self.projectMediaFeature
     let route = self.projectRoute
-    Task { @MainActor in feature.release(route: route) }
+    // Finite route cleanup, with no self capture or new network operation.
+    Task { @MainActor in
+      media.cancelPreparations(route: route)
+      details.release(route: route)
+    }
   }
 
   fileprivate let askAQuestionCellTappedProperty = MutableProperty(())
@@ -759,6 +797,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     refInfo: RefInfo?,
     secretRewardToken: String?
   ) {
+    self.cancelMediaPreparation()
     self.configDataProperty.value = (projectOrParam, refInfo, secretRewardToken)
   }
 

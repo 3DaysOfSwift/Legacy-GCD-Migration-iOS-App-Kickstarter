@@ -43,6 +43,42 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Project-page media preparation and audio callbacks — 29 October 2026
+
+ProjectMediaFeature owns native asset preparation per page/slot. Equivalent pending
+requests share; replacement/exit cancels work and rejects late results. Optional
+WebP thumbnails retain existing cache behavior without delaying playback. Readiness
+uses a cancellable KVO stream and reads the current status because the observed
+AVFoundation notifications supplied nil typed change payloads. Changed/removed rows
+reject old media results. The existing player cells and audio policy are preserved.
+
+The duplicated audio controller is consolidated into the production Library type.
+Volume/mute callbacks feed an owned event stream; observer replacement, dismissal
+and release terminate it. Reset tasks check generation and dismissal. Synchronous
+release tests exposed a crash in the toolchain's isolated-deinit runtime path; audio
+and video-player cleanup now cancel tasks and perform finite resource cleanup by
+value. Player task/observer bookkeeping is excluded from UI observation.
+
+**129 Library + 248 framework = 377 selected tests passed**, zero failures/skips;
+**12 new regressions** include local PCM readiness, missing-media failure, cancellation,
+sharing/retry, stale rows, audio rebinding/reset/release and synchronous player release.
+App build passed with zero errors/two existing warnings. Library/build evidence:
+/private/tmp/kickstarter-media-preparation-audio.ZwB1cO; final framework evidence:
+/private/tmp/kickstarter-media-audio-framework-repair/update-detail.xcresult.
+
+Three compile attempts failed and were repaired. Four runtime runs failed: the first
+had seven isolated-deinit crashes and one readiness timeout, two diagnostic runs
+retained the timeout, and a framework run exposed an invalid newly added row fixture.
+The final framework rerun changed only that test fixture; prior Library/build results
+remain applicable. No human terminal commands were required. Evidence: sibling
+Migration Evidence/kickstarter-media-preparation-audio. Physical audio behavior,
+remote media, visual/device parity and live operations remain unverified.
+
+Next: remaining UI timers/platform callbacks and app-wide concurrency/regression
+validation. Migration remains in progress.
+
+### Previous verified checkpoint
+
 ### Video-feed playback lifetimes — 29 October 2026
 
 VideoFeedVideoPlayer and its playback UI state now have explicit MainActor ownership.
