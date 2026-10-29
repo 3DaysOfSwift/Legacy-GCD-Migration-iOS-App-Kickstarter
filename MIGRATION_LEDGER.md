@@ -43,6 +43,41 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### PaymentSheet and Apple Pay token ownership — 29 October 2026
+
+Settings and pledge card-entry flows now own PaymentSheet creation, selection,
+confirmation and optional card-ID lookup in a retained asynchronous operation.
+Native SDK flow objects stay on MainActor; only checked events cross into the task.
+Equivalent starts share, conflicting starts fail explicitly, and duplicate or
+obsolete callbacks cannot advance the workflow. Permanent departure, release and
+session replacement suppress late work. Editing/modal changes cancel preparation
+without canceling an already-presented confirmation. Optional card-ID lookup failure
+still allows card addition, preserving existing behavior.
+
+Older Apple Pay token callbacks now deliver primitive token/error values to an owned
+operation. Cancellation/release always replies to PassKit even without an SDK callback;
+late results cannot create backing work for an obsolete controller/session. Tokenization
+and accepted payment effects are not claimed cancellable. Native callback wiring has
+an Objective-C selector regression test. UIKit screens and snapshot gates are retained.
+
+Final verification: **1,435 Library + 397 framework + 117 API = 1,949 passed**,
+zero failures/skips. App build: zero errors/two warnings. Nineteen new tests cover
+operation admission, duplicate callbacks, phase transitions, cancel/release, stale
+sessions, optional enrichment failure, PassKit replies and selector integration.
+Complete checking succeeds in Swift 5. Both new adapters and the pledge card-entry
+controller emit no matching concurrency warnings. Settings retains five and Pledge
+23 unrelated style/protocol diagnostics, including PassKit delegate isolation.
+
+Compiler review caught an incorrectly labeled optional PassKit delegate parameter
+despite passing operation tests. Corrected its selector and added the integration
+regression before the final run. No compile/runtime failures or human commands.
+Earlier successful runs are not added to the unique final test count.
+
+Evidence: sibling `Migration Evidence/kickstarter-payment-sheet/`. Native live card,
+Apple Pay/3DS, physical-device and full visual validation remain open. Remaining
+transport snapshots and UI protocol diagnostics still require work. **Migration is
+in progress; this is a verified checkpoint, not app-wide completion.**
+
 ### Stripe confirmation lifetimes — 29 October 2026
 
 Four setup/payment confirmation sites in Pledge, post-campaign checkout and pledged

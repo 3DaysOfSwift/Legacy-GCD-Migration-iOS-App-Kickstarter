@@ -32,7 +32,7 @@ final class PledgePaymentMethodsViewController: UIViewController {
   internal weak var messageDisplayingDelegate: PledgeViewControllerMessageDisplaying?
   private let viewModel: PledgePaymentMethodsViewModelType =
     PledgePaymentMethodsViewModel(stripeIntentService: StripeIntentService())
-  private var paymentSheetFlowController: PaymentSheet.FlowController?
+  private let paymentSheet = PaymentSheetOperation()
 
   // MARK: - Lifecycle
 
@@ -43,6 +43,14 @@ final class PledgePaymentMethodsViewController: UIViewController {
     self.setupConstraints()
 
     self.viewModel.inputs.viewDidLoad()
+  }
+
+  override func viewWillDisappear(_ animated: Bool) {
+    super.viewWillDisappear(animated)
+    if self.isMovingFromParent || self.isBeingDismissed || self.parent?.isMovingFromParent == true ||
+      self.parent?.isBeingDismissed == true || self.navigationController?.isBeingDismissed == true {
+      self.paymentSheet.cancelObservation()
+    }
   }
 
   private func configureSubviews() {
@@ -147,74 +155,30 @@ final class PledgePaymentMethodsViewController: UIViewController {
   // MARK: - Functions
 
   private func goToPaymentSheet(data: PaymentSheetSetupData) {
-    let completion: (Result<PaymentSheet.FlowController, Error>) -> Void = { [weak self] result in
-      guard let strongSelf = self else { return }
-
-      switch result {
-      case let .failure(error):
-        strongSelf.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: true)
-        strongSelf.messageDisplayingDelegate?
-          .pledgeViewController(strongSelf, didErrorWith: error.localizedDescription, error: error)
-      case let .success(paymentSheetFlowController):
-        let topViewController = strongSelf.navigationController?.topViewController
-
-        assert(
-          topViewController is PledgeViewController ||
-            topViewController is PostCampaignCheckoutViewController,
-          "PledgePaymentMethodsViewController is only intended to be presented as part of a pledge flow."
-        )
-
-        strongSelf.paymentSheetFlowController = paymentSheetFlowController
-        strongSelf.paymentSheetFlowController?.presentPaymentOptions(from: strongSelf) { [weak self] in
-          guard let strongSelf = self else { return }
-
-          strongSelf.confirmPaymentResult(with: data.clientSecret)
+    let session = AppModel.shared.sessionFeature
+    let generation = session.generation
+    self.paymentSheet.start(
+      clientSecret: data.clientSecret, client: StripePaymentSheetClient(data: data),
+      presenter: self, retrievePaymentMethod: true,
+      isCurrent: { [weak self] in
+        guard let self, session.generation == generation,
+          let top = self.navigationController?.topViewController else { return false }
+        return self.parent === top && (top is PledgeViewController || top is PostCampaignCheckoutViewController)
+      },
+      didPresent: { [weak self] in self?.viewModel.inputs.stripePaymentSheetDidAppear() },
+      completed: { [weak self] result in
+        guard let self else { return }
+        self.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: true)
+        switch result {
+        case let .completed(method):
+          self.viewModel.inputs.paymentSheetDidAdd(clientSecret: data.clientSecret, paymentMethod: method)
+        case .noSelection, .canceled: break
+        case let .failed(error), let .loadFailed(error):
+          self.messageDisplayingDelegate?
+            .pledgeViewController(self, didErrorWith: error.localizedDescription, error: error)
         }
-        strongSelf.viewModel.inputs.stripePaymentSheetDidAppear()
       }
-    }
-
-    PaymentSheet.FlowController.create(
-      setupIntentClientSecret: data.clientSecret,
-      configuration: data.configuration,
-      completion: completion
     )
-  }
-
-  private func confirmPaymentResult(with clientSecret: String) {
-    guard self.paymentSheetFlowController?.paymentOption != nil else {
-      self.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: true)
-      return
-    }
-
-    self.paymentSheetFlowController?.confirm(from: self) { [weak self] paymentResult in
-
-      guard let strongSelf = self else { return }
-
-      switch paymentResult {
-      case .completed:
-        // Fetch the stripe payment method ID
-        STPAPIClient.shared
-          .retrieveSetupIntent(withClientSecret: clientSecret) { intent, _ in
-            strongSelf.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: true)
-
-            // Always try and add the card, even if the Stripe fetch failed.
-            // The payment method ID is only required for late pledges.
-            strongSelf.viewModel.inputs
-              .paymentSheetDidAdd(
-                clientSecret: clientSecret,
-                paymentMethod: intent?.paymentMethodID
-              )
-          }
-      case .canceled:
-        // User cancelled intentionally so do nothing.
-        strongSelf.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: true)
-      case let .failed(error):
-        strongSelf.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: true)
-        strongSelf.messageDisplayingDelegate?
-          .pledgeViewController(strongSelf, didErrorWith: error.localizedDescription, error: error)
-      }
-    }
   }
 
   private func updateAddNewPaymentMethodButtonLoading(state: Bool) {
@@ -228,6 +192,7 @@ final class PledgePaymentMethodsViewController: UIViewController {
   // MARK: - Public functions
 
   func cancelModalPresentation(_ hidden: Bool) {
+    if hidden { self.paymentSheet.cancelBeforePresentation() }
     self.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: hidden)
   }
 }

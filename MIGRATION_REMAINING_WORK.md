@@ -9,20 +9,20 @@ creator draft work is superseded by their completed checkpoints.
 
 ## Remaining implementation and audit work
 
-1. **Remaining UIKit callback contracts:** audit PaymentSheet creation/presentation/
-   confirmation in PaymentMethodSettings and PledgePaymentMethods, older PKPayment
-   token callbacks in Pledge, remaining observations and other UI protocol boundaries.
-   Four native Stripe confirmation paths and post-campaign Apple Pay context/session
-   lifetimes are now checkpointed; their live integration remains unverified.
-   Shared ValueCell/data-source ownership, discovery observations, nib entry points,
-   processing/overlay protocols, checkout release, four checkout/login session
-   observers, checkout UI delegates and haptic helpers are now checkpointed.
+1. **Remaining UIKit callback contracts:** finish isolation of the older PassKit
+   delegate protocol, controller/delegate observations and global UI style helpers.
+   PaymentSheet creation/selection/confirmation and optional card-ID lookup now have
+   owned lifetimes. Older Apple Pay token observation now guarantees a PassKit reply
+   on cancellation/release and rejects obsolete sessions. Native delegate selector
+   wiring is tested. Four STPPaymentHandler confirmation paths and post-campaign
+   Apple Pay lifetimes are also checkpointed; live integration remains unverified.
 2. **Task-boundary values and shared state:** finish Feature result/provider graphs,
    separating immutable snapshots from actor-owned mutable objects. Account and
    checkout/backing/watch value graphs and payment command results are checkpointed.
    All five payment service operations now map Apollo data before callback-to-task
    transfer. Other generated-response providers and legacy generic callers remain.
-   Classify global style/lens
+   Next concrete service boundaries: pledge mutation envelopes/boolean acknowledgements,
+   followed by remaining query/provider generated-response graphs. Classify global style/lens
    and generated Apollo diagnostics; resolve unsafe migrated application boundaries.
    A warning-free Swift 6 language conversion is a separate scope, not an implied
    requirement to rewrite all generated/third-party compatibility machinery.

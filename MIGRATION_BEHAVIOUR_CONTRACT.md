@@ -1,5 +1,49 @@
 # Kickstarter migration behaviour contract
 
+## PaymentSheet and Apple Pay token contract — 29 October 2026
+
+Author: Matthew Thomas. 29 October 2026. Local draft.
+
+Routes remain PaymentMethodSettings/PledgePaymentMethods controllers -> their existing
+ViewModels -> AppModel PaymentsFeature -> native services. Pledge delegates continue
+to deliver token values to PledgeViewModel/PledgeFeature. UIKit layout, navigation,
+card persistence and payment/business decisions are unchanged in scope.
+
+PaymentSheetOperation owns one asynchronous presentation observation from load to
+selection, confirmation and optional setup-intent enrichment. StripePaymentSheetClient
+owns its non-Sendable UI resource on MainActor. Equivalent pending client secrets
+share one flow; conflicting secrets fail explicitly rather than replace an admitted
+native confirmation. Events are checked Sendable values; generated SDK objects never
+enter the event stream. Only the expected phase accepts a callback, including duplicates.
+
+Permanent departure, owner release and session replacement suppress obsolete work.
+Temporary Stripe presentation does not cancel the operation. Editing/deleting cards
+or changing pledge modals cancels preparation only; an already-presented confirmation
+is not silently canceled by that preparation signal. SDK operations have no cancellation
+handle; canceling observation does not undo an accepted setup/payment or trigger retry.
+
+Settings load errors show their existing banner; confirmation failures also notify
+failedToAddNewCard. Selection cancellation is distinct from confirmation cancellation.
+Pledge flows still add the card when optional payment-method-ID retrieval fails.
+
+ApplePayTokenOperation owns token observation and one PassKit reply. Cancellation or
+owner release finishes the wait and replies failure even if Stripe never calls back.
+Only the current controller/session may send a token to the ViewModel. An overlapping
+authorization receives failure without starting a second token request. Native SDK
+tokens are reduced to String/error values in the callback. Token success/failure and
+existing ViewModel status calculation remain unchanged.
+
+Pinned SDK evidence: PaymentSheetLoader.load executes Task { @MainActor in }; the
+FlowController creation completion executes directly in that loader completion.
+Payment-option dismissal is UIKit-owned. FlowController.confirm explicitly asserts
+main-thread invocation. Stripe API setup-intent retrieval maps only paymentMethodID
+inside its callback. Callback protocols are retained only for native SDK integration.
+The older PassKit delegate's missing actor annotation is not hidden with preconcurrency;
+complete diagnostics remain a separate audit gate.
+
+Native SDK UI, live cards, Apple Pay/3DS, physical-device and full visual parity are
+not validated by fake-client lifetime tests. Existing snapshot requirements remain.
+
 ## Stripe confirmation lifetimes — 29 October 2026
 
 The native Stripe SDK remains responsible for authentication UI and payment processing.

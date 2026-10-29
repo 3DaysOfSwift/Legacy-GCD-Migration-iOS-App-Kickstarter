@@ -17,6 +17,26 @@ The primitive scan matched **40 lines in 25 files**. None matched the Feature
 implementation directory. That does not make every Feature concurrency-clean:
 complete compiler diagnostics also expose non-Sendable transfer boundaries.
 
+## Latest refresh: PaymentSheet and Apple Pay token callbacks — 29 October 2026
+
+PaymentSheetOperation owns load/selection/confirmation/enrichment observation, with
+phase, operation and session checks. StripePaymentSheetClient retains SDK UI objects
+on MainActor; PaymentSheetLoader's pinned source completes creation in a MainActor
+Task. Dismissal comes from UIKit. Confirmation/enrichment emit checked status/error/
+String values. Permanent departure/release finishes the stream without native retry.
+Preparation-only cancellation does not cancel an already-presented setup intent.
+
+ApplePayTokenOperation guarantees one PassKit reply when canceled/released, while
+session/controller checks prevent stale token application. The SDK token object stays
+in its callback. The optional delegate selector is tested; missing PassKit protocol
+actor annotations remain explicitly open, not suppressed.
+
+Final selected tests: 1,949; normal/complete-check builds passed. New adapters emit
+zero matching diagnostics. Settings retains five and Pledge 23 style/UI protocol
+warnings. Incremental observed total 3,025 is not comparable full-baseline coverage.
+No native/live/physical-device or full visual parity claim. Source evidence and
+correction history are in sibling `Migration Evidence/kickstarter-payment-sheet/`.
+
 ## Latest refresh: Stripe confirmation lifetimes — 29 October 2026
 
 StripeConfirmationOperation owns observation of four native setup/payment confirmations.

@@ -16,7 +16,7 @@ internal final class PaymentMethodSettingsViewController: UIViewController,
   private let dataSource = PaymentMethodsDataSource()
   private let viewModel: PaymentMethodsViewModelType =
     PaymentMethodSettingsViewModel(stripeIntentService: StripeIntentService())
-  private var paymentSheetFlowController: PaymentSheet.FlowController?
+  private let paymentSheet = PaymentSheetOperation()
   private weak var cancellationDelegate: PaymentMethodSettingsViewControllerDelegate?
   @IBOutlet private var tableView: UITableView!
 
@@ -54,11 +54,19 @@ internal final class PaymentMethodSettingsViewController: UIViewController,
     ]
 
     self.dataSource.deletionHandler = { [weak self] creditCard in
+      self?.paymentSheet.cancelBeforePresentation()
       self?.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: true)
       self?.viewModel.inputs.didDelete(creditCard, visibleCellCount: self?.tableView.visibleCells.count ?? 0)
     }
 
     self.viewModel.inputs.viewDidLoad()
+  }
+
+  override func viewWillDisappear(_ animated: Bool) {
+    super.viewWillDisappear(animated)
+    if self.isMovingFromParent || self.isBeingDismissed || self.navigationController?.isBeingDismissed == true {
+      self.paymentSheet.cancelObservation()
+    }
   }
 
   override func viewDidLayoutSubviews() {
@@ -155,6 +163,7 @@ internal final class PaymentMethodSettingsViewController: UIViewController,
   // MARK: - Actions
 
   @objc private func edit() {
+    self.paymentSheet.cancelBeforePresentation()
     self.viewModel.inputs.editButtonTapped()
     self.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: true)
   }
@@ -162,62 +171,29 @@ internal final class PaymentMethodSettingsViewController: UIViewController,
   // MARK: - Private Helpers
 
   private func goToPaymentSheet(data: PaymentSheetSetupData) {
-    PaymentSheet.FlowController
-      .create(
-        setupIntentClientSecret: data.clientSecret,
-        configuration: data.configuration
-      ) { [weak self] result in
-        guard let strongSelf = self else { return }
-
+    let session = AppModel.shared.sessionFeature
+    let generation = session.generation
+    self.paymentSheet.start(
+      clientSecret: data.clientSecret, client: StripePaymentSheetClient(data: data),
+      presenter: self, retrievePaymentMethod: false,
+      isCurrent: { [weak self] in
+        session.generation == generation && self?.navigationController?.topViewController === self
+      },
+      completed: { [weak self] result in
+        guard let self else { return }
+        self.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: true)
         switch result {
-        case let .failure(error):
-          strongSelf.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: true)
-          strongSelf.messageBannerViewController?
-            .showBanner(with: .error, message: error.localizedDescription)
-        case let .success(paymentSheetFlowController):
-          let topViewController = strongSelf.navigationController?.topViewController
-          let paymentSheetShownWithinPaymentMethodsContext =
-            topViewController is PaymentMethodSettingsViewController
-
-          if paymentSheetShownWithinPaymentMethodsContext {
-            strongSelf.paymentSheetFlowController = paymentSheetFlowController
-            strongSelf.paymentSheetFlowController?.presentPaymentOptions(from: strongSelf) { [weak self] in
-              guard let strongSelf = self else { return }
-
-              strongSelf.confirmPaymentResult(with: data.clientSecret)
-            }
-          }
+        case .completed: self.viewModel.inputs.paymentSheetDidAdd(setupIntent: data.clientSecret)
+        case .noSelection: break
+        case .canceled: self.viewModel.inputs.failedToAddNewCard()
+        case let .loadFailed(error):
+          self.messageBannerViewController?.showBanner(with: .error, message: error.localizedDescription)
+        case let .failed(error):
+          self.viewModel.inputs.failedToAddNewCard()
+          self.messageBannerViewController?.showBanner(with: .error, message: error.localizedDescription)
         }
       }
-  }
-
-  private func confirmPaymentResult(with clientSecret: String) {
-    guard self.paymentSheetFlowController?.paymentOption != nil else {
-      self.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: true)
-
-      return
-    }
-
-    self.paymentSheetFlowController?.confirm(from: self) { [weak self] paymentResult in
-
-      guard let strongSelf = self else { return }
-
-      strongSelf.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: true)
-
-      guard let existingPaymentOption = strongSelf.paymentSheetFlowController?.paymentOption else { return }
-
-      switch paymentResult {
-      case .completed:
-        strongSelf.viewModel.inputs
-          .paymentSheetDidAdd(setupIntent: clientSecret)
-      case .canceled:
-        strongSelf.viewModel.inputs.failedToAddNewCard()
-      // User cancelled intentionally so don't show them an error banner.
-      case let .failed(error):
-        strongSelf.viewModel.inputs.failedToAddNewCard()
-        strongSelf.messageBannerViewController?.showBanner(with: .error, message: error.localizedDescription)
-      }
-    }
+    )
   }
 
   private func configureHeaderFooterViews() {
