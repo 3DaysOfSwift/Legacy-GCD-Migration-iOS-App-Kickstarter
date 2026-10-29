@@ -1,5 +1,19 @@
 # Kickstarter migration behaviour contract
 
+## Video-feed observation and activation — 29 October 2026
+
+- Initial fetch readiness must still notify the presenter before the feed is visible.
+  One controller lifetime owns observation; repeated binding must not multiply it.
+- Re-arm only the changed output after willSet. Acknowledgement/clear is observable,
+  so a later save error or login request is not lost. Stop/release rejects old events.
+- Keep model refresh observation while temporarily hidden, but never activate video
+  after disappearance/backgrounding, over a share sheet or during a drag. Settle a
+  drag both with and without deceleration. A new appearance can activate again.
+- Coalesce pending UI activation; replacement/cancellation rejects noncooperative
+  late completion. Explicit layout precedes activation, with current visibility checks.
+- Preserve source-level UI, navigation, save/mute behavior and analytics. Cell bindings
+  must not retain their controller. Populated-device/visual behavior remains unverified.
+
 ## View-owned transient-message delays — 29 October 2026
 
 Keep the existing banner (4/10 seconds), save-error toast (3 seconds) and copy-link

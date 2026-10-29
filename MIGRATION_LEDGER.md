@@ -43,6 +43,51 @@ Do not publish the report or upload logs/usage data without authorization.
 
 ## Latest verified checkpoint
 
+### Video-feed observation and deferred activation — 29 October 2026
+
+Video-feed output observation has one controller-owned stream/task. Repeated binding
+is idempotent; only a changed output is re-armed, before acknowledgement/clearing.
+Readiness before presentation still works, and cleared error/login outputs remain
+observable for the next event. One-shot Observation callbacks only yield enum values;
+state is read on MainActor after the originating willSet mutation completes. Stopped
+or released observers reject queued events. Old registrations have no owner capture
+and can only yield into their terminated stream after stop.
+
+Deferred reconfiguration/activation has a cancellable, replaceable owner. It rechecks
+visibility, background, share-sheet and scrolling state; layoutIfNeeded establishes
+layout rather than assuming Task.yield guarantees a layout pass. Disappearance and
+background cancel pending activation. Drags ending without deceleration also settle
+playback. Main-queue NotificationCenter delivery has an explicit MainActor boundary.
+Cell bindings capture the controller weakly so they cannot extend its lifetime.
+Login reconfiguration does not resume paused playback; a stationary drag does not
+add a swipe analytics event. Both final-review corrections were reverified.
+Existing cells, navigation, mute policy and analytics remain unchanged in source.
+
+**1,388 Library + 256 framework + 94 API = 1,738 selected tests passed**, zero
+failures/skips, across 139 selected suites. Six new regressions cover independent
+observation/rebinding, acknowledgement/retry, stop/restart, observer release and
+noncooperative activation replacement/cancellation/release. App build succeeded
+with zero errors and two reported incremental-build warnings. This count is not a
+warning-free/strict-concurrency claim. Results:
+/private/tmp/kickstarter-broader-regression.kifRkb. Evidence: sibling
+Migration Evidence/kickstarter-feed-observation and kickstarter-broader-regression.
+
+An initial test compilation failed because @Observable requires separate stored
+property declarations. The first integrated runtime run passed 129 Library tests
+and 253/254 framework tests; its new acknowledgement test reused an already fulfilled
+XCTest expectation and crashed. Each acknowledgement now has its own expectation;
+all six cases pass in the broader run. No production failures were concealed, no
+snapshot guards were relaxed and no human test commands were needed.
+
+The remaining-work document and platform audit are refreshed. Current primitive
+scan: 18 matching lines in 15 first-party files, not a defect or completion count.
+Remaining boundaries include the delayed permission alert, reachability, video/image
+SDK callbacks, layout/compatibility helpers and complete compiler diagnostics.
+Populated video playback, visual/device parity, VoiceOver and live operations remain
+open. Migration remains in progress.
+
+### Previous verified checkpoint
+
 ### View-owned banner, toast and copy-link delays — 29 October 2026
 
 Message-banner dismissal is a SwiftUI task keyed by banner identity; a replacement

@@ -23,6 +23,23 @@ final class VideoFeedViewController: UIViewController {
   private let dataSource = VideoFeedDataSource()
   private let audioController = VideoFeedAudioController()
 
+  private lazy var feedObservation = VideoFeedObservation(
+    read: { [weak self] output in
+      guard let self else { return }
+      switch output {
+      case .fetchedItems: _ = self.viewModel.fetchedItems
+      case .items: _ = self.viewModel.items
+      case .error: _ = self.viewModel.errorMessage
+      case .login: _ = self.viewModel.loginIntent
+      case .saveError: _ = self.viewModel.saveFailedItemId
+      }
+    },
+    changed: { [weak self] output in self?.applyFeedChange(output) }
+  )
+  private let deferredActivation = VideoFeedDeferredActivation()
+  private var isFeedVisible = false
+  private var isBackgrounded = false
+
   private var lifecycleObservers: [any NSObjectProtocol] = []
   private var previewImagePrefetcher: ImagePrefetcher?
   private var isScrolling = false
@@ -64,8 +81,8 @@ final class VideoFeedViewController: UIViewController {
   }
 
   func startFetch() {
-    self.viewModel.viewDidLoad()
     self.bindViewModel()
+    self.viewModel.viewDidLoad()
   }
 
   deinit {
@@ -83,6 +100,7 @@ final class VideoFeedViewController: UIViewController {
     /// This is a side effect of UIKit re-measuring UIHostingConfiguration cells when presenting views.
     /// This method snaps the collection view cell back into place once the layout has settled.
     self.snapToCurrentPage()
+    self.scheduleCellActivation()
   }
 
   override func viewWillAppear(_ animated: Bool) {
@@ -91,17 +109,17 @@ final class VideoFeedViewController: UIViewController {
     self.navigationController?.setNavigationBarHidden(true, animated: animated)
     self.viewModel.viewWillAppear()
 
-    /// Dispatching so item state updates on the project page (to handle project saves for example) before we reconfigure the cell.
-    DispatchQueue.main.async { [weak self] in
-      self?.reconfigureVisibleCell()
-      self?.activateCurrentPageCell()
-    }
+    self.isFeedVisible = true
+    self.scheduleCellActivation()
   }
 
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
 
     self.navigationController?.setNavigationBarHidden(false, animated: animated)
+    self.isFeedVisible = false
+    self.isScrolling = false
+    self.cancelCellActivation()
     self.pauseVisibleCell()
 
     if self.isBeingDismissed, #available(iOS 26, *) {
@@ -138,72 +156,44 @@ final class VideoFeedViewController: UIViewController {
   // MARK: - Binding
 
   public override func bindViewModel() {
-    withObservationTracking {
-      _ = self.viewModel.fetchedItems
-    } onChange: { [weak self] in
-      DispatchQueue.main.async { [weak self] in
-        guard let self else { return }
+    self.feedObservation.start()
+  }
 
-        self.updateFeedWithFetchedItems(self.viewModel.items)
-
-        /// isInitialLoadComplete is set before fetchedItems in the VM, so it's
-        /// guaranteed to be true here on the first successful fetch.
-        if self.viewModel.isInitialLoadComplete {
-          self.onReadyToPresent?()
-        }
-
-        self.bindViewModel()
-      }
+  private func applyFeedChange(_ output: VideoFeedObservation.Output) {
+    switch output {
+    case .fetchedItems:
+      self.updateFeedWithFetchedItems(self.viewModel.items)
+      if self.viewModel.isInitialLoadComplete { self.onReadyToPresent?() }
+    case .items:
+      self.reconfigureVisibleCell()
+    case .error:
+      if self.viewModel.errorMessage != nil { self.onFetchFailed?() }
+    case .login:
+      guard let intent = self.viewModel.loginIntent else { return }
+      self.goToLoginTout(intent: intent)
+      self.viewModel.clearLoginIntent()
+    case .saveError:
+      guard let failedId = self.viewModel.saveFailedItemId else { return }
+      self.collectionView.visibleCells.compactMap { $0 as? VideoFeedCell }
+        .first { $0.currentItemId == failedId }?.showSaveErrorToast()
+      self.viewModel.clearSaveFailedItemId()
     }
+  }
 
-    withObservationTracking {
-      _ = self.viewModel.errorMessage
-    } onChange: { [weak self] in
-      DispatchQueue.main.async { [weak self] in
-        guard let self, self.viewModel.errorMessage != nil else { return }
-
-        self.onFetchFailed?()
-        self.bindViewModel()
-      }
+  /// Coalesce layout/return-to-feed work. Visibility is checked again after
+  /// suspension; layoutIfNeeded, not Task.yield, establishes completed layout.
+  private func scheduleCellActivation() {
+    self.deferredActivation.schedule { [weak self] in
+      guard let self else { return }
+      guard self.isFeedVisible, !self.isBackgrounded, !self.isShareSheetPresented else { return }
+      self.reconfigureVisibleCell()
+      self.collectionView.layoutIfNeeded()
+      self.activateCurrentPageCell()
     }
+  }
 
-    withObservationTracking {
-      _ = self.viewModel.loginIntent
-    } onChange: { [weak self] in
-      DispatchQueue.main.async { [weak self] in
-        guard let self, let intent = self.viewModel.loginIntent else { return }
-
-        self.goToLoginTout(intent: intent)
-        self.viewModel.clearLoginIntent()
-        self.bindViewModel()
-      }
-    }
-
-    withObservationTracking {
-      _ = self.viewModel.saveFailedItemId
-    } onChange: { [weak self] in
-      DispatchQueue.main.async { [weak self] in
-        guard let self, let failedId = self.viewModel.saveFailedItemId else { return }
-
-        self.collectionView.visibleCells
-          .compactMap { $0 as? VideoFeedCell }
-          .first { $0.currentItemId == failedId }?
-          .showSaveErrorToast()
-
-        self.viewModel.clearSaveFailedItemId()
-        self.bindViewModel()
-      }
-    }
-
-    /// Reconfigures the visible cell whenever items mutate (e.g. save state changes made on the project page).
-    withObservationTracking {
-      _ = self.viewModel.items
-    } onChange: { [weak self] in
-      DispatchQueue.main.async { [weak self] in
-        self?.reconfigureVisibleCell()
-        self?.bindViewModel()
-      }
-    }
+  private func cancelCellActivation() {
+    self.deferredActivation.cancel()
   }
 
   /// Reloads the collection view with a fresh set of fetched items.
@@ -212,9 +202,7 @@ final class VideoFeedViewController: UIViewController {
     self.dataSource.load(newItems)
     self.collectionView.reloadData()
 
-    DispatchQueue.main.async {
-      self.activateCurrentPageCell()
-    }
+    self.scheduleCellActivation()
   }
 
   /// This re-runs `UIHostingConfiguration` on the currently active cell so the SwiftUI view can get any updated values that may have mutated when presenting a view on top of the feed.
@@ -231,7 +219,7 @@ final class VideoFeedViewController: UIViewController {
 
     cell.configureWith(
       item: Binding(
-        get: { self.viewModel.items.first(where: { $0.id == item.id }) ?? item },
+        get: { [weak self] in self?.viewModel.items.first(where: { $0.id == item.id }) ?? item },
         set: { _ in }
       ),
       isSaved: self.viewModel.isSaved(projectId: item.id),
@@ -240,8 +228,8 @@ final class VideoFeedViewController: UIViewController {
   }
 
   private var muteBinding: Binding<Bool> {
-    Binding {
-      self.viewModel.isMuted
+    Binding { [weak self] in
+      self?.viewModel.isMuted ?? false
     } set: { [weak self] newValue in
       guard let self, newValue != self.viewModel.isMuted else { return }
       self.toggleMute()
@@ -270,14 +258,21 @@ final class VideoFeedViewController: UIViewController {
         object: nil,
         queue: .main
       ) { [weak self] _ in
-        self?.pauseVisibleCell()
+        MainActor.assumeIsolated {
+          self?.isBackgrounded = true
+          self?.cancelCellActivation()
+          self?.pauseVisibleCell()
+        }
       },
       center.addObserver(
         forName: UIApplication.willEnterForegroundNotification,
         object: nil,
         queue: .main
       ) { [weak self] _ in
-        self?.resumeVisibleCell()
+        MainActor.assumeIsolated {
+          self?.isBackgrounded = false
+          self?.resumeVisibleCell()
+        }
       },
       center.addObserver(
         forName: .ksr_sessionStarted,
@@ -285,9 +280,10 @@ final class VideoFeedViewController: UIViewController {
         queue: .main
       ) { [weak self] _ in
         /// Fire any save that was deferred (pending login) then re-render the active cell.
-        self?.viewModel.userSessionStarted()
-
-        DispatchQueue.main.async { [weak self] in
+        MainActor.assumeIsolated {
+          self?.viewModel.userSessionStarted()
+          // The Feature applies save state synchronously; login must not resume
+          // a video that the user paused while a sheet was presented.
           self?.reconfigureVisibleCell()
         }
       }
@@ -324,9 +320,7 @@ final class VideoFeedViewController: UIViewController {
   private func resumeVisibleCell() {
     /// `willEnterForegroundNotification` fires app-wide, and this VC is retained after dismissal.
     ///  Skip resume if the feed is no longer visible or the share sheet is still presented.
-    guard self.view.window != nil, !self.isShareSheetPresented else { return }
-
-    self.activateCurrentPageCell()
+    self.scheduleCellActivation()
   }
 
   // MARK: - Navigation
@@ -402,7 +396,7 @@ extension VideoFeedViewController: UICollectionViewDelegateFlowLayout {
     }
     cell.configureWith(
       item: Binding(
-        get: { self.viewModel.items.first(where: { $0.id == item.id }) ?? item },
+        get: { [weak self] in self?.viewModel.items.first(where: { $0.id == item.id }) ?? item },
         set: { _ in }
       ),
       isSaved: self.viewModel.isSaved(projectId: item.id),
@@ -445,6 +439,12 @@ extension VideoFeedViewController: UICollectionViewDelegateFlowLayout {
     self.isScrolling = true
   }
 
+  func scrollViewDidEndDragging(_: UIScrollView, willDecelerate decelerate: Bool) {
+    guard !decelerate else { return }
+    self.isScrolling = false
+    self.activateCurrentPageCell()
+  }
+
   func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
     guard !scrollView.isDragging else { return }
 
@@ -473,6 +473,8 @@ extension VideoFeedViewController: UICollectionViewDelegateFlowLayout {
   }
 
   private func activateCurrentPageCell() {
+    guard self.isFeedVisible, self.viewIfLoaded?.window != nil,
+      !self.isBackgrounded, !self.isShareSheetPresented, !self.isScrolling else { return }
     let pageHeight = self.collectionView.bounds.height
 
     guard pageHeight > 0 else { return }
@@ -503,6 +505,7 @@ extension VideoFeedViewController: UICollectionViewDelegateFlowLayout {
       self.goToCreatorProfile(for: item)
     case .shareTapped:
       self.viewModel.trackCTAClicked(ctaContext: .videoFeedShare, item: item)
+      self.cancelCellActivation()
       self.pauseVisibleCell()
       self.isShareSheetPresented = true
     case .sheetDismissedFromLinkCopied:

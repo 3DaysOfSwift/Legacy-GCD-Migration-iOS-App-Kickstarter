@@ -17,6 +17,22 @@ The primitive scan matched **40 lines in 25 files**. None matched the Feature
 implementation directory. That does not make every Feature concurrency-clean:
 complete compiler diagnostics also expose non-Sendable transfer boundaries.
 
+## 29 October refresh after media/UI timer and feed-observer work
+
+The current worktree scan matches **18 lines in 15 files**, using
+`DispatchQueue|OperationQueue|DispatchGroup|DispatchSemaphore|Task.detached`
+across the four first-party roots above. This differs from the original broader
+searches; retain the original 40-line baseline as historical evidence, not a
+like-for-like percentage improvement. VideoFeed has no matches for these primitives.
+Project media preparation, consolidated production audio, player cleanup and the
+three transient-message timers have verified ledger checkpoints. The feed observer
+now has one owned event loop and re-arms only the changed output; activation has a
+cancellable owner plus visibility/background/share/scroll guards. Its current test
+outcome is recorded in the latest ledger checkpoint.
+
+The table below retains baseline line counts for traceability. Completed rows are
+marked; remaining queue arguments still require consumer/SDK contract review.
+
 ## Remaining owned-operation work
 
 | Area | Evidence and risk | Required outcome |
@@ -25,9 +41,9 @@ complete compiler diagnostics also expose non-Sendable transfer boundaries.
 | Root profile avatar — implemented 29 October | ProfileFeature owns shared reads and session/URL validation; RootViewModel owns delivery; an actor handles disk cache and native async transport. | Cache-key compatibility and race regressions are recorded in the latest ledger. Populated-avatar visual/device parity remains unverified. |
 | Notification permissions and onboarding — implemented 29 October | AppLifecycleFeature owns admitted prompts; native settings reads and appearance-owned onboarding observers reject obsolete completion. | 248 selected regressions/app build passed; actual system-prompt/device behavior remains open. |
 | Remote configuration — implemented 29 October | Native Firebase async activation, per-client shared operation and replacement guards; listener retained/removed on reconfiguration. | Log-only listener behavior preserved. SDK cache changes cannot be retracted; live Firebase validation remains open. |
-| Project-page media preparation | prepareToPlayAudioVideoURL mutates cachedImage from an image callback while AVAsset loads independently; status subscription is locally retained and has no failure/release completion. | Await asset properties with native AVFoundation loading, explicitly own readiness/image lifetime, reject obsolete playback and complete failure paths. Preserve timing/thumbnail fallback intentionally. |
-| Video player — implemented 29 October; audio remains | Player owns cancellable timeout/native seek work and per-item observations on MainActor; 258 selected tests/app build passed. Audio KVO/reset scheduling remains in both implementations. | Populated playback/native seek/visual validation remains open. Next audit production audio separately from its similar Library test type. |
-| UI timers | Toast, link-copy share sheet, message banner and delayed push alert use unowned delayed blocks. | Bind dismissal/presentation to the current message/screen identity. Preserve VoiceOver duration, animation and existing delays. |
+| Project-page media — implemented | Feature-owned native loading, cancellable KVO readiness and optional WebP thumbnail read; per-page/slot identity. | 377 selected tests/app build recorded; remote media and device parity remain open. |
+| Video player and audio — implemented | One production audio controller owns callback stream/reset tasks; player owns seeking/timers/observations. Synchronous release regression covers the observed isolated-deinit toolchain crash. | Physical-device routing, populated playback and visual parity remain open. |
+| UI timers — three implemented; push alert remains | Toast, copy-link and banner use view-owned tasks; hosted banner replacement/removal tests pass. AppDelegate permission alert still has a delayed block. | Finish alert lifetime and validate gestures/VoiceOver/device presentation. |
 
 ## Classification of all primitive-matching files
 
@@ -39,7 +55,7 @@ Paths below are relative to the repository. Counts refer to matching lines, not 
 | KsApi/AsyncApolloClient.swift | 2 | Legacy generic async bridge ignores cancellation; now no application call sites found for generic async Service.fetch after examples migrated. Verify all consumers before removing or hardening compatibility API. Queue parameter itself is an SDK requirement. |
 | KsApi/MockService.swift | 1 | Legacy Combine mock delay; not a live request. Keep while compatibility tests/consumers require it. |
 | Framework/Library/UIImageView+URL.swift | 2 | AlamofireImage progress queue is a UI SDK boundary. Preserve cache/filter/transition and assess cancellation per consumer. |
-| Library/VideoFeedAudioController.swift | 1 | Reset-flag scheduling in testable duplicate; audit parity with actual framework controller. |
+| Library/VideoFeedAudioController.swift | 1 | Implemented: production audio type consolidated; owned stream/reset tasks. |
 | Library/UIPageViewController+ThreadSafety.swift | 1 | Synchronous main-queue compatibility helper; audit callers before replacing with MainActor contract. |
 | PPOProjectCardViewModel.swift | 1 | Retained Combine debounce; upstream Feature owns the write. Preserve latest-toggle semantics; inspect subscription cycle/lifetime. |
 | DiscoveryPostcardCell.swift | 1 | Next-layout shadow paths, weak cell capture; UIKit timing boundary. |
@@ -47,19 +63,19 @@ Paths below are relative to the repository. Counts refer to matching lines, not 
 | OnboardingView.swift | 2 at baseline | Replaced by appearance-owned ViewModel delivery; no permission callbacks remain in View. |
 | Library/String+SimpleHTML.swift | 1 | Synchronous HTML parser main-thread requirement; actor contract and callers need review. Do not replace it with a Task returning later. |
 | Library/PushRegistration.swift | 1 at baseline | Native async authorization/settings, Feature-owned admitted prompt and cancellable compatibility observer. |
-| VideoFeedToastContainerView.swift | 1 | Auto-dismiss timer; cancel/restart for current message. |
+| VideoFeedToastContainerView.swift | 1 | Implemented: view-owned task retains change-triggered policy. |
 | PledgeExpandableRewardsHeaderViewController.swift | 1 | Deferred layout/animation; preserve layout ordering. |
-| Framework/VideoFeedAudioController.swift | 2 | KVO delivery and reset-flag turn; explicit controller isolation/lifetime required. |
-| VideoFeedViewController.swift | 8 | Observation re-arming, collection reload/activation and session UI updates; next-turn timing is intentional in several sites, verify visible-cell/lifetime guards. |
+| Framework/VideoFeedAudioController.swift | 2 | Deleted duplicate; shared production Library controller now tested. |
+| VideoFeedViewController.swift | 8 | Current checkpoint: one observation loop; owned deferred activation and main-queue notification boundaries. |
 | Library/UIRefreshControl+StartRefreshing.swift | 1 | 10ms layout workaround; preserve behavior pending visual validation. |
 | VideoFeedVideoPlayer.swift | 3 at baseline | Replaced by retained cancellation-aware timers/native seek; per-item observation guards. Populated playback validation remains open. |
-| VideoFeedShareSheetView.swift | 1 | Delayed dismissal after copy; screen-owned timer. |
+| VideoFeedShareSheetView.swift | 1 | Implemented: SwiftUI-owned confirmation timer. |
 | CommentsViewController.swift | 1 | Table footer layout pass; UIKit scheduling boundary. |
-| MessageBannerView.swift | 1 | VoiceOver-sensitive dismissal; current banner identity required. |
+| MessageBannerView.swift | 1 | Implemented: identity-keyed task; hosted replacement/removal regressions. |
 | Library/Reachability.swift | 2 | SystemConfiguration requires callback queue. Existing local SCNetworkReachability reference lifetime needs explicit ownership review; replacing its network semantics blindly is not a migration. |
 | ReportProjectCell.swift | 1 | Deferred hosting-view setup; reuse/ordering review. |
 | VideoViewController.swift | 1 | AVPlayer boundary observer requires queue; verify observer-token removal and item identity. |
-| ProjectPageViewController.swift | 1 | Media readiness Combine subscription; active operation needs replacement, as above. |
+| ProjectPageViewController.swift | 1 | Implemented: Feature-owned native media preparation; stale rows rejected. |
 
 ## Callback mechanisms that can legitimately remain
 

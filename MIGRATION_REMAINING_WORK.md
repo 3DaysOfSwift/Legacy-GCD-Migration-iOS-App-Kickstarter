@@ -1,47 +1,49 @@
 # Remaining CFA migration work
 
-Author: Matthew Thomas. Source audit: 28 October 2026.
+Author: Matthew Thomas. Updated 29 October 2026.
 
-The app-wide migration is **in progress**. The ledger records verified checkpoints;
-this inventory records remaining implementation and validation, not a percentage
-estimate. These groups differ substantially in size and risk.
+The app-wide migration is **in progress**. Business-feature checkpoints are recorded
+in MIGRATION_LEDGER.md; this is the remaining implementation/validation inventory,
+not a percentage estimate. The earlier list of recommendations, attribution and
+creator draft work is superseded by their completed checkpoints.
 
-## Implementation groups
+## Remaining implementation and audit work
 
-| Group | Remaining application paths | Exit condition |
-| --- | --- | --- |
-| 1. Residual project, creator and account actions | CuratedProjects and Thanks recommendations; project attribution; UpdateDraft editing/images | Each remaining production request has an explicit owner and documented lifetime |
+1. **Platform/UI boundaries:** delayed permission-alert presentation, reachability
+   callback ownership, project video boundary observers and image-loader consumers.
+2. **Layout and compatibility helpers:** synchronous main-thread HTML/page helpers,
+   refresh/collection/table layout deferrals and the pledged-card Combine debounce.
+   Preserve their required ordering; do not replace queue syntax mechanically.
+3. **Compiler isolation boundaries:** resolve or explicitly classify the complete
+   concurrency diagnostic baseline. Passing Swift 5 builds do not establish strict
+   concurrency compliance or Swift 6 readiness.
 
-Checkout, payment plans, pledge-manager project/update navigation, reward add-ons,
-friends/following, saved projects, reporting and account-field reads now have
-verified migrated checkpoints. One implementation group remains, followed by the validation gates below. This is a scope count,
-not a percentage estimate. See the ledger for exact checkpoint evidence.
-
-The named paths are source-audit findings, not evidence that every call in those
-files is legacy. Configuration access such as serverConfig is
-not itself an asynchronous ownership gap. Developer-only examples will be listed
-separately in the final audit, not counted as migrated product journeys.
+The refreshed primitive scan finds 18 matching lines in 15 first-party files.
+Some are SDK queue arguments or mock compatibility code. See
+MIGRATION_PLATFORM_CALLBACK_AUDIT.md for scope, classification and limits.
+Video-feed observation/deferred activation is the current checkpoint; verify its
+final outcome in the ledger rather than treating an implementation edit as proof.
 
 ## Final validation gates
 
-- Refresh the application-wide request/GCD/OperationQueue/callback inventory.
-  Classify retained UIKit/SDK delivery boundaries and remove obsolete owners.
-- Check concurrency diagnostics and actor/task lifetimes across the app. Current
-  passing Swift 5 builds do not establish full strict-concurrency compliance.
-- Run broader regression and applicable snapshot suites with their reference
-  device requirements. Compare representative navigation and populated screens.
-- Validate authenticated and physical-device journeys. Live Stripe payments,
+- Finish the request/callback inventory, including callbacks that do not contain
+  queue syntax. Record each retained platform mechanism and its lifetime contract.
+- Run broader regression and applicable snapshots with their reference device
+  requirements. Compare representative navigation and populated screens.
+- Validate physical-device and authenticated journeys. Live Stripe payments,
   Apple Pay/3DS, server-accepted pledge changes and other live mutations remain
-  unverified; mock success is not proof of production integration.
-- Complete the evidence report with start/finish timestamps and their sources,
-  model/effort provenance, measured statistics, unsuccessful attempts and limits.
-  Finish remains unset until app-wide completion gates are resolved.
+  unverified; mock success is not production integration evidence.
+- Profile realistic workloads and review remaining actor/task execution boundaries.
+- Finish the evidence report with timestamp sources, model/effort provenance,
+  measured statistics, failures/rework and explicit limits. Finish time remains
+  unset until app-wide completion gates are resolved.
 
-## What the existing checkpoints establish
+## Established checkpoints
 
-Search/Explore, project details/rewards loading, comments and media, Activity/Profile,
-session/authentication/account work, messaging, friends/following and payment-method/intent paths have
-verified migrated checkpoints. They do not imply every related screen is finished:
-the residual paths above still need work. See MIGRATION_LEDGER.md for exact scopes.
+Search/Explore, project/rewards/backing/checkout, comments and media, Activity/Profile,
+session/authentication/account writes, messaging, friends/following, recommendations,
+attribution, creator drafts, developer examples, redirect/avatar/permission/config
+ownership and media/UI timer lifetimes have recorded checkpoints. Their tests cover
+specified boundaries; they do not establish app-wide visual or live-service parity.
 
 Existing UI, branding, storage and target identifiers remain the preservation baseline.
