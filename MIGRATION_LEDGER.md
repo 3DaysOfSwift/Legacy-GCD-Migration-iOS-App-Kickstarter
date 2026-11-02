@@ -2,6 +2,18 @@
 
 Author: Matthew Thomas. Updated 2 November 2026.
 
+## Reward eligibility and presentation owners — 2 November 2026
+
+Creator/shipping/reward-clock reads and reward-card ViewModel contracts now declare MainActor.
+Dependent pledge and collection helpers preserve the actor through direct closure calls.
+Response-side no-reward insertion captures creator identity and uses a value-only eligibility
+function; RewardsFeature retains its before/after user-identity guards. A regression test
+covers replacement of the current user after inserter construction.
+
+256 selected tests passed without failures/skips, and the app built. Two nonvisual card suites
+explicitly opt out of the snapshot-device gate; global guards remain unchanged. Evidence:
+kickstarter-reward-helper-owners. Environment stack isolation remains implementation work.
+
 ## Captured country and currency values — 2 November 2026
 
 Country lookup and currency-symbol rendering expose value-only entry points. LaunchedCountries

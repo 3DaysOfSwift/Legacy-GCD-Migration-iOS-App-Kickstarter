@@ -4,6 +4,7 @@
 import Prelude
 import XCTest
 
+@MainActor
 final class NoRewardInserterTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   func testNoRewardFirstInserter_insertsRewardFirst() {
@@ -165,6 +166,20 @@ final class NoRewardInserterTests: TestCase {
       localShippingReward,
       Reward.noReward
     ])
+  }
+
+  func testInsertionUsesCreatorIdentityCapturedBeforeResponse() {
+    let project = Project.template
+    let availableReward = Reward.digitalReward |> Reward.lens.isAvailable .~ true
+    withEnvironment(currentUser: project.creator) {
+      let inserter = NoRewardAfterLastAvailableReward(shippingLocation: nil, project: project)
+      withEnvironment(currentUser: nil) {
+        XCTAssertEqual(
+          inserter.insert(noReward: .noReward, intoRewards: [availableReward]),
+          [.noReward, availableReward]
+        )
+      }
+    }
   }
 
   func testNoRewardAfterLastAvailableReward_succeedsWithEmptyProjectRewards() {

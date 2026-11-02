@@ -8,7 +8,9 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class RewardCardContainerViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   fileprivate let vm: RewardCardContainerViewModelType = RewardCardContainerViewModel()
 
   private let pledgeButtonStyleType = TestObserver<ButtonStyleType, Never>()
@@ -73,8 +75,8 @@ final class RewardCardContainerViewModelTests: TestCase {
     ]
   }
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.pledgeButtonStyleType.observe(self.pledgeButtonStyleType.observer)
     self.vm.outputs.pledgeButtonEnabled.observe(self.pledgeButtonEnabled.observer)

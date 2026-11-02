@@ -83,7 +83,7 @@ public final class PledgeCTAContainerViewViewModel: PledgeCTAContainerViewViewMo
         Signal.combineLatest(project, backing),
         savedProjectFromNotificationAfterDebounce
       )
-      .map(pledgeCTA(project:backing:))
+      .map { pledgeCTA(project: $0.0, backing: $0.1) }
       .skipRepeats()
 
     let inError = Signal.merge(
@@ -216,6 +216,7 @@ public final class PledgeCTAContainerViewViewModel: PledgeCTAContainerViewViewMo
 
 // MARK: - Functions
 
+@MainActor
 private func pledgeCTA(project: Project, backing: Backing?) -> PledgeStateCTAType {
   guard project.displayPrelaunch != .some(true) else {
     let projectIsSaved = project.personalization.isStarred ?? false

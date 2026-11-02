@@ -40,11 +40,13 @@ public struct RewardCardViewData {
   }
 }
 
+@MainActor
 public protocol RewardCardViewModelInputs {
   func configure(with data: RewardCardViewData)
   func rewardCardTapped()
 }
 
+@MainActor
 public protocol RewardCardViewModelOutputs {
   var cardUserInteractionIsEnabled: Signal<Bool, Never> { get }
   var conversionLabelHidden: Signal<Bool, Never> { get }
@@ -69,11 +71,13 @@ public protocol RewardCardViewModelOutputs {
   var rewardBadge: Signal<RewardCardBadgeData?, Never> { get }
 }
 
+@MainActor
 public protocol RewardCardViewModelType {
   var inputs: RewardCardViewModelInputs { get }
   var outputs: RewardCardViewModelOutputs { get }
 }
 
+@MainActor
 public final class RewardCardViewModel: RewardCardViewModelType, RewardCardViewModelInputs,
   RewardCardViewModelOutputs {
   public init() {
@@ -117,7 +121,7 @@ public final class RewardCardViewModel: RewardCardViewModelType, RewardCardViewM
       .map { $0.title == nil && !$0.isNoReward }
 
     self.rewardTitleLabelAttributedText = projectAndReward
-      .map(rewardTitle(project:reward:))
+      .map { rewardTitle(project: $0.0, reward: $0.1) }
 
     let rewardItemsIsEmpty = reward.map { reward in
       guard let items = reward.rewardsItems else {
@@ -256,6 +260,7 @@ private func localizedDescription(project: Project, reward: Reward) -> String {
   return reward.description
 }
 
+@MainActor
 private func rewardTitle(project: Project, reward: Reward) -> NSAttributedString {
   guard project.personalization.isBacking == true || currentUserIsCreator(of: project) else {
     return NSAttributedString(

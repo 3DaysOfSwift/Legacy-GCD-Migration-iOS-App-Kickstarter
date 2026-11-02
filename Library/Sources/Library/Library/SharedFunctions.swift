@@ -42,6 +42,7 @@ internal func userIsBackingProject(_ project: Project) -> Bool {
 
  - returns: A boolean.
  */
+@MainActor
 public func currentUserIsCreator(of project: Project) -> Bool {
   guard let user = AppEnvironment.current.currentUser else { return false }
 
@@ -214,6 +215,7 @@ public func updatedUserWithClearedActivityCountProducer() -> SignalProducer<User
     .demoteErrors()
 }
 
+@MainActor
 public func defaultShippingLocation(fromLocations locations: [Location]) -> Location? {
   let environmentCountry = AppEnvironment.current.config?.countryCode
   if let currentLocation = locations
@@ -436,12 +438,25 @@ public func rewardCanShip(
   })
 }
 
+@MainActor
 public func rewardsCarouselCanNavigateToReward(
   _ reward: Reward,
   in project: Project,
   selectedShippingLocation location: Location?
 ) -> Bool {
-  guard !currentUserIsCreator(of: project) else { return false }
+  return rewardsCarouselCanNavigateToReward(
+    reward, in: project, selectedShippingLocation: location,
+    currentUserIsCreator: currentUserIsCreator(of: project)
+  )
+}
+
+public func rewardsCarouselCanNavigateToReward(
+  _ reward: Reward,
+  in project: Project,
+  selectedShippingLocation location: Location?,
+  currentUserIsCreator: Bool
+) -> Bool {
+  guard !currentUserIsCreator else { return false }
 
   let rewardCanShipToSelectedLocation = rewardCanShip(reward, toLocation: location)
   let isBacking = userIsBacking(reward: reward, inProject: project)
@@ -471,6 +486,7 @@ public func rewardsCarouselCanNavigateToReward(
 
  - returns: A Bool representing whether the reward has a start date prior to the current date/time.
  */
+@MainActor
 public func isStartDateBeforeToday(for reward: Reward) -> Bool {
   return reward.startsAt == nil || (reward.startsAt ?? 0) <= AppEnvironment.current.dateType.init()
     .timeIntervalSince1970
@@ -483,6 +499,7 @@ public func isStartDateBeforeToday(for reward: Reward) -> Bool {
 
  - returns: A Bool representing whether the reward has an end date after to the current date/time.
  */
+@MainActor
 public func isEndDateAfterToday(for reward: Reward) -> Bool {
   return reward.endsAt == nil || (reward.endsAt ?? 0) >= AppEnvironment.current.dateType.init()
     .timeIntervalSince1970

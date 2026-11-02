@@ -2,11 +2,13 @@ import KsApi
 import Prelude
 import ReactiveSwift
 
+@MainActor
 public protocol RewardCardContainerViewModelInputs {
   func configureWith(data: RewardCardViewData)
   func pledgeButtonTapped()
 }
 
+@MainActor
 public protocol RewardCardContainerViewModelOutputs {
   var pledgeButtonStyleType: Signal<ButtonStyleType, Never> { get }
   var pledgeButtonEnabled: Signal<Bool, Never> { get }
@@ -16,11 +18,13 @@ public protocol RewardCardContainerViewModelOutputs {
   func currentReward(is reward: Reward) -> Bool
 }
 
+@MainActor
 public protocol RewardCardContainerViewModelType {
   var inputs: RewardCardContainerViewModelInputs { get }
   var outputs: RewardCardContainerViewModelOutputs { get }
 }
 
+@MainActor
 public final class RewardCardContainerViewModel: RewardCardContainerViewModelType,
   RewardCardContainerViewModelInputs, RewardCardContainerViewModelOutputs {
   public init() {
@@ -89,6 +93,7 @@ public final class RewardCardContainerViewModel: RewardCardContainerViewModelTyp
 
 // MARK: - Functions
 
+@MainActor
 private func pledgeButtonTitle(data: RewardCardViewData) -> String? {
   if currentUserIsCreator(of: data.project) { return nil }
 
@@ -123,6 +128,7 @@ private func pledgeButtonTitle(data: RewardCardViewData) -> String? {
   }
 }
 
+@MainActor
 private func buttonStyleType(data: RewardCardViewData) -> ButtonStyleType {
   if currentUserIsCreator(of: data.project) { return .none }
 

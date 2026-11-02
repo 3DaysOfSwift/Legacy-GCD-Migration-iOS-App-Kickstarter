@@ -73,7 +73,7 @@ public enum RewardsCollectionViewContext {
     self.title = configData
       .map { project, _, context, _ in (context, project) }
       .takeWhen(self.viewDidLoadProperty.signal)
-      .map(titleForContext)
+      .map { titleForContext($0.0, project: $0.1) }
 
     // The selected shipping location.
     // Can be nil if the project has no shippable rewards.
@@ -466,6 +466,7 @@ public enum RewardsCollectionViewContext {
 
 // MARK: - Functions
 
+@MainActor
 private func titleForContext(_ context: RewardsCollectionViewContext, project: Project) -> String {
   if currentUserIsCreator(of: project) {
     return Strings.View_your_rewards()

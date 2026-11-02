@@ -10,7 +10,9 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class RewardCardViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   fileprivate let vm: RewardCardViewModelType = RewardCardViewModel()
 
   private let cardUserInteractionIsEnabled = TestObserver<Bool, Never>()
@@ -31,8 +33,8 @@ final class RewardCardViewModelTests: TestCase {
   private let rewardLocationStackViewHidden = TestObserver<Bool, Never>()
   private let rewardBadge = TestObserver<RewardCardBadgeData?, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.cardUserInteractionIsEnabled.observe(self.cardUserInteractionIsEnabled.observer)
     self.vm.outputs.conversionLabelHidden.observe(self.conversionLabelHidden.observer)

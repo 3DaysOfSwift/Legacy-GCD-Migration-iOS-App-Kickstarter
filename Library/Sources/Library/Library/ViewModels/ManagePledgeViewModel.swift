@@ -336,7 +336,12 @@ public final class ManagePledgeViewModel:
       rewardReceivedWithData,
       rewardReceivedViewControllerViewIsHidden
     )
-    .compactMap(managePledgeSummaryViewData)
+    .compactMap {
+      managePledgeSummaryViewData(
+        with: $0.0, backing: $0.1, rewardReceivedWithData: $0.2,
+        rewardReceivedViewControllerViewIsHidden: $0.3
+      )
+    }
 
     self.showSuccessBannerWithMessage = self.pledgeViewControllerDidUpdatePledgeWithMessageSignal
 
@@ -589,6 +594,7 @@ private func isPledgeOverTime(with backing: Backing) -> Bool {
   return !backing.paymentIncrements.isEmpty
 }
 
+@MainActor
 private func managePledgeSummaryViewData(
   with projectAndReward: (Project, Reward),
   backing: Backing,

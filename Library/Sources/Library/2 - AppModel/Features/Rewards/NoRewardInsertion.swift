@@ -11,10 +11,13 @@ struct NoRewardFirst: NoRewardInserter {
 struct NoRewardAfterLastAvailableReward: NoRewardInserter {
   let shippingLocation: Location?
   let project: Project
+  private let currentUserIsProjectCreator: Bool
 
+  @MainActor
   public init(shippingLocation: Location?, project: Project) {
     self.shippingLocation = shippingLocation
     self.project = project
+    self.currentUserIsProjectCreator = currentUserIsCreator(of: project)
   }
 
   private func indexOfFirstUnavailableReward(_ rewards: [Reward]) -> Int? {
@@ -22,7 +25,8 @@ struct NoRewardAfterLastAvailableReward: NoRewardInserter {
       !rewardsCarouselCanNavigateToReward(
         reward,
         in: self.project,
-        selectedShippingLocation: self.shippingLocation
+        selectedShippingLocation: self.shippingLocation,
+        currentUserIsCreator: self.currentUserIsProjectCreator
       )
     })
   }
