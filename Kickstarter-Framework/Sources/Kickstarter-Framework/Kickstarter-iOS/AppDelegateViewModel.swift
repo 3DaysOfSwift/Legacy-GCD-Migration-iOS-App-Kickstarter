@@ -986,6 +986,7 @@ extension ShortcutItem {
   }
 }
 
+@MainActor
 private func visitorCookies() -> [HTTPCookie] {
   let uuidString = (AppEnvironment.current.device.identifierForVendor ?? UUID()).uuidString
 

@@ -5,6 +5,7 @@ import Foundation
 import Prelude
 import XCTest
 
+@MainActor
 final class AppEnvironmentTests: XCTestCase {
   override func setUp() {
     AppEnvironment.resetStackForUnitTests()

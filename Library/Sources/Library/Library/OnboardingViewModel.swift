@@ -4,6 +4,7 @@ import KsApi
 import ReactiveSwift
 import UserNotifications
 
+@MainActor
 public protocol OnboardingViewModelInputs {
   func allowTrackingTapped()
   func didCompleteAppTrackingDialog(with authStatus: ATTrackingManager.AuthorizationStatus)
@@ -15,17 +16,20 @@ public protocol OnboardingViewModelInputs {
   func onboardingFlowEnded()
 }
 
+@MainActor
 public protocol OnboardingViewModelOutputs {
   var onboardingItems: SignalProducer<[OnboardingItem], Never> { get }
   var didCompletePushNotificationSystemDialog: Signal<Void, Never> { get }
   var triggerAppTrackingTransparencyPopup: Signal<Void, Never> { get }
 }
 
+@MainActor
 public protocol OnboardingViewModelType {
   var inputs: OnboardingViewModelInputs { get }
   var outputs: OnboardingViewModelOutputs { get }
 }
 
+@MainActor
 public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Identifiable & ObservableObject,
   OnboardingViewModelOutputs, OnboardingViewModelInputs {
   @MainActor private var completionTask: Task<Void, Never>?
@@ -106,7 +110,7 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
       }
   }
 
-  public static func == (lhs: OnboardingViewModel, rhs: OnboardingViewModel) -> Bool {
+  public nonisolated static func == (lhs: OnboardingViewModel, rhs: OnboardingViewModel) -> Bool {
     lhs.id == rhs.id
   }
 

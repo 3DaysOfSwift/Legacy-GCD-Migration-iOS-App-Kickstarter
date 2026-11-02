@@ -40,8 +40,15 @@ class TestCase: XCTestCase {
   internal let userDefaults = MockKeyValueStore()
   internal let uuidType = MockUUID.self
 
+  // Preserve the synchronous hook used by legacy subclasses. XCTest awaits
+  // the actor-owned environment setup before invoking this hook.
   override func setUp() {
     super.setUp()
+  }
+
+  @MainActor
+  override func setUp() async throws {
+    try await super.setUp()
 
     UIView.doBadSwizzleStuff()
     UIViewController.doBadSwizzleStuff()

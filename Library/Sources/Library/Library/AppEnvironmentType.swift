@@ -1,5 +1,5 @@
 import Foundation
 
 public protocol AppEnvironmentType {
-  static func logout()
+  @MainActor static func logout()
 }

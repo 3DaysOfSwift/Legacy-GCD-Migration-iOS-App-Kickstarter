@@ -7,13 +7,15 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class EmptyStatesViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   internal let vm: EmptyStatesViewModelType = EmptyStatesViewModel()
   internal let notifyDelegateToGoToDiscovery = TestObserver<DiscoveryParams?, Never>()
   internal let notifyDelegateToGoToFriends = TestObserver<(), Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     self.vm.outputs.notifyDelegateToGoToDiscovery.observe(self.notifyDelegateToGoToDiscovery.observer)
     self.vm.outputs.notifyDelegateToGoToFriends.observe(self.notifyDelegateToGoToFriends.observer)
   }

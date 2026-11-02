@@ -3,6 +3,7 @@ import UIKit
 /**
  *  A type that behaves like a UIDevice.
  */
+@MainActor
 public protocol UIDeviceType {
   var identifierForVendor: UUID? { get }
   var modelCode: String { get }
@@ -28,7 +29,7 @@ internal struct MockDevice: UIDeviceType {
   internal var systemVersion: String = "MockSystemVersion"
   internal var userInterfaceIdiom: UIUserInterfaceIdiom
 
-  internal init(
+  internal nonisolated init(
     userInterfaceIdiom: UIUserInterfaceIdiom = .phone,
     orientation: UIDeviceOrientation = .portrait
   ) {

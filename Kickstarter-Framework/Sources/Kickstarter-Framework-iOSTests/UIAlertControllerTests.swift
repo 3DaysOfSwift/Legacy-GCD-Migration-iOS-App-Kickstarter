@@ -4,7 +4,9 @@
 import UIKit
 import XCTest
 
+@MainActor
 final class UIAlertControllerTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   func testRequiresPopOverConfiguration_iPad_isTrue() {
     let device = MockDevice.init(userInterfaceIdiom: .pad)
     withEnvironment(device: device) {

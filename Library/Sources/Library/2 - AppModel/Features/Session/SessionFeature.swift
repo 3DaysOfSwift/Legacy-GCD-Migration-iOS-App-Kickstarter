@@ -34,8 +34,8 @@ public final class SessionFeature {
 
   private let makeProvider: () -> any SessionProvider
   private let readUser: () -> User?
-  private let writeUser: (User) -> Void
-  private let login: (AccessTokenEnvelope) -> Void
+  private let writeUser: @MainActor (User) -> Void
+  private let login: @MainActor (AccessTokenEnvelope) -> Void
   private let writeSetup: (GraphUserSetup) -> Void
   private var setupRequests: [Identity: Task<GraphUserSetup, Error>] = [:]
   private var revision = 0
@@ -49,8 +49,8 @@ public final class SessionFeature {
   public init(
     makeProvider: @escaping () -> any SessionProvider,
     currentUser: @escaping () -> User? = { AppEnvironment.current.currentUser },
-    updateUser: @escaping (User) -> Void = { AppEnvironment.updateCurrentUser($0) },
-    login: @escaping (AccessTokenEnvelope) -> Void = { AppEnvironment.login($0) },
+    updateUser: @escaping @MainActor (User) -> Void = { AppEnvironment.updateCurrentUser($0) },
+    login: @escaping @MainActor (AccessTokenEnvelope) -> Void = { AppEnvironment.login($0) },
     updateSetup: @escaping (GraphUserSetup) -> Void = { setup in
       guard let email = setup.email else { return }
       AppEnvironment.replaceCurrentEnvironment(

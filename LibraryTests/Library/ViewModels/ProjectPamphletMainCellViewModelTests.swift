@@ -9,7 +9,9 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class ProjectPamphletMainCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private let vm: ProjectPamphletMainCellViewModelType = ProjectPamphletMainCellViewModel()
 
   private let backingLabelHidden = TestObserver<Bool, Never>()
@@ -38,8 +40,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
   private let stateLabelHidden = TestObserver<Bool, Never>()
   private let statsStackViewAccessibilityLabel = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.statsStackViewAccessibilityLabel
       .observe(self.statsStackViewAccessibilityLabel.observer)

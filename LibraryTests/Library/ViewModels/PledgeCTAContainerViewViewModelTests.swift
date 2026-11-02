@@ -8,7 +8,9 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class PledgeCTAContainerViewViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   let vm: PledgeCTAContainerViewViewModelType = PledgeCTAContainerViewViewModel()
 
   let activityIndicatorIsHidden = TestObserver<Bool, Never>()
@@ -25,8 +27,8 @@ internal final class PledgeCTAContainerViewViewModelTests: TestCase {
   let watchesLabelHidden = TestObserver<Bool, Never>()
   let watchesCountText = TestObserver<String, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.activityIndicatorIsHidden.observe(self.activityIndicatorIsHidden.observer)
     self.vm.outputs.buttonStyleType.observe(self.buttonStyleType.observer)

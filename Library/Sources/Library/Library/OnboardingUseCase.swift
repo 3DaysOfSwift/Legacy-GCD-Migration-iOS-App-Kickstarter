@@ -53,12 +53,14 @@ public struct OnboardingItem: Identifiable, Equatable {
   }
 }
 
+@MainActor
 public protocol OnboardingUseCaseType {
   var uiInputs: OnboardingUseCaseUIInputs { get }
   var uiOutputs: OnboardingUseCaseUIOutputs { get }
   var outputs: OnboardingUseCaseOutputs { get }
 }
 
+@MainActor
 public protocol OnboardingUseCaseUIInputs {
   /// Triggers the AppTrackingTransparency system dialog.
   func allowTrackingTapped()
@@ -70,10 +72,12 @@ public protocol OnboardingUseCaseUIInputs {
   func goToNextItemTapped(item: OnboardingItemType)
 }
 
+@MainActor
 public protocol OnboardingUseCaseUIOutputs {
   var onboardingItems: SignalProducer<[OnboardingItem], Never> { get }
 }
 
+@MainActor
 public protocol OnboardingUseCaseOutputs {
   /// Emits when the user has finished interacting with the Push Notificaiton system dialog.
   var triggerAppTrackingTransparencyDialog: Signal<Void, Never> { get }
@@ -100,6 +104,7 @@ public protocol OnboardingUseCaseOutputs {
   * `completedGetNotifiedRequest` - The user has completed interacting with the notifications permission system dialog.
   * `completedAllowTrackingRequest` - The user has completed interacting with the AppTrackingTransparency  permission system dialog.
   */
+@MainActor
 public final class OnboardingUseCase: OnboardingUseCaseType, OnboardingUseCaseUIInputs,
   OnboardingUseCaseUIOutputs, OnboardingUseCaseOutputs {
   // MARK: - Initialization

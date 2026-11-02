@@ -8,7 +8,9 @@ import ReactiveSwift
 import UIKit
 import XCTest
 
+@MainActor
 internal final class ProjectNavigationSelectorViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   fileprivate let vm: ProjectNavigationSelectorViewModelType = ProjectNavigationSelectorViewModel()
 
   fileprivate let animateButtonBottomBorderViewConstraints = TestObserver<Int, Never>()
@@ -60,8 +62,8 @@ internal final class ProjectNavigationSelectorViewModelTests: TestCase {
       projectNotice: nil
     )
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.animateButtonBottomBorderViewConstraints
       .observe(self.animateButtonBottomBorderViewConstraints.observer)

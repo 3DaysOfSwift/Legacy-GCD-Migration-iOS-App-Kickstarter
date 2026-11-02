@@ -12,8 +12,10 @@ creator draft work is superseded by their completed checkpoints.
 1. **Remaining UIKit/shared-environment review:** app-owned controller/cell delegates,
    shimmer and feedback contracts now declare MainActor across the audited cohort.
    UIApplicationType, UIScreenType and the ChangeEmail integration contracts are now
-   isolated and verified. UIDeviceType/KSRAnalytics/AppEnvironment ownership remains:
-   it requires deliberate formatter/environment dependency changes, not a blanket annotation.
+   isolated and verified. UIDeviceType and KSRAnalytics now also declare MainActor;
+   analytics identity/configuration/consent updates are explicit actor-owned methods.
+   AppEnvironment stack ownership remains: formatter/environment dependency changes
+   are still required, not a blanket annotation.
    Global UI style helpers and shared Environment access still need classification.
    Notification-center async delegates transfer checked push values before awaiting UI;
    AppDelegate session/dialog observers now have retained lifecycle owners.

@@ -88,8 +88,8 @@ final class BetaToolsFooterView: UIView {
     _ = self.betaFeedbackButton
       |> betaFeedbackButtonStyle
 
-    _ = self.deviceIdentifierDetailTextView
-      |> deviceIdentifierDetailTextViewStyle
+    _ = self.deviceIdentifierDetailTextView |> baseTextViewStyle
+    self.deviceIdentifierDetailTextView.text = AppEnvironment.current.device.identifierForVendor?.uuidString
 
     _ = self.deviceIdentifierStackView
       |> deviceIdentifierStackViewStyle
@@ -131,14 +131,6 @@ private let betaFeedbackButtonStyle: ButtonStyle = { button in
   button.applyStyleConfiguration(KSRButtonStyle.green)
   button.setTitle("Submit feedback for beta", for: .normal)
   return button
-}
-
-private let deviceIdentifierDetailTextViewStyle: TextViewStyle = { textView in
-  _ = textView
-    |> baseTextViewStyle
-    |> \.text .~ AppEnvironment.current.device.identifierForVendor?.uuidString
-
-  return textView
 }
 
 private let deviceIdentifierStackViewStyle: StackViewStyle = { stackView in

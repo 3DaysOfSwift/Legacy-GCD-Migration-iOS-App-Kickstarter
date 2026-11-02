@@ -11,6 +11,7 @@ public enum EmptyState: String {
   case starred
 }
 
+@MainActor
 public protocol EmptyStatesViewModelInputs {
   /// Call to configure with the view controller that needs an empty state.
   func configureWith(emptyState: EmptyState?)
@@ -25,6 +26,7 @@ public protocol EmptyStatesViewModelInputs {
   func viewWillAppear()
 }
 
+@MainActor
 public protocol EmptyStatesViewModelOutputs {
   /// Emits a constant float value for the bottom layout constraint.
   var bottomLayoutConstraintConstant: Signal<CGFloat, Never> { get }
@@ -45,11 +47,13 @@ public protocol EmptyStatesViewModelOutputs {
   var titleLabelText: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol EmptyStatesViewModelType {
   var inputs: EmptyStatesViewModelInputs { get }
   var outputs: EmptyStatesViewModelOutputs { get }
 }
 
+@MainActor
 public final class EmptyStatesViewModel: EmptyStatesViewModelType, EmptyStatesViewModelInputs,
   EmptyStatesViewModelOutputs {
   public init() {

@@ -5,14 +5,16 @@ import Prelude
 import SegmentBrazeUI
 import UIKit
 
+@MainActor
 public final class KSRAnalytics {
-  private let bundle: NSBundleType
+  private var bundle: NSBundleType = Bundle.main
   internal private(set) var config: Config?
-  private let device: UIDeviceType
+  private var suppliedDevice: UIDeviceType?
+  private var device: UIDeviceType { self.suppliedDevice ?? UIDevice.current }
   private(set) var loggedInUser: User?
   private var appTrackingTransparency: AppTrackingTransparencyType?
   public var logEventCallback: ((String, [String: Any]) -> Void)?
-  private let screen: UIScreenType
+  private var screen: UIScreenType?
   private var segmentClient: (TrackingClientType & IdentifyingTrackingClient)?
 
   var anonymousId: String? {
@@ -686,18 +688,22 @@ public final class KSRAnalytics {
     }
   }
 
+  /// Construct the default owner without touching UIKit. Device values are read
+  /// on the main actor when each event is emitted, so orientation stays current.
+  public nonisolated init() {}
+
   public init(
     bundle: NSBundleType = Bundle.main,
     config: Config? = nil,
-    device: UIDeviceType = UIDevice.current,
+    device: UIDeviceType? = nil,
     loggedInUser: User? = nil,
-    screen: UIScreenType = UIScreen.main,
+    screen: UIScreenType? = nil,
     segmentClient: (TrackingClientType & IdentifyingTrackingClient)? = nil,
     appTrackingTransparency: AppTrackingTransparencyType? = nil
   ) {
     self.bundle = bundle
     self.config = config
-    self.device = device
+    self.suppliedDevice = device
     self.loggedInUser = loggedInUser
     self.screen = screen
     self.segmentClient = segmentClient
@@ -2197,21 +2203,22 @@ private func videoProperties(
 }
 
 extension KSRAnalytics {
-  public enum lens {
-    public static let loggedInUser = Lens<KSRAnalytics, User?>(
-      view: { $0.loggedInUser },
-      set: { $1.loggedInUser = $0; return $1 }
-    )
+  @discardableResult
+  public func updateUser(_ user: User?) -> KSRAnalytics {
+    self.loggedInUser = user
+    return self
+  }
 
-    public static let config = Lens<KSRAnalytics, Config?>(
-      view: { $0.config },
-      set: { $1.config = $0; return $1 }
-    )
+  @discardableResult
+  public func updateConfig(_ config: Config?) -> KSRAnalytics {
+    self.config = config
+    return self
+  }
 
-    public static let appTrackingTransparency = Lens<KSRAnalytics, AppTrackingTransparencyType?>(
-      view: { $0.appTrackingTransparency },
-      set: { $1.appTrackingTransparency = $0; return $1 }
-    )
+  @discardableResult
+  public func updateTrackingConsent(_ consent: AppTrackingTransparencyType?) -> KSRAnalytics {
+    self.appTrackingTransparency = consent
+    return self
   }
 }
 

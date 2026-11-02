@@ -24,11 +24,12 @@ public struct AppEnvironment: AppEnvironmentType {
 
    - parameter envelope: An access token envelope with the api access token and user.
    */
+  @MainActor
   public static func login(_ envelope: AccessTokenEnvelope) {
     self.replaceCurrentEnvironment(
       apiService: self.current.apiService.login(OauthToken(token: envelope.accessToken)),
       currentUser: envelope.user,
-      ksrAnalytics: self.current.ksrAnalytics |> KSRAnalytics.lens.loggedInUser .~ envelope.user
+      ksrAnalytics: self.current.ksrAnalytics.updateUser(envelope.user)
     )
   }
 
@@ -38,10 +39,11 @@ public struct AppEnvironment: AppEnvironmentType {
 
    - parameter user: A user model.
    */
+  @MainActor
   public static func updateCurrentUser(_ user: User) {
     self.replaceCurrentEnvironment(
       currentUser: user,
-      ksrAnalytics: self.current.ksrAnalytics |> KSRAnalytics.lens.loggedInUser .~ user
+      ksrAnalytics: self.current.ksrAnalytics.updateUser(user)
     )
   }
 
@@ -97,13 +99,14 @@ public struct AppEnvironment: AppEnvironmentType {
     )
   }
 
+  @MainActor
   public static func updateConfig(_ config: Config) {
     let debugConfigOrConfig = self.current.debugData?.config ?? config
 
     self.replaceCurrentEnvironment(
       config: debugConfigOrConfig,
       countryCode: debugConfigOrConfig.countryCode,
-      ksrAnalytics: AppEnvironment.current.ksrAnalytics |> KSRAnalytics.lens.config .~ debugConfigOrConfig
+      ksrAnalytics: AppEnvironment.current.ksrAnalytics.updateConfig(debugConfigOrConfig)
     )
   }
 
@@ -132,6 +135,7 @@ public struct AppEnvironment: AppEnvironmentType {
   }
 
   // Invoke when you want to end the user's session.
+  @MainActor
   public static func logout() {
     let storage = AppEnvironment.current.cookieStorage
     storage.cookies?.forEach(storage.deleteCookie)
@@ -146,7 +150,7 @@ public struct AppEnvironment: AppEnvironmentType {
       currentUserEmail: nil,
       currentUserPPOSettings: nil,
       currentUserServerFeatures: nil,
-      ksrAnalytics: self.current.ksrAnalytics |> KSRAnalytics.lens.loggedInUser .~ nil
+      ksrAnalytics: self.current.ksrAnalytics.updateUser(nil)
     )
   }
 
@@ -410,6 +414,7 @@ public struct AppEnvironment: AppEnvironmentType {
   }
 
   // Returns the last saved environment from user defaults.
+  @MainActor
   public static func fromStorage(
     ubiquitousStore _: KeyValueStoreType,
     userDefaults: KeyValueStoreType
@@ -511,8 +516,8 @@ public struct AppEnvironment: AppEnvironmentType {
       currentUser: currentUser,
       currentUserPPOSettings: currentUserPPOSettings,
       currentUserServerFeatures: currentUserServerFeatures.flatMap(Set.init),
-      ksrAnalytics: self.current.ksrAnalytics |> KSRAnalytics.lens.loggedInUser .~ currentUser |> KSRAnalytics
-        .lens.appTrackingTransparency .~ self.current.appTrackingTransparency
+      ksrAnalytics: self.current.ksrAnalytics.updateUser(currentUser)
+        .updateTrackingConsent(self.current.appTrackingTransparency)
     )
   }
 

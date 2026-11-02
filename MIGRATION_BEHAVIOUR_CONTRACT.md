@@ -1444,3 +1444,13 @@ Discovery filter output ordering, feature-flag updates, backing date presentatio
 fallback, application URL opening and analytics values retain their existing assertions.
 194 nonvisual tests passed. Demo category expansion/selection and project FAQ/Risks navigation
 were observed on iPhone Air iOS 26.2; this is not reference snapshot parity.
+
+## Analytics ownership — 2 November 2026
+
+Analytics state and emissions are main-actor-owned. The default owner can be constructed
+without accessing UIKit; device orientation is read at emission time, not captured at startup.
+Explicit user/configuration/consent updates preserve the previous in-place identity changes
+and event ordering. Login/OAuth persistence closures declare their actor without introducing
+asynchronous event reordering. UIKit device identifier reads remain in UI-owned methods.
+Existing event names/payloads, consent gating, native UI and persistence keys are unchanged.
+The global Environment stack is not certified concurrency-safe by this checkpoint.

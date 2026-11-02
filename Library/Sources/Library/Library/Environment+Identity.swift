@@ -1,6 +1,7 @@
 import Experimentation
 import KsApi
 
+@MainActor
 public extension Environment {
   /// Identifies a Kickstarter user for both Segment and Statsig.
   func identify(user: User?) {

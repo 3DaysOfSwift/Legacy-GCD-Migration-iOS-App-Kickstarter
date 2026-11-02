@@ -11,6 +11,44 @@ import XCTest
 @MainActor
 final class KSRAnalyticsTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
+  func testDefaultOwnerHonorsConsentAndIdentityChangesInOrder() {
+    let analytics = KSRAnalytics()
+    let client = MockTrackingClient()
+    analytics.configureSegmentClient(client)
+    analytics.trackTabBarClicked(tabBarItemLabel: .discovery, previousTabBarItemLabel: .search)
+    XCTAssertTrue(client.properties.isEmpty)
+
+    analytics.updateTrackingConsent(self.appTrackingTransparency)
+    analytics.updateUser(.template)
+    analytics.updateConfig(Config.template |> Config.lens.countryCode .~ "GB")
+    analytics.trackTabBarClicked(tabBarItemLabel: .discovery, previousTabBarItemLabel: .search)
+    XCTAssertEqual(client.properties.last?["session_user_is_logged_in"] as? Bool, true)
+    XCTAssertEqual(client.properties.last?["session_country"] as? String, "GB")
+
+    analytics.updateUser(nil)
+    analytics.trackSearchTabBarClicked(prevTabBarItemLabel: .discovery)
+    XCTAssertEqual(client.properties.last?["session_user_is_logged_in"] as? Bool, false)
+    analytics.updateTrackingConsent(nil)
+    analytics.trackTabBarClicked(tabBarItemLabel: .discovery, previousTabBarItemLabel: .search)
+    XCTAssertEqual(client.properties.count, 2)
+  }
+
+  func testDeviceOrientationIsReadForEachEvent() {
+    let device = ChangingAnalyticsDevice()
+    let client = MockTrackingClient()
+    let analytics = KSRAnalytics(
+      device: device, segmentClient: client,
+      appTrackingTransparency: self.appTrackingTransparency
+    )
+    analytics.trackTabBarClicked(tabBarItemLabel: .discovery, previousTabBarItemLabel: .search)
+    device.orientation = .landscapeLeft
+    analytics.trackSearchTabBarClicked(prevTabBarItemLabel: .discovery)
+    XCTAssertEqual(
+      client.properties.map { $0["session_device_orientation"] as? String },
+      ["portrait", "landscape_left"]
+    )
+  }
+
   // MARK: - Session Properties Tests
 
   func testSessionProperties() {
@@ -2392,4 +2430,13 @@ extension KSRAnalytics.CheckoutPropertiesData {
     shippingAmountUsd: 10.00,
     userHasStoredApplePayCard: true
   )
+}
+
+@MainActor
+private final class ChangingAnalyticsDevice: UIDeviceType {
+  let identifierForVendor: UUID? = nil
+  let modelCode = "test-device"
+  var orientation: UIDeviceOrientation = .portrait
+  let systemVersion = "test"
+  let userInterfaceIdiom: UIUserInterfaceIdiom = .phone
 }

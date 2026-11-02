@@ -2,6 +2,34 @@
 
 Author: Matthew Thomas. Updated 2 November 2026.
 
+## Analytics and device ownership — 2 November 2026
+
+KSRAnalytics and UIDeviceType now declare MainActor. Analytics user/config/consent mutations
+use explicit methods instead of Lens closures that erase the actor contract. The default
+analytics initializer constructs only local defaults; UIKit device values are resolved on
+MainActor for each event, retaining changing orientation. Injected clients/device values are
+installed by the actor-isolated initializer. Session/authentication persistence and OAuth
+tracking closures explicitly carry their actor. Their synchronous event order is preserved.
+
+Onboarding, pledge CTA, project navigation/main-cell and empty-state UI adapters now expose
+actor-bound input/output contracts. Device identity reads for visitor cookies and the beta
+footer occur in UI-owned methods. No screen redesign or identifier/storage changes were made.
+The inherited XCTest environment fixture uses awaited main-actor setup, retaining its legacy
+synchronous hook and reference-device checks. Newly run nonvisual suites opt out locally.
+
+Verification: 1,606 Library + 402 framework + 152 API + 26 environment/keychain tests passed,
+zero failures/skips in the final runs. Normal and complete-concurrency-checking app builds
+passed; no KSRAnalytics/UIDeviceType warnings were emitted in that checking build. This is
+not a warning-free app-wide Swift 6 conversion. Two added tests cover evolving orientation
+and ordered consent/user/config changes. Their first version incorrectly used the generic
+tab event for Search; corrected to the existing dedicated Search event method. An unsigned
+keychain run failed with -34018; the unchanged tests all passed with local Simulator signing.
+
+The remaining global Environment stack, implicit formatter dependencies and global style
+contracts are still an implementation/audit gate. Actor-isolated analytics does not make
+those dependencies safe. Full reference-device, physical-device and live-service validation
+also remain open. Evidence: sibling Migration Evidence/kickstarter-analytics-owner.
+
 ## Remaining UI owner contracts — 2 November 2026
 
 UIApplicationType, UIScreenType and the ChangeEmail SwiftUI integration input/output/type

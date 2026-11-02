@@ -9,6 +9,7 @@ public typealias ProjectPamphletMainCellData = (
   refTag: RefTag?
 )
 
+@MainActor
 public protocol ProjectPamphletMainCellViewModelInputs {
   /// Call when cell awakeFromNib is called.
   func awakeFromNib()
@@ -29,6 +30,7 @@ public protocol ProjectPamphletMainCellViewModelInputs {
   func videoDidStart()
 }
 
+@MainActor
 public protocol ProjectPamphletMainCellViewModelOutputs {
   /// Emits a string to use for the backer subtitle label.
   var backersSubtitleLabelText: Signal<String, Never> { get }
@@ -127,11 +129,13 @@ public protocol ProjectPamphletMainCellViewModelOutputs {
   var projectNoticeBannerHidden: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol ProjectPamphletMainCellViewModelType {
   var inputs: ProjectPamphletMainCellViewModelInputs { get }
   var outputs: ProjectPamphletMainCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class ProjectPamphletMainCellViewModel: ProjectPamphletMainCellViewModelType,
   ProjectPamphletMainCellViewModelInputs, ProjectPamphletMainCellViewModelOutputs {
   public init() {

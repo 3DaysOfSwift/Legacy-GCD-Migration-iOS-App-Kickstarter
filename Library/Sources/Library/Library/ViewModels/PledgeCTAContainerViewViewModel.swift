@@ -19,12 +19,14 @@ public enum PledgeCTAContainerViewData {
   case error(ErrorEnvelope)
 }
 
+@MainActor
 public protocol PledgeCTAContainerViewViewModelInputs {
   func configureWith(value: PledgeCTAContainerViewData)
   func pledgeCTAButtonTapped()
   func savedProjectFromNotification(project: Project?)
 }
 
+@MainActor
 public protocol PledgeCTAContainerViewViewModelOutputs {
   var activityIndicatorIsHidden: Signal<Bool, Never> { get }
   var buttonStyleType: Signal<ButtonStyleType, Never> { get }
@@ -41,11 +43,13 @@ public protocol PledgeCTAContainerViewViewModelOutputs {
   var watchesCountText: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol PledgeCTAContainerViewViewModelType {
   var inputs: PledgeCTAContainerViewViewModelInputs { get }
   var outputs: PledgeCTAContainerViewViewModelOutputs { get }
 }
 
+@MainActor
 public final class PledgeCTAContainerViewViewModel: PledgeCTAContainerViewViewModelType,
   PledgeCTAContainerViewViewModelInputs, PledgeCTAContainerViewViewModelOutputs {
   public init() {

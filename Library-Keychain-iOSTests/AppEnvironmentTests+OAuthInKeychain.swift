@@ -3,6 +3,7 @@
 @testable import Library
 import XCTest
 
+@MainActor
 final class AppEnvironmentTests_OAuthInKeychain: XCTestCase {
   override func setUp() {
     AppEnvironment.resetStackForUnitTests()

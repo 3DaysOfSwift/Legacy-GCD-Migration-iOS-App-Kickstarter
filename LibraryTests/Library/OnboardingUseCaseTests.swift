@@ -7,6 +7,7 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class OnboardingUseCaseTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   var useCase: OnboardingUseCase!
@@ -15,8 +16,8 @@ final class OnboardingUseCaseTests: TestCase {
   let triggerAppTrackingTransparencyDialog = TestObserver<Void, Never>()
   let didCompletePushNotificationSystemDialog = TestObserver<Void, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.useCase = OnboardingUseCase(for: Bundle.library)
 

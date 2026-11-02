@@ -22,6 +22,7 @@ public enum NavigationSection: Int, CaseIterable {
   }
 }
 
+@MainActor
 public protocol ProjectNavigationSelectorViewModelInputs {
   /// Called when the view is moved to the superview, similar to a viewDidAppear input
   func didMoveToSuperview()
@@ -33,6 +34,7 @@ public protocol ProjectNavigationSelectorViewModelInputs {
   func configureNavigationSelector(with: (Project, RefTag?))
 }
 
+@MainActor
 public protocol ProjectNavigationSelectorViewModelOutputs {
   /// Emits an `Int` of the index that the selectedButtonBottomBorder will animate to
   var animateButtonBottomBorderViewConstraints: Signal<Int, Never> { get }
@@ -47,11 +49,13 @@ public protocol ProjectNavigationSelectorViewModelOutputs {
   var updateNavigationSelectorUI: Signal<Int, Never> { get }
 }
 
+@MainActor
 public protocol ProjectNavigationSelectorViewModelType {
   var inputs: ProjectNavigationSelectorViewModelInputs { get }
   var outputs: ProjectNavigationSelectorViewModelOutputs { get }
 }
 
+@MainActor
 public final class ProjectNavigationSelectorViewModel: ProjectNavigationSelectorViewModelType,
   ProjectNavigationSelectorViewModelInputs, ProjectNavigationSelectorViewModelOutputs {
   public init() {

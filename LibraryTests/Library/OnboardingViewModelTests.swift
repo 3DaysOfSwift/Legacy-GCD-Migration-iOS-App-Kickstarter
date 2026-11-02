@@ -7,6 +7,7 @@ import ReactiveSwift
 import XCTest
 import UserNotifications
 
+@MainActor
 final class OnboardingViewModelTest: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   // MARK: Properties
@@ -18,8 +19,8 @@ final class OnboardingViewModelTest: TestCase {
 
   // MARK: Lifecycle
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.viewModel = OnboardingViewModel(with: Bundle.library)
 
