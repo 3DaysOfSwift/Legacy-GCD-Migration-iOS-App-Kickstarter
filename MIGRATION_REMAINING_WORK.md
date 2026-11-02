@@ -9,8 +9,10 @@ creator draft work is superseded by their completed checkpoints.
 
 ## Remaining implementation and audit work
 
-1. **Remaining UIKit callback contracts:** finish isolation of the older PassKit
-   delegate protocol, controller/delegate observations and global UI style helpers.
+1. **Remaining UIKit callback contracts:** continue controller/delegate observations and global UI style helpers.
+   Older PassKit, five mail-composer conformances and the payment-plan delegate now
+   declare their main-actor contracts; 26 payment lifetime tests and the complete-checking
+   app build passed.
    PaymentSheet creation/selection/confirmation and optional card-ID lookup now have
    owned lifetimes. Older Apple Pay token observation now guarantees a PassKit reply
    on cancellation/release and rejects obsolete sessions. Native delegate selector

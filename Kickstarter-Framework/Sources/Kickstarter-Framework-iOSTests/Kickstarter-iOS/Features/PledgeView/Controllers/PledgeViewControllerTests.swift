@@ -385,6 +385,7 @@ final class PledgeViewControllerTests: TestCase {
       }
   }
 
+  @MainActor
   func testView_ShowCollectionPlans_PledgeOverTime() {
     let userResponse = UserEnvelope<GraphUser>(me: self.userWithCards)
     let paymentPlanResponse: GraphAPI.BuildPaymentPlanQuery.Data =

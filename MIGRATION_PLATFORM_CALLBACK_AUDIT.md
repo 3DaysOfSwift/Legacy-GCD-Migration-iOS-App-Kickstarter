@@ -423,3 +423,15 @@ because the demo lacks that query fixture. Populated rendering is still unverifi
 The snapshot suites require iPad mini / iOS 18.6, absent from the installed runtime
 inventory. Do not label iOS 26.2 smoke checks as reference snapshot parity. Physical
 device and live-service checks remain open.
+
+## Generic Apollo compatibility boundary — 2 November 2026
+
+`Service.fetch(query:) async` still constructs `AsyncApolloClient`. Its generic fetch/perform
+methods return generated GraphQLResult values, discard Apollo cancellation handles and rely on
+Apollo callback completion. The existing unchecked conformance and callback queue are not
+evidence of safe payload transfer or cancellation. These remain legacy compatibility APIs;
+no `.fetch(query:)` application caller was found in Library/Sources or the framework source
+root during this pass. Legacy Service wrappers, protocol/default/mock consumers remain and
+must be considered before removing the public API. Migrated concrete providers use mapped
+responses and their owned cancellation bridges. This classification does not certify the
+legacy wrapper as migrated or warning-free.

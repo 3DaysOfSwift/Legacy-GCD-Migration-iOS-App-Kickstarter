@@ -7,7 +7,7 @@ import ReactiveSwift
 import UIKit
 
 internal final class FacebookConfirmationViewController: UIViewController,
-  MFMailComposeViewControllerDelegate {
+  @MainActor MFMailComposeViewControllerDelegate {
   @IBOutlet private var disclaimerTextView: UITextView!
   @IBOutlet private var confirmationLabel: UILabel!
   @IBOutlet private var createAccountButton: UIButton!

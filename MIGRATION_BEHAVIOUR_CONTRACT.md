@@ -1421,3 +1421,10 @@ Seven executable macOS checks using the actual source passed: missing payload, e
 start, failed download, non-cooperative late completion, concurrent expiry, successful PNG
 attachment and reentrant completion. Complete-checking iOS Simulator extension/app build passed;
 existing project/asset warnings remain. Actual APNs/system expiry integration remains unverified.
+
+### UIKit SDK delegate contract checkpoint — 2 November 2026
+
+PassKit and mail-composer delegate isolation preserves callback bodies, synchronous reply
+policy, dismissal and analytics ordering. The payment-plan UI delegate is main-actor owned.
+Twenty-six selected payment lifetime tests passed; snapshots were compiled but not run on
+the unavailable reference runtime. No live mail/payment validation is implied.

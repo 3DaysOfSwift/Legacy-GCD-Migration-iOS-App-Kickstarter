@@ -453,7 +453,7 @@ extension BetaToolsViewController {
   }
 }
 
-extension BetaToolsViewController: MFMailComposeViewControllerDelegate {
+extension BetaToolsViewController: @MainActor MFMailComposeViewControllerDelegate {
   internal func mailComposeController(
     _ controller: MFMailComposeViewController,
     didFinishWith result: MFMailComposeResult,

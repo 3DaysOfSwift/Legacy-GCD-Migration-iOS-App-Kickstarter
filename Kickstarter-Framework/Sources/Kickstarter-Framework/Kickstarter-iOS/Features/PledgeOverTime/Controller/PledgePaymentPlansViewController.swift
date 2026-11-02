@@ -2,6 +2,7 @@ import KDS
 import Library
 import UIKit
 
+@MainActor
 protocol PledgePaymentPlansViewControllerDelegate: AnyObject {
   func pledgePaymentPlansViewController(
     _ viewController: PledgePaymentPlansViewController,

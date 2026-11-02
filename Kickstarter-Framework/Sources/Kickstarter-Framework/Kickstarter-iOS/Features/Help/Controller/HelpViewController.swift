@@ -94,7 +94,7 @@ extension HelpViewController: UITableViewDelegate {
   }
 }
 
-extension HelpViewController: MFMailComposeViewControllerDelegate {
+extension HelpViewController: @MainActor MFMailComposeViewControllerDelegate {
   internal func mailComposeController(
     _ controller: MFMailComposeViewController,
     didFinishWith result: MFMailComposeResult,

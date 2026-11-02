@@ -10,7 +10,7 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
-public final class LoginToutViewController: UIViewController, MFMailComposeViewControllerDelegate,
+public final class LoginToutViewController: UIViewController, @MainActor MFMailComposeViewControllerDelegate,
   ProcessingViewPresenting {
   // MARK: - Properties
 

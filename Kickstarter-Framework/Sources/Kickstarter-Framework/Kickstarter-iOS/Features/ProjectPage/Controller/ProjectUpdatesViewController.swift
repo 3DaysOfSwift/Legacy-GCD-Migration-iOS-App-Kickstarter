@@ -135,7 +135,7 @@ internal final class ProjectUpdatesViewController: WebViewController {
   }
 }
 
-extension ProjectUpdatesViewController: MFMailComposeViewControllerDelegate {
+extension ProjectUpdatesViewController: @MainActor MFMailComposeViewControllerDelegate {
   internal func mailComposeController(
     _ controller: MFMailComposeViewController,
     didFinishWith result: MFMailComposeResult,

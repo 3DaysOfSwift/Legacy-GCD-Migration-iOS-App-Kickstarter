@@ -565,7 +565,7 @@ extension PledgeViewController: STPAuthenticationContext {
 
 // MARK: - PKPaymentAuthorizationViewControllerDelegate
 
-extension PledgeViewController: PKPaymentAuthorizationViewControllerDelegate {
+extension PledgeViewController: @MainActor PKPaymentAuthorizationViewControllerDelegate {
   func paymentAuthorizationViewController(
     _ controller: PKPaymentAuthorizationViewController,
     didAuthorizePayment payment: PKPayment,

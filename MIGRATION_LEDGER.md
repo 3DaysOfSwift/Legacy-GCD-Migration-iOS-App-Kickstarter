@@ -2,6 +2,18 @@
 
 Author: Matthew Thomas. Updated 2 November 2026.
 
+## UIKit SDK delegate contracts — 2 November 2026
+
+The older Pledge PassKit conformance and five mail-composer conformances explicitly use
+MainActor. The application-owned payment-plan delegate protocol now requires MainActor too.
+Existing callback bodies, reply timing, weak delegates and payment lifetime owners are unchanged.
+The existing payment-plan snapshot test declares its UI actor; snapshot device checks remain intact.
+All 26 selected ApplePayTokenOperation, PaymentSheetOperation and StripeConfirmationOperation
+Simulator tests passed, zero failures/skips, including native PassKit selector wiring. The final
+app build with complete concurrency diagnostics passed. Other UIKit/style and compatibility
+warnings remain; this is not a Swift 6 language-mode certification. Mail composition, reference
+snapshots and live Apple Pay/Stripe integration were not exercised by these focused tests.
+
 ## Notification extension lifetime — 2 November 2026
 
 RichPushNotifications now owns an async URLSession download per delivery. A narrowly locked
