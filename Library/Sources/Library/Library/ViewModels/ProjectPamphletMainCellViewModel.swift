@@ -229,7 +229,12 @@ public final class ProjectPamphletMainCellViewModel: ProjectPamphletMainCellView
       var durationValue = ("", "")
 
       if let deadline = properties.deadline {
-        durationValue = Format.duration(secondsInUTC: deadline, useToGo: true)
+        let environment: Environment = AppEnvironment.current
+        durationValue = Format.duration(
+          from: environment.dateType.init().date,
+          to: environment.dateType.init(timeIntervalSince1970: deadline).date,
+          calendar: environment.calendar, useToGo: true
+        )
       }
 
       return durationValue
@@ -391,7 +396,12 @@ private func statsStackViewAccessibilityLabelForProperties(
   var (time, unit) = ("", "")
 
   if let deadline = properties.deadline {
-    (time, unit) = Format.duration(secondsInUTC: deadline, useToGo: true)
+    let environment: Environment = AppEnvironment.current
+    (time, unit) = Format.duration(
+      from: environment.dateType.init().date,
+      to: environment.dateType.init(timeIntervalSince1970: deadline).date,
+      calendar: environment.calendar, useToGo: true
+    )
   }
 
   let timeLeft = time + " " + unit

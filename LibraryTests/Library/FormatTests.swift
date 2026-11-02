@@ -83,6 +83,27 @@ final class FormatTests: TestCase {
     }
   }
 
+  func testCapturedClockValuesPreserveDurationAndRelativeFormatting() throws {
+    let env = try XCTUnwrap(AppEnvironment.current)
+    let now = env.dateType.init().date
+    for offset in [-400000.0, -86400, -3600, -60, 0, 60, 3600, 86400, 400000] {
+      let seconds = now.timeIntervalSince1970 + offset
+      let date = env.dateType.init(timeIntervalSince1970: seconds).date
+      for abbreviated in [false, true] {
+        let actual = Format.duration(from: now, to: date, calendar: env.calendar,
+                                     abbreviate: abbreviated, useToGo: true)
+        let expected = Format.duration(secondsInUTC: seconds, abbreviate: abbreviated, useToGo: true)
+        XCTAssertEqual(actual.time, expected.time)
+        XCTAssertEqual(actual.unit, expected.unit)
+        XCTAssertEqual(
+          Format.relative(date, relativeTo: now, calendar: env.calendar, locale: env.locale,
+                          abbreviate: abbreviated, threshold: 2, timeZone: env.calendar.timeZone),
+          Format.relative(secondsInUTC: seconds, abbreviate: abbreviated, threshold: 2)
+        )
+      }
+    }
+  }
+
   func testWholeNumber() {
     withEnvironment(locale: Locale(identifier: "en")) {
       XCTAssertEqual(Format.wholeNumber(10), "10")

@@ -358,10 +358,23 @@ public enum Format {
     useToGo: Bool = false,
     env: Environment = AppEnvironment.current
   ) -> (time: String, unit: String) {
-    let components = env.calendar.dateComponents(
-      [.day, .hour, .minute, .second],
+    self.duration(
       from: env.dateType.init().date,
-      to: env.dateType.init(timeIntervalSince1970: seconds).date
+      to: env.dateType.init(timeIntervalSince1970: seconds).date,
+      calendar: env.calendar, abbreviate: abbreviate, useToGo: useToGo
+    )
+  }
+
+  /// Calculate remaining time from captured clock/calendar values.
+  public static func duration(
+    from now: Foundation.Date,
+    to deadline: Foundation.Date,
+    calendar: Calendar,
+    abbreviate: Bool = false,
+    useToGo: Bool = false
+  ) -> (time: String, unit: String) {
+    let components = calendar.dateComponents(
+      [.day, .hour, .minute, .second], from: now, to: deadline
     )
 
     let (day, hour, minute, second) = (
@@ -428,10 +441,25 @@ public enum Format {
     timeZone: TimeZone? = nil,
     env: Environment = AppEnvironment.current
   ) -> String {
-    let components = env.calendar.dateComponents(
-      [.day, .hour, .minute, .second],
-      from: env.dateType.init(timeIntervalSince1970: seconds).date,
-      to: env.dateType.init().date
+    self.relative(
+      env.dateType.init(timeIntervalSince1970: seconds).date,
+      relativeTo: env.dateType.init().date, calendar: env.calendar, locale: env.locale,
+      abbreviate: abbreviate, threshold: thresholdInDays,
+      timeZone: timeZone ?? env.calendar.timeZone
+    )
+  }
+
+  public static func relative(
+    _ date: Foundation.Date,
+    relativeTo now: Foundation.Date,
+    calendar: Calendar,
+    locale: Locale,
+    abbreviate: Bool = false,
+    threshold thresholdInDays: Int = defaultThresholdInDays,
+    timeZone: TimeZone
+  ) -> String {
+    let components = calendar.dateComponents(
+      [.day, .hour, .minute, .second], from: date, to: now
     )
 
     let (day, hour, minute, second) = (
@@ -443,8 +471,7 @@ public enum Format {
 
     if abs(day) > thresholdInDays {
       return Format.date(
-        secondsInUTC: seconds, dateStyle: .medium, timeStyle: .none, timeZone: timeZone ??
-          env.calendar.timeZone, env: env
+        date, dateStyle: .medium, timeStyle: .none, locale: locale, timeZone: timeZone
       )
     } else if day > 1 {
       return abbreviate

@@ -2,6 +2,19 @@
 
 Author: Matthew Thomas. Updated 2 November 2026.
 
+## Captured clock/calendar rendering — 2 November 2026
+
+Duration and relative-date formatters accept captured dates/calendar/locale values. The
+existing convenience wrappers preserve DateProtocol inputs and localization behavior.
+Project-card deadline display and accessibility calculations now capture their environment
+values before calling duration rendering. Threshold date fallback uses value-only rendering.
+
+71 Format/project-card tests passed, zero failures/skips, including past/future offsets,
+abbreviations and threshold fallback parity. An initial ambiguous Date import was fixed by
+qualifying Foundation.Date. The complete-checking app build passed; app-wide warnings
+remain. Evidence: kickstarter-clock-values. Environment stack ownership,
+remaining convenience callers and global styles remain implementation work.
+
 ## Login and Settings style owners — 2 November 2026
 
 LoginStyles and SettingsStyles declarations now explicitly belong to MainActor. Three
