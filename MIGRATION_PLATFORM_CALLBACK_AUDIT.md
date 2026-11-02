@@ -3,6 +3,19 @@
 Author: Matthew Thomas. Updated 2 November 2026.
 Baseline: c8c5f0747429b65e0d1ea5d1d0b0392dbf333dc6. Migration remains in progress.
 
+## Notification extension lifetime — 2 November 2026
+
+RichPushNotifications now owns an async URLSession download per delivery. A narrowly locked
+request object claims notification content/completion exactly once. Expiry, replacement,
+cancellation, attachment failure and success cannot deliver twice; late downloads cannot
+replace the original after expiry. Completion and task cancellation occur outside the lock.
+Missing/invalid payloads and failed attachments retain the original notification. The lock-backed
+unchecked conformance documents SDK content/handler ownership, not blanket payload sendability.
+Seven executable macOS checks using the actual source passed: missing payload, expiry before
+start, failed download, non-cooperative late completion, concurrent expiry, successful PNG
+attachment and reentrant completion. Complete-checking iOS Simulator extension/app build passed;
+existing project/asset warnings remain. Actual APNs/system expiry integration remains unverified.
+
 ## REST and UI isolation — 2 November 2026
 
 The shared native REST wrapper now inherits caller isolation through request preparation and

@@ -1,106 +1,118 @@
-import UIKit
+import Foundation
 import UserNotifications
 
-let AppboyAPNSDictionaryKey = "ab"
-let AppboyAPNSDictionaryAttachmentKey = "att"
-let AppboyAPNSDictionaryAttachmentURLKey = "url"
-let AppboyAPNSDictionaryAttachmentTypeKey = "type"
-
-private func printDebug(_ items: Any...) {
-  #if DEBUG
-    print(items)
-  #endif
-}
-
-class NotificationService: UNNotificationServiceExtension {
-  var bestAttemptContent: UNMutableNotificationContent?
-  var contentHandler: ((UNNotificationContent) -> Void)?
-  var originalContent: UNMutableNotificationContent?
-  var abortOnAttachmentFailure: Bool = false
+/// Each delivery owns its download and may finish exactly once, including when
+/// the system expires the extension while a download or attachment is finishing.
+final class NotificationService: UNNotificationServiceExtension {
+  private let lock = NSLock()
+  private var delivery: NotificationDelivery?
 
   override func didReceive(
     _ request: UNNotificationRequest,
     withContentHandler handler: @escaping (UNNotificationContent) -> Void
   ) {
-    self.contentHandler = handler
-    self.bestAttemptContent = (request.content.mutableCopy() as? UNMutableNotificationContent)
-    self.originalContent = (request.content.mutableCopy() as? UNMutableNotificationContent)
-
-    printDebug("[APPBOY] Push with mutable content received.")
-
-    guard let appboyPayload = request.content.userInfo[AppboyAPNSDictionaryKey] as? [AnyHashable: Any]
-    else { return self.displayOriginalContent("Push is not from Appboy.") }
-
-    guard let attachmentPayload = appboyPayload[AppboyAPNSDictionaryAttachmentKey] as? [AnyHashable: Any]
-    else { return self.displayOriginalContent("Push has no attachment.") }
-
-    guard let attachmentURLString = attachmentPayload[AppboyAPNSDictionaryAttachmentURLKey] as? String
-    else { return self.displayOriginalContent("Push has no attachment.") }
-
-    guard let attachmentURL = URL(string: attachmentURLString)
-    else { return self.displayOriginalContent("Cannot parse \(attachmentURLString) to URL.") }
-
-    printDebug("[APPBOY] Attachment URL string is \(attachmentURLString)")
-
-    guard let attachmentType = attachmentPayload[AppboyAPNSDictionaryAttachmentTypeKey] as? String
-    else { return self.displayOriginalContent("Push attachment has no type.") }
-
-    printDebug("[APPBOY] Attachment type is \(attachmentType)")
-    let fileSuffix: String = ".\(attachmentType)"
-
-    // Download, store, and attach the content to the notification
-    let session = URLSession(configuration: URLSessionConfiguration.default)
-
-    session.downloadTask(
-      with: attachmentURL,
-      completionHandler: { temporaryFileLocation, _, error in
-
-        guard let temporaryFileLocation = temporaryFileLocation, error == nil else {
-          return self
-            .displayOriginalContent(
-              "Error fetching attachment, displaying content unaltered: \(String(describing: error?.localizedDescription))"
-            )
-        }
-
-        printDebug(
-          "[Appboy] Data fetched from server, processing with temporary file url \(temporaryFileLocation.absoluteString)"
-        )
-
-        let typedAttachmentURL = URL(fileURLWithPath: "\(temporaryFileLocation.path)\(fileSuffix)")
-
-        do {
-          try FileManager.default.moveItem(at: temporaryFileLocation, to: typedAttachmentURL)
-        } catch {
-          return self.displayOriginalContent("Failed to move file path.")
-        }
-
-        guard let attachment = try? UNNotificationAttachment(
-          identifier: "",
-          url: typedAttachmentURL,
-          options: nil
-        ) else { return self.displayOriginalContent("Attachment returned error.") }
-
-        guard let bestAttemptContent = self.bestAttemptContent
-        else { return self.displayOriginalContent("bestAttemptContent is nil") }
-
-        bestAttemptContent.attachments = [attachment]
-        handler(bestAttemptContent)
-      }
-    ).resume()
-  }
-
-  func displayOriginalContent(_ extraLogging: String) {
-    printDebug("[APPBOY] \(extraLogging)")
-    printDebug("[APPBOY] Displaying original content.")
-
-    guard let contentHandler = contentHandler, let originalContent = originalContent else { return }
-
-    contentHandler(originalContent)
+    let next = NotificationDelivery(content: request.content, handler: handler)
+    self.lock.lock()
+    let previous = self.delivery
+    self.delivery = next
+    self.lock.unlock()
+    previous?.expire()
+    next.start()
   }
 
   override func serviceExtensionTimeWillExpire() {
-    // Called just before the extension will be terminated by the system.
-    // Use this as an opportunity to deliver your "best attempt" at modified content, otherwise the original push payload will be used.
-    self.displayOriginalContent("Service extension called, displaying original content.")
+    self.lock.lock()
+    let current = self.delivery
+    self.lock.unlock()
+    current?.expire()
+  }
+
+  deinit { self.delivery?.expire() }
+}
+
+/// The lock guards the task and the one-time ownership transfer of SDK content
+/// and its completion handler. Neither cancellation nor handler invocation runs
+/// under the lock. No mutable notification content is shared with the worker.
+final class NotificationDelivery: @unchecked Sendable {
+  typealias Download = @Sendable (URL) async throws -> URL
+  private let lock = NSLock()
+  private var content: UNNotificationContent?
+  private var handler: ((UNNotificationContent) -> Void)?
+  private var task: Task<Void, Never>?
+  private var started = false
+  private let attachmentURL: URL?
+  private let attachmentType: String?
+
+  init(content: UNNotificationContent, handler: @escaping (UNNotificationContent) -> Void) {
+    self.content = content
+    self.handler = handler
+    let payload = content.userInfo["ab"] as? [AnyHashable: Any]
+    let attachment = payload?["att"] as? [AnyHashable: Any]
+    self.attachmentURL = (attachment?["url"] as? String).flatMap(URL.init(string:))
+    self.attachmentType = attachment?["type"] as? String
+  }
+
+  @discardableResult
+  func start(download: @escaping Download = { try await NotificationDelivery.download($0) }) -> Task<Void, Never>? {
+    self.lock.lock()
+    let shouldStart = !self.started && self.handler != nil
+    self.started = true
+    self.lock.unlock()
+    guard shouldStart else { return nil }
+    guard let url = self.attachmentURL, let type = self.attachmentType else {
+      self.finish()
+      return nil
+    }
+
+    let worker = Task { [self] in
+      do {
+        try Task.checkCancellation()
+        let temporaryURL = try await download(url)
+        defer { try? FileManager.default.removeItem(at: temporaryURL) }
+        try Task.checkCancellation()
+        let typedURL = URL(fileURLWithPath: temporaryURL.path + "." + type)
+        try FileManager.default.moveItem(at: temporaryURL, to: typedURL)
+        let attachment = try UNNotificationAttachment(identifier: "", url: typedURL, options: nil)
+        try Task.checkCancellation()
+        self.finish(attachment: attachment)
+      } catch {
+        self.finish()
+      }
+    }
+    self.lock.lock()
+    let alreadyFinished = self.handler == nil
+    if !alreadyFinished { self.task = worker }
+    self.lock.unlock()
+    // Expiry or synchronous completion can win before the worker is installed.
+    if alreadyFinished { worker.cancel() }
+    return worker
+  }
+
+  func expire() { self.finish() }
+
+  private func finish(attachment: UNNotificationAttachment? = nil) {
+    self.lock.lock()
+    let handler = self.handler
+    let original = self.content
+    let worker = self.task
+    self.handler = nil
+    self.content = nil
+    self.task = nil
+    self.lock.unlock()
+    worker?.cancel()
+    guard let handler, let original else { return }
+    if let attachment, let modified = original.mutableCopy() as? UNMutableNotificationContent {
+      modified.attachments = [attachment]
+      handler(modified)
+    } else {
+      handler(original)
+    }
+  }
+
+  private static func download(_ url: URL) async throws -> URL {
+    let session = URLSession(configuration: .default)
+    defer { session.finishTasksAndInvalidate() }
+    let (file, _) = try await session.download(from: url)
+    return file
   }
 }

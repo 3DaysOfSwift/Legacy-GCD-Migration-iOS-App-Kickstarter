@@ -1408,3 +1408,16 @@ An initial duplicate actor annotation was corrected; Simulator preflight failed 
 by booting the existing iPhone Air. No user intervention was needed. The public demo launched and
 rendered populated Explore artwork/cards; this is a limited smoke check, not full visual parity.
 Other compiler diagnostics and live/device checks remain; app-wide migration is not complete.
+
+## Notification extension lifetime — 2 November 2026
+
+RichPushNotifications now owns an async URLSession download per delivery. A narrowly locked
+request object claims notification content/completion exactly once. Expiry, replacement,
+cancellation, attachment failure and success cannot deliver twice; late downloads cannot
+replace the original after expiry. Completion and task cancellation occur outside the lock.
+Missing/invalid payloads and failed attachments retain the original notification. The lock-backed
+unchecked conformance documents SDK content/handler ownership, not blanket payload sendability.
+Seven executable macOS checks using the actual source passed: missing payload, expiry before
+start, failed download, non-cooperative late completion, concurrent expiry, successful PNG
+attachment and reentrant completion. Complete-checking iOS Simulator extension/app build passed;
+existing project/asset warnings remain. Actual APNs/system expiry integration remains unverified.
