@@ -91,7 +91,7 @@ struct PPOProjectCard: View {
       viewModel?.projectDetailsTapped()
     } label: {
       PPOProjectDetails(
-        image: self.viewModel.card.image,
+        image: .network(self.viewModel.card.image),
         title: self.viewModel.card.projectName,
         pledge: self.viewModel.card.pledge,
         leadingColumnWidth: leadingColumnWidth

@@ -6,7 +6,7 @@ import KsApi
 @MainActor
 public protocol PledgedProjectsProvider {
   func page(tiers: [PledgeProjectsOverviewSort], cursor: String?, limit: Int) async throws
-    -> GraphAPI.FetchPledgedProjectsQuery.Data
+    -> PledgedProjectsResponse
 }
 
 @MainActor
@@ -14,7 +14,7 @@ public struct AsyncPledgedProjectsProvider: PledgedProjectsProvider {
   private let service: any ServiceType
   public init(service: any ServiceType) { self.service = service }
   public func page(tiers: [PledgeProjectsOverviewSort], cursor: String?, limit: Int) async throws
-    -> GraphAPI.FetchPledgedProjectsQuery.Data
+    -> PledgedProjectsResponse
   {
     try await self.service.pledgedProjects(tiers: tiers, cursor: cursor, limit: limit)
   }
@@ -24,15 +24,15 @@ public struct AsyncPledgedProjectsProvider: PledgedProjectsProvider {
 @MainActor
 public final class PledgedProjectsFeature {
   public typealias Snapshot = Paginator<
-    GraphAPI.FetchPledgedProjectsQuery.Data, PPOProjectCardModel, String, ErrorEnvelope, Void
+    PledgedProjectsResponse, PPOProjectCardModel, String, ErrorEnvelope, Void
   >.Results
   private let sessionFeature: SessionFeature
   private let makeProvider: () -> any PledgedProjectsProvider
-  private let tiers: () -> [PledgeProjectsOverviewSort]
+  private let tiers: @MainActor () -> [PledgeProjectsOverviewSort]
 
   public init(
     sessionFeature: SessionFeature, makeProvider: @escaping () -> any PledgedProjectsProvider,
-    tiers: @escaping () -> [PledgeProjectsOverviewSort] = PledgedProjectsFeature.enabledTiers
+    tiers: @escaping @MainActor () -> [PledgeProjectsOverviewSort] = PledgedProjectsFeature.enabledTiers
   ) {
     self.sessionFeature = sessionFeature
     self.makeProvider = makeProvider
@@ -129,9 +129,7 @@ public final class PledgedProjectsFeature {
         let data = try await provider.page(tiers: tiers, cursor: cursor, limit: 10)
         try Task.checkCancellation()
         guard route.pending?.id == requestID, self.session == session else { return }
-        let pledges = data.pledgeProjectsOverview?.pledges
-        let newCards =
-          pledges?.edges?.compactMap { $0?.node }.compactMap { PPOProjectCardModel(node: $0) } ?? []
+        let newCards = data.cards.compactMap { PPOProjectCardModel(card: $0) }
         let cards = (cursor == nil ? [] : previous.values) + newCards
         let page =
           newCards.isEmpty
@@ -139,9 +137,9 @@ public final class PledgedProjectsFeature {
         let snapshot: Snapshot
         if cards.isEmpty {
           snapshot = .empty
-        } else if let next = pledges?.pageInfo.endCursor, !newCards.isEmpty {
+        } else if let next = data.cursor, !newCards.isEmpty {
           snapshot = .someLoaded(
-            values: cards, cursor: next, total: pledges?.totalCount, page: page)
+            values: cards, cursor: next, total: data.total, page: page)
         } else {
           snapshot = .allLoaded(values: cards, page: page)
         }

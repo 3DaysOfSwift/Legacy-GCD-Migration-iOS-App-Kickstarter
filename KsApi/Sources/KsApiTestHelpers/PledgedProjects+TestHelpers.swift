@@ -41,7 +41,11 @@ extension GraphAPI.FetchPledgedProjectsQuery {
     amount.currency = .case(.usd)
     amount.symbol = "$"
 
+    // Navigation and analytics snapshots eagerly read the complete selected creator.
     let creator = Mock<GraphAPITestMocks.User>(name: "fakeCreator")
+    creator.id = "123"
+    creator.imageUrl = "https://example.com/creator.png"
+    creator.isBlocked = false
 
     let project = ProjectCardFragment.mockProject(id: cursor)
     project.creator = creator

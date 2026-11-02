@@ -111,12 +111,12 @@ extension Service {
 extension Service {
   @MainActor public func pledgedProjects(
     tiers: [GraphAPI.PledgeProjectsOverviewSort], cursor: String?, limit: Int
-  ) async throws -> GraphAPI.FetchPledgedProjectsQuery.Data {
+  ) async throws -> PledgedProjectsResponse {
     try await self.cancellableQuery(
       GraphAPI.FetchPledgedProjectsQuery(
         first: .some(limit), after: .someOrNil(cursor),
         tierTypes: .some(tiers.map { GraphQLEnum($0) })
-      ))
+      ), map: { PledgedProjectsResponse($0) })
   }
   @MainActor public func confirmPledgeAddress(backingID: String, addressID: String) async throws
     -> Bool

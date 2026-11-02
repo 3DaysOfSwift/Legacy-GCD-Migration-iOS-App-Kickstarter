@@ -16,7 +16,7 @@ public enum Mailbox: String {
  A type that knows how to perform requests for Kickstarter data.
  */
 public protocol ServiceType {
-  @MainActor func pledgedProjects(tiers: [GraphAPI.PledgeProjectsOverviewSort], cursor: String?, limit: Int) async throws -> GraphAPI.FetchPledgedProjectsQuery.Data
+  @MainActor func pledgedProjects(tiers: [GraphAPI.PledgeProjectsOverviewSort], cursor: String?, limit: Int) async throws -> PledgedProjectsResponse
   @MainActor func confirmPledgeAddress(backingID: String, addressID: String) async throws -> Bool
   @MainActor func setPledgeReceipt(backingID: String, received: Bool) async throws -> Bool
   @MainActor func pledgePaymentPlan(slug: String, amount: String) async throws -> PledgePaymentPlan?

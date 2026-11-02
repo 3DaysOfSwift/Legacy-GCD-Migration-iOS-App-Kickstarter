@@ -34,7 +34,7 @@ import KsApi
       alerts: [
         .init(type: .info, icon: nil, message: "Pledge collected")
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
@@ -57,7 +57,7 @@ import KsApi
       alerts: [
         .init(type: .info, icon: nil, message: "Survey submitted")
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
@@ -85,7 +85,7 @@ import KsApi
       alerts: [
         .init(type: .warning, icon: .time, message: "Address locks in 8 hours")
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
@@ -113,7 +113,7 @@ import KsApi
       alerts: [
         .init(type: .info, icon: nil, message: "Reward received")
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island",
       projectId: 12_345,
       pledge: "$50.00",
@@ -133,7 +133,7 @@ import KsApi
       alerts: [
         .init(type: .info, icon: nil, message: "In fulfillment")
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
@@ -167,7 +167,7 @@ import KsApi
         .init(type: .info, icon: .time, message: "13 days to go"),
         .init(type: .warning, icon: nil, message: "43.12% funded")
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
@@ -188,7 +188,7 @@ import KsApi
         .init(type: .info, icon: .time, message: "2 days to go"),
         .init(type: .info, icon: nil, message: "2278.37% funded")
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
@@ -208,7 +208,7 @@ import KsApi
       alerts: [
         .init(type: .info, icon: nil, message: "2278.37% funded")
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
@@ -236,7 +236,7 @@ import KsApi
       alerts: [
         .init(type: .warning, icon: nil, message: "Campaign unsuccessful")
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
@@ -256,7 +256,7 @@ import KsApi
       alerts: [
         .init(type: .alert, icon: .alert, message: "Pledge dropped")
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
@@ -276,7 +276,7 @@ import KsApi
       alerts: [
         .init(type: .warning, icon: nil, message: "Pledge canceled")
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
@@ -298,7 +298,7 @@ import KsApi
       alerts: [
         .init(type: .warning, icon: .time, message: "Address locks in 8 hours")
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
@@ -334,7 +334,7 @@ import KsApi
         .init(type: .warning, icon: .alert, message: "Survey available"),
         .init(type: .warning, icon: .time, message: "Address locks in 48 hours")
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
@@ -359,7 +359,7 @@ import KsApi
           message: "Pledge will be dropped in 6 days"
         )
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
@@ -384,7 +384,7 @@ import KsApi
           message: "Pledge will be dropped in 6 days"
         )
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
@@ -404,7 +404,7 @@ import KsApi
       alerts: [
         .init(type: .warning, icon: .alert, message: "Survey available")
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
@@ -424,7 +424,7 @@ import KsApi
       alerts: [
         .init(type: .warning, icon: .alert, message: "Finalize your pledge")
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
@@ -480,7 +480,7 @@ import KsApi
           message: "Bad"
         )
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Project",
       projectId: 12_345,
       pledge: "$50.00",
@@ -514,7 +514,7 @@ import KsApi
           message: "And still very long"
         )
       ],
-      image: .network(URL(string: "https:///")!),
+      image: URL(string: "https:///")!,
       projectName: "Project",
       projectId: 12_345,
       pledge: "$50.00",

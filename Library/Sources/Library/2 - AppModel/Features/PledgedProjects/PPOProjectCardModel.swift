@@ -1,6 +1,5 @@
 import Foundation
 import GraphAPI
-import Kingfisher
 import KsApi
 
 public enum PPORewardToggleState: Equatable {
@@ -12,7 +11,7 @@ public enum PPORewardToggleState: Equatable {
 public struct PPOProjectCardModel: Identifiable, Equatable, Hashable {
   public let isUnread: Bool
   public let alerts: [Alert]
-  public let image: Kingfisher.Source
+  public let image: URL
   public let projectName: String
   public let projectId: Int
   public let pledge: String
@@ -23,13 +22,13 @@ public struct PPOProjectCardModel: Identifiable, Equatable, Hashable {
   public let tierType: PPOTierType
   public let backingId: Int
   public let backingGraphId: String
-  public let projectAnalytics: GraphAPI.ProjectAnalyticsFragment
+  public let projectAnalytics: ProjectAnalyticsSnapshot
   public let projectPageParam: ProjectPageParam?
 
   public init(
     isUnread: Bool,
     alerts: [Alert],
-    image: Kingfisher.Source,
+    image: URL,
     projectName: String,
     projectId: Int,
     pledge: String,
@@ -40,7 +39,7 @@ public struct PPOProjectCardModel: Identifiable, Equatable, Hashable {
     tierType: PPOTierType,
     backingId: Int,
     backingGraphId: String,
-    projectAnalytics: GraphAPI.ProjectAnalyticsFragment,
+    projectAnalytics: any ProjectAnalyticsProperties,
     projectPageParam: ProjectPageParam?
   ) {
     self.isUnread = isUnread
@@ -56,7 +55,7 @@ public struct PPOProjectCardModel: Identifiable, Equatable, Hashable {
     self.tierType = tierType
     self.backingId = backingId
     self.backingGraphId = backingGraphId
-    self.projectAnalytics = projectAnalytics
+    self.projectAnalytics = ProjectAnalyticsSnapshot(projectAnalytics)
     self.projectPageParam = projectPageParam
   }
 
@@ -224,7 +223,7 @@ public struct PPOProjectCardModel: Identifiable, Equatable, Hashable {
 }
 
 extension PPOProjectCardModel.Alert {
-  init?(flag: GraphAPI.PPOCardFragment.Flag) {
+  init?(flag: PledgedProjectsResponse.Flag) {
     let alertIcon: PPOProjectCardModel.Alert.AlertIcon? = switch flag.icon {
     case "alert":
       .alert

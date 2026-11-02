@@ -24,8 +24,8 @@ public struct ProjectCardProperties {
   public let pledged: Money?
   public let url: String
 
-  let projectAnalytics: any ProjectAnalyticsProperties
-  let projectPamphletMainCell: any HasProjectPamphletMainCellProperties
+  let projectAnalytics: ProjectAnalyticsSnapshot
+  let projectPamphletMainCell: ProjectPamphletMainCellProperties
 
   public init(
     projectID: Int,
@@ -61,8 +61,8 @@ public struct ProjectCardProperties {
     self.goal = goal
     self.pledged = pledged
     self.url = url
-    self.projectAnalytics = projectAnalytics
-    self.projectPamphletMainCell = projectPamphletMainCell
+    self.projectAnalytics = ProjectAnalyticsSnapshot(projectAnalytics)
+    self.projectPamphletMainCell = projectPamphletMainCell.projectPamphletMainCellProperties
   }
 
   public var shouldDisplayPrelaunch: Bool {

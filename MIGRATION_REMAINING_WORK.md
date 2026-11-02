@@ -1,6 +1,6 @@
 # Remaining CFA migration work
 
-Author: Matthew Thomas. Updated 29 October 2026.
+Author: Matthew Thomas. Updated 2 November 2026.
 
 The app-wide migration is **in progress**. Business-feature checkpoints are recorded
 in MIGRATION_LEDGER.md; this is the remaining implementation/validation inventory,
@@ -25,8 +25,9 @@ creator draft work is superseded by their completed checkpoints.
    Checkout validation/completion, payment-plan and managed backing/rewards now also
    map before transfer. Backing/reward/installment value graphs have checked Sendable
    conformances; payment plans carry eligibility/installments and completion carries Void.
-   Next: pledged-project overview (including analytics/image values), remaining project
-   detail/reward/related-project and other query/provider graphs. Classify global style/lens
+   Pledged-project overview, including image/analytics and initial navigation values,
+   now maps before transfer. Shared project cards also retain concrete snapshots.
+   Next: remaining project detail/reward/related-project and other query/provider graphs. Classify global style/lens
    and generated Apollo diagnostics; resolve unsafe migrated application boundaries.
    A warning-free Swift 6 language conversion is a separate scope, not an implied
    requirement to rewrite all generated/third-party compatibility machinery.

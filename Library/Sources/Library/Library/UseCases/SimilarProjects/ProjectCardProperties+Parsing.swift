@@ -5,11 +5,14 @@ import KsApi
 
 public extension ProjectCardProperties {
   init?(_ fragment: GraphAPI.ProjectCardFragment) {
+    self.init(ProjectCardResponse(fragment))
+  }
+
+  init?(_ fragment: ProjectCardResponse) {
     guard
-      let imageURLString = fragment.image?.url,
+      let imageURLString = fragment.imageURL,
       let imageURL = URL(string: imageURLString),
-      let fragmentState = fragment.state.value,
-      let state = Project.State(fragmentState)
+      let state = Project.State(rawValue: fragment.state.lowercased())
     else {
       return nil
     }
@@ -35,12 +38,12 @@ public extension ProjectCardProperties {
     self.deadlineAt = deadlineAt
     self.percentFunded = fragment.percentFunded
     self.state = state
-    self.goal = (fragment.goal?.fragments.moneyFragment).flatMap(Money.init)
-    self.pledged = Money(fragment.pledged.fragments.moneyFragment)
+    self.goal = fragment.goal
+    self.pledged = fragment.pledged
     self.url = fragment.url
 
-    self.projectAnalytics = fragment.fragments.projectAnalyticsFragment
-    self.projectPamphletMainCell = fragment.fragments.projectPamphletMainCellPropertiesFragment
+    self.projectAnalytics = fragment.analytics
+    self.projectPamphletMainCell = fragment.details.projectPamphletMainCellProperties
   }
 }
 
@@ -50,7 +53,7 @@ extension ProjectCardProperties: ProjectPamphletMainCellConfiguration {
   }
 
   public var projectPamphletMainCellProperties: ProjectPamphletMainCellProperties {
-    self.projectPamphletMainCell.projectPamphletMainCellProperties
+    self.projectPamphletMainCell
   }
 
   public var projectCreatorProperties: ProjectCreatorProperties {
@@ -68,38 +71,17 @@ extension ProjectCardProperties: ProjectPamphletMainCellConfiguration {
 
 extension GraphAPI.ProjectPamphletMainCellPropertiesFragment: HasProjectPamphletMainCellProperties {
   public var projectPamphletMainCellProperties: ProjectPamphletMainCellProperties {
-    func moneyFragmentToMoney(_ fragment: GraphAPI.MoneyFragment?) -> ProjectPamphletMainCellProperties
-      .Money {
-      return (
-        amount: Int(Double(fragment?.amount ?? "0") ?? 0),
-        currency: fragment?.currency?.rawValue ?? "",
-        symbol: fragment?.symbol ?? ""
-      )
-    }
+    ProjectCardResponse.Details(self).projectPamphletMainCellProperties
+  }
+}
 
-    let state: Project.State
-    switch self.state {
-    case .case(.started):
-      state = .started
-    case .case(.submitted):
-      state = .submitted
-    case .case(.live):
-      state = .live
-    case .case(.canceled):
-      state = .canceled
-    case .case(.suspended):
-      state = .suspended
-    case .case(.purged):
-      state = .purged
-    case .case(.successful):
-      state = .successful
-    case .case(.failed), .unknown:
-      state = .failed
-    }
+extension ProjectCardResponse.Details: HasProjectPamphletMainCellProperties {
+  public var projectPamphletMainCellProperties: ProjectPamphletMainCellProperties {
+    let state = Project.State(rawValue: self.state.lowercased()) ?? .failed
 
     let video: (hls: String?, high: String)?
-    if let sources = self.video?.videoSources, let high = sources.high?.src {
-      video = (hls: sources.hls?.src, high: high)
+    if let high = self.videoHigh {
+      video = (hls: self.videoHLS, high: high)
     } else {
       video = nil
     }
@@ -108,27 +90,27 @@ extension GraphAPI.ProjectPamphletMainCellPropertiesFragment: HasProjectPamphlet
       param: .id(self.pid),
       name: self.name,
       blurb: self.projectDescription,
-      creatorName: self.creator?.name ?? "",
-      creatorAvatarURL: self.creator?.imageUrl ?? "",
-      creatorId: (self.creator?.id).flatMap(Int.init) ?? 0,
-      isCreatorBlocked: self.creator?.isBlocked ?? false,
+      creatorName: self.creatorName,
+      creatorAvatarURL: self.creatorAvatarURL,
+      creatorId: self.creatorId,
+      isCreatorBlocked: self.isCreatorBlocked,
       state: state,
       stateChangedAt: TimeInterval(self.stateChangedAt) ?? 0,
-      photo: self.image?.url ?? "",
+      photo: self.photo,
       displayPrelaunch: nil,
-      isBacking: self.backing.isSome,
+      isBacking: self.isBacking,
       backersCount: self.backersCount,
-      categoryName: self.category?.name ?? "",
-      locationName: self.location?.displayableName ?? "",
+      categoryName: self.categoryName,
+      locationName: self.locationName,
       deadline: TimeInterval(self.deadlineAt ?? "0") ?? 0,
       fxRate: Float(self.fxRate),
       projectUsdExchangeRate: Float(self.projectUsdExchangeRate),
-      goal: moneyFragmentToMoney(self.goal?.fragments.moneyFragment),
-      pledged: moneyFragmentToMoney(self.pledged.fragments.moneyFragment),
+      goal: (Int(Double(self.goalAmount ?? "0") ?? 0), self.goalCurrency, self.goalSymbol),
+      pledged: (Int(Double(self.pledgedAmount ?? "0") ?? 0), self.pledgedCurrency, self.pledgedSymbol),
       convertedPledgedAmount: nil,
-      currency: self.currency.rawValue,
+      currency: self.currency,
       userCurrency: nil,
-      country: Project.Country(currencyCode: self.country.code.rawValue) ?? .us,
+      country: Project.Country(currencyCode: self.country) ?? .us,
       projectNotice: "",
       video: video,
       webURL: self.url

@@ -944,10 +944,10 @@
       return self.fetchUserSelfResponse ?? .template
     }
 
-    @MainActor public func pledgedProjects(tiers: [GraphAPI.PledgeProjectsOverviewSort], cursor: String?, limit: Int) async throws -> GraphAPI.FetchPledgedProjectsQuery.Data {
+    @MainActor public func pledgedProjects(tiers: [GraphAPI.PledgeProjectsOverviewSort], cursor: String?, limit: Int) async throws -> PledgedProjectsResponse {
       try Task.checkCancellation()
       guard let result = self.fetchPledgedProjectsResult else { throw ErrorEnvelope.couldNotParseJSON }
-      return try result.get()
+      return PledgedProjectsResponse(try result.get())
     }
     @MainActor public func confirmPledgeAddress(backingID: String, addressID: String) async throws -> Bool {
       try self.completeAccountWrite(.success(EmptyResponseEnvelope()))

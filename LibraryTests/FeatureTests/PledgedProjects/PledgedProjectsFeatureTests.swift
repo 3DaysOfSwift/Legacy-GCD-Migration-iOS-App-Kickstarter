@@ -136,10 +136,10 @@ private final class ControlledPledgedProjectsProvider: PledgedProjectsProvider {
   let gate = AccountRequestGate<GraphAPI.FetchPledgedProjectsQuery.Data>()
   var inputs: [(tiers: [PledgeProjectsOverviewSort], cursor: String?, limit: Int)] = []
   func page(tiers: [PledgeProjectsOverviewSort], cursor: String?, limit: Int) async throws
-    -> GraphAPI.FetchPledgedProjectsQuery.Data
+    -> PledgedProjectsResponse
   {
     self.inputs.append((tiers, cursor, limit))
-    return try await self.gate.request()
+    return PledgedProjectsResponse(try await self.gate.request())
   }
 }
 extension GraphAPI.FetchPledgedProjectsQuery.Data {

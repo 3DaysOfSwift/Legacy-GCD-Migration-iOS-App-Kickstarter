@@ -1,6 +1,6 @@
 # Platform callback and concurrency audit
 
-Author: Matthew Thomas. Recorded 29 October 2026.
+Author: Matthew Thomas. Updated 2 November 2026.
 Baseline: c8c5f0747429b65e0d1ea5d1d0b0392dbf333dc6. Migration remains in progress.
 
 ## Scope and method
@@ -16,6 +16,25 @@ Text matching is a starting inventory, not exhaustive proof of callback safety.
 The primitive scan matched **40 lines in 25 files**. None matched the Feature
 implementation directory. That does not make every Feature concurrency-clean:
 complete compiler diagnostics also expose non-Sendable transfer boundaries.
+
+## Pledged-project overview response snapshots — 2 November 2026
+
+Service.pledgedProjects now maps Apollo data inside the native callback into checked
+Sendable PledgedProjectsResponse values. PledgedProjectsFeature receives those values,
+checks request/session freshness, then creates presentation cards and commits pagination.
+Image URLs, analytics, address/action data and initial project-page values contain no
+retained generated selection sets. Kingfisher.Source is created at the view boundary.
+Shared ProjectCardProperties parsing and construction now retain concrete analytics and
+initial-page snapshots rather than arbitrary protocol-backed fragment objects.
+
+50 selected tests passed with zero failures/skips: 17 Library, 30 framework and 3 API. App build succeeded with zero errors and five warning entries (generated asset-name collisions and Crashlytics script).
+Five new tests cover immutable analytics, relative dates, cross-task transfer and
+image/analytics/navigation parity. Existing pagination/cancellation/session tests pass.
+An incomplete mock creator was corrected; no reference-simulator gate was bypassed.
+
+Other project/reward/related-query transport boundaries remain open, as do the platform
+callback audit and final visual/device/live-operation validation. App-wide migration
+remains in progress. Evidence: sibling Migration Evidence/kickstarter-pledged-overview.
 
 ## Latest refresh: checkout/query transport and actor-owned reads — 29 October 2026
 

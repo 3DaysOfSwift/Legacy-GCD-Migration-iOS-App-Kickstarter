@@ -1347,3 +1347,14 @@ cache fill. Logout/reset cancels the Feature read. Disk work runs on a storage a
   a MainActor-owned result slot. Equivalent pending reads still share success/error;
   canceled callers cannot consume a shared result, while other live waiters can.
   Route/session invalidation, read-after-write ordering and original errors remain.
+
+## Pledged-project overview response snapshots — 2 November 2026
+
+- Preserve incomplete-card rejection, currency formatting, address line ordering,
+  tier-specific actions and confirm-address fallback to surveys.
+- Preserve reward-toggle feature gating and all existing analytics values, including
+  event-time relative date calculations. Preserve initial project-page content.
+- Preserve coalescing, pagination, cancellation and stale route/session rejection.
+- Copy generated response data before native callback continuation transfer; keep
+  presentation decisions in the Feature and image-loader objects in the view.
+- Validation: 50 selected tests passed with zero failures/skips: 17 Library, 30 framework and 3 API. App build succeeded with zero errors and five warning entries (generated asset-name collisions and Crashlytics script).

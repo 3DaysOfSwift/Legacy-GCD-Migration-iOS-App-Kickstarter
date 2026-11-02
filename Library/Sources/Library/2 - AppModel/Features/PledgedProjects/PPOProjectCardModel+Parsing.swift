@@ -1,6 +1,5 @@
 import Foundation
 import GraphAPI
-import Kingfisher
 import KsApi
 
 private struct PPOParsedAction {
@@ -10,39 +9,36 @@ private struct PPOParsedAction {
 
 extension PPOProjectCardModel {
   public init?(node: GraphAPI.FetchPledgedProjectsQuery.Data.PledgeProjectsOverview.Pledges.Edge.Node) {
-    let card = node.fragments.pPOCardFragment
-    let backing = card.backing?.fragments.pPOBackingFragment
-    let ppoProject = backing?.project?.fragments.pPOProjectFragment
+    self.init(card: PledgedProjectsResponse.Card(node.fragments.pPOCardFragment))
+  }
 
-    let image = ppoProject?.image
-      .flatMap { URL(string: $0.url) }
-      .map { Kingfisher.Source.network($0) }
-
-    let projectName = ppoProject?.name
-    let projectId = ppoProject?.pid
-    let pledgeFragment = backing?.amount.fragments.moneyFragment
-    let formattedPledge = pledgeFragment.flatMap { Format.currency($0) }
-    let creatorName = ppoProject?.creator?.name
-
-    let projectCardFragment = backing?.project?.fragments.projectCardFragment
-    let projectPageParam = projectCardFragment.flatMap {
-      ProjectCardProperties($0)?.projectPageParam
+  public init?(card: PledgedProjectsResponse.Card) {
+    let image = card.imageURL
+    let projectName = card.projectName
+    let projectId = card.projectId
+    let formattedPledge: String?
+    if let amount = card.amount, let currency = card.currency,
+       let decimal = try? Decimal(amount, format: .number) {
+      formattedPledge = decimal.formatted(.currency(code: currency).locale(AppEnvironment.current.locale))
+    } else {
+      formattedPledge = nil
     }
+    let creatorName = card.creatorName
+    let projectPageParam = card.project.flatMap { ProjectCardProperties($0)?.projectPageParam }
 
     // Card-specific webview url is based on the card tier type.
     // Fall back to backingDetailsPageRoute if needed.
-    let webviewUrl = card.webviewUrl ?? backing?.backingDetailsPageRoute
+    let webviewUrl = card.webviewUrl
 
-    let addressWithoutName = Self.addressWithoutName(deliveryAddress: backing?.deliveryAddress)
+    let addressWithoutName = Self.addressWithoutName(deliveryAddress: card.deliveryAddress)
     let displayAddress = Self.displayAddress(
       card: card,
-      name: backing?.deliveryAddress?.recipientName,
+      name: card.deliveryAddress?.recipientName,
       addressWithoutName: addressWithoutName,
       webviewUrl: webviewUrl
     )
 
-    let alerts: [PPOProjectCardModel.Alert] = card.flags?
-      .compactMap { PPOProjectCardModel.Alert(flag: $0) } ?? []
+    let alerts: [PPOProjectCardModel.Alert] = card.flags.compactMap { PPOProjectCardModel.Alert(flag: $0) }
 
     guard let cardTierType = card.tierType, let tierType = PPOTierType(rawValue: cardTierType)
     else {
@@ -53,27 +49,27 @@ extension PPOProjectCardModel {
       showShippingAddress: card.showShippingAddress,
       addressWithoutName: addressWithoutName,
       webviewUrl: webviewUrl,
-      backing: backing
+      card: card
     )
 
-    let projectAnalyticsFragment = backing?.project?.fragments.projectAnalyticsFragment
+    let projectAnalytics = card.analytics
 
     // Show the reward toggle if the backend says to show it and the v2 feature flag is on.
     let showRewardToggle = featurePledgedProjectsOverviewV2Enabled() && card.showRewardReceivedToggle
     let toggleState: PPORewardToggleState
     if !showRewardToggle {
       toggleState = .hidden
-    } else if backing?.backerCompleted == true {
+    } else if card.backerCompleted == true {
       toggleState = .rewardReceived
     } else {
       toggleState = .notReceived
     }
 
-    let backingId = backing.flatMap { decompose(id: $0.id) }
-    let backingGraphId = backing?.id
+    let backingId = card.backingId.flatMap { decompose(id: $0) }
+    let backingGraphId = card.backingId
 
     if let image, let projectName, let projectId, let formattedPledge, let creatorName, let action,
-       let projectAnalyticsFragment, let backingId, let backingGraphId {
+       let projectAnalytics, let backingId, let backingGraphId {
       self.init(
         isUnread: true,
         alerts: alerts,
@@ -88,7 +84,7 @@ extension PPOProjectCardModel {
         tierType: action.tierType,
         backingId: backingId,
         backingGraphId: backingGraphId,
-        projectAnalytics: projectAnalyticsFragment,
+        projectAnalytics: projectAnalytics,
         projectPageParam: projectPageParam
       )
     } else {
@@ -98,7 +94,7 @@ extension PPOProjectCardModel {
 
   // MARK: Address helpers
 
-  private static func addressWithoutName(deliveryAddress: PPOBackingFragment.DeliveryAddress?) -> String? {
+  private static func addressWithoutName(deliveryAddress: PledgedProjectsResponse.Address?) -> String? {
     guard let deliveryAddress else { return nil }
     let cityRegionFields: [String?] = [
       deliveryAddress.city,
@@ -109,7 +105,7 @@ extension PPOProjectCardModel {
       deliveryAddress.addressLine1,
       deliveryAddress.addressLine2,
       cityRegionFields.compactMap { $0 }.joined(),
-      deliveryAddress.countryCode.rawValue,
+      deliveryAddress.countryCode,
       deliveryAddress.phoneNumber
     ]
     // Create address from all fields that are not nil and not the empty string.
@@ -117,7 +113,7 @@ extension PPOProjectCardModel {
   }
 
   private static func displayAddress(
-    card: PPOCardFragment,
+    card: PledgedProjectsResponse.Card,
     name: String?,
     addressWithoutName: String?,
     webviewUrl: String?
@@ -140,13 +136,13 @@ extension PPOProjectCardModel {
     showShippingAddress: Bool,
     addressWithoutName: String?,
     webviewUrl: String?,
-    backing: PPOBackingFragment?
+    card: PledgedProjectsResponse.Card
   ) -> PPOParsedAction? {
     switch tierType {
     case .fixPayment:
       return self.actionForPaymentFailed()
     case .confirmAddress:
-      let addressId: String? = backing?.deliveryAddress?.id
+      let addressId: String? = card.deliveryAddress?.id
       // Confirm address action will fall back to complete survey action if no address.
       return self.actionForConfirmAddress(
         showAddress: showShippingAddress,
@@ -156,7 +152,7 @@ extension PPOProjectCardModel {
     case .openSurvey:
       return self.actionForSurvey(url: webviewUrl)
     case .authenticateCard:
-      return self.actionForAuthentication(clientSecret: backing?.clientSecret)
+      return self.actionForAuthentication(clientSecret: card.clientSecret)
     case .pledgeManagement:
       return self.actionForPledgeManagement(url: webviewUrl)
     case .campaignLive, .campaignFunded:

@@ -6,7 +6,7 @@ import Library
 import UIKit
 
 typealias PPOViewModelPaginator = Paginator<
-  GraphAPI.FetchPledgedProjectsQuery.Data,
+  PledgedProjectsResponse,
   PPOProjectCardViewModel,
   String,
   ErrorEnvelope,

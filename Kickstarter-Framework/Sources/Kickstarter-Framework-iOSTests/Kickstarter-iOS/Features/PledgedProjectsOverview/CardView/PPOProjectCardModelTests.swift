@@ -97,6 +97,37 @@ final class PPOProjectCardModelTests: XCTestCase {
     ])
   }
 
+  func testResponsePreservesImageAnalyticsAndNavigation() throws {
+    let edge = GraphAPI.FetchPledgedProjectsQuery.mockEdge(addressMock: nil)
+    let node = GraphAPI.FetchPledgedProjectsQuery.Data.PledgeProjectsOverview.Pledges.Edge.Node
+      .from(try XCTUnwrap(edge.node))
+    let fragment = node.fragments.pPOCardFragment
+    let project = try XCTUnwrap(fragment.backing?.fragments.pPOBackingFragment.project)
+    let response = PledgedProjectsResponse.Card(fragment)
+    let card = try XCTUnwrap(PPOProjectCardModel(card: response))
+    XCTAssertEqual(card.image.absoluteString, project.fragments.pPOProjectFragment.image?.url)
+    XCTAssertEqual(card.projectAnalytics.id, project.fragments.projectAnalyticsFragment.id)
+    XCTAssertEqual(card.projectAnalytics.name, project.fragments.projectAnalyticsFragment.name)
+    XCTAssertEqual(card.projectAnalytics.statsPledged, project.fragments.projectAnalyticsFragment.statsPledged)
+    XCTAssertEqual(card.projectAnalytics.tags, project.fragments.projectAnalyticsFragment.tags)
+    let expected = try XCTUnwrap(ProjectCardProperties(project.fragments.projectCardFragment))
+    let initial = try XCTUnwrap(card.projectPageParam?.initialProject)
+    XCTAssertEqual(initial.projectAnalyticsProperties.name, expected.projectAnalyticsProperties.name)
+    XCTAssertEqual(initial.projectPamphletMainCellProperties.photo, expected.projectPamphletMainCellProperties.photo)
+    XCTAssertEqual(initial.projectPamphletMainCellProperties.blurb, expected.projectPamphletMainCellProperties.blurb)
+  }
+
+  func testResponseCrossesTaskBoundaryWithoutTransportObjects() async throws {
+    let response = PledgedProjectsResponse(try GraphAPI.FetchPledgedProjectsQuery.fakeData(
+      cursors: 1...2, hasNextPage: false))
+    let transferred = await _Concurrency.Task.detached { response }.value
+    XCTAssertEqual(transferred.cards.count, response.cards.count)
+    XCTAssertEqual(transferred.cards.first?.imageURL, response.cards.first?.imageURL)
+    XCTAssertEqual(transferred.cards.first?.analytics?.id, response.cards.first?.analytics?.id)
+    XCTAssertEqual(transferred.cursor, response.cursor)
+    XCTAssertEqual(transferred.total, response.total)
+  }
+
   private func mockModel(address: Mock<GraphAPITestMocks.Address>?) -> PPOProjectCardModel? {
     let mockEdge = GraphAPI.FetchPledgedProjectsQuery.mockEdge(addressMock: address)
     let node = GraphAPI.FetchPledgedProjectsQuery.Data.PledgeProjectsOverview.Pledges.Edge.Node
