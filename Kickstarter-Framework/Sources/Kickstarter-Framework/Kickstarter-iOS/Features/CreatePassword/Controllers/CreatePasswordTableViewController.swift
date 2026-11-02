@@ -28,6 +28,7 @@ extension CreatePasswordRow {
   }
 }
 
+@MainActor
 @objc protocol CreatePasswordTableViewControllerType {
   @objc optional func newPasswordTextFieldChanged(_ sender: UITextField)
   @objc optional func newPasswordTextFieldDidReturn(_ sender: UITextField)
@@ -35,6 +36,7 @@ extension CreatePasswordRow {
   @objc optional func newPasswordConfirmationTextFieldDidReturn(_ sender: UITextField)
 }
 
+@MainActor
 protocol CreatePasswordTableViewControllerDelegate: AnyObject {
   func createPasswordTableViewController(
     _ viewController: CreatePasswordTableViewController,

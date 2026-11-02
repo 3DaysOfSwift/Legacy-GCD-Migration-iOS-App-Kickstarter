@@ -4,6 +4,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 internal protocol DiscoveryFiltersViewControllerDelegate: AnyObject {
   func discoveryFilters(_ viewController: DiscoveryFiltersViewController, selectedRow: SelectableRow)
   func discoveryFiltersDidClose(_ viewController: DiscoveryFiltersViewController)

@@ -3,6 +3,7 @@ import Library
 import SwiftUI
 import UIKit
 
+@MainActor
 internal protocol VideoFeedBannerCellDelegate: AnyObject {
   func videoFeedBannerCellDidTapTryItNow(_ cell: VideoFeedBannerCell)
 }

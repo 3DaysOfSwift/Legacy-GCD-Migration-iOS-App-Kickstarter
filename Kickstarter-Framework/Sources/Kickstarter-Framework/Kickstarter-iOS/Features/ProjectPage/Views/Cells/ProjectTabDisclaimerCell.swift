@@ -4,6 +4,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 protocol ProjectTabDisclaimerCellDelegate: AnyObject {
   func projectTabDisclaimerCell(
     _ cell: ProjectTabDisclaimerCell,

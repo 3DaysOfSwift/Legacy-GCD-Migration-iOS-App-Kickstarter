@@ -16,6 +16,7 @@ public enum RewardTrackingDetailsViewStyle {
   case backingDetails
 }
 
+@MainActor
 protocol RewardTrackingDetailsViewDelegate: AnyObject {
   func didTapTrackingButton(with trackingURL: URL)
 }

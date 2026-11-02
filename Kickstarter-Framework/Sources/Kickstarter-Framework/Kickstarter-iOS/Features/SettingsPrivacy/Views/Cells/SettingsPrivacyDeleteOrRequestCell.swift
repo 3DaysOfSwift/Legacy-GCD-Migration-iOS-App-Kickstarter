@@ -6,6 +6,7 @@ import ReactiveExtensions
 import ReactiveSwift
 import UIKit
 
+@MainActor
 internal protocol SettingsPrivacyDeleteOrRequestCellDelegate: AnyObject {
   func settingsPrivacyDeleteOrRequestCellTapped(_ cell: SettingsPrivacyDeleteOrRequestCell, with url: URL)
 }

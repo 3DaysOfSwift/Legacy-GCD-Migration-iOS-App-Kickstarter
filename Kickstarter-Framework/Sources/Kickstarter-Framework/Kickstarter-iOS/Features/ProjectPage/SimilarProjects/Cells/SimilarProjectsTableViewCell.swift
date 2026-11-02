@@ -3,6 +3,7 @@ import KsApi
 import Library
 import UIKit
 
+@MainActor
 protocol SimilarProjectsTableViewCellDelegate: AnyObject {
   func didSelectProject(_ project: ProjectCardProperties)
 }

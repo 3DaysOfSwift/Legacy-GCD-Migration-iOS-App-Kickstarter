@@ -5,6 +5,7 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 protocol PledgeShippingLocationViewControllerDelegate: AnyObject {
   func pledgeShippingLocationViewController(
     _ viewController: PledgeShippingLocationViewController,

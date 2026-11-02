@@ -3,6 +3,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 internal protocol DiscoveryOnboardingCellDelegate: AnyObject {
   func discoveryOnboardingTappedSignUpLoginButton()
 }

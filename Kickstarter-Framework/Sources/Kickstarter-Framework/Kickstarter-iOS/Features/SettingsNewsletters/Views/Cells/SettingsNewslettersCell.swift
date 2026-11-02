@@ -4,6 +4,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 internal protocol SettingsNewslettersCellDelegate: AnyObject {
   func didUpdate(user: User)
   func failedToUpdateUser(_ message: String)

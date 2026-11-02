@@ -4,6 +4,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 protocol CommentCellDelegate: AnyObject {
   func commentCellDidTapHeader(_ cell: CommentCell, _ author: Comment.Author)
   func commentCellDidTapReply(_ cell: CommentCell, comment: Comment)

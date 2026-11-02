@@ -6,6 +6,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 public protocol VideoViewControllerDelegate: AnyObject {
   func videoViewControllerDidFinish(_ controller: VideoViewController)
   func videoViewControllerDidStart(_ controller: VideoViewController)

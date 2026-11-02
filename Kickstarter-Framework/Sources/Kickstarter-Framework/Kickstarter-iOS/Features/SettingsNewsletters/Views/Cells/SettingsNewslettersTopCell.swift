@@ -4,6 +4,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 protocol SettingsNewslettersTopCellDelegate: AnyObject {
   func didUpdateAllNewsletters(user: User)
   func failedToUpdateAllNewsletters(_ message: String)

@@ -33,6 +33,8 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
   private var analytics: Segment.Analytics?
   private weak var braze: Braze?
 
+  private var appNotificationObservers: [MainActorNotificationObservation] = []
+
   private var remoteConfigListener: ConfigUpdateListenerRegistration?
   private var remoteConfigTask: Task<Void, Never>?
   private var remoteConfigVersion = UUID()
@@ -298,34 +300,19 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
           .messageBannerViewController?.showBanner(with: success ? .success : .error, message: message)
       }
 
-    NotificationCenter.default
-      .addObserver(
-        forName: Notification.Name.ksr_sessionStarted,
-        object: nil,
-        queue: .main
-      ) { [weak self] _ in
-        MainActor.assumeIsolated {
-          AppModel.shared.sessionChanged()
-          self?.viewModel.inputs.userSessionStarted()
-        }
+    self.appNotificationObservers = [
+      MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
+        AppModel.shared.sessionChanged()
+        self?.viewModel.inputs.userSessionStarted()
+      },
+      MainActorNotificationObservation(name: .ksr_showNotificationsDialog) { [weak self] notification in
+        self?.viewModel.inputs.showNotificationDialog(notification: notification)
+      },
+      MainActorNotificationObservation(name: .ksr_sessionEnded) { [weak self] _ in
+        AppModel.shared.sessionChanged()
+        self?.viewModel.inputs.userSessionEnded()
       }
-
-    NotificationCenter.default
-      .addObserver(
-        forName: Notification.Name.ksr_showNotificationsDialog, object: nil, queue: .main
-      ) { [weak self] notification in
-        MainActor.assumeIsolated {
-          self?.viewModel.inputs.showNotificationDialog(notification: notification)
-        }
-      }
-
-    NotificationCenter.default
-      .addObserver(forName: Notification.Name.ksr_sessionEnded, object: nil, queue: .main) { [weak self] _ in
-        MainActor.assumeIsolated {
-          AppModel.shared.sessionChanged()
-          self?.viewModel.inputs.userSessionEnded()
-        }
-      }
+    ]
 
     self.viewModel.outputs.configureSegmentWithBraze
       .observeValues { [weak self] writeKey in
@@ -591,32 +578,32 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
 // MARK: - UNUserNotificationCenterDelegate
 
 extension AppDelegate: UNUserNotificationCenterDelegate {
-  public func userNotificationCenter(
+  nonisolated public func userNotificationCenter(
     _: UNUserNotificationCenter,
-    willPresent notification: UNNotification,
-    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
-  ) {
-    // Handle AWS foreground notification.
-    // Braze notifications will not trigger this delegate method.
-    self.rootTabBarController?.didReceiveBadgeValue(notification.request.content.badge as? Int)
-    completionHandler([.banner, .list])
+    willPresent notification: UNNotification
+  ) async -> UNNotificationPresentationOptions {
+    // Extract only immutable values before crossing to the UI actor.
+    let badge = notification.request.content.badge as? Int
+    await MainActor.run {
+      self.rootTabBarController?.didReceiveBadgeValue(badge)
+    }
+    return [.banner, .list]
   }
 
-  func userNotificationCenter(
+  nonisolated func userNotificationCenter(
     _: UNUserNotificationCenter,
-    didReceive response: UNNotificationResponse,
-    withCompletionHandler completion: @escaping () -> Void
-  ) {
-    // Handle AWS notification opened.
-    // Braze notifications will not trigger this delegate method.
-    guard let rootTabBarController = self.rootTabBarController else {
-      completion()
-      return
+    didReceive response: UNNotificationResponse
+  ) async {
+    let content = response.notification.request.content
+    let badge = content.badge as? Int
+    let envelope: PushEnvelope? = PushEnvelope.decodeJSONDictionary(content.userInfo)
+    await MainActor.run {
+      guard let rootTabBarController = self.rootTabBarController else { return }
+      if let envelope {
+        self.viewModel.inputs.didReceive(pushEnvelope: envelope)
+      }
+      rootTabBarController.didReceiveBadgeValue(badge)
     }
-
-    self.viewModel.inputs.didReceive(remoteNotification: response.notification.request.content.userInfo)
-    rootTabBarController.didReceiveBadgeValue(response.notification.request.content.badge as? Int)
-    completion()
   }
 }
 

@@ -5,6 +5,7 @@ import Prelude_UIKit
 import ReactiveSwift
 import UIKit
 
+@MainActor
 internal protocol SettingsFollowCellDelegate: AnyObject {
   /// Called when follow switch is switched off
   func settingsFollowCellDidDisableFollowing(_ cell: SettingsFollowCell)

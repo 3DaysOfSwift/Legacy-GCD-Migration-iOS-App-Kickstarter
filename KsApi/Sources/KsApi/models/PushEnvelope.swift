@@ -1,6 +1,6 @@
 
 
-public struct PushEnvelope {
+public struct PushEnvelope: Sendable {
   public let activity: Activity?
   public let aps: ApsEnvelope
   public let erroredPledge: ErroredPledge?
@@ -11,7 +11,7 @@ public struct PushEnvelope {
   public let survey: Survey?
   public let update: Update?
 
-  public struct Activity {
+  public struct Activity: Sendable {
     public let category: KsApi.Activity.Category
     public let commentId: String?
     public let id: Int
@@ -22,37 +22,37 @@ public struct PushEnvelope {
     public let userPhoto: String?
   }
 
-  public struct ApsEnvelope {
+  public struct ApsEnvelope: Sendable {
     public let alert: String
   }
 
-  public struct ErroredPledge {
+  public struct ErroredPledge: Sendable {
     public let projectId: Int
   }
 
-  public struct Message {
+  public struct Message: Sendable {
     public let messageThreadId: Int
     public let projectId: Int
   }
 
-  public struct Order {
+  public struct Order: Sendable {
     public let id: Int
     public let projectId: Int
     public let pledgeManagerPath: String
   }
 
-  public struct Project {
+  public struct Project: Sendable {
     public let id: Int
     public let photo: String?
   }
 
-  public struct Survey {
+  public struct Survey: Sendable {
     public let id: Int
     public let projectId: Int
 
     // urls.web.survey is the survey path.
-    public struct Urls: Decodable {
-      public struct Web: Decodable {
+    public struct Urls: Decodable, Sendable {
+      public struct Web: Decodable, Sendable {
         public let survey: String
       }
 
@@ -62,7 +62,7 @@ public struct PushEnvelope {
     public let urls: Urls
   }
 
-  public struct Update {
+  public struct Update: Sendable {
     public let id: Int
     public let projectId: Int
   }

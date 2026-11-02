@@ -3,6 +3,7 @@ import KsApi
 import Library
 import UIKit
 
+@MainActor
 internal protocol ThanksCategoryCellDelegate: AnyObject {
   func thanksCategoryCell(_ cell: ThanksCategoryCell, didTapSeeAllProjectsWith category: KsApi.Category)
 }

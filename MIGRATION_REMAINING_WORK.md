@@ -9,7 +9,13 @@ creator draft work is superseded by their completed checkpoints.
 
 ## Remaining implementation and audit work
 
-1. **Remaining UIKit callback contracts:** continue controller/delegate observations and global UI style helpers.
+1. **Remaining UIKit/shared-environment review:** app-owned controller/cell delegates,
+   shimmer and feedback contracts now declare MainActor across the audited cohort.
+   The latest concrete remaining conformance diagnostics are UIApplicationType,
+   UIDeviceType, UIScreenType and the ChangeEmail SwiftUI integration example.
+   Global UI style helpers and shared Environment access still need classification.
+   Notification-center async delegates transfer checked push values before awaiting UI;
+   AppDelegate session/dialog observers now have retained lifecycle owners.
    Older PassKit, five mail-composer conformances and the payment-plan delegate now
    declare their main-actor contracts; 26 payment lifetime tests and the complete-checking
    app build passed.
@@ -18,11 +24,12 @@ creator draft work is superseded by their completed checkpoints.
    on cancellation/release and rejects obsolete sessions. Native delegate selector
    wiring is tested. Four STPPaymentHandler confirmation paths and post-campaign
    Apple Pay lifetimes are also checkpointed; live integration remains unverified.
-2. **Task-boundary values and shared state:** finish Feature result/provider graphs,
-   separating immutable snapshots from actor-owned mutable objects. Account and
+2. **Task-boundary values and shared state:** concrete migrated Feature providers now
+   have recorded response/value checkpoints. Finish the shared-environment diagnostic
+   review; retain explicit separation from generic compatibility APIs below. Account and
    checkout/backing/watch value graphs and payment command results are checkpointed.
    All five payment service operations now map Apollo data before callback-to-task
-   transfer. Other generated-response providers and legacy generic callers remain.
+   transfer. The generic compatibility API remains; it is not the concrete Feature transport path.
    Six pledge mutation envelope/acknowledgement paths now map before transfer.
    Checkout validation/completion, payment-plan and managed backing/rewards now also
    map before transfer. Backing/reward/installment value graphs have checked Sendable
@@ -44,10 +51,11 @@ creator draft work is superseded by their completed checkpoints.
    SDK delegate/global style contracts, compatibility classification and final validation.
    A warning-free Swift 6 language conversion is a separate scope, not an implied
    requirement to rewrite all generated/third-party compatibility machinery.
-3. **Compatibility audit closure:** document retained callback paths and ownership,
-   including generic Service.fetch(query:)/AsyncApolloClient. No migrated application
-   consumer was found, but public/default/test consumers require a compatibility
-   decision before removal. Keep necessary SDK queues and Combine scheduling.
+3. **Compatibility classification recorded:** retain generic Service.fetch(query:)/
+   AsyncApolloClient for the existing protocol/default/mock/test API surface. No migrated
+   application caller was found in the audited source roots. Its raw response transfer
+   and discarded cancellation handles remain a documented legacy limitation; retaining
+   it does not certify it as migrated. Necessary SDK queues and Combine scheduling remain.
 
 The scoped primitive scan finds 8 matching lines in 5 first-party files. These are
 SDK queue arguments/registration functions, retained Combine debounce and legacy

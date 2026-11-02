@@ -5,6 +5,7 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 protocol FindFriendsStatsCellDelegate: AnyObject {
   func findFriendsStatsCellShowFollowAllFriendsAlert(friendCount: Int)
 }

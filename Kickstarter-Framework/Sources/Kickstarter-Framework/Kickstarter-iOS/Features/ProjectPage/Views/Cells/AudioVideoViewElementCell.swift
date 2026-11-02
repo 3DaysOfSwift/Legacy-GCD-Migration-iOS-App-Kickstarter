@@ -5,6 +5,7 @@ import Prelude
 import Prelude_UIKit
 import UIKit
 
+@MainActor
 internal protocol AudioVideoViewElementCellPlaybackDelegate: AnyObject {
   func pausePlayback() -> CMTime
   func isPlaying() -> Bool

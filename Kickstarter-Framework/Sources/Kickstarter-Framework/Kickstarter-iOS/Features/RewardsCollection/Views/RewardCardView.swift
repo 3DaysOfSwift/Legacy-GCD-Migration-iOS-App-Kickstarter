@@ -4,6 +4,7 @@ import Library
 import ReactiveSwift
 import UIKit
 
+@MainActor
 protocol RewardCardViewDelegate: AnyObject {
   func rewardCardView(_ rewardCardView: RewardCardView, didTapWithRewardId rewardId: Int)
 }

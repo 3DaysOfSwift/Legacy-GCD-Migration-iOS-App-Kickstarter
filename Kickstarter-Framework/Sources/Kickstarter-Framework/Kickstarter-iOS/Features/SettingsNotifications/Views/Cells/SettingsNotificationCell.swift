@@ -4,6 +4,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 protocol SettingsNotificationCellDelegate: AnyObject {
   func settingsNotificationCell(_ cell: SettingsNotificationCell, didFailToUpdateUser errorMessage: String)
   func settingsNotificationCell(_ cell: SettingsNotificationCell, didUpdateUser user: User)

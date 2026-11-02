@@ -16,6 +16,7 @@ private enum Layout {
   }
 }
 
+@MainActor
 protocol ErroredBackingViewDelegate: AnyObject {
   func erroredBackingViewDidTapManage(_ view: ErroredBackingView, backing: ProjectAndBackingEnvelope)
 }

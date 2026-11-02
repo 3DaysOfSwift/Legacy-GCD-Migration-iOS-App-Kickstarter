@@ -12,6 +12,7 @@ private enum Constants {
   public static let selectionIndicatorImageWith = Styles.grid(4)
 }
 
+@MainActor
 protocol PledgePaymentPlanOptionViewDelegate: AnyObject {
   func pledgePaymentPlanOptionView(
     _ optionView: PledgePaymentPlanOptionView,

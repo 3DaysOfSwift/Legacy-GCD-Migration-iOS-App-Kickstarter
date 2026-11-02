@@ -3,6 +3,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 protocol BetaToolsFooterViewDelegate: AnyObject {
   func betaToolsFooterViewDelegateDidTapFeedbackButton()
 }

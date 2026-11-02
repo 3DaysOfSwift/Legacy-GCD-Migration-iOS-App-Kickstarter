@@ -10,6 +10,7 @@ private enum Layout {
   }
 }
 
+@MainActor
 protocol RootCommentCellDelegate: AnyObject {
   func commentCellDidTapHeader(_ cell: RootCommentCell, _ author: Comment.Author)
 }

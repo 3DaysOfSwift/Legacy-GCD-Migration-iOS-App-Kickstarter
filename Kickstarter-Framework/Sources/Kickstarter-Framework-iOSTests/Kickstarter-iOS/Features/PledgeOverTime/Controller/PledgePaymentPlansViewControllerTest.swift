@@ -58,6 +58,7 @@ final class PledgePaymentPlansViewControllerTest: TestCase {
     }
   }
 
+  @MainActor
   func testView_PledgeOverTimeSelected() {
     let project = Project.template
     let testIncrements = testPledgePaymentIncrement()

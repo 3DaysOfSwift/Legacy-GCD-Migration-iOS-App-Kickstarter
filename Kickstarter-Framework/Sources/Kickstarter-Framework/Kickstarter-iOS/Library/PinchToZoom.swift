@@ -1,5 +1,6 @@
 import UIKit
 
+@MainActor
 protocol PinchToZoomDelegate: AnyObject {
   func pinchZoomDidBegin(_ gestureRecognizer: UIPinchGestureRecognizer, frame: CGRect, image: UIImage)
   func pinchZoomDidChange(_ gestureRecognizer: UIPinchGestureRecognizer, completionHandler: () -> Void)

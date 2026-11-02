@@ -4,6 +4,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 internal protocol EmptyStatesViewControllerDelegate: AnyObject {
   func emptyStatesViewController(
     _ viewController: EmptyStatesViewController,

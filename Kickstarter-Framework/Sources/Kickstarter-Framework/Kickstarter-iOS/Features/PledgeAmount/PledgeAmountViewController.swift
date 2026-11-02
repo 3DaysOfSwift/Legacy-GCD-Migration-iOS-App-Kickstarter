@@ -5,6 +5,7 @@ import Prelude
 import Prelude_UIKit
 import UIKit
 
+@MainActor
 protocol PledgeAmountViewControllerDelegate: AnyObject {
   func pledgeAmountViewController(
     _ viewController: PledgeAmountViewController,

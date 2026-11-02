@@ -5,6 +5,7 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 protocol SearchEmptyStateCellDelegate: AnyObject {
   func searchEmptyStateCellDidTapRemoveAllFiltersButton(
     _ cell: SearchEmptyStateCell

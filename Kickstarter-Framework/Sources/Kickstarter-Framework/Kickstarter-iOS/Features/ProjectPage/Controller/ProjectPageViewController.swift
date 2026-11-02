@@ -19,6 +19,7 @@ public enum ProjectPageViewControllerStyles {
   }
 }
 
+@MainActor
 protocol AudioVideoViewControllerPlaybackDelegate: AnyObject {
   func pauseAudioVideoPlayback()
 }

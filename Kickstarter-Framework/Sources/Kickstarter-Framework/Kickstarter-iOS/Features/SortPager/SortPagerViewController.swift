@@ -5,6 +5,7 @@ import Prelude
 import Prelude_UIKit
 import UIKit
 
+@MainActor
 internal protocol SortPagerViewControllerDelegate: AnyObject {
   func sortPager(_ viewController: UIViewController, selectedSort sort: DiscoveryParams.Sort)
 }

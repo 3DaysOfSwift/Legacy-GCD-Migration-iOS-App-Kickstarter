@@ -4,6 +4,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 protocol ProjectRisksDisclaimerCellDelegate: AnyObject {
   func projectRisksDisclaimerCell(_ cell: ProjectRisksDisclaimerCell, didTapURL: URL)
 }

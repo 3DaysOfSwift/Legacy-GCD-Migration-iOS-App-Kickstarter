@@ -4,6 +4,7 @@ import Prelude
 import UIKit
 import WebKit
 
+@MainActor
 internal protocol PledgeManagerWebViewControllerDelegate: AnyObject {
   /// Called when the delegate should notify the parent that self was dismissed.
   func pledgeManagerWebViewControllerDismissed()

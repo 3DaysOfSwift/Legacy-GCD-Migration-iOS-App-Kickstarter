@@ -5,6 +5,7 @@ import Prelude
 import ReactiveExtensions
 import UIKit
 
+@MainActor
 internal protocol BackingCellDelegate: AnyObject {
   /// Call when should navigate to Backing Info.
   func backingCellGoToBackingInfo()

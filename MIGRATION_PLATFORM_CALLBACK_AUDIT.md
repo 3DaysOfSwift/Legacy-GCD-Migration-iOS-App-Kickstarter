@@ -435,3 +435,25 @@ root during this pass. Legacy Service wrappers, protocol/default/mock consumers 
 must be considered before removing the public API. Migrated concrete providers use mapped
 responses and their owned cancellation bridges. This classification does not certify the
 legacy wrapper as migrated or warning-free.
+
+## UI delegate and notification boundary closure — 2 November 2026
+
+The audited app-owned UI delegate cohort now declares MainActor across 57 protocol files,
+including navigation, comments, rewards, checkout, settings, video, shimmer and feedback.
+The Objective-C create-password input protocol also declares its UI actor. UI snapshot callers
+were annotated where compilation exposed missing contracts; assertions, disabled tests and
+reference-device guards remain unchanged. Root scrolling and shimmer helpers now express
+UI isolation. The shimmer associated-object key is an actor-owned UInt8 address.
+
+AppDelegate uses native async UNUserNotificationCenter delegate methods. It decodes a checked
+Sendable PushEnvelope (including Activity.Category) and badge before awaiting MainActor;
+UI navigation/badge updates finish before the SDK callback returns. No unowned Task or
+unchecked notification transfer was added. Session/dialog NotificationCenter observations
+are retained through MainActorNotificationObservation and preserve synchronous UI publication.
+
+Verification: 1,439 Library tests, 400 framework tests and 152 API tests passed (1,991 total,
+zero failures/skips). The final affected framework/API rerun passed after compiler fixes;
+Library passed earlier in the same pass. Normal and complete-checking app builds passed in
+Swift 5 mode. A local Simulator push visibly updated Activity badge to 3 while Explore retained
+populated demo artwork. This is not live APNs, notification-tap, device or snapshot parity evidence.
+Shared UIKit Environment wrappers, UI style/global state diagnostics and final validation remain.

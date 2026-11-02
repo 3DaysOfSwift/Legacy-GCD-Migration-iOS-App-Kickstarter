@@ -12,6 +12,7 @@ private enum ProjectNavigationSelectorViewStyles {
   }
 }
 
+@MainActor
 internal protocol ProjectNavigationSelectorViewDelegate: AnyObject {
   func projectNavigationSelectorViewDidSelect(_ view: ProjectNavigationSelectorView, index: Int)
 }

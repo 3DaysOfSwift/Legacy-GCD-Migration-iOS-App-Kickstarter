@@ -13,6 +13,7 @@ private enum Layout {
   }
 }
 
+@MainActor
 protocol CommentComposerViewDelegate: AnyObject {
   func commentComposerView(_ view: CommentComposerView, didSubmitText text: String)
 }

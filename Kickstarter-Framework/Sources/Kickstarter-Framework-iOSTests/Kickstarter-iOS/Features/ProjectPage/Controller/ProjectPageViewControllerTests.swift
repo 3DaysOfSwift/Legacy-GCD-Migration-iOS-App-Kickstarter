@@ -1047,6 +1047,7 @@ internal final class ProjectPageViewControllerTests: TestCase {
   // MARK: - Tab Content Tests
 
   // FIXME: MBL-2463 This test is flaky and frequently times out. Disabling it for the moment.
+  @MainActor
   func disabled_testLoggedOut_NonBacker_LiveProjectSwitchedToCampaignTab_Success() {
     let config = Config.template
     let project = Project.cosmicSurgery
@@ -1085,6 +1086,7 @@ internal final class ProjectPageViewControllerTests: TestCase {
     }
   }
 
+  @MainActor
   func testLoggedOut_NonBacker_LiveProjectSwitchedToRisksTab_Success() {
     let config = Config.template
     let project = Project.cosmicSurgery
@@ -1131,6 +1133,7 @@ internal final class ProjectPageViewControllerTests: TestCase {
     }
   }
 
+  @MainActor
   func testLoggedIn_NonBacker_LiveProjectSwitchedToFaqsTab_Success() {
     let config = Config.template
     let project = Project.cosmicSurgery
@@ -1187,6 +1190,7 @@ internal final class ProjectPageViewControllerTests: TestCase {
     }
   }
 
+  @MainActor
   func testLoggedOut_NonBacker_LiveProjectSwitchedToUseOfAITab_Success() {
     let config = Config.template
 
@@ -1313,6 +1317,7 @@ internal final class ProjectPageViewControllerTests: TestCase {
     }
   }
 
+  @MainActor
   func testLoggedOut_NonBacker_LiveProjectSwitchedToEnvironmentalCommitmentsTab_Success() {
     let config = Config.template
     let project = Project.cosmicSurgery

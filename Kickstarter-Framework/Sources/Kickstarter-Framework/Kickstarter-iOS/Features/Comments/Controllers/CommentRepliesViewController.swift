@@ -10,6 +10,7 @@ private enum Layout {
   }
 }
 
+@MainActor
 protocol CommentRepliesViewControllerDelegate: AnyObject {
   func commentRepliesViewControllerDidBlockUser(_: CommentRepliesViewController)
 }

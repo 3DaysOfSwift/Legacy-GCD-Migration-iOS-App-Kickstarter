@@ -3,6 +3,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 protocol SettingsPrivacySwitchCellDelegate: AnyObject {
   func privacySettingsSwitchCell(
     _ cell: SettingsPrivacySwitchCell,

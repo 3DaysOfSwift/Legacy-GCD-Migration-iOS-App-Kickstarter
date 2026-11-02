@@ -5,6 +5,7 @@ import Prelude
 import ReactiveExtensions
 import UIKit
 
+@MainActor
 protocol MessageCellDelegate: AnyObject {
   func messageCellDidTapHeader(_ cell: MessageCell, _ sender: User)
 }

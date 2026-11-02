@@ -4,6 +4,7 @@ import Library
 import ReactiveSwift
 import UIKit
 
+@MainActor
 protocol RewardAddOnCardViewDelegate: AnyObject {
   func rewardAddOnCardView(
     _ cardView: RewardAddOnCardView,

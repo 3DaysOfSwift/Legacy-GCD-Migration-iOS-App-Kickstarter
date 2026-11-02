@@ -5,6 +5,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 protocol PersonalizationCellDelegate: AnyObject {
   func personalizationCellTapped(
     _ cell: PersonalizationCell

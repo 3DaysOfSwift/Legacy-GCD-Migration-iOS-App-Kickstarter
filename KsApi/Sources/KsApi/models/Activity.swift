@@ -13,7 +13,7 @@ public struct Activity {
   public let update: Update?
   public let user: User?
 
-  public enum Category: String {
+  public enum Category: String, Sendable {
     case backing
     case cancellation
     case commentPost = "comment-post"

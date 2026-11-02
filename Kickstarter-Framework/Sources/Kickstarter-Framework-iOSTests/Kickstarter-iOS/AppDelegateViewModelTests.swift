@@ -1166,6 +1166,21 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
+  func testOpenDecodedPushNotification_WhileInBackground() async throws {
+    let decoded: PushEnvelope? = PushEnvelope.decodeJSONDictionary(friendBackingPushData)
+    let envelope = try XCTUnwrap(decoded)
+    await withEnvironment(apiService: MockService(fetchProjectResult: .success(.template))) {
+      self.vm.inputs.applicationDidFinishLaunching(
+        application: UIApplication.shared,
+        launchOptions: [:]
+      )
+      self.presentViewController.assertValueCount(0)
+      self.vm.inputs.didReceive(pushEnvelope: envelope)
+      await self.lifecycleFeature.waitForOperations()
+      self.presentViewController.assertValueCount(1)
+    }
+  }
+
   func testOpenNotification_NewBacking_ForCreator_WithBadData() async {
     var badPushData = backingForCreatorPushData
     var badActivityData = badPushData["activity"] as? [String: AnyObject]

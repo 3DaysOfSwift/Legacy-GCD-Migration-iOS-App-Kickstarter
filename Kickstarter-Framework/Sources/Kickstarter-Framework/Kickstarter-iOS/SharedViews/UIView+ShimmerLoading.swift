@@ -15,10 +15,12 @@ private enum ShimmerConstants {
   }
 }
 
+@MainActor
 private struct AssociatedKeys {
-  static var shimmerLayers = "shimmerLayers"
+  static var shimmerLayers: UInt8 = 0
 }
 
+@MainActor
 protocol ShimmerLoading: AnyObject {
   func shimmerViews() -> [UIView]
   func startLoading()
@@ -74,6 +76,7 @@ extension ShimmerLoading where Self: UIView {
   }
 }
 
+@MainActor
 private func shimmerGradientLayer(with frame: CGRect) -> CAGradientLayer {
   let isDark = UIScreen.main.traitCollection.userInterfaceStyle == .dark
 

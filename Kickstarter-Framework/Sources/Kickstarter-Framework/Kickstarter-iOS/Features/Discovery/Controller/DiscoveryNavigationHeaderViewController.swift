@@ -5,6 +5,7 @@ import Prelude
 import Prelude_UIKit
 import UIKit
 
+@MainActor
 internal protocol DiscoveryNavigationHeaderViewDelegate: AnyObject {
   /// Call to update params when filter selected.
   func discoveryNavigationHeaderFilterSelectedParams(_ params: DiscoveryParams)

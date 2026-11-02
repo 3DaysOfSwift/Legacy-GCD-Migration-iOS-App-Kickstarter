@@ -57,6 +57,7 @@ public protocol AppDelegateViewModelInputs {
 
   /// Call when the app delegate receives a remote notification.
   func didReceive(remoteNotification notification: [AnyHashable: Any])
+  func didReceive(pushEnvelope: PushEnvelope)
 
   /// Call when the app delegate gets notice of a successful notification registration.
   func didRegisterForRemoteNotifications(withDeviceTokenData data: Data)
@@ -363,8 +364,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     // https://app.getguru.com/card/cyRdjqgi/How-iOS-Universal-Links-work
 
     let deepLinkFromNotification = self.remoteNotificationProperty.signal.skipNil()
-      .map(PushEnvelope.decodeJSONDictionary)
-      .skipNil()
       .map(navigation(fromPushEnvelope:))
 
     let urlFromBraze = self.brazeNotificationURLProperty.signal.skipNil()
@@ -684,9 +683,13 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.configUpdatedNotificationObservedProperty.value = ()
   }
 
-  fileprivate let remoteNotificationProperty = MutableProperty<[AnyHashable: Any]?>(nil)
+  fileprivate let remoteNotificationProperty = MutableProperty<PushEnvelope?>(nil)
   public func didReceive(remoteNotification notification: [AnyHashable: Any]) {
-    self.remoteNotificationProperty.value = notification
+    self.remoteNotificationProperty.value = PushEnvelope.decodeJSONDictionary(notification)
+  }
+
+  public func didReceive(pushEnvelope: PushEnvelope) {
+    self.remoteNotificationProperty.value = pushEnvelope
   }
 
   fileprivate let deviceTokenDataProperty = MutableProperty(Data())

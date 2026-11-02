@@ -5,6 +5,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 internal protocol TabBarControllerScrollable {
   func scrollToTop()
 }
@@ -379,6 +380,7 @@ extension RootTabBarViewController: UITabBarControllerDelegate {
   }
 }
 
+@MainActor
 private func scrollToTop(_ viewController: UIViewController) {
   if let scrollable = viewController as? TabBarControllerScrollable {
     scrollable.scrollToTop()

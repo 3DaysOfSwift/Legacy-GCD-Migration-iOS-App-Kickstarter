@@ -4,6 +4,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 protocol CommentRemovedCellDelegate: AnyObject {
   func commentRemovedCell(_ cell: CommentRemovedCell, didTapURL: URL)
 }

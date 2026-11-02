@@ -4,6 +4,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 protocol PledgeCTAContainerViewDelegate: AnyObject {
   func pledgeCTAButtonTapped(with state: PledgeStateCTAType)
 }

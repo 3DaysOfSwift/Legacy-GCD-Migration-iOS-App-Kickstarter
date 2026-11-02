@@ -4,6 +4,7 @@ import Prelude
 import Prelude_UIKit
 import UIKit
 
+@MainActor
 internal protocol ProjectNotificationCellDelegate: AnyObject {
   /// Call with an error message when saving a notification fails.
   func projectNotificationCell(_ cell: ProjectNotificationCell?, notificationSaveError: String)

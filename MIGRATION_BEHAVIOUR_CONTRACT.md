@@ -1428,3 +1428,12 @@ PassKit and mail-composer delegate isolation preserves callback bodies, synchron
 policy, dismissal and analytics ordering. The payment-plan UI delegate is main-actor owned.
 Twenty-six selected payment lifetime tests passed; snapshots were compiled but not run on
 the unavailable reference runtime. No live mail/payment validation is implied.
+
+### Push and UI contracts — 2 November 2026
+
+Native async notification callbacks preserve badge updates, banner/list presentation options,
+root-controller availability guard and existing PushEnvelope navigation mapping. Decoding
+happens before the main-actor hop; SDK completion follows awaited UI handling. The dictionary
+ViewModel input remains for compatibility and routes through the same decoded envelope.
+Local simulated foreground push changed Activity badge to 3. Notification tap/live APNs remain
+unverified. UI protocol changes preserve bodies and reference snapshot checks.

@@ -11,6 +11,7 @@ import UIKit
 import XCTest
 
 final class RewardsCollectionViewControllerTests: TestCase {
+  @MainActor
   func testLive_NotBacked() {
     let rewards = Reward.allRewards
 
@@ -55,6 +56,7 @@ final class RewardsCollectionViewControllerTests: TestCase {
     }
   }
 
+  @MainActor
   func testLive_Backed() {
     let user = User.template
 

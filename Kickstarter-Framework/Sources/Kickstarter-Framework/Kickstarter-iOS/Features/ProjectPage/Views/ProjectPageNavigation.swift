@@ -3,6 +3,7 @@ import KsApi
 import Library
 import UIKit
 
+@MainActor
 protocol ProjectPageNavigationDelegate: AnyObject {
   func dismissPage(animated: Bool, completion: (() -> Void)?)
   func goToLogin()

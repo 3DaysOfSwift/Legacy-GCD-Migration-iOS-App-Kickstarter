@@ -4,6 +4,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 internal protocol ActivitySampleProjectCellDelegate: AnyObject {
   /// Call when should go to activity screen.
   func goToActivity()

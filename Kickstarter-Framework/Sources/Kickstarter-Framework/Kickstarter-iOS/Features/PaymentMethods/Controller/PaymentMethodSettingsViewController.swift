@@ -5,6 +5,7 @@ import Prelude
 import StripePaymentSheet
 import UIKit
 
+@MainActor
 protocol PaymentMethodSettingsViewControllerDelegate: AnyObject {
   func cancelLoadingPaymentMethodsViewController(
     _ viewController: PaymentMethodSettingsViewController
