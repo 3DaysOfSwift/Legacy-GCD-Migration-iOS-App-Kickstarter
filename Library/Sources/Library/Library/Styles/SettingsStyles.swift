@@ -4,11 +4,14 @@ import Prelude
 import Prelude_UIKit
 import UIKit
 
+@MainActor
 public let settingsSectionButtonStyle =
   UIButton.lens.title(for: .normal) .~ nil
 
+@MainActor
 public let settingsArrowViewStyle = UIImageView.lens.tintColor .~ LegacyColors.ksr_support_400.uiColor()
 
+@MainActor
 public let settingsSectionLabelStyle: LabelStyle = { (label: UILabel) in
   label
     |> \.textColor .~ LegacyColors.ksr_support_700.uiColor()
@@ -16,12 +19,14 @@ public let settingsSectionLabelStyle: LabelStyle = { (label: UILabel) in
     |> \.numberOfLines .~ 2
 }
 
+@MainActor
 public let settingsTitleLabelStyle: LabelStyle = { (label: UILabel) in
   label
     |> \.textColor .~ LegacyColors.ksr_support_700.uiColor()
     |> \.font .~ .ksr_body()
 }
 
+@MainActor
 public let settingsDetailLabelStyle: LabelStyle = { (label: UILabel) in
   label
     |> \.font .~ .ksr_body()
@@ -30,6 +35,7 @@ public let settingsDetailLabelStyle: LabelStyle = { (label: UILabel) in
     |> \.lineBreakMode .~ .byTruncatingTail
 }
 
+@MainActor
 public let settingsDescriptionLabelStyle: LabelStyle = { (label: UILabel) in
   label
     |> \.font .~ .ksr_body(size: 13)
@@ -38,45 +44,60 @@ public let settingsDescriptionLabelStyle: LabelStyle = { (label: UILabel) in
     |> \.lineBreakMode .~ .byWordWrapping
 }
 
+@MainActor
 public let settingsHeaderFooterLabelBaseStyle: LabelStyle = { (label: UILabel) in
   label
     |> \.font .~ .ksr_footnote()
     |> \.numberOfLines .~ 0
 }
 
+@MainActor
 public let settingsHeaderFooterLabelStyle: LabelStyle = { (label: UILabel) in
   label
     |> \.backgroundColor .~ LegacyColors.ksr_support_100.uiColor()
     |> \.textColor .~ LegacyColors.ksr_support_400.uiColor()
 }
 
+@MainActor
 public let settingsFormFieldStyle =
   UITextField.lens.textColor .~ LegacyColors.ksr_support_400.uiColor()
 
-public let settingsEmailFieldAutoFillStyle = emailFieldAutoFillStyle
-  <> settingsFormFieldStyle
-  <> UITextField.lens.textAlignment .~ .right
+@MainActor
+public func settingsEmailFieldAutoFillStyle(_ field: UITextField) -> UITextField {
+  let field = settingsFormFieldStyle(emailFieldAutoFillStyle(field))
+  field.textAlignment = .right
+  return field
+}
 
+@MainActor
 public let settingsPasswordFormFieldStyle = passwordFieldStyle
   <> settingsFormFieldStyle
   <> UITextField.lens.textAlignment .~ .right
 
-public let settingsPasswordFormFieldAutoFillStyle = passwordFieldAutoFillStyle
-  <> settingsPasswordFormFieldStyle
+@MainActor
+public func settingsPasswordFormFieldAutoFillStyle(_ field: UITextField) -> UITextField {
+  settingsPasswordFormFieldStyle(passwordFieldAutoFillStyle(field))
+}
 
-public let settingsNewPasswordFormFieldAutoFillStyle = newPasswordFieldAutoFillStyle
-  <> settingsPasswordFormFieldStyle
+@MainActor
+public func settingsNewPasswordFormFieldAutoFillStyle(_ field: UITextField) -> UITextField {
+  settingsPasswordFormFieldStyle(newPasswordFieldAutoFillStyle(field))
+}
 
+@MainActor
 public let settingsSeparatorStyle = UIView.lens.backgroundColor .~ LegacyColors.ksr_support_300.uiColor()
   <> UIView.lens.accessibilityElementsHidden .~ true
 
+@MainActor
 public let settingsNotificationIconButtonStyle =
   UIButton.lens.title(for: .normal) .~ nil
     <> UIButton.lens.tintColor .~ LegacyColors.ksr_support_400.uiColor()
 
+@MainActor
 public let settingsSwitchStyle = UISwitch.lens.onTintColor .~ LegacyColors.ksr_create_700.uiColor()
   <> UISwitch.lens.tintColor .~ LegacyColors.ksr_support_100.uiColor()
 
+@MainActor
 public let notificationButtonStyle = UIButton.lens.layer.cornerRadius .~ 9
   <> UIButton.lens.accessibilityHint %~ { _ in Strings.Double_tap_to_toggle_setting() }
   <> UIButton.lens.accessibilityTraits .~ UIAccessibilityTraits.none
@@ -88,19 +109,23 @@ public let notificationButtonStyle = UIButton.lens.layer.cornerRadius .~ 9
   <> UIButton.lens.title(for: .normal) .~ nil
   <> UIButton.lens.clipsToBounds .~ true
 
+@MainActor
 public let settingsViewControllerStyle: (UIViewController) -> UIViewController = { tvc in
   tvc
     |> baseControllerStyle()
     |> UIViewController.lens.view.backgroundColor .~ LegacyColors.ksr_support_100.uiColor()
 }
 
+@MainActor
 public let settingsTableViewStyle = UITableView.lens.backgroundColor .~ LegacyColors.ksr_support_100.uiColor()
   <> UITableView.lens.separatorStyle .~ .none
 
+@MainActor
 public let settingsTableViewSeparatorStyle = UITableView.lens.separatorStyle .~ .singleLine
   <> \.separatorColor .~ LegacyColors.ksr_support_300.uiColor()
   <> \.separatorInset .~ .zero
 
+@MainActor
 public func settingsAttributedPlaceholder(_ string: String) -> NSAttributedString {
   return NSAttributedString(
     string: string,
@@ -108,12 +133,14 @@ public func settingsAttributedPlaceholder(_ string: String) -> NSAttributedStrin
   )
 }
 
+@MainActor
 public func settingsContentViewStyle(_ view: UIView) -> UIView {
   return view
     |> \.layoutMargins .~ .init(all: Styles.grid(2))
     |> \.preservesSuperviewLayoutMargins .~ false
 }
 
+@MainActor
 public func settingsFooterContentViewStyle(_ view: UIView) -> UIView {
   return view
     |> settingsContentViewStyle
@@ -125,6 +152,7 @@ public func settingsFooterContentViewStyle(_ view: UIView) -> UIView {
     )
 }
 
+@MainActor
 public func settingsHeaderContentViewStyle(_ view: UIView) -> UIView {
   return view
     |> settingsContentViewStyle
@@ -136,12 +164,14 @@ public func settingsHeaderContentViewStyle(_ view: UIView) -> UIView {
     )
 }
 
+@MainActor
 public func settingsLabelStyle(_ label: UILabel) -> UILabel {
   return label
     |> \.backgroundColor .~ LegacyColors.ksr_white.uiColor()
     |> \.font %~ { _ in .ksr_body() }
 }
 
+@MainActor
 public func settingsStackViewStyle(_ stackView: UIStackView) -> UIStackView {
   return stackView
     |> \.axis %~~ { _, stackView in
@@ -154,6 +184,7 @@ public func settingsStackViewStyle(_ stackView: UIStackView) -> UIStackView {
     |> \.spacing .~ 8
 }
 
+@MainActor
 public func settingsGroupedTableViewStyle(_ tableView: UITableView) -> UITableView {
   return tableView
     |> \.allowsSelection .~ false
@@ -161,6 +192,7 @@ public func settingsGroupedTableViewStyle(_ tableView: UITableView) -> UITableVi
     |> \.separatorInset .~ .zero
 }
 
+@MainActor
 public func settingsTextFieldStyle(_ textField: UITextField) -> UITextField {
   return textField
     |> \.backgroundColor .~ LegacyColors.ksr_white.uiColor()

@@ -18,7 +18,9 @@ creator draft work is superseded by their completed checkpoints.
    are still required, not a blanket annotation.
    Synchronous string rendering now reads a synchronized language-only projection;
    nested environment overrides and background localization are verified.
-   Global UI style helpers and shared Environment access still need classification.
+   Login/Settings style declarations now specify MainActor; three autofill compositions
+   and their controller callers use direct calls to preserve actor ownership. Other
+   global UI style helpers and shared Environment access still need classification.
    Date/number formatter cache operations now use scoped Mutex ownership; attributed
    currency styling is request-local. Value-only date/currency rendering entry points
    and explicit analytics clock/calendar capture reduce implicit dependency access.

@@ -241,9 +241,9 @@ private let textFieldLabelStyle: (UILabel) -> UILabel = { label in
     |> \.font %~ { _ in .ksr_callout(size: 13) }
 }
 
+@MainActor
 private let textFieldStyle: TextFieldStyle = { textField in
-  textField
-    |> settingsNewPasswordFormFieldAutoFillStyle
+  settingsNewPasswordFormFieldAutoFillStyle(textField)
     |> roundedStyle(cornerRadius: Styles.grid(2))
     |> UITextField.lens.textColor .~ LegacyColors.ksr_black.uiColor()
     |> UITextField.lens.font %~ { _ in UIFont.ksr_body(size: 13) }

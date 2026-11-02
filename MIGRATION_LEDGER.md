@@ -2,6 +2,20 @@
 
 Author: Matthew Thomas. Updated 2 November 2026.
 
+## Login and Settings style owners — 2 November 2026
+
+LoginStyles and SettingsStyles declarations now explicitly belong to MainActor. Three
+autofill compositions previously erased actor information through the legacy composition
+operator; they now use direct function calls, including their password-controller callers.
+A focused test preserves email keyboard/username autofill, password/new-password autofill,
+secure entry and alignment. Existing login and password-flow assertions are retained.
+
+96 focused tests passed with zero failures/skips. The complete-checking app build passed;
+no actor warnings were emitted in the two style files, while app-wide warnings remain.
+Evidence: kickstarter-style-owners.
+Other global styles and shared Environment stack/convenience defaults still need review;
+this checkpoint does not certify all legacy higher-order styling as actor-safe.
+
 ## Explicit formatting inputs and login styling — 2 November 2026
 
 Whole-number, percentage, currency, date parsing and date-style rendering now expose

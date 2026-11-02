@@ -7,10 +7,26 @@ import Prelude
 import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
+import UIKit
 
 @MainActor
 final class SharedFunctionsTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
+  func testSettingsAutofillStylesPreserveFieldBehavior() {
+    let email = settingsEmailFieldAutoFillStyle(UITextField())
+    XCTAssertEqual(email.textContentType, .username)
+    XCTAssertEqual(email.keyboardType, .emailAddress)
+    XCTAssertEqual(email.textAlignment, .right)
+    let password = settingsPasswordFormFieldAutoFillStyle(UITextField())
+    XCTAssertEqual(password.textContentType, .password)
+    XCTAssertTrue(password.isSecureTextEntry)
+    XCTAssertEqual(password.textAlignment, .right)
+    let newPassword = settingsNewPasswordFormFieldAutoFillStyle(UITextField())
+    XCTAssertEqual(newPassword.textContentType, .newPassword)
+    XCTAssertTrue(newPassword.isSecureTextEntry)
+    XCTAssertEqual(newPassword.textAlignment, .right)
+  }
+
   func testUpdatedUserWithClearedActivityCountProducer_Success() {
     let initialActivitiesCount = 100
     let values = TestObserver<User, Never>()

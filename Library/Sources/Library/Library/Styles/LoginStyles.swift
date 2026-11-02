@@ -3,12 +3,14 @@ import Prelude
 import Prelude_UIKit
 import UIKit
 
+@MainActor
 public let createNewAccountButtonStyle: ButtonStyle = { button in
   button.applyStyleConfiguration(KSRButtonStyle.green)
   button.setTitle(Strings.Sign_up(), for: .normal)
   return button
 }
 
+@MainActor
 public let disclaimerButtonStyle = UIButton.lens.titleColor(for: .normal) .~ LegacyColors.ksr_support_400
   .uiColor()
   <> UIButton.lens.titleColor(for: .highlighted) %~ { _ in
@@ -31,67 +33,81 @@ public let disclaimerButtonStyle = UIButton.lens.titleColor(for: .normal) .~ Leg
 
   <> UIButton.lens.accessibilityHint %~ { _ in Strings.Opens_help_sheet() }
 
+@MainActor
 public let showHidePasswordButtonStyle = UIButton.lens.title(for: .normal) .~ ""
   <> UIButton.lens.tintColor .~ LegacyColors.ksr_support_300.uiColor()
   <> UIButton.lens.accessibilityLabel %~ { _ in
     Strings.Password_visibility()
   }
 
+@MainActor
 public let emailFieldStyle = formFieldStyle
   <> UITextField.lens.placeholder %~ { _ in Strings.login_placeholder_email() }
   <> UITextField.lens.keyboardType .~ .emailAddress
 
+@MainActor
 public func emailFieldAutoFillStyle(_ textField: UITextField) -> UITextField {
   return textField
     |> emailFieldStyle
     |> \.textContentType .~ .username
 }
 
+@MainActor
 public let fbLoginButtonStyle = facebookButtonStyle
   <> UIButton.lens.title(for: .normal) %~ { _ in
     Strings.login_tout_buttons_log_in_with_facebook()
   }
 
+@MainActor
 public let fbConfirmationMessageLabelStyle = UILabel.lens.textColor .~ LegacyColors.ksr_support_700.uiColor()
   <> UILabel.lens.font .~ .ksr_body()
   <> UILabel.lens
   .text %~ { _ in Strings.By_signing_up_youll_log_in_to_Kickstarter_using_your_Facebook_account() }
 
+@MainActor
 public let fbConfirmEmailLabelStyle = UILabel.lens.textColor .~ LegacyColors.ksr_support_700.uiColor()
   <> UILabel.lens.font .~ .ksr_headline()
   <> UILabel.lens.textAlignment .~ .left
   <> UILabel.lens.adjustsFontSizeToFitWidth .~ true
 
+@MainActor
 public let fbWrongAccountLabelStyle = UILabel.lens.font .~ .ksr_caption1()
   <> UILabel.lens.textColor .~ LegacyColors.ksr_support_400.uiColor()
   <> UILabel.lens.text %~ { _ in Strings.facebook_confirmation_wrong_account_title() }
 
+@MainActor
 public let forgotPasswordButtonStyle =
   UIButton.lens.titleLabel.font .~ .ksr_subhead()
     <> UIButton.lens.titleColor(for: .normal) .~ LegacyColors.ksr_support_400.uiColor()
     <> UIButton.lens.titleColor(for: .highlighted) .~ LegacyColors.ksr_support_700.uiColor()
     <> UIButton.lens.title(for: .normal) %~ { _ in Strings.login_buttons_forgot_password() }
 
+@MainActor
 public let loginControllerStyle = UIViewController.lens.title %~ { _ in Strings.login_navbar_title() }
 
+@MainActor
 public let loginWithEmailButtonStyle: ButtonStyle = { button in
   button.applyStyleConfiguration(KSRButtonLegacyStyle.grey)
   button.setTitle(Strings.login_buttons_log_in(), for: .normal)
   return button
 }
 
+@MainActor
 public let newsletterSwitchStyle = UISwitch.lens.onTintColor .~ LegacyColors.ksr_create_700.uiColor()
 
+@MainActor
 public let passwordFieldStyle = formFieldStyle
   <> UITextField.lens.placeholder %~ { _ in Strings.login_placeholder_password() }
   <> UITextField.lens.secureTextEntry .~ true
 
+@MainActor
 public func passwordFieldAutoFillStyle(_ textField: UITextField) -> UITextField {
   return textField
     |> passwordFieldStyle
     |> \.textContentType .~ .password
 }
 
+@MainActor
 public func newPasswordFieldAutoFillStyle(_ textField: UITextField) -> UITextField {
   let style = passwordFieldAutoFillStyle(textField)
 
@@ -99,16 +115,19 @@ public func newPasswordFieldAutoFillStyle(_ textField: UITextField) -> UITextFie
     |> \.textContentType .~ .newPassword
 }
 
+@MainActor
 public let resetPasswordButtonStyle: ButtonStyle = { button in
   button.applyStyleConfiguration(KSRButtonStyle.green)
   button.setTitle(Strings.forgot_password_buttons_reset_my_password(), for: .normal)
   return button
 }
 
+@MainActor
 public let resetPasswordControllerStyle = UIViewController.lens.title %~ { _ in
   Strings.forgot_password_title()
 }
 
+@MainActor
 public func applyLoginRootStackViewStyle(_ stackView: UIStackView, useLargerMargins: Bool) {
   stackView.isLayoutMarginsRelativeArrangement = true
   stackView.layoutMargins = useLargerMargins ?
@@ -116,12 +135,14 @@ public func applyLoginRootStackViewStyle(_ stackView: UIStackView, useLargerMarg
     .init(topBottom: Styles.grid(2), leftRight: Styles.grid(4))
 }
 
+@MainActor
 public let signupButtonStyle: ButtonStyle = { button in
   button.applyStyleConfiguration(KSRButtonStyle.green)
   button.setTitle(Strings.login_tout_default_intent_traditional_signup_button(), for: .normal)
   return button
 }
 
+@MainActor
 public let newsletterButtonStyle = UIButton.lens.titleColor(for: .normal) .~ LegacyColors.ksr_support_400
   .uiColor()
   <> UIButton.lens.titleColor(for: .highlighted) %~ { _ in
@@ -141,12 +162,14 @@ public let newsletterButtonStyle = UIButton.lens.titleColor(for: .normal) .~ Leg
 
   <> UIButton.lens.accessibilityHint %~ { _ in Strings.Opens_help_sheet() }
 
+@MainActor
 public let signupWithEmailButtonStyle: ButtonStyle = { button in
   button.applyStyleConfiguration(KSRButtonStyle.green)
   button.setTitle(Strings.Sign_up(), for: .normal)
   return button
 }
 
+@MainActor
 public let newsletterLabelStyle = UILabel.lens.font .~ .ksr_footnote()
   <> UILabel.lens.textColor .~ LegacyColors.ksr_support_400.uiColor()
   <> UILabel.lens.lineBreakMode .~ .byWordWrapping
@@ -155,6 +178,7 @@ public let newsletterLabelStyle = UILabel.lens.font .~ .ksr_footnote()
     Strings.Receive_a_weekly_mix_of_handpicked_projects_plus_occasional_Kickstarter_news()
   }
 
+@MainActor
 public func disclaimerAttributedString(
   with string: String,
   useLargerText: Bool
@@ -181,12 +205,14 @@ public func disclaimerAttributedString(
   return attributedString
 }
 
+@MainActor
 public let tfaCodeFieldStyle = formFieldStyle
   <> UITextField.lens.textAlignment .~ .center
   <> UITextField.lens.font .~ .ksr_title1()
   <> UITextField.lens.keyboardType .~ .numberPad
   <> UITextField.lens.placeholder %~ { _ in Strings.two_factor_code_placeholder() }
 
+@MainActor
 public func tfaCodeFieldAutoFillStyle(_ textField: UITextField) -> UITextField {
   let style = textField
     |> tfaCodeFieldStyle
@@ -195,6 +221,7 @@ public func tfaCodeFieldAutoFillStyle(_ textField: UITextField) -> UITextField {
     |> \.textContentType .~ .oneTimeCode
 }
 
+@MainActor
 public let twoFactorControllerStyle = UIViewController.lens.title %~ { _ in Strings.two_factor_title() }
 
 @MainActor
