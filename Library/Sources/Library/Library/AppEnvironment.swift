@@ -165,6 +165,7 @@ public struct AppEnvironment: AppEnvironmentType {
       environment: env, ubiquitousStore: env.ubiquitousStore, userDefaults: env.userDefaults
     )
     self.stack.append(env)
+    LocalizationLanguage.update(env.language)
   }
 
   // Pop an environment off the stack.
@@ -172,6 +173,7 @@ public struct AppEnvironment: AppEnvironmentType {
   public static func popEnvironment() -> Environment? {
     let last = self.stack.popLast()
     let next = self.current ?? Environment()
+    LocalizationLanguage.update(next.language)
     self.saveEnvironment(
       environment: next,
       ubiquitousStore: next.ubiquitousStore,

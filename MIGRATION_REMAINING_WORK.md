@@ -16,6 +16,8 @@ creator draft work is superseded by their completed checkpoints.
    analytics identity/configuration/consent updates are explicit actor-owned methods.
    AppEnvironment stack ownership remains: formatter/environment dependency changes
    are still required, not a blanket annotation.
+   Synchronous string rendering now reads a synchronized language-only projection;
+   nested environment overrides and background localization are verified.
    Global UI style helpers and shared Environment access still need classification.
    Date/number formatter cache operations now use scoped Mutex ownership; attributed
    currency styling is request-local. Value-only date/currency rendering entry points

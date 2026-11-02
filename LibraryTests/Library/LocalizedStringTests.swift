@@ -2,8 +2,39 @@
 @testable import LibraryTestHelpers
 import XCTest
 
+@MainActor
 class LocalizedStringTests: XCTestCase {
   fileprivate let mockBundle = MockBundle()
+
+  func testNestedLanguageChangesRestoreThePreviousLanguage() {
+    let original = LocalizationLanguage.current
+    withEnvironment(language: .de) {
+      XCTAssertEqual("de_world", localizedString(key: "hello", bundle: self.mockBundle))
+      withEnvironment(language: .en) {
+        XCTAssertEqual(.en, LocalizationLanguage.current)
+      }
+      XCTAssertEqual("de_world", localizedString(key: "hello", bundle: self.mockBundle))
+    }
+    XCTAssertEqual(original, LocalizationLanguage.current)
+  }
+
+  func testExplicitEnvironmentDoesNotChangeDefaultLanguage() {
+    withEnvironment(language: .en) {
+      let german = Environment(language: .de)
+      XCTAssertEqual("de_world", localizedString(key: "hello", env: german, bundle: self.mockBundle))
+      XCTAssertEqual(.en, LocalizationLanguage.current)
+    }
+  }
+
+  func testBackgroundLocalizationUsesPublishedLanguage() async {
+    await withEnvironment(language: .de) {
+      let expected = localizedString(key: "hello", bundle: self.mockBundle)
+      let actual = await Task.detached {
+        localizedString(key: "hello", bundle: MockBundle())
+      }.value
+      XCTAssertEqual(expected, actual)
+    }
+  }
 
   func testLocalizedPostalCode_USA() {
     withEnvironment(locale: Locale(identifier: "de_US")) {

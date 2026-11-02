@@ -1,7 +1,7 @@
 /**
  Supported languages.
  */
-public enum Language: String {
+public enum Language: String, Sendable {
   case de
   case en
   case es

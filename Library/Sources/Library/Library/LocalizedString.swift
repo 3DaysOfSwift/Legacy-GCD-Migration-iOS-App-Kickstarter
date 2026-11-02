@@ -1,5 +1,6 @@
 import Foundation
 import Prelude
+import Synchronization
 
 public func localizedPostalCode() -> String {
   // 🙏 Inspired by Kristina Fox
@@ -31,7 +32,7 @@ public func localizedString(
   defaultValue: String = "",
   count: Int? = nil,
   substitutions: [String: String] = [:],
-  env: Environment = AppEnvironment.current,
+  env: Environment? = nil,
   bundle: NSBundleType = stringsBundle
 ) -> String {
   // When a `count` is provided we need to augment the key with a pluralization suffix.
@@ -39,7 +40,7 @@ public func localizedString(
     .flatMap { key + "." + keySuffixForCount($0) }
     .coalesceWith(key)
 
-  let lprojName = lprojFileNameForLanguage(env.language)
+  let lprojName = lprojFileNameForLanguage(env?.language ?? LocalizationLanguage.current)
   let localized = bundle.path(forResource: lprojName, ofType: "lproj")
     .flatMap(type(of: bundle).create(path:))
     .flatMap { $0.localizedString(forKey: augmentedKey, value: nil, table: nil) }
@@ -82,3 +83,19 @@ private func substitute(_ string: String, with substitutions: [String: String]) 
 }
 
 public let stringsBundle = Bundle.library
+
+/// A value-only projection for synchronous localization, including background error descriptions.
+/// AppEnvironment publishes language changes; readers never access its service or session references.
+internal enum LocalizationLanguage {
+  private static let language = Mutex<Language>(
+    Language(languageStrings: Locale.preferredLanguages) ?? .en
+  )
+
+  static var current: Language {
+    self.language.withLock { $0 }
+  }
+
+  static func update(_ language: Language) {
+    self.language.withLock { $0 = language }
+  }
+}

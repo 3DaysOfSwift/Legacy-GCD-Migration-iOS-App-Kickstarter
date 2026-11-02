@@ -2,6 +2,20 @@
 
 Author: Matthew Thomas. Updated 2 November 2026.
 
+## Synchronous localization values — 2 November 2026
+
+Generated string rendering now reads a synchronized Language projection rather than the
+whole global Environment. Push/pop/replace/reset publish the current language; explicit
+Environment arguments still override one call. Language is checked Sendable. Nested
+restoration and background localization are covered without moving string rendering onto
+MainActor. No translation resources, generated strings or UI were changed.
+
+43 localization/language/format tests passed, zero failures/skips, and the app build with
+complete concurrency checking passed. Existing app warnings remain. The experimental
+whole-Environment actor annotation was not retained: dependent formatting/style callers
+still need migration. Evidence: kickstarter-localization-ownership. App-wide migration
+and physical-device/live-operation validation remain in progress.
+
 ## Shared formatter state and analytics inputs — 2 November 2026
 
 Date/number formatter caches now use scoped Synchronization.Mutex ownership for lookup,
