@@ -52,6 +52,7 @@ public protocol DiscoveryFiltersViewModelOutputs {
 
 @MainActor
 public protocol DiscoveryFiltersViewModelType {
+  func loadCategories() async
   var inputs: DiscoveryFiltersViewModelInputs { get }
   var outputs: DiscoveryFiltersViewModelOutputs { get }
 }
@@ -79,7 +80,7 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
       params.map { p in SelectableRow(isSelected: p == selectedRow.params, params: p) }
     }
 
-    self.categoriesUseCase = FetchCategoriesUseCase(initialSignal: self.viewDidLoadProperty.signal)
+    self.categoriesUseCase = FetchCategoriesUseCase()
 
     let categoryId = self.initialSelectedRowProperty.signal.skipNil()
       .map { $0.params.category?.rootId }
@@ -165,6 +166,11 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
   fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
+    self.categoriesUseCase.start()
+  }
+
+  public func loadCategories() async {
+    await self.categoriesUseCase.load()
   }
 
   fileprivate let viewDidAppearProperty = MutableProperty(())

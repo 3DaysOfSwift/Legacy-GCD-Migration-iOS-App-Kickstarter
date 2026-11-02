@@ -1,65 +1,87 @@
+import Foundation
 import KsApi
 import ReactiveSwift
 
+@MainActor
 public protocol FetchCategoriesUseCaseType {
   var uiOutputs: FetchCategoriesUseCaseUIOutputs { get }
   var dataOutputs: FetchCategoriesUseCaseDataOutputs { get }
 }
 
+@MainActor
 public protocol FetchCategoriesUseCaseUIOutputs {
-  /// Emits whether the categories are loading for the activity indicator view.
   var loadingIndicatorIsVisible: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol FetchCategoriesUseCaseDataOutputs {
-  /// Emits the list of categories, either from cache or from the network
-  var categories: Signal<[Category], Never> { get }
+  var categories: Signal<[KsApi.Category], Never> { get }
 }
 
+/// Owns Discovery's category request. Equivalent loads share work; release cancels it.
+@MainActor
 public final class FetchCategoriesUseCase: FetchCategoriesUseCaseType, FetchCategoriesUseCaseUIOutputs,
   FetchCategoriesUseCaseDataOutputs {
-  public var uiOutputs: FetchCategoriesUseCaseUIOutputs { return self }
-  public var dataOutputs: FetchCategoriesUseCaseDataOutputs { return self }
+  public var uiOutputs: FetchCategoriesUseCaseUIOutputs { self }
+  public var dataOutputs: FetchCategoriesUseCaseDataOutputs { self }
+  private let categoryPipe = Signal<[KsApi.Category], Never>.pipe()
+  private let loadingPipe = Signal<Bool, Never>.pipe()
+  public var categories: Signal<[KsApi.Category], Never> { self.categoryPipe.output }
+  public var loadingIndicatorIsVisible: Signal<Bool, Never> { self.loadingPipe.output }
+  private var request: Task<Void, Never>?
 
-  public init(initialSignal: Signal<Void, Never>) {
-    let loaderIsVisible = MutableProperty(false)
+  private let fetch: (@MainActor () async throws -> [KsApi.Category])?
 
-    let cachedCats = initialSignal
-      .map(cachedCategories)
-
-    let categoriesEvent = cachedCats
-      .filter { $0?.isEmpty != .some(false) }
-      .switchMap { _ in
-        AppEnvironment.current.apiService.fetchGraphCategories()
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .on(starting: {
-            loaderIsVisible.value = true
-          })
-          .map { (envelope: RootCategoriesEnvelope) in envelope.rootCategories }
-          .materialize()
-      }
-
-    self.loadingIndicatorIsVisible = Signal.merge(
-      loaderIsVisible.signal,
-      categoriesEvent.values().mapConst(false),
-      categoriesEvent.errors().mapConst(false)
-    )
-
-    self.categories = Signal.merge(
-      cachedCats.skipNil(),
-      categoriesEvent.values()
-    ).on(value: { cache(categories:) }())
+  public init(fetch: (@MainActor () async throws -> [KsApi.Category])? = nil) {
+    self.fetch = fetch
   }
 
-  public let loadingIndicatorIsVisible: Signal<Bool, Never>
-  public let categories: Signal<[Category], Never>
-}
+  deinit { self.request?.cancel() }
 
-private func cachedCategories() -> [KsApi.Category]? {
-  return AppEnvironment.current
-    .cache[KSCache.ksr_discoveryFiltersCategories] as? [KsApi.Category]
-}
+  public func load() async {
+    await self.start().value
+  }
 
-private func cache(categories: [KsApi.Category]) {
-  AppEnvironment.current.cache[KSCache.ksr_discoveryFiltersCategories] = categories
+  @discardableResult
+  public func start() -> Task<Void, Never> {
+    if let request = self.request { return request }
+    let environment: Environment = AppEnvironment.current
+    let cache = environment.cache
+    if let cached = cache[KSCache.ksr_discoveryFiltersCategories] as? [KsApi.Category] {
+      self.categoryPipe.input.send(value: cached)
+      if !cached.isEmpty { return Task {} }
+    }
+    let service = environment.apiService
+    let fetch = self.fetch
+    let delay = environment.apiDelayInterval.searchDelaySeconds
+    self.loadingPipe.input.send(value: true)
+    let task = Task { @MainActor [weak self] in
+      defer {
+        self?.request = nil
+        self?.loadingPipe.input.send(value: false)
+      }
+      do {
+        try Task.checkCancellation()
+        let result: Result<[KsApi.Category], Error>
+        do {
+          if let fetch { result = .success(try await fetch()) }
+          else { result = .success(try await service.fetchSearchCategories().rootCategories) }
+        }
+        catch { result = .failure(error) }
+        try Task.checkCancellation()
+        if delay.isInfinite { try await Task.sleep(nanoseconds: UInt64.max) }
+        else if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
+        try Task.checkCancellation()
+        guard let self, AppEnvironment.current.cache === cache else { return }
+        if case let .success(categories) = result {
+          cache[KSCache.ksr_discoveryFiltersCategories] = categories
+          self.categoryPipe.input.send(value: categories)
+        }
+      } catch {
+        // Preserve the existing silent-error UI; a later load can retry.
+      }
+    }
+    self.request = task
+    return task
+  }
 }

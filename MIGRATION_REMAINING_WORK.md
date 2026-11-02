@@ -84,8 +84,9 @@ observed; full visual/device parity and live operations remain open.
 The experimental AppEnvironment/Environment actor annotations were reverted, not shipped.
 The compiler exposed these concrete next dependencies (not an exhaustive app inventory):
 
-- FetchCategoriesUseCase: reactive callbacks access the global category cache and service.
-  Establish callback/cache ownership or replace this remaining compatibility path.
+- FetchCategoriesUseCase is now an actor-owned async request with shared pending work,
+  cancellation on release and captured cache identity. Its Discovery caller and tests
+  await completion; the reactive network/cache callback path is removed.
 - SearchFilters.swift: category/location selection helpers read shared Environment state.
 - VideoFeedItem+Constructor: presentation currency construction needs its UI owner.
 - ActivityFriendBackingViewModel and ActivityProjectStatusViewModel: percentage/presentation
@@ -93,7 +94,7 @@ The compiler exposed these concrete next dependencies (not an exhaustive app inv
 
 Card-expiry rendering, its two cell ViewModels, HelpType URL lookup and feature/experiment
 Environment readers are now isolated and tested separately. FetchCategoriesUseCase is still
-used by DiscoveryFiltersViewModel; it is not dead compatibility code. Re-run the stack experiment after these
+used by DiscoveryFiltersViewModel, now through its migrated async request owner. Re-run the stack experiment after these
 items; later compiler batches may expose additional callers. Do not treat a passing Swift 5
 build as evidence that the stack is isolated.
 

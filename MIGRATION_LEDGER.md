@@ -2,6 +2,23 @@
 
 Author: Matthew Thomas. Updated 2 November 2026.
 
+## Discovery category request lifetime — 2 November 2026
+
+FetchCategoriesUseCase now owns a directly awaitable native async category request on
+MainActor. Equivalent pending loads share execution; release cancels it. Cache hits remain
+synchronous and do not show loading. Empty caches still trigger loading, failures remain
+silent and retryable, and artificial API delay applies to success/error before completion.
+The request captures its service/cache and rejects delivery after cache replacement.
+DiscoveryFiltersViewModel triggers the owner after publishing viewDidLoad and exposes an
+awaitable category command. Existing selection/favorite/expansion assertions are retained.
+
+20 loader and Discovery-filter tests passed, zero failures/skips. Three new cases cover
+shared requests, release cancellation before start and replacement-cache suppression.
+Tests now await completion instead of advancing a reactive scheduler. The first compile
+required qualifying KsApi.Category because Foundation also exports Category.
+The complete-checking app build passed; app-wide warnings remain.
+Evidence: kickstarter-discovery-categories. The global Environment stack remains open.
+
 ## Environment consumer ownership — 2 November 2026
 
 Credit-card expiry rendering and both card-cell ViewModels/input/output protocols now

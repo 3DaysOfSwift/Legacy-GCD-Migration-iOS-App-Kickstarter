@@ -94,11 +94,11 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
 
 
 
-  func testAnimateIn() {
+  func testAnimateIn() async {
     self.vm.inputs.configureWith(selectedRow: allProjectsRow)
     self.vm.inputs.viewDidLoad()
 
-    self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+    await self.vm.loadCategories()
 
     self.animateInView.assertValueCount(0)
 
@@ -107,12 +107,12 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     self.animateInView.assertValueCount(1)
   }
 
-  func testKSRAnalyticsEventsTrack() {
+  func testKSRAnalyticsEventsTrack() async {
     self.vm.inputs.configureWith(selectedRow: allProjectsRow)
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewDidAppear()
 
-    self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+    await self.vm.loadCategories()
 
     XCTAssertEqual(
       [],
@@ -201,7 +201,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     XCTAssertEqual("recs_home", self.segmentTrackingClient.properties.last?["discover_ref_tag"] as? String)
   }
 
-  func testTopFilters_Logged_Out() {
+  func testTopFilters_Logged_Out() async {
     self.vm.inputs.configureWith(selectedRow: allProjectsRow)
 
     self.loadTopRows.assertValueCount(0)
@@ -209,7 +209,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewDidAppear()
 
-    self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+    await self.vm.loadCategories()
 
     self.loadTopRows.assertValues(
       [
@@ -225,14 +225,14 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     self.loadTopRowsInitialId.assertValues([nil])
   }
 
-  func testTopFilters_Logged_In() {
+  func testTopFilters_Logged_In() async {
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
 
     self.vm.inputs.configureWith(selectedRow: allProjectsRow)
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewDidAppear()
 
-    self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+    await self.vm.loadCategories()
 
     self.loadTopRows.assertValues(
       [
@@ -250,7 +250,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     self.loadTopRowsInitialId.assertValues([nil])
   }
 
-  func testTopFilters_Logged_In_Social() {
+  func testTopFilters_Logged_In_Social() async {
     AppEnvironment.login(
       AccessTokenEnvelope(accessToken: "deadbeef", user: .template |> \.social .~ true)
     )
@@ -259,7 +259,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewDidAppear()
 
-    self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+    await self.vm.loadCategories()
 
     self.loadTopRows.assertValues(
       [
@@ -277,7 +277,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     self.loadTopRowsInitialId.assertValues([nil])
   }
 
-  func testTopFilters_Logged_In_OptedOutOfRecommendations() {
+  func testTopFilters_Logged_In_OptedOutOfRecommendations() async {
     AppEnvironment.login(
       AccessTokenEnvelope(
         accessToken: "deadbeef", user: .template
@@ -289,7 +289,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewDidAppear()
 
-    self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+    await self.vm.loadCategories()
 
     self.loadTopRows.assertValues(
       [
@@ -306,12 +306,12 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     self.loadTopRowsInitialId.assertValues([nil])
   }
 
-  func testTopFilters_Category_Selected() {
+  func testTopFilters_Category_Selected() async {
     self.vm.inputs.configureWith(selectedRow: artSelectableRow)
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewDidAppear()
 
-    self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+    await self.vm.loadCategories()
 
     self.loadTopRows.assertValues(
       [
@@ -324,8 +324,8 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     self.loadTopRowsInitialId.assertValues([1])
   }
 
-  func testExpandingCategoryFilters() {
-    withEnvironment(apiService: MockService(fetchGraphCategoriesResult: .success(
+  func testExpandingCategoryFilters() async {
+    await withEnvironment(apiService: MockService(fetchGraphCategoriesResult: .success(
       self
         .defaultRootCategoriesTemplate
     ))) {
@@ -339,7 +339,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
 
       self.loadingIndicatorisVisible.assertValues([true])
 
-      self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+      await self.vm.loadCategories()
 
       self.loadingIndicatorisVisible.assertValues([true, false])
 
@@ -394,7 +394,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     }
   }
 
-  func testConfigureWithSelectedRow() {
+  func testConfigureWithSelectedRow() async {
     let artSelectedExpandedRow = expandableRowTemplate
       |> ExpandableRow.lens.params.category .~ .art
       |> ExpandableRow.lens.isExpanded .~ true
@@ -403,7 +403,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
         selectableRowTemplate |> SelectableRow.lens.params.category .~ .illustration
       ]
 
-    withEnvironment(apiService: MockService(fetchGraphCategoriesResult: .success(
+    await withEnvironment(apiService: MockService(fetchGraphCategoriesResult: .success(
       self
         .defaultRootCategoriesTemplate
     ))) {
@@ -416,7 +416,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
 
       self.loadingIndicatorisVisible.assertValues([true])
 
-      self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+      await self.vm.loadCategories()
 
       self.loadingIndicatorisVisible.assertValues([true, false])
 
@@ -431,12 +431,12 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     }
   }
 
-  func testTappingSelectableRow() {
+  func testTappingSelectableRow() async {
     self.vm.inputs.configureWith(selectedRow: allProjectsRow)
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewDidAppear()
 
-    self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+    await self.vm.loadCategories()
 
     self.vm.inputs.tapped(selectableRow: allProjectsRow)
 
@@ -459,18 +459,18 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     )
   }
 
-  func testFavoriteRows_Without_Favorites() {
+  func testFavoriteRows_Without_Favorites() async {
     self.vm.inputs.configureWith(selectedRow: allProjectsRow)
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewDidAppear()
 
-    self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+    await self.vm.loadCategories()
 
     self.loadFavoriteRows.assertValueCount(0, "Favorite rows does not emit without favorites set.")
   }
 
-  func testFavoriteRows_With_Favorites() {
-    withEnvironment(apiService: MockService(fetchGraphCategoriesResult: .success(self.categoriesResponse))) {
+  func testFavoriteRows_With_Favorites() async {
+    await withEnvironment(apiService: MockService(fetchGraphCategoriesResult: .success(self.categoriesResponse))) {
       self.ubiquitousStore.favoriteCategoryIds = [1, 30]
 
       self.vm.inputs.configureWith(selectedRow: allProjectsRow)
@@ -480,15 +480,15 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewDidAppear()
 
-      self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+      await self.vm.loadCategories()
 
       self.loadFavoriteRows.assertValues([[artSelectableRow, documentarySelectableRow]])
       self.loadFavoriteRowsId.assertValues([nil])
     }
   }
 
-  func testFavoriteRows_With_Favorites_Selected() {
-    withEnvironment(apiService: MockService(fetchGraphCategoriesResult: .success(
+  func testFavoriteRows_With_Favorites_Selected() async {
+    await withEnvironment(apiService: MockService(fetchGraphCategoriesResult: .success(
       self
         .defaultRootCategoriesTemplate
     ))) {
@@ -501,7 +501,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewDidAppear()
 
-      self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+      await self.vm.loadCategories()
 
       self.loadFavoriteRows.assertValues([
         [
@@ -513,7 +513,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     }
   }
 
-  func testCategoriesFromCache() {
+  func testCategoriesFromCache() async {
     self.cache[KSCache.ksr_discoveryFiltersCategories] = categories
 
     self.vm.inputs.configureWith(selectedRow: allProjectsRow)
