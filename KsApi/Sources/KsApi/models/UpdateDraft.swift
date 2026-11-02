@@ -1,27 +1,27 @@
 
 
-public struct UpdateDraft {
+public struct UpdateDraft: Sendable {
   public let update: Update
   public let images: [Image]
   public let video: Video?
 
-  public enum Attachment {
+  public enum Attachment: Sendable {
     case image(Image)
     case video(Video)
   }
 
-  public struct Image {
+  public struct Image: Sendable {
     public let id: Int
     public let thumb: String
     public let full: String
   }
 
-  public struct Video {
+  public struct Video: Sendable {
     public let id: Int
     public let status: Status
     public let frame: String
 
-    public enum Status: String {
+    public enum Status: String, Sendable {
       case processing
       case failed
       case successful

@@ -1,7 +1,7 @@
 
 import Foundation
 
-public struct Message {
+public struct Message: Sendable {
   public let body: String
   public let createdAt: TimeInterval
   public let id: Int

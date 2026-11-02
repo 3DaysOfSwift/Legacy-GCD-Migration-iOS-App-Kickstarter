@@ -11,6 +11,7 @@ private enum Constants {
   static let rootStackViewSpacing = Styles.grid(4)
 }
 
+@MainActor
 protocol PledgeOverTimePaymentScheduleDelegate: AnyObject {
   func termsOfUseTapped(with helpType: HelpType)
 }

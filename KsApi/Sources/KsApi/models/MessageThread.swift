@@ -1,6 +1,6 @@
 
 
-public struct MessageThread {
+public struct MessageThread: Sendable {
   public let backing: Backing?
   public let closed: Bool
   public let id: Int

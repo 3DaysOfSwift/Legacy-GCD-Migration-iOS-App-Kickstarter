@@ -20,9 +20,9 @@ extension TabBarControllerScrollable where Self: UIViewController {
 public final class RootTabBarViewController: UITabBarController, MessageBannerViewControllerPresenting {
   private var applicationWillEnterForegroundObserver: Any?
   public var messageBannerViewController: MessageBannerViewController?
-  private var sessionEndedObserver: Any?
-  private var sessionStartedObserver: Any?
-  private var userUpdatedObserver: Any?
+  private var sessionEndedObserver: MainActorNotificationObservation?
+  private var sessionStartedObserver: MainActorNotificationObservation?
+  private var userUpdatedObserver: MainActorNotificationObservation?
   private var userLocalePreferencesChangedObserver: Any?
   private var voiceOverStatusDidChangeObserver: Any?
 
@@ -50,21 +50,15 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
         self?.viewModel.inputs.applicationWillEnterForeground()
       }
 
-    self.sessionStartedObserver = NotificationCenter
-      .default
-      .addObserver(forName: Notification.Name.ksr_sessionStarted, object: nil, queue: .main) { [weak self] _ in
+    self.sessionStartedObserver = MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
         self?.viewModel.inputs.userSessionStarted()
       }
 
-    self.sessionEndedObserver = NotificationCenter
-      .default
-      .addObserver(forName: Notification.Name.ksr_sessionEnded, object: nil, queue: .main) { [weak self] _ in
+    self.sessionEndedObserver = MainActorNotificationObservation(name: .ksr_sessionEnded) { [weak self] _ in
         self?.viewModel.inputs.userSessionEnded()
       }
 
-    self.userUpdatedObserver = NotificationCenter
-      .default
-      .addObserver(forName: Notification.Name.ksr_userUpdated, object: nil, queue: .main) { [weak self] _ in
+    self.userUpdatedObserver = MainActorNotificationObservation(name: .ksr_userUpdated) { [weak self] _ in
         self?.viewModel.inputs.currentUserUpdated()
       }
 
@@ -109,9 +103,6 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
   deinit {
     [
       self.applicationWillEnterForegroundObserver,
-      self.sessionStartedObserver,
-      self.sessionEndedObserver,
-      self.userUpdatedObserver,
       self.userLocalePreferencesChangedObserver,
       self.voiceOverStatusDidChangeObserver
     ]

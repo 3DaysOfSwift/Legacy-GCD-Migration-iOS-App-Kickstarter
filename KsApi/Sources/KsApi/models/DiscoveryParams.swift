@@ -1,7 +1,7 @@
 
 import Prelude
 
-public struct DiscoveryParams {
+public struct DiscoveryParams: Sendable {
   public var backed: Bool?
   public var category: Category?
   public var collaborated: Bool?
@@ -24,7 +24,7 @@ public struct DiscoveryParams {
   public var amountRaised: AmountRaisedBucket?
   public var goal: GoalBucket?
 
-  public enum State: String, Decodable {
+  public enum State: String, Decodable, Sendable {
     case all
     case live
     case successful
@@ -32,7 +32,7 @@ public struct DiscoveryParams {
     case upcoming
   }
 
-  public enum Sort: String, Decodable {
+  public enum Sort: String, Decodable, Sendable {
     case endingSoon = "end_date"
     case magic
     case newest
@@ -52,7 +52,7 @@ public struct DiscoveryParams {
     }
   }
 
-  public enum PercentRaisedBucket: Int, CaseIterable {
+  public enum PercentRaisedBucket: Int, CaseIterable, Sendable {
     /// 0 to 75%
     case bucket_0
     /// 75% - 100%
@@ -61,7 +61,7 @@ public struct DiscoveryParams {
     case bucket_2
   }
 
-  public enum AmountRaisedBucket: Int, CaseIterable {
+  public enum AmountRaisedBucket: Int, CaseIterable, Sendable {
     /// Range from 0 to 1,000 USD
     case bucket_0
 
@@ -78,7 +78,7 @@ public struct DiscoveryParams {
     case bucket_4
   }
 
-  public enum GoalBucket: Int, CaseIterable {
+  public enum GoalBucket: Int, CaseIterable, Sendable {
     /// Range from 0 to 1,000 USD
     case bucket_0
 

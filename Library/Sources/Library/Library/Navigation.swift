@@ -41,7 +41,7 @@ public enum Navigation: Equatable {
     case verifyEmail
   }
 
-  public enum Project: Equatable {
+  public enum Project: Equatable, Sendable {
     case checkout(Int, Navigation.Project.Checkout)
     case root
     case comments
@@ -56,11 +56,11 @@ public enum Navigation: Equatable {
     /// Argument is a fully-qualified URL for the web view.
     case pledgeManagerWebview(String)
 
-    public enum Checkout: Equatable {
+    public enum Checkout: Equatable, Sendable {
       case thanks(racing: Bool?)
     }
 
-    public enum Pledge: Equatable {
+    public enum Pledge: Equatable, Sendable {
       case bigPrint
       case changeMethod
       case destroy
@@ -70,7 +70,7 @@ public enum Navigation: Equatable {
       case root
     }
 
-    public enum Update: Equatable {
+    public enum Update: Equatable, Sendable {
       case root
       case comments
       case commentThread(String?, String?)

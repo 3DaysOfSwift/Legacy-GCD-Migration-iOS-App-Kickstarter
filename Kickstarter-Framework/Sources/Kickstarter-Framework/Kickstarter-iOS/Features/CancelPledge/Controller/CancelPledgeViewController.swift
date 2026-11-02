@@ -5,6 +5,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 protocol CancelPledgeViewControllerDelegate: AnyObject {
   func cancelPledgeViewController(
     _ viewController: CancelPledgeViewController,

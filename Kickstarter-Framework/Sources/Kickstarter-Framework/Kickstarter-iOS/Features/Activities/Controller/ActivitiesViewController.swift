@@ -7,9 +7,9 @@ import UIKit
 internal final class ActivitiesViewController: UITableViewController {
   fileprivate let viewModel: ActivitiesViewModelType = ActivitiesViewModel()
   fileprivate let dataSource = ActivitiesDataSource()
-  private var sessionEndedObserver: Any?
-  private var sessionStartedObserver: Any?
-  private var userUpdatedObserver: Any?
+  private var sessionEndedObserver: MainActorNotificationObservation?
+  private var sessionStartedObserver: MainActorNotificationObservation?
+  private var userUpdatedObserver: MainActorNotificationObservation?
 
   fileprivate var emptyStatesController: EmptyStatesViewController?
 
@@ -22,31 +22,19 @@ internal final class ActivitiesViewController: UITableViewController {
   internal required init?(coder aDecoder: NSCoder) {
     super.init(coder: aDecoder)
 
-    self.sessionStartedObserver = NotificationCenter.default
-      .addObserver(forName: .ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
+    self.sessionStartedObserver = MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
         self?.viewModel.inputs.userSessionStarted()
       }
 
-    self.sessionEndedObserver = NotificationCenter.default
-      .addObserver(forName: .ksr_sessionEnded, object: nil, queue: nil) { [weak self] _ in
+    self.sessionEndedObserver = MainActorNotificationObservation(name: .ksr_sessionEnded) { [weak self] _ in
         self?.viewModel.inputs.userSessionEnded()
       }
 
-    self.userUpdatedObserver = NotificationCenter.default
-      .addObserver(forName: Notification.Name.ksr_userUpdated, object: nil, queue: nil) { [weak self] _ in
+    self.userUpdatedObserver = MainActorNotificationObservation(name: .ksr_userUpdated) { [weak self] _ in
         self?.viewModel.inputs.currentUserUpdated()
       }
   }
 
-  deinit {
-    [
-      self.sessionEndedObserver,
-      self.sessionStartedObserver,
-      self.userUpdatedObserver
-    ]
-    .compact()
-    .forEach(NotificationCenter.default.removeObserver)
-  }
 
   internal override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()

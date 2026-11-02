@@ -5,6 +5,7 @@ import Prelude
 import ReactiveExtensions
 import UIKit
 
+@MainActor
 internal protocol MessageDialogViewControllerDelegate: AnyObject {
   func messageDialogWantsDismissal(_ dialog: MessageDialogViewController)
   func messageDialog(_ dialog: MessageDialogViewController, postedMessage: Message)

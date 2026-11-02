@@ -46,7 +46,7 @@ public final class CreatorDraftsFeature {
     case add(URL)
     case remove(Int)
   }
-  private enum Outcome {
+  private enum Outcome: Sendable {
     case saved(UpdateDraft)
     case image(UpdateDraft.Image)
   }

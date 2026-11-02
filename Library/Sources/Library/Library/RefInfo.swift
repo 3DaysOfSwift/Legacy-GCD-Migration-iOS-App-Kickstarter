@@ -1,6 +1,6 @@
 import KsApi
 
-public struct RefInfo: Equatable, Hashable {
+public struct RefInfo: Equatable, Hashable, Sendable {
   public let refTag: RefTag?
   public let deeplinkUrl: String?
 
@@ -10,7 +10,7 @@ public struct RefInfo: Equatable, Hashable {
   }
 }
 
-public enum RefTag {
+public enum RefTag: Sendable {
   case activity
   case activitySample
   case category

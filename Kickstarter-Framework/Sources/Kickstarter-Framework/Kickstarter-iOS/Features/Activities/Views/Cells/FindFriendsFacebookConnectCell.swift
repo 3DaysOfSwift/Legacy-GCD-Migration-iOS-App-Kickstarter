@@ -5,6 +5,7 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 protocol FindFriendsFacebookConnectCellDelegate: AnyObject {
   func findFriendsFacebookConnectCellDidFacebookConnectUser()
   func findFriendsFacebookConnectCellDidDismissHeader()

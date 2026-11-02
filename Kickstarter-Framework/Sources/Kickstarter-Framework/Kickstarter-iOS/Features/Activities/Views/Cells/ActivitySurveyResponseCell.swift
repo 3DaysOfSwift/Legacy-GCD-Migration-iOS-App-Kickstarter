@@ -4,6 +4,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 internal protocol ActivitySurveyResponseCellDelegate: AnyObject {
   /// Called when the delegate should respond to the survey.
   func activityTappedRespondNow(forSurveyResponse surveyResponse: SurveyResponse)

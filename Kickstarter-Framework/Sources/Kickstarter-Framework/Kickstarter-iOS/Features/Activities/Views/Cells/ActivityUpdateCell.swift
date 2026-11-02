@@ -6,6 +6,7 @@ import ReactiveExtensions
 import ReactiveSwift
 import UIKit
 
+@MainActor
 internal protocol ActivityUpdateCellDelegate: AnyObject {
   /// Call with the activity value when navigating to the activity's project.
   func activityUpdateCellTappedProjectImage(activity: Activity)

@@ -1,5 +1,5 @@
-public enum Experiment {
-  public enum Name: String {
+public enum Experiment: Sendable {
+  public enum Name: String, Sendable {
     case creatorsNameDiscovery = "show_created_by_discovery"
 
     public var debugDefault: Bool {
@@ -9,7 +9,7 @@ public enum Experiment {
     }
   }
 
-  public enum Variant: String {
+  public enum Variant: String, Sendable {
     case control // default
     case experimental
   }
@@ -17,7 +17,7 @@ public enum Experiment {
 
 public typealias Features = [String: Bool]
 
-public struct Config {
+public struct Config: Sendable {
   public var abExperiments: [String: String]
   public var appId: Int
   public var applePayCountries: [String]

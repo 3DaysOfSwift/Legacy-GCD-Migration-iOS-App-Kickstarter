@@ -1387,3 +1387,24 @@ uses the existing typed project-card mock. Final runs passed 157 focused Library
 tests, including five new value/decoding tests. Counts overlap and must not be summed as unique
 coverage. App build with complete concurrency checking passed in Swift 5 mode. Other diagnostics,
 full visual/device and live-operation validation remain open. This is not migration completion.
+
+## REST and UI isolation — 2 November 2026
+
+The shared native REST wrapper now inherits caller isolation through request preparation and
+response decoding, matching the existing URLSession helper. It no longer sends Service/Route
+values to an unrelated executor. Messaging, configuration, draft/update, discovery parameters,
+deep-link destinations and empty acknowledgements have checked Sendable value graphs. Feature
+pending result types are constrained accordingly. Recommendation children capture checked values
+and an explicitly Sendable main-actor sleeper; provider calls still hop to their actor.
+
+Nine additional UI delegate protocols now declare MainActor. Activity, backed/saved Profile and
+root-tab session/user notifications use MainActorNotificationObservation with synchronous delivery,
+weak controller captures and owned automatic removal. Other root-tab platform observers are retained.
+No UI redesign or persistence change is included.
+
+Integrated validation passed 1,986 tests (1,439 Library, 399 framework, 148 API), zero failures/skips.
+Final targeted validation and complete-concurrency compilation are recorded in the external evidence.
+An initial duplicate actor annotation was corrected; Simulator preflight failed once and recovered
+by booting the existing iPhone Air. No user intervention was needed. The public demo launched and
+rendered populated Explore artwork/cards; this is a limited smoke check, not full visual parity.
+Other compiler diagnostics and live/device checks remain; app-wide migration is not complete.

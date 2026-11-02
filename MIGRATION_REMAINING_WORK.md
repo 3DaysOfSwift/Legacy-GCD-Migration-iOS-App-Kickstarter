@@ -34,8 +34,14 @@ creator draft work is superseded by their completed checkpoints.
    Profile/video/discussion/example/category providers, report options and Search results/lookups
    now also map before transfer. Search retains ID-based equality and event ordering; video
    formatting stays in the UI adapter. The raw cancellableQuery overload is removed.
-   Next: UIKit delegate/notification isolation and native REST wrapper isolation, followed by
-   classification of remaining global style/lens and generated Apollo diagnostics.
+   The shared native REST wrapper and nine additional UI delegate contracts are now isolated;
+   messaging/configuration/draft/deep-link task results have checked value graphs. Activity,
+   Profile and root session observers retain synchronous main-actor delivery.
+   Next concrete implementation: RichPushNotifications/NotificationService.swift still has a
+   downloadTask callback sharing mutable delivery state with expiry. Migrate that extension’s
+   request/expiry lifetime and exactly-once reply; it has no DispatchQueue syntax, so the primitive
+   scan alone did not identify it. Remaining UIKit SDK delegate/global style contracts also need
+   classification. The normal app’s native GraphQL value providers are checkpointed.
    A warning-free Swift 6 language conversion is a separate scope, not an implied
    requirement to rewrite all generated/third-party compatibility machinery.
 3. **Compatibility audit closure:** document retained callback paths and ownership,

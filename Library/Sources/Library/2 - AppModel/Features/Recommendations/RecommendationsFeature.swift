@@ -46,7 +46,7 @@ public final class RecommendationsFeature {
   public let settingsFeature: SettingsFeature
   public let sessionFeature: SessionFeature
   private let makeProvider: () -> any RecommendationsProvider
-  private let sleep: @MainActor (TimeInterval) async throws -> Void
+  private let sleep: @MainActor @Sendable (TimeInterval) async throws -> Void
   private var pending: [UUID: Pending] = [:]
   private var operations: [UUID: Task<Void, Never>] = [:]
   private let selectionPipe = Signal<(UUID, Selection), Never>.pipe()
@@ -55,7 +55,7 @@ public final class RecommendationsFeature {
   public init(
     settingsFeature: SettingsFeature,
     makeProvider: @escaping () -> any RecommendationsProvider,
-    sleep: @escaping @MainActor (TimeInterval) async throws -> Void = { seconds in
+    sleep: @escaping @MainActor @Sendable (TimeInterval) async throws -> Void = { seconds in
       if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
     }
   ) {
@@ -134,7 +134,7 @@ public final class RecommendationsFeature {
           |> DiscoveryParams.lens.category .~ category
           |> DiscoveryParams.lens.state .~ .live
           |> DiscoveryParams.lens.perPage .~ perPage
-        group.addTask { @MainActor in
+        group.addTask { @Sendable [provider, parameters, sleep] in
           let projects: [Project]
           do { projects = try await provider.projects(parameters: parameters) }
           catch {

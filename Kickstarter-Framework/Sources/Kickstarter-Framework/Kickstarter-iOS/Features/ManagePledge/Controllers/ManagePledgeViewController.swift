@@ -3,6 +3,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 protocol ManagePledgeViewControllerDelegate: AnyObject {
   func managePledgeViewController(
     _ viewController: ManagePledgeViewController,

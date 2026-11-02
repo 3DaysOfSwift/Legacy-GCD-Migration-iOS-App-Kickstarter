@@ -173,7 +173,8 @@ extension Service {
     let _: VoidEnvelope = try await self.discussionResponse(route: .followAllFriends)
   }
 
-  func discussionResponse<Model: Decodable>(
+  // Prepare and decode within the caller’s isolation; only URLSession performs suspended I/O.
+  nonisolated(nonsending) func discussionResponse<Model: Decodable>(
     route: Route,
     oauthToken: String? = nil
   ) async throws -> Model {

@@ -4,6 +4,7 @@ import Library
 import Prelude
 import UIKit
 
+@MainActor
 protocol ManagePledgePaymentMethodViewDelegate: AnyObject {
   func managePledgePaymentMethodViewDidTapFixButton(_ view: ManagePledgePaymentMethodView)
 }

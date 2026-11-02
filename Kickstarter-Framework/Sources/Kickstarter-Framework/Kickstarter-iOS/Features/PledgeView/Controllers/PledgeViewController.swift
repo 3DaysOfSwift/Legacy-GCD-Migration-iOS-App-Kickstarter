@@ -19,6 +19,7 @@ private enum Layout {
   }
 }
 
+@MainActor
 protocol PledgeViewControllerDelegate: AnyObject {
   func pledgeViewControllerDidUpdatePledge(
     _ viewController: PledgeViewController,

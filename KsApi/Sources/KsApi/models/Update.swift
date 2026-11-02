@@ -1,7 +1,7 @@
 
 import Foundation
 
-public struct Update {
+public struct Update: Sendable {
   public let body: String?
   public let commentsCount: Int?
   public let hasLiked: Bool?
@@ -16,10 +16,10 @@ public struct Update {
   public let user: User?
   public let visible: Bool?
 
-  public struct UrlsEnvelope {
+  public struct UrlsEnvelope: Sendable {
     public let web: WebEnvelope
 
-    public struct WebEnvelope {
+    public struct WebEnvelope: Sendable {
       public let update: String
     }
   }

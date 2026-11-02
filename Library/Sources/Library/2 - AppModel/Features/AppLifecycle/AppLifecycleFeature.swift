@@ -61,7 +61,7 @@ public final class AppLifecycleFeature {
   public let sessionFeature: SessionFeature
   public let settingsFeature: SettingsFeature
   public let messagingFeature: MessagingFeature
-  public struct ProjectDestination {
+  public struct ProjectDestination: Sendable {
     public let project: Project
     public let subpage: Navigation.Project
     public let refInfo: RefInfo?
@@ -69,7 +69,7 @@ public final class AppLifecycleFeature {
     public let update: Update?
     public let replies: CommentRepliesEnvelope?
   }
-  public enum Destination {
+  public enum Destination: Sendable {
     case discovery(DiscoveryParams?)
     case project(ProjectDestination)
     case survey(String)
@@ -79,7 +79,7 @@ public final class AppLifecycleFeature {
     let userID: Int?
     let generation: Int
   }
-  private struct Pending<Value> {
+  private struct Pending<Value: Sendable> {
     let id: UUID
     let session: Session
     let task: Task<Value, Error>
