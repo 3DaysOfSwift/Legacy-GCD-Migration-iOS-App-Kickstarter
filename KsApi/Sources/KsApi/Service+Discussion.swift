@@ -18,12 +18,12 @@ extension Service {
   }
 
   @MainActor public func blockDiscussionUser(id: String) async throws -> EmptyResponseEnvelope {
-    let _: GraphAPI.BlockUserMutation.Data = try await CancellableGraphQLRequest.fetch { completion in
+    let _: Void = try await CancellableGraphQLRequest.fetch(start: { completion in
       GraphQL.shared.client.perform(
         mutation: GraphAPI.BlockUserMutation(input: GraphAPI.BlockUserInput(blockUserId: id)),
         queue: .global(qos: .userInitiated), resultHandler: completion
       )
-    }
+    }, map: { _ in () })
     return EmptyResponseEnvelope()
   }
 

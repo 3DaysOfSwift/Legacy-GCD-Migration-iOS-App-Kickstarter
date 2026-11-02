@@ -2,7 +2,7 @@ import Foundation
 import Prelude
 import ReactiveSwift
 
-public struct Project {
+public struct Project: Sendable {
   public var availableCardTypes: [String]?
   public var blurb: String
   public var category: Category?
@@ -40,7 +40,7 @@ public struct Project {
   public var watchesCount: Int?
   public var isPledgeOverTimeAllowed: Bool?
 
-  public struct Category {
+  public struct Category: Sendable {
     public var analyticsName: String?
     public var id: Int
     public var name: String
@@ -53,22 +53,22 @@ public struct Project {
     }
   }
 
-  public struct UrlsEnvelope {
+  public struct UrlsEnvelope: Sendable {
     public var web: WebEnvelope
 
-    public struct WebEnvelope {
+    public struct WebEnvelope: Sendable {
       public var project: String
       public var updates: String?
     }
   }
 
-  public struct Video {
+  public struct Video: Sendable {
     public var id: Int
     public var high: String
     public var hls: String?
   }
 
-  public enum State: String, CaseIterable, Decodable {
+  public enum State: String, CaseIterable, Decodable, Sendable {
     case canceled
     case failed
     case live
@@ -79,7 +79,7 @@ public struct Project {
     case suspended
   }
 
-  public struct Stats {
+  public struct Stats: Sendable {
     public var backersCount: Int
     public var commentsCount: Int?
     public var convertedPledgedAmount: Float?
@@ -160,13 +160,13 @@ public struct Project {
     }
   }
 
-  public struct MemberData {
+  public struct MemberData: Sendable {
     public var lastUpdatePublishedAt: TimeInterval?
     public var permissions: [Permission]
     public var unreadMessagesCount: Int?
     public var unseenActivityCount: Int?
 
-    public enum Permission: String {
+    public enum Permission: String, Sendable {
       case editProject = "edit_project"
       case editFaq = "edit_faq"
       case post
@@ -177,7 +177,7 @@ public struct Project {
     }
   }
 
-  public struct Dates {
+  public struct Dates: Sendable {
     public var deadline: TimeInterval?
     public var featuredAt: TimeInterval?
     public var finalCollectionDate: TimeInterval?
@@ -214,21 +214,21 @@ public struct Project {
     }
   }
 
-  public struct Personalization {
+  public struct Personalization: Sendable {
     public var backing: Backing?
     public var friends: [User]?
     public var isBacking: Bool?
     public var isStarred: Bool?
   }
 
-  public struct Photo {
+  public struct Photo: Sendable {
     public var full: String
     public var med: String
     public var size1024x768: String?
     public var small: String
   }
 
-  public struct RewardData {
+  public struct RewardData: Sendable {
     public var addOns: [Reward]?
     public var rewards: [Reward]
   }

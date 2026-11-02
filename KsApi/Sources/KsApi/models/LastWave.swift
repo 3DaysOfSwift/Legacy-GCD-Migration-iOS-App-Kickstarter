@@ -1,6 +1,6 @@
 import Foundation
 
-public struct LastWave {
+public struct LastWave: Sendable {
   public let id: Int
   public let active: Bool
 }

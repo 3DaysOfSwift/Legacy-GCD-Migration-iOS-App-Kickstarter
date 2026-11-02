@@ -2,7 +2,7 @@ import Foundation
 import GraphAPI
 import ReactiveSwift
 
-public struct ProjectAndBackingEnvelope: Equatable, Decodable {
+public struct ProjectAndBackingEnvelope: Equatable, Decodable, Sendable {
   public var project: Project
   public var backing: Backing
 }

@@ -17,6 +17,32 @@ The primitive scan matched **40 lines in 25 files**. None matched the Feature
 implementation directory. That does not make every Feature concurrency-clean:
 complete compiler diagnostics also expose non-Sendable transfer boundaries.
 
+## Project, rewards and adjacent account transport — 2 November 2026
+
+Twenty-three concrete service boundaries now map responses before continuation transfer:
+twelve project-detail/reward/add-on/location/related/enrollment/attribution operations,
+eight account/setup/authentication/activity operations, two reporting operations and
+blocking acknowledgement. Parse failures, optional results and root-data acknowledgement
+semantics are preserved. Reward insertion runs on the caller's actor after value parsing.
+
+Project and its nested value graph, backing envelope, extra properties, parameters and
+Apple-login envelope have checked Sendable conformances. Story rich-text values and their
+conversion/normalization tests now live in KsApi; ServerDrivenUI retains rendering and
+compatibility exports. HTML elements require Sendable. Generated feature flags cross as
+raw strings and are reconstructed on the owning actor. No unchecked conformances added.
+ProjectDetailsFeature's provider and structured child results are explicitly Sendable.
+
+Validation: 1,981 integrated tests passed (1,439 Library, 399 framework, 143 API);
+150 focused Library + 36 focused API + 59 rich-text tests also passed. Final 56
+project/session/authentication checks passed after the last boundary corrections.
+These overlapping runs are not additive unique coverage. Normal and complete-concurrency
+Swift 5 app builds passed. No matching warnings were found in ProjectDetailsFeature,
+Service+ProjectDetails, Service+Profile or the new project/story/parameter value files.
+Other app/compiler diagnostics remain; this is not warning-free Swift 6 certification.
+
+Evidence: sibling Migration Evidence/kickstarter-project-response-values. Migration
+remains in progress; no full visual/device or live-operation verification is claimed.
+
 ## Pledged-project overview response snapshots — 2 November 2026
 
 Service.pledgedProjects now maps Apollo data inside the native callback into checked

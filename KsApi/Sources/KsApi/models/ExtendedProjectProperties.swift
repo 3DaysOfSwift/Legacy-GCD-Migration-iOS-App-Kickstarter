@@ -11,7 +11,7 @@ import GraphAPI
  This property will eventually replace `Project`, but right now we're using it to build out additional functionality that only comes from GraphQL.
  */
 
-public struct ExtendedProjectProperties {
+public struct ExtendedProjectProperties: Sendable {
   public var environmentalCommitments: [ProjectTabCategoryDescription]
   public var faqs: [ProjectFAQ]
   public var aiDisclosure: ProjectAIDisclosure?
@@ -39,7 +39,7 @@ public struct ExtendedProjectProperties {
   }
 }
 
-public struct ProjectAIDisclosure {
+public struct ProjectAIDisclosure: Sendable {
   public var id: Int
   public var funding: ProjectTabFundingOptions
   public var generationDisclosure: ProjectTabGenerationDisclosure?
@@ -50,44 +50,44 @@ public struct ProjectAIDisclosure {
   public var otherAiDetails: ProjectTabCategoryDescription?
 }
 
-public struct ProjectFAQ {
+public struct ProjectFAQ: Sendable {
   public var answer: String
   public var question: String
   public var id: Int
   public var createdAt: TimeInterval?
 }
 
-public struct ProjectStoryElements {
+public struct ProjectStoryElements: Sendable {
   public var htmlViewElements: [HTMLViewElement]
-  public var richText: RichTextComponentFragment?
+  public var richText: [RichTextElement]?
 
   public init(
     htmlViewElements: [HTMLViewElement],
     richText: RichTextComponentFragment? = nil
   ) {
     self.htmlViewElements = htmlViewElements
-    self.richText = richText
+    self.richText = richText?.asRichTextElements()
   }
 }
 
-public struct ProjectTabCategoryDescription {
+public struct ProjectTabCategoryDescription: Sendable {
   public var description: String
   public var category: ProjectTabCategory
   public var id: Int
 }
 
-public struct ProjectTabGenerationDisclosure: Equatable {
+public struct ProjectTabGenerationDisclosure: Equatable, Sendable {
   public var consent: String?
   public var details: String?
 }
 
-public struct ProjectTabFundingOptions {
+public struct ProjectTabFundingOptions: Sendable {
   public var fundingForAiAttribution: Bool
   public var fundingForAiConsent: Bool
   public var fundingForAiOption: Bool
 }
 
-public enum ProjectTabCategory: String {
+public enum ProjectTabCategory: String, Sendable {
   case longLastingDesign = "Long-lasting design"
   case sustainableMaterials = "Sustainable materials"
   case environmentallyFriendlyFactories = "Environmentally friendly factories"

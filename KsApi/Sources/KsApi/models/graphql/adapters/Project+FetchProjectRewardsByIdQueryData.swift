@@ -27,32 +27,9 @@ extension Project {
     from data: GraphAPI.FetchSortedProjectRewardsByIdQuery.Data,
     withNoReward inserter: NoRewardInserter
   ) -> [Reward] {
-    guard let project = data.project else {
-      return []
-    }
-
-    let projectRewards = project.rewards?.nodes?
-      .compactMap { node -> Reward? in
-        guard let node else {
-          return nil
-        }
-
-        let rewardFragment = node.fragments.rewardFragment
-        let shippingRuleFragment = node.fragments.rewardSimpleShippingRulesExpandedFragment
-        let expandedShippingRules = ShippingRule.simpleShippingRulesExpanded(from: shippingRuleFragment)
-        let imageFragment = node.fragments.rewardImageFragment
-        let itemFragment = node.fragments.rewardItemsFragment
-
-        return Reward.reward(
-          from: rewardFragment,
-          expandedShippingRules: expandedShippingRules,
-          rewardItems: RewardsItem.rewardItemsData(from: itemFragment),
-          rewardImage: Reward.Image.rewardPhoto(from: imageFragment)
-        )
-      } ?? []
-
-    let noReward = Reward.noRewardReward(from: project.fragments.noRewardRewardFragment)
-    return inserter.insert(noReward: noReward, intoRewards: projectRewards)
+    let response = SortedProjectRewardsResponse(data)
+    guard let noReward = response.noReward else { return [] }
+    return inserter.insert(noReward: noReward, intoRewards: response.rewards)
   }
 
   static func projectRewards(from data: GraphAPI.FetchProjectRewardsByIdQuery.Data) -> [Reward] {
@@ -124,5 +101,41 @@ extension Project {
       pledgeOverTimeCollectionPlanShortPitch: pledgeOverTimeFragment.pledgeOverTimeCollectionPlanShortPitch,
       pledgeOverTimeMinimumExplanation: pledgeOverTimeFragment.pledgeOverTimeMinimumExplanation
     )
+  }
+}
+
+/// Parsed reward values; caller-specific insertion remains on its owning actor.
+struct SortedProjectRewardsResponse: Sendable {
+  let rewards: [Reward]
+  let noReward: Reward?
+
+  init(_ data: GraphAPI.FetchSortedProjectRewardsByIdQuery.Data) {
+    guard let project = data.project else {
+      self.rewards = []
+      self.noReward = nil
+      return
+    }
+
+    self.rewards = project.rewards?.nodes?
+      .compactMap { node -> Reward? in
+        guard let node else {
+          return nil
+        }
+
+        let rewardFragment = node.fragments.rewardFragment
+        let shippingRuleFragment = node.fragments.rewardSimpleShippingRulesExpandedFragment
+        let expandedShippingRules = ShippingRule.simpleShippingRulesExpanded(from: shippingRuleFragment)
+        let imageFragment = node.fragments.rewardImageFragment
+        let itemFragment = node.fragments.rewardItemsFragment
+
+        return Reward.reward(
+          from: rewardFragment,
+          expandedShippingRules: expandedShippingRules,
+          rewardItems: RewardsItem.rewardItemsData(from: itemFragment),
+          rewardImage: Reward.Image.rewardPhoto(from: imageFragment)
+        )
+      } ?? []
+
+    self.noReward = Reward.noRewardReward(from: project.fragments.noRewardRewardFragment)
   }
 }

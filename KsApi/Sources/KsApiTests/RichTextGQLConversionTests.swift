@@ -1,6 +1,6 @@
 import Foundation
 import GraphAPI
-@testable import ServerDrivenUI
+@testable import KsApi
 import XCTest
 
 final class RichTextGQLConversionTests: XCTestCase {

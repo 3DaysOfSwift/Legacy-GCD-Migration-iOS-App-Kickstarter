@@ -1870,7 +1870,7 @@
       return Location.locations(from: data)
     }
 
-    @MainActor public func relatedProjects(projectID: String) async throws -> GraphAPI.FetchSimilarProjectsQuery.Data {
+    @MainActor public func relatedProjects(projectID: String) async throws -> [ProjectCardResponse] {
       try Task.checkCancellation()
       if self.pendingLegacyGraphQLQueries.contains(where: { $0 == GraphAPI.FetchSimilarProjectsQuery.self }) {
         // The fixture deliberately suspends this independent dependency.
@@ -1880,7 +1880,7 @@
       }
       guard let data = try await self.fetch(query: GraphAPI.FetchSimilarProjectsQuery(projectID: projectID))
       else { throw ErrorEnvelope.couldNotParseJSON }
-      return data
+      return (data.projects?.nodes ?? []).compactMap { $0 }.map { ProjectCardResponse($0.fragments.projectCardFragment) }
     }
 
     @MainActor public func projectDetailsBase(param: Param) async throws -> Project {

@@ -1,6 +1,6 @@
 import Foundation
 
-public struct TextComponent {
+public struct TextComponent: Sendable {
   public let text: String
   public let link: String?
   public let styles: [TextStyleType]
@@ -19,7 +19,7 @@ public struct TextComponent {
   }
 
   // Styles to apply
-  public enum TextStyleType: String {
+  public enum TextStyleType: String, Sendable {
     case bold = "strong"
     case emphasis = "em"
     case bulletStart = "li"

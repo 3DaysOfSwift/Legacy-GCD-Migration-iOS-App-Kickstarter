@@ -1,5 +1,5 @@
 import Foundation
-@testable import ServerDrivenUI
+@testable import KsApi
 import XCTest
 
 final class RichTextElementNormalizingTests: XCTestCase {

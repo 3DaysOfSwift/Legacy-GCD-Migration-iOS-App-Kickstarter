@@ -6,7 +6,7 @@ import ReactiveSwift
 
 /// The API substitution boundary; one instance captures the service for a whole load.
 @MainActor
-public protocol ProjectDetailsProvider {
+public protocol ProjectDetailsProvider: Sendable {
   func recordAttribution(input: GraphAPI.CreateAttributionEventInput) async throws
   func relatedProjects(projectID: String) async throws -> [ProjectCardProperties]
   func enroll(token: String, param: Param) async throws
@@ -27,9 +27,7 @@ public struct AsyncProjectDetailsProvider: ProjectDetailsProvider {
   }
   public func relatedProjects(projectID: String) async throws -> [ProjectCardProperties] {
     let response = try await self.service.relatedProjects(projectID: projectID)
-    return (response.projects?.nodes ?? []).compactMap { node in
-      node.flatMap { ProjectCardProperties($0.fragments.projectCardFragment) }
-    }
+    return response.compactMap { ProjectCardProperties($0) }
   }
 
   public func enroll(token: String, param: Param) async throws {
@@ -196,7 +194,7 @@ public final class ProjectDetailsFeature {
     var request: (id: UUID, identity: Identity, task: Task<Void, Never>)?
   }
 
-  private enum ProjectPart {
+  private enum ProjectPart: Sendable {
     case base(Project)
     case extras(ProjectPageExtraProperties)
   }

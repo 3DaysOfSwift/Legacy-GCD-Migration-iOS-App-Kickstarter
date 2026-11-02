@@ -1358,3 +1358,13 @@ cache fill. Logout/reset cancels the Feature read. Disk work runs on a storage a
 - Copy generated response data before native callback continuation transfer; keep
   presentation decisions in the Feature and image-loader objects in the view.
 - Validation: 50 selected tests passed with zero failures/skips: 17 Library, 30 framework and 3 API. App build succeeded with zero errors and five warning entries (generated asset-name collisions and Crashlytics script).
+
+## Project and story value boundaries — 2 November 2026
+
+Preserve fast parallel base/extras failure cancellation and legacy enrollment → project →
+backing → rewards ordering. Preserve missing/empty rich text, nested image normalization,
+links, media metadata and HTML components. Preserve no-reward insertion position and the
+missing-project result without invoking insertion. Account/reporting/block acknowledgements
+still accept root data; mapped parse failures retain their existing error. Session feature
+enums round-trip their raw names on the owning actor. The verified migration checkpoint
+and non-additive test counts are recorded in MIGRATION_LEDGER.md.

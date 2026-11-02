@@ -591,7 +591,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
           contentView = {
             guard navSection == .campaign,
                   featureProjectStoryRichTextEnabled(),
-                  let richText = project.extendedProjectProperties?.story.richText?.asRichTextElements()
+                  let richText = project.extendedProjectProperties?.story.richText
             else {
               return .tableView
             }

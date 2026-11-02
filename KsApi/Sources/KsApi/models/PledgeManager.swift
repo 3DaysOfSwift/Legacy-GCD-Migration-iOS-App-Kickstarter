@@ -1,6 +1,6 @@
 import Foundation
 
-public struct PledgeManager {
+public struct PledgeManager: Sendable {
   public let id: Int
   public let acceptsNewBackers: Bool
 }

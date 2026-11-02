@@ -1,6 +1,6 @@
 import SwiftSoup
 
-public protocol HTMLViewElement {}
+public protocol HTMLViewElement: Sendable {}
 
 class HTMLParser {
   func parse(bodyHtml: String) -> [HTMLViewElement] {

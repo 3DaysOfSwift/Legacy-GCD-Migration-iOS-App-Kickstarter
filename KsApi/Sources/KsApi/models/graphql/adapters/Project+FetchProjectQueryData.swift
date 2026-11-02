@@ -5,7 +5,7 @@ import Prelude
 import ReactiveSwift
 
 extension Project {
-  public struct ProjectPamphletData: Decodable {
+  public struct ProjectPamphletData: Decodable, Sendable {
     public let project: Project
     public let backingId: Int?
   }

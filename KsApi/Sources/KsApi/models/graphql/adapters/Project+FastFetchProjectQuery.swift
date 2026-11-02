@@ -1,7 +1,7 @@
 import GraphAPI
 import ReactiveSwift
 
-public struct ProjectPageExtraProperties {
+public struct ProjectPageExtraProperties: Sendable {
   let extendedProjectProperties: ExtendedProjectProperties
   let video: Project.Video?
   let flagging: Bool

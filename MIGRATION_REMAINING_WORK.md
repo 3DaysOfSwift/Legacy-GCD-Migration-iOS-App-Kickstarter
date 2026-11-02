@@ -27,7 +27,14 @@ creator draft work is superseded by their completed checkpoints.
    conformances; payment plans carry eligibility/installments and completion carries Void.
    Pledged-project overview, including image/analytics and initial navigation values,
    now maps before transfer. Shared project cards also retain concrete snapshots.
-   Next: remaining project detail/reward/related-project and other query/provider graphs. Classify global style/lens
+   Project detail/base/extras/backing/rewards/add-ons/locations/related queries now map
+   before transfer, including story/media/analytics/navigation values. Account setup,
+   Apple login, session user, activity count and acknowledgement/reporting/block paths
+   now map before transfer too.
+   Next concrete providers: profile backed/saved pagination, video feed/watch responses,
+   discussion comment/reply/post responses, developer rich-text examples and recommendation
+   category loading. Their service methods still use the raw generic query/response path.
+   Re-audit other transport wrappers before declaring this inventory exhaustive. Classify global style/lens
    and generated Apollo diagnostics; resolve unsafe migrated application boundaries.
    A warning-free Swift 6 language conversion is a separate scope, not an implied
    requirement to rewrite all generated/third-party compatibility machinery.

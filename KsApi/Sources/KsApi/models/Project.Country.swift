@@ -2,7 +2,7 @@ private let eurMaxPledge: Int = 8_500
 private let eurMinPledge: Int = 1
 
 extension Project {
-  public struct Country {
+  public struct Country: Sendable {
     public let countryCode: String
     public let currencyCode: String
     public let currencySymbol: String

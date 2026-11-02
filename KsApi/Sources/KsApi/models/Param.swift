@@ -1,7 +1,7 @@
 import Foundation
 
 /// Represents a way to paramterize a model by either an `id` integer or `slug` string.
-public enum Param {
+public enum Param: Sendable {
   case id(Int)
   case slug(String)
 

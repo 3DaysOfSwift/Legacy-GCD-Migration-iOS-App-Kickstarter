@@ -1,4 +1,4 @@
-@testable import ServerDrivenUI
+@testable import KsApi
 import Testing
 
 @Suite("RichTextElement.HeaderLevel parsing")
