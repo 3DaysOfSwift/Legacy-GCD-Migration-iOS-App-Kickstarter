@@ -16,8 +16,12 @@ public enum Format {
    - returns: A formatted string.
    */
   public static func wholeNumber(_ x: Int, env: Environment = AppEnvironment.current) -> String {
+    self.wholeNumber(x, locale: env.locale)
+  }
+
+  public static func wholeNumber(_ x: Int, locale: Locale) -> String {
     var config = NumberFormatterConfig.defaultWholeNumberConfig
-    config.locale = env.locale
+    config.locale = locale
     return NumberFormatterConfig.withFormatter(forConfig: config) { formatter in
       return formatter.string(for: x) ?? String(x)
     }
@@ -44,8 +48,16 @@ public enum Format {
    - returns: A formatted string.
    */
   public static func percentage(_ percentage: Double, env: Environment = AppEnvironment.current) -> String {
+    self.percentage(percentage, locale: env.locale)
+  }
+
+  public static func percentage(_ percentage: Int, locale: Locale) -> String {
+    self.percentage(Double(percentage) / 100.0, locale: locale)
+  }
+
+  public static func percentage(_ percentage: Double, locale: Locale) -> String {
     var config = NumberFormatterConfig.defaultPercentageConfig
-    config.locale = env.locale
+    config.locale = locale
     return NumberFormatterConfig.withFormatter(forConfig: config) { formatter in
       return formatter.string(for: percentage) ?? (String(percentage) + "%")
     }
@@ -127,11 +139,26 @@ public enum Format {
       env: env
     )
 
+    return self.formattedCurrency(
+      amount, symbol: symbol, locale: env.locale, roundingMode: roundingMode,
+      maximumFractionDigits: maximumFractionDigits, minimumFractionDigits: minimumFractionDigits
+    )
+  }
+
+  /// Render resolved currency inputs without retaining a service/session environment.
+  public static func formattedCurrency(
+    _ amount: Any,
+    symbol: String,
+    locale: Locale,
+    roundingMode: NumberFormatter.RoundingMode = .down,
+    maximumFractionDigits: Int = 0,
+    minimumFractionDigits: Int = 0
+  ) -> String {
     var config = NumberFormatterConfig.defaultCurrencyConfig
     config.roundingMode = roundingMode
     config.maximumFractionDigits = maximumFractionDigits
     config.minimumFractionDigits = minimumFractionDigits
-    config.locale = env.locale
+    config.locale = locale
     config.currencySymbol = symbol
     return NumberFormatterConfig.withFormatter(forConfig: config) { formatter in
       return formatter.string(for: amount)?
@@ -207,14 +234,24 @@ public enum Format {
     timeZone: TimeZone? = nil,
     env: Environment = AppEnvironment.current
   ) -> Foundation.Date? {
+    self.date(from: dateString, dateFormat: dateFormat, locale: env.locale,
+              timeZone: timeZone ?? env.calendar.timeZone)
+  }
+
+  public static func date(
+    from dateString: String,
+    dateFormat: String,
+    locale: Locale,
+    timeZone: TimeZone
+  ) -> Foundation.Date? {
     return DateFormatterConfig.withFormatter(
       forConfig: .init(
         dateFormat: dateFormat,
         dateStyle: nil,
-        locale: env.locale,
+        locale: locale,
         template: nil,
         timeStyle: nil,
-        timeZone: timeZone ?? env.calendar.timeZone
+        timeZone: timeZone
       )
     ) { formatter in
       return formatter.date(from: dateString)
@@ -238,15 +275,28 @@ public enum Format {
     timeZone: TimeZone? = nil,
     env: Environment = AppEnvironment.current
   ) -> String {
-    let date = env.dateType.init(timeIntervalSince1970: seconds).date
+    self.date(
+      env.dateType.init(timeIntervalSince1970: seconds).date,
+      dateStyle: dateStyle, timeStyle: timeStyle, locale: env.locale,
+      timeZone: timeZone ?? env.calendar.timeZone
+    )
+  }
+
+  public static func date(
+    _ date: Foundation.Date,
+    dateStyle: DateFormatter.Style,
+    timeStyle: DateFormatter.Style,
+    locale: Locale,
+    timeZone: TimeZone
+  ) -> String {
     return DateFormatterConfig.withFormatter(
       forConfig: .init(
         dateFormat: nil,
         dateStyle: dateStyle,
-        locale: env.locale,
+        locale: locale,
         template: nil,
         timeStyle: timeStyle,
-        timeZone: timeZone ?? env.calendar.timeZone
+        timeZone: timeZone
       )
     ) { formatter in
       return formatter.string(from: date)

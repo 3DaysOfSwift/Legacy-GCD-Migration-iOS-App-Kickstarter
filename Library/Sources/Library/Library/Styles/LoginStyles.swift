@@ -197,20 +197,23 @@ public func tfaCodeFieldAutoFillStyle(_ textField: UITextField) -> UITextField {
 
 public let twoFactorControllerStyle = UIViewController.lens.title %~ { _ in Strings.two_factor_title() }
 
+@MainActor
 public func applyDisclaimerTextViewStyle(_ textView: UITextView, useLargerText: Bool) {
   _ = textView
     |> tappableLinksViewStyle
   textView.attributedText =
-    attributedDisclaimerText(textView: textView, useLargerText: useLargerText)
+    attributedDisclaimerText(
+      baseURL: AppEnvironment.current.apiService.serverConfig.webBaseUrl, useLargerText: useLargerText
+    )
   textView.accessibilityTraits = [.staticText]
   textView.textAlignment = .center
 }
 
-public func attributedDisclaimerText(textView _: UITextView, useLargerText: Bool) -> NSAttributedString? {
-  let baseUrl = AppEnvironment.current.apiService.serverConfig.webBaseUrl
+@MainActor
+public func attributedDisclaimerText(baseURL: URL, useLargerText: Bool) -> NSAttributedString? {
 
-  guard let termsOfUseLink = HelpType.terms.url(withBaseUrl: baseUrl)?.absoluteString,
-        let privacyPolicyLink = HelpType.privacy.url(withBaseUrl: baseUrl)?.absoluteString else { return nil }
+  guard let termsOfUseLink = HelpType.terms.url(withBaseUrl: baseURL)?.absoluteString,
+        let privacyPolicyLink = HelpType.privacy.url(withBaseUrl: baseURL)?.absoluteString else { return nil }
 
   let string = Strings
     .By_creating_an_account_you_agree_to_Kickstarters_Terms_of_Use_and_Privacy_Policy(

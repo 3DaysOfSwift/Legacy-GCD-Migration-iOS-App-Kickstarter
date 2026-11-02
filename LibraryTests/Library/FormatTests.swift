@@ -30,7 +30,9 @@ final class FormatTests: TestCase {
           guard let attributed, attributed.length > 1,
                 attributed.attribute(marker, at: 1, effectiveRange: nil) as? Int == index,
                 renderedDate == expectedDates[localeIndex],
-                Format.decimalCurrency(for: 123.45) == "123.45" else { return index }
+                Format.decimalCurrency(for: 123.45) == "123.45",
+                !Format.wholeNumber(12345, locale: locales[localeIndex]).isEmpty,
+                !Format.percentage(0.5, locale: locales[localeIndex]).isEmpty else { return index }
           return nil
         }
       }
@@ -41,6 +43,44 @@ final class FormatTests: TestCase {
       return failures
     }
     XCTAssertEqual(failures, [])
+  }
+
+  func testResolvedNumberInputsPreserveEnvironmentFormatting() {
+    for identifier in ["en_US", "de_DE", "fr_FR", "ja_JP"] {
+      withEnvironment(locale: Locale(identifier: identifier)) {
+        let locale = AppEnvironment.current.locale
+        XCTAssertEqual(Format.wholeNumber(12345, locale: locale), Format.wholeNumber(12345))
+        XCTAssertEqual(Format.percentage(125, locale: locale), Format.percentage(125))
+        XCTAssertEqual(Format.percentage(0.125, locale: locale), Format.percentage(0.125))
+        for currency in ["USD", "EUR", "SGD", "DKK"] {
+          let symbol = currencySymbol(forCurrencyCode: currency)
+          XCTAssertEqual(
+            Format.formattedCurrency(123.456, symbol: symbol, locale: locale,
+                                     maximumFractionDigits: 2, minimumFractionDigits: 2),
+            Format.formattedCurrency(123.456, currencyCode: currency,
+                                     maximumFractionDigits: 2, minimumFractionDigits: 2)
+          )
+        }
+      }
+    }
+  }
+
+  func testResolvedDateInputsPreserveParsingAndRendering() {
+    withEnvironment(locale: Locale(identifier: "de_DE")) {
+      let locale = AppEnvironment.current.locale
+      let timeZone = AppEnvironment.current.calendar.timeZone
+      let date = AppEnvironment.current.dateType.init(timeIntervalSince1970: 1234567).date
+      XCTAssertEqual(
+        Format.date(date, dateStyle: .long, timeStyle: .short, locale: locale, timeZone: timeZone),
+        Format.date(secondsInUTC: 1234567, dateStyle: .long, timeStyle: .short)
+      )
+      for input in ["2026-11-02", "invalid"] {
+        XCTAssertEqual(
+          Format.date(from: input, dateFormat: "yyyy-MM-dd", locale: locale, timeZone: timeZone),
+          Format.date(from: input, dateFormat: "yyyy-MM-dd")
+        )
+      }
+    }
   }
 
   func testWholeNumber() {

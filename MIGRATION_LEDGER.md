@@ -2,6 +2,19 @@
 
 Author: Matthew Thomas. Updated 2 November 2026.
 
+## Explicit formatting inputs and login styling — 2 November 2026
+
+Whole-number, percentage, currency, date parsing and date-style rendering now expose
+value-input overloads. Existing Environment convenience APIs delegate to those overloads,
+preserving rounding, symbols, locale and date behavior. The login disclaimer receives a
+resolved base URL; its UI entry point explicitly declares MainActor. No visual redesign.
+
+107 Format/SharedFunctions tests passed, zero failures/skips, including locale/currency
+parity, valid/invalid date parsing and existing concurrent rendering coverage. The app
+build with complete concurrency checking passed; existing global style warnings remain. Evidence:
+kickstarter-format-inputs. Environment convenience defaults, relative-time helpers and
+shared stack isolation remain open; these overloads alone do not isolate their callers.
+
 ## Synchronous localization values — 2 November 2026
 
 Generated string rendering now reads a synchronized Language projection rather than the

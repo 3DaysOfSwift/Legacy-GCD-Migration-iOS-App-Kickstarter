@@ -22,6 +22,9 @@ creator draft work is superseded by their completed checkpoints.
    Date/number formatter cache operations now use scoped Mutex ownership; attributed
    currency styling is request-local. Value-only date/currency rendering entry points
    and explicit analytics clock/calendar capture reduce implicit dependency access.
+   Number/percentage/currency and date parsing/style rendering also expose value inputs;
+   existing convenience wrappers still require Environment ownership migration. Login
+   disclaimer URL resolution now occurs in a MainActor UI helper.
    Notification-center async delegates transfer checked push values before awaiting UI;
    AppDelegate session/dialog observers now have retained lifecycle owners.
    Older PassKit, five mail-composer conformances and the payment-plan delegate now
