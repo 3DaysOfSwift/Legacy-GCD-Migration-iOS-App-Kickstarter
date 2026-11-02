@@ -136,7 +136,7 @@ public enum Format {
     let symbol = currencySymbol(
       forCurrencyCode: currencyCode,
       omitCurrencyCode: omitCurrencyCode,
-      env: env
+      launchedCountries: env.launchedCountries, viewerCountryCode: env.countryCode
     )
 
     return self.formattedCurrency(
@@ -178,7 +178,10 @@ public enum Format {
     minimumFractionDigits: Int = 2,
     env: Environment = AppEnvironment.current
   ) -> NSAttributedString? {
-    let symbol = currencySymbol(forCurrencyCode: currencyCode, omitCurrencyCode: omitCurrencyCode, env: env)
+    let symbol = currencySymbol(
+      forCurrencyCode: currencyCode, omitCurrencyCode: omitCurrencyCode,
+      launchedCountries: env.launchedCountries, viewerCountryCode: env.countryCode
+    )
     return self.attributedCurrency(
       amount, symbol: symbol, locale: env.locale,
       defaultAttributes: defaultAttributes, superscriptAttributes: superscriptAttributes,

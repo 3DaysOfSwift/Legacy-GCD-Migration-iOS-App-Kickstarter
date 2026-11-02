@@ -1,6 +1,6 @@
 import struct KsApi.Project
 
-public struct LaunchedCountries {
+public struct LaunchedCountries: Sendable {
   public let countries: [Project.Country]
 
   public init(countries: [Project.Country] = Project.Country.all) {

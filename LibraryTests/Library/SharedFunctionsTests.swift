@@ -1199,6 +1199,21 @@ final class SharedFunctionsTests: TestCase {
     XCTAssertEqual(rewardLimitPerBackerRemainingForBacker(project: project, reward: reward), nil)
   }
 
+  func testCapturedCountryValuesDoNotReadReplacementEnvironment() {
+    let countries = LaunchedCountries(countries: [.us, .mx])
+    withEnvironment(countryCode: "MX", launchedCountries: LaunchedCountries(countries: [.mx])) {
+      XCTAssertEqual(projectCountry(forCurrency: "USD", launchedCountries: countries), .us)
+      XCTAssertNil(projectCountry(forCurrency: "EUR", launchedCountries: countries))
+      XCTAssertNil(projectCountry(forCurrency: nil, launchedCountries: countries))
+      XCTAssertEqual(currencySymbol(
+        forCurrencyCode: "USD", launchedCountries: countries, viewerCountryCode: "US"
+      ), "$")
+      XCTAssertEqual(currencySymbol(
+        forCurrencyCode: "USD", launchedCountries: countries, viewerCountryCode: "MX"
+      ), "\(String.nbsp)US$\(String.nbsp)")
+    }
+  }
+
   func testProjectCountryForCurrency() {
     let projectCountry = projectCountry(forCurrency: "MXN")
 

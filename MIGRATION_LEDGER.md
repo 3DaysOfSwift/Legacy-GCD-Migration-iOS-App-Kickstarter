@@ -2,6 +2,15 @@
 
 Author: Matthew Thomas. Updated 2 November 2026.
 
+## Captured country and currency values — 2 November 2026
+
+Country lookup and currency-symbol rendering expose value-only entry points. LaunchedCountries
+has checked Sendable conformance; both currency formatters pass its captured value and viewer
+country explicitly. Existing convenience overloads delegate, preserving prefix/fallback rules.
+A replacement-Environment regression confirms captured values remain authoritative.
+113 selected tests passed, zero failures/skips, and the app built. Evidence: kickstarter-country-values.
+The Environment convenience wrappers and global stack still need isolation.
+
 ## Configuration ownership and integrated regression — 2 November 2026
 
 UI configuration helpers and pledged-project card parsing now declare MainActor. Override

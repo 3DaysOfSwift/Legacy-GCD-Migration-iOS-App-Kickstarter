@@ -152,24 +152,32 @@ public func currencySymbol(
   omitCurrencyCode: Bool = true,
   env: Environment = AppEnvironment.current
 ) -> String {
-  let country = projectCountry(forCurrency: currencyCode, env: env) ?? .us
+  return currencySymbol(
+    forCurrencyCode: currencyCode, omitCurrencyCode: omitCurrencyCode,
+    launchedCountries: env.launchedCountries, viewerCountryCode: env.countryCode
+  )
+}
 
-  guard env.launchedCountries.currencyNeedsCode(country.currencySymbol) else {
-    // Currencies that dont have ambigious currencies can just use their symbol.
+/// Renders a currency symbol from captured country values without reading shared state.
+public func currencySymbol(
+  forCurrencyCode currencyCode: String,
+  omitCurrencyCode: Bool = true,
+  launchedCountries: LaunchedCountries,
+  viewerCountryCode: String
+) -> String {
+  let country = projectCountry(forCurrency: currencyCode, launchedCountries: launchedCountries) ?? .us
+
+  guard launchedCountries.currencyNeedsCode(country.currencySymbol) else {
     return country.currencySymbol
   }
 
-  if country == .us && env.countryCode == Project.Country.us.countryCode && omitCurrencyCode {
-    // US people looking at US projects just get the currency symbol
+  if country == .us && viewerCountryCode == Project.Country.us.countryCode && omitCurrencyCode {
     return country.currencySymbol
   } else if country == .sg {
-    // Singapore projects get a special currency prefix
     return "\(String.nbsp)S\(country.currencySymbol)\(String.nbsp)"
   } else if country.currencySymbol == "kr" || country.currencySymbol == "Fr" {
-    // Kroner projects use the currency code prefix
     return "\(String.nbsp)\(country.currencyCode)\(String.nbsp)"
   } else {
-    // Everything else uses the country code prefix.
     return "\(String.nbsp)\(country.countryCode)\(country.currencySymbol)\(String.nbsp)"
   }
 }
@@ -186,12 +194,15 @@ public func projectCountry(
   forCurrency code: String?,
   env: Environment = AppEnvironment.current
 ) -> Project.Country? {
-  guard let currencyCode = code,
-        let country = env.launchedCountries.countries.filter({ $0.currencyCode == currencyCode }).first else {
-    return nil
-  }
-  // return a hardcoded Country if it matches the country code
-  return country
+  return projectCountry(forCurrency: code, launchedCountries: env.launchedCountries)
+}
+
+public func projectCountry(
+  forCurrency code: String?,
+  launchedCountries: LaunchedCountries
+) -> Project.Country? {
+  guard let currencyCode = code else { return nil }
+  return launchedCountries.countries.first { $0.currencyCode == currencyCode }
 }
 
 public func updatedUserWithClearedActivityCountProducer() -> SignalProducer<User, Never> {
