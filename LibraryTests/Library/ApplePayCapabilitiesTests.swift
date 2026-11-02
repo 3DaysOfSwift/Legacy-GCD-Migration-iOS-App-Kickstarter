@@ -6,11 +6,12 @@ import PassKit
 import Prelude
 import XCTest
 
+@MainActor
 final class ApplePayCapabilitiesTests: XCTestCase {
   private var applePayCapabilities: ApplePayCapabilities = ApplePayCapabilities()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.applePayCapabilities = ApplePayCapabilities()
   }

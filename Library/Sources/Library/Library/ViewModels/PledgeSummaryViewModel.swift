@@ -15,6 +15,7 @@ public typealias PledgeSummaryViewData = (
   pledgeHasNoReward: Bool?
 )
 
+@MainActor
 public protocol PledgeSummaryViewModelInputs {
   func configure(with data: PledgeSummaryViewData)
   func configureWith(pledgeOverTimeData: PledgePaymentPlansAndSelectionData?)
@@ -22,6 +23,7 @@ public protocol PledgeSummaryViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol PledgeSummaryViewModelOutputs {
   var amountLabelAttributedText: Signal<NSAttributedString, Never> { get }
   var confirmationLabelAttributedText: Signal<NSAttributedString, Never> { get }
@@ -33,11 +35,13 @@ public protocol PledgeSummaryViewModelOutputs {
   var titleLabelText: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol PledgeSummaryViewModelType {
   var inputs: PledgeSummaryViewModelInputs { get }
   var outputs: PledgeSummaryViewModelOutputs { get }
 }
 
+@MainActor
 public class PledgeSummaryViewModel: PledgeSummaryViewModelType,
   PledgeSummaryViewModelInputs, PledgeSummaryViewModelOutputs {
   public init() {
@@ -60,7 +64,7 @@ public class PledgeSummaryViewModel: PledgeSummaryViewModelType,
     .map(first)
 
     self.amountLabelAttributedText = projectAndPledgeTotal
-      .map(attributedCurrency(with:total:))
+      .map { attributedCurrency(with: $0.0, total: $0.1) }
       .skipNil()
 
     self.totalConversionLabelText = projectAndPledgeTotal
@@ -156,6 +160,7 @@ public class PledgeSummaryViewModel: PledgeSummaryViewModelType,
   public var outputs: PledgeSummaryViewModelOutputs { return self }
 }
 
+@MainActor
 private func attributedCurrency(with project: Project, total: Double) -> NSAttributedString? {
   let defaultAttributes = checkoutCurrencyDefaultAttributes()
     .withAllValuesFrom([.foregroundColor: LegacyColors.ksr_support_700.uiColor()])
@@ -169,6 +174,7 @@ private func attributedCurrency(with project: Project, total: Double) -> NSAttri
   )
 }
 
+@MainActor
 private func attributedConfirmationString(with project: Project, pledgeTotal: Double) -> NSAttributedString {
   var date = ""
 
@@ -191,6 +197,7 @@ private func attributedConfirmationString(with project: Project, pledgeTotal: Do
     )
 }
 
+@MainActor
 private func attributedConfirmationPledgeOverTimeString(
   with project: Project,
   increments: [PledgePaymentIncrement]
@@ -215,6 +222,7 @@ private func attributedConfirmationPledgeOverTimeString(
     )
 }
 
+@MainActor
 private func attributedConfirmationString(
   with data: PledgeSummaryViewData,
   pledgeOverTimeData: PledgePaymentPlansAndSelectionData?

@@ -17,6 +17,7 @@ public enum PledgeAmountStepperConstants {
   static let max: Double = 1_000_000_000
 }
 
+@MainActor
 public protocol PledgeAmountViewModelInputs {
   func configureWith(data: PledgeAmountViewConfigData)
   func doneButtonTapped()
@@ -26,6 +27,7 @@ public protocol PledgeAmountViewModelInputs {
   func unavailableAmountChanged(to amount: Double)
 }
 
+@MainActor
 public protocol PledgeAmountViewModelOutputs {
   var currency: Signal<String, Never> { get }
   var doneButtonIsEnabled: Signal<Bool, Never> { get }
@@ -46,11 +48,13 @@ public protocol PledgeAmountViewModelOutputs {
   var titleLabelText: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol PledgeAmountViewModelType {
   var inputs: PledgeAmountViewModelInputs { get }
   var outputs: PledgeAmountViewModelOutputs { get }
 }
 
+@MainActor
 public final class PledgeAmountViewModel: PledgeAmountViewModelType,
   PledgeAmountViewModelInputs, PledgeAmountViewModelOutputs {
   public init() {

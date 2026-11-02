@@ -7,7 +7,9 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class PledgeSummaryViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private let vm: PledgeSummaryViewModelType = PledgeSummaryViewModel()
 
   private let amountLabelAttributedText = TestObserver<NSAttributedString, Never>()
@@ -21,8 +23,8 @@ internal final class PledgeSummaryViewModelTests: TestCase {
   private var pledgeOverTimeChargesText = TestObserver<String, Never>()
   private let totalConversionLabelText = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.notifyDelegateOpenHelpType.observe(self.notifyDelegateOpenHelpType.observer)
     self.vm.outputs.amountLabelAttributedText.observe(self.amountLabelAttributedText.observer)

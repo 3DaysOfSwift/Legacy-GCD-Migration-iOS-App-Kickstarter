@@ -94,6 +94,7 @@ internal func reward(withId rewardId: Int, inProject project: Project) -> Reward
 
  - returns: A pair of the minimum and maximum amount that can be pledged to a reward.
  */
+@MainActor
 internal func minAndMaxPledgeAmount(forProject project: Project, reward: Reward?)
   -> (min: Double, max: Double) {
   // The country on the project cannot be trusted to have the min/max values, so first try looking
@@ -134,6 +135,7 @@ internal func minAndMaxPledgeAmount(forProject project: Project, reward: Reward?
 
  - returns: The minimum amount needed to pledge to the reward.
  */
+@MainActor
 internal func minPledgeAmount(forProject project: Project, reward: Reward?) -> Double {
   return minAndMaxPledgeAmount(forProject: project, reward: reward).min
 }
@@ -148,6 +150,7 @@ internal func minPledgeAmount(forProject project: Project, reward: Reward?) -> D
 
  - returns: The currency symbol that can be used for currency display.
  */
+@MainActor
 public func currencySymbol(
   forCurrencyCode currencyCode: String,
   omitCurrencyCode: Bool = true,
@@ -191,6 +194,7 @@ public func currencySymbol(
 
  - returns: The first matching country for currency symbol
  */
+@MainActor
 public func projectCountry(
   forCurrency code: String?,
   env: Environment = AppEnvironment.current
@@ -230,6 +234,7 @@ public func defaultShippingLocation(fromLocations locations: [Location]) -> Loca
   return locations.first
 }
 
+@MainActor
 public func formattedAmountForRewardOrBacking(
   project: Project,
   rewardOrBacking: Either<Reward, Backing>
@@ -662,6 +667,7 @@ func calculateAllRewardsTotal(
  - returns: A `CheckoutPropertiesData` object required for checkoutProperties.
  */
 
+@MainActor
 public func checkoutProperties(
   from project: Project,
   baseReward: Reward,

@@ -10,10 +10,12 @@ public protocol ApplePayCapabilitiesType {
   /*
    Returns whether the current device is capable of making payments using the list of allSupportedNetworks()
    */
+  @MainActor
   func applePayCapable() -> Bool
   /*
    Returns whether the current device is capable of making Apple Pay payments with any network
    */
+  @MainActor
   func applePayDevice() -> Bool
 
   /*
@@ -23,6 +25,7 @@ public protocol ApplePayCapabilitiesType {
    parameters:
    - project: the project to use for determining supported card types
    */
+  @MainActor
   func applePayCapable(for project: Project) -> Bool
 
   /*
@@ -35,6 +38,7 @@ public protocol ApplePayCapabilitiesType {
    parameters:
    - project: the project to use for determining supported card types
    */
+  @MainActor
   func supportedNetworks(for project: Project) -> [PKPaymentNetwork]
 }
 
@@ -52,20 +56,24 @@ public struct ApplePayCapabilities: ApplePayCapabilitiesType {
     ]
   }
 
+  @MainActor
   public func applePayCapable() -> Bool {
     return PKPaymentAuthorizationViewController.canMakePayments(usingNetworks: self.allSupportedNetworks())
   }
 
+  @MainActor
   public func applePayDevice() -> Bool {
     return PKPaymentAuthorizationViewController.canMakePayments()
   }
 
+  @MainActor
   public func applePayCapable(for project: Project) -> Bool {
     return PKPaymentAuthorizationViewController.canMakePayments(
       usingNetworks: self.supportedNetworks(for: project)
     )
   }
 
+  @MainActor
   public func supportedNetworks(for project: Project) -> [PKPaymentNetwork] {
     guard let availableCardTypes = project.availableCardTypes else {
       let projectCountryCurrency = projectCountry(forCurrency: project.stats.projectCurrency) ?? project

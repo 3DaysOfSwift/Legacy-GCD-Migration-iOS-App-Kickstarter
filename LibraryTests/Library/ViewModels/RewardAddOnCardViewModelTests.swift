@@ -9,7 +9,9 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class RewardAddOnCardViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   fileprivate let vm: RewardAddOnCardViewModelType = RewardAddOnCardViewModel()
 
   private let addButtonHidden = TestObserver<Bool, Never>()
@@ -38,8 +40,8 @@ final class RewardAddOnCardViewModelTests: TestCase {
   private let rewardImageURL = TestObserver<String, Never>()
   private let rewardImageHidden = TestObserver<Bool, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.addButtonHidden.observe(self.addButtonHidden.observer)
     self.vm.outputs.amountLabelAttributedText.map(\.string)

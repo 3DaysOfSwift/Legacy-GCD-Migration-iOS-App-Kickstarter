@@ -45,6 +45,7 @@ final class FormatTests: TestCase {
     XCTAssertEqual(failures, [])
   }
 
+  @MainActor
   func testResolvedNumberInputsPreserveEnvironmentFormatting() {
     for identifier in ["en_US", "de_DE", "fr_FR", "ja_JP"] {
       withEnvironment(locale: Locale(identifier: identifier)) {

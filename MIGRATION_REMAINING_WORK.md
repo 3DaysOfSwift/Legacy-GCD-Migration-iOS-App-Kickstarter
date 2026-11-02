@@ -93,10 +93,14 @@ The compiler exposed these concrete next dependencies (not an exhaustive app inv
   dependent web/deep-link callers now declare MainActor, with 179 passing focused tests.
 - Platform payment/notification helpers, localized postal-code lookup and project URLs
   now declare MainActor ownership. Lottie localization uses the language-only projection.
-- Remaining concrete compiler dependencies include SharedFunctions convenience defaults,
-  legacy Paginate scheduler/delay capture, and keychain/configuration reads used by
-  synchronous Environment persistence. Test fixture stack push/pop ownership also needs
-  alignment with the final stack contract.
+- Keychain helpers now receive an explicit policy decision; configuration tools and flag
+  convenience reads declare MainActor. The synchronous persistence entry point still reads
+  the active stack, so persistence/stack ownership remains unfinished.
+- Country/currency convenience lookup, pledge amount/add-on/summary presentation and Apple
+  Pay capability contracts now declare MainActor. Pure value overloads remain nonisolated.
+- Remaining concrete dependencies include Format convenience defaults, legacy Paginate
+  scheduler/delay capture, other global styles/helpers and stack push/pop test fixtures.
+  Re-run compiler isolation to identify later batches; this list is not exhaustive.
 
 Reward-card presentation, creator/shipping/clock helpers and response-side creator identity
 are now isolated/captured and verified. Country/currency helpers expose checked value inputs.

@@ -2,6 +2,18 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## Pledge presentation and country dependencies — 3 November 2026
+
+Pledge amount/add-on card/summary ViewModels and their protocols now declare MainActor, along
+with shared minimum-amount, country/currency convenience and checkout analytics helpers.
+Apple Pay capability checks declare their actor contract; pure formatting/network mapping stays
+value-only. Existing amount, selection, display and payment behavior is retained.
+
+287 selected tests passed, zero failures/skips; the app built and framework build-for-testing
+passed. Three nonvisual suites explicitly opt out of the reference-device guard; no global
+snapshot rule changed. Evidence: kickstarter-pledge-presentation-owners. Stack/Format defaults,
+global styles and final device/visual/live-operation gates remain unfinished.
+
 ## Configuration policy and tools ownership — 3 November 2026
 
 Keychain operations take an explicit enablement decision. Save retains the active-stack policy

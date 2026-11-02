@@ -12,6 +12,7 @@ public struct RewardAddOnCardViewData: Equatable {
   public let selectedQuantities: SelectedRewardQuantities
 }
 
+@MainActor
 public protocol RewardAddOnCardViewModelInputs {
   func addButtonTapped()
   func configure(with data: RewardAddOnCardViewData)
@@ -19,6 +20,7 @@ public protocol RewardAddOnCardViewModelInputs {
   func stepperValueChanged(_ value: Double)
 }
 
+@MainActor
 public protocol RewardAddOnCardViewModelOutputs {
   var addButtonHidden: Signal<Bool, Never> { get }
   var amountConversionLabelHidden: Signal<Bool, Never> { get }
@@ -46,11 +48,13 @@ public protocol RewardAddOnCardViewModelOutputs {
   var rewardImageHidden: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol RewardAddOnCardViewModelType {
   var inputs: RewardAddOnCardViewModelInputs { get }
   var outputs: RewardAddOnCardViewModelOutputs { get }
 }
 
+@MainActor
 public final class RewardAddOnCardViewModel: RewardAddOnCardViewModelType, RewardAddOnCardViewModelInputs,
   RewardAddOnCardViewModelOutputs {
   public init() {
@@ -93,7 +97,7 @@ public final class RewardAddOnCardViewModel: RewardAddOnCardViewModelType, Rewar
       .map(Strings.About_reward_amount(reward_amount:))
 
     self.amountLabelAttributedText = projectRewardShippingRule
-      .map(amountStringForReward)
+      .map { amountStringForReward(project: $0.0, reward: $0.1, shippingRule: $0.2) }
 
     self.descriptionLabelText = reward.map(\.description)
 
@@ -244,6 +248,7 @@ public final class RewardAddOnCardViewModel: RewardAddOnCardViewModelType, Rewar
 
 // MARK: - Functions
 
+@MainActor
 private func amountStringForReward(
   project: Project,
   reward: Reward,

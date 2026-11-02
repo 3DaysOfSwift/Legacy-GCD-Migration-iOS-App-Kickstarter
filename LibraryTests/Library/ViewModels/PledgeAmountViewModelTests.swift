@@ -8,7 +8,9 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class PledgeAmountViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private let vm: PledgeAmountViewModelType = PledgeAmountViewModel()
 
   private let amountIsValid = TestObserver<Bool, Never>()
@@ -32,8 +34,8 @@ internal final class PledgeAmountViewModelTests: TestCase {
   private let textFieldValue = TestObserver<String, Never>()
   private let titleLabelText = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.notifyDelegateAmountUpdated.map { $0.isValid }.observe(self.amountIsValid.observer)
     self.vm.outputs.notifyDelegateAmountUpdated.map { $0.max }.observe(self.amountMax.observer)

@@ -112,7 +112,7 @@ public final class RewardCardViewModel: RewardCardViewModelType, RewardCardViewM
       .map { project, reward in
         (project, Either<Reward, Backing>.left(reward))
       }
-      .map(formattedAmountForRewardOrBacking(project:rewardOrBacking:))
+      .map { formattedAmountForRewardOrBacking(project: $0.0, rewardOrBacking: $0.1) }
 
     self.descriptionLabelText = projectAndReward
       .map(localizedDescription(project:reward:))
