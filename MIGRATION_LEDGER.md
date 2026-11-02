@@ -1,6 +1,17 @@
 # CFA migration ledger
 
-Author: Matthew Thomas. Updated 2 November 2026.
+Author: Matthew Thomas. Updated 3 November 2026.
+
+## Navigation Environment readers — 3 November 2026
+
+Environment-reading navigation entry points and dependent pledge-manager/project-update/
+AppDelegate web-link helpers now declare MainActor. Explicit URL matching remains value-only.
+Existing route and browser decisions are preserved; 50 Library and 129 framework tests passed,
+zero failures/skips, and the normal app build passed. Evidence: kickstarter-navigation-owners.
+
+The stack-isolation compiler experiment exposed shared-helper defaults, pagination scheduler
+reads and keychain configuration as continuing blockers. Its three experimental annotations
+and compiler flag were not shipped. Global Environment isolation remains unfinished.
 
 ## Reward eligibility and presentation owners — 2 November 2026
 

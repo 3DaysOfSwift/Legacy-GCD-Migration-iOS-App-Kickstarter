@@ -101,6 +101,7 @@ public func == (lhs: Navigation.Project.Update, rhs: Navigation.Project.Update) 
 }
 
 extension Navigation {
+  @MainActor
   public static func match(_ url: URL) -> Navigation? {
     let config = AppEnvironment.current.apiService.serverConfig
     return self.match(url, apiBaseURL: config.apiBaseUrl, webBaseURL: config.webBaseUrl)
@@ -114,6 +115,7 @@ extension Navigation {
     }
   }
 
+  @MainActor
   public static func deepLinkMatch(_ url: URL) -> Navigation? {
     let config = AppEnvironment.current.apiService.serverConfig
     return self.deepLinkMatch(url, apiBaseURL: config.apiBaseUrl, webBaseURL: config.webBaseUrl)
@@ -127,6 +129,7 @@ extension Navigation {
     }
   }
 
+  @MainActor
   public static func match(_ request: URLRequest) -> Navigation? {
     return request.url.flatMap(self.match)
   }
@@ -209,6 +212,7 @@ private func deepLinkRoutes(webBaseURL: URL) -> [String: (RouteParamsDecoded) ->
 )
 }
 
+@MainActor
 extension Navigation.Project {
   public static func withRequest(_ request: URLRequest) -> (Param, RefTag?)? {
     guard let nav = Navigation.match(request), case let .project(project, .root, refInfo, _) = nav

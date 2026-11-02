@@ -86,7 +86,7 @@ internal final class UpdateViewModel: UpdateViewModelType, UpdateViewModelInputs
       anotherUpdateLoadRequest
     )
 
-    let updateRequests = anotherUpdateLoadRequest.map(Navigation.Project.updateWithRequest).skipNil()
+    let updateRequests = anotherUpdateLoadRequest.map { Navigation.Project.updateWithRequest($0) }.skipNil()
     let anotherUpdate = feature.updateValues.filter { $0.0 == route }.map { $0.1 }
     let currentUpdate = Signal.merge(initialUpdate, anotherUpdate)
 
@@ -103,11 +103,11 @@ internal final class UpdateViewModel: UpdateViewModelType, UpdateViewModelInputs
 
     let externalNavigationAction = navigationAction
       .filter { action in action.navigationType == .linkActivated }
-      .filter(isExternalNavigation)
+      .filter { isExternalNavigation($0) }
 
     let internalNavigationAction = navigationAction
       .filter { action in action.navigationType == .linkActivated }
-      .filter(isExternalNavigation >>> isFalse)
+      .filter { !isExternalNavigation($0) }
 
     let goToComments = currentUpdate
       .takePairWhen(internalNavigationAction)
@@ -198,6 +198,7 @@ internal final class UpdateViewModel: UpdateViewModelType, UpdateViewModelInputs
   internal var outputs: UpdateViewModelOutputs { return self }
 }
 
+@MainActor
 func isExternalNavigation(_ action: WKNavigationActionData) -> Bool {
   return ([
     Navigation.Project.withRequest(action.request),

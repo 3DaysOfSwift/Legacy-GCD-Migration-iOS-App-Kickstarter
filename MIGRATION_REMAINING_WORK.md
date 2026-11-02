@@ -1,6 +1,6 @@
 # Remaining CFA migration work
 
-Author: Matthew Thomas. Updated 2 November 2026.
+Author: Matthew Thomas. Updated 3 November 2026.
 
 The app-wide migration is **in progress**. Business-feature checkpoints are recorded
 in MIGRATION_LEDGER.md; this is the remaining implementation/validation inventory,
@@ -79,7 +79,7 @@ Layout/HTML ownership, refresh cancellation, report-cell reuse and checked accou
 value transfer are verified checkpoints. The demo's sorting and card scrolling were
 observed; full visual/device parity and live operations remain open.
 
-## Stack isolation compiler frontier — 2 November 2026
+## Stack isolation compiler frontier — 3 November 2026
 
 The experimental AppEnvironment/Environment actor annotations were reverted, not shipped.
 The compiler exposed these concrete next dependencies (not an exhaustive app inventory):
@@ -89,8 +89,8 @@ The compiler exposed these concrete next dependencies (not an exhaustive app inv
   await completion; the reactive network/cache callback path is removed.
 - SearchFilters, VideoFeedItem presentation construction, and Activity status/friend
   presentation helpers now declare MainActor ownership and have passing focused tests.
-- Navigation route callbacks now capture API/web URLs. Compatibility entry points still
-  read Environment synchronously and require stack isolation alignment.
+- Navigation route callbacks capture API/web URLs; the compatibility entry points and
+  dependent web/deep-link callers now declare MainActor, with 179 passing focused tests.
 - Platform payment/notification helpers, localized postal-code lookup and project URLs
   now declare MainActor ownership. Lottie localization uses the language-only projection.
 - Remaining concrete compiler dependencies include SharedFunctions convenience defaults,
@@ -98,6 +98,8 @@ The compiler exposed these concrete next dependencies (not an exhaustive app inv
   synchronous Environment persistence. Test fixture stack push/pop ownership also needs
   alignment with the final stack contract.
 
+Reward-card presentation, creator/shipping/clock helpers and response-side creator identity
+are now isolated/captured and verified. Country/currency helpers expose checked value inputs.
 Card-expiry rendering, its two cell ViewModels, HelpType URL lookup and feature/experiment
 Environment readers are isolated and tested. Re-run the stack experiment after these
 items; later compiler batches may expose additional callers. Do not treat a passing Swift 5

@@ -133,7 +133,7 @@ public final class PledgeManagerWebViewModel: PledgeManagerWebViewModelType {
 
     self.goToNativeScreen =
       newRequest
-      .map(nativeNavigationRequestForURLRequest)
+      .map { nativeNavigationRequestForURLRequest($0) }
       .skipNil()
 
     self.presentUpdateVC = self.fetchUpdateVCDataProperty.signal.skipNil()
@@ -235,6 +235,7 @@ public final class PledgeManagerWebViewModel: PledgeManagerWebViewModelType {
 // the view controller so it can open their native views. Any request that
 // doesn't have a corresponding native request will either be displayed in the
 // webview or be discarded.
+@MainActor
 private func nativeNavigationRequestForURLRequest(_ request: URLRequest)
   -> PledgeManagerNativeNatigationRequest?
 {
@@ -249,16 +250,19 @@ private func nativeNavigationRequestForURLRequest(_ request: URLRequest)
   }
 }
 
+@MainActor
 private func isKickstarterRequest(_ request: URLRequest) -> Bool {
   guard let host = request.url?.host() else { return false }
   return host == AppEnvironment.current.apiService.serverConfig.webBaseUrl.host()
 }
 
+@MainActor
 private func isUnpreparedSupportedRequest(request: URLRequest) -> Bool {
   guard !AppEnvironment.current.apiService.isPrepared(request: request) else { return false }
   return isSupportedRequest(request: request)
 }
 
+@MainActor
 private func isSupportedRequest(request: URLRequest) -> Bool {
   let navigation = Navigation.match(request)
   guard case (.project(_, .pledgeManagerWebview, _, _))? = navigation else { return false }
@@ -286,6 +290,7 @@ private func isStripeHost(_ host: String) -> Bool {
   return stripeDomains.contains(withoutSubdomain)
 }
 
+@MainActor
 private func errorForUnrecognizedUrl(request: URLRequest) -> NSError? {
   let errorDomain = "Kickstarter.PledgeManagerWebView"
   enum ErrorCode: Int {

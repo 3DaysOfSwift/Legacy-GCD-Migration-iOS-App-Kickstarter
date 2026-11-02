@@ -265,6 +265,7 @@ private func canMakePhoneCall() -> Bool {
 }
 
 // Returns project and update params for update and comments requests.
+@MainActor
 private func projectUpdateParams(fromRequest request: URLRequest) -> (projectParam: Param, updateId: Int)? {
   guard let nav = Navigation.match(request) else { return nil }
   switch nav {
@@ -285,11 +286,13 @@ private func isEmailLink(action: WKNavigationActionData) -> Bool {
   return action.request.url?.scheme == "mailto"
 }
 
+@MainActor
 private func isGoToCommentsRequest(request: URLRequest) -> Bool {
   if let nav = Navigation.match(request), case .project(_, .update(_, .comments), _, _) = nav { return true }
   return false
 }
 
+@MainActor
 private func isGoToUpdateRequest(request: URLRequest) -> Bool {
   if let nav = Navigation.match(request), case .project(_, .update(_, .root), _, _) = nav { return true }
   return false
@@ -299,6 +302,7 @@ private func isPhoneLink(action: WKNavigationActionData) -> Bool {
   return action.request.url?.scheme == "tel" ? true : false
 }
 
+@MainActor
 private func isUpdatesRequest(request: URLRequest) -> Bool {
   if let nav = Navigation.match(request), case .project(_, .updates, _, _) = nav { return true }
   return false

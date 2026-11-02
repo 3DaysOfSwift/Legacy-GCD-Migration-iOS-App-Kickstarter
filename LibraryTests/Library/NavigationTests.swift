@@ -5,6 +5,7 @@
 import Prelude
 import XCTest
 
+@MainActor
 private func KSRAssertMatch(
   _ expected: Navigation?,
   _ path: String,
@@ -13,11 +14,12 @@ private func KSRAssertMatch(
 ) {
   let baseUrl = AppEnvironment.current.apiService.serverConfig.webBaseUrl.absoluteString
   let match = URL(string: "\(baseUrl)\(path)")
-    .flatMap(Navigation.match)
+    .flatMap { Navigation.match($0) }
 
   XCTAssertEqual(expected, match, file: file, line: line)
 }
 
+@MainActor
 public final class NavigationTests: XCTestCase {
   func testExplicitServerURLsControlMatchingAndPledgeDestination() throws {
     let web = try XCTUnwrap(URL(string: "https://migration.example"))

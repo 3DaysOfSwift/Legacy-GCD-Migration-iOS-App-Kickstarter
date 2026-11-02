@@ -368,13 +368,13 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
     let urlFromBraze = self.brazeNotificationURLProperty.signal.skipNil()
 
-    let deepLinkFromBraze = urlFromBraze.map(Navigation.deepLinkMatch)
+    let deepLinkFromBraze = urlFromBraze.map { Navigation.deepLinkMatch($0) }
 
     let continueUserActivity = self.applicationContinueUserActivityProperty.signal.skipNil()
 
     let continueUserActivityWithNavigation = continueUserActivity
       .filter { $0.activityType == NSUserActivityTypeBrowsingWeb }
-      .map { activity in (activity, activity.webpageURL.flatMap(Navigation.match)) }
+      .map { activity in (activity, activity.webpageURL.flatMap { Navigation.match($0) }) }
 
     self.continueUserActivityReturnValue <~ continueUserActivityWithNavigation.map(second >>> isNotNil)
 
@@ -388,7 +388,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
           .skipNil()
       )
 
-    let deepLinkFromUrl = deepLinkUrl.map(Navigation.match)
+    let deepLinkFromUrl = deepLinkUrl.map { Navigation.match($0) }
 
     let performShortcutItem = Signal.merge(
       self.performActionForShortcutItemProperty.signal.skipNil(),
@@ -497,7 +497,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       deepLinkUrl,
       urlFromBraze
     )
-    .filter(shouldOpenUrlInBrowser)
+    .filter { shouldOpenUrlInBrowser($0) }
 
     let pledgeManagerLink = destinations
       .map { destination -> String? in
@@ -808,6 +808,7 @@ private func deviceToken(fromData data: Data) -> String {
     .joined()
 }
 
+@MainActor
 private func shouldOpenUrlInBrowser(_ url: URL) -> Bool {
   // If url has a deeplink match, never attempt to open the url in the browser.
   if Navigation.deepLinkMatch(url) != nil {
