@@ -5,6 +5,7 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol ChangeEmailViewModelInputsSwiftUIIntegrationTest {
   func resendVerificationEmailButtonTapped()
   func viewDidLoad()
@@ -12,6 +13,7 @@ public protocol ChangeEmailViewModelInputsSwiftUIIntegrationTest {
   func didTapSaveButton()
 }
 
+@MainActor
 public protocol ChangeEmailViewModelOutputsSwiftUIIntegrationTest {
   var didFailToSendVerificationEmail: Signal<String, Never> { get }
   var didSendVerificationEmail: Signal<Void, Never> { get }
@@ -23,6 +25,7 @@ public protocol ChangeEmailViewModelOutputsSwiftUIIntegrationTest {
   var verificationEmailButtonTitle: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol ChangeEmailViewModelTypeSwiftUIIntegrationTest {
   var inputs: ChangeEmailViewModelInputsSwiftUIIntegrationTest { get }
   var outputs: ChangeEmailViewModelOutputsSwiftUIIntegrationTest { get }

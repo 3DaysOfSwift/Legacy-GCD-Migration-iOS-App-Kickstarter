@@ -5,23 +5,27 @@ import ReactiveSwift
 
 public typealias FeatureEnabled = (feature: Feature, isEnabled: Bool)
 
+@MainActor
 public protocol FeatureFlagToolsViewModelOutputs {
   var postNotification: Signal<Notification, Never> { get }
   var reloadWithData: Signal<[Features], Never> { get }
   var updateConfigWithFeatures: Signal<Features, Never> { get }
 }
 
+@MainActor
 public protocol FeatureFlagToolsViewModelInputs {
   func didUpdateConfig()
   func setFeatureAtIndexEnabled(index: Int, isEnabled: Bool)
   func viewDidLoad()
 }
 
+@MainActor
 public protocol FeatureFlagToolsViewModelType {
   var inputs: FeatureFlagToolsViewModelInputs { get }
   var outputs: FeatureFlagToolsViewModelOutputs { get }
 }
 
+@MainActor
 public final class FeatureFlagToolsViewModel: FeatureFlagToolsViewModelType, FeatureFlagToolsViewModelInputs,
   FeatureFlagToolsViewModelOutputs {
   public init() {

@@ -8,20 +8,22 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class FeatureFlagToolsViewModelTests: TestCase {
-  private let vm: FeatureFlagToolsViewModelType = FeatureFlagToolsViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private lazy var vm: FeatureFlagToolsViewModelType = {
+    let vm = FeatureFlagToolsViewModel()
+    vm.outputs.postNotification.map(\.name).observe(self.postNotificationName.observer)
+    vm.outputs.updateConfigWithFeatures.observe(self.updateConfigWithFeatures.observer)
+    vm.outputs.reloadWithData.observe(self.reloadWithDataFeatures.observer)
+    return vm
+  }()
 
   private let postNotificationName = TestObserver<Notification.Name, Never>()
   private let updateConfigWithFeatures = TestObserver<Features, Never>()
   private let reloadWithDataFeatures = TestObserver<[Features], Never>()
 
-  override func setUp() {
-    super.setUp()
 
-    self.vm.outputs.postNotification.map(\.name).observe(self.postNotificationName.observer)
-    self.vm.outputs.updateConfigWithFeatures.observe(self.updateConfigWithFeatures.observer)
-    self.vm.outputs.reloadWithData.observe(self.reloadWithDataFeatures.observer)
-  }
 
   func testDataIsSortedAlphabetically() {
     let featuresArray = Feature.allCases.map { $0.rawValue }

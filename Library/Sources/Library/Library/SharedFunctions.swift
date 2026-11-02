@@ -247,6 +247,7 @@ internal func classNameWithoutModule(_ class: AnyClass) -> String {
     .joined(separator: ".")
 }
 
+@MainActor
 public func deviceIdentifier(uuid: UUIDType, env: Environment = AppEnvironment.current) -> String {
   guard let identifier = env.device.identifierForVendor else {
     return uuid.uuidString

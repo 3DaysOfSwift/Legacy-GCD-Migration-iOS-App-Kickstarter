@@ -8,7 +8,9 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class SharedFunctionsTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   func testUpdatedUserWithClearedActivityCountProducer_Success() {
     let initialActivitiesCount = 100
     let values = TestObserver<User, Never>()
@@ -995,12 +997,14 @@ final class SharedFunctionsTests: TestCase {
     }
   }
 
+  @MainActor
   func testDeviceIdentifier_IdentifierForVendor_IsNotNil() {
     withEnvironment(device: MockDevice()) {
       XCTAssertEqual("DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF", deviceIdentifier(uuid: MockUUID()))
     }
   }
 
+  @MainActor
   func testDeviceIdentifier_IdentifierForVendor_IsNil() {
     let device = MockDevice()
       |> \.identifierForVendor .~ nil

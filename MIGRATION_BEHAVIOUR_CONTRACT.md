@@ -1437,3 +1437,10 @@ happens before the main-actor hop; SDK completion follows awaited UI handling. T
 ViewModel input remains for compatibility and routes through the same decoded envelope.
 Local simulated foreground push changed Activity badge to 3. Notification tap/live APNs remain
 unverified. UI protocol changes preserve bodies and reference snapshot checks.
+
+### UI owner contracts — 2 November 2026
+
+Discovery filter output ordering, feature-flag updates, backing date presentation, device-ID
+fallback, application URL opening and analytics values retain their existing assertions.
+194 nonvisual tests passed. Demo category expansion/selection and project FAQ/Risks navigation
+were observed on iPhone Air iOS 26.2; this is not reference snapshot parity.

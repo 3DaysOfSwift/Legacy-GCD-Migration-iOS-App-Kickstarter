@@ -8,7 +8,9 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class KSRAnalyticsTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   // MARK: - Session Properties Tests
 
   func testSessionProperties() {

@@ -3,6 +3,7 @@ import UIKit
 /**
  *  A type that behaves like a UIScreen.
  */
+@MainActor
 public protocol UIScreenType {
   var bounds: CGRect { get }
 }

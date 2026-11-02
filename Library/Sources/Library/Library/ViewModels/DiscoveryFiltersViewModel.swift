@@ -2,6 +2,7 @@ import KsApi
 import Prelude
 import ReactiveSwift
 
+@MainActor
 public protocol DiscoveryFiltersViewModelInputs {
   /// Call with the row that is selected when the filters appear and array of loaded categories.
   func configureWith(selectedRow: SelectableRow)
@@ -19,6 +20,7 @@ public protocol DiscoveryFiltersViewModelInputs {
   func viewDidAppear()
 }
 
+@MainActor
 public protocol DiscoveryFiltersViewModelOutputs {
   /// Emits when to animate in the view.
   var animateInView: Signal<(), Never> { get }
@@ -48,11 +50,13 @@ public protocol DiscoveryFiltersViewModelOutputs {
   var shouldAnimateSelectableCell: Bool { get }
 }
 
+@MainActor
 public protocol DiscoveryFiltersViewModelType {
   var inputs: DiscoveryFiltersViewModelInputs { get }
   var outputs: DiscoveryFiltersViewModelOutputs { get }
 }
 
+@MainActor
 public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
   DiscoveryFiltersViewModelInputs, DiscoveryFiltersViewModelOutputs {
   public init() {

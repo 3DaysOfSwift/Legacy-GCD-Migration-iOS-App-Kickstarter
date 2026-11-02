@@ -7,20 +7,22 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class ErroredBackingViewViewModelTests: TestCase {
-  private let vm: ErroredBackingViewViewModelType = ErroredBackingViewViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private lazy var vm: ErroredBackingViewViewModelType = {
+    let vm = ErroredBackingViewViewModel()
+    vm.outputs.finalCollectionDateText.observe(self.finalCollectionDateText.observer)
+    vm.outputs.notifyDelegateManageButtonTapped.observe(self.notifyDelegateManageButtonTapped.observer)
+    vm.outputs.projectName.observe(self.projectName.observer)
+    return vm
+  }()
 
   private let finalCollectionDateText = TestObserver<String, Never>()
   private let notifyDelegateManageButtonTapped = TestObserver<ProjectAndBackingEnvelope, Never>()
   private let projectName = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
 
-    self.vm.outputs.finalCollectionDateText.observe(self.finalCollectionDateText.observer)
-    self.vm.outputs.notifyDelegateManageButtonTapped.observe(self.notifyDelegateManageButtonTapped.observer)
-    self.vm.outputs.projectName.observe(self.projectName.observer)
-  }
 
   func testNotifyDelegateManageButtonTapped_Emits_WhenButtonIsTapped() {
     let env = ProjectAndBackingEnvelope.template

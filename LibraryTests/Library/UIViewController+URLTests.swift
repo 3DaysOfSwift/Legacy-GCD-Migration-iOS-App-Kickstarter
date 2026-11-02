@@ -4,7 +4,9 @@ import SafariServices
 import UIKit
 import XCTest
 
+@MainActor
 final class UIViewControllerURLTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   func testSupportedSchemes() {
     XCTAssertEqual(UIViewController.supportedURLSchemes, ["http", "https"])
   }

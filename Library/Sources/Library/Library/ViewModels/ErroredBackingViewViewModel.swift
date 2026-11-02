@@ -3,22 +3,26 @@ import KsApi
 import Prelude
 import ReactiveSwift
 
+@MainActor
 public protocol ErroredBackingViewViewModelInputs {
   func configure(with value: ProjectAndBackingEnvelope)
   func manageButtonTapped()
 }
 
+@MainActor
 public protocol ErroredBackingViewViewModelOutputs {
   var finalCollectionDateText: Signal<String, Never> { get }
   var notifyDelegateManageButtonTapped: Signal<ProjectAndBackingEnvelope, Never> { get }
   var projectName: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol ErroredBackingViewViewModelType {
   var inputs: ErroredBackingViewViewModelInputs { get }
   var outputs: ErroredBackingViewViewModelOutputs { get }
 }
 
+@MainActor
 public final class ErroredBackingViewViewModel: ErroredBackingViewViewModelType,
   ErroredBackingViewViewModelInputs, ErroredBackingViewViewModelOutputs {
   public init() {
@@ -32,7 +36,7 @@ public final class ErroredBackingViewViewModel: ErroredBackingViewViewModelType,
       .skipNil()
 
     self.finalCollectionDateText = collectionDate
-      .map(timeLeftString)
+      .map { timeLeftString(finalCollectionDate: $0) }
 
     self.notifyDelegateManageButtonTapped = self.configDataSignal
       .takeWhen(self.manageButtonTappedSignal)
@@ -56,16 +60,18 @@ public final class ErroredBackingViewViewModel: ErroredBackingViewViewModelType,
   public var outputs: ErroredBackingViewViewModelOutputs { return self }
 }
 
+@MainActor
 private func timeLeftString(finalCollectionDate: TimeInterval) -> String {
   let (time, unit) = timeLeft(
-    secondsInUTC: finalCollectionDate
+    secondsInUTC: finalCollectionDate, env: AppEnvironment.current
   )
   return Strings.Time_left_left(time_left: time + " " + unit)
 }
 
+@MainActor
 private func timeLeft(
   secondsInUTC seconds: TimeInterval,
-  env: Environment = AppEnvironment.current
+  env: Environment
 )
   -> (time: String, unit: String) {
   let components = env.calendar.dateComponents(

@@ -1,5 +1,6 @@
 import UIKit
 
+@MainActor
 public protocol UIApplicationType {
   var applicationIconBadgeNumber: Int { get }
   func canOpenURL(_ url: URL) -> Bool

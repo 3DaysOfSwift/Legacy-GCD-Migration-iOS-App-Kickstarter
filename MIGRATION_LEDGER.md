@@ -2,6 +2,26 @@
 
 Author: Matthew Thomas. Updated 2 November 2026.
 
+## Remaining UI owner contracts — 2 November 2026
+
+UIApplicationType, UIScreenType and the ChangeEmail SwiftUI integration input/output/type
+contracts now declare MainActor. Discovery filters, feature-flag tools and the errored-backing
+UI adapter also declare their actor, including input/output protocols. The backing formatter
+receives its environment explicitly within the actor; deviceIdentifier declares its UI owner.
+No product logic, style or analytics payload was changed.
+
+Six nonvisual suites ran 194 tests with zero failures/skips. Their snapshot-device opt-outs
+are local to those nonvisual suites. The three newly isolated ViewModel suites bind their
+fixtures lazily on the test actor rather than in nonisolated XCTest setup. Normal and complete-
+checking builds passed. Manual demo checks exercised category expansion/selection, filtered
+project navigation, FAQ/Risks tabs, close and restoration to All Projects.
+
+An exploratory UIDevice/KSRAnalytics/AppEnvironment-wide isolation conversion was reverted:
+it propagates through more than 200 environment-default argument sites in formatters/helpers,
+and mutable analytics lenses erase actor contracts. Those changes are not part of this verified
+checkpoint. Global environment/device/analytics ownership remains a concrete open implementation
+item, not a completed migration or merely a device-validation limitation.
+
 ## UI delegate and notification boundary closure — 2 November 2026
 
 The audited app-owned UI delegate cohort now declares MainActor across 57 protocol files,

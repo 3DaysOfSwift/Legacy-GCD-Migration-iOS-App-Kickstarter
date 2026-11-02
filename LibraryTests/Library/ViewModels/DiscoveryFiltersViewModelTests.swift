@@ -50,8 +50,23 @@ private let categories =
     Category.filmAndVideo
   ]
 
+@MainActor
 internal final class DiscoveryFiltersViewModelTests: TestCase {
-  private let vm: DiscoveryFiltersViewModelType = DiscoveryFiltersViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private lazy var vm: DiscoveryFiltersViewModelType = {
+    let vm = DiscoveryFiltersViewModel()
+    vm.outputs.animateInView.observe(self.animateInView.observer)
+    vm.outputs.loadingIndicatorIsVisible.observe(self.loadingIndicatorisVisible.observer)
+    vm.outputs.loadCategoryRows.map(first).observe(self.loadCategoryRows.observer)
+    vm.outputs.loadCategoryRows.map(second).observe(self.loadCategoryRowsInitialId.observer)
+    vm.outputs.loadCategoryRows.map { $0.2 }.observe(self.loadCategoryRowsSelectedId.observer)
+    vm.outputs.loadTopRows.map(first).observe(self.loadTopRows.observer)
+    vm.outputs.loadTopRows.map(second).observe(self.loadTopRowsInitialId.observer)
+    vm.outputs.notifyDelegateOfSelectedRow.observe(self.notifyDelegateOfSelectedRow.observer)
+    vm.outputs.loadFavoriteRows.map(first).observe(self.loadFavoriteRows.observer)
+    vm.outputs.loadFavoriteRows.map(second).observe(self.loadFavoriteRowsId.observer)
+    return vm
+  }()
 
   private var defaultRootCategoriesTemplate: RootCategoriesEnvelope {
     RootCategoriesEnvelope.template
@@ -77,20 +92,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   private let categoriesResponse = RootCategoriesEnvelope.template
     |> RootCategoriesEnvelope.lens.categories .~ categories
 
-  override func setUp() {
-    super.setUp()
 
-    self.vm.outputs.animateInView.observe(self.animateInView.observer)
-    self.vm.outputs.loadingIndicatorIsVisible.observe(self.loadingIndicatorisVisible.observer)
-    self.vm.outputs.loadCategoryRows.map(first).observe(self.loadCategoryRows.observer)
-    self.vm.outputs.loadCategoryRows.map(second).observe(self.loadCategoryRowsInitialId.observer)
-    self.vm.outputs.loadCategoryRows.map { $0.2 }.observe(self.loadCategoryRowsSelectedId.observer)
-    self.vm.outputs.loadTopRows.map(first).observe(self.loadTopRows.observer)
-    self.vm.outputs.loadTopRows.map(second).observe(self.loadTopRowsInitialId.observer)
-    self.vm.outputs.notifyDelegateOfSelectedRow.observe(self.notifyDelegateOfSelectedRow.observer)
-    self.vm.outputs.loadFavoriteRows.map(first).observe(self.loadFavoriteRows.observer)
-    self.vm.outputs.loadFavoriteRows.map(second).observe(self.loadFavoriteRowsId.observer)
-  }
 
   func testAnimateIn() {
     self.vm.inputs.configureWith(selectedRow: allProjectsRow)
