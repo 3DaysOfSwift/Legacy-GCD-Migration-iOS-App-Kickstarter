@@ -4,11 +4,13 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol ActivityProjectStatusViewModelInputs {
   /// Call to configure with an Activity.
   func configureWith(activity: Activity)
 }
 
+@MainActor
 public protocol ActivityProjectStatusViewModelOutputs {
   /// Emits a color for the funding progress bar.
   var fundingBarColor: Signal<UIColor, Never> { get }
@@ -32,11 +34,13 @@ public protocol ActivityProjectStatusViewModelOutputs {
   var projectName: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol ActivityProjectStatusViewModelType {
   var inputs: ActivityProjectStatusViewModelInputs { get }
   var outputs: ActivityProjectStatusViewModelOutputs { get }
 }
 
+@MainActor
 public final class ActivityProjectStatusViewModel: ActivityProjectStatusViewModelType,
   ActivityProjectStatusViewModelInputs, ActivityProjectStatusViewModelOutputs {
   public init() {
@@ -60,7 +64,7 @@ public final class ActivityProjectStatusViewModel: ActivityProjectStatusViewMode
       )
     }
 
-    self.percentFundedText = activity.map(percentFundedString(forActivity:))
+    self.percentFundedText = activity.map { percentFundedString(forActivity: $0) }
 
     self.projectImageURL = project.map { $0.photo.full }.map(URL.init(string:))
 
@@ -130,6 +134,7 @@ private func metadataString(
   }
 }
 
+@MainActor
 private func percentFundedString(forActivity activity: Activity) -> NSAttributedString {
   guard let project = activity.project else { return NSAttributedString(string: "") }
 

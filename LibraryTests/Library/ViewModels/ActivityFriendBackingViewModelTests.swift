@@ -15,8 +15,8 @@ internal final class ActivityFriendBackingViewModelTests: TestCase {
   fileprivate let cellAccessibilityLabel = TestObserver<String, Never>()
   fileprivate let friendTitleLabel = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       self.vm.outputs.friendTitle.map { $0.string }.observe(self.friendTitleLabel.observer)
       self.vm.outputs.cellAccessibilityLabel.observe(self.cellAccessibilityLabel.observer)

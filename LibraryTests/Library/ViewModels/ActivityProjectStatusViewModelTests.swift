@@ -7,15 +7,17 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class ActivityProjectStatusViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   fileprivate let vm: ActivityProjectStatusViewModelType = ActivityProjectStatusViewModel()
   fileprivate let metadataText = TestObserver<String, Never>()
   fileprivate let percentFundedText = TestObserver<String, Never>()
   fileprivate let projectImageURL = TestObserver<String?, Never>()
   fileprivate let projectName = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     self.vm.outputs.metadataText.observe(self.metadataText.observer)
     self.vm.outputs.percentFundedText.map { $0.string }.observe(self.percentFundedText.observer)
     self.vm.outputs.projectImageURL.map { $0?.absoluteString }.observe(self.projectImageURL.observer)

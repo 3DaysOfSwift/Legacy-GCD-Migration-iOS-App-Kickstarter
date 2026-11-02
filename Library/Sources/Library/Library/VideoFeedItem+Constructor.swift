@@ -3,6 +3,7 @@ import GraphAPI
 import KsApi
 
 /// Maps a `VideoFeedQuery` graph node to a `VideoFeedItem` to display in the video feed.
+@MainActor
 extension VideoFeedItem {
   init(node: VideoFeedQuery.Data.VideoFeed.Node) {
     self.init(response: VideoFeedResponse(node))

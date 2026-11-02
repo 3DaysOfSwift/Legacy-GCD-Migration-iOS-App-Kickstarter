@@ -9,6 +9,7 @@ import SwiftUI
 ///
 /// This object is read-only outside of the `Library-iOS` Framework.
 /// `SearchFiltersUseCase` owns and updates this object.
+@MainActor
 public class SearchFilters: ObservableObject {
   public struct CategoryOptions {
     public var categories: [KsApi.Category]

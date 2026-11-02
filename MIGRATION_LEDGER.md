@@ -2,6 +2,15 @@
 
 Author: Matthew Thomas. Updated 2 November 2026.
 
+## Filter and presentation ownership — 2 November 2026
+
+SearchFilters' observable presentation model, video-feed display construction and Activity
+project-status ViewModel contracts now specify MainActor. Activity percentage helpers run
+inside their presentation owners. Existing test setup awaits actor ownership. A duplicate
+annotation in the first compile was removed. 59 existing focused tests passed with no
+failures/skips, and the complete-checking app build passed. App-wide warnings remain.
+Evidence: kickstarter-presentation-owners. Stack isolation is the next compiler pass.
+
 ## Discovery category request lifetime — 2 November 2026
 
 FetchCategoriesUseCase now owns a directly awaitable native async category request on

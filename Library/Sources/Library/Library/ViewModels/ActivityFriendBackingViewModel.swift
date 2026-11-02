@@ -88,7 +88,7 @@ public final class ActivityFriendBackingViewModel: ActivityFriendBackingViewMode
       .map(Project.lens.stats.fundingProgress.view)
       .map(clamp(0, 1))
 
-    self.percentFundedText = activity.map(percentFundedString(forActivity:))
+    self.percentFundedText = activity.map { percentFundedString(forActivity: $0) }
 
     self.projectName = activity.map { $0.project?.name ?? "" }
 
@@ -149,6 +149,7 @@ private func string(forCategoryId id: String, friendName: String) -> String {
   }
 }
 
+@MainActor
 private func percentFundedString(forActivity activity: Activity) -> NSAttributedString {
   guard let project = activity.project else { return NSAttributedString(string: "") }
 
