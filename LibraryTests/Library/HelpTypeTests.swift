@@ -2,6 +2,7 @@ import KsApi
 import Library
 import XCTest
 
+@MainActor
 final class HelpTypeTests: XCTestCase {
   func testAccessibilityTraits() {
     XCTAssertEqual(HelpType.helpCenter.accessibilityTraits, UIAccessibilityTraits.link)

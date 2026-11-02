@@ -8,7 +8,9 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class PledgePaymentMethodCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   internal let vm: PledgePaymentMethodCellViewModelType = PledgePaymentMethodCellViewModel()
 
   private let cardImageAlpha = TestObserver<CGFloat, Never>()
@@ -23,8 +25,8 @@ internal final class PledgePaymentMethodCellViewModelTests: TestCase {
   private let unavailableCardLabelHidden = TestObserver<Bool, Never>()
   private let unavailableCardText = TestObserver<String, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.cardImageName.observe(self.cardImageName.observer)
     self.vm.outputs.cardImageAlpha.observe(self.cardImageAlpha.observer)

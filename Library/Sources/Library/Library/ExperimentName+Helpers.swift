@@ -2,6 +2,7 @@ import Foundation
 import KsApi
 
 extension Experiment.Name {
+  @MainActor
   fileprivate func isEnabled(in environment: Environment = AppEnvironment.current) -> Bool {
     guard
       AppEnvironment.current.mainBundle.isRelease,

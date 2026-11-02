@@ -6,7 +6,9 @@ import Foundation
 import Prelude
 import XCTest
 
+@MainActor
 final class FeatureHelpersTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   // MARK: - Segment
 
   func testFeatureSegment_isTrue() {

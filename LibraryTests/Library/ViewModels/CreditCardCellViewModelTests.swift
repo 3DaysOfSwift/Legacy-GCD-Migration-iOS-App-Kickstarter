@@ -7,7 +7,9 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class CreditCardCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   internal let vm: CreditCardCellViewModelType = CreditCardCellViewModel()
 
   private let cardImage = TestObserver<UIImage?, Never>()
@@ -15,8 +17,8 @@ internal final class CreditCardCellViewModelTests: TestCase {
   private let cardNumberTextLongStyle = TestObserver<String, Never>()
   private let expirationDateText = TestObserver<String, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.cardImage.observe(self.cardImage.observer)
     self.vm.outputs.cardNumberAccessibilityLabel.observe(self.cardNumberAccessibilityLabel.observer)

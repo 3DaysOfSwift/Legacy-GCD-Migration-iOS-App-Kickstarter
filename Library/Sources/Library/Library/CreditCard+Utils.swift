@@ -1,6 +1,7 @@
 import Foundation
 import KsApi
 
+@MainActor
 extension UserCreditCards.CreditCard {
   public func expirationDate() -> String {
     return self.formatted(dateString: self.formattedExpirationDate)

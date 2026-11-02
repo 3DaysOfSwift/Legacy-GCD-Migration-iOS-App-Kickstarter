@@ -13,6 +13,7 @@ public typealias PledgePaymentMethodCellData = (
   isErroredPaymentMethod: Bool
 )
 
+@MainActor
 public protocol PledgePaymentMethodCellViewModelInputs {
   /// Call to configure cell with card and selected card values.
   func configureWith(value: PledgePaymentMethodCellData)
@@ -21,6 +22,7 @@ public protocol PledgePaymentMethodCellViewModelInputs {
   func setSelectedCardId(_ id: String)
 }
 
+@MainActor
 public protocol PledgePaymentMethodCellViewModelOutputs {
   /// Emits the alpha for the card image
   var cardImageAlpha: Signal<CGFloat, Never> { get }
@@ -56,11 +58,13 @@ public protocol PledgePaymentMethodCellViewModelOutputs {
   var unavailableCardText: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol PledgePaymentMethodCellViewModelType {
   var inputs: PledgePaymentMethodCellViewModelInputs { get }
   var outputs: PledgePaymentMethodCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class PledgePaymentMethodCellViewModel: PledgePaymentMethodCellViewModelInputs,
   PledgePaymentMethodCellViewModelOutputs, PledgePaymentMethodCellViewModelType {
   public init() {

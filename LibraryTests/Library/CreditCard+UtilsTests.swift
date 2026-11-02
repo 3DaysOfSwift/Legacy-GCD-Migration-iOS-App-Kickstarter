@@ -3,6 +3,7 @@ import Library
 import Prelude
 import XCTest
 
+@MainActor
 final class CreditCard_UtilsTests: XCTestCase {
   func testExpirationDate() {
     let card = UserCreditCards.masterCard

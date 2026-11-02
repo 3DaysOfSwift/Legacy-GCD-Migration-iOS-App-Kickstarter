@@ -15,6 +15,7 @@ public enum HelpType: SettingsCellTypeProtocol, CaseIterable, Equatable {
   case aiDisclosure
   case prohibitedItems
 
+  @MainActor
   public static func helpType(from url: URL) -> HelpType? {
     let helpType = HelpType.allCases.filter { helpType in
       url.absoluteString == helpType.url(

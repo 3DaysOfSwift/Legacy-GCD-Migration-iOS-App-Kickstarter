@@ -79,6 +79,24 @@ Layout/HTML ownership, refresh cancellation, report-cell reuse and checked accou
 value transfer are verified checkpoints. The demo's sorting and card scrolling were
 observed; full visual/device parity and live operations remain open.
 
+## Stack isolation compiler frontier — 2 November 2026
+
+The experimental AppEnvironment/Environment actor annotations were reverted, not shipped.
+The compiler exposed these concrete next dependencies (not an exhaustive app inventory):
+
+- FetchCategoriesUseCase: reactive callbacks access the global category cache and service.
+  Establish callback/cache ownership or replace this remaining compatibility path.
+- SearchFilters.swift: category/location selection helpers read shared Environment state.
+- VideoFeedItem+Constructor: presentation currency construction needs its UI owner.
+- ActivityFriendBackingViewModel and ActivityProjectStatusViewModel: percentage/presentation
+  helpers and current-user reads need explicit ownership.
+
+Card-expiry rendering, its two cell ViewModels, HelpType URL lookup and feature/experiment
+Environment readers are now isolated and tested separately. FetchCategoriesUseCase is still
+used by DiscoveryFiltersViewModel; it is not dead compatibility code. Re-run the stack experiment after these
+items; later compiler batches may expose additional callers. Do not treat a passing Swift 5
+build as evidence that the stack is isolated.
+
 ## Final validation gates
 
 - Finish the request/callback inventory, including callbacks that do not contain

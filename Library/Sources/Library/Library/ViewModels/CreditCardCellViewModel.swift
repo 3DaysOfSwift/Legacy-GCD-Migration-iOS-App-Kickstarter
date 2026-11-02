@@ -4,11 +4,13 @@ import ReactiveExtensions
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol CreditCardCellViewModelInputs {
   /// Call to configure cell with card value.
   func configureWith(creditCard: UserCreditCards.CreditCard)
 }
 
+@MainActor
 public protocol CreditCardCellViewModelOutputs {
   /// Emits the card's image.
   var cardImage: Signal<UIImage?, Never> { get }
@@ -23,11 +25,13 @@ public protocol CreditCardCellViewModelOutputs {
   var expirationDateText: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol CreditCardCellViewModelType {
   var inputs: CreditCardCellViewModelInputs { get }
   var outputs: CreditCardCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class CreditCardCellViewModel: CreditCardCellViewModelInputs,
   CreditCardCellViewModelOutputs, CreditCardCellViewModelType {
   public init() {

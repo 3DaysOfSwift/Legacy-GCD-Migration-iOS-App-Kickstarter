@@ -2,6 +2,20 @@
 
 Author: Matthew Thomas. Updated 2 November 2026.
 
+## Environment consumer ownership — 2 November 2026
+
+Credit-card expiry rendering and both card-cell ViewModels/input/output protocols now
+explicitly declare MainActor. Help URL matching and Environment-reading feature/experiment
+helpers also declare their owner. The existing cell tests use awaited actor-owned setup;
+three nonvisual suites opt out of the reference snapshot-device guard locally.
+95 existing tests passed without failures/skips. The complete-checking app build passed;
+app-wide warnings remain. Evidence: kickstarter-environment-consumers.
+
+The whole-stack actor experiment was reverted: compiler batches exposed category-cache
+callbacks, search-filter helpers, video-card construction and activity presentation callers.
+The remaining-work inventory names those targets. No unchecked isolation or compiler feature
+flag was shipped; AppEnvironment itself is still not isolated.
+
 ## Captured clock/calendar rendering — 2 November 2026
 
 Duration and relative-date formatters accept captured dates/calendar/locale values. The
