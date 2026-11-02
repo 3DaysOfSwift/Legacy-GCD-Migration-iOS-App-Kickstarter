@@ -1,6 +1,6 @@
 import Foundation
 
-public struct VideoFeedItem: Hashable, Identifiable {
+public struct VideoFeedItem: Hashable, Identifiable, Sendable {
   public let id: String
 
   public let pid: Int
@@ -70,13 +70,13 @@ public struct VideoFeedItem: Hashable, Identifiable {
 // MARK: - Badge
 
 extension VideoFeedItem {
-  public struct Badge: Hashable {
+  public struct Badge: Hashable, Sendable {
     public let type: BadgeType
     public let text: String
     public let icon: String?
   }
 
-  public enum BadgeType: Hashable {
+  public enum BadgeType: Hashable, Sendable {
     case projectWeLove
     case daysLeft
     case justLaunched

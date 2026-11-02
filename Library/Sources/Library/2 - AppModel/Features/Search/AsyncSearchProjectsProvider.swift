@@ -4,7 +4,7 @@ import KsApi
 /// Maps Search parameters to the cancellation-aware API operation.
 @MainActor
 public final class AsyncSearchProjectsProvider: SearchProjectsProvider {
-  private let requestPage: @MainActor (DiscoveryParams, String?) async throws -> GraphAPI.SearchQuery.Data
+  private let requestPage: @MainActor (DiscoveryParams, String?) async throws -> SearchPageResponse
 
   public init() {
     self.requestPage = { parameters, cursor in
@@ -16,13 +16,15 @@ public final class AsyncSearchProjectsProvider: SearchProjectsProvider {
   internal init(
     requestPage: @escaping @MainActor (DiscoveryParams, String?) async throws -> GraphAPI.SearchQuery.Data
   ) {
-    self.requestPage = requestPage
+    self.requestPage = { parameters, cursor in
+      SearchPageResponse(try await requestPage(parameters, cursor))
+    }
   }
 
   public func fetchPage(
     parameters: DiscoveryParams,
     cursor: String?
-  ) async throws -> GraphAPI.SearchQuery.Data {
+  ) async throws -> SearchPageResponse {
     try Task.checkCancellation()
     let page = try await self.requestPage(parameters, cursor)
     try Task.checkCancellation()

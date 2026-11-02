@@ -4,7 +4,7 @@ import Prelude
 import ReactiveSwift
 
 @MainActor
-public protocol RecommendationsProvider {
+public protocol RecommendationsProvider: Sendable {
   func projects(parameters: DiscoveryParams) async throws -> [Project]
   func category(id: String) async throws -> KsApi.Category
 }
@@ -46,7 +46,7 @@ public final class RecommendationsFeature {
   public let settingsFeature: SettingsFeature
   public let sessionFeature: SessionFeature
   private let makeProvider: () -> any RecommendationsProvider
-  private let sleep: (TimeInterval) async throws -> Void
+  private let sleep: @MainActor (TimeInterval) async throws -> Void
   private var pending: [UUID: Pending] = [:]
   private var operations: [UUID: Task<Void, Never>] = [:]
   private let selectionPipe = Signal<(UUID, Selection), Never>.pipe()
@@ -55,7 +55,7 @@ public final class RecommendationsFeature {
   public init(
     settingsFeature: SettingsFeature,
     makeProvider: @escaping () -> any RecommendationsProvider,
-    sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
+    sleep: @escaping @MainActor (TimeInterval) async throws -> Void = { seconds in
       if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
     }
   ) {

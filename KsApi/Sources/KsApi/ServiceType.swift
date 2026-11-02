@@ -66,7 +66,7 @@ public protocol ServiceType {
   func fetch<Q: GraphQLQuery>(query: Q) async throws -> Q.Data?
 
   /// Search opts into cancellation without changing unrelated query contracts.
-  @MainActor func fetchSearchPage(query: GraphAPI.SearchQuery) async throws -> GraphAPI.SearchQuery.Data
+  @MainActor func fetchSearchPage(query: GraphAPI.SearchQuery) async throws -> SearchPageResponse
   @MainActor func fetchSearchCategories() async throws -> RootCategoriesEnvelope
   @MainActor func fetchSearchDefaultLocations() async throws -> [Location]
   @MainActor func fetchSearchLocations(term: String) async throws -> [Location]
@@ -199,7 +199,7 @@ public protocol ServiceType {
   @MainActor func blockDiscussionUser(id: String) async throws -> EmptyResponseEnvelope
   @MainActor func projectUpdate(id: Int, project: Param) async throws -> Update
   @MainActor func reportVideoEvent(project: any HasProjectWebURL, completed: Bool) async throws -> VoidEnvelope
-  @MainActor func projectVideoFeed() async throws -> GraphAPI.VideoFeedQuery.Data
+  @MainActor func projectVideoFeed() async throws -> [VideoFeedResponse]
   @MainActor func messageThreadsPage(mailbox: Mailbox, project: Project?, cursor: String?) async throws -> MessageThreadsEnvelope
   @MainActor func messageSearch(query: String, project: Project?) async throws -> MessageThreadsEnvelope
   @MainActor func messageThread(id: Int) async throws -> MessageThreadEnvelope
@@ -233,10 +233,8 @@ public protocol ServiceType {
   @MainActor func requestPasswordReset(email: String) async throws
   @MainActor func sessionGraphUser() async throws -> User
   @MainActor func clearActivityIndicator() async throws -> Int
-  @MainActor func profileBackedProjects(cursor: String?) async throws -> GraphAPI.FetchMyBackedProjectsQuery
-    .Data
-  @MainActor func profileSavedProjects(cursor: String?) async throws -> GraphAPI.FetchMySavedProjectsQuery
-    .Data
+  @MainActor func profileBackedProjects(cursor: String?) async throws -> ProfileProjectsResponse
+  @MainActor func profileSavedProjects(cursor: String?) async throws -> ProfileProjectsResponse
   @MainActor func setProjectWatched(id: String, watched: Bool) async throws -> WatchProjectResponseEnvelope
 
   /// Fetch comments for a project with a slug, cursor and limit.
@@ -273,8 +271,8 @@ public protocol ServiceType {
   /// Fetch the full discovery envelope with specified discovery params.
   func fetchDiscovery(params: DiscoveryParams) -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope>
 
-  @MainActor func richTextExampleProjects() async throws -> GraphAPI.RichTextExampleProjectsQuery.Data
-  @MainActor func richTextExampleProject(slug: String) async throws -> GraphAPI.RichTextExampleProjectBySlugQuery.Data
+  @MainActor func richTextExampleProjects() async throws -> [RichTextExampleResponse]
+  @MainActor func richTextExampleProject(slug: String) async throws -> RichTextExampleResponse?
 
   @MainActor func discoveryPage(params: DiscoveryParams) async throws -> DiscoveryEnvelope
   @MainActor func discoveryPage(paginationURL: String) async throws -> DiscoveryEnvelope

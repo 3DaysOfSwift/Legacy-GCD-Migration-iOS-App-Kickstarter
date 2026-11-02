@@ -2,6 +2,25 @@
 
 Author: Matthew Thomas. Updated 2 November 2026.
 
+## Remaining response providers — 2 November 2026
+
+Profile backed/saved pagination, video feed/watch, comment/reply/post, recommendation categories,
+rich-text examples, report options and Search results/lookups now project generated GraphQL data
+before native continuation transfer. Checked snapshots include cards, pagination, analytics,
+navigation IDs, video inputs and story elements. UI formatting, ID-only Search equality,
+result event ordering, missing-envelope errors and Feature cancellation/session policies remain.
+The unused raw cancellableQuery overload was removed. Generic Service.fetch/AsyncApolloClient
+remain compatibility APIs; the application roots have no direct `.fetch(query:)` call sites.
+Session setup stores feature raw names with a compatible mutable enum accessor/decoder; recommendation
+child tasks use an explicitly actor-isolated sleeper and Sendable provider contract.
+
+Verification: 1,439 Library and 399 framework regression tests passed. API regression initially
+passed 146 with one new test failing because an old JSON fixture lacked projectTags; that test now
+uses the existing typed project-card mock. Final runs passed 157 focused Library tests and 41 API
+tests, including five new value/decoding tests. Counts overlap and must not be summed as unique
+coverage. App build with complete concurrency checking passed in Swift 5 mode. Other diagnostics,
+full visual/device and live-operation validation remain open. This is not migration completion.
+
 ## Required final migration report
 
 Matthew Thomas requested transparent timing, model attribution and outcome

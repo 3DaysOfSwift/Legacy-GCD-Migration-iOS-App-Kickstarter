@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Comment {
+public struct Comment: Sendable {
   public var author: Author
   public var authorBadges: [AuthorBadge]
   public var body: String
@@ -26,7 +26,7 @@ public struct Comment {
   /// Track and return the current status of the `Comment`
   public var status: Status = .unknown
 
-  public struct Author: Decodable, Equatable {
+  public struct Author: Decodable, Equatable, Sendable {
     public var id: String
     public var imageUrl: String
     public var isBlocked: Bool
@@ -34,7 +34,7 @@ public struct Comment {
     public var name: String
   }
 
-  public enum AuthorBadge: String, Decodable {
+  public enum AuthorBadge: String, Decodable, Sendable {
     case collaborator
     case creator
     case backer
@@ -42,7 +42,7 @@ public struct Comment {
     case you
   }
 
-  public enum Status: String, Decodable {
+  public enum Status: String, Decodable, Sendable {
     case failed
     case retrying
     case retrySuccess

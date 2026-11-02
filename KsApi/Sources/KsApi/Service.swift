@@ -95,41 +95,24 @@ public struct Service: ServiceType {
     return try await client.fetch(query).data
   }
 
-  @MainActor public func fetchSearchPage(query: GraphAPI.SearchQuery) async throws -> GraphAPI.SearchQuery.Data {
-    try await CancellableGraphQLRequest.fetch { completion in
-      GraphQL.shared.client.fetch(
-        query: query,
-        cachePolicy: .fetchIgnoringCacheCompletely,
-        queue: .global(qos: .userInitiated),
-        resultHandler: completion
-      )
-    }
+  @MainActor public func fetchSearchPage(query: GraphAPI.SearchQuery) async throws -> SearchPageResponse {
+    try await self.cancellableQuery(query, map: { SearchPageResponse($0) })
   }
 
   @MainActor public func fetchSearchCategories() async throws -> RootCategoriesEnvelope {
-    let data = try await self.fetchSearchLookup(query: GraphAPI.FetchRootCategoriesQuery())
-    return RootCategoriesEnvelope.envelope(from: data)
+    try await self.cancellableQuery(GraphAPI.FetchRootCategoriesQuery(),
+      map: { RootCategoriesEnvelope.envelope(from: $0) })
   }
 
   @MainActor public func fetchSearchDefaultLocations() async throws -> [Location] {
-    let data = try await self.fetchSearchLookup(query: GraphAPI.DefaultLocationsQuery(first: 5))
-    return Location.locations(from: data)
+    try await self.cancellableQuery(GraphAPI.DefaultLocationsQuery(first: 5),
+      map: { Location.locations(from: $0) })
   }
 
   @MainActor public func fetchSearchLocations(term: String) async throws -> [Location] {
-    let data = try await self.fetchSearchLookup(
-      query: GraphAPI.LocationsByTermQuery(term: .some(term), first: 10)
-    )
-    return Location.locations(from: data)
-  }
-
-  @MainActor private func fetchSearchLookup<Query: GraphQLQuery>(query: Query) async throws -> Query.Data {
-    try await CancellableGraphQLRequest.fetch { completion in
-      GraphQL.shared.client.fetch(
-        query: query, cachePolicy: .fetchIgnoringCacheCompletely,
-        queue: .global(qos: .userInitiated), resultHandler: completion
-      )
-    }
+    try await self.cancellableQuery(
+      GraphAPI.LocationsByTermQuery(term: .some(term), first: 10),
+      map: { Location.locations(from: $0) })
   }
 
   public func addNewCreditCard(input: CreatePaymentSourceInput)
@@ -286,11 +269,10 @@ public struct Service: ServiceType {
   }
 
   public func fetchProjectFlaggingOptions() async throws -> [ReportProjectInfoListItem] {
-    let data = try await self.cancellableQuery(
-      GraphAPI.FlaggingOptionsQuery(contentType: GraphQLEnum(.project))
+    try await self.cancellableQuery(
+      GraphAPI.FlaggingOptionsQuery(contentType: GraphQLEnum(.project)),
+      map: { ReportProjectInfoListItem.items(from: $0) }
     )
-
-    return ReportProjectInfoListItem.items(from: data)
   }
 
   public func createPaymentIntentInput(input: CreatePaymentIntentInput) -> ReactiveSwift

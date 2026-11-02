@@ -2,7 +2,7 @@ import Foundation
 import GraphAPI
 import ReactiveSwift
 
-public struct CommentsEnvelope: Decodable {
+public struct CommentsEnvelope: Decodable, Sendable {
   public var comments: [Comment]
   public var cursor: String?
   public var hasNextPage: Bool

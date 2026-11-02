@@ -31,11 +31,11 @@ creator draft work is superseded by their completed checkpoints.
    before transfer, including story/media/analytics/navigation values. Account setup,
    Apple login, session user, activity count and acknowledgement/reporting/block paths
    now map before transfer too.
-   Next concrete providers: profile backed/saved pagination, video feed/watch responses,
-   discussion comment/reply/post responses, developer rich-text examples and recommendation
-   category loading. Their service methods still use the raw generic query/response path.
-   Re-audit other transport wrappers before declaring this inventory exhaustive. Classify global style/lens
-   and generated Apollo diagnostics; resolve unsafe migrated application boundaries.
+   Profile/video/discussion/example/category providers, report options and Search results/lookups
+   now also map before transfer. Search retains ID-based equality and event ordering; video
+   formatting stays in the UI adapter. The raw cancellableQuery overload is removed.
+   Next: UIKit delegate/notification isolation and native REST wrapper isolation, followed by
+   classification of remaining global style/lens and generated Apollo diagnostics.
    A warning-free Swift 6 language conversion is a separate scope, not an implied
    requirement to rewrite all generated/third-party compatibility machinery.
 3. **Compatibility audit closure:** document retained callback paths and ownership,

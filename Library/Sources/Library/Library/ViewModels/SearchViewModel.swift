@@ -134,8 +134,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.projects = searchResults
       .map { (nodes: [SearchResult]) -> [SearchResultCard] in
         nodes.compactMap { node in
-          let fragment = node.fragments.projectCardFragment
-          return ProjectCardProperties(fragment)
+          return ProjectCardProperties(node.card)
         }
       }
 
@@ -254,9 +253,9 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     }
 
     let project = projects[index]
-    let graphQLID = project.fragments.backerDashboardProjectCellFragment.projectId
+    let graphQLID = project.id
     if decompose(id: graphQLID) != nil,
-       let card = ProjectCardProperties(project.fragments.projectCardFragment) {
+       let card = ProjectCardProperties(project.card) {
       self.projectNavigationPipe.input.send(value: (
         card.projectPageParam, refTag(query: query, projects: projects, project: project)
       ))
@@ -266,7 +265,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     if let parameters = self.latestQueryParameters {
       AppEnvironment.current.ksrAnalytics.trackProjectCardClicked(
         page: .search,
-        project: project.fragments.projectAnalyticsFragment,
+        project: project.analytics,
         typeContext: .results,
         location: .searchResults,
         params: parameters

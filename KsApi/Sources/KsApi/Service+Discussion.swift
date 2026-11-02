@@ -8,13 +8,12 @@ public enum DiscussionResponseError: Error {
 
 extension Service {
   @MainActor public func submitDiscussionComment(input: PostCommentInput) async throws -> Comment {
-    let data: GraphAPI.PostCommentMutation.Data = try await CancellableGraphQLRequest.fetch { completion in
+    return try await CancellableGraphQLRequest.fetch(start: { completion in
       GraphQL.shared.client.perform(
         mutation: GraphAPI.PostCommentMutation(input: GraphAPI.PostCommentInput.from(input)),
         queue: .global(qos: .userInitiated), resultHandler: completion
       )
-    }
-    return try PostCommentEnvelope.comment(from: data)
+    }, map: { try PostCommentEnvelope.comment(from: $0) })
   }
 
   @MainActor public func blockDiscussionUser(id: String) async throws -> EmptyResponseEnvelope {
@@ -32,15 +31,13 @@ extension Service {
   ) async throws -> CommentsEnvelope {
     let envelope: CommentsEnvelope?
     if let slug {
-      let data = try await self.cancellableQuery(GraphAPI.FetchProjectCommentsQuery(
+      envelope = try await self.cancellableQuery(GraphAPI.FetchProjectCommentsQuery(
         slug: slug, cursor: .someOrNil(cursor), limit: nil
-      ))
-      envelope = CommentsEnvelope.commentsEnvelope(from: data)
+      ), map: { CommentsEnvelope.commentsEnvelope(from: $0) })
     } else if let updateID {
-      let data = try await self.cancellableQuery(GraphAPI.FetchUpdateCommentsQuery(
+      envelope = try await self.cancellableQuery(GraphAPI.FetchUpdateCommentsQuery(
         postId: updateID, cursor: .someOrNil(cursor), limit: nil
-      ))
-      envelope = CommentsEnvelope.commentsEnvelope(from: data)
+      ), map: { CommentsEnvelope.commentsEnvelope(from: $0) })
     } else {
       throw ErrorEnvelope.couldNotParseJSON
     }
@@ -52,10 +49,10 @@ extension Service {
     id: String,
     cursor: String?
   ) async throws -> CommentRepliesEnvelope {
-    let data = try await self.cancellableQuery(GraphAPI.FetchCommentRepliesQuery(
+    let envelope = try await self.cancellableQuery(GraphAPI.FetchCommentRepliesQuery(
       commentId: id, cursor: .someOrNil(cursor), limit: CommentRepliesEnvelope.paginationLimit
-    ))
-    guard let envelope = CommentRepliesEnvelope.commentRepliesEnvelope(from: data)
+    ), map: { CommentRepliesEnvelope.commentRepliesEnvelope(from: $0) })
+    guard let envelope
     else { throw DiscussionResponseError.missingEnvelope }
     return envelope
   }

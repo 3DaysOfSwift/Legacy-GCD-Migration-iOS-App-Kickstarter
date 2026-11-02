@@ -99,13 +99,15 @@ extension Service {
       })
   }
 
-  @MainActor public func profileBackedProjects(cursor: String?) async throws -> GraphAPI
-    .FetchMyBackedProjectsQuery.Data {
-    try await self.cancellableQuery(GraphAPI.FetchMyBackedProjectsQuery(first: 20, after: .someOrNil(cursor)))
+  @MainActor public func profileBackedProjects(cursor: String?) async throws -> ProfileProjectsResponse {
+    try await self.cancellableQuery(
+      GraphAPI.FetchMyBackedProjectsQuery(first: 20, after: .someOrNil(cursor)),
+      map: { ProfileProjectsResponse($0) })
   }
 
-  @MainActor public func profileSavedProjects(cursor: String?) async throws -> GraphAPI
-    .FetchMySavedProjectsQuery.Data {
-    try await self.cancellableQuery(GraphAPI.FetchMySavedProjectsQuery(first: 20, after: .someOrNil(cursor)))
+  @MainActor public func profileSavedProjects(cursor: String?) async throws -> ProfileProjectsResponse {
+    try await self.cancellableQuery(
+      GraphAPI.FetchMySavedProjectsQuery(first: 20, after: .someOrNil(cursor)),
+      map: { ProfileProjectsResponse($0) })
   }
 }

@@ -174,7 +174,7 @@ final class SearchFeatureTests: TestCase {
     try provider.complete(0, with: data)
     await currentTask?.value
 
-    XCTAssertEqual(searchFeature.projects, data.projects?.nodes?.compactMap { $0 } ?? [])
+    XCTAssertEqual(searchFeature.projects, data.projects?.nodes?.compactMap { $0 }.map(SearchProjectResponse.init) ?? [])
     XCTAssertEqual(searchFeature.totalCount, 200)
     XCTAssertFalse(searchFeature.isLoading)
     XCTAssertNil(searchFeature.searchError)
@@ -206,7 +206,7 @@ final class SearchFeatureTests: TestCase {
 
     XCTAssertEqual(searchFeature.parameters?.query, "new")
     XCTAssertEqual(searchFeature.projects, latestProjects)
-    XCTAssertEqual(latestProjects, newData.projects?.nodes?.compactMap { $0 } ?? [])
+    XCTAssertEqual(latestProjects, newData.projects?.nodes?.compactMap { $0 }.map(SearchProjectResponse.init) ?? [])
     XCTAssertFalse(searchFeature.isLoading)
 
     currentTask = searchFeature.requestSearch(parameters: self.parameters("replacement"))
@@ -248,7 +248,7 @@ final class SearchFeatureTests: TestCase {
       await replacement.value
       try provider.complete(0, with: oldData)
       await old.value
-      XCTAssertEqual(feature.projects, newData.projects?.nodes?.compactMap { $0 } ?? [])
+      XCTAssertEqual(feature.projects, newData.projects?.nodes?.compactMap { $0 }.map(SearchProjectResponse.init) ?? [])
       XCTAssertEqual(feature.parameters?.percentRaised, changed.percentRaised)
       XCTAssertEqual(feature.parameters?.amountRaised, changed.amountRaised)
       XCTAssertEqual(feature.parameters?.goal, changed.goal)
@@ -279,8 +279,8 @@ final class SearchFeatureTests: TestCase {
 
     try provider.complete(1, with: second)
     await currentTask?.value
-    let expected = (first.projects?.nodes?.compactMap { $0 } ?? [])
-      + (second.projects?.nodes?.compactMap { $0 } ?? [])
+    let expected = (first.projects?.nodes?.compactMap { $0 }.map(SearchProjectResponse.init) ?? [])
+      + (second.projects?.nodes?.compactMap { $0 }.map(SearchProjectResponse.init) ?? [])
     XCTAssertEqual(searchFeature.projects, expected)
 
     currentTask = searchFeature.requestNextPage()
@@ -514,11 +514,11 @@ private final class ControlledSearchProvider: SearchProjectsProvider {
   final class Request {
     let parameters: DiscoveryParams
     let cursor: String?
-    var continuation: CheckedContinuation<GraphAPI.SearchQuery.Data, Error>?
+    var continuation: CheckedContinuation<SearchPageResponse, Error>?
 
     init(
       parameters: DiscoveryParams, cursor: String?,
-      continuation: CheckedContinuation<GraphAPI.SearchQuery.Data, Error>
+      continuation: CheckedContinuation<SearchPageResponse, Error>
     ) {
       self.parameters = parameters
       self.cursor = cursor
@@ -531,7 +531,7 @@ private final class ControlledSearchProvider: SearchProjectsProvider {
 
   func fetchPage(
     parameters: DiscoveryParams, cursor: String?
-  ) async throws -> GraphAPI.SearchQuery.Data {
+  ) async throws -> SearchPageResponse {
     // Intentionally ignore cancellation: the Feature must reject late results.
     return try await withCheckedThrowingContinuation { continuation in
       self.requests.append(Request(
@@ -555,7 +555,7 @@ private final class ControlledSearchProvider: SearchProjectsProvider {
     let request = try XCTUnwrap(self.requests.indices.contains(index) ? self.requests[index] : nil)
     let continuation = try XCTUnwrap(request.continuation)
     request.continuation = nil
-    continuation.resume(returning: data)
+    continuation.resume(returning: SearchPageResponse(data))
   }
 
   func fail(_ index: Int) throws {

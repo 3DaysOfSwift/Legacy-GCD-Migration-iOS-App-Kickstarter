@@ -181,7 +181,7 @@ private final class NoRequestSearchProvider: SearchProjectsProvider {
 
   func fetchPage(
     parameters _: DiscoveryParams, cursor _: String?
-  ) async throws -> GraphAPI.SearchQuery.Data {
+  ) async throws -> SearchPageResponse {
     self.requestCount += 1
     throw CancellationError()
   }

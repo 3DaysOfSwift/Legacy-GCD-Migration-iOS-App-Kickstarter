@@ -164,7 +164,7 @@ final class SearchRequestCancellationTests: TestCase {
     ])) {
       do {
         let data = try await provider.fetchPage(parameters: .defaults, cursor: nil)
-        XCTAssertEqual(data.projects?.totalCount, expected.projects?.totalCount)
+        XCTAssertEqual(data.totalCount, expected.projects?.totalCount ?? 0)
       } catch {
         XCTFail("Expected recovery: \(error)")
       }

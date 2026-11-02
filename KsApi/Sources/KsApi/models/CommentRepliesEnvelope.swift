@@ -1,7 +1,7 @@
 import Foundation
 import ReactiveSwift
 
-public struct CommentRepliesEnvelope: Decodable {
+public struct CommentRepliesEnvelope: Decodable, Sendable {
   public var comment: Comment
   public var cursor: String?
   public var hasPreviousPage: Bool

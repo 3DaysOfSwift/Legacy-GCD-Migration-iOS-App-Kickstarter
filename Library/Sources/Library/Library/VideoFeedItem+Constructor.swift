@@ -5,25 +5,23 @@ import KsApi
 /// Maps a `VideoFeedQuery` graph node to a `VideoFeedItem` to display in the video feed.
 extension VideoFeedItem {
   init(node: VideoFeedQuery.Data.VideoFeed.Node) {
-    let video = node.project.verticalVideo
+    self.init(response: VideoFeedResponse(node))
+  }
 
+  init(response: VideoFeedResponse) {
     self.init(
-      id: node.project.id,
-      pid: node.project.pid,
-      slug: node.project.slug,
-      projectURL: node.project.url,
-      title: node.project.name,
-      creator: node.project.creator?.name ?? "",
-      creatorImageURL: node.project.creator.flatMap { URL(string: $0.imageUrl) },
-      statsText: Self.statsText(for: node.project),
-      badges: node.badges.map { .init(graphBadge: $0) },
-      videoURL: video?.videoSources?.hls?.src.flatMap { URL(string: $0) },
-      videoPreviewImageURL: video?.previewImageUrl.flatMap { URL(string: $0) },
-      projectId: node.project.id,
-      isSaved: node.project.isWatched,
-      sharesCount: node.project.sharesCount,
-      watchesCount: node.project.watchesCount ?? 0,
-      percentFunded: node.project.percentFunded
+      id: response.id, pid: response.pid, slug: response.slug, projectURL: response.url,
+      title: response.name, creator: response.creatorName,
+      creatorImageURL: response.creatorImageURL.flatMap(URL.init(string:)),
+      statsText: Self.statsTextInUserPreferredCurrency(
+        pledgedAmount: response.pledged, currencyCode: response.currency, backersCount: response.backers),
+      badges: response.badges.map {
+        .init(type: .init(graphType: GraphAPI.BadgeTypeEnum(rawValue: $0.type)), text: $0.text, icon: $0.icon)
+      },
+      videoURL: response.videoURL.flatMap(URL.init(string:)),
+      videoPreviewImageURL: response.previewURL.flatMap(URL.init(string:)),
+      projectId: response.id, isSaved: response.isWatched, sharesCount: response.shares,
+      watchesCount: response.watches, percentFunded: response.percentFunded
     )
   }
 
@@ -47,30 +45,6 @@ extension VideoFeedItem {
     )
   }
 
-  private static func statsText(for project: VideoFeedQuery.Data.VideoFeed.Node.Project) -> String {
-    let rawAmount = project.pledged.amount.flatMap { Double($0) } ?? 0
-    let fxRate = Double(project.fxRate)
-    let convertedAmount = rawAmount * fxRate
-    let currencyCode = project.fxRateCurrency.rawValue
-
-    return Self.statsTextInUserPreferredCurrency(
-      pledgedAmount: convertedAmount,
-      currencyCode: currencyCode,
-      backersCount: project.backersCount
-    )
-  }
-}
-
-// MARK: - Badge mapping
-
-private extension VideoFeedItem.Badge {
-  init(graphBadge: VideoFeedQuery.Data.VideoFeed.Node.Badge) {
-    self.init(
-      type: .init(graphType: graphBadge.type.value),
-      text: graphBadge.text,
-      icon: graphBadge.icon
-    )
-  }
 }
 
 private extension VideoFeedItem.BadgeType {

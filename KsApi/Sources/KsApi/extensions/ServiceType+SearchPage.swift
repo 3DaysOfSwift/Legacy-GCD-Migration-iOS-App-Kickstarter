@@ -3,12 +3,12 @@ import GraphAPI
 extension ServiceType {
   /// Local/mock services use their existing async fixtures. Production Service
   /// overrides this protocol requirement with the cancellable Apollo bridge.
-  @MainActor public func fetchSearchPage(query: GraphAPI.SearchQuery) async throws -> GraphAPI.SearchQuery.Data {
+  @MainActor public func fetchSearchPage(query: GraphAPI.SearchQuery) async throws -> SearchPageResponse {
     try Task.checkCancellation()
     let response = try await self.fetch(query: query)
     try Task.checkCancellation()
     guard let response else { throw ErrorEnvelope.couldNotParseJSON }
-    return response
+    return SearchPageResponse(response)
   }
   @MainActor public func fetchSearchCategories() async throws -> RootCategoriesEnvelope {
     try Task.checkCancellation()

@@ -4,7 +4,7 @@ import KsApi
 import Prelude
 import ReactiveSwift
 
-public typealias SearchResult = GraphAPI.SearchQuery.Data.Projects.Node
+public typealias SearchResult = SearchProjectResponse
 
 /// Owns filter policy, directly awaitable requests, cursor and accumulated results.
 /// Distinct queries supersede old work; equivalent in-flight requests share completion.
@@ -356,7 +356,7 @@ public final class SearchFeature {
       defer { self?.finishRequest(id: id) }
       do {
         try Task.checkCancellation()
-        let response: Result<GraphAPI.SearchQuery.Data, Error>
+        let response: Result<SearchPageResponse, Error>
         do {
           response = .success(try await provider.fetchPage(parameters: parameters, cursor: cursor))
         } catch is CancellationError {
@@ -391,11 +391,10 @@ public final class SearchFeature {
     return task
   }
 
-  private func publish(_ data: GraphAPI.SearchQuery.Data, firstPage: Bool) {
-    let incoming = data.projects?.nodes?.compactMap { $0 } ?? []
-    let pageInfo = data.projects?.pageInfo
-    self.nextCursor = !incoming.isEmpty && pageInfo?.hasNextPage == true ? pageInfo?.endCursor : nil
-    self.totalCount = data.projects?.totalCount ?? 0
+  private func publish(_ data: SearchPageResponse, firstPage: Bool) {
+    let incoming = data.projects
+    self.nextCursor = !incoming.isEmpty && data.hasNextPage ? data.endCursor : nil
+    self.totalCount = data.totalCount
     self.countPipe.input.send(value: self.totalCount)
     self.projects = firstPage ? incoming : self.projects + incoming
     // Preserve legacy output ordering used by analytics: count, page, results,

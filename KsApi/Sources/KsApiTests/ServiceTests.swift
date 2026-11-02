@@ -21,8 +21,8 @@ final class ServiceTests: XCTestCase {
     ])
     let list = try await service.richTextExampleProjects()
     let project = try await service.richTextExampleProject(slug: "owner/project")
-    XCTAssertNil(list.projects)
-    XCTAssertNil(project.project)
+    XCTAssertTrue(list.isEmpty)
+    XCTAssertNil(project)
   }
 
   func testNativeStartupRoutesPreserveMethodsPathsAndPushBody() throws {

@@ -19,19 +19,10 @@ public struct AsyncDeveloperExamplesProvider: DeveloperExamplesProvider {
     return try await self.service.discoveryPage(params: parameters)
   }
   public func projects() async throws -> [DeveloperExamplesFeature.ProjectItem] {
-    let data = try await self.service.richTextExampleProjects()
-    return (data.projects?.nodes ?? []).compactMap { $0 }.map {
-      .init(
-        id: $0.id, name: $0.name, richText: $0.storyRichText.fragments.richTextComponentFragment)
-    }
+    try await self.service.richTextExampleProjects()
   }
   public func project(slug: String) async throws -> DeveloperExamplesFeature.ProjectItem? {
-    guard let project = try await self.service.richTextExampleProject(slug: slug).project else {
-      return nil
-    }
-    return .init(
-      id: project.id, name: project.name,
-      richText: project.storyRichText.fragments.richTextComponentFragment)
+    try await self.service.richTextExampleProject(slug: slug)
   }
 }
 
@@ -48,16 +39,7 @@ public final class DeveloperExamplesFeature {
       self.title = title
     }
   }
-  public struct ProjectItem: Identifiable, Hashable {
-    public let id: String
-    public let name: String
-    public let richText: RichTextComponentFragment
-    public init(id: String, name: String, richText: RichTextComponentFragment) {
-      self.id = id
-      self.name = name
-      self.richText = richText
-    }
-  }
+  public typealias ProjectItem = RichTextExampleResponse
   public struct PageSnapshot {
     public var projects: [ProjectData] = []
     public var isLoading = false
@@ -90,8 +72,7 @@ public final class DeveloperExamplesFeature {
     let session: Session
     let task: Task<Void, Never>
   }
-  // Apollo fragments are not Sendable. The task signals completion only;
-  // its payload stays in this MainActor-owned slot, including shared waiters.
+  // Shared lookup waiters read the completed value from this actor-owned slot.
   @MainActor private final class LookupWork {
     let id = UUID()
     let session: Session

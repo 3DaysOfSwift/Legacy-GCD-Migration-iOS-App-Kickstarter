@@ -21,7 +21,7 @@ public struct AsyncProjectMediaProvider: ProjectMediaProvider {
 
   public func feed() async throws -> [VideoFeedItem] {
     let data = try await self.service.projectVideoFeed()
-    return data.videoFeed?.nodes?.compactMap { $0 }.map(VideoFeedItem.init) ?? []
+    return data.map { VideoFeedItem(response: $0) }
   }
 
   public func setWatched(id: String, watched: Bool) async throws -> WatchProjectResponseEnvelope {

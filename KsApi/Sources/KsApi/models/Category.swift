@@ -1,5 +1,5 @@
 import Foundation
-public struct ParentCategory: Swift.Codable {
+public struct ParentCategory: Swift.Codable, Sendable {
   public let analyticsName: String?
   public let id: String
   public let name: String
@@ -11,7 +11,7 @@ public struct ParentCategory: Swift.Codable {
 
 private let unrecognizedCategoryId: Int = -1
 
-public struct Category: Swift.Codable {
+public struct Category: Swift.Codable, Sendable {
   public static let gamesId: Int = 12
   public var analyticsName: String?
   public var id: String
@@ -57,7 +57,7 @@ public struct Category: Swift.Codable {
     return self._parent?.categoryType
   }
 
-  public struct SubcategoryConnection: Swift.Codable {
+  public struct SubcategoryConnection: Swift.Codable, Sendable {
     public let totalCount: Int
     public let nodes: [Category]
   }

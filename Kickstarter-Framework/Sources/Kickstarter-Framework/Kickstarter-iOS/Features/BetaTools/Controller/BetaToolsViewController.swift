@@ -223,7 +223,7 @@ internal final class BetaToolsViewController: UITableViewController {
       .ProjectItem
   ) -> some View {
     ScrollView {
-      RichTextView(element: project.richText.asRichTextElements())
+      RichTextView(element: project.richText)
     }
     .navigationTitle(project.name)
   }

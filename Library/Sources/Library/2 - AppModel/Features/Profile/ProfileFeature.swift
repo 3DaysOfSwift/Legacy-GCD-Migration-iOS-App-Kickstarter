@@ -12,22 +12,14 @@ public struct AsyncProfileProvider: ProfileProvider {
   private let service: any ServiceType
   public init(service: any ServiceType) { self.service = service }
   public func page(type: ProfileProjectsType, cursor: String?) async throws -> ProfileFeature.Page {
+    let data: ProfileProjectsResponse
     switch type {
-    case .backed:
-      let data = try await self.service.profileBackedProjects(cursor: cursor)
-      return ProfileFeature.Page(
-        projects: data.projects?.nodes?.compactMap { $0?.fragments.projectCardFragment }
-          .compactMap(ProjectCardProperties.init) ?? [],
-        cursor: data.projects?.pageInfo.hasNextPage == true ? data.projects?.pageInfo.endCursor : nil
-      )
-    case .saved:
-      let data = try await self.service.profileSavedProjects(cursor: cursor)
-      return ProfileFeature.Page(
-        projects: data.projects?.nodes?.compactMap { $0?.fragments.projectCardFragment }
-          .compactMap(ProjectCardProperties.init) ?? [],
-        cursor: data.projects?.pageInfo.hasNextPage == true ? data.projects?.pageInfo.endCursor : nil
-      )
+    case .backed: data = try await self.service.profileBackedProjects(cursor: cursor)
+    case .saved: data = try await self.service.profileSavedProjects(cursor: cursor)
     }
+    return ProfileFeature.Page(
+      projects: data.projects.compactMap(ProjectCardProperties.init), cursor: data.cursor
+    )
   }
 }
 

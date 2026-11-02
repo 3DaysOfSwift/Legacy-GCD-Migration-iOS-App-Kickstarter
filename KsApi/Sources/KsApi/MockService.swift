@@ -919,12 +919,12 @@
       return VoidEnvelope()
     }
 
-    @MainActor public func projectVideoFeed() async throws -> GraphAPI.VideoFeedQuery.Data {
+    @MainActor public func projectVideoFeed() async throws -> [VideoFeedResponse] {
       try Task.checkCancellation()
       guard let data = try await self.fetch(query: GraphAPI.VideoFeedQuery(
         first: 30, after: .none, categoryId: .none
       )) else { throw ErrorEnvelope.couldNotParseJSON }
-      return data
+      return data.videoFeed?.nodes?.compactMap { $0 }.map(VideoFeedResponse.init) ?? []
     }
 
     @MainActor public func activityPage(cursor _: String?) async throws -> ActivityEnvelope {
@@ -1146,18 +1146,16 @@
       return try result.get().activityIndicatorCount
     }
 
-    @MainActor public func profileBackedProjects(cursor _: String?) async throws -> GraphAPI
-      .FetchMyBackedProjectsQuery.Data {
+    @MainActor public func profileBackedProjects(cursor _: String?) async throws -> ProfileProjectsResponse {
       try Task.checkCancellation()
       guard let data = self.fetchBackerBackedProjectsResponse else { throw ErrorEnvelope.couldNotParseJSON }
-      return data
+      return ProfileProjectsResponse(data)
     }
 
-    @MainActor public func profileSavedProjects(cursor _: String?) async throws -> GraphAPI
-      .FetchMySavedProjectsQuery.Data {
+    @MainActor public func profileSavedProjects(cursor _: String?) async throws -> ProfileProjectsResponse {
       try Task.checkCancellation()
       guard let data = self.fetchBackerSavedProjectsResponse else { throw ErrorEnvelope.couldNotParseJSON }
-      return data
+      return ProfileProjectsResponse(data)
     }
 
     @MainActor public func setProjectWatched(
@@ -1356,19 +1354,19 @@
       return client.fetchWithResult(query: fetchGraphCategoriesQuery, result: self.fetchGraphCategoriesResult)
     }
 
-    @MainActor public func richTextExampleProjects() async throws -> GraphAPI.RichTextExampleProjectsQuery.Data {
+    @MainActor public func richTextExampleProjects() async throws -> [RichTextExampleResponse] {
       try Task.checkCancellation()
       guard let data = try await self.fetch(query: GraphAPI.RichTextExampleProjectsQuery(storyRichText: true)) else {
         throw ErrorEnvelope.couldNotParseJSON
       }
-      return data
+      return RichTextExampleResponse.projects(data)
     }
-    @MainActor public func richTextExampleProject(slug: String) async throws -> GraphAPI.RichTextExampleProjectBySlugQuery.Data {
+    @MainActor public func richTextExampleProject(slug: String) async throws -> RichTextExampleResponse? {
       try Task.checkCancellation()
       guard let data = try await self.fetch(query: GraphAPI.RichTextExampleProjectBySlugQuery(slug: slug, storyRichText: true)) else {
         throw ErrorEnvelope.couldNotParseJSON
       }
-      return data
+      return RichTextExampleResponse.project(data)
     }
 
     @MainActor public func recommendationCategory(id: String) async throws -> Category {
