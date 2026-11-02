@@ -2,6 +2,19 @@
 
 Author: Matthew Thomas. Updated 2 November 2026.
 
+## Navigation values and platform UI owners — 2 November 2026
+
+Navigation matches use captured API/web URLs for host checks and pledge-manager destinations;
+explicit-value overloads permit matching without global Environment access. Route tables are
+request-local to capture those URLs. Animation localization uses the synchronized language
+projection. Postal labels, Apple Pay request helpers, notification preferences/backing URLs
+and dependent pledge-status/Thanks/Watch presentation helpers declare MainActor.
+
+90 existing/new tests passed without failures/skips; a captured-host case checks pledge
+fallback URLs and foreign-host rejection. Complete-checking app build passed. Tests remain
+local; no live payment or push operation was performed. Environment wrappers/stack and other
+configuration/compatibility helpers remain open. Evidence: kickstarter-platform-value-owners.
+
 ## Filter and presentation ownership — 2 November 2026
 
 SearchFilters' observable presentation model, video-feed display construction and Activity

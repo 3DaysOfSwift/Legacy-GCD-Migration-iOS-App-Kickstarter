@@ -3,6 +3,7 @@
 @testable import Library
 import XCTest
 
+@MainActor
 class ProjectURLBuilderTests: XCTestCase {
   func testGetProjectBackingDetailsURL() {
     let backingDetailsURL = getProjectBackingDetailsURL(with: Project.template)

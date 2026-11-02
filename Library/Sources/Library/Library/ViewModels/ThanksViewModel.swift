@@ -324,6 +324,7 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
   public let updateUserInEnvironment: Signal<User, Never>
 }
 
+@MainActor
 private func shouldShowPledgeDialog() -> Bool {
   return PushNotificationDialog.canShowDialog(for: .pledge) &&
     AppEnvironment.current.currentUser?.stats.backedProjectsCount == 0

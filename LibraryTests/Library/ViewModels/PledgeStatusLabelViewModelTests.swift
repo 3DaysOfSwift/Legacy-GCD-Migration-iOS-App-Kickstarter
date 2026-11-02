@@ -9,13 +9,15 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class PledgeStatusLabelViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private let vm: PledgeStatusLabelViewModelType = PledgeStatusLabelViewModel()
 
   private let labelTextString = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.labelText.map { $0.string }.observe(self.labelTextString.observer)
   }

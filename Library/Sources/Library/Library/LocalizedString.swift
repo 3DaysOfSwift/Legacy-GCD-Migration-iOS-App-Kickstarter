@@ -2,6 +2,7 @@ import Foundation
 import Prelude
 import Synchronization
 
+@MainActor
 public func localizedPostalCode() -> String {
   // 🙏 Inspired by Kristina Fox
   // https://speakerdeck.com/krstnfx/internationalizing-your-app?slide=37

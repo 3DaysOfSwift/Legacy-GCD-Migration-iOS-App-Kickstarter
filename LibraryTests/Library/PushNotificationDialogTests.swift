@@ -4,6 +4,7 @@
 @testable import LibraryTestHelpers
 import XCTest
 
+@MainActor
 class PushNotificationDialogTests: XCTestCase {
   let userDefaults = MockKeyValueStore()
 

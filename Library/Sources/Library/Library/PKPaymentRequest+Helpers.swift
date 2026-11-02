@@ -2,6 +2,7 @@ import Foundation
 import KsApi
 import PassKit
 
+@MainActor
 extension PKPaymentRequest {
   private static func paymentRequest(for project: Project, merchantIdentifier: String) -> PKPaymentRequest {
     let request = PKPaymentRequest()

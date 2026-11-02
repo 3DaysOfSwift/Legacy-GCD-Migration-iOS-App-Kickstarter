@@ -25,26 +25,30 @@ extension PledgeStatusLabelViewData {
   }
 }
 
+@MainActor
 public protocol PledgeStatusLabelViewModelInputs {
   func configure(with data: PledgeStatusLabelViewData)
 }
 
+@MainActor
 public protocol PledgeStatusLabelViewModelOutputs {
   var labelText: Signal<NSAttributedString, Never> { get }
   var badgeHidden: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol PledgeStatusLabelViewModelType {
   var inputs: PledgeStatusLabelViewModelInputs { get }
   var outputs: PledgeStatusLabelViewModelOutputs { get }
 }
 
+@MainActor
 public class PledgeStatusLabelViewModel: PledgeStatusLabelViewModelType,
   PledgeStatusLabelViewModelInputs, PledgeStatusLabelViewModelOutputs {
   public init() {
     self.labelText = self.configureWithDataProperty.signal
       .skipNil()
-      .map(statusLabelText(with:))
+      .map { statusLabelText(with: $0) }
       .skipNil()
 
     self.badgeHidden = self.configureWithDataProperty.signal.skipNil()
@@ -71,6 +75,7 @@ public class PledgeStatusLabelViewModel: PledgeStatusLabelViewModelType,
 
 // MARK: - Functions
 
+@MainActor
 private func statusLabelText(with data: PledgeStatusLabelViewData) -> NSAttributedString? {
   let currentUserIsCreatorOfProject = data.currentUserIsCreatorOfProject
 
@@ -136,6 +141,7 @@ private func statusLabelText(with data: PledgeStatusLabelViewData) -> NSAttribut
   return NSAttributedString(string: string, attributes: attributes)
 }
 
+@MainActor
 private func projectStatusLabelText(with projectState: Project.State, isCreator: Bool) -> String? {
   let string: String
 
@@ -158,6 +164,7 @@ private func projectStatusLabelText(with projectState: Project.State, isCreator:
   return string
 }
 
+@MainActor
 private func attributedConfirmationString(with data: PledgeStatusLabelViewData) -> NSAttributedString {
   let date = Format.date(secondsInUTC: data.projectDeadline, template: "MMMM d, yyyy")
   let pledgeTotal = Format.currency(data.pledgeAmount, currencyCode: data.currencyCode)
@@ -208,6 +215,7 @@ private func attributedConfirmationString(with data: PledgeStatusLabelViewData) 
     )
 }
 
+@MainActor
 private func attributedPledgeOverTimeConfirmationString(with data: PledgeStatusLabelViewData)
   -> NSAttributedString {
   guard let firstPaymentIncrement = data.paymentIncrements?.first,
@@ -248,6 +256,7 @@ private func attributedPledgeOverTimeConfirmationString(with data: PledgeStatusL
   )
 }
 
+@MainActor
 private func attributedPlotErroredString(
   with data: PledgeStatusLabelViewData,
   attributes attrs: [NSAttributedString.Key: Any]

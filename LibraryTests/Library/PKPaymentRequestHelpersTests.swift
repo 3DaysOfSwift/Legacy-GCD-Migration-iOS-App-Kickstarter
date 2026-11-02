@@ -6,6 +6,7 @@ import PassKit
 import Prelude
 import XCTest
 
+@MainActor
 final class PKPaymentRequestHelpersTests: XCTestCase {
   func testPaymentRequest_NoShipping() {
     var project = Project.template

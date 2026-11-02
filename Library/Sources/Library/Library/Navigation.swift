@@ -102,16 +102,28 @@ public func == (lhs: Navigation.Project.Update, rhs: Navigation.Project.Update) 
 
 extension Navigation {
   public static func match(_ url: URL) -> Navigation? {
-    return allRoutes.reduce(nil) { accum, templateAndRoute in
+    let config = AppEnvironment.current.apiService.serverConfig
+    return self.match(url, apiBaseURL: config.apiBaseUrl, webBaseURL: config.webBaseUrl)
+  }
+
+  public static func match(_ url: URL, apiBaseURL: URL, webBaseURL: URL) -> Navigation? {
+    return allRoutes(webBaseURL: webBaseURL).reduce(nil) { accum, templateAndRoute in
       let (template, route) = templateAndRoute
-      return accum ?? parsedParams(url: url, fromTemplate: template).flatMap(route)
+      return accum ?? parsedParams(url: url, fromTemplate: template,
+                                   apiBaseURL: apiBaseURL, webBaseURL: webBaseURL).flatMap(route)
     }
   }
 
   public static func deepLinkMatch(_ url: URL) -> Navigation? {
-    return deepLinkRoutes.reduce(nil) { accum, templateAndRoute in
+    let config = AppEnvironment.current.apiService.serverConfig
+    return self.deepLinkMatch(url, apiBaseURL: config.apiBaseUrl, webBaseURL: config.webBaseUrl)
+  }
+
+  public static func deepLinkMatch(_ url: URL, apiBaseURL: URL, webBaseURL: URL) -> Navigation? {
+    return deepLinkRoutes(webBaseURL: webBaseURL).reduce(nil) { accum, templateAndRoute in
       let (template, route) = templateAndRoute
-      return accum ?? parsedParams(url: url, fromTemplate: template).flatMap(route)
+      return accum ?? parsedParams(url: url, fromTemplate: template,
+                                   apiBaseURL: apiBaseURL, webBaseURL: webBaseURL).flatMap(route)
     }
   }
 
@@ -120,52 +132,55 @@ extension Navigation {
   }
 }
 
-private let allRoutes: [String: (RouteParamsDecoded) -> Navigation?] = [
-  "/": emailClick, // Email clicks require a redirect in order to find the actual path.
-  "/activity": activity,
-  "/authorize": authorize,
-  "/checkouts/:checkout_param/payments": paymentsRoot,
-  "/checkouts/:checkout_param/payments/new": paymentsNew,
-  "/checkouts/:checkout_param/payments/apple-pay": paymentsApplePay,
-  "/checkouts/:checkout_param/payments/use_stored_card": paymentsUseStoredCard,
-  "/discover": discovery,
-  "/discover/advanced": discovery,
-  "/discover/categories/:category_id": discovery,
-  "/discover/categories/:parent_category_id/:category_id": discovery,
-  "/messages/:message_thread_id": messages,
-  "/profile/:user_param": me,
-  "/profile/verify_email": verifyEmail,
-  "/search": search,
-  "/signup": signup,
-  "/projects/:creator_param/:project_param": project,
-  "/projects/:creator_param/:project_param/backing/:backing_tab": pledgeManagerWebview,
-  "/projects/:creator_param/:project_param/checkouts/:checkout_param/thanks": thanks,
-  "/projects/:creator_param/:project_param/comments": projectComments,
-  "/projects/:creator_param/:project_param/creator_bio": creatorBio,
-  "/projects/:creator_param/:project_param/description": project,
-  "/projects/:creator_param/:project_param/faqs": project,
-  "/projects/:creator_param/:project_param/friends": friends,
-  "/projects/:creator_param/:project_param/messages/new": messageCreator,
-  "/projects/:creator_param/:project_param/pledge": pledgeRoot,
-  "/projects/:creator_param/:project_param/pledge/big_print": pledgeBigPrint,
-  "/projects/:creator_param/:project_param/pledge/change_method": pledgeChangeMethod,
-  "/projects/:creator_param/:project_param/pledge/destroy": pledgeDestroy,
-  "/projects/:creator_param/:project_param/pledge/edit": pledgeEdit,
-  "/projects/:creator_param/:project_param/pledge/new": pledgeNew,
-  "/projects/:creator_param/:project_param/posts": posts,
-  "/projects/:creator_param/:project_param/posts/:update_param": update,
-  "/projects/:creator_param/:project_param/updates": updates,
-  "/projects/:creator_param/:project_param/posts/:update_param/comments": updateComments,
-  "/projects/:creator_param/:project_param/surveys/:survey_param": pledgeManagerWebview,
-  "/projects/:creator_param/:project_param/surveys/:survey_param/edit": pledgeManagerWebview,
-  "/projects/:creator_param/:project_param/surveys/:survey_param/edit_address": pledgeManagerWebview,
-  "/settings/:notification_param/:enabled_param": settingsNotifications,
-  "/users/:user_param/surveys/:survey_response_id": userSurvey,
-  "/projects/:creator_param/:project_param/order_edits/:order_edit_id/checkout": pledgeManagerWebview,
-  "/projects/:creator_param/:project_param/order_edits/new": pledgeManagerWebview
-]
+private func allRoutes(webBaseURL: URL) -> [String: (RouteParamsDecoded) -> Navigation?] {
+  [
+    "/": emailClick, // Email clicks require a redirect in order to find the actual path.
+    "/activity": activity,
+    "/authorize": authorize,
+    "/checkouts/:checkout_param/payments": paymentsRoot,
+    "/checkouts/:checkout_param/payments/new": paymentsNew,
+    "/checkouts/:checkout_param/payments/apple-pay": paymentsApplePay,
+    "/checkouts/:checkout_param/payments/use_stored_card": paymentsUseStoredCard,
+    "/discover": discovery,
+    "/discover/advanced": discovery,
+    "/discover/categories/:category_id": discovery,
+    "/discover/categories/:parent_category_id/:category_id": discovery,
+    "/messages/:message_thread_id": messages,
+    "/profile/:user_param": me,
+    "/profile/verify_email": verifyEmail,
+    "/search": search,
+    "/signup": signup,
+    "/projects/:creator_param/:project_param": project,
+    "/projects/:creator_param/:project_param/backing/:backing_tab": { pledgeManagerWebview($0, webBaseURL: webBaseURL) },
+    "/projects/:creator_param/:project_param/checkouts/:checkout_param/thanks": thanks,
+    "/projects/:creator_param/:project_param/comments": projectComments,
+    "/projects/:creator_param/:project_param/creator_bio": creatorBio,
+    "/projects/:creator_param/:project_param/description": project,
+    "/projects/:creator_param/:project_param/faqs": project,
+    "/projects/:creator_param/:project_param/friends": friends,
+    "/projects/:creator_param/:project_param/messages/new": messageCreator,
+    "/projects/:creator_param/:project_param/pledge": pledgeRoot,
+    "/projects/:creator_param/:project_param/pledge/big_print": pledgeBigPrint,
+    "/projects/:creator_param/:project_param/pledge/change_method": pledgeChangeMethod,
+    "/projects/:creator_param/:project_param/pledge/destroy": pledgeDestroy,
+    "/projects/:creator_param/:project_param/pledge/edit": pledgeEdit,
+    "/projects/:creator_param/:project_param/pledge/new": pledgeNew,
+    "/projects/:creator_param/:project_param/posts": posts,
+    "/projects/:creator_param/:project_param/posts/:update_param": update,
+    "/projects/:creator_param/:project_param/updates": updates,
+    "/projects/:creator_param/:project_param/posts/:update_param/comments": updateComments,
+    "/projects/:creator_param/:project_param/surveys/:survey_param": { pledgeManagerWebview($0, webBaseURL: webBaseURL) },
+    "/projects/:creator_param/:project_param/surveys/:survey_param/edit": { pledgeManagerWebview($0, webBaseURL: webBaseURL) },
+    "/projects/:creator_param/:project_param/surveys/:survey_param/edit_address": { pledgeManagerWebview($0, webBaseURL: webBaseURL) },
+    "/settings/:notification_param/:enabled_param": settingsNotifications,
+    "/users/:user_param/surveys/:survey_response_id": userSurvey,
+    "/projects/:creator_param/:project_param/order_edits/:order_edit_id/checkout": { pledgeManagerWebview($0, webBaseURL: webBaseURL) },
+    "/projects/:creator_param/:project_param/order_edits/new": { pledgeManagerWebview($0, webBaseURL: webBaseURL) }
+  ]
+}
 
-private let deepLinkRoutes: [String: (RouteParamsDecoded) -> Navigation?] = allRoutes.restrict(
+private func deepLinkRoutes(webBaseURL: URL) -> [String: (RouteParamsDecoded) -> Navigation?] {
+  allRoutes(webBaseURL: webBaseURL).restrict(
   keys: [
     "/",
     "/activity",
@@ -192,6 +207,7 @@ private let deepLinkRoutes: [String: (RouteParamsDecoded) -> Navigation?] = allR
     "/projects/:creator_param/:project_param/order_edits/:order_edit_id/checkout"
   ]
 )
+}
 
 extension Navigation.Project {
   public static func withRequest(_ request: URLRequest) -> (Param, RefTag?)? {
@@ -435,7 +451,7 @@ private func posts(_ params: RouteParamsDecoded) -> Navigation? {
   return nil
 }
 
-private func pledgeManagerWebview(_ params: RouteParamsDecoded) -> Navigation? {
+private func pledgeManagerWebview(_ params: RouteParamsDecoded, webBaseURL: URL) -> Navigation? {
   if let projectParam = params.projectParam(),
      var path = params.path() {
     // Fallback logic for deeplinks: replace `backing/details` with `backing/survey_responses`
@@ -448,7 +464,7 @@ private func pledgeManagerWebview(_ params: RouteParamsDecoded) -> Navigation? {
       path = path.replacingOccurrences(of: Constants.backingDetailsPath, with: Constants.fallbackBackingPath)
     }
 
-    let url = AppEnvironment.current.apiService.serverConfig.webBaseUrl.absoluteString + path
+    let url = webBaseURL.absoluteString + path
     let refInfo = refInfoFromParams(params)
     let pmWebview = Navigation.Project.pledgeManagerWebview(url)
     return Navigation.project(projectParam, pmWebview, refInfo: refInfo)
@@ -520,7 +536,7 @@ private func settingsNotifications(_ params: RouteParamsDecoded) -> Navigation? 
 
 // MARK: - Helpers
 
-private func parsedParams(url: URL, fromTemplate template: String) -> RouteParamsDecoded? {
+private func parsedParams(url: URL, fromTemplate template: String, apiBaseURL: URL, webBaseURL: URL) -> RouteParamsDecoded? {
   let recognizedEmailHosts = [
     "clicks.kickstarter.com",
     "emails.kickstarter.com"
@@ -533,9 +549,9 @@ private func parsedParams(url: URL, fromTemplate template: String) -> RouteParam
   let isRecognizedEmailHost = recognizedEmailHosts.reduce(false, hostRecognizer)
 
   let recognizedHosts = [
-    AppEnvironment.current.apiService.serverConfig.apiBaseUrl.host,
-    AppEnvironment.current.apiService.serverConfig.webBaseUrl.host,
-    AppEnvironment.current.apiService.serverConfig.webBaseUrl.host?
+    apiBaseURL.host,
+    webBaseURL.host,
+    webBaseURL.host?
       .replacingOccurrences(of: "www.", with: "")
   ].compact()
 

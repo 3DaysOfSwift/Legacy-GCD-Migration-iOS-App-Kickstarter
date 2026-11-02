@@ -19,6 +19,20 @@ private func KSRAssertMatch(
 }
 
 public final class NavigationTests: XCTestCase {
+  func testExplicitServerURLsControlMatchingAndPledgeDestination() throws {
+    let web = try XCTUnwrap(URL(string: "https://migration.example"))
+    let api = try XCTUnwrap(URL(string: "https://api.migration.example"))
+    let url = web.appendingPathComponent("projects/creator/project/backing/details")
+    let result = Navigation.match(url, apiBaseURL: api, webBaseURL: web)
+    guard case let .project(_, .pledgeManagerWebview(destination), _, _) = result else {
+      return XCTFail("Expected captured-host pledge-manager route")
+    }
+    XCTAssertEqual(destination, "https://migration.example/projects/creator/project/backing/survey_responses")
+    XCTAssertEqual(Navigation.deepLinkMatch(url, apiBaseURL: api, webBaseURL: web), result)
+    let foreign = try XCTUnwrap(URL(string: "https://other.example/projects/creator/project/backing/details"))
+    XCTAssertNil(Navigation.match(foreign, apiBaseURL: api, webBaseURL: web))
+  }
+
   func testDoesNotRecognizeNonKickstarterURLs() {
     let projectRoute = Navigation
       .match(URL(string: "http://www.face-kickstarter.com/projects/creator/project")!)

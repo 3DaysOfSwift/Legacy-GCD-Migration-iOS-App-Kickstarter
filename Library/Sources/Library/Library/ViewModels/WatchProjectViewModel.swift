@@ -269,6 +269,7 @@ public final class WatchProjectViewModel: WatchProjectViewModelType,
   public var outputs: WatchProjectViewModelOutputs { return self }
 }
 
+@MainActor
 private func shouldShowNotificationDialog() -> Bool {
   return PushNotificationDialog.canShowDialog(for: .save) &&
     AppEnvironment.current.currentUser?.stats.starredProjectsCount == 0
