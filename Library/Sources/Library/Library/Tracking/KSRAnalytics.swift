@@ -1848,13 +1848,27 @@ public final class KSRAnalytics {
 
 // MARK: - Project Properties
 
+@MainActor
 private func projectProperties(
   from project: any ProjectAnalyticsProperties,
   loggedInUser: User? = nil,
-  dateType: DateProtocol.Type = AppEnvironment.current.dateType,
   isBacker: Bool = false,
-  calendar: Calendar = AppEnvironment.current.calendar,
   prefix: String = "project_"
+) -> [String: Any] {
+  let environment: Environment = AppEnvironment.current
+  return makeProjectProperties(
+    from: project, loggedInUser: loggedInUser, isBacker: isBacker,
+    now: environment.dateType.init().date, calendar: environment.calendar, prefix: prefix
+  )
+}
+
+private func makeProjectProperties(
+  from project: any ProjectAnalyticsProperties,
+  loggedInUser: User?,
+  isBacker: Bool,
+  now: Date,
+  calendar: Calendar,
+  prefix: String
 ) -> [String: Any] {
   var props: [String: Any] = [:]
 
@@ -1886,7 +1900,6 @@ private func projectProperties(
     ? "post_campaign"
     : project.stateValue
 
-  let now = dateType.init().date
   props["hours_remaining"] = project.datesHoursRemaining(from: now, using: calendar)
   props["duration"] = project.datesDuration(using: calendar)
 
@@ -2094,6 +2107,7 @@ private func interactionProperties(
   return result.prefixedKeys(prefix)
 }
 
+@MainActor
 private func properties(
   shareContext: ShareContext,
   loggedInUser: User?,

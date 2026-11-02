@@ -6,6 +6,43 @@ import KsApi
 import XCTest
 
 final class FormatTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
+  func testConcurrentFormattingKeepsLocaleAndAttributesPerRequest() async {
+    let date = Date(timeIntervalSince1970: 0)
+    let timeZone = TimeZone.gmt
+    let locales = [Locale(identifier: "en_US"), Locale(identifier: "de_DE")]
+    let expectedDates = locales.map {
+      Format.date(date, template: "yMMMd", locale: $0, timeZone: timeZone)
+    }
+    let failures = await withTaskGroup(of: Int?.self, returning: [Int].self) { group in
+      for index in 0..<256 {
+        group.addTask {
+          let localeIndex = index % locales.count
+          let marker = NSAttributedString.Key("request-marker")
+          let attributed = Format.attributedCurrency(
+            123.45, symbol: "$", locale: locales[localeIndex],
+            defaultAttributes: [marker: index], superscriptAttributes: [marker: index]
+          )
+          let renderedDate = Format.date(
+            date, template: "yMMMd", locale: locales[localeIndex], timeZone: timeZone
+          )
+          guard let attributed, attributed.length > 1,
+                attributed.attribute(marker, at: 1, effectiveRange: nil) as? Int == index,
+                renderedDate == expectedDates[localeIndex],
+                Format.decimalCurrency(for: 123.45) == "123.45" else { return index }
+          return nil
+        }
+      }
+      var failures: [Int] = []
+      for await result in group {
+        if let result { failures.append(result) }
+      }
+      return failures
+    }
+    XCTAssertEqual(failures, [])
+  }
+
   func testWholeNumber() {
     withEnvironment(locale: Locale(identifier: "en")) {
       XCTAssertEqual(Format.wholeNumber(10), "10")

@@ -17,6 +17,9 @@ creator draft work is superseded by their completed checkpoints.
    AppEnvironment stack ownership remains: formatter/environment dependency changes
    are still required, not a blanket annotation.
    Global UI style helpers and shared Environment access still need classification.
+   Date/number formatter cache operations now use scoped Mutex ownership; attributed
+   currency styling is request-local. Value-only date/currency rendering entry points
+   and explicit analytics clock/calendar capture reduce implicit dependency access.
    Notification-center async delegates transfer checked push values before awaiting UI;
    AppDelegate session/dialog observers now have retained lifecycle owners.
    Older PassKit, five mail-composer conformances and the payment-plan delegate now

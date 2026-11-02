@@ -1454,3 +1454,15 @@ and event ordering. Login/OAuth persistence closures declare their actor without
 asynchronous event reordering. UIKit device identifier reads remain in UI-owned methods.
 Existing event names/payloads, consent gating, native UI and persistence keys are unchanged.
 The global Environment stack is not certified concurrency-safe by this checkpoint.
+
+## Formatting shared state — 2 November 2026
+
+Date and numeric cache lookup, creation and rendering are synchronous protected operations;
+no lock spans an await. Mutable formatter objects do not escape through the current cache
+call sites. Attributed currency formatting constructs a request-local formatter so one
+request's style cannot overwrite another's. Existing locale, currency-code disambiguation,
+rounding and fraction-digit behavior is retained. New value-only rendering overloads allow
+callers to supply resolved locale/time-zone/currency inputs without the global Environment.
+Analytics project calculations now receive captured Date/Calendar values from the actor.
+The legacy formatting convenience APIs still read Environment and are not certified as
+safe for arbitrary concurrent environment mutation.

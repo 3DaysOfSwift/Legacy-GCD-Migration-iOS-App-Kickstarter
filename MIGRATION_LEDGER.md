@@ -2,6 +2,29 @@
 
 Author: Matthew Thomas. Updated 2 November 2026.
 
+## Shared formatter state and analytics inputs — 2 November 2026
+
+Date/number formatter caches now use scoped Synchronization.Mutex ownership for lookup,
+construction and rendering. No await occurs while locked, and current callers return only
+rendered values. Attributed currency styles previously mutated a shared cached formatter;
+they now belong to a fresh request-local formatter. Private formatter Lens globals were
+removed in favour of ordinary checked-Sendable configuration values. Rendering overloads
+accept resolved Date/locale/time-zone/currency-symbol inputs, while existing convenience
+APIs preserve their Environment-based behavior. Analytics captures Date/Calendar on its
+main actor before calculating project properties without global default arguments.
+
+256 focused Format/analytics/helper/project/pledge tests passed with zero failures/skips.
+One test exercises 256 concurrent formatting requests across locales and distinct attribute
+markers; those requests are not counted as separate tests. Existing locale and currency
+assertions passed. Complete-concurrency-checking app build passed with no warnings emitted
+for Format.swift or KSRAnalytics.swift. App-wide warnings remain. The verified demo launched
+with populated Explore artwork/cards and rendered percentage/backer/time-remaining values.
+This smoke check is not full visual parity. Evidence: kickstarter-formatter-ownership.
+
+Remaining: shared Environment stack isolation, convenience-default/global-style review,
+reference/physical-device validation, profiling and live-service validation. These two
+checkpoints remove concrete shared-state hazards; they do not complete those other gates.
+
 ## Analytics and device ownership — 2 November 2026
 
 KSRAnalytics and UIDeviceType now declare MainActor. Analytics user/config/consent mutations
