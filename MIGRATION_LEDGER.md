@@ -2,6 +2,18 @@
 
 Author: Matthew Thomas. Updated 2 November 2026.
 
+## Configuration ownership and integrated regression — 2 November 2026
+
+UI configuration helpers and pledged-project card parsing now declare MainActor. Override
+and remote-client lookup use a single captured Environment; the synchronous keychain flag
+remains pending stack/persistence isolation. Two missed test-only presentation callers were
+aligned after the framework compiler identified them. Snapshot guards/assertions are retained.
+
+2,321 selected tests passed: 1,741 Library, 402 framework, 152 API and 26 signed Environment/
+keychain tests, zero failures/skips. App and complete-checking builds passed; warnings remain.
+Reference snapshots were compiled, not executed. Evidence: kickstarter-ownership-regression.
+Global Environment ownership and final device/live-operation gates remain open.
+
 ## Navigation values and platform UI owners — 2 November 2026
 
 Navigation matches use captured API/web URLs for host checks and pledge-manager destinations;

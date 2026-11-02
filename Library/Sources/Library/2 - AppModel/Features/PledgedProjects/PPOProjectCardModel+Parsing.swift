@@ -7,6 +7,7 @@ private struct PPOParsedAction {
   let tierType: PPOTierType
 }
 
+@MainActor
 extension PPOProjectCardModel {
   public init?(node: GraphAPI.FetchPledgedProjectsQuery.Data.PledgeProjectsOverview.Pledges.Edge.Node) {
     self.init(card: PledgedProjectsResponse.Card(node.fragments.pPOCardFragment))

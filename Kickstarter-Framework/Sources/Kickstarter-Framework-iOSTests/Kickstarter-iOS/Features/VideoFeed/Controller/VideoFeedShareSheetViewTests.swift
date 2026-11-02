@@ -32,6 +32,7 @@ final class VideoFeedShareSheetViewTests: TestCase {
     super.tearDown()
   }
 
+  @MainActor
   func testVideoFeedShareSheetView() {
     orthogonalCombos(
       Language.allLanguages,
@@ -59,6 +60,7 @@ final class VideoFeedShareSheetViewTests: TestCase {
     }
   }
 
+  @MainActor
   func testRenderedPreviewCard() {
     let view = VideoFeedShareSheetView(item: self.mockFeedItem)
     let image = view.renderedPreviewCard()
@@ -75,6 +77,7 @@ final class VideoFeedShareSheetViewTests: TestCase {
 
   // MARK: - Helpers
 
+  @MainActor
   private var mockFeedItem: VideoFeedItem {
     VideoFeedItem(
       id: "0",

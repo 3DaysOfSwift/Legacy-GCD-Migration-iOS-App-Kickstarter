@@ -3,9 +3,11 @@
 import Prelude
 import XCTest
 
+@MainActor
 final class RemoteConfigFeatureHelpersTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   func assert(
-    featureFlagIsFalse checkFeatureFlag: () -> Bool,
+    featureFlagIsFalse checkFeatureFlag: @MainActor () -> Bool,
     whenRemoteConfigFeatureIsFalse feature: RemoteConfigFeature
   ) {
     let mockRemoteConfigClient = MockRemoteConfigClient()
@@ -17,7 +19,7 @@ final class RemoteConfigFeatureHelpersTests: TestCase {
   }
 
   func assert(
-    featureFlagIsTrue checkFeatureFlag: () -> Bool,
+    featureFlagIsTrue checkFeatureFlag: @MainActor () -> Bool,
     whenRemoteConfigFeatureIsTrue feature: RemoteConfigFeature
   ) {
     let mockRemoteConfigClient = MockRemoteConfigClient()

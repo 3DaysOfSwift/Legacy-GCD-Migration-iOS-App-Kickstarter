@@ -8,6 +8,7 @@ import GraphAPITestMocks
 @testable import KsApiTestHelpers
 import XCTest
 
+@MainActor
 final class PPOProjectCardModelTests: XCTestCase {
   func testParsingNoAddress() throws {
     let model = try XCTUnwrap(self.mockModel(address: nil))

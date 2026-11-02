@@ -87,14 +87,19 @@ The compiler exposed these concrete next dependencies (not an exhaustive app inv
 - FetchCategoriesUseCase is now an actor-owned async request with shared pending work,
   cancellation on release and captured cache identity. Its Discovery caller and tests
   await completion; the reactive network/cache callback path is removed.
-- SearchFilters.swift: category/location selection helpers read shared Environment state.
-- VideoFeedItem+Constructor: presentation currency construction needs its UI owner.
-- ActivityFriendBackingViewModel and ActivityProjectStatusViewModel: percentage/presentation
-  helpers and current-user reads need explicit ownership.
+- SearchFilters, VideoFeedItem presentation construction, and Activity status/friend
+  presentation helpers now declare MainActor ownership and have passing focused tests.
+- Navigation route callbacks now capture API/web URLs. Compatibility entry points still
+  read Environment synchronously and require stack isolation alignment.
+- Platform payment/notification helpers, localized postal-code lookup and project URLs
+  now declare MainActor ownership. Lottie localization uses the language-only projection.
+- Remaining concrete compiler dependencies include SharedFunctions convenience defaults,
+  legacy Paginate scheduler/delay capture, and keychain/configuration reads used by
+  synchronous Environment persistence. Test fixture stack push/pop ownership also needs
+  alignment with the final stack contract.
 
 Card-expiry rendering, its two cell ViewModels, HelpType URL lookup and feature/experiment
-Environment readers are now isolated and tested separately. FetchCategoriesUseCase is still
-used by DiscoveryFiltersViewModel, now through its migrated async request owner. Re-run the stack experiment after these
+Environment readers are isolated and tested. Re-run the stack experiment after these
 items; later compiler batches may expose additional callers. Do not treat a passing Swift 5
 build as evidence that the stack is isolated.
 
