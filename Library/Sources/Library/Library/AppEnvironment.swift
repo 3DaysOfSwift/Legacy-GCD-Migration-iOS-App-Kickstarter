@@ -365,8 +365,8 @@ public struct AppEnvironment: AppEnvironmentType {
 
   internal static let accountNameForKeychain = "kickstarter_currently_logged_in_user"
 
-  private static func storeOAuthTokenToKeychain(_ oauthToken: String) -> Bool {
-    guard featureUseKeychainForOAuthTokenEnabled()
+  private static func storeOAuthTokenToKeychain(_ oauthToken: String, enabled: Bool) -> Bool {
+    guard enabled
     else {
       return false
     }
@@ -383,8 +383,8 @@ public struct AppEnvironment: AppEnvironmentType {
     return false
   }
 
-  private static func fetchOAuthTokenFromKeychain() -> String? {
-    guard featureUseKeychainForOAuthTokenEnabled()
+  private static func fetchOAuthTokenFromKeychain(enabled: Bool) -> String? {
+    guard enabled
     else {
       return nil
     }
@@ -400,8 +400,8 @@ public struct AppEnvironment: AppEnvironmentType {
     return nil
   }
 
-  private static func removeOAuthTokenFromKeychain() -> Bool {
-    guard featureUseKeychainForOAuthTokenEnabled() else { return false }
+  private static func removeOAuthTokenFromKeychain(enabled: Bool) -> Bool {
+    guard enabled else { return false }
 
     do {
       try Keychain.deletePassword(forAccount: self.accountNameForKeychain)
@@ -431,7 +431,7 @@ public struct AppEnvironment: AppEnvironmentType {
 
     // If there is an oauth token stored, then we can authenticate our api service
 
-    if let oauthToken = fetchOAuthTokenFromKeychain() {
+    if let oauthToken = fetchOAuthTokenFromKeychain(enabled: featureUseKeychainForOAuthTokenEnabled()) {
       service = service.login(OauthToken(token: oauthToken))
     } else if let oauthToken = data["apiService.oauthToken.token"] as? String {
       service = service.login(OauthToken(token: oauthToken))
@@ -529,17 +529,19 @@ public struct AppEnvironment: AppEnvironmentType {
     ubiquitousStore _: KeyValueStoreType,
     userDefaults: KeyValueStoreType
   ) {
+    // Preserve the active stack's policy, including when a new environment is being pushed.
+    let useKeychain = featureEnabled(feature: .useKeychainForOAuthToken, environment: self.current)
     var data: [String: Any] = [:]
 
     // swiftformat:disable wrap
 
     if let oauthToken = env.apiService.oauthToken?.token {
       // Try to save to the keychain, but if that fails, save to user defaults
-      if !self.storeOAuthTokenToKeychain(oauthToken) {
+      if !self.storeOAuthTokenToKeychain(oauthToken, enabled: useKeychain) {
         data["apiService.oauthToken.token"] = oauthToken
       }
     } else {
-      _ = self.removeOAuthTokenFromKeychain()
+      _ = self.removeOAuthTokenFromKeychain(enabled: useKeychain)
     }
 
     data["apiService.serverConfig.apiBaseUrl"] = env.apiService.serverConfig.apiBaseUrl.absoluteString

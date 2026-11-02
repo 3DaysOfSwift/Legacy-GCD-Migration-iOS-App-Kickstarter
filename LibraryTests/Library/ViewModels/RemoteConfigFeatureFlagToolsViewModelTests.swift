@@ -8,14 +8,16 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class RemoteConfigFlagToolsViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private let vm: RemoteConfigFeatureFlagToolsViewModelType = RemoteConfigFeatureFlagToolsViewModel()
 
   private let reloadWithData = TestObserver<RemoteConfigFeatures, Never>()
   private let updateUserDefaultsWithFeatures = TestObserver<RemoteConfigFeatures, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.reloadWithRemoteConfigData.observe(self.reloadWithData.observer)
     self.vm.outputs.updateUserDefaultsWithRemoteConfigFeatures

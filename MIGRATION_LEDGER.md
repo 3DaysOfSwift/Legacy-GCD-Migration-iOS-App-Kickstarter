@@ -2,6 +2,15 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## Configuration policy and tools ownership — 3 November 2026
+
+Keychain operations take an explicit enablement decision. Save retains the active-stack policy
+when pushing/replacing an Environment; restoration resolves its policy on MainActor. Flag-tools
+ViewModel/protocols and writes now declare MainActor. Override precedence, debounce, fallback
+storage and UI outputs remain unchanged. 6 configuration tests and 26 signed Environment/
+keychain tests passed, zero failures/skips; app build passed. Evidence: kickstarter-config-policy.
+Global stack and persistence isolation remain unfinished; this pass removes hidden keychain reads.
+
 ## Navigation Environment readers — 3 November 2026
 
 Environment-reading navigation entry points and dependent pledge-manager/project-update/

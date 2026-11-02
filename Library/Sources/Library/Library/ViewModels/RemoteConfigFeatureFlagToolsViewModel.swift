@@ -7,6 +7,7 @@ import ReactiveSwift
 public typealias RemoteConfigFeatures = [(RemoteConfigFeature, Bool)]
 public typealias StatsigFeatures = [(StatsigFeature, Bool)]
 
+@MainActor
 public protocol RemoteConfigFeatureFlagToolsViewModelOutputs {
   var reloadWithRemoteConfigData: Signal<RemoteConfigFeatures, Never> { get }
   var updateUserDefaultsWithRemoteConfigFeatures: Signal<RemoteConfigFeatures, Never> { get }
@@ -14,6 +15,7 @@ public protocol RemoteConfigFeatureFlagToolsViewModelOutputs {
   var updateUserDefaultsWithStatsigFeatures: Signal<StatsigFeatures, Never> { get }
 }
 
+@MainActor
 public protocol RemoteConfigFeatureFlagToolsViewModelInputs {
   func didUpdateUserDefaults()
   func setFeatureAtIndexEnabled(index: Int, isEnabled: Bool)
@@ -21,11 +23,13 @@ public protocol RemoteConfigFeatureFlagToolsViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol RemoteConfigFeatureFlagToolsViewModelType {
   var inputs: RemoteConfigFeatureFlagToolsViewModelInputs { get }
   var outputs: RemoteConfigFeatureFlagToolsViewModelOutputs { get }
 }
 
+@MainActor
 public final class RemoteConfigFeatureFlagToolsViewModel: RemoteConfigFeatureFlagToolsViewModelType,
   RemoteConfigFeatureFlagToolsViewModelInputs,
   RemoteConfigFeatureFlagToolsViewModelOutputs {
@@ -124,10 +128,12 @@ public final class RemoteConfigFeatureFlagToolsViewModel: RemoteConfigFeatureFla
 
 // MARK: - Private Helpers (Remote Config)
 
+@MainActor
 private func isFeatureEnabled(_ feature: RemoteConfigFeature) -> Bool {
   return featureEnabled(feature: feature)
 }
 
+@MainActor
 private func setValueInUserDefaults(for feature: RemoteConfigFeature, and value: Bool) {
   AppEnvironment.current.userDefaults
     .remoteConfigFeatureFlags[feature.rawValue] = value
@@ -135,6 +141,7 @@ private func setValueInUserDefaults(for feature: RemoteConfigFeature, and value:
 
 // MARK: - Private Helpers (Statsig)
 
+@MainActor
 private func setStatsigValueInUserDefaults(for feature: StatsigFeature, and value: Bool) {
   AppEnvironment.current.userDefaults
     .statsigFeatureFlags[feature.rawValue] = value
