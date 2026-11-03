@@ -156,15 +156,18 @@ extension PledgePaymentPlansViewController: PledgePaymentPlanOptionViewDelegate 
 
 // MARK: Styles
 
+@MainActor
 private func applyRootStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
   stackView.spacing = 0
 }
 
+@MainActor
 private func applyWhiteBackgroundStyle(_ view: UIView) {
   view.backgroundColor = LegacyColors.ksr_white.uiColor()
 }
 
+@MainActor
 private func applySeparatorStyle(_ view: UIView) {
   view.backgroundColor = LegacyColors.ksr_support_300.uiColor()
   view.accessibilityElementsHidden = true

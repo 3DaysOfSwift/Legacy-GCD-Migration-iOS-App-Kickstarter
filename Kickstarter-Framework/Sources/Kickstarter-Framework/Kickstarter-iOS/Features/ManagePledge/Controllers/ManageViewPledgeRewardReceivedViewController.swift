@@ -143,6 +143,7 @@ final class ManageViewPledgeRewardReceivedViewController: UIViewController {
 
 // MARK: - Styles
 
+@MainActor
 private func applyRootStackViewStyle(_ stackView: UIStackView) {
   stackView.isLayoutMarginsRelativeArrangement = true
   stackView.axis = .vertical
@@ -150,6 +151,7 @@ private func applyRootStackViewStyle(_ stackView: UIStackView) {
   stackView.insetsLayoutMarginsFromSafeArea = false
 }
 
+@MainActor
 private func applyRewardReceivedInfoStackViewStyle(_ stackView: UIStackView) {
   stackView.layer.borderColor = LegacyColors.ksr_support_300.uiColor().cgColor
   stackView.isLayoutMarginsRelativeArrangement = true
@@ -160,6 +162,7 @@ private func applyRewardReceivedInfoStackViewStyle(_ stackView: UIStackView) {
   stackView.layer.masksToBounds = true
 }
 
+@MainActor
 private func applyLabelStackViewStyle(_ stackView: UIStackView) {
   stackView.isLayoutMarginsRelativeArrangement = true
   stackView.axis = .vertical
@@ -167,6 +170,7 @@ private func applyLabelStackViewStyle(_ stackView: UIStackView) {
   stackView.insetsLayoutMarginsFromSafeArea = false
 }
 
+@MainActor
 private func applyToggleViewControllerTitleLabelStyle(_ label: UILabel) {
   label.accessibilityTraits = UIAccessibilityTraits.header
   label.adjustsFontForContentSizeCategory = true
@@ -177,12 +181,14 @@ private func applyToggleViewControllerTitleLabelStyle(_ label: UILabel) {
   label.text = Strings.Reward_received()
 }
 
+@MainActor
 private func applyToggleViewControllerToggleStyle(_ toggle: UISwitch) {
   toggle.onTintColor = LegacyColors.ksr_create_700.uiColor()
   toggle.tintColor = LegacyColors.ksr_support_300.uiColor()
   toggle.accessibilityLabel = Strings.Reward_received()
 }
 
+@MainActor
 private func applyDisclaimerStyle(_ view: UIView) {
   view.clipsToBounds = true
   view.layer.masksToBounds = true

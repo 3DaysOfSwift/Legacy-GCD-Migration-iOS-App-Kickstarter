@@ -117,6 +117,7 @@ final class RewardTrackingDetailsView: UIView {
 }
 
 // Styles helper
+@MainActor
 private func applyRootStackViewStyle(_ stackView: UIStackView, style: RewardTrackingDetailsViewStyle) {
   stackView.axis = .vertical
   stackView.spacing = Constants.rootStackViewSpacing
@@ -126,11 +127,13 @@ private func applyRootStackViewStyle(_ stackView: UIStackView, style: RewardTrac
   stackView.rounded(with: style.cornerRadius)
 }
 
+@MainActor
 private func applyTrackingTitleStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .horizontal
   stackView.spacing = Constants.titleStackViewSpacing
 }
 
+@MainActor
 private func applyTrackingIconImageViewStyle(_ imageView: UIImageView) {
   imageView.image = Library.image(named: "icon-shipped")
   imageView.tintColor = Colors.Icon.primary.uiColor()
@@ -138,12 +141,14 @@ private func applyTrackingIconImageViewStyle(_ imageView: UIImageView) {
   imageView.setContentHuggingPriority(.required, for: .horizontal)
 }
 
+@MainActor
 private func applyTrackingStatusLabelStyle(_ label: UILabel) {
   label.textColor = Colors.Text.primary.uiColor()
   label.font = .ksr_headingMD()
   label.adjustsFontForContentSizeCategory = true
 }
 
+@MainActor
 private func applyTrackingNumberLabelStyle(_ label: UILabel) {
   label.textColor = LegacyColors.ksr_support_400
     .uiColor() // Do we want to implement a new Design System color?

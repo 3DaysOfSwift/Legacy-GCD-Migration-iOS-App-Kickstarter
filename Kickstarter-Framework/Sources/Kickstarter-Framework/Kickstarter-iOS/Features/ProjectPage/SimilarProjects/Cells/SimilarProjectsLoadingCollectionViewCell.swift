@@ -89,6 +89,7 @@ final class SimilarProjectsLoadingCollectionViewCell: UICollectionViewCell, Valu
   }
 }
 
+@MainActor
 private func applyImageViewStyle(_ view: UIView) {
   view.backgroundColor = LegacyColors.ksr_support_300.uiColor()
   view.layer.cornerRadius = Styles.grid(2)
@@ -97,6 +98,7 @@ private func applyImageViewStyle(_ view: UIView) {
   view.translatesAutoresizingMaskIntoConstraints = false
 }
 
+@MainActor
 private func applyLabelViewStyle(_ view: UIView) {
   view.backgroundColor = LegacyColors.ksr_support_300.uiColor()
   view.clipsToBounds = true

@@ -23,6 +23,8 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		1EB8CF6B0449AEAB77EA59D1 /* DeferredRefreshControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC315D121B007EF8D0E54E57 /* DeferredRefreshControlTests.swift */; };
+		7E9EEBCD5381DBDF4D986CC3 /* MainActorNotificationObservationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9F89993689A9E05519C4A12 /* MainActorNotificationObservationTests.swift */; };
 		CFA031300000000000000001 /* DeveloperExamplesFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA031300000000000000002 /* DeveloperExamplesFeatureTests.swift */; };
 		CFA031200000000000000001 /* AppLifecycleFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA031200000000000000002 /* AppLifecycleFeatureTests.swift */; };
 		CFA030900000000000000001 /* ProjectReportingFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA030900000000000000002 /* ProjectReportingFeatureTests.swift */; };
@@ -404,6 +406,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AC315D121B007EF8D0E54E57 /* DeferredRefreshControlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeferredRefreshControlTests.swift; sourceTree = "<group>"; };
+		C9F89993689A9E05519C4A12 /* MainActorNotificationObservationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainActorNotificationObservationTests.swift; sourceTree = "<group>"; };
 		CFA031300000000000000002 /* DeveloperExamplesFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperExamplesFeatureTests.swift; sourceTree = "<group>"; };
 		CFA031200000000000000002 /* AppLifecycleFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLifecycleFeatureTests.swift; sourceTree = "<group>"; };
 		CFA030900000000000000002 /* ProjectReportingFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectReportingFeatureTests.swift; sourceTree = "<group>"; };
@@ -1273,6 +1277,8 @@
 				AAF547F82F2445C0001DB5AC /* Tracking */,
 				AAF548022F2445C0001DB5AC /* UseCases */,
 				AAF5489B2F2445C0001DB5AC /* ViewModels */,
+				C9F89993689A9E05519C4A12 /* MainActorNotificationObservationTests.swift */,
+				AC315D121B007EF8D0E54E57 /* DeferredRefreshControlTests.swift */,
 				AAF5489C2F2445C0001DB5AC /* ApplePayCapabilitiesTests.swift */,
 				AAF5489D2F2445C0001DB5AC /* CharacterSetTests.swift */,
 				AAF5489E2F2445C0001DB5AC /* CircleAvatarImageViewTests.swift */,
@@ -1978,6 +1984,8 @@
 				CFA030400000000000000001 /* PledgeFeatureTests.swift in Sources */,
 				CFA027900000000000000001 /* AccountRequestGate.swift in Sources */,
 				CFA026100000000000000010 /* SearchLookupTests.swift in Sources */,
+				7E9EEBCD5381DBDF4D986CC3 /* MainActorNotificationObservationTests.swift in Sources */,
+				1EB8CF6B0449AEAB77EA59D1 /* DeferredRefreshControlTests.swift in Sources */,
 				CFA026100000000000000008 /* SearchRequestCancellationTests.swift in Sources */,
 				CFA026100000000000000005 /* AppModelTests.swift in Sources */,
 				AAF549692F2445C0001DB5AC /* SelectCurrencyViewModelTests.swift in Sources */,

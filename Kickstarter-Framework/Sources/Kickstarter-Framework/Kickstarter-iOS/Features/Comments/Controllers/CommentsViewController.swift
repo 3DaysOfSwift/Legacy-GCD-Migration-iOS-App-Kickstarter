@@ -340,6 +340,7 @@ private let tableViewStyle: TableViewStyle = { tableView in
     |> \.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 }
 
+@MainActor
 internal func commentsViewController(
   for project: Project? = nil,
   update: Update? = nil

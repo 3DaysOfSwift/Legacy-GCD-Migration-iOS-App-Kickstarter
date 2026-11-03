@@ -535,6 +535,7 @@ private let separatorViewStyle: ViewStyle = { view in
     |> \.translatesAutoresizingMaskIntoConstraints .~ false
 }
 
+@MainActor
 private func applyAppleLoginButtonStyle(_ button: AdaptiveAppleIDButton) {
   let cornerRadius: CGFloat = Dimension.CornerRadius.small
 

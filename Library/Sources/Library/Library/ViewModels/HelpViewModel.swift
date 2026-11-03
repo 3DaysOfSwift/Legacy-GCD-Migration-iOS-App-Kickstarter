@@ -22,6 +22,7 @@ public enum HelpContext {
   }
 }
 
+@MainActor
 public protocol HelpViewModelInputs {
   /// Call to set whether Mail can be composed.
   func canSendEmail(_ canSend: Bool)
@@ -39,6 +40,7 @@ public protocol HelpViewModelInputs {
   func showHelpSheetButtonTapped()
 }
 
+@MainActor
 public protocol HelpViewModelOutputs {
   /// Emits to show an alert when Mail is not available.
   var showNoEmailError: Signal<UIAlertController, Never> { get }
@@ -53,11 +55,13 @@ public protocol HelpViewModelOutputs {
   var showWebHelp: Signal<HelpType, Never> { get }
 }
 
+@MainActor
 public protocol HelpViewModelType {
   var inputs: HelpViewModelInputs { get }
   var outputs: HelpViewModelOutputs { get }
 }
 
+@MainActor
 public final class HelpViewModel: HelpViewModelType, HelpViewModelInputs, HelpViewModelOutputs {
   public init() {
     let canSendEmail = self.canSendEmailProperty.signal.skipNil()
@@ -114,6 +118,7 @@ public final class HelpViewModel: HelpViewModelType, HelpViewModelInputs, HelpVi
   }
 }
 
+@MainActor
 private func noEmailError() -> UIAlertController {
   let alertController = UIAlertController(
     title: Strings.support_email_noemail_title(),

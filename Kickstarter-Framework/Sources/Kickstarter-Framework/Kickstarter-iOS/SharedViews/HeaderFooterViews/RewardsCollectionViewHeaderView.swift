@@ -48,6 +48,7 @@ public final class RewardsCollectionViewHeaderView: UICollectionReusableView {
   }
 }
 
+@MainActor
 private func baseStyle(_ view: UIView) {
   view.layoutMargins = .init(
     top: Styles.grid(4),
@@ -58,11 +59,13 @@ private func baseStyle(_ view: UIView) {
   view.backgroundColor = .clear
 }
 
+@MainActor
 private func rootStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = NSLayoutConstraint.Axis.vertical
   stackView.spacing = Styles.grid(2)
 }
 
+@MainActor
 private func labelStyle(_ label: UILabel) {
   label.numberOfLines = 1
   label.textColor = LegacyColors.ksr_support_700.uiColor()

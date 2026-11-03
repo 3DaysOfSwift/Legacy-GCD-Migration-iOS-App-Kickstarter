@@ -64,22 +64,26 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
   internal override func awakeFromNib() {
     super.awakeFromNib()
 
-    self.creatorButton.addTarget(
-      self,
-      action: #selector(self.creatorButtonTapped),
-      for: .touchUpInside
-    )
+    // UIKit loads this cell on the main thread. NSObject declares awakeFromNib
+    // nonisolated, so establish its synchronous UI boundary before touching state.
+    MainActor.assumeIsolated {
+      self.creatorButton.addTarget(
+        self,
+        action: #selector(self.creatorButtonTapped),
+        for: .touchUpInside
+      )
 
-    self.alertBanner.configureWith(
-      title: Strings.project_project_notices_header(),
-      subtitle: Strings.project_project_notices_notice_intro(),
-      buttonTitle: Strings.project_project_notices_notice_cta()
-    ) { [weak self] in
-      self?.alertBannerLearnMoreTapped()
+      self.alertBanner.configureWith(
+        title: Strings.project_project_notices_header(),
+        subtitle: Strings.project_project_notices_notice_intro(),
+        buttonTitle: Strings.project_project_notices_notice_cta()
+      ) { [weak self] in
+        self?.alertBannerLearnMoreTapped()
+      }
+      self.contentStackView.insertArrangedSubview(self.alertBanner, at: 1)
+
+      self.viewModel.inputs.awakeFromNib()
     }
-    self.contentStackView.insertArrangedSubview(self.alertBanner, at: 1)
-
-    self.viewModel.inputs.awakeFromNib()
   }
 
   internal func configureWith(value: ProjectPamphletMainCellData) {

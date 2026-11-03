@@ -257,6 +257,7 @@ public final class ProjectUpdatesViewModel: ProjectUpdatesViewModelType, Project
   public var outputs: ProjectUpdatesViewModelOutputs { return self }
 }
 
+@MainActor
 private func canMakePhoneCall() -> Bool {
   guard let url = URL(string: "tel://") else {
     return false
@@ -308,6 +309,7 @@ private func isUpdatesRequest(request: URLRequest) -> Bool {
   return false
 }
 
+@MainActor
 private func noEmailError() -> UIAlertController {
   let alertController = UIAlertController(
     title: Strings.support_email_noemail_title(),

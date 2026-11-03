@@ -75,6 +75,7 @@ final class SimilarProjectsCollectionViewCell: UICollectionViewCell, ValueCell {
   }
 }
 
+@MainActor
 private func applyBaseCellStyle(_ cell: UICollectionViewCell) {
   cell.contentView.preservesSuperviewLayoutMargins = false
   cell.backgroundColor = LegacyColors.ksr_white.uiColor()

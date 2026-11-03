@@ -145,6 +145,7 @@ final class SimilarProjectsTableViewCell: UITableViewCell, ValueCell {
 
 // MARK: - Styles
 
+@MainActor
 private func applyBaseCellStyle(_ cell: UITableViewCell) {
   cell.contentView.preservesSuperviewLayoutMargins = false
   cell.backgroundColor = LegacyColors.ksr_white.uiColor()
@@ -152,18 +153,21 @@ private func applyBaseCellStyle(_ cell: UITableViewCell) {
   cell.selectionStyle = .none
 }
 
+@MainActor
 private func applyCollectionViewStyle(_ collectionView: UICollectionView) {
   collectionView.backgroundColor = .clear
   collectionView.showsHorizontalScrollIndicator = false
   collectionView.translatesAutoresizingMaskIntoConstraints = false
 }
 
+@MainActor
 private func applyCollectionViewLayoutStyle(_ layout: UICollectionViewFlowLayout) {
   layout.scrollDirection = .horizontal
   layout.minimumInteritemSpacing = SimilarProjectsCellConstants.collectionViewInteritemSpacing
   layout.itemSize = SimilarProjectsCellConstants.collectionViewItemSize
 }
 
+@MainActor
 private func applyPageControlStyle(_ pageControl: UIPageControl) {
   pageControl.currentPage = 0
   pageControl.currentPageIndicatorTintColor = LegacyColors.ksr_support_700.uiColor()
@@ -173,6 +177,7 @@ private func applyPageControlStyle(_ pageControl: UIPageControl) {
   pageControl.translatesAutoresizingMaskIntoConstraints = false
 }
 
+@MainActor
 private func applyTitleLabelStyle(_ label: UILabel) {
   label.text = Strings.Similar_projects()
   label.font = .ksr_title3().bolded

@@ -307,6 +307,7 @@ public final class RewardAddOnCardView: UIView {
 
 // MARK: - Styles
 
+@MainActor
 private func applyIncludedItemsTitleLabel(_ label: UILabel) {
   applyBaseRewardLabelStyle(label)
   label.font = .ksr_callout().weighted(.semibold)
@@ -314,6 +315,7 @@ private func applyIncludedItemsTitleLabel(_ label: UILabel) {
   label.textColor = LegacyColors.ksr_support_400.uiColor()
 }
 
+@MainActor
 private func applyEstimatedShippingTitleLabel(_ label: UILabel) {
   applyBaseRewardLabelStyle(label)
   label.font = .ksr_callout().weighted(.semibold)
@@ -321,81 +323,96 @@ private func applyEstimatedShippingTitleLabel(_ label: UILabel) {
   label.textColor = LegacyColors.ksr_support_400.uiColor()
 }
 
+@MainActor
 private func applyEstimatedShippingLabel(_ label: UILabel) {
   applyBaseRewardLabelStyle(label)
   label.font = .ksr_callout()
 }
 
+@MainActor
 private func applyIncludedItemsLabel(_ label: UILabel) {
   applyBaseRewardLabelStyle(label)
   label.font = .ksr_callout()
 }
 
+@MainActor
 private func applyBaseRewardLabelStyle(_ label: UILabel) {
   label.numberOfLines = 0
   label.textAlignment = .left
   label.lineBreakMode = .byWordWrapping
 }
 
+@MainActor
 private func applyDetailsStackViewStyle(_ stackView: UIStackView) {
   stackView.isLayoutMarginsRelativeArrangement = true
   stackView.layoutMargins = .init(all: Styles.grid(3))
   stackView.spacing = Styles.grid(3)
 }
 
+@MainActor
 private func applyIncludedItemsStackViewStyle(_ stackView: UIStackView) {
   stackView.spacing = Styles.grid(2)
 }
 
+@MainActor
 private func applyAmountLabelStyle(_ label: UILabel) {
   applyBaseRewardLabelStyle(label)
   label.textColor = LegacyColors.ksr_create_700.uiColor()
   label.font = UIFont.ksr_title3().bolded
 }
 
+@MainActor
 private func applyAmountConvertedLabelStyle(_ label: UILabel) {
   applyBaseRewardLabelStyle(label)
   label.textColor = LegacyColors.ksr_support_400.uiColor()
   label.font = UIFont.ksr_footnote().weighted(.medium)
 }
 
+@MainActor
 private func applyDescriptionLabelStyle(_ label: UILabel) {
   applyBaseRewardLabelStyle(label)
   label.textColor = LegacyColors.ksr_support_700.uiColor()
   label.font = UIFont.ksr_body()
 }
 
+@MainActor
 private func applyTitleAmountStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
   stackView.spacing = Styles.gridHalf(1)
 }
 
+@MainActor
 private func applyRewardTitleLabelStyle(_ label: UILabel) {
   applyBaseRewardLabelStyle(label)
   label.textColor = LegacyColors.ksr_support_700.uiColor()
   label.font = UIFont.ksr_title3().bolded
 }
 
+@MainActor
 private func applySectionStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
   stackView.spacing = Styles.grid(1)
 }
 
+@MainActor
 private func applySectionBodyLabelStyle(_ label: UILabel) {
   applyBaseRewardLabelStyle(label)
   label.textColor = LegacyColors.ksr_support_700.uiColor()
   label.font = UIFont.ksr_body()
 }
 
+@MainActor
 private func applyRootStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
 }
 
+@MainActor
 private func applyRewardImageViewStyle(_ imageView: UIImageView) {
   imageView.contentMode = .scaleAspectFill
   imageView.clipsToBounds = true
 }
 
+@MainActor
 private func applyQuantityLabelContainerStyle(_ view: UIView) {
   _ = checkoutRoundedCornersStyle(view)
   view.layoutMargins = .init(topBottom: Styles.grid(1), leftRight: Styles.grid(2))
@@ -403,25 +420,30 @@ private func applyQuantityLabelContainerStyle(_ view: UIView) {
   view.layer.borderWidth = 1
 }
 
+@MainActor
 private func applyQuantityLabelStyle(_ label: UILabel) {
   label.font = UIFont.ksr_headline().monospaced
 }
 
+@MainActor
 private func applyStepperStyle(_ stepper: UIStepper) {
   _ = checkoutStepperStyle(stepper)
   stepper.setDecrementImage(image(named: "stepper-decrement-normal-grey"), for: .normal)
   stepper.setIncrementImage(image(named: "stepper-increment-normal-grey"), for: .normal)
 }
 
+@MainActor
 private func applyStepperStackViewStyle(_ stackView: UIStackView) {
   stackView.alignment = .center
 }
 
+@MainActor
 private func applyAddButtonStyle(_ button: UIButton) {
   button.applyStyleConfiguration(KSRButtonStyle.filled)
   button.setTitle(Strings.Add(), for: .normal)
 }
 
+@MainActor
 private func applyRewardLocationTitleLabelStyle(_ label: UILabel) {
   applySectionBodyLabelStyle(label)
   label.text = Strings.Reward_location()

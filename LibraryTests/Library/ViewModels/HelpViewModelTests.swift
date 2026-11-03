@@ -7,7 +7,9 @@ import ReactiveSwift
 import UIKit
 import XCTest
 
+@MainActor
 internal final class HelpViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   fileprivate let vm: HelpViewModelType = HelpViewModel()
 
   fileprivate let showNoEmailError = TestObserver<UIAlertController, Never>()

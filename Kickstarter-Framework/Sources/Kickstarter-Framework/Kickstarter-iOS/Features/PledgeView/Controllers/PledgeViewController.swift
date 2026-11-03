@@ -683,17 +683,20 @@ extension PledgeViewController: PledgeDisclaimerViewDelegate {
 
 // MARK: - Styles
 
+@MainActor
 private func applyRoundedViewStyle(_ view: UIView, cornerRadius: CGFloat) {
   view.clipsToBounds = true
   view.layer.masksToBounds = true
   view.layer.cornerRadius = cornerRadius
 }
 
+@MainActor
 private func applyRootScrollViewStyle(_ scrollView: UIScrollView) {
   scrollView.showsVerticalScrollIndicator = false
   scrollView.alwaysBounceVertical = true
 }
 
+@MainActor
 private func applyRootStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = NSLayoutConstraint.Axis.vertical
   stackView.spacing = Styles.grid(2)
@@ -704,6 +707,7 @@ private func applyRootStackViewStyle(_ stackView: UIStackView) {
   )
 }
 
+@MainActor
 private func applyRootInsetStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = NSLayoutConstraint.Axis.vertical
   stackView.spacing = Styles.grid(3)
@@ -714,18 +718,21 @@ private func applyRootInsetStackViewStyle(_ stackView: UIStackView) {
   )
 }
 
+@MainActor
 private func applyTitleLabelStyle(_ label: UILabel) {
   label.numberOfLines = 1
   label.textColor = LegacyColors.ksr_support_700.uiColor()
   label.font = UIFont.ksr_title2().bolded
 }
 
+@MainActor
 private func applySectionTitleLabelStyle(_ label: UILabel) {
   label.numberOfLines = 1
   label.textColor = LegacyColors.ksr_support_700.uiColor()
   label.font = UIFont.ksr_headline().bolded
 }
 
+@MainActor
 private func applySectionStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
   stackView.spacing = Styles.grid(2)

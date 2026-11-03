@@ -49,6 +49,7 @@ public let facebookButtonStyle: ButtonStyle = { button in
   deprecated,
   message: "This is a button style from our legacy design system. Instead, use KSRButtonStyle."
 )
+@MainActor
 public func styleSaveButton(_ button: UIButton) {
   button.setTitle(nil, for: .normal)
   button.tintColor = LegacyColors.ksr_support_700.uiColor()
@@ -64,6 +65,7 @@ public func styleSaveButton(_ button: UIButton) {
   deprecated,
   message: "This is a button style from our legacy design system. Instead, use KSRButtonStyle."
 )
+@MainActor
 public func styleShareButton(_ button: UIButton) {
   button.setTitle(nil, for: .normal)
   button.setImage(Library.image(named: "icon--share"), for: .normal)

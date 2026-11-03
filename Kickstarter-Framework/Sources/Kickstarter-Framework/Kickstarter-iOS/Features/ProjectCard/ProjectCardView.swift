@@ -199,6 +199,7 @@ final class ProjectCardView: UIView {
   }
 }
 
+@MainActor
 private func applyBaseStyle(_ view: UIView) {
   view.backgroundColor = LegacyColors.ksr_white.uiColor()
   view.clipsToBounds = true
@@ -207,6 +208,7 @@ private func applyBaseStyle(_ view: UIView) {
   view.translatesAutoresizingMaskIntoConstraints = false
 }
 
+@MainActor
 private func applyProjectStatusStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .horizontal
   stackView.alignment = .center
@@ -214,6 +216,7 @@ private func applyProjectStatusStackViewStyle(_ stackView: UIStackView) {
   stackView.translatesAutoresizingMaskIntoConstraints = false
 }
 
+@MainActor
 private func applyProjectImageViewStyle(_ imageView: UIImageView) {
   imageView.contentMode = .scaleAspectFit
   imageView.backgroundColor = LegacyColors.ksr_support_300.uiColor()
@@ -222,6 +225,7 @@ private func applyProjectImageViewStyle(_ imageView: UIImageView) {
   imageView.translatesAutoresizingMaskIntoConstraints = false
 }
 
+@MainActor
 private func applyProjectTitleLabelStyle(_ label: UILabel) {
   label.font = .ksr_title2()
   label.textColor = LegacyColors.ksr_black.uiColor()
@@ -230,12 +234,14 @@ private func applyProjectTitleLabelStyle(_ label: UILabel) {
   label.translatesAutoresizingMaskIntoConstraints = false
 }
 
+@MainActor
 private func applyProjectStatusImageViewStyle(_ imageView: UIImageView) {
   imageView.contentMode = .scaleAspectFit
   imageView.clipsToBounds = true
   imageView.translatesAutoresizingMaskIntoConstraints = false
 }
 
+@MainActor
 private func applyProjectStatusLabelStyle(_ label: UILabel) {
   label.font = UIFont.ksr_bodyMD()
   label.textColor = LegacyColors.ksr_support_400.uiColor()
@@ -243,10 +249,12 @@ private func applyProjectStatusLabelStyle(_ label: UILabel) {
   label.translatesAutoresizingMaskIntoConstraints = false
 }
 
+@MainActor
 private func applyProgressViewStyle(_ view: UIView) {
   view.translatesAutoresizingMaskIntoConstraints = false
 }
 
+@MainActor
 private func applyProgressBackgroundViewStyle(_ view: UIView) {
   view.backgroundColor = LegacyColors.ksr_support_100.uiColor()
   view.translatesAutoresizingMaskIntoConstraints = false

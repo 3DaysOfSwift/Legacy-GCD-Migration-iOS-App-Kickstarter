@@ -140,6 +140,7 @@ final class BottomSheetPresentationController: UIPresentationController {
   }
 }
 
+@MainActor
 private func calculateFittingHeight(of view: UIView, targetView: UIView) -> CGFloat {
   let targetHeight = view.systemLayoutSizeFitting(
     CGSize(width: targetView.bounds.width, height: UIView.layoutFittingCompressedSize.height)

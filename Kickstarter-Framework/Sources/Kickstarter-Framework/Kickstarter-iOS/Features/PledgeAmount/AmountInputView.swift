@@ -131,6 +131,7 @@ private let stackViewStyle: StackViewStyle = { (stackView: UIStackView) in
 // MARK: - Functions
 
 /// Aligns label's ascender to text field's ascender or vice versa
+@MainActor
 private func constrainAscenders(between label: UILabel, textField: UITextField) {
   guard let labelFont = label.font, let textFieldFont = textField.font else { return }
 

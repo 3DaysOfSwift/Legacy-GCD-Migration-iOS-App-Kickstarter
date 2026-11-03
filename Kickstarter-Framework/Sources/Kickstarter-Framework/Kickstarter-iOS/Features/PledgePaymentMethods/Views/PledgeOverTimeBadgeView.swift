@@ -62,12 +62,14 @@ final class PledgeOverTimeBadgeView: UIView {
   }
 }
 
+@MainActor
 private func applyRootStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .horizontal
   stackView.spacing = Constants.defaultStackViewSpacing
   stackView.alignment = .center
 }
 
+@MainActor
 private func applyChargesLabelStyle(_ label: UILabel) {
   label.font = UIFont.ksr_footnote()
   label.textColor = LegacyColors.ksr_support_700.uiColor()

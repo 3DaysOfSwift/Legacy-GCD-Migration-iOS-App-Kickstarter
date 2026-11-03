@@ -271,6 +271,7 @@ private func isSupportedRequest(request: URLRequest) -> Bool {
 
 // Returns true if either the url host or the target frame's security origin
 // is of the form *.stripe.com, *.stripe.network, or *.stripecdn.com.
+@MainActor
 private func isStripeNavigationAction(_ actionData: WKNavigationActionData) -> Bool {
   if let host = actionData.request.url?.host, isStripeHost(host) {
     return true

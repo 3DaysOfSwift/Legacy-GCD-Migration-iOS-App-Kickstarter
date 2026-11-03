@@ -367,16 +367,19 @@ public final class RewardCardView: UIView {
 
 // MARK: - Styles
 
+@MainActor
 private func applyBaseRewardLabelStyle(_ label: UILabel) {
   label.numberOfLines = 0
   label.textAlignment = .left
   label.lineBreakMode = .byWordWrapping
 }
 
+@MainActor
 private func applySectionTitleLabelStyle(_ label: UILabel) {
   label.font = .ksr_headline()
 }
 
+@MainActor
 private func applyIncludedItemsTitleLabelStyle(_ label: UILabel) {
   applyBaseRewardLabelStyle(label)
   applySectionTitleLabelStyle(label)
@@ -384,6 +387,7 @@ private func applyIncludedItemsTitleLabelStyle(_ label: UILabel) {
   label.textColor = LegacyColors.ksr_support_400.uiColor()
 }
 
+@MainActor
 private func applyEstimatedDeliveryTitleLabelStyle(_ label: UILabel) {
   applyBaseRewardLabelStyle(label)
   applySectionTitleLabelStyle(label)
@@ -391,6 +395,7 @@ private func applyEstimatedDeliveryTitleLabelStyle(_ label: UILabel) {
   label.textColor = LegacyColors.ksr_support_400.uiColor()
 }
 
+@MainActor
 private func applyEstimatedShippingTitleLabelStyle(_ label: UILabel) {
   applyBaseRewardLabelStyle(label)
   applySectionTitleLabelStyle(label)
@@ -398,6 +403,7 @@ private func applyEstimatedShippingTitleLabelStyle(_ label: UILabel) {
   label.textColor = LegacyColors.ksr_support_400.uiColor()
 }
 
+@MainActor
 private func applyRewardLocationTitleLabelStyle(_ label: UILabel) {
   applyBaseRewardLabelStyle(label)
   applySectionTitleLabelStyle(label)
@@ -405,49 +411,59 @@ private func applyRewardLocationTitleLabelStyle(_ label: UILabel) {
   label.textColor = LegacyColors.ksr_support_400.uiColor()
 }
 
+@MainActor
 private func applyPillsViewStyle(_ view: PillsView) {
   view.backgroundColor = view.backgroundColor
 }
 
+@MainActor
 private func applySectionStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
   stackView.spacing = Styles.grid(1)
 }
 
+@MainActor
 private func applyDetailsStackViewStyle(_ stackView: UIStackView) {
   stackView.spacing = Styles.grid(3)
   stackView.isLayoutMarginsRelativeArrangement = true
   stackView.layoutMargins = .init(all: Styles.grid(3))
 }
 
+@MainActor
 private func applyPriceStackViewStyle(_ stackView: UIStackView) {
   stackView.spacing = Styles.gridHalf(1)
 }
 
+@MainActor
 private func applySectionBodyLabelStyle(_ label: UILabel) {
   label.textColor = LegacyColors.ksr_support_700.uiColor()
   label.font = UIFont.ksr_body()
 }
 
+@MainActor
 private func applyIncludedItemsStackViewStyle(_ stackView: UIStackView) {
   stackView.spacing = Styles.grid(2)
 }
 
+@MainActor
 private func applyRewardTitleLabelStyle(_ label: UILabel) {
   label.textColor = LegacyColors.ksr_support_700.uiColor()
   label.font = UIFont.ksr_title2().bolded
 }
 
+@MainActor
 private func applyMinimumPriceLabelStyle(_ label: UILabel) {
   label.textColor = LegacyColors.ksr_create_700.uiColor()
   label.font = UIFont.ksr_title3().bolded
 }
 
+@MainActor
 private func applyMinimumPriceConversionLabelStyle(_ label: UILabel) {
   label.textColor = LegacyColors.ksr_create_700.uiColor()
   label.font = UIFont.ksr_caption1().bolded
 }
 
+@MainActor
 private func applyRewardImageViewStyle(_ imageView: UIImageView) {
   imageView.contentMode = .scaleAspectFill
   imageView.clipsToBounds = true
@@ -467,6 +483,7 @@ extension RewardCardView: UICollectionViewDelegate {
   }
 }
 
+@MainActor
 private func applyRootStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
   stackView.backgroundColor = Colors.Background.Surface.primary.uiColor()

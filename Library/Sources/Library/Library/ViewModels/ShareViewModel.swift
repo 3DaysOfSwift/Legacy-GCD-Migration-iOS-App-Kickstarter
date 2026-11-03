@@ -22,6 +22,7 @@ public struct ShareActivityCompletionData {
   }
 }
 
+@MainActor
 public protocol ShareViewModelInputs {
   /// Call with the context that this sharing is taking place in.
   func configureWith(shareContext: ShareContext, shareContextView: UIView?)
@@ -30,16 +31,19 @@ public protocol ShareViewModelInputs {
   func shareButtonTapped()
 }
 
+@MainActor
 public protocol ShareViewModelOutputs {
   /// Emits when the share sheet should be presented.
   var showShareSheet: Signal<(UIActivityViewController, UIView?), Never> { get }
 }
 
+@MainActor
 public protocol ShareViewModelType {
   var inputs: ShareViewModelInputs { get }
   var outputs: ShareViewModelOutputs { get }
 }
 
+@MainActor
 public final class ShareViewModel: ShareViewModelType, ShareViewModelInputs, ShareViewModelOutputs {
   public init() {
     let shareContextAndView = self.shareContextProperty.signal.skipNil()
@@ -69,6 +73,7 @@ public final class ShareViewModel: ShareViewModelType, ShareViewModelInputs, Sha
   public var outputs: ShareViewModelOutputs { return self }
 }
 
+@MainActor
 private func activityItemProvider(forShareContext shareContext: ShareContext) -> UIActivityItemProvider {
   switch shareContext {
   case let .discovery(project):
@@ -104,6 +109,7 @@ private func excludedActivityTypes(forShareContext shareContext: ShareContext) -
   }
 }
 
+@MainActor
 private func activityController(forShareContext shareContext: ShareContext) -> UIActivityViewController? {
   guard let url = shareUrl(forShareContext: shareContext) else { return nil }
 

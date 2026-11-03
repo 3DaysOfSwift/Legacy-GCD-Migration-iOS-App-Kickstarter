@@ -2,6 +2,22 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## UIKit presentation ownership and test membership — 3 November 2026
+
+135 UI helper declarations and Help/Share/onboarding presentation owners now declare
+MainActor ownership. The project cell's nonisolated NSObject nib hook uses a narrow,
+synchronous UIKit actor boundary. Layout, styling and behavior are retained.
+
+2,764 tests passed: 2,183 Library, 403 framework, 152 API and 26 signed Environment;
+zero failures/skips. App builds passed with complete checking. Evidence:
+kickstarter-ui-helper-ownership, including an assertion that required suites executed.
+
+Coverage correction: two existing test files (notification observation and deferred refresh)
+were absent from the Xcode target. They are now included and all ten cases pass. Earlier
+reported totals remain valid, but did not include those suites. A fixture name collision and
+a missing visible UIKit host were corrected without weakening assertions. Remaining
+style/compatibility diagnostics and visual/device/live-operation gates remain open.
+
 ## Checked GraphQL bridge — 3 November 2026
 
 Removed the unused raw-response bridge overload. Its shared continuation path now requires

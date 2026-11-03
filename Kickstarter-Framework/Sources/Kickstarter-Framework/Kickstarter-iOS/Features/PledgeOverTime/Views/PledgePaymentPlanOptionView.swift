@@ -259,24 +259,28 @@ final class PledgePaymentPlanOptionView: UIView {
 
 // MARK: - Styles helper
 
+@MainActor
 private func applyOptionDescriptorStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
   stackView.spacing = Constants.optionDescriptorStackViewSpacing
   stackView.alignment = .leading
 }
 
+@MainActor
 private func applyPlotSelectedStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
   stackView.spacing = Constants.optionDescriptorStackViewSpacing
   stackView.alignment = .leading
 }
 
+@MainActor
 private func applyPaymentIncrementsStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
   stackView.spacing = Constants.defaultPaddingSpacing
   stackView.alignment = .leading
 }
 
+@MainActor
 private func applyTitleLabelStyle(_ label: UILabel) {
   label.accessibilityTraits = UIAccessibilityTraits.header
   label.adjustsFontForContentSizeCategory = true
@@ -284,6 +288,7 @@ private func applyTitleLabelStyle(_ label: UILabel) {
   label.font = UIFont.ksr_subhead().bolded
 }
 
+@MainActor
 private func applySubtitleLabelStyle(_ label: UILabel) {
   label.accessibilityTraits = UIAccessibilityTraits.header
   label.adjustsFontForContentSizeCategory = true
@@ -292,10 +297,12 @@ private func applySubtitleLabelStyle(_ label: UILabel) {
   label.textColor = LegacyColors.ksr_support_400.uiColor()
 }
 
+@MainActor
 private func applySelectionIndicatorImageViewStyle(_ imageView: UIImageView) {
   imageView.contentMode = .center
 }
 
+@MainActor
 private func applyTermsOfUseStyle(_ button: UIButton) {
   button.configuration = {
     var config = UIButton.Configuration.borderless()
@@ -307,6 +314,7 @@ private func applyTermsOfUseStyle(_ button: UIButton) {
   button.contentHorizontalAlignment = .leading
 }
 
+@MainActor
 private func applyTextColorByState(_ label: UILabel, isEnabled: Bool) {
   label.textColor = isEnabled ? LegacyColors.ksr_black.uiColor() : LegacyColors.ksr_support_300.uiColor()
 }

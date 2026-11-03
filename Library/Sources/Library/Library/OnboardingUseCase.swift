@@ -37,10 +37,10 @@ public struct OnboardingItem: Identifiable, Equatable {
   public let id: UUID = .init()
   public let title: String
   public let subtitle: String
-  public var lottieView: LottieAnimationView = .init()
+  public var lottieView: LottieAnimationView
   public let type: OnboardingItemType
 
-  public init(
+  @MainActor public init(
     title: String,
     subtitle: String,
     lottieView: LottieAnimationView = .init(),
@@ -188,6 +188,7 @@ public final class OnboardingUseCase: OnboardingUseCaseType, OnboardingUseCaseUI
 
 // MARK: - Helpers
 
+@MainActor
 private func allOnboardingItems(
   in bundle: Bundle = .library
 ) -> [OnboardingItem] {
@@ -226,6 +227,7 @@ private func allOnboardingItems(
   .compactMap { $0 }
 }
 
+@MainActor
 private func makeOnboardingItem(
   title: String,
   subTitle: String,

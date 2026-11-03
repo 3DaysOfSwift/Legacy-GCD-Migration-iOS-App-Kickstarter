@@ -177,34 +177,40 @@ final class PledgeOverTimePaymentScheduleViewController: UIViewController {
   }
 }
 
+@MainActor
 private func applyRootStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
   stackView.spacing = Constants.rootStackViewSpacing
 }
 
+@MainActor
 private func applyHeaderStackViewStyle(_ stackView: UIStackView) {
   stackView.alignment = .center
   stackView.axis = .horizontal
   stackView.distribution = .equalSpacing
 }
 
+@MainActor
 private func applyPaymentsScheduleStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
   stackView.spacing = Constants.paymentsScheduleStackViewSpacing
 }
 
+@MainActor
 private func applyTitleLabelStyle(_ label: UILabel) {
   label.adjustsFontForContentSizeCategory = true
   label.font = UIFont.ksr_subhead().bolded
   label.textColor = LegacyColors.ksr_black.uiColor()
 }
 
+@MainActor
 private func applyCollapseIndicatorImageViewStyle(_ imageView: UIImageView) {
   imageView.contentMode = .scaleAspectFit
   imageView.image = UIImage(systemName: "chevron.down")
   imageView.tintColor = LegacyColors.ksr_support_700.uiColor()
 }
 
+@MainActor
 private func applyTermsOfUseStyle(_ button: UIButton) {
   button.configuration = {
     var config = UIButton.Configuration.borderless()

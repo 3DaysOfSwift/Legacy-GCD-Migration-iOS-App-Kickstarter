@@ -114,15 +114,18 @@ final class BadgeView: UIView {
   }
 }
 
+@MainActor
 private func applyRootStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .horizontal
   stackView.spacing = Styles.grid(1)
 }
 
+@MainActor
 private func applyBadgeViewStyle(_ view: UIView) {
   view.rounded(with: Constants.defaultCornerRadius)
 }
 
+@MainActor
 private func applyBadgeLabelStyle(_ label: UILabel) {
   label.font = UIFont.ksr_caption1().bolded
   label.textAlignment = .center
@@ -130,6 +133,7 @@ private func applyBadgeLabelStyle(_ label: UILabel) {
   label.adjustsFontForContentSizeCategory = true
 }
 
+@MainActor
 private func applyImageViewStyle(_ imageView: UIImageView) {
   imageView.contentMode = .scaleAspectFit
   imageView.setContentHuggingPriority(.required, for: .horizontal)

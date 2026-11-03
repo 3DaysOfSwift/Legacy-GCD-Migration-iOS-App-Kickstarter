@@ -7,6 +7,7 @@ import ReactiveExtensions
 import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
+import UIKit
 /*
  internal final class ShareViewModelTests: TestCase {
    internal let vm: ShareViewModelType = ShareViewModel()
@@ -66,3 +67,39 @@ import XCTest
    }
  }
  */
+
+@MainActor
+final class ShareViewModelOwnershipTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
+  func testShareRequiresConfigurationAndPreservesSourceView() {
+    let model = ShareViewModel()
+    var sheets: [(UIActivityViewController, UIView?)] = []
+    let observation = model.outputs.showShareSheet.observeValues { sheets.append($0) }
+    defer { observation?.dispose() }
+    model.inputs.shareButtonTapped()
+    XCTAssertTrue(sheets.isEmpty)
+    let source = UIView()
+    model.inputs.configureWith(shareContext: .project(.template), shareContextView: source)
+    XCTAssertTrue(sheets.isEmpty)
+    model.inputs.shareButtonTapped()
+    XCTAssertEqual(sheets.count, 1)
+    XCTAssertTrue(sheets.first?.1 === source)
+  }
+
+  func testRepeatedShareUsesLatestSourceView() {
+    let model = ShareViewModel()
+    var sources: [UIView?] = []
+    let observation = model.outputs.showShareSheet.observeValues { sources.append($0.1) }
+    defer { observation?.dispose() }
+    let first = UIView()
+    let second = UIView()
+    model.inputs.configureWith(shareContext: .discovery(.template), shareContextView: first)
+    model.inputs.shareButtonTapped()
+    model.inputs.configureWith(shareContext: .project(.template), shareContextView: second)
+    model.inputs.shareButtonTapped()
+    XCTAssertEqual(sources.count, 2)
+    XCTAssertTrue(sources.first! === first)
+    XCTAssertTrue(sources.last! === second)
+  }
+}

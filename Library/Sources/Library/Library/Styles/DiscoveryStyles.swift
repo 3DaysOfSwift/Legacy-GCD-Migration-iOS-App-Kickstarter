@@ -25,6 +25,7 @@ public let discoveryNavTitleStackViewStyle =
 
   <> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
 
+@MainActor
 public func styleDiscoverySaveButton(_ button: UIButton) {
   styleSaveButton(button)
   button.setImage(image(named: "icon--heart-outline-circle"), for: .normal)

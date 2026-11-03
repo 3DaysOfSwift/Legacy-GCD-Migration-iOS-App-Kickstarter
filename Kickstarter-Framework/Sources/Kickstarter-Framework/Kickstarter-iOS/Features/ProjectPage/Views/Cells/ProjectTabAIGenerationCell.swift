@@ -88,6 +88,7 @@ final class ProjectTabAIGenerationCell: UITableViewCell, ValueCell {
 
 // MARK: - Helpers
 
+@MainActor
 private func view(question: String, answer: String) -> UIView {
   let container = {
     UIView(frame: .zero)

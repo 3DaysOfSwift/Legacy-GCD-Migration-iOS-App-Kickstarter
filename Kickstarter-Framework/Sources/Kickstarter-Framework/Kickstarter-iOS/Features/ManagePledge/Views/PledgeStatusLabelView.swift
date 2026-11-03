@@ -82,6 +82,7 @@ private let containerViewStyle: ViewStyle = { (view: UIView) in
     |> roundedStyle()
 }
 
+@MainActor
 private func applyRootStackViewStyle(_ stackView: UIStackView) {
   stackView.backgroundColor = LegacyColors.ksr_support_200.uiColor()
   stackView.isLayoutMarginsRelativeArrangement = true
@@ -92,6 +93,7 @@ private func applyRootStackViewStyle(_ stackView: UIStackView) {
   stackView.spacing = Styles.grid(2)
 }
 
+@MainActor
 private func applyTextViewStyle(_ textView: UITextView) {
   textView.accessibilityTraits = [.staticText]
   textView.backgroundColor = LegacyColors.ksr_support_200.uiColor()

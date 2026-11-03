@@ -184,6 +184,7 @@ private func totalStackViewStyle(_ isAccessibilityCategory: Bool) -> StackViewSt
   }
 }
 
+@MainActor
 private func applyConfirmationLabelStyle(_ label: UILabel) {
   label.numberOfLines = 0
   label.backgroundColor = LegacyColors.ksr_white.uiColor()

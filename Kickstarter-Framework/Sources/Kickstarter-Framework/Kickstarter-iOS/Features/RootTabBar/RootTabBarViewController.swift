@@ -361,6 +361,7 @@ private func scrollToTop(_ viewController: UIViewController) {
   }
 }
 
+@MainActor
 private func tabbarAvatarImageFromData(
   _ data: Data,
   isFloatingTabBarEnabled: Bool
@@ -386,6 +387,7 @@ private func tabbarAvatarImageFromData(
   return (defaultImage: deselectedImage, selectedImage: selectedImage)
 }
 
+@MainActor
 private func strokedRoundImage(
   fromImage image: UIImage?,
   size: CGSize,
@@ -405,6 +407,7 @@ private func strokedRoundImage(
   return UIGraphicsGetImageFromCurrentImageContext()?.withRenderingMode(.alwaysOriginal)
 }
 
+@MainActor
 private func extractViewController(_ viewController: UIViewController) -> UIViewController {
   guard
     let navigationController = viewController as? UINavigationController,

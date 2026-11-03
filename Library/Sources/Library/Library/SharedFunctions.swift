@@ -912,6 +912,7 @@ private func estimatedMinMax(
  - returns: A `CGFloat` for setting the height of the given section.
  */
 
+@MainActor
 public func heightForHeaderInPledgeSummarySection(sectionIdentifier: PledgeRewardsSummarySection?)
   -> CGFloat {
   guard let section = sectionIdentifier else {

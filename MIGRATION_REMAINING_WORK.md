@@ -19,15 +19,17 @@ lists. Verified implementation checkpoints and their evidence are in MIGRATION_L
   helpers declare MainActor ownership.
 - **Global Environment stack ownership is implemented and verified.** AppEnvironment,
   Environment construction and test fixture lifecycles now share MainActor. Persistent
-  IsolatedDefaultValues settings support default arguments. 2,749 regression tests passed,
+  IsolatedDefaultValues settings support default arguments. 2,764 regression tests passed,
   zero failures/skips, plus normal and complete-checking app builds.
 
 ## Remaining implementation review
 
-1. **Concrete Feature diagnostics resolved:** Discovery sampling/project-report service
-   contracts and PPO preview templates now have actor ownership; 96 focused tests passed.
-2. **Presentation and compatibility diagnostics:** review UI style/closure ownership and
-   notification callbacks separately from generated GraphQL, third-party and generic
+1. **Completed boundary follow-up:** Feature service contracts, PPO templates, Discovery/root
+   notifications and the Sendable-only GraphQL bridge are verified. 135 UIKit helper
+   declarations and Help/Share/onboarding owners are isolated. Missing test membership is
+   corrected; the integrated run verifies that required suites actually execute.
+2. **Presentation and compatibility diagnostics:** review remaining UI style/closure ownership and
+   reactive compatibility adapters separately from generated GraphQL, third-party and generic
    compatibility APIs. A successful Swift 5 build does not establish warning-free Swift 6.
 3. **Final callback inventory:** refresh the source audit after these changes, including
    callback APIs without queue syntax, and document retained SDK mechanisms/lifetimes.
@@ -42,7 +44,7 @@ syntax inventory, not a defect count. Recount in final validation.
 ## Final validation gates
 
 - Run relevant broader regression after remaining fixes and applicable snapshots with their
-  reference device requirements. The current 2,749-test cohort is not every repository test.
+  reference device requirements. The current 2,764-test cohort is not every repository test.
 - Compare representative populated screens/navigation. Public-demo launch/card/scroll smoke
   checks are recorded, but do not establish full visual parity. The pinned iPad mini iOS 18.6
   snapshot runtime has not been available; the guard remains intact.

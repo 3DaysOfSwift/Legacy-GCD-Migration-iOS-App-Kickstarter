@@ -75,17 +75,20 @@ final class PledgeOverTimeIncrementView: UIView {
 
 // MARK: - Styles helper
 
+@MainActor
 private func applyRootStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
   stackView.spacing = Constants.incrementStackViewSpacing
 }
 
+@MainActor
 private func applyDetailsStackViewStyle(_ stackview: UIStackView) {
   stackview.axis = .horizontal
   stackview.distribution = .fill
   stackview.spacing = Constants.detailsStackViewSpacing
 }
 
+@MainActor
 private func applyChargeNumberLabelStyle(_ label: UILabel) {
   label.font = UIFont.ksr_footnote().bolded
   label.textColor = LegacyColors.ksr_black.uiColor()
@@ -94,6 +97,7 @@ private func applyChargeNumberLabelStyle(_ label: UILabel) {
   label.setContentCompressionResistancePriority(.required, for: .vertical)
 }
 
+@MainActor
 private func applyDateLabelStyle(_ label: UILabel) {
   label.font = UIFont.ksr_footnote()
   label.textColor = LegacyColors.ksr_support_400.uiColor()

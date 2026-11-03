@@ -84,17 +84,20 @@ final class PledgeOverTimePaymentScheduleItemView: UIView {
   }
 }
 
+@MainActor
 private func applyDateAndStatusStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
   stackView.spacing = Constants.stackViewSpacing
   stackView.alignment = .leading
 }
 
+@MainActor
 private func applyDateLabelStyle(_ label: UILabel) {
   label.font = UIFont.ksr_subhead().bolded
   label.textColor = LegacyColors.ksr_black.uiColor()
 }
 
+@MainActor
 private func applyAmountLabelStyle(_ label: UILabel) {
   label.textAlignment = .right
   label.textColor = LegacyColors.ksr_support_700.uiColor()

@@ -4,16 +4,16 @@ import XCTest
 
 @MainActor
 final class MainActorNotificationObservationTests: XCTestCase {
-  private let name = Notification.Name("MainActorNotificationObservationTests.event")
+  private let notificationName = Notification.Name("MainActorNotificationObservationTests.event")
 
   func testMainActorDeliveryPreservesSynchronousOrderingAndPayload() {
     let center = NotificationCenter()
     var values: [Int] = []
-    let observer = MainActorNotificationObservation(center: center, name: self.name) {
+    let observer = MainActorNotificationObservation(center: center, name: self.notificationName) {
       if let value = $0.userInfo?["value"] as? Int { values.append(value) }
     }
-    center.post(name: self.name, object: nil, userInfo: ["value": 1])
-    center.post(name: self.name, object: nil, userInfo: ["value": 2])
+    center.post(name: self.notificationName, object: nil, userInfo: ["value": 1])
+    center.post(name: self.notificationName, object: nil, userInfo: ["value": 2])
     XCTAssertEqual(values, [1, 2])
     withExtendedLifetime(observer) {}
   }
@@ -22,12 +22,12 @@ final class MainActorNotificationObservationTests: XCTestCase {
     let center = NotificationCenter()
     var calls = 0
     var observer: MainActorNotificationObservation?
-    observer = .init(center: center, name: self.name) { _ in
+    observer = .init(center: center, name: self.notificationName) { _ in
       calls += 1
       observer?.cancel()
     }
-    center.post(name: self.name, object: nil)
-    center.post(name: self.name, object: nil)
+    center.post(name: self.notificationName, object: nil)
+    center.post(name: self.notificationName, object: nil)
     XCTAssertEqual(calls, 1)
     observer = nil
   }
@@ -35,7 +35,7 @@ final class MainActorNotificationObservationTests: XCTestCase {
   func testReleaseByAnotherActorRemovesRegistration() async {
     let center = NotificationCenter()
     var calls = 0
-    var observer: MainActorNotificationObservation? = .init(center: center, name: self.name) { _ in
+    var observer: MainActorNotificationObservation? = .init(center: center, name: self.notificationName) { _ in
       calls += 1
     }
     weak var released = observer
@@ -43,33 +43,33 @@ final class MainActorNotificationObservationTests: XCTestCase {
     observer = nil
     await owner.release()
     XCTAssertNil(released)
-    center.post(name: self.name, object: nil)
+    center.post(name: self.notificationName, object: nil)
     XCTAssertEqual(calls, 0)
   }
 
   func testCancelAndReleaseRemoveRegistration() {
     let center = NotificationCenter()
     var calls = 0
-    var observer: MainActorNotificationObservation? = .init(center: center, name: self.name) { _ in
+    var observer: MainActorNotificationObservation? = .init(center: center, name: self.notificationName) { _ in
       calls += 1
     }
     weak var released = observer
-    center.post(name: self.name, object: nil)
+    center.post(name: self.notificationName, object: nil)
     XCTAssertEqual(calls, 1)
     observer?.cancel()
     observer?.cancel()
-    center.post(name: self.name, object: nil)
+    center.post(name: self.notificationName, object: nil)
     XCTAssertEqual(calls, 1)
     observer = nil
     XCTAssertNil(released)
 
-    var other: MainActorNotificationObservation? = .init(center: center, name: self.name) { _ in
+    var other: MainActorNotificationObservation? = .init(center: center, name: self.notificationName) { _ in
       calls += 1
     }
     weak var releasedOther = other
     other = nil
     XCTAssertNil(releasedOther)
-    center.post(name: self.name, object: nil)
+    center.post(name: self.notificationName, object: nil)
     XCTAssertEqual(calls, 1)
   }
 }

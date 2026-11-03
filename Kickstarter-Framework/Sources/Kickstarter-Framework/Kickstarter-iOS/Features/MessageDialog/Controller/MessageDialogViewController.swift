@@ -115,6 +115,7 @@ extension MessageDialogViewController: UITextViewDelegate {
   }
 }
 
+@MainActor
 private func applyBodyTextViewStyle(_ textView: UITextView) {
   textView.font = .ksr_body()
   textView.backgroundColor = Colors.Background.Surface.primary.uiColor()

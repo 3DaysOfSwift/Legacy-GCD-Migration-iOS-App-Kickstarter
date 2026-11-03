@@ -20,6 +20,16 @@ final class DeferredRefreshControlTests: XCTestCase {
     let gate = AccountRequestGate<Void>()
     defer { gate.releaseAll() }
     let control = DeferredRefreshControl(delay: { try await gate.request() })
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+    let host = UIViewController()
+    window.rootViewController = host
+    let scroll = UIScrollView(frame: window.bounds)
+    scroll.contentSize = CGSize(width: 390, height: 1200)
+    scroll.refreshControl = control
+    host.view.addSubview(scroll)
+    window.makeKeyAndVisible()
+    host.view.layoutIfNeeded()
+    defer { window.isHidden = true }
     let old = control.beginRefreshingAfterLayout()
     let shared = control.beginRefreshingAfterLayout()
     await gate.waitFor(1)

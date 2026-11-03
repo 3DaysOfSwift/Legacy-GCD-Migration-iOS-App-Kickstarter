@@ -125,10 +125,12 @@ final class RewardTrackingActivitiesCell: UITableViewCell, ValueCell {
 
 // MARK: - Styles
 
+@MainActor
 private func applyContentViewStyle(_ view: UIView) {
   view.layoutMargins = Constants.layoutMargins
 }
 
+@MainActor
 private func applyRootStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .vertical
   stackView.spacing = Constants.rootStackViewSpacing
@@ -136,6 +138,7 @@ private func applyRootStackViewStyle(_ stackView: UIStackView) {
   stackView.layer.borderColor = LegacyColors.ksr_support_300.uiColor().cgColor
 }
 
+@MainActor
 private func applyHeaderStackViewStyle(_ stackView: UIStackView) {
   stackView.axis = .horizontal
   stackView.spacing = Constants.headerStackViewSpacing
@@ -143,16 +146,19 @@ private func applyHeaderStackViewStyle(_ stackView: UIStackView) {
   stackView.isLayoutMarginsRelativeArrangement = true
 }
 
+@MainActor
 private func applyProjectLabelStyle(_ label: UILabel) {
   label.font = .ksr_headingMD()
   label.textColor = LegacyColors.ksr_support_400.uiColor()
 }
 
+@MainActor
 private func applyProjectImageViewStyle(_ imageView: UIImageView) {
   imageView.contentMode = .scaleAspectFit
   imageView.clipsToBounds = true
 }
 
+@MainActor
 private func applySeperatorViewStyle(_ view: UIView) {
   view.backgroundColor = LegacyColors.ksr_support_200.uiColor()
 }
