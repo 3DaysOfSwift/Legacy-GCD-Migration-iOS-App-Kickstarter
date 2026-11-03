@@ -1,0 +1,123 @@
+import KDS
+import KsApi
+
+import Prelude
+import UIKit
+
+internal final class BackerDashboardEmptyStateCell: UITableViewCell, ValueCell {
+  @IBOutlet private var filledHeartIconImageView: UIImageView!
+  @IBOutlet private var messageLabel: UILabel!
+  @IBOutlet private var titleLabel: UILabel!
+  @IBOutlet private var iconImageView: UIImageView!
+
+  private var savedProjectObservation: MainActorNotificationObservation?
+  private var isAnimating: Bool = false
+  private let duration = 0.4
+  private let hiddenHeartAlpha = CGFloat(0.0)
+  private let visibleHeartAlpha = CGFloat(1.0)
+  private let shrunkHeartTransform = CGAffineTransform(scaleX: 0.7, y: 0.7)
+  private let expandedHearTransform = CGAffineTransform(scaleX: 1.0, y: 1.0)
+
+  internal func configureWith(value: ProfileProjectsType) {
+    self.savedProjectObservation?.cancel()
+    self.savedProjectObservation = nil
+    switch value {
+    case .backed:
+      self.messageLabel.text = Strings.Pledge_to_your_favorites_then_view_all_the_projects()
+      self.titleLabel.text = Strings.Explore_creative_projects()
+      _ = self.iconImageView
+        |> UIImageView.lens.image
+        .~ UIImage(
+          named: "icon--eye",
+          in: .main,
+          compatibleWith: nil
+        )
+      _ = self.filledHeartIconImageView
+        |> UIImageView.lens.isHidden .~ true
+    case .saved:
+      self.messageLabel.text = Strings.Tap_the_heart_on_a_project_to_get_notified()
+      self.titleLabel.text = Strings.No_saved_projects()
+
+      self.savedProjectObservation = MainActorNotificationObservation(
+        name: .ksr_savedProjectEmptyStateTapped
+      ) { [weak self] _ in self?.animateToFilledHeart() }
+      self.animateToFilledHeart()
+    }
+    self.titleLabel.numberOfLines = 0
+  }
+
+  @objc internal func animateToFilledHeart() {
+    guard self.isAnimating == false else { return }
+
+    UIView.animate(
+      withDuration: self.duration,
+      delay: 1.0,
+      usingSpringWithDamping: 1.0,
+      initialSpringVelocity: 0.0,
+      options: .curveEaseInOut,
+      animations: { [weak self] in
+
+        guard let _self = self else { return }
+
+        _self.isAnimating = true
+
+        _self.filledHeartIconImageView.alpha = _self.hiddenHeartAlpha
+        _self.iconImageView.alpha = _self.hiddenHeartAlpha
+        _self.iconImageView.transform = _self.shrunkHeartTransform
+        _self.filledHeartIconImageView.transform = _self.expandedHearTransform
+        _self.filledHeartIconImageView.alpha = _self.visibleHeartAlpha
+      },
+      completion: { [weak self] _ in
+        guard let _self = self else { return }
+        _self.animateToOutlineHeart()
+      }
+    )
+  }
+
+  internal func animateToOutlineHeart() {
+    UIView.animate(
+      withDuration: self.duration,
+      delay: 0.6,
+      usingSpringWithDamping: 1.0,
+      initialSpringVelocity: 0.0,
+      options: .curveEaseInOut,
+      animations: { [weak self] in
+
+        guard let _self = self else { return }
+
+        _self.filledHeartIconImageView.alpha = _self.hiddenHeartAlpha
+        _self.iconImageView.alpha = _self.hiddenHeartAlpha
+        _self.filledHeartIconImageView.transform = _self.shrunkHeartTransform
+        _self.iconImageView.transform = _self.expandedHearTransform
+        _self.iconImageView.alpha = _self.visibleHeartAlpha
+      },
+      completion: { [weak self] _ in
+
+        guard let _self = self else { return }
+        _self.isAnimating = false
+      }
+    )
+  }
+
+  internal override func bindStyles() {
+    super.bindStyles()
+
+    _ = self
+      |> baseTableViewCellStyle()
+      |> UITableViewCell.lens.contentView.layoutMargins %~~ { _, cell in
+        cell.traitCollection.isRegularRegular
+          ? .init(topBottom: Styles.grid(4), leftRight: Styles.grid(20))
+          : .init(topBottom: Styles.grid(10), leftRight: Styles.grid(3))
+      }
+    _ = self.messageLabel
+      |> UILabel.lens.textColor .~ LegacyColors.ksr_support_400.uiColor()
+      |> UILabel.lens.font .~ UIFont.ksr_body(size: 15.0)
+
+    _ = self.titleLabel
+      |> UILabel.lens.textColor .~ LegacyColors.ksr_support_700.uiColor()
+      |> UILabel.lens.font .~ UIFont.ksr_headline(size: 21.0)
+
+    _ = self.iconImageView
+      |> UIImageView.lens.tintColor .~ LegacyColors.ksr_support_700.uiColor()
+  }
+}

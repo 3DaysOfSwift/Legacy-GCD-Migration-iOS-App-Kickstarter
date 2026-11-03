@@ -1,0 +1,60 @@
+import UIKit
+@testable import Kickstarter_iOS
+
+
+
+import Prelude
+import SnapshotTesting
+import XCTest
+
+final class CreatePasswordTableViewControllerTests: TestCase {
+  override func setUp() async throws {
+    try await super.setUp()
+    UIView.setAnimationsEnabled(false)
+  }
+
+  override func tearDown() async throws {
+    UIView.setAnimationsEnabled(true)
+
+    try await super.tearDown()
+  }
+
+  func testCreatePassword() {
+    combos(Language.allLanguages, Device.allCases).forEach { language, device in
+      withEnvironment(language: language) {
+        let controller = CreatePasswordTableViewController.instantiate()
+        let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
+
+        assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
+      }
+    }
+  }
+
+  func testNewPasswordTextFieldTargetActions() {
+    let vc = MockCreatePasswordTableViewController()
+    let actions = textFieldTargetActions(for: vc, row: .newPassword)
+
+    XCTAssertEqual(vc, actions[0].target as? MockCreatePasswordTableViewController)
+    XCTAssertTrue(sel_isEqual(actions[0].action, #selector(vc.newPasswordTextFieldChanged(_:))))
+    XCTAssertEqual(vc, actions[1].target as? MockCreatePasswordTableViewController)
+    XCTAssertTrue(sel_isEqual(actions[1].action, #selector(vc.newPasswordTextFieldDidReturn(_:))))
+  }
+
+  func testNewPasswordConfirmationTextFieldTargetActions() {
+    let vc = MockCreatePasswordTableViewController()
+    let actions = textFieldTargetActions(for: vc, row: .confirmNewPassword)
+
+    XCTAssertEqual(vc, actions[0].target as? MockCreatePasswordTableViewController)
+    XCTAssertTrue(sel_isEqual(actions[0].action, #selector(vc.newPasswordConfirmationTextFieldChanged(_:))))
+    XCTAssertEqual(vc, actions[1].target as? MockCreatePasswordTableViewController)
+    XCTAssertTrue(sel_isEqual(actions[1].action, #selector(vc.newPasswordConfirmationTextFieldDidReturn(_:))))
+  }
+}
+
+private final class MockCreatePasswordTableViewController: UITableViewController,
+  CreatePasswordTableViewControllerType {
+  @objc func newPasswordTextFieldChanged(_: UITextField) {}
+  @objc func newPasswordTextFieldDidReturn(_: UITextField) {}
+  @objc func newPasswordConfirmationTextFieldChanged(_: UITextField) {}
+  @objc func newPasswordConfirmationTextFieldDidReturn(_: UITextField) {}
+}

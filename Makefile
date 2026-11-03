@@ -1,11 +1,11 @@
 XCODEBUILD := xcodebuild
 BUILD_FLAGS = -scheme "$(SCHEME)" -destination $(DESTINATION)
 
-SCHEME ?= $(TARGET)-$(PLATFORM)
-TARGET ?= Kickstarter-Framework
+SCHEME ?= Kickstarter iOS
+TARGET ?= Kickstarter
 PLATFORM ?= iOS
 RELEASE ?= itunes
-# Keep simulator in sync with `Library/TestHelpers/TestCase.swift` and `.circleci/config.yml`
+# Keep simulator in sync with `ApplicationTests/Support/TestCase.swift` and `.circleci/config.yml`
 IOS_VERSION ?= 18.6
 IPHONE_NAME ?= iPad mini (A17 Pro)
 BRANCH ?= main
@@ -42,7 +42,7 @@ test-all: test-app test-modules
 test-app:
 	PLATFORM=iOS "$(MAKE)" test
 
-test-modules: test-kds test-ksapi test-library test-kickstarter-framework
+test-modules: test-kds test-ksapi
 
 test-kds:
 	PLATFORM=iOS PACKAGE=KDS SCHEME=KDS "$(MAKE)" test-spm
@@ -50,11 +50,11 @@ test-kds:
 test-ksapi:
 	PLATFORM=iOS PACKAGE=KsApi SCHEME=KsApi-Package "$(MAKE)" test-spm
 
-test-library:
-	PLATFORM=iOS PACKAGE=Library SCHEME=Library-Package "$(MAKE)" test-spm
+test-model:
+	PLATFORM=iOS SCHEME=Library-iOS "$(MAKE)" test
 
-test-kickstarter-framework:
-	PLATFORM=iOS PACKAGE=Kickstarter-Framework SCHEME=Kickstarter-Framework "$(MAKE)" test-spm
+test-presentation:
+	PLATFORM=iOS SCHEME=PresentationTests "$(MAKE)" test
 
 test: bootstrap
 	$(XCODEBUILD) test $(BUILD_FLAGS) $(XCPRETTY_TEST)
@@ -156,7 +156,7 @@ cleanup:
 
 strings:
 	cp Frameworks/native-secrets/ios/Secrets.swift bin/StringsScript/Sources/StringsScriptCore
-	./bin/strings-script "./Library/Sources/Library/Library/Strings.swift" "./Library/Sources/Library/Resources/Locales"
+	./bin/strings-script "./Kickstarter-iOS/1 - View/Shared Views/Strings.swift" "./Kickstarter-iOS/3 - App Resources/Locales"
 
 secrets:
 	-@rm -rf Frameworks/native-secrets

@@ -179,6 +179,6 @@ staticStringsLines.append("}")
 staticStringsLines.append("")
 
 let staticStringsFileContents = staticStringsLines.joined(separator: "\n")
-try! staticStringsFileContents.write(toFile: "Library/Strings.swift",
+try! staticStringsFileContents.write(toFile: "Kickstarter-iOS/1 - View/Shared Views/Strings.swift",
                                      atomically: true,
                                      encoding: .utf8)

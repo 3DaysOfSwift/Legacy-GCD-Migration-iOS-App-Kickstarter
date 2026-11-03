@@ -1,0 +1,47 @@
+import UIKit
+@testable import Kickstarter_iOS
+
+@testable import KsApi
+
+
+import Prelude
+import SnapshotTesting
+import XCTest
+
+internal final class EmptyStatesViewControllerTests: TestCase {
+  override func setUp() async throws {
+    try await super.setUp()
+    UIView.setAnimationsEnabled(false)
+  }
+
+  override func tearDown() async throws {
+    UIView.setAnimationsEnabled(true)
+    try await super.tearDown()
+  }
+
+  func testEmptyStates() {
+    let emptyStates = [EmptyState.activity, .recommended, .starred, .socialDisabled, .socialNoPledges]
+
+    combos(Language.allLanguages, emptyStates).forEach { language, emptyState in
+      withEnvironment(language: language) {
+        let controller = EmptyStatesViewController.configuredWith(emptyState: emptyState)
+        let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: controller)
+
+        assertSnapshot(matching: parent.view, as: .image, named: "_\(emptyState.rawValue)_lang_\(language)")
+      }
+    }
+  }
+
+  func testEmptyStates_iPad() {
+    let emptyStates = [EmptyState.activity, .recommended, .starred, .socialDisabled, .socialNoPledges]
+
+    combos(Language.allLanguages, emptyStates).forEach { language, emptyState in
+      withEnvironment(language: language) {
+        let controller = EmptyStatesViewController.configuredWith(emptyState: emptyState)
+        let (parent, _) = traitControllers(device: .pad, orientation: .portrait, child: controller)
+
+        assertSnapshot(matching: parent.view, as: .image, named: "_\(emptyState.rawValue)_lang_\(language)")
+      }
+    }
+  }
+}

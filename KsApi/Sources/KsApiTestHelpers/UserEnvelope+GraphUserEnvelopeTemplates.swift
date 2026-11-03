@@ -1,6 +1,5 @@
 import GraphAPI
 @testable import KsApi
-@testable import KsApiTestHelpers
 
 public struct GraphUserEnvelopeTemplates {
   static let fetchUserEmail = GraphAPI.FetchUserEmailQuery.Data(

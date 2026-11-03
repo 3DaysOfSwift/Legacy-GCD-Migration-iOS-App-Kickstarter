@@ -1,3 +1,4 @@
+import Prelude
 import ApolloTestSupport
 import Foundation
 import GraphAPI

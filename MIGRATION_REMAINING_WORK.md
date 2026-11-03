@@ -22,16 +22,18 @@ lists. Verified implementation checkpoints and their evidence are in MIGRATION_L
   IsolatedDefaultValues settings support default arguments. 2,770 regression tests passed,
   zero failures/skips, plus normal and complete-checking app builds.
 
-## Required application structure consolidation — next priority
+## Application structure consolidation — implemented and regression verified
 
 Follow [MIGRATION_STRUCTURE_PLAN.md](MIGRATION_STRUCTURE_PLAN.md). Core application
 code must compile directly in the application target under the numbered CFA hierarchy.
-Move AppModel, Features, app domain types, screens, ViewModels and app resources out of
-Library/Kickstarter-Framework. Retain packages only for services, generated APIs and
-reusable non-core components. This work is **not yet implemented** and is a completion
-requirement, ahead of further isolated warning-cleanup passes. Folder aliases alone do
-not satisfy it. The plan covers dependency cutover, resource/runtime changes, tests,
-removal of old app-library products and final verification.
+AppModel, Features, app domain types, screens, ViewModels and app resources now live in
+that hierarchy. The source membership audit finds 764 application Swift files, each
+compiled exactly once, with zero old Library/Kickstarter_Framework imports or nib module
+references. The two old app-library manifests/products are removed. Five local packages
+retain services, generated APIs and reusable components. The final regression run passed 2,772 tests (2,188 model/Feature, 406 presentation,
+152 API and 26 signed session), zero failures/skips, with a complete-checking app build.
+Normal app build and representative simulator resource/navigation checks also passed.
+Xcode visibly shows the four numbered app groups. Remaining app-wide gates are below.
 Superseded source, temporary adapters and stale target/resource references must be
 deleted after replacement verification; the active checkout must not retain parallel
 legacy and CFA implementations. Preserve original code in Git history, not backup

@@ -1,0 +1,110 @@
+import KsApi
+
+import UIKit
+
+internal final class DiscoveryProjectsDataSource: ValueCellDataSource {
+  internal enum Section: Int {
+    case videoFeedBanner
+    case onboarding
+    case personalization
+    case activitySample
+    case projects
+  }
+
+  func showVideoFeedBanner(_ show: Bool) {
+    self.set(
+      values: show ? [()] : [],
+      cellClass: VideoFeedBannerCell.self,
+      inSection: Section.videoFeedBanner.rawValue
+    )
+  }
+
+  func load(activities: [Activity]) {
+    let section = Section.activitySample.rawValue
+
+    self.clearValues(section: section)
+
+    activities.forEach { activity in
+      switch activity.category {
+      case .backing:
+        self.appendRow(value: activity, cellClass: ActivitySampleBackingCell.self, toSection: section)
+      case .follow:
+        self.appendRow(value: activity, cellClass: ActivitySampleFollowCell.self, toSection: section)
+      default:
+        self.appendRow(value: activity, cellClass: ActivitySampleProjectCell.self, toSection: section)
+      }
+    }
+  }
+
+  func load(
+    projects: [Project],
+    params: DiscoveryParams? = nil
+  ) {
+    self.clearValues(section: Section.projects.rawValue)
+
+    let values = projects.map { DiscoveryProjectCellRowValue(
+      project: $0,
+      category: params?.category,
+      params: params
+    ) }
+
+    self.set(
+      values: values,
+      cellClass: DiscoveryPostcardCell.self,
+      inSection: Section.projects.rawValue
+    )
+  }
+
+  func show(onboarding: Bool) {
+    self.set(
+      values: onboarding ? [()] : [],
+      cellClass: DiscoveryOnboardingCell.self,
+      inSection: Section.onboarding.rawValue
+    )
+  }
+
+  func showPersonalization(_ show: Bool) {
+    self.set(
+      values: show ? [()] : [],
+      cellClass: PersonalizationCell.self,
+      inSection: Section.personalization.rawValue
+    )
+  }
+
+  internal func activityAtIndexPath(_ indexPath: IndexPath) -> Activity? {
+    return self[indexPath] as? Activity
+  }
+
+  internal func projectAtIndexPath(_ indexPath: IndexPath) -> Project? {
+    return (self[indexPath] as? DiscoveryProjectCellRowValue)?.project
+  }
+
+  internal func indexPath(forProjectRow row: Int) -> IndexPath {
+    return IndexPath(item: row, section: Section.projects.rawValue)
+  }
+
+  override func configureCell(tableCell cell: UITableViewCell, withValue value: Any) {
+    switch (cell, value) {
+    case let (cell as VideoFeedBannerCell, value as Void):
+      cell.configureWith(value: value)
+    case let (cell as ActivitySampleBackingCell, value as Activity):
+      cell.configureWith(value: value)
+    case let (cell as ActivitySampleFollowCell, value as Activity):
+      cell.configureWith(value: value)
+    case let (cell as ActivitySampleProjectCell, value as Activity):
+      cell.configureWith(value: value)
+    case let (cell as DiscoveryPostcardCell, value as DiscoveryProjectCellRowValue):
+      cell.configureWith(value: value)
+    case let (cell as DiscoveryProjectCardCell, value as DiscoveryProjectCellRowValue):
+      cell.configureWith(value: value)
+    case let (cell as DiscoveryOnboardingCell, value as Void):
+      cell.configureWith(value: value)
+    case let (cell as PersonalizationCell, value as Void):
+      cell.configureWith(value: value)
+    case (is StaticTableViewCell, is Void):
+      return
+    default:
+      assertionFailure("Unrecognized combo: \(cell), \(value)")
+    }
+  }
+}

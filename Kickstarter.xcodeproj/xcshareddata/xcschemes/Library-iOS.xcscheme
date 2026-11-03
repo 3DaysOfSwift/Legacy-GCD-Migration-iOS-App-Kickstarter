@@ -1,122 +1,54 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<Scheme
-   LastUpgradeVersion = "1430"
-   version = "1.3">
-   <BuildAction
-      parallelizeBuildables = "YES"
-      buildImplicitDependencies = "YES">
+<?xml version='1.0' encoding='UTF-8'?>
+<Scheme LastUpgradeVersion="1430" version="1.3">
+   <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES">
       <BuildActionEntries>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "YES"
-            buildForProfiling = "YES"
-            buildForArchiving = "YES"
-            buildForAnalyzing = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "A755113B1C8642B3005355CF"
-               BuildableName = "Library.framework"
-               BlueprintName = "Library-iOS"
-               ReferencedContainer = "container:Kickstarter.xcodeproj">
+         <BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">
+            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A7D1F9441C850B7C000D41D5" BuildableName="Kickstarter.app" BlueprintName="Kickstarter-iOS" ReferencedContainer="container:Kickstarter.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
-   <TestAction
-      buildConfiguration = "Debug"
-      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
-      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES">
+   <TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="NO">
       <MacroExpansion>
-         <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "A755113B1C8642B3005355CF"
-            BuildableName = "Library.framework"
-            BlueprintName = "Library-iOS"
-            ReferencedContainer = "container:Kickstarter.xcodeproj">
+         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A7D1F9441C850B7C000D41D5" BuildableName="Kickstarter.app" BlueprintName="Kickstarter-iOS" ReferencedContainer="container:Kickstarter.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
-         <TestableReference
-            skipped = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "E113BD802B7D255000D3A809"
-               BuildableName = "Library-Keychain-iOSTests.xctest"
-               BlueprintName = "Library-Keychain-iOSTests"
-               ReferencedContainer = "container:Kickstarter.xcodeproj">
+         <TestableReference skipped="NO">
+            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="E113BD802B7D255000D3A809" BuildableName="Library-Keychain-iOSTests.xctest" BlueprintName="Library-Keychain-iOSTests" ReferencedContainer="container:Kickstarter.xcodeproj">
             </BuildableReference>
          </TestableReference>
-         <TestableReference
-            skipped = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "KDSTests"
-               BuildableName = "KDSTests"
-               BlueprintName = "KDSTests"
-               ReferencedContainer = "container:KDS">
+         <TestableReference skipped="NO">
+            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="KDSTests" BuildableName="KDSTests" BlueprintName="KDSTests" ReferencedContainer="container:KDS">
             </BuildableReference>
          </TestableReference>
-         <TestableReference
-            skipped = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "AAF3BB562F1845A200DAE921"
-               BuildableName = "LibraryTests.xctest"
-               BlueprintName = "LibraryTests"
-               ReferencedContainer = "container:Kickstarter.xcodeproj">
+         <TestableReference skipped="NO">
+            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="AAF3BB562F1845A200DAE921" BuildableName="LibraryTests.xctest" BlueprintName="LibraryTests" ReferencedContainer="container:Kickstarter.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
+      <EnvironmentVariables>
+         <EnvironmentVariable key="CFA_UNIT_TEST_HOST" value="1" isEnabled="YES" />
+      </EnvironmentVariables>
    </TestAction>
-   <LaunchAction
-      buildConfiguration = "Debug"
-      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
-      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      launchStyle = "0"
-      useCustomWorkingDirectory = "NO"
-      ignoresPersistentStateOnLaunch = "NO"
-      debugDocumentVersioning = "YES"
-      debugServiceExtension = "internal"
-      allowLocationSimulation = "YES">
+   <LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" debugServiceExtension="internal" allowLocationSimulation="YES">
       <MacroExpansion>
-         <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "A755113B1C8642B3005355CF"
-            BuildableName = "Library.framework"
-            BlueprintName = "Library-iOS"
-            ReferencedContainer = "container:Kickstarter.xcodeproj">
+         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A7D1F9441C850B7C000D41D5" BuildableName="Kickstarter.app" BlueprintName="Kickstarter-iOS" ReferencedContainer="container:Kickstarter.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <EnvironmentVariables>
-         <EnvironmentVariable
-            key = "PACKAGE_RESOURCE_BUNDLE_PATH"
-            value = "$(BUILT_PRODUCTS_DIR)"
-            isEnabled = "YES">
+         <EnvironmentVariable key="PACKAGE_RESOURCE_BUNDLE_PATH" value="$(BUILT_PRODUCTS_DIR)" isEnabled="YES">
          </EnvironmentVariable>
       </EnvironmentVariables>
    </LaunchAction>
-   <ProfileAction
-      buildConfiguration = "Release"
-      shouldUseLaunchSchemeArgsEnv = "YES"
-      savedToolIdentifier = ""
-      useCustomWorkingDirectory = "NO"
-      debugDocumentVersioning = "YES">
+   <ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES">
       <MacroExpansion>
-         <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "A755113B1C8642B3005355CF"
-            BuildableName = "Library.framework"
-            BlueprintName = "Library-iOS"
-            ReferencedContainer = "container:Kickstarter.xcodeproj">
+         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A7D1F9441C850B7C000D41D5" BuildableName="Kickstarter.app" BlueprintName="Kickstarter-iOS" ReferencedContainer="container:Kickstarter.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
    </ProfileAction>
-   <AnalyzeAction
-      buildConfiguration = "Debug">
+   <AnalyzeAction buildConfiguration="Debug">
    </AnalyzeAction>
-   <ArchiveAction
-      buildConfiguration = "Release"
-      revealArchiveInOrganizer = "YES">
+   <ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES">
    </ArchiveAction>
 </Scheme>

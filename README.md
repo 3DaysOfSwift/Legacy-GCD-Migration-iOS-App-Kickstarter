@@ -11,29 +11,39 @@ and read more about our journey to open source [here](https://kickstarter.engine
 
 ## Getting Started
 
-1. Install Xcode. We currently support Xcode 26.6.
+1. Install Xcode. This migration checkpoint is verified with Xcode 26.2; see the migration ledger for validation limits.
 2. Clone this repository.
 
 &#42; To provide a mock version that serves up hard-coded data immediately, set `KsApi.Secrets.isOSS` = `true`.
 
-## Some fun things to explore
+## CFA application layout
 
-If you’re just looking for a quick glance at a few things we’re particularly
-proud of, look no further:
+This migration checkout compiles core application code directly in the `Kickstarter iOS`
+application target. Open `Kickstarter.xcodeproj` and select that scheme to run the app.
+The existing UIKit screens and interactions are retained.
 
-* The snapshots directory in each feature folder of `Kickstarter-Framework-iOS` together holds nearly 600 screenshots of various screens in every language,
-device and edge-case state that we like to make sure stays true. For example,
-a backer viewing a project in Japanese
-[here](https://github.com/kickstarter/ios-oss/blob/main/Kickstarter-iOS/Features/ProjectPage/Controller/__Snapshots__/ProjectPageViewControllerTests/testLoggedIn_Backer_LiveProject_NonUS_ProjectCurrency_US_ProjectCountry_NonUS_UserChosenCurrency_NotOmittingCurrencyCode_Success.lang_ja_device_pad.png)
-, or a creator looking at their dashboard in German and on an iPad
-[here](https://github.com/kickstarter/ios-oss/blob/main/Kickstarter-iOS/Features/Dashboard/Controller/__Snapshots__/DashboardViewControllerTests/testView.lang_de_device_pad.png).
+- `Kickstarter-iOS/1 - View`: screens/controllers, adjacent ViewModels and shared presentation.
+- `Kickstarter-iOS/2 - AppModel`: composition, Features and app-owned storage/service adapters.
+- `Kickstarter-iOS/3 - App Resources`: storyboards, nibs, localization and app configuration.
+- `Kickstarter-iOS/4 - Swift Extensions`: shared application extensions.
+- `Kickstarter-iOS/Assets.xcassets`: application artwork.
+- `ApplicationTests`: app-hosted model, presentation and session tests plus test support.
 
-* [We use view models](https://www.youtube.com/watch?v=EpTlqx6NjYo) as
-a lightweight way to isolate side effects and embrace a functional core. We
-write [these](https://github.com/kickstarter/ios-oss/tree/main/Library/ViewModels)
-as a pure mapping of input signals to output signals, and [test](https://github.com/kickstarter/ios-oss/tree/main/Library/ViewModels)
-them heavily, including tests for localization, accessibility and event
-tracking.
+`Library` and `Kickstarter-Framework` are no longer application packages. `KsApi`,
+`GraphAPI`, `Experimentation`, `KDS` and `ServerDrivenUI` retain service contracts,
+generated API code, SDK integration and reusable rendering/design components. Checkout
+experiment decisions live with the application Features that use them.
+
+The generated API mock framework is test-only; it contains no application Features,
+ViewModels or screens. It links to the same generated API module as the host app so
+GraphQL runtime types are not duplicated. Hosted unit-test schemes set
+`CFA_UNIT_TEST_HOST=1` to prevent the live root screen from observing fixture notifications.
+Normal app launches do not set this flag; the branch is Debug-only.
+
+See [the structural plan](MIGRATION_STRUCTURE_PLAN.md),
+[remaining verification](MIGRATION_REMAINING_WORK.md) and
+[verified checkpoints](MIGRATION_LEDGER.md). Moving files does not by itself establish
+Swift 6 compliance or live-payment correctness.
 
 ## Testing the project
 

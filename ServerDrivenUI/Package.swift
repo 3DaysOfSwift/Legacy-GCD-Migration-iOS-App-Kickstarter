@@ -32,8 +32,8 @@ let package = Package(
       name: "ServerDrivenUI",
       dependencies: [
         .byName(name: "KDS"),
-        .byName(name: "KsApi"),
-        .byName(name: "GraphAPI"),
+        .product(name: "KsApi", package: "KsApi"),
+        .product(name: "GraphAPI", package: "GraphAPI"),
         .product(name: "Kingfisher", package: "Kingfisher")
       ]
     ),

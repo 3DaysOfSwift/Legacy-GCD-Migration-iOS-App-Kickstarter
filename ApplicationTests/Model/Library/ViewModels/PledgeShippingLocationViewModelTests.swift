@@ -1,0 +1,453 @@
+@testable import Kickstarter_iOS
+import Foundation
+import GraphAPI
+@testable import KsApi
+
+
+import Prelude
+import ReactiveExtensions
+import ReactiveExtensions_TestHelpers
+import ReactiveSwift
+import XCTest
+
+@MainActor
+final class PledgeShippingLocationViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let vm = PledgeShippingLocationViewModel(rewardsFeature: RewardsFeature(sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
+    makeProvider: { AsyncRewardsProvider(service: AppEnvironment.current.apiService) },
+    sleep: { _ in try Task.checkCancellation() }
+  ))
+
+  private let adaptableStackViewIsHidden = TestObserver<Bool, Never>()
+  private let dismissShippingLocations = TestObserver<Void, Never>()
+  private let presentShippingLocationsAllLocations = TestObserver<[Location], Never>()
+  private let presentShippingLocationsSelectedLocation = TestObserver<Location, Never>()
+  private let notifyDelegateOfSelectedShippingLocation = TestObserver<Location?, Never>()
+  private let shimmerLoadingViewIsHidden = TestObserver<Bool, Never>()
+  private let shippingLocationButtonTitle = TestObserver<String, Never>()
+  private let shippingRulesError = TestObserver<String, Never>()
+  private let shippingLocationViewHidden = TestObserver<Bool, Never>()
+
+  override func setUp() async throws {
+    try await super.setUp()
+    MainActor.assumeIsolated {
+      self.vm.outputs.adaptableStackViewIsHidden.observe(self.adaptableStackViewIsHidden.observer)
+      self.vm.outputs.dismissShippingLocations.observe(self.dismissShippingLocations.observer)
+      self.vm.outputs.shimmerLoadingViewIsHidden.observe(self.shimmerLoadingViewIsHidden.observer)
+      self.vm.outputs.presentShippingLocations.map { $0.0 }
+        .observe(self.presentShippingLocationsAllLocations.observer)
+      self.vm.outputs.presentShippingLocations.map { $0.1 }
+        .observe(self.presentShippingLocationsSelectedLocation.observer)
+      self.vm.outputs.notifyDelegateOfSelectedShippingLocation
+        .observe(self.notifyDelegateOfSelectedShippingLocation.observer)
+      self.vm.outputs.shippingLocationButtonTitle.observe(self.shippingLocationButtonTitle.observer)
+      self.vm.outputs.shippingRulesError.observe(self.shippingRulesError.observer)
+      self.vm.outputs.shippingLocationViewHidden.observe(self.shippingLocationViewHidden.observer)
+    }
+  }
+
+  func testDefaultShippingRule_ProjectCountryEqualsProjectCurrencyCountry_US() async {
+    let mockService = MockService(fetchGraphQLResponses: [
+      (ShippableLocationsForProjectQuery.self, threeShippableCountries)
+    ])
+
+    let reward = Reward.shipsToUSAReward
+
+    let project = Project.template
+      |> Project.lens.rewardData.rewards .~ [reward]
+
+    await withEnvironment(apiService: mockService, countryCode: "US") {
+      self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
+      self.vm.inputs.viewDidLoad()
+
+      self.adaptableStackViewIsHidden.assertValues([true])
+      self.shimmerLoadingViewIsHidden.assertValues([false])
+      self.shippingLocationViewHidden.assertValues([false])
+      self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
+      self.shippingLocationButtonTitle.assertValues([])
+
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
+
+      self.adaptableStackViewIsHidden.assertValues([true, false])
+      self.shimmerLoadingViewIsHidden.assertValues([false, true])
+      self.shippingLocationViewHidden.assertValues([false])
+      self.notifyDelegateOfSelectedShippingLocation.assertValues(
+        [Location.usa],
+        "Because the user has an environment with a US country code, their default location should be the USA."
+      )
+      self.shippingLocationButtonTitle.assertValues(["United States"])
+      self.shippingRulesError.assertDidNotEmitValue()
+    }
+  }
+
+  func testDefaultShippingRule_US_ProjectCountry_NonUSProjectCurrencyCountry_US_UserLocation() async {
+    let mockService = MockService(fetchGraphQLResponses: [
+      (ShippableLocationsForProjectQuery.self, threeShippableCountries)
+    ])
+
+    let reward = Reward.shipsToUSAReward
+
+    let projectRewards = [reward]
+
+    let project = Project.template
+      |> Project.lens.stats.projectCurrency .~ Project.Country.mx.currencyCode
+      |> Project.lens.country .~ Project.Country.us
+      |> Project.lens.rewardData.rewards .~ projectRewards
+
+    await withEnvironment(apiService: mockService, countryCode: "US") {
+      self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
+
+      self.vm.inputs.viewDidLoad()
+
+      self.adaptableStackViewIsHidden.assertValues([true])
+      self.shimmerLoadingViewIsHidden.assertValues([false])
+      self.shippingLocationViewHidden.assertValues([false])
+      self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
+      self.shippingLocationButtonTitle.assertValues([])
+
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
+
+      self.adaptableStackViewIsHidden.assertValues([true, false])
+      self.shimmerLoadingViewIsHidden.assertValues([false, true])
+      self.shippingLocationViewHidden.assertValues([false])
+      self.notifyDelegateOfSelectedShippingLocation.assertValues(
+        [Location.usa],
+        "Because the user has an environment with a US country code, their default location should be the USA."
+      )
+      self.shippingLocationButtonTitle.assertValues(["United States"])
+      self.shippingRulesError.assertDidNotEmitValue()
+    }
+  }
+
+  func testDefaultShippingRule_ProjectCountryEqualsProjectCurrencyCountry_US_DefaultsToPreselected() async {
+    let mockService = MockService(fetchGraphQLResponses: [
+      (ShippableLocationsForProjectQuery.self, threeShippableCountries)
+    ])
+
+    let reward = Reward.shipsToAustraliaReward
+
+    let project = Project.template
+      |> Project.lens.rewardData.rewards .~ [reward]
+      |> Project.lens.personalization.isBacking .~ true
+      |> Project.lens.personalization.backing .~ (
+        Backing.template
+          |> Backing.lens.locationId .~ Location.australia.id
+      )
+
+    await withEnvironment(apiService: mockService, countryCode: "US") {
+      self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
+      self.vm.inputs.viewDidLoad()
+
+      self.adaptableStackViewIsHidden.assertValues([true])
+      self.shimmerLoadingViewIsHidden.assertValues([false])
+      self.shippingLocationViewHidden.assertValues([false])
+      self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
+      self.shippingLocationButtonTitle.assertValues([])
+
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
+
+      self.adaptableStackViewIsHidden.assertValues([true, false])
+      self.shimmerLoadingViewIsHidden.assertValues([false, true])
+      self.shippingLocationViewHidden.assertValues([false])
+      self.notifyDelegateOfSelectedShippingLocation.assertValues(
+        [Location.australia],
+        "Because the project has a backing in Australia, the selected shipping location should be Australia."
+      )
+      self.shippingLocationButtonTitle.assertValues(["Australia"])
+      self.shippingRulesError.assertDidNotEmitValue()
+    }
+  }
+
+  func testDefaultShippingRule_ProjectHasNoShippableRewards_DefaultsToNil() async {
+    let reward = Reward.digitalReward
+
+    let project = Project.template
+      |> Project.lens.rewardData.rewards .~ [reward]
+
+    // Note that this test has no mockService.
+    // We shouldn't hit the network if the project has no shippable rewards.
+    await withEnvironment(countryCode: "US") {
+      self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
+      self.vm.inputs.viewDidLoad()
+
+      self.adaptableStackViewIsHidden.assertValues([true])
+      self.shimmerLoadingViewIsHidden.assertValues([false])
+      self.shippingLocationViewHidden.assertValues(
+        [true],
+        "Shipping location view should be hidden if project has no shippable rewards"
+      )
+      self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
+      self.shippingLocationButtonTitle.assertValues([])
+
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
+
+      self.adaptableStackViewIsHidden.assertValues([true, false])
+      self.shimmerLoadingViewIsHidden.assertValues([false, true])
+      self.shippingLocationViewHidden.assertValues(
+        [true],
+        "Shipping location view should be hidden if project has no shippable rewards"
+      )
+      self.notifyDelegateOfSelectedShippingLocation.assertValues(
+        [nil],
+        "Because the project has no shippable rewards, the default shipping location should be nil."
+      )
+      self.shippingLocationButtonTitle.assertDidNotEmitValue()
+      self.shippingRulesError.assertDidNotEmitValue()
+    }
+  }
+
+  func testShippingRulesSelection() async {
+    let mockService = MockService(fetchGraphQLResponses: [
+      (ShippableLocationsForProjectQuery.self, threeShippableCountries)
+    ])
+    let reward = Reward.shipsToUSAReward
+
+    let project = Project.template
+      |> Project.lens.rewardData.rewards .~ [reward]
+
+    await withEnvironment(apiService: mockService, countryCode: "US") {
+      self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
+      self.vm.inputs.viewDidLoad()
+
+      self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
+
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
+
+      self.notifyDelegateOfSelectedShippingLocation.assertValues([Location.usa])
+
+      self.vm.inputs.shippingLocationButtonTapped()
+
+      self.dismissShippingLocations.assertDidNotEmitValue()
+      self.presentShippingLocationsAllLocations.assertValues([[
+        Location.australia,
+        Location.canada,
+        Location.usa
+      ]])
+      self.presentShippingLocationsSelectedLocation.assertValues([Location.usa])
+
+      self.vm.inputs.shippingLocationUpdated(to: Location.australia)
+
+      await self.scheduler.advance(by: .milliseconds(300))
+
+      self.dismissShippingLocations.assertValueCount(1)
+      self.notifyDelegateOfSelectedShippingLocation.assertValues([
+        Location.usa,
+        Location.australia
+      ])
+    }
+  }
+
+  func testShippingRulesCancelation() async {
+    let mockService = MockService(fetchGraphQLResponses: [
+      (ShippableLocationsForProjectQuery.self, threeShippableCountries)
+    ])
+
+    let reward = Reward.template
+      |> Reward.lens.shipping.enabled .~ true
+
+    let project = Project.template
+      |> Project.lens.rewardData.rewards .~ [reward]
+
+    await withEnvironment(apiService: mockService, countryCode: "US") {
+      self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
+      self.vm.inputs.viewDidLoad()
+
+      let defaultShippingLocation = Location.usa
+
+      self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
+
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
+
+      self.notifyDelegateOfSelectedShippingLocation.assertValues([defaultShippingLocation])
+
+      self.vm.inputs.shippingLocationButtonTapped()
+
+      self.presentShippingLocationsAllLocations.assertValues([shippingLocations])
+      self.presentShippingLocationsSelectedLocation.assertValues([defaultShippingLocation])
+
+      self.dismissShippingLocations.assertDidNotEmitValue()
+      self.vm.inputs.shippingLocationCancelButtonTapped()
+      self.dismissShippingLocations.assertValueCount(1)
+    }
+  }
+
+  func testShippingRulesError_ProjectCountryEqualsProjectCurrencyCountry_US() async {
+    let reward = Reward.template
+      |> Reward.lens.shipping.enabled .~ true
+
+    let project = Project.template
+      |> Project.lens.rewardData.rewards .~ [reward]
+
+    // Leaving the mock unimplemented gives us an ErrorEnvelope, which is what we want to test
+    await withEnvironment {
+      self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
+      self.vm.inputs.viewDidLoad()
+
+      self.shippingRulesError.assertValues([])
+
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
+
+      self.adaptableStackViewIsHidden.assertValues([true, false])
+      self.shimmerLoadingViewIsHidden.assertValues([false, true])
+      self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
+      self.shippingLocationButtonTitle.assertValues([])
+      self.shippingRulesError.assertValues([Strings.We_were_unable_to_load_the_shipping_destinations()])
+    }
+  }
+
+  func testShippingLocationFromBackingIsDefault_ProjectCountryEqualsProjectCurrencyCountry_US() async {
+    let mockService = MockService(fetchGraphQLResponses: [
+      (ShippableLocationsForProjectQuery.self, threeShippableCountries)
+    ])
+
+    let reward = Reward.template
+      |> Reward.lens.shipping.enabled .~ true
+
+    let projectRewards = [reward]
+
+    let project = Project.template
+      |> Project.lens.personalization.isBacking .~ true
+      |> Project.lens.personalization.backing .~ (
+        .template
+          |> Backing.lens.reward .~ Reward.postcards
+          |> Backing.lens.rewardId .~ Reward.postcards.id
+          |> Backing.lens.shippingAmount .~ 10
+          |> Backing.lens.amount .~ 700.0
+          |> Backing.lens.locationId .~ Location.canada.id
+          |> Backing.lens.locationName .~ Location.canada.name
+      )
+      |> Project.lens.rewardData.rewards .~ projectRewards
+
+    await withEnvironment(apiService: mockService, countryCode: "US") {
+      self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
+      self.vm.inputs.viewDidLoad()
+
+      self.adaptableStackViewIsHidden.assertValues([true])
+      self.shimmerLoadingViewIsHidden.assertValues([false])
+      self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
+      self.shippingLocationButtonTitle.assertValues([])
+
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
+
+      self.adaptableStackViewIsHidden.assertValues([true, false])
+      self.shimmerLoadingViewIsHidden.assertValues([false, true])
+      self.notifyDelegateOfSelectedShippingLocation.assertValues(
+        [Location.canada],
+        "Because the backing was made with the location Canada, the selected shipping location should default to Canada."
+      )
+      self.shippingLocationButtonTitle.assertValues(["Canada"])
+      self.shippingRulesError.assertDidNotEmitValue()
+
+      await self.scheduler.advance(by: .seconds(1))
+    }
+  }
+
+  func testShippingLocationFromBackingIsDefault_ProjectCountryEqualsProjectCurrencyCountry_US_NewRewardDoesNotHaveSelectedRule(
+  ) async {
+    let shippingDataWithoutCanada = GraphAPI.ShippableLocationsForProjectQuery.Data(
+      project: GraphAPI.ShippableLocationsForProjectQuery.Data.Project(
+        shippableCountriesExpanded: [
+          GraphLocation(
+            country: "US",
+            countryName: "United States",
+            displayableName: "United States",
+            id: encodeToBase64("Location-5"),
+            name: "United States"
+          ),
+          GraphLocation(
+            country: "AU",
+            countryName: "Australia",
+            displayableName: "Australia",
+            id: encodeToBase64("Location-8"),
+            name: "Australia"
+          )
+        ]
+      )
+    )
+
+    let mockService = MockService(fetchGraphQLResponses: [
+      (ShippableLocationsForProjectQuery.self, shippingDataWithoutCanada)
+    ])
+
+    let reward = Reward.template
+      |> Reward.lens.shipping.enabled .~ true
+
+    let projectRewards = [reward]
+
+    let project = Project.template
+      |> Project.lens.personalization.isBacking .~ true
+      |> Project.lens.personalization.backing .~ (
+        .template
+          |> Backing.lens.reward .~ Reward.postcards
+          |> Backing.lens.rewardId .~ Reward.postcards.id
+          |> Backing.lens.shippingAmount .~ 10
+          |> Backing.lens.amount .~ 700.0
+          |> Backing.lens.locationId .~ Location.canada.id
+          |> Backing.lens.locationName .~ Location.canada.name
+      )
+      |> Project.lens.rewardData.rewards .~ projectRewards
+
+    await withEnvironment(apiService: mockService, countryCode: "US") {
+      self.vm.inputs.configureWith(data: PledgeShippingLocationViewData(withProject: project))
+      self.vm.inputs.viewDidLoad()
+
+      self.adaptableStackViewIsHidden.assertValues([true])
+      self.shimmerLoadingViewIsHidden.assertValues([false])
+      self.notifyDelegateOfSelectedShippingLocation.assertDidNotEmitValue()
+      self.shippingLocationButtonTitle.assertValues([])
+
+      await self.vm.loadingTask?.value
+      await self.scheduler.advance()
+
+      self.adaptableStackViewIsHidden.assertValues([true, false])
+      self.shimmerLoadingViewIsHidden.assertValues([false, true])
+      self.notifyDelegateOfSelectedShippingLocation.assertValues(
+        [Location.usa],
+        "Because Canada is no longer a valid shipping destination, even though the backing was sent to Canada, the shipping location should default to the user's default location."
+      )
+      self.shippingLocationButtonTitle.assertValues(["United States"])
+      self.shippingRulesError.assertDidNotEmitValue()
+    }
+  }
+}
+
+private let shippingLocations: [Location] = Location.locations(from: threeShippableCountries)
+
+private typealias GraphLocation = GraphAPI.ShippableLocationsForProjectQuery.Data.Project
+  .ShippableCountriesExpanded
+
+private let threeShippableCountries = GraphAPI.ShippableLocationsForProjectQuery.Data(
+  project: GraphAPI.ShippableLocationsForProjectQuery.Data.Project(
+    shippableCountriesExpanded: [
+      GraphLocation(
+        country: "AU",
+        countryName: "Australia",
+        displayableName: "Australia",
+        id: encodeToBase64("Location-8"),
+        name: "Australia"
+      ),
+      GraphLocation(
+        country: "CA",
+        countryName: "Canada",
+        displayableName: "Canada",
+        id: encodeToBase64("Location-6"),
+        name: "Canada"
+      ),
+      GraphLocation(
+        country: "US",
+        countryName: "United States",
+        displayableName: "United States",
+        id: encodeToBase64("Location-5"),
+        name: "United States"
+      )
+    ]
+  )
+)

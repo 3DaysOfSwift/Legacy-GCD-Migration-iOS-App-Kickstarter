@@ -44,7 +44,7 @@ test_job: &test_job
     - attach_workspace:
         at: .
     - macos/preboot-simulator:
-        # Keep simulator in sync with `Library/TestHelpers/TestCase.swift` and `Makefile`
+        # Keep simulator in sync with `ApplicationTests/Support/TestCase.swift` and `Makefile`
         # iOS 18.6 is minimum supported runtime by circle-ci -> 26.6 (17F113)
         # more info: https://circle-macos-docs.s3.amazonaws.com/image-manifest/v18807/manifest.txt
         version: "18.6"
@@ -155,23 +155,21 @@ jobs:
       - *default_environment
       - SCHEME=Kickstarter iOS
 
-  # Kickstarter Framework tests
+  # App-hosted presentation tests
   kickstarter-framework-tests:
     <<: *base_job
-    <<: *test_spm_job
+    <<: *test_job
     environment:
       - *default_environment
-      - PACKAGE=Kickstarter-Framework
-      - SCHEME=Kickstarter-Framework
+      - SCHEME=PresentationTests
 
-  # Library tests
+  # App-hosted ViewModel and Feature tests
   library-tests:
     <<: *base_job
-    <<: *test_spm_job
+    <<: *test_job
     environment:
       - *default_environment
-      - PACKAGE=Library
-      - SCHEME=Library-Package
+      - SCHEME=Library-iOS
 
   # KsApi tests
   ksapi-tests:

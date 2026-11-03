@@ -1,0 +1,123 @@
+import ReactiveSwift
+import UIKit
+@testable import Kickstarter_iOS
+
+@testable import KsApi
+
+
+import Prelude
+import SnapshotTesting
+import XCTest
+
+internal final class ProjectPageNavigationTests: TestCase {
+  override func setUp() async throws {
+    try await super.setUp()
+    UIView.setAnimationsEnabled(false)
+  }
+
+  override func tearDown() async throws {
+    UIView.setAnimationsEnabled(true)
+    try await super.tearDown()
+  }
+
+  @MainActor
+  func testNavigationBar_Unwatched_Success() {
+    combos([Language.en], [Device.phone4inch]).forEach { _, device in
+      let navigation = ProjectPageNavigation()
+
+      let project = .template |> Project.lens.personalization.isStarred .~ false
+
+      let watchValue = WatchProjectValue(
+        project: project,
+        context: .project,
+        discoveryParams: nil
+      )
+
+      navigation.configureWatchProject(with: watchValue)
+      navigation.viewDidLoad()
+
+      let (parent, _) = traitControllers(
+        device: device,
+        orientation: .portrait,
+        child: viewControllerWithNavigation(navigation)
+      )
+
+      parent.view.frame.size.height = 44
+
+      scheduler.run()
+
+      assertSnapshot(matching: parent.view, as: .image, named: "unwatched")
+    }
+  }
+
+  @MainActor
+  func testNavigationBar_Watched_Success() {
+    combos([Language.en], [Device.phone4inch]).forEach { _, device in
+      let navigation = ProjectPageNavigation()
+
+      let project = .template |> Project.lens.personalization.isStarred .~ true
+
+      let watchValue = WatchProjectValue(
+        project: project,
+        context: .project,
+        discoveryParams: nil
+      )
+
+      navigation.configureWatchProject(with: watchValue)
+      navigation.viewDidLoad()
+
+      let (parent, _) = traitControllers(
+        device: device,
+        orientation: .portrait,
+        child: viewControllerWithNavigation(navigation)
+      )
+
+      parent.view.frame.size.height = 44
+
+      scheduler.run()
+
+      assertSnapshot(matching: parent.view, as: .image, named: "watched")
+    }
+  }
+
+  @MainActor
+  func testNavigationBar_darkMode() {
+    combos([Language.en], [Device.phone4inch]).forEach { _, device in
+      let navigation = ProjectPageNavigation()
+
+      let project = .template |> Project.lens.personalization.isStarred .~ true
+
+      let watchValue = WatchProjectValue(
+        project: project,
+        context: .project,
+        discoveryParams: nil
+      )
+
+      navigation.configureWatchProject(with: watchValue)
+      navigation.viewDidLoad()
+
+      let (parent, _) = traitControllers(
+        device: device,
+        orientation: .portrait,
+        child: viewControllerWithNavigation(navigation),
+        additionalTraits: UITraitCollection(userInterfaceStyle: .dark)
+      )
+
+      parent.view.frame.size.height = 44
+
+      scheduler.run()
+
+      assertSnapshot(matching: parent.view, as: .image, named: "dark")
+    }
+  }
+
+  @MainActor
+  private func viewControllerWithNavigation(_ navigation: ProjectPageNavigation) -> UIViewController {
+    let vc = UIViewController()
+    vc.navigationItem.leftBarButtonItem = navigation.closeButton
+    vc.navigationItem.rightBarButtonItems = navigation.rightBarButtonItems
+    vc.navigationItem.standardAppearance = UINavigationBarAppearance.projectPageNavigationBarAppearance
+
+    return UINavigationController(rootViewController: vc)
+  }
+}

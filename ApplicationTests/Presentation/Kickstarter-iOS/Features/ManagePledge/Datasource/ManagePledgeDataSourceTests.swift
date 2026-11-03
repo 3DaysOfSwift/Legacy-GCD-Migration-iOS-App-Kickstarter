@@ -1,0 +1,27 @@
+import UIKit
+@testable import Kickstarter_iOS
+import Foundation
+
+@testable import KsApi
+
+
+import Prelude
+import XCTest
+
+@MainActor
+final class ManagePledgeDataSourceTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  let dataSource = ManagePledgeDataSource()
+  let tableView = UITableView()
+
+  func testLoadDataIntoDataSource() {
+    let rewards = [Reward.template, .template]
+    let project = Project.template
+      |> Project.lens.rewardData.rewards .~ rewards
+
+    self.dataSource.load(project: project, rewards: rewards)
+
+    XCTAssertEqual(1, self.dataSource.numberOfSections(in: self.tableView))
+    XCTAssertEqual(2, self.dataSource.numberOfItems(in: 0))
+  }
+}

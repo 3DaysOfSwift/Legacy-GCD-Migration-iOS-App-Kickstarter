@@ -2,6 +2,36 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## Core application CFA structure — 3 November 2026
+
+Core application code now compiles directly in the application target under
+`Kickstarter-iOS/1 - View`, `2 - AppModel`, `3 - App Resources` and
+`4 - Swift Extensions`. UIKit screens and their adjacent ViewModels are retained.
+764 app Swift files have exactly one source-build entry each. Library and
+Kickstarter-Framework application products/manifests and old module/bundle references
+are removed. Five local packages retain services, generated APIs and reusable components.
+Three concrete checkout experiments moved from the flag SDK package to their Features.
+
+The move manifest records 928 byte-identical resource copies removed. App resources,
+assets and nib/storyboard module identifiers now resolve in the application. Original
+implementations remain in Git history, not parallel legacy folders. One obsolete,
+unreferenced Search test and one empty package test stub were removed; meaningful
+app tests and snapshot references moved into ApplicationTests.
+
+Final regression: 2,188 model/Feature +406 presentation +152 API +26 signed session
+=2,772 passed, zero failures/skips. Complete-concurrency-checking app build passed.
+The regression suite asserts execution of required restored suites. App-hosted tests
+use explicit dependencies and a Debug-only isolated startup flag; the generated API
+mock target contains only test support and avoids duplicated runtime GraphQL types.
+
+Normal app build and simulator smoke passed: populated Explore artwork, project detail,
+rewards, Search results, query clearing and category filtering. Xcode displays the four
+numbered groups directly under the app. Existing bundle/signing identifiers are unchanged.
+The normal built product was checked without stale test bundles or mock frameworks.
+
+Evidence: kickstarter-app-consolidation. This structural correction does not certify
+warning-free Swift6, all visual/device journeys or live payment/account operations.
+
 ## UIKit nib and presentation boundary review — 3 November 2026
 
 Seventeen nib hooks now explicitly enter MainActor for UI setup, preserving their

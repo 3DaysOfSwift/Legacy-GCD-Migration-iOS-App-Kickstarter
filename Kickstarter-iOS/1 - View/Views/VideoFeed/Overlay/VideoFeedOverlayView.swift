@@ -1,0 +1,229 @@
+import KDS
+import Kingfisher
+
+import SwiftUI
+
+/// Full-screen SwiftUI Video Feed overlay.
+/// Takes a `Binding<VideoFeedItem>` so mutations to things like, watchesCount, re-render automatically.
+struct VideoFeedOverlayView: View {
+  private enum Constants {
+    static let topGradientOverlayOpacity: Double = 0.2
+    static let topGradientOverlayHeight: CGFloat = 300
+    static let bottomGradientOverlayOpacity: Double = 0.55
+    static let bottomGradientOverlayStartLocation: CGFloat = 0.16
+    static let bottomGradientOverlayEndLocation: CGFloat = 0.7
+    static let horizontalPadding: CGFloat = 14
+    static let bottomPadding: CGFloat = 12
+    static let railBottomSpacing: CGFloat = 20
+    static let playButtonSize: CGFloat = 62
+    static let playIconSize: CGFloat = 33
+    static let playIconOffset: CGFloat = 2
+    static let playButtonOffset: CGFloat = -75
+    static let closeButtonSize: CGFloat = 44
+    static let previewFadeDuration: Double = 0.3
+    /// Preview image opacity when the video has failed to load or a save request has failed.
+    static let failedPreviewOpacity: Double = 0.35
+    /// Defining safe area values because `UIHostingConfiguration` returns 0 for safe area insets when in a collectionview.
+    static let topSafeAreaPadding: CGFloat = 60
+    static let bottomSafeAreaPadding: CGFloat = 37
+    static let playButtonStrokeBorderOpacity: Double = 0.5
+    static let playButtonStrokeBorderWidth: CGFloat = 1
+    static let muteButtonSize: CGFloat = 32
+    static let muteIconSize: CGFloat = 16
+    static let mutePlaySpacing: CGFloat = 12
+    static let playMuteGroupOffset: CGFloat = playButtonOffset + (mutePlaySpacing + muteButtonSize) / 2
+  }
+
+  static let closeButtonSize: CGFloat = 44
+  static let topSafeAreaPadding: CGFloat = 60
+
+  /// Owned by `VideoFeedViewModel`
+  @Binding var isSaved: Bool
+
+  @Binding var item: VideoFeedItem
+
+  /// Reflects the global feed mute state. Controlled via `onMuteTapped`.
+  @Binding var isMuted: Bool
+
+  let playbackState: VideoFeedPlaybackState
+  let videoPlayer: VideoFeedVideoPlayer
+
+  var onCloseTapped: (() -> Void)?
+  var onCreatorTapped: (() -> Void)?
+  var onShareTapped: (() -> Void)?
+  var onMoreTapped: (() -> Void)?
+  var onCTATapped: (() -> Void)?
+  var onProgressBarTapped: ((Float) -> Void)?
+  var onMuteTapped: (() -> Void)?
+  var onSheetDismissedFromLinkCopied: (() -> Void)?
+
+  var body: some View {
+    ZStack(alignment: .bottom) {
+      self.topGradient
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
+
+      Button(action: { self.onCloseTapped?() }, label: {
+        if let icon = Kickstarter_iOS.image(named: "video-feed-close-icon") {
+          Image(uiImage: icon)
+            .foregroundColor(Color(Colors.Icon.light.uiColor()))
+            .frame(width: Constants.closeButtonSize, height: Constants.closeButtonSize)
+            .accessibilityHidden(true)
+        }
+      })
+      .contentShape(Rectangle())
+      .padding(.leading, Constants.horizontalPadding)
+      .padding(.top, Constants.topSafeAreaPadding)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      .accessibilityLabel(Strings.accessibility_discovery_buttons_close())
+
+      VStack(alignment: .trailing, spacing: Constants.railBottomSpacing) {
+        VideoFeedRightRailView(
+          item: self.$item,
+          isSaved: self.$isSaved,
+          onCreatorTapped: self.onCreatorTapped,
+          onShareTapped: self.onShareTapped,
+          onMoreTapped: self.onMoreTapped,
+          onSheetDismissedFromLinkCopied: self.onSheetDismissedFromLinkCopied,
+        )
+
+        VideoFeedBottomOverlayView(
+          item: self.item,
+          videoPlayer: self.videoPlayer,
+          onCTATapped: self.onCTATapped,
+          onProgressBarTapped: self.onProgressBarTapped
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .padding(.horizontal, Constants.horizontalPadding)
+      .padding(.bottom, Constants.bottomPadding + Constants.bottomSafeAreaPadding)
+      .background(alignment: .bottom) {
+        self.bottomGradient
+          .ignoresSafeArea()
+          .accessibilityHidden(true)
+      }
+    }
+    .overlay(alignment: .center) {
+      VStack(spacing: Constants.mutePlaySpacing) {
+        self.playButton
+        self.muteButton
+      }
+      .opacity(self.playbackState.isPlayButtonVisible ? 1 : 0)
+      .animation(.easeInOut(duration: 0.15), value: self.playbackState.isPlayButtonVisible)
+      .offset(y: Constants.playMuteGroupOffset)
+    }
+    .background {
+      /// Preview image shown while the video loads.
+      /// Fades out once `isVideoReady` becomes true.
+      if let previewURL = self.item.videoPreviewImageURL {
+        KFImage(previewURL)
+          .resizable()
+          .scaledToFill()
+          .ignoresSafeArea()
+          .opacity(self.previewImageOpacity)
+          .animation(
+            .easeInOut(duration: Constants.previewFadeDuration),
+            value: self.playbackState.isVideoReady
+          )
+          .animation(
+            .easeInOut(duration: Constants.previewFadeDuration),
+            value: self.playbackState.hasFailed
+          )
+          .animation(
+            .easeInOut(duration: Constants.previewFadeDuration),
+            value: self.playbackState.hasSaveFailed
+          )
+          .accessibilityHidden(true)
+      }
+    }
+    .ignoresSafeArea()
+  }
+
+  private var previewImageOpacity: Double {
+    if self.playbackState.isVideoReady {
+      return 0
+    } else if self.playbackState.hasFailed || self.playbackState.hasSaveFailed {
+      return Constants.failedPreviewOpacity
+    } else {
+      return 1
+    }
+  }
+
+  // MARK: - Play Button
+
+  @ViewBuilder
+  private var playButton: some View {
+    let icon = Kickstarter_iOS.image(named: "video-feed-play-icon")
+
+    if let icon {
+      Button(action: { self.playbackState.resume() }, label: {
+        Image(uiImage: icon)
+          .resizable()
+          .scaledToFit()
+          .foregroundColor(Color(Colors.Icon.light.uiColor()))
+          .offset(x: Constants.playIconOffset)
+          .frame(width: Constants.playIconSize, height: Constants.playIconSize)
+          .frame(width: Constants.playButtonSize, height: Constants.playButtonSize)
+          .background(FrostedGlassBackgroundView().overlay(Circle().strokeBorder(
+            Color.white.opacity(Constants.playButtonStrokeBorderOpacity),
+            lineWidth: Constants.playButtonStrokeBorderWidth
+          )))
+          .clipShape(Circle())
+          .accessibilityHidden(true)
+      })
+      .accessibilityLabel(Strings.Play())
+    }
+  }
+
+  // MARK: - Mute Button
+
+  @ViewBuilder
+  private var muteButton: some View {
+    let iconName = self.isMuted ? "video-feed-volume-off" : "video-feed-volume-on"
+
+    if let icon = Kickstarter_iOS.image(named: iconName) {
+      Button(action: { self.onMuteTapped?() }, label: {
+        Image(uiImage: icon)
+          .resizable()
+          .scaledToFit()
+          .foregroundColor(Color(Colors.Icon.light.uiColor()))
+          .frame(width: Constants.muteIconSize, height: Constants.muteIconSize)
+          .frame(width: Constants.muteButtonSize, height: Constants.muteButtonSize)
+          .background(FrostedGlassBackgroundView().overlay(Circle().strokeBorder(
+            Color.white.opacity(Constants.playButtonStrokeBorderOpacity),
+            lineWidth: Constants.playButtonStrokeBorderWidth
+          )))
+          .clipShape(Circle())
+          .accessibilityHidden(true)
+      })
+    }
+  }
+
+  // MARK: - Gradients
+
+  private var topGradient: some View {
+    VStack(spacing: 0) {
+      LinearGradient(
+        colors: [Color(Colors.Icon.dark.uiColor()).opacity(Constants.topGradientOverlayOpacity), .clear],
+        startPoint: .top,
+        endPoint: .bottom
+      )
+      .frame(height: Constants.topGradientOverlayHeight)
+      Spacer()
+    }
+  }
+
+  private var bottomGradient: some View {
+    LinearGradient(
+      stops: [
+        .init(color: .clear, location: Constants.bottomGradientOverlayStartLocation),
+        .init(
+          color: Color(Colors.Icon.dark.uiColor()).opacity(Constants.bottomGradientOverlayOpacity),
+          location: Constants.bottomGradientOverlayEndLocation
+        )
+      ],
+      startPoint: .top,
+      endPoint: .bottom
+    )
+  }
+}

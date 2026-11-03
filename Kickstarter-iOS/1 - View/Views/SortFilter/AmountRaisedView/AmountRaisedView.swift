@@ -1,0 +1,40 @@
+import KDS
+import KsApi
+
+import SwiftUI
+
+public struct AmountRaisedView: View {
+  var buckets: [DiscoveryParams.AmountRaisedBucket]
+  @Binding var selectedBucket: DiscoveryParams.AmountRaisedBucket?
+
+  public var body: some View {
+    VStack(alignment: .leading, spacing: Constants.spacing) {
+      ForEach(self.buckets) { bucket in
+        Button {
+          self.selectedBucket = bucket
+        } label: {
+          HStack(spacing: Constants.buttonLabelSpacing) {
+            RadioButton(isSelected: bucket == self.selectedBucket)
+            Text(bucket.title)
+              .font(InterFont.bodyLG.swiftUIFont())
+              .foregroundStyle(Colors.Text.primary.swiftUIColor())
+          }
+        }
+      }
+    }
+    .padding(Constants.padding)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+
+  internal enum Constants {
+    static let padding = Spacing.unit_06
+    static let spacing = Spacing.unit_06
+    static let buttonLabelSpacing = Spacing.unit_02
+  }
+}
+
+extension DiscoveryParams.AmountRaisedBucket: @retroactive Identifiable {
+  public var id: Int {
+    return self.rawValue
+  }
+}

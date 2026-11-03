@@ -1,7 +1,7 @@
 # Complete the CFA application structure
 
 Author: Matthew Thomas. 3 November 2026.
-Status: planned; structural consolidation has not yet been implemented.
+Status: structural cutover implemented; 2,772 regression tests passed. Runtime smoke validation and final app-wide gates are tracked in MIGRATION_REMAINING_WORK.md.
 
 ## Binding destination
 
