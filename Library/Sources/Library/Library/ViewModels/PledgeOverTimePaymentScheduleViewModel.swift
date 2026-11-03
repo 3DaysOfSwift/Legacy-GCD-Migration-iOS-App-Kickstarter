@@ -5,17 +5,20 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol PledgeOverTimePaymentScheduleViewModelInputs {
   func configure(with increments: [PledgePaymentIncrement])
   func collapseToggle()
   func viewDidLoad()
 }
 
+@MainActor
 public protocol PledgeOverTimePaymentScheduleViewModelOutputs {
   var collapsed: Signal<Bool, Never> { get }
   var paymentScheduleItems: Signal<[PLOTPaymentScheduleItem], Never> { get }
 }
 
+@MainActor
 public protocol PledgeOverTimePaymentScheduleViewModelType {
   var inputs: PledgeOverTimePaymentScheduleViewModelInputs { get }
   var outputs: PledgeOverTimePaymentScheduleViewModelOutputs { get }
@@ -76,6 +79,7 @@ public struct PLOTPaymentScheduleItem: Equatable {
   public var badgeStyle: BadgeStyle
   public var amountString: String
 
+  @MainActor
   init(with increment: PledgePaymentIncrement) {
     self.dateString = Format.date(
       secondsInUTC: increment.scheduledCollection,

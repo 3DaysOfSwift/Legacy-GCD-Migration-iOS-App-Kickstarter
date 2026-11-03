@@ -32,10 +32,12 @@ public enum DiscoveryProjectTagPillCellType: Equatable {
 public typealias BoldedAttributedLabelData = (boldedString: String, inString: String)
 public typealias FacepileViewData = (avatars: [URL], description: String)
 
+@MainActor
 public protocol DiscoveryProjectCardViewModelInputs {
   func configure(with value: DiscoveryProjectCellRowValue)
 }
 
+@MainActor
 public protocol DiscoveryProjectCardViewModelOutputs {
   var backerCountLabelData: Signal<BoldedAttributedLabelData, Never> { get }
   var facepileViewData: Signal<FacepileViewData, Never> { get }
@@ -52,11 +54,13 @@ public protocol DiscoveryProjectCardViewModelOutputs {
   var youreABackerViewHidden: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol DiscoveryProjectCardViewModelType {
   var inputs: DiscoveryProjectCardViewModelInputs { get }
   var outputs: DiscoveryProjectCardViewModelOutputs { get }
 }
 
+@MainActor
 public final class DiscoveryProjectCardViewModel: DiscoveryProjectCardViewModelType,
   DiscoveryProjectCardViewModelInputs, DiscoveryProjectCardViewModelOutputs {
   public init() {

@@ -41,11 +41,13 @@ private enum PostcardMetadataType {
   }
 }
 
+@MainActor
 public protocol DiscoveryPostcardViewModelInputs {
   /// Call with the data provided to the view controller.
   func configure(with value: DiscoveryProjectCellRowValue)
 }
 
+@MainActor
 public protocol DiscoveryPostcardViewModelOutputs {
   /// Emits a string to use for the backers title label.
   var backersTitleLabelText: Signal<String, Never> { get }
@@ -144,11 +146,13 @@ public protocol DiscoveryPostcardViewModelOutputs {
   var socialStackViewHidden: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol DiscoveryPostcardViewModelType {
   var inputs: DiscoveryPostcardViewModelInputs { get }
   var outputs: DiscoveryPostcardViewModelOutputs { get }
 }
 
+@MainActor
 public final class DiscoveryPostcardViewModel: DiscoveryPostcardViewModelType,
   DiscoveryPostcardViewModelInputs, DiscoveryPostcardViewModelOutputs {
   public init() {

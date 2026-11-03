@@ -31,11 +31,13 @@ public struct ManagePledgeSummaryViewData: Equatable {
   public let project: Project?
 }
 
+@MainActor
 public protocol ManagePledgeSummaryViewModelInputs {
   func configureWith(_ data: ManagePledgeSummaryViewData)
   func viewDidLoad()
 }
 
+@MainActor
 public protocol ManagePledgeSummaryViewModelOutputs {
   var backerImageURLAndPlaceholderImageName: Signal<(URL, String), Never> { get }
   var backerNameLabelHidden: Signal<Bool, Never> { get }
@@ -50,11 +52,13 @@ public protocol ManagePledgeSummaryViewModelOutputs {
   var totalAmountText: Signal<NSAttributedString, Never> { get }
 }
 
+@MainActor
 public protocol ManagePledgeSummaryViewModelType {
   var inputs: ManagePledgeSummaryViewModelInputs { get }
   var outputs: ManagePledgeSummaryViewModelOutputs { get }
 }
 
+@MainActor
 public class ManagePledgeSummaryViewModel: ManagePledgeSummaryViewModelType,
   ManagePledgeSummaryViewModelInputs, ManagePledgeSummaryViewModelOutputs {
   public init() {
@@ -100,7 +104,7 @@ public class ManagePledgeSummaryViewModel: ManagePledgeSummaryViewModelType,
       .map { Strings.backer_modal_backer_number(backer_number: Format.wholeNumber($0)) }
 
     self.backingDateText = data.map(\.pledgedOn)
-      .map(formattedPledgeDate)
+      .map { formattedPledgeDate($0) }
 
     self.totalAmountText = data.map { ($0.currencyCode, $0.pledgeAmount, $0.omitUSCurrencyCode) }
       .map { currencyCode, pledgeAmount, omitUSCurrencyCode in
@@ -139,6 +143,7 @@ public class ManagePledgeSummaryViewModel: ManagePledgeSummaryViewModelType,
   public var outputs: ManagePledgeSummaryViewModelOutputs { return self }
 }
 
+@MainActor
 private func formattedPledgeDate(_ timeInterval: TimeInterval) -> String {
   let formattedDate = Format.date(secondsInUTC: timeInterval, dateStyle: .long, timeStyle: .none)
   return Strings.As_of_pledge_date(pledge_date: formattedDate)
@@ -176,6 +181,7 @@ private func pledgeStatusLabelViewData(with data: ManagePledgeSummaryViewData) -
   )
 }
 
+@MainActor
 private func attributedCurrency(
   with currencyCode: String,
   amount: Double,

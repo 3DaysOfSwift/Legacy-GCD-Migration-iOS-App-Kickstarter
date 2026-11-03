@@ -3,6 +3,7 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol FindFriendsStatsCellViewModelInputs {
   /// Call to set with stats and the source from whence it comes
   func configureWith(stats: FriendStatsEnvelope, source: FriendsSource)
@@ -11,6 +12,7 @@ public protocol FindFriendsStatsCellViewModelInputs {
   func followAllButtonTapped()
 }
 
+@MainActor
 public protocol FindFriendsStatsCellViewModelOutputs {
   /// Emits total friends' backed projects text
   var backedProjectsCountText: Signal<String, Never> { get }
@@ -28,11 +30,13 @@ public protocol FindFriendsStatsCellViewModelOutputs {
   var notifyDelegateShowFollowAllFriendsAlert: Signal<Int, Never> { get }
 }
 
+@MainActor
 public protocol FindFriendsStatsCellViewModelType {
   var inputs: FindFriendsStatsCellViewModelInputs { get }
   var outputs: FindFriendsStatsCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class FindFriendsStatsCellViewModel: FindFriendsStatsCellViewModelType,
   FindFriendsStatsCellViewModelInputs, FindFriendsStatsCellViewModelOutputs {
   public init() {

@@ -5,6 +5,7 @@ import KsApi
 @testable import LibraryTestHelpers
 import XCTest
 
+@MainActor
 final class FormatTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 

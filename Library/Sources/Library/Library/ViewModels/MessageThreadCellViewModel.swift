@@ -4,11 +4,13 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol MessageThreadCellViewModelInputs {
   func configureWith(messageThread: MessageThread)
   func setSelected(_ selected: Bool)
 }
 
+@MainActor
 public protocol MessageThreadCellViewModelOutputs {
   var date: Signal<String, Never> { get }
   var dateAccessibilityLabel: Signal<String, Never> { get }
@@ -20,11 +22,13 @@ public protocol MessageThreadCellViewModelOutputs {
   var unreadIndicatorHidden: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol MessageThreadCellViewModelType {
   var inputs: MessageThreadCellViewModelInputs { get }
   var outputs: MessageThreadCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class MessageThreadCellViewModel: MessageThreadCellViewModelType,
   MessageThreadCellViewModelInputs, MessageThreadCellViewModelOutputs {
   public init() {

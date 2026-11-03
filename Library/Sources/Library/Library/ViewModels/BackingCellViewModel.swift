@@ -2,10 +2,12 @@ import KsApi
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol BackingCellViewModelInputs {
   func configureWith(backing: Backing, project: Project, isFromBacking: Bool)
 }
 
+@MainActor
 public protocol BackingCellViewModelOutputs {
   /// Emits a boolean whether the backing info button is hidden or not.
   var backingInfoButtonIsHidden: Signal<Bool, Never> { get }
@@ -16,11 +18,13 @@ public protocol BackingCellViewModelOutputs {
   var rootStackViewAlignment: Signal<UIStackView.Alignment, Never> { get }
 }
 
+@MainActor
 public protocol BackingCellViewModelType {
   var inputs: BackingCellViewModelInputs { get }
   var outputs: BackingCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class BackingCellViewModel: BackingCellViewModelType, BackingCellViewModelInputs,
   BackingCellViewModelOutputs {
   public init() {

@@ -12,6 +12,7 @@ public struct ManagePledgePaymentMethodViewData: Equatable {
   public let paymentType: PaymentType?
 }
 
+@MainActor
 public protocol ManagePledgePaymentMethodViewModelInputs {
   /// Call to configure payment method section the values from a backing
   func configureWith(data: ManagePledgePaymentMethodViewData)
@@ -20,6 +21,7 @@ public protocol ManagePledgePaymentMethodViewModelInputs {
   func fixButtonTapped()
 }
 
+@MainActor
 public protocol ManagePledgePaymentMethodViewModelOutputs {
   /// Emits the card's image.
   var cardImageName: Signal<String, Never> { get }
@@ -40,11 +42,13 @@ public protocol ManagePledgePaymentMethodViewModelOutputs {
   var notifyDelegateFixButtonTapped: Signal<Void, Never> { get }
 }
 
+@MainActor
 public protocol ManagePledgePaymentMethodViewModelType {
   var inputs: ManagePledgePaymentMethodViewModelInputs { get }
   var outputs: ManagePledgePaymentMethodViewModelOutputs { get }
 }
 
+@MainActor
 public final class ManagePledgePaymentMethodViewModel: ManagePledgePaymentMethodViewModelInputs,
   ManagePledgePaymentMethodViewModelOutputs, ManagePledgePaymentMethodViewModelType {
   public init() {
@@ -148,6 +152,7 @@ private func paymentMethodAccessibilityLabel(
     .joined(separator: ", ")
 }
 
+@MainActor
 private func formatted(dateString: String) -> String {
   let date = toDate(dateString: dateString)
   return Format.date(
@@ -157,6 +162,7 @@ private func formatted(dateString: String) -> String {
   )
 }
 
+@MainActor
 private func toDate(dateString: String) -> Date {
   // Always use UTC timezone here this date should be timezone agnostic
   guard let date = Format.date(

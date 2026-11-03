@@ -2,6 +2,7 @@
 @testable import LibraryTestHelpers
 import XCTest
 
+@MainActor
 class LocalizedLottieFileTests: XCTestCase {
   func testReturnsLocalizedLottieFile_ForEachSupportedLanguage() {
     let testBundle = Bundle.library

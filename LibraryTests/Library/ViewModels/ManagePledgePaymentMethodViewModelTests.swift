@@ -7,7 +7,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class ManagePledgePaymentMethodViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   internal let vm: ManagePledgePaymentMethodViewModelType = ManagePledgePaymentMethodViewModel()
 
   private let cardImageName = TestObserver<String, Never>()
@@ -17,8 +20,8 @@ final class ManagePledgePaymentMethodViewModelTests: TestCase {
   private let fixButtonHidden = TestObserver<Bool, Never>()
   private let notifyDelegateFixButtonTapped = TestObserver<Void, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.cardImageName.observe(self.cardImageName.observer)
     self.vm.outputs.cardNumberAccessibilityLabel.observe(self.cardNumberAccessibilityLabel.observer)

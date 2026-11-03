@@ -41,7 +41,7 @@ public func localizedString(
     .flatMap { key + "." + keySuffixForCount($0) }
     .coalesceWith(key)
 
-  let lprojName = lprojFileNameForLanguage(env?.language ?? LocalizationLanguage.current)
+  let lprojName = lprojFileNameForLanguage(env?.language ?? LocalizationValues.currentLanguage)
   let localized = bundle.path(forResource: lprojName, ofType: "lproj")
     .flatMap(type(of: bundle).create(path:))
     .flatMap { $0.localizedString(forKey: augmentedKey, value: nil, table: nil) }
@@ -86,17 +86,22 @@ private func substitute(_ string: String, with substitutions: [String: String]) 
 public let stringsBundle = Bundle.library
 
 /// A value-only projection for synchronous localization, including background error descriptions.
-/// AppEnvironment publishes language changes; readers never access its service or session references.
-internal enum LocalizationLanguage {
-  private static let language = Mutex<Language>(
-    Language(languageStrings: Locale.preferredLanguages) ?? .en
-  )
-
-  static var current: Language {
-    self.language.withLock { $0 }
+/// AppEnvironment publishes language/locale changes; readers never access its service or session references.
+internal enum LocalizationValues {
+  private struct Snapshot: Sendable {
+    var language: Language
+    var locale: Locale
   }
 
-  static func update(_ language: Language) {
-    self.language.withLock { $0 = language }
+  private static let values = Mutex(Snapshot(
+    language: Language(languageStrings: Locale.preferredLanguages) ?? .en,
+    locale: .current
+  ))
+
+  static var currentLanguage: Language { self.values.withLock { $0.language } }
+  static var currentLocale: Locale { self.values.withLock { $0.locale } }
+
+  static func update(language: Language, locale: Locale) {
+    self.values.withLock { $0 = Snapshot(language: language, locale: locale) }
   }
 }

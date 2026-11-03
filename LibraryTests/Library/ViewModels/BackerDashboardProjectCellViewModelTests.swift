@@ -9,7 +9,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class BackerDashboardProjectCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   private let vm: BackerDashboardProjectCellViewModelType = BackerDashboardProjectCellViewModel()
 
   private let metadataIconIsHidden = TestObserver<Bool, Never>()
@@ -22,8 +25,8 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
   private let projectTitleText = TestObserver<String, Never>()
   private let savedIconIsHidden = TestObserver<Bool, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     self.vm.outputs.metadataIconIsHidden.observe(self.metadataIconIsHidden.observer)
     self.vm.outputs.metadataText.observe(self.metadataText.observer)
     self.vm.outputs.percentFundedText.map { $0.string }.observe(self.percentFundedText.observer)

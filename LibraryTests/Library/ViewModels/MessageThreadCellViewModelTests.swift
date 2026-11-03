@@ -7,7 +7,10 @@ import Prelude
 import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 
+@MainActor
 final class MessageThreadCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   fileprivate let vm: MessageThreadCellViewModelType = MessageThreadCellViewModel()
 
   fileprivate let date = TestObserver<String, Never>()
@@ -19,8 +22,8 @@ final class MessageThreadCellViewModelTests: TestCase {
   fileprivate let replyIndicatorHidden = TestObserver<Bool, Never>()
   fileprivate let unreadIndicatorHidden = TestObserver<Bool, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.date.observe(self.date.observer)
     self.vm.outputs.dateAccessibilityLabel.observe(self.dateAccessibilityLabel.observer)

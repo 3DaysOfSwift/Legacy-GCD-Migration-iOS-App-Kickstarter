@@ -10,20 +10,24 @@ public struct PledgeShippingSummaryViewData: Equatable {
   public let total: Double
 }
 
+@MainActor
 public protocol PledgeShippingSummaryViewModelInputs {
   func configure(with data: PledgeShippingSummaryViewData)
 }
 
+@MainActor
 public protocol PledgeShippingSummaryViewModelOutputs {
   var amountLabelAttributedText: Signal<NSAttributedString, Never> { get }
   var locationLabelText: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol PledgeShippingSummaryViewModelType {
   var inputs: PledgeShippingSummaryViewModelInputs { get }
   var outputs: PledgeShippingSummaryViewModelOutputs { get }
 }
 
+@MainActor
 public class PledgeShippingSummaryViewModel: PledgeShippingSummaryViewModelType,
   PledgeShippingSummaryViewModelInputs, PledgeShippingSummaryViewModelOutputs {
   public init() {
@@ -50,6 +54,7 @@ public class PledgeShippingSummaryViewModel: PledgeShippingSummaryViewModelType,
   public var outputs: PledgeShippingSummaryViewModelOutputs { return self }
 }
 
+@MainActor
 private func attributedCurrency(
   with currencyCode: String,
   omitCurrencyCode: Bool,

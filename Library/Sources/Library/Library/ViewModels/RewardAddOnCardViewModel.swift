@@ -301,6 +301,7 @@ private func amountStringForReward(
   )
 }
 
+@MainActor
 private func itemsLabelAttributedText(_ items: [RewardsItem]) -> NSAttributedString? {
   guard !items.isEmpty else { return nil }
 
@@ -348,6 +349,7 @@ private func backingReward(fromProject project: Project) -> Reward? {
     .coalesceWith(.noReward)
 }
 
+@MainActor
 private func pillValues(project: Project, reward: Reward) -> [String] {
   return [
     timeLeftString(project: project, reward: reward),
@@ -357,6 +359,7 @@ private func pillValues(project: Project, reward: Reward) -> [String] {
   .compact()
 }
 
+@MainActor
 private func timeLeftString(project: Project, reward: Reward) -> String? {
   let isUnlimitedOrAvailable = reward.limit == nil || reward.remaining ?? 0 > 0
 

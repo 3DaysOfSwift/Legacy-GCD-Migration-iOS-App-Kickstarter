@@ -30,6 +30,7 @@ public enum SelectionIndicatorImageName: String {
   case unselected = "icon-payment-method-unselected"
 }
 
+@MainActor
 public protocol PledgePaymentPlansOptionViewModelInputs {
   func configureWith(data: PledgePaymentPlanOptionData)
   func optionTapped()
@@ -37,6 +38,7 @@ public protocol PledgePaymentPlansOptionViewModelInputs {
   func refreshSelectedType(_ selectedType: PledgePaymentPlansType)
 }
 
+@MainActor
 public protocol PledgePaymentPlansOptionViewModelOutputs {
   var titleText: Signal<String, Never> { get }
   var subtitleText: Signal<String, Never> { get }
@@ -51,11 +53,13 @@ public protocol PledgePaymentPlansOptionViewModelOutputs {
   var plotSelectedStackViewHidden: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol PledgePaymentPlansOptionViewModelType {
   var inputs: PledgePaymentPlansOptionViewModelInputs { get }
   var outputs: PledgePaymentPlansOptionViewModelOutputs { get }
 }
 
+@MainActor
 public final class PledgePaymentPlansOptionViewModel:
   PledgePaymentPlansOptionViewModelType,
   PledgePaymentPlansOptionViewModelInputs,

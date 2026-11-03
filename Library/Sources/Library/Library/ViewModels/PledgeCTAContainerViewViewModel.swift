@@ -255,6 +255,7 @@ private func pledgeCTA(project: Project, backing: Backing?) -> PledgeStateCTATyp
   }
 }
 
+@MainActor
 private func subtitle(project: Project, pledgeState: PledgeStateCTAType) -> String {
   guard let backing = project.personalization.backing else { return "" }
 
@@ -275,6 +276,7 @@ private func subtitle(project: Project, pledgeState: PledgeStateCTAType) -> Stri
   return "\(amount) • \(rewardTitle)"
 }
 
+@MainActor
 private func formattedPledge(amount: Double, project: Project) -> String {
   let numberOfDecimalPlaces = amount.truncatingRemainder(dividingBy: 1) == 0 ? 0 : 2
   let formattedAmount = String(format: "%.\(numberOfDecimalPlaces)f", amount)

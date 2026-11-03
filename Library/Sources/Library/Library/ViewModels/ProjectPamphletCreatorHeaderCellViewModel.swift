@@ -4,24 +4,28 @@ import KsApi
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol ProjectPamphletCreatorHeaderCellViewModelInputs {
   func configure(with project: Project)
 }
 
+@MainActor
 public protocol ProjectPamphletCreatorHeaderCellViewModelOutputs {
   var launchDateLabelAttributedText: Signal<NSAttributedString, Never> { get }
 }
 
+@MainActor
 public protocol ProjectPamphletCreatorHeaderCellViewModelType {
   var inputs: ProjectPamphletCreatorHeaderCellViewModelInputs { get }
   var outputs: ProjectPamphletCreatorHeaderCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class ProjectPamphletCreatorHeaderCellViewModel: ProjectPamphletCreatorHeaderCellViewModelType,
   ProjectPamphletCreatorHeaderCellViewModelInputs, ProjectPamphletCreatorHeaderCellViewModelOutputs {
   public init() {
     self.launchDateLabelAttributedText = self.projectSignal
-      .map(attributedLaunchDateString(with:))
+      .map { attributedLaunchDateString(with: $0) }
       .skipNil()
   }
 
@@ -36,6 +40,7 @@ public final class ProjectPamphletCreatorHeaderCellViewModel: ProjectPamphletCre
   public var outputs: ProjectPamphletCreatorHeaderCellViewModelOutputs { return self }
 }
 
+@MainActor
 private func attributedLaunchDateString(with project: Project) -> NSAttributedString? {
   var launchDate = ""
 

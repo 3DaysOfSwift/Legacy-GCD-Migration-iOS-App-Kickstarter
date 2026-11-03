@@ -7,14 +7,17 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class PledgeShippingSummaryViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   private let vm: PledgeShippingSummaryViewModelType = PledgeShippingSummaryViewModel()
 
   private let amountLabelAttributedText = TestObserver<String, Never>()
   private let locationLabelText = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.amountLabelAttributedText.map(\.string).observe(self.amountLabelAttributedText.observer)
     self.vm.outputs.locationLabelText.observe(self.locationLabelText.observer)

@@ -85,7 +85,7 @@ public class ManageViewPledgeRewardReceivedViewModel:
     )
 
     self.estimatedDeliveryDateLabelAttributedText = data.map(\.estimatedDeliveryOn)
-      .map(estimatedDeliveryAttributedText)
+      .map { estimatedDeliveryAttributedText(with: $0) }
 
     self.estimatedShippingAttributedText = data.map(\.estimatedShipping).skipNil()
       .map(formatEstimatedShipping)
@@ -147,6 +147,7 @@ private func formatEstimatedShipping(with shippingRange: String) -> NSAttributed
   return attributedText(totalString: totalString, valueSubstring: shippingRange)
 }
 
+@MainActor
 private func estimatedDeliveryAttributedText(with date: TimeInterval) -> NSAttributedString {
   let dateString = Format.date(
     secondsInUTC: date,

@@ -8,7 +8,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class PledgeOverTimePaymentScheduleViewModelTest: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   // MARK: Properties
 
   private var vm: PledgeOverTimePaymentScheduleViewModelType = PledgeOverTimePaymentScheduleViewModel()
@@ -23,8 +26,8 @@ final class PledgeOverTimePaymentScheduleViewModelTest: TestCase {
 
   // MARK: Lifecycle
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.collapsed
       .observe(self.collapsed.observer)

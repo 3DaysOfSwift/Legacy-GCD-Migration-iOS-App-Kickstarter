@@ -4,11 +4,13 @@ import KsApi
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol BackerDashboardProjectCellViewModelInputs {
   /// Call to configure with a backed project.
   func configureWith(project: any BackerDashboardProjectCellViewModel.ProjectCellModel)
 }
 
+@MainActor
 public protocol BackerDashboardProjectCellViewModelOutputs {
   /// Emits a boolean whether to show the metadata timer icon.
   var metadataIconIsHidden: Signal<Bool, Never> { get }
@@ -41,11 +43,13 @@ public protocol BackerDashboardProjectCellViewModelOutputs {
   var prelaunchProject: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol BackerDashboardProjectCellViewModelType {
   var inputs: BackerDashboardProjectCellViewModelInputs { get }
   var outputs: BackerDashboardProjectCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class BackerDashboardProjectCellViewModel: BackerDashboardProjectCellViewModelType,
   BackerDashboardProjectCellViewModelInputs, BackerDashboardProjectCellViewModelOutputs {
   public protocol HasProjectCellModel {
@@ -68,7 +72,7 @@ public final class BackerDashboardProjectCellViewModel: BackerDashboardProjectCe
   public init() {
     let project = self.projectProperty.signal.skipNil()
 
-    self.projectTitleText = project.map(titleString(for:))
+    self.projectTitleText = project.map { titleString(for: $0) }
 
     self.photoURL = project.map { project in
       guard let urlString = project.imageURL else {
@@ -80,9 +84,9 @@ public final class BackerDashboardProjectCellViewModel: BackerDashboardProjectCe
 
     self.progress = project.map { $0.fundingProgress }
 
-    self.metadataBackgroundColor = project.map(metadataBackgroundColorForProject)
+    self.metadataBackgroundColor = project.map { metadataBackgroundColorForProject($0) }
 
-    self.metadataText = project.map(metadataString(for:))
+    self.metadataText = project.map { metadataString(for: $0) }
 
     self.metadataIconIsHidden = project.map { project in
       guard !isProjectPrelaunch(project) else { return true }

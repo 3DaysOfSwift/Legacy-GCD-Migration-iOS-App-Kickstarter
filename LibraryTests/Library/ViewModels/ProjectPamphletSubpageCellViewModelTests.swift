@@ -9,7 +9,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class ProjectPamphletSubpageCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   private var vm: ProjectPamphletSubpageCellViewModelType!
 
   private let countLabelBackgroundColor = TestObserver<UIColor, Never>()
@@ -21,8 +24,8 @@ internal final class ProjectPamphletSubpageCellViewModelTests: TestCase {
   private let topSeparatorViewHidden = TestObserver<Bool, Never>()
   private let separatorViewHidden = TestObserver<Bool, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm = ProjectPamphletSubpageCellViewModel()
 

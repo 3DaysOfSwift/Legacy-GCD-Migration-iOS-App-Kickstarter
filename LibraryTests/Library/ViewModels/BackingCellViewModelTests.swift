@@ -7,7 +7,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import UIKit
 
+@MainActor
 internal final class BackingCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   fileprivate let vm: BackingCellViewModelType = BackingCellViewModel()
 
   private let backingInfoButtonIsHidden = TestObserver<Bool, Never>()
@@ -16,8 +19,8 @@ internal final class BackingCellViewModelTests: TestCase {
   fileprivate let reward = TestObserver<String, Never>()
   fileprivate let rootStackViewAlignment = TestObserver<UIStackView.Alignment, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.backingInfoButtonIsHidden.observe(self.backingInfoButtonIsHidden.observer)
     self.vm.outputs.pledged.observe(self.pledged.observer)

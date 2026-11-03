@@ -37,22 +37,26 @@ public struct PledgeExpandableRewardsHeaderViewData {
   public let omitCurrencyCode: Bool
 }
 
+@MainActor
 public protocol PledgeExpandableRewardsHeaderViewModelInputs {
   func configure(with data: PledgeExpandableRewardsHeaderViewData)
   func expandButtonTapped()
   func viewDidLoad()
 }
 
+@MainActor
 public protocol PledgeExpandableRewardsHeaderViewModelOutputs {
   var loadRewardsIntoDataSource: Signal<[PledgeExpandableRewardsHeaderItem], Never> { get }
   var expandRewards: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol PledgeExpandableRewardsHeaderViewModelType {
   var inputs: PledgeExpandableRewardsHeaderViewModelInputs { get }
   var outputs: PledgeExpandableRewardsHeaderViewModelOutputs { get }
 }
 
+@MainActor
 public final class PledgeExpandableRewardsHeaderViewModel: PledgeExpandableRewardsHeaderViewModelType,
   PledgeExpandableRewardsHeaderViewModelInputs, PledgeExpandableRewardsHeaderViewModelOutputs {
   public init() {
@@ -133,6 +137,7 @@ public final class PledgeExpandableRewardsHeaderViewModel: PledgeExpandableRewar
 
 // MARK: - Functions
 
+@MainActor
 private func items(
   with data: PledgeExpandableRewardsHeaderViewData,
   selectedQuantities: SelectedRewardQuantities,
@@ -174,6 +179,7 @@ private func items(
   return [headerItem] + rewardItems
 }
 
+@MainActor
 private func attributedHeaderCurrency(
   with currencyCode: String,
   amount: Double,
@@ -196,6 +202,7 @@ private func attributedHeaderCurrency(
   return attributedCurrency
 }
 
+@MainActor
 private func attributedRewardCurrency(
   with currencyCode: String,
   amount: Double,

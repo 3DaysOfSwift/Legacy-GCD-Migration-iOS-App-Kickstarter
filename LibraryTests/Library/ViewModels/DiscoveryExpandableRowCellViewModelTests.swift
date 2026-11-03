@@ -8,7 +8,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class DiscoveryExpandableRowCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   fileprivate let vm: DiscoveryExpandableRowCellViewModelType = DiscoveryExpandableRowCellViewModel()
 
   fileprivate let cellAccessibilityHint = TestObserver<String, Never>()
@@ -21,8 +24,8 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
   fileprivate let projectsCountLabelHidden = TestObserver<Bool, Never>()
   fileprivate let projectsCountLabelText = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.cellAccessibilityHint.observe(self.cellAccessibilityHint.observer)
     self.vm.outputs.cellAccessibilityLabel.observe(self.cellAccessibilityLabel.observer)

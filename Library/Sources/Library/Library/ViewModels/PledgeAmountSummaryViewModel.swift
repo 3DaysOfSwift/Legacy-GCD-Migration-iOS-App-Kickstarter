@@ -17,11 +17,13 @@ public struct PledgeAmountSummaryViewData {
   public let rewardIsLocalPickup: Bool
 }
 
+@MainActor
 public protocol PledgeAmountSummaryViewModelInputs {
   func configureWith(_ data: PledgeAmountSummaryViewData)
   func viewDidLoad()
 }
 
+@MainActor
 public protocol PledgeAmountSummaryViewModelOutputs {
   var bonusAmountText: Signal<NSAttributedString, Never> { get }
   var bonusAmountStackViewIsHidden: Signal<Bool, Never> { get }
@@ -31,11 +33,13 @@ public protocol PledgeAmountSummaryViewModelOutputs {
   var shippingLocationText: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol PledgeAmountSummaryViewModelType {
   var inputs: PledgeAmountSummaryViewModelInputs { get }
   var outputs: PledgeAmountSummaryViewModelOutputs { get }
 }
 
+@MainActor
 public class PledgeAmountSummaryViewModel: PledgeAmountSummaryViewModelType,
   PledgeAmountSummaryViewModelInputs, PledgeAmountSummaryViewModelOutputs {
   public init() {
@@ -103,11 +107,13 @@ public class PledgeAmountSummaryViewModel: PledgeAmountSummaryViewModelType,
   public var outputs: PledgeAmountSummaryViewModelOutputs { return self }
 }
 
+@MainActor
 private func formattedPledgeDate(_ backing: Backing) -> String {
   let formattedDate = Format.date(secondsInUTC: backing.pledgedAt, dateStyle: .long, timeStyle: .none)
   return Strings.As_of_pledge_date(pledge_date: formattedDate)
 }
 
+@MainActor
 private func attributedCurrency(
   with currencyCode: String,
   amount: Double,
@@ -127,6 +133,7 @@ private func attributedCurrency(
   return attributedCurrency
 }
 
+@MainActor
 private func plusSignAmount(
   with currencyCode: String,
   amount: Double,

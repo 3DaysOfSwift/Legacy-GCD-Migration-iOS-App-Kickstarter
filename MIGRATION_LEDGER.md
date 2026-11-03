@@ -2,6 +2,20 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## Formatter defaults and presentation ownership — 3 November 2026
+
+Environment-backed formatter conveniences and their dashboard, discovery, messaging,
+reward and payment-plan presentation callers now declare MainActor ownership. Explicit-value
+formatting remains available off actor. Synchronous generated strings use a Mutex-protected
+language/locale projection, including whole-number formatting; nested overrides restore both.
+
+469 selected tests passed, zero failures/skips; app build and framework build-for-testing
+passed. The concurrent formatter stress test still executes 256 child tasks. New tests cover
+background number formatting, nested locale restoration and explicit Environment overrides.
+Nonvisual fixtures declare their runtime exemption individually; snapshot guards/assertions
+remain unchanged. An unused comment snapshot ViewModel fixture was removed.
+Evidence: kickstarter-format-owners. Global Environment stack isolation remains next.
+
 ## Pledge presentation and country dependencies — 3 November 2026
 
 Pledge amount/add-on card/summary ViewModels and their protocols now declare MainActor, along

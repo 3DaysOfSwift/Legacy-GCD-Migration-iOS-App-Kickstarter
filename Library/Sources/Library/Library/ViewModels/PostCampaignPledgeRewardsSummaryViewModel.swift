@@ -39,6 +39,7 @@ public struct PostCampaignRewardsSummaryViewData {
   let useLatePledgeCosts: Bool
 }
 
+@MainActor
 public protocol PostCampaignPledgeRewardsSummaryViewModelInputs {
   func configureWith(
     rewardsData: PostCampaignRewardsSummaryViewData,
@@ -48,6 +49,7 @@ public protocol PostCampaignPledgeRewardsSummaryViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol PostCampaignPledgeRewardsSummaryViewModelOutputs {
   var configurePledgeTotalViewWithData: Signal<PledgeSummaryViewData, Never> { get }
   var loadRewardsIntoDataSource: Signal<
@@ -56,11 +58,13 @@ public protocol PostCampaignPledgeRewardsSummaryViewModelOutputs {
   > { get }
 }
 
+@MainActor
 public protocol PostCampaignPledgeRewardsSummaryViewModelType {
   var inputs: PostCampaignPledgeRewardsSummaryViewModelInputs { get }
   var outputs: PostCampaignPledgeRewardsSummaryViewModelOutputs { get }
 }
 
+@MainActor
 public final class PostCampaignPledgeRewardsSummaryViewModel: PostCampaignPledgeRewardsSummaryViewModelType,
   PostCampaignPledgeRewardsSummaryViewModelInputs, PostCampaignPledgeRewardsSummaryViewModelOutputs {
   public init() {
@@ -164,6 +168,7 @@ public final class PostCampaignPledgeRewardsSummaryViewModel: PostCampaignPledge
 
 // MARK: - Functions
 
+@MainActor
 private func items(
   with data: PostCampaignRewardsSummaryViewData,
   selectedQuantities: SelectedRewardQuantities,
@@ -244,6 +249,7 @@ private func items(
   return items
 }
 
+@MainActor
 private func attributedRewardCurrency(
   with currencyCode: String,
   amount: Double,

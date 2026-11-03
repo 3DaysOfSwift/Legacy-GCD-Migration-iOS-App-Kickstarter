@@ -8,7 +8,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class PledgeAmountSummaryViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   private let vm: PledgeAmountSummaryViewModelType = PledgeAmountSummaryViewModel()
 
   private let bonusAmountText = TestObserver<String, Never>()
@@ -18,8 +21,8 @@ final class PledgeAmountSummaryViewModelTests: TestCase {
   private let shippingLocationStackViewIsHidden = TestObserver<Bool, Never>()
   private let shippingLocationText = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.bonusAmountText.map { $0.string }
       .observe(self.bonusAmountText.observer)

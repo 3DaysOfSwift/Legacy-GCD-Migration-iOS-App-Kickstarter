@@ -8,7 +8,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class MostPopularSearchProjectCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   private let vm: MostPopularSearchProjectCellViewModelType = MostPopularSearchProjectCellViewModel()
 
   private let metadataText = TestObserver<String, Never>()
@@ -19,8 +22,8 @@ internal final class MostPopularSearchProjectCellViewModelTests: TestCase {
   private let projectImageUrl = TestObserver<String, Never>()
   private let projectName = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     self.vm.outputs.metadataText.observe(self.metadataText.observer)
     self.vm.outputs.percentFundedText.map { $0.string }.observe(self.percentFundedText.observer)
     self.vm.outputs.progress.observe(self.progress.observer)

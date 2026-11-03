@@ -9,7 +9,10 @@ import ReactiveSwift
 import XCTest
 
 /* swiftlint:disable force_unwrapping */
+@MainActor
 internal final class DiscoveryPostcardViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   internal let vm = DiscoveryPostcardViewModel()
   internal let backersTitleLabelText = TestObserver<String, Never>()
   internal let cellAccessibilityLabel = TestObserver<String, Never>()
@@ -43,8 +46,8 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
   internal let projectCategoryStackViewHidden = TestObserver<Bool, Never>()
   internal let projectIsStaffPickViewHidden = TestObserver<Bool, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     self.vm.outputs.backersTitleLabelText.observe(self.backersTitleLabelText.observer)
     self.vm.outputs.cellAccessibilityLabel.observe(self.cellAccessibilityLabel.observer)
     self.vm.outputs.cellAccessibilityValue.observe(self.cellAccessibilityValue.observer)

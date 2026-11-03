@@ -7,14 +7,17 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class PledgeExpandableRewardsHeaderViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   internal let vm: PledgeExpandableRewardsHeaderViewModelType = PledgeExpandableRewardsHeaderViewModel()
 
   private let loadRewardsIntoDataSource = TestObserver<[PledgeExpandableRewardsHeaderItem], Never>()
   private let expandRewards = TestObserver<Bool, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.loadRewardsIntoDataSource.observe(self.loadRewardsIntoDataSource.observer)
     self.vm.outputs.expandRewards.observe(self.expandRewards.observer)

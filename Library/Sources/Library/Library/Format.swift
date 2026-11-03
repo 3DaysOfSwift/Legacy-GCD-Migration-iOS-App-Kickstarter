@@ -15,8 +15,8 @@ public enum Format {
 
    - returns: A formatted string.
    */
-  public static func wholeNumber(_ x: Int, env: Environment = AppEnvironment.current) -> String {
-    self.wholeNumber(x, locale: env.locale)
+  public static func wholeNumber(_ x: Int, env: Environment? = nil) -> String {
+    self.wholeNumber(x, locale: env?.locale ?? LocalizationValues.currentLocale)
   }
 
   public static func wholeNumber(_ x: Int, locale: Locale) -> String {
@@ -35,6 +35,7 @@ public enum Format {
 
    - returns: A formatted string.
    */
+  @MainActor
   public static func percentage(_ percentage: Int, env: Environment = AppEnvironment.current) -> String {
     return Format.percentage(Double(percentage) / 100.0, env: env)
   }
@@ -47,6 +48,7 @@ public enum Format {
 
    - returns: A formatted string.
    */
+  @MainActor
   public static func percentage(_ percentage: Double, env: Environment = AppEnvironment.current) -> String {
     self.percentage(percentage, locale: env.locale)
   }
@@ -90,6 +92,7 @@ public enum Format {
 
    - returns: A formatted string.
    */
+  @MainActor
   public static func currency(
     _ amount: Int,
     currencyCode: String,
@@ -104,6 +107,7 @@ public enum Format {
     )
   }
 
+  @MainActor
   public static func currency(
     _ amount: Double,
     currencyCode: String,
@@ -124,6 +128,7 @@ public enum Format {
     )
   }
 
+  @MainActor
   public static func formattedCurrency(
     _ amount: Any,
     currencyCode: String,
@@ -168,6 +173,7 @@ public enum Format {
     }
   }
 
+  @MainActor
   public static func attributedCurrency(
     _ amount: Double,
     currencyCode: String,
@@ -231,6 +237,7 @@ public enum Format {
 
     - returns: A Date object with the specified time zone and locality.
    */
+  @MainActor
   public static func date(
     from dateString: String,
     dateFormat: String,
@@ -271,6 +278,7 @@ public enum Format {
 
    - returns: A formatted string.
    */
+  @MainActor
   public static func date(
     secondsInUTC seconds: TimeInterval,
     dateStyle: DateFormatter.Style = .medium,
@@ -314,6 +322,7 @@ public enum Format {
 
    - returns: A formatted string.
    */
+  @MainActor
   public static func date(
     secondsInUTC seconds: TimeInterval,
     template: String,
@@ -355,6 +364,7 @@ public enum Format {
 
    - returns: A pair of strings for the numeric time value and unit.
    */
+  @MainActor
   public static func duration(
     secondsInUTC seconds: TimeInterval,
     abbreviate: Bool = false,
@@ -437,6 +447,7 @@ public enum Format {
 
    - returns: A formatted string.
    */
+  @MainActor
   public static func relative(
     secondsInUTC seconds: TimeInterval,
     abbreviate: Bool = false,
@@ -517,6 +528,7 @@ public enum Format {
 
    - returns: A formatted string with the appropriate currency symbol and amount, or nil if the fragment is incomplete
    */
+  @MainActor
   public static func currency(
     _ money: GraphAPI.MoneyFragment,
     env: Environment = AppEnvironment.current

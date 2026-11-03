@@ -7,7 +7,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class ProjectFAQsCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   let vm: ProjectFAQsCellViewModelType = ProjectFAQsCellViewModel()
 
   private let faq = ProjectFAQ(
@@ -22,8 +25,8 @@ internal final class ProjectFAQsCellViewModelTests: TestCase {
   private let questionLabelText = TestObserver<String, Never>()
   private let updatedLabelText = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     self.vm.outputs.answerLabelText.observe(self.answerLabelText.observer)
     self.vm.outputs.answerStackViewIsHidden.observe(self.answerStackViewIsHidden.observer)
     self.vm.outputs.configureChevronImageView.observe(self.configureChevronImageView.observer)

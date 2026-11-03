@@ -2,11 +2,13 @@ import KsApi
 import Prelude
 import ReactiveSwift
 
+@MainActor
 public protocol ProjectFAQsCellViewModelInputs {
   /// Call to configure with a tuple of `ProjectFAQ, Bool`. The `Bool` represents whether the cell is expanded.
   func configureWith(value: (ProjectFAQ, Bool))
 }
 
+@MainActor
 public protocol ProjectFAQsCellViewModelOutputs {
   /// Emits a `String` of the answer from the FAQ object
   var answerLabelText: Signal<String, Never> { get }
@@ -24,11 +26,13 @@ public protocol ProjectFAQsCellViewModelOutputs {
   var updatedLabelText: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol ProjectFAQsCellViewModelType {
   var inputs: ProjectFAQsCellViewModelInputs { get }
   var outputs: ProjectFAQsCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class ProjectFAQsCellViewModel:
   ProjectFAQsCellViewModelType, ProjectFAQsCellViewModelInputs, ProjectFAQsCellViewModelOutputs {
   public init() {

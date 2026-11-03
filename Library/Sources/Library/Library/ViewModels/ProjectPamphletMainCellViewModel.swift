@@ -372,6 +372,7 @@ public final class ProjectPamphletMainCellViewModel: ProjectPamphletMainCellView
   public var outputs: ProjectPamphletMainCellViewModelOutputs { return self }
 }
 
+@MainActor
 private func statsStackViewAccessibilityLabelForProperties(
   _ properties: ProjectPamphletMainCellProperties,
   needsConversion: Bool
@@ -415,6 +416,7 @@ private func statsStackViewAccessibilityLabelForProperties(
     )
 }
 
+@MainActor
 private func fundingStatus(forProperties properties: ProjectPamphletMainCellProperties) -> String {
   let date = Format.date(
     secondsInUTC: properties.stateChangedAt,
@@ -455,6 +457,7 @@ private func pledgeAmountAndGoalAndCountry(
   return (Int(pledgedCurrentCurrency), Int(goalCurrentCurrency), userCurrency)
 }
 
+@MainActor
 private func goalText(for properties: ProjectPamphletMainCellProperties, _ needsConversion: Bool) -> String {
   let projectCurrencyData = pledgeAmountAndGoalAndCountry(
     forProperties: properties,
@@ -470,6 +473,7 @@ private func goalText(for properties: ProjectPamphletMainCellProperties, _ needs
   )
 }
 
+@MainActor
 private func pledgedText(
   for properties: ProjectPamphletMainCellProperties,
   _ needsConversion: Bool
@@ -486,6 +490,7 @@ private func pledgedText(
   )
 }
 
+@MainActor
 private func conversionText(for properties: ProjectPamphletMainCellProperties) -> String {
   return Strings.discovery_baseball_card_stats_convert_from_pledged_of_goal(
     pledged: Format.currency(

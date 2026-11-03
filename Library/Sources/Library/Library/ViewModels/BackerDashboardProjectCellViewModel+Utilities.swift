@@ -2,6 +2,7 @@ import Foundation
 import KDS
 import UIKit
 
+@MainActor
 func metadataString(for project: any BackerDashboardProjectCellViewModel.ProjectCellModel) -> String {
   guard !isProjectPrelaunch(project) else { return Strings.Coming_soon() }
 
@@ -18,6 +19,7 @@ func metadataString(for project: any BackerDashboardProjectCellViewModel.Project
   }
 }
 
+@MainActor
 func percentFundedString(
   for project: any BackerDashboardProjectCellViewModel
     .ProjectCellModel,
@@ -39,6 +41,7 @@ func percentFundedString(
   }
 }
 
+@MainActor
 func metadataBackgroundColorForProject(
   _ project: any BackerDashboardProjectCellViewModel
     .ProjectCellModel
@@ -55,6 +58,7 @@ func metadataBackgroundColorForProject(
   }
 }
 
+@MainActor
 func titleString(
   for project: any BackerDashboardProjectCellViewModel
     .ProjectCellModel

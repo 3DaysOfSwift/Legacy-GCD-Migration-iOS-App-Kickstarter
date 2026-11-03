@@ -9,7 +9,10 @@ import ReactiveSwift
 import UIKit.UIActivity
 import XCTest
 
+@MainActor
 final class FindFriendsStatsCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   let vm: FindFriendsStatsCellViewModelType = FindFriendsStatsCellViewModel()
 
   let backedProjectsCountText = TestObserver<String, Never>()
@@ -18,8 +21,8 @@ final class FindFriendsStatsCellViewModelTests: TestCase {
   let hideFollowAllButton = TestObserver<Bool, Never>()
   let showFollowAllFriendsAlert = TestObserver<Int, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.backedProjectsCountText.observe(self.backedProjectsCountText.observer)
     self.vm.outputs.followAllText.observe(self.followAllText.observer)

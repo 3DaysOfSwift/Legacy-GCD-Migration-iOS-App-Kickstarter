@@ -8,7 +8,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class ActivitySampleProjectCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   internal let vm = ActivitySampleProjectCellViewModel()
   internal let cellAccessibilityHint = TestObserver<String, Never>()
   internal let goToActivity = TestObserver<Void, Never>()
@@ -16,8 +19,8 @@ internal final class ActivitySampleProjectCellViewModelTests: TestCase {
   internal let projectTitleText = TestObserver<String, Never>()
   internal let projectImage = TestObserver<String?, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.cellAccessibilityHint.observe(self.cellAccessibilityHint.observer)
     self.vm.outputs.goToActivity.observe(self.goToActivity.observer)

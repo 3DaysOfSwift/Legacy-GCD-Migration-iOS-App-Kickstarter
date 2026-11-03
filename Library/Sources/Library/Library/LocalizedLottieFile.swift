@@ -5,7 +5,7 @@ func localizedOnboardingLottieFile(
   for baseName: String,
   in bundle: Bundle
 ) -> String? {
-  let langCode = LocalizationLanguage.current.rawValue
+  let langCode = LocalizationValues.currentLanguage.rawValue
   let pathToFile = "\(baseName)-\(langCode)"
 
   /// Check if the file exists

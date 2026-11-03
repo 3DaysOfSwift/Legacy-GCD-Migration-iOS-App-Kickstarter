@@ -306,6 +306,7 @@ private func rewardTitle(project: Project, reward: Reward) -> NSAttributedString
   return qtyAttributed + titleAttributed
 }
 
+@MainActor
 private func pillValues(project: Project, reward: Reward) -> [RewardCardPillData] {
   return [
     timeLeftString(project: project, reward: reward),
@@ -326,6 +327,7 @@ private func addOnsString(reward: Reward) -> RewardCardPillData? {
   )
 }
 
+@MainActor
 private func timeLeftString(project: Project, reward: Reward) -> RewardCardPillData? {
   let isUnlimitedOrAvailable = reward.limit == nil || reward.remaining ?? 0 > 0
 
@@ -396,6 +398,7 @@ private func shippingSummaryString(project: Project, reward: Reward) -> RewardCa
   return nil
 }
 
+@MainActor
 private func estimatedDeliveryDateText(with reward: Reward) -> String? {
   return reward.estimatedDeliveryOn.map {
     Format.date(

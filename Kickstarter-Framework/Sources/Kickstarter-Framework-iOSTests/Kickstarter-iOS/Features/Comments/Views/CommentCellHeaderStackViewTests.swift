@@ -10,7 +10,6 @@ import SnapshotTesting
 import XCTest
 
 internal final class CommentCellHeaderStackViewTests: TestCase {
-  private let vm: CommentCellViewModelType = CommentCellViewModel()
   private let commentCellHeaderStackView =
     CommentCellHeaderStackView(frame: CGRect(
       x: 0,

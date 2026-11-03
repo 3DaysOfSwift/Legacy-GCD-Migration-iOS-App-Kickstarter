@@ -2,6 +2,7 @@ import Foundation
 import KsApi
 import ReactiveSwift
 
+@MainActor
 public protocol MessageCellViewModelInputs {
   func configureWith(message: Message)
 
@@ -9,6 +10,7 @@ public protocol MessageCellViewModelInputs {
   func cellHeaderTapped()
 }
 
+@MainActor
 public protocol MessageCellViewModelOutputs {
   var avatarURL: Signal<URL?, Never> { get }
   var name: Signal<String, Never> { get }
@@ -20,11 +22,13 @@ public protocol MessageCellViewModelOutputs {
   var messageSender: Signal<User, Never> { get }
 }
 
+@MainActor
 public protocol MessageCellViewModelType {
   var inputs: MessageCellViewModelInputs { get }
   var outputs: MessageCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class MessageCellViewModel: MessageCellViewModelType, MessageCellViewModelInputs,
   MessageCellViewModelOutputs {
   public init() {

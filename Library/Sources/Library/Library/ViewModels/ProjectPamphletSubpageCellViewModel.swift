@@ -4,11 +4,13 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol ProjectPamphletSubpageCellViewModelInputs {
   /// Call with the ProjectPamphletSubpage
   func configureWith(subpage: ProjectPamphletSubpage)
 }
 
+@MainActor
 public protocol ProjectPamphletSubpageCellViewModelOutputs {
   /// Emits the background color for the count label
   var countLabelBackgroundColor: Signal<UIColor, Never> { get }
@@ -35,11 +37,13 @@ public protocol ProjectPamphletSubpageCellViewModelOutputs {
   var separatorViewHidden: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol ProjectPamphletSubpageCellViewModelType {
   var inputs: ProjectPamphletSubpageCellViewModelInputs { get }
   var outputs: ProjectPamphletSubpageCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class ProjectPamphletSubpageCellViewModel: ProjectPamphletSubpageCellViewModelType,
   ProjectPamphletSubpageCellViewModelInputs, ProjectPamphletSubpageCellViewModelOutputs {
   public init() {

@@ -7,13 +7,16 @@ import Prelude
 import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 
+@MainActor
 final class ProjectPamphletCreatorHeaderCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   private let vm: ProjectPamphletCreatorHeaderCellViewModelType = ProjectPamphletCreatorHeaderCellViewModel()
 
   private let launchDateLabelAttributedText = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.launchDateLabelAttributedText.map { $0.string }
       .observe(self.launchDateLabelAttributedText.observer)

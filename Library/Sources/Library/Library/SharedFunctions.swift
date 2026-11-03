@@ -776,6 +776,7 @@ public func isRewardDigital(_ reward: Reward?) -> Bool {
     .isAny(of: Reward.Shipping.Preference.none)
 }
 
+@MainActor
 public func estimatedShippingText(
   for rewards: [Reward],
   project: Project,
@@ -817,6 +818,7 @@ public func estimatedShippingText(
   return estimatedShippingString
 }
 
+@MainActor
 public func estimatedShippingConversionText(
   for rewards: [Reward],
   project: Project,
@@ -858,6 +860,7 @@ public func estimatedShippingConversionText(
   return conversionText
 }
 
+@MainActor
 public func attributedCurrency(withProject project: Project, total: Double) -> NSAttributedString? {
   let defaultAttributes = checkoutCurrencyDefaultAttributes()
     .withAllValuesFrom([.foregroundColor: LegacyColors.ksr_support_700.uiColor()])

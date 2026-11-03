@@ -3,11 +3,13 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol DiscoveryExpandableRowCellInputs {
   func configureWith(row: ExpandableRow, categoryId: Int?)
   func willDisplay()
 }
 
+@MainActor
 public protocol DiscoveryExpandableRowCellOutputs {
   var cellAccessibilityHint: Signal<String, Never> { get }
   var cellAccessibilityLabel: Signal<String, Never> { get }
@@ -19,11 +21,13 @@ public protocol DiscoveryExpandableRowCellOutputs {
   var projectsCountLabelText: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol DiscoveryExpandableRowCellViewModelType {
   var inputs: DiscoveryExpandableRowCellInputs { get }
   var outputs: DiscoveryExpandableRowCellOutputs { get }
 }
 
+@MainActor
 public final class DiscoveryExpandableRowCellViewModel: DiscoveryExpandableRowCellViewModelType,
   DiscoveryExpandableRowCellInputs, DiscoveryExpandableRowCellOutputs {
   public init() {

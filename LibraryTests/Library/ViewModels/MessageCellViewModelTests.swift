@@ -6,7 +6,10 @@ import Library
 import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 
+@MainActor
 internal final class MessageCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   fileprivate let vm: MessageCellViewModelType = MessageCellViewModel()
 
   fileprivate let avatarURL = TestObserver<URL?, Never>()
@@ -16,8 +19,8 @@ internal final class MessageCellViewModelTests: TestCase {
   fileprivate let timestampAccessibilityLabel = TestObserver<String, Never>()
   fileprivate let messageSender = TestObserver<User, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.avatarURL.observe(self.avatarURL.observer)
     self.vm.outputs.name.observe(self._name.observer)

@@ -16,7 +16,7 @@ creator draft work is superseded by their completed checkpoints.
    analytics identity/configuration/consent updates are explicit actor-owned methods.
    AppEnvironment stack ownership remains: formatter/environment dependency changes
    are still required, not a blanket annotation.
-   Synchronous string rendering now reads a synchronized language-only projection;
+   Synchronous string rendering now reads a synchronized language/locale projection;
    nested environment overrides and background localization are verified.
    Login/Settings style declarations now specify MainActor; three autofill compositions
    and their controller callers use direct calls to preserve actor ownership. Other
@@ -26,8 +26,9 @@ creator draft work is superseded by their completed checkpoints.
    and explicit analytics clock/calendar capture reduce implicit dependency access.
    Number/percentage/currency and date parsing/style rendering also expose value inputs;
    Duration/relative-time rendering now accepts captured clock/calendar values, and
-   project-card deadline callers use those inputs. Existing convenience wrappers
-   still require Environment ownership migration. Login
+   project-card deadline callers use those inputs. Environment-backed formatter convenience wrappers now declare MainActor; dependent
+   dashboard/discovery/message/reward/payment-plan presentation contracts are verified.
+   Global Environment stack ownership remains unfinished. Login
    disclaimer URL resolution now occurs in a MainActor UI helper.
    Notification-center async delegates transfer checked push values before awaiting UI;
    AppDelegate session/dialog observers now have retained lifecycle owners.

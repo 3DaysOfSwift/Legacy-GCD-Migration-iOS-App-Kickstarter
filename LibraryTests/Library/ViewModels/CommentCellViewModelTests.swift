@@ -11,7 +11,10 @@ private enum Constants {
   static let communityLink = "https://www.kickstarter.com/help/community"
 }
 
+@MainActor
 internal final class CommentCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   let vm: CommentCellViewModelType = CommentCellViewModel()
 
   private let authorBadge = TestObserver<Comment.AuthorBadge, Never>()
@@ -31,8 +34,8 @@ internal final class CommentCellViewModelTests: TestCase {
   private let viewCommentReplies = TestObserver<Comment, Never>()
   private let viewRepliesStackViewIsHidden = TestObserver<Bool, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     self.vm.outputs.authorBadge.observe(self.authorBadge.observer)
     self.vm.outputs.authorImageURL.observe(self.authorImageURL.observer)
     self.vm.outputs.authorName.observe(self.authorName.observer)

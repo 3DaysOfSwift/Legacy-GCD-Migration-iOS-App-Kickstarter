@@ -3,6 +3,7 @@ import KsApi
 import Prelude
 import ReactiveSwift
 
+@MainActor
 public protocol CommentCellViewModelInputs {
   /// Call when bindStyles is called.
   func bindStyles()
@@ -23,6 +24,7 @@ public protocol CommentCellViewModelInputs {
   func viewRepliesButtonTapped()
 }
 
+@MainActor
 public protocol CommentCellViewModelOutputs {
   /// Emits author's badge for a comment.
   var authorBadge: Signal<Comment.AuthorBadge, Never> { get }
@@ -73,11 +75,13 @@ public protocol CommentCellViewModelOutputs {
   var viewRepliesViewHidden: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol CommentCellViewModelType {
   var inputs: CommentCellViewModelInputs { get }
   var outputs: CommentCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class CommentCellViewModel:
   CommentCellViewModelType, CommentCellViewModelInputs, CommentCellViewModelOutputs {
   public init() {

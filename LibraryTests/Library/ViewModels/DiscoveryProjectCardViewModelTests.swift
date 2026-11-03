@@ -8,7 +8,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class DiscoveryProjectCardViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   private let backerCountLabelBoldedString = TestObserver<String, Never>()
   private let facepileAvatarURLStrings = TestObserver<[String], Never>()
   private let facepileDescriptionText = TestObserver<String, Never>()
@@ -29,8 +32,8 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
 
   private let vm: DiscoveryProjectCardViewModelType = DiscoveryProjectCardViewModel()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.backerCountLabelData.map(first).observe(self.backerCountLabelBoldedString.observer)
     self.vm.outputs.backerCountLabelData.map(second).observe(self.backerCountLabelFullString.observer)

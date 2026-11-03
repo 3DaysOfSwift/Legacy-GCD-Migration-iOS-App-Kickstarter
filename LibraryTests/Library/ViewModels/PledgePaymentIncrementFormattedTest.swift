@@ -5,7 +5,10 @@ import Foundation
 @testable import LibraryTestHelpers
 import XCTest
 
+@MainActor
 final class PledgePaymentIncrementFormattedTest: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   func testIncrementFormat() {
     let amount = PledgePaymentIncrementAmount(
       currency: "USD",

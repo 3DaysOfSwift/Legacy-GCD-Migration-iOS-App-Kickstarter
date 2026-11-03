@@ -7,7 +7,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class PostCampaignPledgeRewardsSummaryViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   internal let vm: PostCampaignPledgeRewardsSummaryViewModelType =
     PostCampaignPledgeRewardsSummaryViewModel()
 
@@ -16,8 +19,8 @@ final class PostCampaignPledgeRewardsSummaryViewModelTests: TestCase {
     Never
   >()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.loadRewardsIntoDataSource.observe(self.loadRewardsIntoDataSource.observer)
   }

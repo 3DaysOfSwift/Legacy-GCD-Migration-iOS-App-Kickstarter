@@ -44,8 +44,8 @@ final class ManageViewPledgeRewardReceivedViewModelTests: TestCase {
   private let rewardReceivedHidden = TestObserver<Bool, Never>()
   private let pledgeDisclaimerViewHidden = TestObserver<Bool, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
 
       self.vm.outputs.estimatedDeliveryDateLabelAttributedText

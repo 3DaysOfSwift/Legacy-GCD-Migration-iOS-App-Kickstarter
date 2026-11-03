@@ -6,6 +6,7 @@ public struct PledgePaymentIncrementFormatted: Equatable {
   public var amount: String
   public var scheduledCollection: String
 
+  @MainActor
   init(from increment: PledgePaymentIncrement, index: Int) {
     let chargeNumber = String(index + 1)
     self.incrementChargeNumber = Strings.Charge_number(number: chargeNumber)
@@ -14,6 +15,7 @@ public struct PledgePaymentIncrementFormatted: Equatable {
   }
 }
 
+@MainActor
 private func getDateFormatted(_ timeStamp: TimeInterval) -> String {
   Format.date(
     secondsInUTC: timeStamp,

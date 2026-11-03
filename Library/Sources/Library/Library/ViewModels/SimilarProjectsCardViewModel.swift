@@ -4,10 +4,12 @@ import KsApi
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol ProjectsCardViewModelInputs {
   func configureWith(project: ProjectCardProperties)
 }
 
+@MainActor
 public protocol ProjectsCardViewModelOutputs {
   /// Emits the project's photo URL to be displayed.
   var projectImageSource: Signal<Kingfisher.Source?, Never> { get }
@@ -31,11 +33,13 @@ public protocol ProjectsCardViewModelOutputs {
   var prelaunchProject: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol ProjectCardViewModelType {
   var inputs: ProjectsCardViewModelInputs { get }
   var outputs: ProjectsCardViewModelOutputs { get }
 }
 
+@MainActor
 public final class ProjectCardViewModel: ProjectCardViewModelType,
   ProjectsCardViewModelInputs,
   ProjectsCardViewModelOutputs {
@@ -74,6 +78,7 @@ public final class ProjectCardViewModel: ProjectCardViewModelType,
   public var outputs: ProjectsCardViewModelOutputs { return self }
 }
 
+@MainActor
 private func getProjectStatus(for project: ProjectCardProperties) -> String {
   guard !isProjectPrelaunch(project) else { return Strings.Launching_soon() }
 

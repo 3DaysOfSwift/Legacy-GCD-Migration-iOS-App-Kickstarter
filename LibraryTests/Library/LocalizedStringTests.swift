@@ -6,23 +6,45 @@ import XCTest
 class LocalizedStringTests: XCTestCase {
   fileprivate let mockBundle = MockBundle()
 
+  func testNumberLocaleRestoresAfterNestedEnvironmentChanges() async {
+    let original = LocalizationValues.currentLocale
+    await withEnvironment(locale: Locale(identifier: "de_DE")) {
+      let german = Format.wholeNumber(12345, locale: Locale(identifier: "de_DE"))
+      let background = await Task.detached { Format.wholeNumber(12345) }.value
+      XCTAssertEqual(background, german)
+      withEnvironment(locale: Locale(identifier: "en_US")) {
+        XCTAssertEqual(Format.wholeNumber(12345), "12,345")
+      }
+      XCTAssertEqual(Format.wholeNumber(12345), german)
+    }
+    XCTAssertEqual(LocalizationValues.currentLocale, original)
+  }
+
+  func testExplicitNumberEnvironmentDoesNotChangePublishedLocale() {
+    withEnvironment(locale: Locale(identifier: "en_US")) {
+      let german = Environment(locale: Locale(identifier: "de_DE"))
+      XCTAssertEqual(Format.wholeNumber(12345, env: german), "12.345")
+      XCTAssertEqual(Format.wholeNumber(12345), "12,345")
+    }
+  }
+
   func testNestedLanguageChangesRestoreThePreviousLanguage() {
-    let original = LocalizationLanguage.current
+    let original = LocalizationValues.currentLanguage
     withEnvironment(language: .de) {
       XCTAssertEqual("de_world", localizedString(key: "hello", bundle: self.mockBundle))
       withEnvironment(language: .en) {
-        XCTAssertEqual(.en, LocalizationLanguage.current)
+        XCTAssertEqual(.en, LocalizationValues.currentLanguage)
       }
       XCTAssertEqual("de_world", localizedString(key: "hello", bundle: self.mockBundle))
     }
-    XCTAssertEqual(original, LocalizationLanguage.current)
+    XCTAssertEqual(original, LocalizationValues.currentLanguage)
   }
 
   func testExplicitEnvironmentDoesNotChangeDefaultLanguage() {
     withEnvironment(language: .en) {
       let german = Environment(language: .de)
       XCTAssertEqual("de_world", localizedString(key: "hello", env: german, bundle: self.mockBundle))
-      XCTAssertEqual(.en, LocalizationLanguage.current)
+      XCTAssertEqual(.en, LocalizationValues.currentLanguage)
     }
   }
 

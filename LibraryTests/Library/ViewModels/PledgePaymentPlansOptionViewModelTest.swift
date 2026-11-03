@@ -8,7 +8,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class PledgePaymentPlansOptionViewModelTest: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   // MARK: Properties
 
   private var vm: PledgePaymentPlansOptionViewModelType = PledgePaymentPlansOptionViewModel()
@@ -43,8 +46,8 @@ final class PledgePaymentPlansOptionViewModelTest: TestCase {
 
   // MARK: Lifecycle
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.selectionIndicatorImageName.observe(self.selectionIndicatorImageName.observer)
     self.vm.outputs.titleText.observe(self.titleText.observer)
@@ -179,6 +182,7 @@ final class PledgePaymentPlansOptionViewModelTest: TestCase {
   }
 }
 
+@MainActor
 private func paymentIncrementsFormatted(from increments: [PledgePaymentIncrement])
   -> [PledgePaymentIncrementFormatted] {
   increments.enumerated().map {

@@ -8,7 +8,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class ManagePledgeSummaryViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   private let vm = ManagePledgeSummaryViewModel()
 
   private let backerImagePlaceholderImageName = TestObserver<String, Never>()
@@ -21,8 +24,8 @@ final class ManagePledgeSummaryViewModelTests: TestCase {
   private let configurePledgeAmountSummary = TestObserver<PledgeAmountSummaryViewData, Never>()
   private let totalAmountText = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     self.vm.outputs.backerImageURLAndPlaceholderImageName.map(second)
       .observe(self.backerImagePlaceholderImageName.observer)
     self.vm.outputs.backerImageURLAndPlaceholderImageName.map(first).observe(self.backerImageURL.observer)

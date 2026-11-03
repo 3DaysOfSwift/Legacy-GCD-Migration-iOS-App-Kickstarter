@@ -4,6 +4,7 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol ActivitySampleProjectCellViewModelInputs {
   /// Call to configure cell with activity value.
   func configureWith(activity: Activity)
@@ -12,6 +13,7 @@ public protocol ActivitySampleProjectCellViewModelInputs {
   func seeAllActivityTapped()
 }
 
+@MainActor
 public protocol ActivitySampleProjectCellViewModelOutputs {
   /// Emits the cell accessibility hint for VoiceOver.
   var cellAccessibilityHint: Signal<String, Never> { get }
@@ -29,11 +31,13 @@ public protocol ActivitySampleProjectCellViewModelOutputs {
   var projectTitleText: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol ActivitySampleProjectCellViewModelType {
   var inputs: ActivitySampleProjectCellViewModelInputs { get }
   var outputs: ActivitySampleProjectCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class ActivitySampleProjectCellViewModel: ActivitySampleProjectCellViewModelInputs,
   ActivitySampleProjectCellViewModelOutputs, ActivitySampleProjectCellViewModelType {
   public init() {

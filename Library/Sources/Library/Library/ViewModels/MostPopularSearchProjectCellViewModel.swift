@@ -4,10 +4,12 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol MostPopularSearchProjectCellViewModelInputs {
   func configureWith(project: any BackerDashboardProjectCellViewModel.ProjectCellModel)
 }
 
+@MainActor
 public protocol MostPopularSearchProjectCellViewModelOutputs {
   /// Emits text for metadata label.
   var metadataText: Signal<String, Never> { get }
@@ -31,11 +33,13 @@ public protocol MostPopularSearchProjectCellViewModelOutputs {
   var prelaunchProject: Signal<Bool, Never> { get }
 }
 
+@MainActor
 public protocol MostPopularSearchProjectCellViewModelType {
   var inputs: MostPopularSearchProjectCellViewModelInputs { get }
   var outputs: MostPopularSearchProjectCellViewModelOutputs { get }
 }
 
+@MainActor
 public final class MostPopularSearchProjectCellViewModel: MostPopularSearchProjectCellViewModelType,
   MostPopularSearchProjectCellViewModelInputs, MostPopularSearchProjectCellViewModelOutputs {
   public init() {
