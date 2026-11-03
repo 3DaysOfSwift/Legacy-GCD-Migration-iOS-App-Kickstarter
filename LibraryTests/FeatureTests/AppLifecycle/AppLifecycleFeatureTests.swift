@@ -104,6 +104,37 @@ final class AppLifecycleFeatureTests: XCTestCase {
     await fulfillment(of: [stopped], timeout: 2)
   }
 
+  func testReachabilityCompatibilityDeliversInitialValueSynchronously() {
+    var values: [Reachability] = []
+    let producer = Reachability.makeSignalProducer { self.feature.connectivityProducer }
+    let disposable = producer.startWithValues { values.append($0) }
+    XCTAssertEqual(values, [.wifi])
+    XCTAssertEqual(self.monitorStarts, 1)
+    disposable.dispose()
+  }
+
+  func testBackgroundReachabilitySubscriptionDeliversAndDisposesOnLifetimeEnd() async {
+    let delivered = expectation(description: "background subscriber received initial value")
+    let disposed = expectation(description: "upstream subscription disposed")
+    let (stop, continuation) = AsyncStream<Void>.makeStream()
+    let task = Task.detached {
+      let producer = Reachability.makeSignalProducer {
+        SignalProducer(value: .wifi).concat(.never).on(disposed: { disposed.fulfill() })
+      }
+      let disposable = producer.startWithValues { value in
+        XCTAssertTrue(Thread.isMainThread)
+        XCTAssertEqual(value, .wifi)
+        delivered.fulfill()
+      }
+      for await _ in stop {}
+      disposable.dispose()
+    }
+    await fulfillment(of: [delivered], timeout: 2)
+    continuation.finish()
+    await task.value
+    await fulfillment(of: [disposed], timeout: 2)
+  }
+
   func testReachabilityPreservesNativeFlagClassification() {
     XCTAssertEqual(Reachability.from(flags: []), .none)
     XCTAssertEqual(Reachability.from(flags: [.reachable]), .wifi)

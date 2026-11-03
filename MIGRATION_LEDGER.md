@@ -2,6 +2,15 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## Reachability compatibility ownership — 3 November 2026
+
+A private, dependency-audited subscription bridge retains synchronous main-thread
+delivery and owns background cancellation. Producers are constructed per access.
+146 tests passed (107 Library, 39 framework), zero failures/skips, plus a complete-
+checking app build. Reachability transfer/static warnings are resolved. Evidence:
+kickstarter-reachability-handoff, including the narrowly scoped unchecked rationale
+and stale-object linker failures resolved by recompiling test callers.
+
 ## UIKit style closure contracts — 3 November 2026
 
 Twenty UI style aliases now retain MainActor/Sendable contracts. Actor-erasing
