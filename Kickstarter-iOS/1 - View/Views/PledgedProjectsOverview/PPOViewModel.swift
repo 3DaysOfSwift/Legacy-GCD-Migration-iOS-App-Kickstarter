@@ -5,13 +5,7 @@ import KsApi
 
 import UIKit
 
-typealias PPOViewModelPaginator = Paginator<
-  PledgedProjectsResponse,
-  PPOProjectCardViewModel,
-  String,
-  ErrorEnvelope,
-  Void
->
+typealias PPOViewModelResult = PaginationResult<PPOProjectCardViewModel, String, ErrorEnvelope>
 
 @MainActor
 protocol PPOViewModelInputs {
@@ -24,7 +18,7 @@ protocol PPOViewModelInputs {
 
 @MainActor
 protocol PPOViewModelOutputs {
-  var results: PPOViewModelPaginator.Results { get }
+  var results: PPOViewModelResult { get }
   var preparedEvents: AnyPublisher<PPOPreparedEvent, Never> { get }
 }
 
@@ -283,7 +277,7 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
   }
 
   private static func present(_ snapshot: PledgedProjectsFeature.Snapshot)
-    -> PPOViewModelPaginator.Results
+    -> PPOViewModelResult
   {
     switch snapshot {
     case .unloaded: return .unloaded
@@ -320,7 +314,7 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
 
   // MARK: - Outputs
 
-  @Published var results = PPOViewModelPaginator.Results.unloaded
+  @Published var results = PPOViewModelResult.unloaded
 
   var preparedEvents: AnyPublisher<PPOPreparedEvent, Never> {
     self.preparedEventSubject.eraseToAnyPublisher()
@@ -330,7 +324,7 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
 
   private let feature: PledgedProjectsFeature
   private let route = UUID()
-  private let snapshots = CurrentValueSubject<PPOViewModelPaginator.Results, Never>(.unloaded)
+  private let snapshots = CurrentValueSubject<PPOViewModelResult, Never>(.unloaded)
   deinit {
     let feature = self.feature
     let route = self.route

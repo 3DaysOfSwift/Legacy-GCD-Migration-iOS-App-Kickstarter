@@ -90,7 +90,7 @@ public protocol SearchViewModelType {
 @MainActor
 public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, SearchViewModelOutputs {
   private let searchFeature: SearchFeature
-  private let featureBindings = CompositeDisposable()
+  private let featureBindings = ScopedDisposable(CompositeDisposable())
   private let completionAnalytics: SearchCompletionAnalytics
   // UIKit retains the shared Feature task rather than spawning wrapper Tasks.
   internal private(set) var searchTask: Task<Void, Never>?
@@ -203,9 +203,6 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     }
   }
 
-  deinit {
-    self.featureBindings.dispose()
-  }
 
   // These are presentation snapshots, not duplicate Feature domain state. Nil
   // preserves the old signal prerequisites (no query/results/count emitted yet).
@@ -364,7 +361,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
 /// zip retained it, and changing that behaviour needs a separate product decision.
 @MainActor
 private final class SearchCompletionAnalytics {
-  private let bindings = CompositeDisposable()
+  private let bindings = ScopedDisposable(CompositeDisposable())
   private let countsPipe = Signal<Int, Never>.pipe()
   var countsToTrack: Signal<Int, Never> { self.countsPipe.output }
   private var latestCount: Int?
@@ -417,7 +414,6 @@ private final class SearchCompletionAnalytics {
     self.countsPipe.input.send(value: count)
   }
 
-  deinit { self.bindings.dispose() }
 }
 
 /// Calculates a ref tag from the search query, the list of displayed projects, and the project

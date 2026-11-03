@@ -53,7 +53,7 @@ extension UIImageView {
   }
 }
 
-private enum Associations {
+@MainActor private enum Associations {
   fileprivate static var ksr_imageUrl = 0
 }
 

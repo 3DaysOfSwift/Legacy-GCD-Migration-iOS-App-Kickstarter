@@ -2,7 +2,7 @@ import KDS
 
 import SwiftUI
 
-private let buttonFont = InterFont.headingMD
+@MainActor private let buttonFont = InterFont.headingMD
 
 internal struct SearchFiltersPillStyle: SwiftUI.ButtonStyle {
   let isHighlighted: Bool

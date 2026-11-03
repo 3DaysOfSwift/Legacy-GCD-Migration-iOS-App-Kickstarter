@@ -43,7 +43,6 @@ extension Service {
     try await self.discussionResponse(route: .sendMessage(body: body, messageSubject: subject))
   }
 
-  private static let session = URLSession(configuration: .default)
 
   @MainActor public func activityPage(cursor: String?) async throws -> ActivityEnvelope {
     if let cursor {
@@ -233,7 +232,7 @@ extension Service {
     let data: Data
     let response: URLResponse
     do {
-      (data, response) = try await Self.session.data(for: request)
+      (data, response) = try await NetworkingManager.data(for: request)
     } catch {
       try Task.checkCancellation()
       throw ErrorEnvelope.couldNotParseErrorEnvelopeJSON
@@ -273,7 +272,7 @@ extension Service {
       )
     }
 
-    return Service.session.rac_dataResponse(
+    return NetworkingManager.session.rac_dataResponse(
       preparedRequest(forURL: URL, method: properties.method, query: properties.query),
       uploading: properties.file.map { ($1, $0.rawValue) }
     )
@@ -289,7 +288,7 @@ extension Service {
       )
     }
 
-    return Service.session.combine_dataResponse(
+    return NetworkingManager.session.combine_dataResponse(
       preparedRequest(forURL: URL, method: properties.method, query: properties.query),
       uploading: properties.file.map { ($1, $0.rawValue) }
     ).handle_combine_dataResponse(service: self)
@@ -310,7 +309,7 @@ extension Service {
     var preparedRequest = preparedRequest(forURL: URL, method: properties.method, query: properties.query)
     addV1AuthenticationToRequest(&preparedRequest, oauthToken: oauthToken)
 
-    return Service.session.combine_dataResponse(
+    return NetworkingManager.session.combine_dataResponse(
       preparedRequest,
       uploading: properties.file.map { ($1, $0.rawValue) }
     ).handle_combine_dataResponse(service: self)
@@ -322,7 +321,7 @@ extension Service {
       return .init(error: .invalidPaginationUrl)
     }
 
-    return Service.session
+    return NetworkingManager.session
       .rac_dataResponse(preparedRequest(forURL: paginationUrl))
       .flatMap(self.decodeModelToSignal)
   }
@@ -333,7 +332,7 @@ extension Service {
       fatalError("Invalid pagination URL \(paginationUrl)")
     }
 
-    return Service.session
+    return NetworkingManager.session
       .combine_dataResponse(preparedRequest(forURL: paginationUrl))
       .handle_combine_dataResponse(service: self)
   }

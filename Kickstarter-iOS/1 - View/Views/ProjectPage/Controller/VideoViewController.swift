@@ -1,3 +1,4 @@
+import ReactiveSwift
 import AVFoundation
 import AVKit
 import KDS
@@ -18,7 +19,7 @@ public final class VideoViewController: UIViewController {
   fileprivate let viewModel: VideoViewModelType = VideoViewModel()
   fileprivate var playerController: AVPlayerViewController!
   private var videoObservation: ProjectVideoObservation?
-  private var backgroundObserver: (any NSObjectProtocol)?
+  private var backgroundObserver: ScopedDisposable<AnyDisposable>?
 
   @IBOutlet fileprivate var playButton: UIButton!
   @IBOutlet fileprivate var projectImageView: UIImageView!
@@ -181,13 +182,12 @@ public final class VideoViewController: UIViewController {
   }
 
   deinit {
-    if let observer = self.backgroundObserver { NotificationCenter.default.removeObserver(observer) }
     // videoObservation releases its exact player's KVO/boundary resources.
   }
 
   private func setupNotifications() {
-    if let observer = self.backgroundObserver { NotificationCenter.default.removeObserver(observer) }
-    self.backgroundObserver = NotificationCenter.default.addObserver(
+    if let observer = self.backgroundObserver { observer.dispose() }
+    self.backgroundObserver = NotificationCenter.default.scopedObserver(
       forName: .ksr_applicationDidEnterBackground, object: nil, queue: .main
     ) { [weak self] _ in
       MainActor.assumeIsolated { self?.viewModel.inputs.viewWillDisappear() }

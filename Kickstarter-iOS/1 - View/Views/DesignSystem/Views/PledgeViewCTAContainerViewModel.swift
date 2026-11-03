@@ -4,6 +4,7 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
+@MainActor
 public protocol PledgeViewCTAContainerViewModelInputs {
   func applePayButtonTapped()
   func configureWith(value: PledgeViewCTAContainerViewData)
@@ -12,6 +13,7 @@ public protocol PledgeViewCTAContainerViewModelInputs {
   func tapped(_ url: URL)
 }
 
+@MainActor
 public protocol PledgeViewCTAContainerViewModelOutputs {
   var applePayButtonIsHidden: Signal<Bool, Never> { get }
   var continueButtonIsHidden: Signal<Bool, Never> { get }
@@ -25,11 +27,13 @@ public protocol PledgeViewCTAContainerViewModelOutputs {
   var submitButtonTitle: Signal<String, Never> { get }
 }
 
+@MainActor
 public protocol PledgeViewCTAContainerViewModelType {
   var inputs: PledgeViewCTAContainerViewModelInputs { get }
   var outputs: PledgeViewCTAContainerViewModelOutputs { get }
 }
 
+@MainActor
 public final class PledgeViewCTAContainerViewModel: PledgeViewCTAContainerViewModelType,
   PledgeViewCTAContainerViewModelInputs, PledgeViewCTAContainerViewModelOutputs {
   public init() {
@@ -37,7 +41,7 @@ public final class PledgeViewCTAContainerViewModel: PledgeViewCTAContainerViewMo
     let isLoggedIn = self.configDataSignal.map { $0.isLoggedIn }
 
     self.notifyDelegateOpenHelpType = self.tappedUrlProperty.signal.skipNil()
-      .map(HelpType.helpType)
+      .map { HelpType.helpType(from: $0) }
       .skipNil()
 
     self.submitButtonIsEnabled = self.configDataSignal.map { $0.isEnabled }

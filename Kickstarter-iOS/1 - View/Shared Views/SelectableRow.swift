@@ -6,15 +6,19 @@ public struct SelectableRow {
   public let params: DiscoveryParams
 
   public enum lens {
-    public static let isSelected = Lens<SelectableRow, Bool>(
+    public static var isSelected: Lens<SelectableRow, Bool> {
+      Lens(
       view: { $0.isSelected },
       set: { SelectableRow(isSelected: $0, params: $1.params) }
-    )
+      )
+    }
 
-    public static let params = Lens<SelectableRow, DiscoveryParams>(
+    public static var params: Lens<SelectableRow, DiscoveryParams> {
+      Lens(
       view: { $0.params },
       set: { SelectableRow(isSelected: $1.isSelected, params: $0) }
-    )
+      )
+    }
   }
 }
 

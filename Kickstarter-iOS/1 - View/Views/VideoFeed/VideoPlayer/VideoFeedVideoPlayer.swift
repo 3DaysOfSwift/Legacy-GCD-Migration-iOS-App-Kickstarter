@@ -1,3 +1,4 @@
+import ReactiveSwift
 import AVFoundation
 import AVKit
 import Foundation
@@ -29,10 +30,10 @@ class VideoFeedVideoPlayer {
   private var seekVersion = UUID()
   private let sleep: @MainActor (Duration) async throws -> Void
   private let performSeek: @MainActor (AVPlayer, Double) async -> Bool
-  @ObservationIgnored private var timeObserverToken: Any?
-  @ObservationIgnored private var endObserver: (any NSObjectProtocol)?
-  @ObservationIgnored private var failedObserver: (any NSObjectProtocol)?
-  @ObservationIgnored private var stalledObserver: (any NSObjectProtocol)?
+  @ObservationIgnored private var timeObserverToken: ScopedDisposable<AnyDisposable>?
+  @ObservationIgnored private var endObserver: ScopedDisposable<AnyDisposable>?
+  @ObservationIgnored private var failedObserver: ScopedDisposable<AnyDisposable>?
+  @ObservationIgnored private var stalledObserver: ScopedDisposable<AnyDisposable>?
   /// Once `onReady` has fired, flip this so we don't fire it repeatedly.
   private var hasFiredOnReady = false
   private var hasFiredOnFailed = false
@@ -55,15 +56,10 @@ class VideoFeedVideoPlayer {
     self.startupTask?.cancel()
     self.recoveryTask?.cancel()
     self.seekTask?.cancel()
-    for observer in [self.endObserver, self.failedObserver, self.stalledObserver].compactMap({ $0 }) {
-      NotificationCenter.default.removeObserver(observer)
-    }
     let player = self.player
-    let token = self.timeObserverToken
     // Only platform-resource cleanup survives the wrapper; callbacks capture it weakly.
     Task { @MainActor in
       player.currentItem?.cancelPendingSeeks()
-      if let token { player.removeTimeObserver(token) }
     }
   }
 
@@ -81,7 +77,7 @@ class VideoFeedVideoPlayer {
     self.addTimeObserver()
 
     /// When this video ends, loop (seek) it back to the start.
-    self.endObserver = NotificationCenter.default.addObserver(
+    self.endObserver = NotificationCenter.default.scopedObserver(
       forName: .AVPlayerItemDidPlayToEndTime,
       object: item,
       queue: .main
@@ -93,7 +89,7 @@ class VideoFeedVideoPlayer {
     }
 
     /// Catches mid-playback failures (network drop, decoder errors, etc.).
-    self.failedObserver = NotificationCenter.default.addObserver(
+    self.failedObserver = NotificationCenter.default.scopedObserver(
       forName: .AVPlayerItemFailedToPlayToEndTime,
       object: item,
       queue: .main
@@ -107,7 +103,7 @@ class VideoFeedVideoPlayer {
     /// Catches errors caused by losing network connection mid-playback.
     /// AVPlayer triggers this when it can no longer load a video but doesn't transition to .failed it just freezes,
     /// `AVPlayerItemFailedToPlayToEndTime` never fires in this specific case.
-    self.stalledObserver = NotificationCenter.default.addObserver(
+    self.stalledObserver = NotificationCenter.default.scopedObserver(
       forName: AVPlayerItem.playbackStalledNotification,
       object: item,
       queue: .main
@@ -195,7 +191,7 @@ class VideoFeedVideoPlayer {
   private func cancelPendingOperations() {
     self.playbackVersion = UUID()
     if let token = self.timeObserverToken {
-      self.player.removeTimeObserver(token)
+      token.dispose()
       self.timeObserverToken = nil
     }
     self.startupTask?.cancel()
@@ -211,7 +207,7 @@ class VideoFeedVideoPlayer {
     let version = self.playbackVersion
     let interval = CMTime(seconds: 0.05, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
 
-    self.timeObserverToken = self.player.addPeriodicTimeObserver(
+    self.timeObserverToken = self.player.scopedPeriodicTimeObserver(
       forInterval: interval,
       queue: .main
     ) { [weak self] time in
@@ -249,19 +245,19 @@ class VideoFeedVideoPlayer {
 
   private func removeItemObservers() {
     if let endObserver = self.endObserver {
-      NotificationCenter.default.removeObserver(endObserver)
+      endObserver.dispose()
     }
 
     self.endObserver = nil
 
     if let failedObserver = self.failedObserver {
-      NotificationCenter.default.removeObserver(failedObserver)
+      failedObserver.dispose()
     }
 
     self.failedObserver = nil
 
     if let stalledObserver = self.stalledObserver {
-      NotificationCenter.default.removeObserver(stalledObserver)
+      stalledObserver.dispose()
     }
 
     self.stalledObserver = nil

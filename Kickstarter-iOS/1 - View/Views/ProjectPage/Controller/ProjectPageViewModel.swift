@@ -308,7 +308,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
   private let projectDetailsFeature: ProjectDetailsFeature
   private let projectRoute = UUID()
-  private let featureBindings = CompositeDisposable()
+  private let featureBindings = ScopedDisposable(CompositeDisposable())
   internal private(set) var loadingTask: Task<Void, Never>?
 
   public init(projectDetailsFeature: ProjectDetailsFeature? = nil, projectMediaFeature: ProjectMediaFeature? = nil) {
@@ -791,7 +791,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.loadingTask?.cancel()
     self.imageWaiters.values.forEach { $0.task.cancel() }
     self.mediaWaiters.values.forEach { $0.task.cancel() }
-    self.featureBindings.dispose()
+
     let details = self.projectDetailsFeature
     let media = self.projectMediaFeature
     let route = self.projectRoute

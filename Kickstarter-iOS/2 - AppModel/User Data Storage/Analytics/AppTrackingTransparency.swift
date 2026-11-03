@@ -5,6 +5,7 @@ import ReactiveSwift
 
 public typealias AppTrackingAuthorization = ATTrackingManager.AuthorizationStatus
 
+@MainActor
 public protocol AppTrackingTransparencyType {
   var advertisingIdentifier: String? { get }
   var authorizationStatus: SignalProducer<AppTrackingAuthorization, Never> { get }
@@ -23,19 +24,24 @@ public class AppTrackingTransparency: AppTrackingTransparencyType {
   public func requestAndSetAuthorizationStatus(
     _ completion: ((ATTrackingManager.AuthorizationStatus) -> Void)? = nil
   ) {
-    ATTrackingManager.requestTrackingAuthorization { [weak self] authStatus in
-      self?.authorizationStatusProperty.value = authStatus
-
-      switch authStatus {
-      case .authorized:
-        self?.advertisingIdentifier = ASIdentifierManager.shared().advertisingIdentifier.uuidString
-      default:
-        self?.advertisingIdentifier = nil
-      }
-
-      completion?(authStatus)
+    if let completion { self.authorizationCompletions.append(completion) }
+    guard self.authorizationTask == nil else { return }
+    self.authorizationTask = Task {
+      let authStatus = await ATTrackingManager.requestTrackingAuthorization()
+      self.authorizationStatusProperty.value = authStatus
+      self.advertisingIdentifier = authStatus == .authorized
+        ? ASIdentifierManager.shared().advertisingIdentifier.uuidString : nil
+      let completions = self.authorizationCompletions
+      self.authorizationCompletions.removeAll()
+      self.authorizationTask = nil
+      for completion in completions { completion(authStatus) }
     }
   }
+
+  // Consent survives navigation: a system prompt cannot be retracted. The adapter
+  // remains alive until its shared native request delivers every admitted completion.
+  private var authorizationTask: Task<Void, Never>?
+  private var authorizationCompletions: [(AppTrackingAuthorization) -> Void] = []
 
   public func shouldRequestAuthorizationStatus() -> Bool {
     ATTrackingManager.trackingAuthorizationStatus == .notDetermined

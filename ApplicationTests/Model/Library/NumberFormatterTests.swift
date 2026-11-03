@@ -5,6 +5,7 @@ import KDS
 import XCTest
 
 final class NumberFormatterTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   // MARK: - Properties
 
   let defaultAttributes: String.Attributes = [
@@ -30,7 +31,8 @@ final class NumberFormatterTests: TestCase {
   // MARK: - Tests
 
   func testAttributedString() {
-    let formatter = AttributedNumberFormatter()
+    let numberFormatter = NumberFormatter()
+    let formatter = AttributedNumberFormatter(formatter: numberFormatter)
     formatter.defaultAttributes = self.defaultAttributes
 
     guard let attributedString = formatter.attributedString(for: 1_000) else {
@@ -48,9 +50,10 @@ final class NumberFormatterTests: TestCase {
   }
 
   func testAttributedString_DecimalSeparator() {
-    let formatter = AttributedNumberFormatter()
-    formatter.numberStyle = .currency
-    formatter.currencySymbol = "CA$"
+    let numberFormatter = NumberFormatter()
+    let formatter = AttributedNumberFormatter(formatter: numberFormatter)
+    numberFormatter.numberStyle = .currency
+    numberFormatter.currencySymbol = "CA$"
     formatter.defaultAttributes = self.defaultAttributes
     formatter.decimalSeparatorAttributes = self.decimalSeparatorAttributes
 
@@ -70,9 +73,10 @@ final class NumberFormatterTests: TestCase {
   }
 
   func testAttributedString_FractionDigits() {
-    let formatter = AttributedNumberFormatter()
-    formatter.numberStyle = .currency
-    formatter.currencySymbol = "DKK"
+    let numberFormatter = NumberFormatter()
+    let formatter = AttributedNumberFormatter(formatter: numberFormatter)
+    numberFormatter.numberStyle = .currency
+    numberFormatter.currencySymbol = "DKK"
     formatter.defaultAttributes = self.defaultAttributes
     formatter.fractionDigitsAttributes = self.fractionDigitsAttributes
 
@@ -92,9 +96,10 @@ final class NumberFormatterTests: TestCase {
   }
 
   func testAttributedString_Combined() {
-    let formatter = AttributedNumberFormatter()
-    formatter.numberStyle = .currency
-    formatter.currencySymbol = "€"
+    let numberFormatter = NumberFormatter()
+    let formatter = AttributedNumberFormatter(formatter: numberFormatter)
+    numberFormatter.numberStyle = .currency
+    numberFormatter.currencySymbol = "€"
     formatter.defaultAttributes = self.defaultAttributes
     formatter.currencySymbolAttributes = self.currencySymbolAttributes
     formatter.decimalSeparatorAttributes = self.decimalSeparatorAttributes

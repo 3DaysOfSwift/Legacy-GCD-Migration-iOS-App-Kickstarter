@@ -12,12 +12,15 @@ public func discoverySecondaryColor() -> UIColor {
   return LegacyColors.ksr_support_400.uiColor()
 }
 
+@MainActor
 public let discoveryBorderLineStyle = UIView.lens.alpha .~ 0.15
 
+@MainActor
 public let discoveryNavDividerLabelStyle =
   UILabel.lens.font .~ UIFont.ksr_callout()
     <> UILabel.lens.alpha .~ 0.6
 
+@MainActor
 public let discoveryNavTitleStackViewStyle =
   UIStackView.lens.layoutMargins %~~ { _, stack in
     stack.traitCollection.horizontalSizeClass == .compact ? .init(top: -6.0) : .init(top: 0.0)
@@ -47,6 +50,7 @@ public func discoveryFilterLabelStyle<L: UILabelProtocol>(categoryId: Int?, isSe
     <> L.lens.alpha .~ ((categoryId == nil) ? 1.0 : (isSelected ? 1.0 : 0.8))
 }
 
+@MainActor
 public let discoveryFilterRowMarginStyle: (UITableViewCell) -> UITableViewCell = { cell in
   cell |> baseTableViewCellStyle()
     |> UITableViewCell.lens.contentView.layoutMargins %~~ { _, cell in
@@ -66,6 +70,7 @@ public let discoveryFilterRowMarginStyle: (UITableViewCell) -> UITableViewCell =
     }
 }
 
+@MainActor
 public let discoveryProjectCellStyle: (UITableViewCell) -> UITableViewCell = { cell in
   cell |>
     baseTableViewCellStyle()
@@ -111,6 +116,7 @@ public func discoverySortPagerButtonStyle<B: UIButtonProtocol>(
       <> B.lens.attributedTitle(for: .selected) %~ { _ in selectedTitleString }
 }
 
+@MainActor
 public let postcardCategoryLabelStyle =
   UILabel.lens.font .~ .ksr_body(size: 13.0)
     <> UILabel.lens.textColor .~ LegacyColors.ksr_support_400.uiColor()
@@ -118,22 +124,26 @@ public let postcardCategoryLabelStyle =
     <> UILabel.lens.lineBreakMode .~ .byClipping
     <> UILabel.lens.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 
+@MainActor
 public let postcardMetadataLabelStyle =
   UILabel.lens.font .~ .ksr_headline(size: 12.0)
     <> UILabel.lens.textColor .~ LegacyColors.ksr_support_400.uiColor()
 
+@MainActor
 public let postcardMetadataStackViewStyle =
   UIStackView.lens.alignment .~ .center
     <> UIStackView.lens.spacing .~ Styles.grid(1)
     <> UIStackView.lens.layoutMargins .~ .init(topBottom: Styles.grid(1), leftRight: 8.0)
     <> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
 
+@MainActor
 public let postcardSocialStackViewStyle =
   UIStackView.lens.alignment .~ .center
     <> UIStackView.lens.spacing .~ Styles.grid(1)
     <> UIStackView.lens.layoutMargins .~ .init(topBottom: Styles.grid(1), leftRight: 8.0)
     <> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
 
+@MainActor
 public let postcardStatsSubtitleStyle =
   UILabel.lens.font %~~ { _, label in
     label.traitCollection.isRegularRegular
@@ -143,6 +153,7 @@ public let postcardStatsSubtitleStyle =
 
   <> UILabel.lens.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 
+@MainActor
 public let postcardStatsTitleStyle =
   UILabel.lens.font %~~ { _, label in
     label.traitCollection.isRegularRegular

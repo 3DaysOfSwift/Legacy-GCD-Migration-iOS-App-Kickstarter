@@ -1,7 +1,7 @@
 # Complete the CFA application structure
 
 Author: Matthew Thomas. 3 November 2026.
-Status: structural cutover implemented; 2,772 regression tests passed. Runtime smoke validation and final app-wide gates are tracked in MIGRATION_REMAINING_WORK.md.
+Status: complete for CFA implementation handover. 765 app Swift files compile directly in the app; 2,929 existing tests passed. See MIGRATION_COMPLETION_REPORT.md for remaining validation limits.
 
 ## Binding destination
 

@@ -90,7 +90,8 @@ public struct LanguageDoubler: NSBundleType {
   }
 }
 
-public final class DoublerBundle: Bundle {
+// No additional state; preserves Foundation Bundle’s thread-safe lookup contract.
+public final class DoublerBundle: Bundle, @unchecked Sendable {
   public override func localizedString(
     forKey key: String,
     value: String?,

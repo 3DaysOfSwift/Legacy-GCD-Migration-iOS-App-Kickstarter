@@ -30,7 +30,7 @@ public enum Storyboard: String {
   case UpdateDraft
   case Video
 
-  public func instantiate<VC: UIViewController>(_: VC.Type, inBundle bundle: Bundle = .main) -> VC {
+  @MainActor public func instantiate<VC: UIViewController>(_: VC.Type, inBundle bundle: Bundle = .main) -> VC {
     guard
       let vc = UIStoryboard(name: self.rawValue, bundle: bundle)
       .instantiateViewController(withIdentifier: VC.storyboardIdentifier) as? VC

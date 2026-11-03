@@ -3,11 +3,11 @@ import Foundation
 
 public protocol RemoteConfigClientType: AnyObject {
   @MainActor func fetchAndActivateAsync() async throws
-  func activate(completion: ((Bool, Error?) -> Void)?)
-  func fetch(completionHandler: ((RemoteConfigFetchStatus, Error?) -> Void)?)
-  func fetchAndActivate(completionHandler: ((RemoteConfigFetchAndActivateStatus, Error?) -> Void)?)
+  func activate(completion: (@Sendable (Bool, Error?) -> Void)?)
+  func fetch(completionHandler: (@Sendable (RemoteConfigFetchStatus, Error?) -> Void)?)
+  func fetchAndActivate(completionHandler: (@Sendable (RemoteConfigFetchAndActivateStatus, Error?) -> Void)?)
   func setDefaults(_ defaults: [String: NSObject]?)
-  func addOnConfigUpdateListener(remoteConfigUpdateCompletion listener: @escaping (
+  func addOnConfigUpdateListener(remoteConfigUpdateCompletion listener: @escaping @Sendable (
     RemoteConfigUpdate?,
     Error?
   ) -> Void) -> ConfigUpdateListenerRegistration

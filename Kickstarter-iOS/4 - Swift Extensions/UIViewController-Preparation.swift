@@ -34,7 +34,7 @@ private func swizzle(_ vc: UIViewController.Type) {
   }
 }
 
-private var hasSwizzled = false
+@MainActor private var hasSwizzled = false
 
 extension UIViewController {
   public final class func doBadSwizzleStuff() {
@@ -73,7 +73,7 @@ extension UIViewController {
     self.bindStyles()
   }
 
-  private struct AssociatedKeys {
+  @MainActor private struct AssociatedKeys {
     static var hasViewAppeared = "hasViewAppeared"
   }
 

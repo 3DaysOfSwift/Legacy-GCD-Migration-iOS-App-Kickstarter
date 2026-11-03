@@ -65,6 +65,12 @@ public final class WatchProjectViewModel: WatchProjectViewModelType,
     self.feature = feature
     let revision = self.revision
     let pendingIntent = self.pendingIntent
+    self.intentLifetime = ScopedDisposable(AnyDisposable {
+      // MutableProperty synchronizes its value; transfer only the intent snapshot.
+      if let intent = pendingIntent.value {
+        Task { @MainActor in feature.cancelPreparedWatch(intent) }
+      }
+    })
     let viewReady = Signal.merge(self.viewDidLoadProperty.signal, self.awakeFromNibProperty.signal)
     let projectProperty = self.configureWithValueProperty.signal.skipNil().map { $0.project }
 
@@ -200,11 +206,7 @@ public final class WatchProjectViewModel: WatchProjectViewModelType,
 
   private let feature: ProjectMediaFeature
   private let pendingIntent = MutableProperty<ProjectMediaFeature.WatchIntent?>(nil)
-  deinit {
-    let feature = self.feature
-    let intent = self.pendingIntent.value
-    if let intent { Task { @MainActor in feature.cancelPreparedWatch(intent) } }
-  }
+  private let intentLifetime: ScopedDisposable<AnyDisposable>
   private let revision = MutableProperty(UUID())
   private let awakeFromNibProperty = MutableProperty(())
   public func awakeFromNib() {

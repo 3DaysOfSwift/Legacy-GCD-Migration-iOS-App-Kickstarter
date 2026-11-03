@@ -95,33 +95,39 @@ public enum CheckoutSheetLayout {
   }
 }
 
+@MainActor
 public let checkoutBackgroundStyle: ViewStyle = { (view: UIView) in
   view
     |> \.backgroundColor .~ LegacyColors.ksr_support_100.uiColor()
 }
 
+@MainActor
 public let checkoutLabelStyle: LabelStyle = { label in
   label
     |> \.backgroundColor .~ LegacyColors.ksr_support_100.uiColor()
 }
 
+@MainActor
 public let checkoutRoundedCornersStyle: ViewStyle = { (view: UIView) in
   view
     |> \.layer.cornerRadius .~ 6
 }
 
+@MainActor
 public let checkoutStackViewStyle: StackViewStyle = { (stackView: UIStackView) in
   stackView
     |> verticalStackViewStyle
     |> \.spacing .~ (Styles.grid(1) + Styles.gridHalf(1))
 }
 
+@MainActor
 public let checkoutSwitchControlStyle: SwitchControlStyle = { switchControl in
   switchControl
     |> \.onTintColor .~ LegacyColors.ksr_create_700.uiColor()
     |> \.tintColor .~ LegacyColors.ksr_support_300.uiColor()
 }
 
+@MainActor
 public let checkoutStepperStyle: (UIStepper) -> UIStepper = { stepper in
   stepper
     |> \.stepValue .~ 1.0
@@ -134,6 +140,7 @@ public let checkoutStepperStyle: (UIStepper) -> UIStepper = { stepper in
     <> UIStepper.lens.incrementImage(for: .highlighted) .~ image(named: "stepper-increment-highlighted")
 }
 
+@MainActor
 public let checkoutTitleLabelStyle: LabelStyle = { (label: UILabel) in
   label
     |> \.accessibilityTraits .~ UIAccessibilityTraits.header
@@ -142,16 +149,19 @@ public let checkoutTitleLabelStyle: LabelStyle = { (label: UILabel) in
     |> \.numberOfLines .~ 0
 }
 
+@MainActor
 public let checkoutWhiteBackgroundStyle: ViewStyle = { (view: UIView) in
   view
     |> \.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 }
 
+@MainActor
 public let checkoutLayerCardRoundedStyle: LayerStyle = { layer in
   layer
     |> \.cornerRadius .~ 16.0
 }
 
+@MainActor
 public let tappableLinksViewStyle: TextViewStyle = { (textView: UITextView) -> UITextView in
   _ = textView
     |> \.isScrollEnabled .~ false
@@ -192,12 +202,14 @@ public func checkoutAttributedLink(with string: String) -> NSAttributedString? {
   return attributedString
 }
 
+@MainActor
 public let checkoutCardStackViewStyle: StackViewStyle = { (stackView: UIStackView) in
   stackView
     |> verticalStackViewStyle
     |> \.spacing .~ Styles.grid(3)
 }
 
+@MainActor
 public let checkoutRootStackViewStyle = { (stackView: UIStackView) in
   stackView
     |> \.axis .~ NSLayoutConstraint.Axis.vertical
@@ -206,22 +218,26 @@ public let checkoutRootStackViewStyle = { (stackView: UIStackView) in
     |> \.spacing .~ Styles.grid(4)
 }
 
+@MainActor
 public let checkoutSubStackViewStyle: StackViewStyle = { (stackView: UIStackView) in
   stackView
     |> \.spacing .~ Styles.grid(3)
 }
 
+@MainActor
 public let rewardCardShadowStyle: ViewStyle = { (view: UIView) in
   view
     |> dropShadowStyleMedium()
     |> \.layer.shouldRasterize .~ false
 }
 
+@MainActor
 public let cardImageViewStyle: ImageViewStyle = { imageView in
   imageView
     |> \.contentMode .~ .scaleAspectFit
 }
 
+@MainActor
 public let pledgeCardViewStyle: ViewStyle = { view in
   view
     |> \.backgroundColor .~ LegacyColors.ksr_white.uiColor()

@@ -39,7 +39,7 @@ class PPOViewModelTests: XCTestCase {
     let expectation = XCTestExpectation(description: "Initial loading")
     expectation.expectedFulfillmentCount = 3
 
-    var values: [PPOViewModelPaginator.Results] = []
+    var values: [PPOViewModelResult] = []
     self.viewModel.$results
       .sink { value in
         values.append(value)
@@ -71,7 +71,7 @@ class PPOViewModelTests: XCTestCase {
     let expectation = XCTestExpectation(description: "Initial loading twice")
     expectation.expectedFulfillmentCount = 3
 
-    var values: [PPOViewModelPaginator.Results] = []
+    var values: [PPOViewModelResult] = []
     self.viewModel.$results
       .sink { value in
         values.append(value)
@@ -107,7 +107,7 @@ class PPOViewModelTests: XCTestCase {
     let fullyLoadedExpectation = XCTestExpectation(description: "Pull to refresh")
     fullyLoadedExpectation.expectedFulfillmentCount = 5
 
-    var values: [PPOViewModelPaginator.Results] = []
+    var values: [PPOViewModelResult] = []
 
     self.viewModel.$results
       .sink { value in
@@ -162,7 +162,7 @@ class PPOViewModelTests: XCTestCase {
     let fullyLoadedExpectation = XCTestExpectation(description: "Pull to refresh twice")
     fullyLoadedExpectation.expectedFulfillmentCount = 7
 
-    var values: [PPOViewModelPaginator.Results] = []
+    var values: [PPOViewModelResult] = []
 
     self.viewModel.$results
       .sink { value in
@@ -232,7 +232,7 @@ class PPOViewModelTests: XCTestCase {
     let fullyLoadedExpectation = XCTestExpectation(description: "Load more")
     fullyLoadedExpectation.expectedFulfillmentCount = 5
 
-    var values: [PPOViewModelPaginator.Results] = []
+    var values: [PPOViewModelResult] = []
 
     self.viewModel.$results
       .sink { value in
@@ -389,7 +389,7 @@ class PPOViewModelTests: XCTestCase {
     let refreshExpectation = XCTestExpectation(description: "Refresh complete")
     refreshExpectation.expectedFulfillmentCount = 4
 
-    var values: [PPOViewModelPaginator.Results] = []
+    var values: [PPOViewModelResult] = []
     self.viewModel.$results
       .sink { value in
         values.append(value)
@@ -435,7 +435,7 @@ class PPOViewModelTests: XCTestCase {
     let expectation = XCTestExpectation(description: "Initial loading empty")
     expectation.expectedFulfillmentCount = 3
 
-    var values: [PPOViewModelPaginator.Results] = []
+    var values: [PPOViewModelResult] = []
     self.viewModel.$results
       .sink { value in
         values.append(value)
@@ -468,7 +468,7 @@ class PPOViewModelTests: XCTestCase {
 
   // Setup the view model to monitor prepared events, then run the closure, then check to make sure only that one event fired
   private func verifyPreparedEvent(_ closure: () -> Void, event: PPOPreparedEvent) {
-    let beforeResults: PPOViewModelPaginator.Results = self.viewModel.results
+    let beforeResults: PPOViewModelResult = self.viewModel.results
 
     let expectation = self.expectation(description: "VerifyPreparedEvent \(event)")
 
@@ -485,7 +485,7 @@ class PPOViewModelTests: XCTestCase {
 
     self.wait(for: [expectation], timeout: 1)
 
-    let afterResults: PPOViewModelPaginator.Results = self.viewModel.results
+    let afterResults: PPOViewModelResult = self.viewModel.results
 
     XCTAssertEqual(values.count, 1)
     guard case event = values[0] else {

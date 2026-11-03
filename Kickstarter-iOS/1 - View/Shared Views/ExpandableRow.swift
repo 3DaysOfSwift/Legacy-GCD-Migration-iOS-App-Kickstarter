@@ -7,20 +7,26 @@ public struct ExpandableRow {
   public let selectableRows: [SelectableRow]
 
   public enum lens {
-    public static let isExpanded = Lens<ExpandableRow, Bool>(
+    public static var isExpanded: Lens<ExpandableRow, Bool> {
+      Lens(
       view: { $0.isExpanded },
       set: { ExpandableRow(isExpanded: $0, params: $1.params, selectableRows: $1.selectableRows) }
-    )
+      )
+    }
 
-    public static let params = Lens<ExpandableRow, DiscoveryParams>(
+    public static var params: Lens<ExpandableRow, DiscoveryParams> {
+      Lens(
       view: { $0.params },
       set: { ExpandableRow(isExpanded: $1.isExpanded, params: $0, selectableRows: $1.selectableRows) }
-    )
+      )
+    }
 
-    public static let selectableRows = Lens<ExpandableRow, [SelectableRow]>(
+    public static var selectableRows: Lens<ExpandableRow, [SelectableRow]> {
+      Lens(
       view: { $0.selectableRows },
       set: { ExpandableRow(isExpanded: $1.isExpanded, params: $1.params, selectableRows: $0) }
-    )
+      )
+    }
   }
 }
 

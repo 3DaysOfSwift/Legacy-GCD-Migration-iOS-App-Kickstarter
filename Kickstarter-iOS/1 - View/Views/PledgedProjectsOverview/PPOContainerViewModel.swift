@@ -202,9 +202,8 @@ final class PPOContainerViewModel: PPOContainerViewModelInputs, PPOContainerView
   private let process3DSAuthenticationState = PassthroughSubject<PPOActionState, Never>()
   private let stripeConfigurationSubject = PassthroughSubject<PPOStripeConfiguration, Never>()
   private let feature: PledgeFeature
-  private let observations = CompositeDisposable()
+  private let observations = ScopedDisposable(CompositeDisposable())
   private let receiptFailureSubject = PassthroughSubject<Void, Never>()
-  deinit { self.observations.dispose() }
   private let actionFinishedPerformingSubject = PassthroughSubject<Void, Never>()
   private let shouldRefreshSubject = PassthroughSubject<Void, Never>()
 

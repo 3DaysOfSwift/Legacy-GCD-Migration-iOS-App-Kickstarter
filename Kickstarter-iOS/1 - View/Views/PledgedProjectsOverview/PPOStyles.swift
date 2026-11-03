@@ -3,6 +3,7 @@ import KDS
 
 import SwiftUI
 
+@MainActor
 enum PPOStyles {
   static let header = (
     font: { UIFont.ksr_title2() },

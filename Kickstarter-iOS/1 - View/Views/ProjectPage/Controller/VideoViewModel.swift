@@ -89,7 +89,7 @@ public protocol VideoViewModelType {
 public final class VideoViewModel: VideoViewModelInputs, VideoViewModelOutputs, VideoViewModelType {
   private let feature: ProjectMediaFeature
   private let route = UUID()
-  private let disposables = CompositeDisposable()
+  private let disposables = ScopedDisposable(CompositeDisposable())
   private var startTask: Task<Void, Never>?
   private var completionTask: Task<Void, Never>?
 
@@ -270,7 +270,7 @@ public final class VideoViewModel: VideoViewModelInputs, VideoViewModelOutputs, 
   deinit {
     self.startTask?.cancel()
     self.completionTask?.cancel()
-    self.disposables.dispose()
+
     let feature = self.feature
     let route = self.route
     Task { @MainActor in feature.release(route: route) }

@@ -1,3 +1,4 @@
+import ReactiveSwift
 import FirebaseCrashlytics
 import KDS
 import Kingfisher
@@ -40,7 +41,7 @@ final class VideoFeedViewController: UIViewController {
   private var isFeedVisible = false
   private var isBackgrounded = false
 
-  private var lifecycleObservers: [any NSObjectProtocol] = []
+  private var lifecycleObservers: [ScopedDisposable<AnyDisposable>] = []
   private var previewImagePrefetcher: ImagePrefetcher?
   private var isScrolling = false
   private var currentPageIndex: Int = 0
@@ -85,9 +86,6 @@ final class VideoFeedViewController: UIViewController {
     self.viewModel.viewDidLoad()
   }
 
-  deinit {
-    self.lifecycleObservers.forEach(NotificationCenter.default.removeObserver)
-  }
 
   public override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
     return .portrait
@@ -253,7 +251,7 @@ final class VideoFeedViewController: UIViewController {
     let center = NotificationCenter.default
 
     self.lifecycleObservers = [
-      center.addObserver(
+      center.scopedObserver(
         forName: UIApplication.didEnterBackgroundNotification,
         object: nil,
         queue: .main
@@ -264,7 +262,7 @@ final class VideoFeedViewController: UIViewController {
           self?.pauseVisibleCell()
         }
       },
-      center.addObserver(
+      center.scopedObserver(
         forName: UIApplication.willEnterForegroundNotification,
         object: nil,
         queue: .main
@@ -274,7 +272,7 @@ final class VideoFeedViewController: UIViewController {
           self?.resumeVisibleCell()
         }
       },
-      center.addObserver(
+      center.scopedObserver(
         forName: .ksr_sessionStarted,
         object: nil,
         queue: .main

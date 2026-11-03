@@ -121,7 +121,7 @@ public enum SettingsCellType: SettingsCellTypeProtocol {
   }
 }
 
-public enum HelpSectionType: Int {
+public enum HelpSectionType: Int, Sendable {
   case help
   case privacy
 
@@ -129,7 +129,7 @@ public enum HelpSectionType: Int {
     return Styles.grid(5)
   }
 
-  public static var allCases: [HelpSectionType] = [.help, .privacy]
+  public static let allCases: [HelpSectionType] = [.help, .privacy]
 
   public var cellRowsForSection: [HelpType] {
     switch self {

@@ -83,7 +83,7 @@ private enum Constants {
   static let pillLeftInsetForIPhone: CGFloat = Styles.grid(2)
 }
 
-let previewPills = [
+@MainActor let previewPills = [
   SearchFilterPill(
     isHighlighted: true,
     filterType: .sort,

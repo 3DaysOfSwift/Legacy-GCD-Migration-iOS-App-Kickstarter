@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 
+@MainActor
 public protocol Instantiable: AnyObject {
   static func instantiate() -> Self
 }

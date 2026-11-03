@@ -1,7 +1,10 @@
 // swiftformat:disable wrap
 import Foundation
 
-final class AttributedNumberFormatter: NumberFormatter {
+final class AttributedNumberFormatter {
+  private let formatter: NumberFormatter
+
+  init(formatter: NumberFormatter) { self.formatter = formatter }
   // MARK: - Properties
 
   var defaultAttributes: String.Attributes = [:]
@@ -11,10 +14,10 @@ final class AttributedNumberFormatter: NumberFormatter {
 
   // MARK: - Attributed string
 
-  override func attributedString(for obj: Any, withDefaultAttributes _: [NSAttributedString.Key: Any]? = nil) -> NSAttributedString? {
+  func attributedString(for obj: Any, withDefaultAttributes _: [NSAttributedString.Key: Any]? = nil) -> NSAttributedString? {
     guard
       let number = obj as? NSNumber,
-      let string = string(from: number)?.replacingOccurrences(of: String.nbsp + String.nbsp, with: String.nbsp)
+      let string = self.formatter.string(from: number)?.replacingOccurrences(of: String.nbsp + String.nbsp, with: String.nbsp)
     else { return nil }
 
     let mutableAttributedString = NSMutableAttributedString(
@@ -49,19 +52,19 @@ final class AttributedNumberFormatter: NumberFormatter {
   // MARK: - Ranges
 
   private func currencySymbolRange(for string: String) -> NSRange? {
-    return self.numberStyle == .currency ? (string as NSString).range(of: self.currencySymbol) : nil
+    return self.formatter.numberStyle == .currency ? (string as NSString).range(of: self.formatter.currencySymbol) : nil
   }
 
   private func decimalSeparatorRange(for string: String) -> NSRange? {
-    return self.minimumFractionDigits > 0 && self.maximumFractionDigits > 0
-      ? (string as NSString).range(of: self.decimalSeparator) : nil
+    return self.formatter.minimumFractionDigits > 0 && self.formatter.maximumFractionDigits > 0
+      ? (string as NSString).range(of: self.formatter.decimalSeparator) : nil
   }
 
   private func fractionDigitsRange(for string: String) -> NSRange? {
     if let decimalSeparatorRange = self.decimalSeparatorRange(for: string), decimalSeparatorRange.location != NSNotFound {
       return NSRange(
         location: decimalSeparatorRange.location + 1,
-        length: self.maximumFractionDigits
+        length: self.formatter.maximumFractionDigits
       )
     } else {
       return nil

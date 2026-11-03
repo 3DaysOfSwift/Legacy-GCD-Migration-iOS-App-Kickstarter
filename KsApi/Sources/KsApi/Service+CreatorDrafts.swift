@@ -27,7 +27,7 @@ extension Service {
     let prepared = try Self.preparedDraftImageRequest(file: file, request: request)
     let data: Data
     let response: URLResponse
-    do { (data, response) = try await URLSession.shared.data(for: prepared) }
+    do { (data, response) = try await NetworkingManager.data(for: prepared) }
     catch {
       try Task.checkCancellation()
       throw ErrorEnvelope.couldNotParseErrorEnvelopeJSON

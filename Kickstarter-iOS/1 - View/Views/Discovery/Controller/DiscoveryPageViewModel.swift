@@ -137,7 +137,7 @@ public protocol DiscoveryPageViewModelType {
 public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, DiscoveryPageViewModelInputs,
   DiscoveryPageViewModelOutputs {
   private let discoveryFeature: DiscoveryFeature
-  private let featureBindings = CompositeDisposable()
+  private let featureBindings = ScopedDisposable(CompositeDisposable())
   internal private(set) var pageTask: Task<Void, Never>?
   internal private(set) var activityTask: Task<Void, Never>?
 
@@ -402,7 +402,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
       }
   }
 
-  deinit { self.featureBindings.dispose() }
 
   fileprivate let (configUpdatedSignal, configUpdatedObserver) = Signal<Void, Never>.pipe()
   public func configUpdated() {

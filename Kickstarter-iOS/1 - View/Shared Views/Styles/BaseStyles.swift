@@ -46,7 +46,7 @@ public typealias TextViewStyle = @MainActor @Sendable (UITextView) -> UITextView
 public typealias ToolbarStyle = @MainActor @Sendable (UIToolbar) -> UIToolbar
 public typealias ViewStyle = @MainActor @Sendable (UIView) -> UIView
 
-public func baseControllerStyle<VC: UIViewControllerProtocol>() -> ((VC) -> VC) {
+@MainActor public func baseControllerStyle<VC: UIViewControllerProtocol>() -> ((VC) -> VC) {
   return VC.lens.view.backgroundColor .~ LegacyColors.ksr_white.uiColor()
     <> (VC.lens.navigationController .. navBarLens) %~ { $0.map(baseNavigationBarStyle) }
 }
@@ -91,6 +91,7 @@ public func adaptableStackViewStyle(_ isAccessibilityCategory: Bool) -> (StackVi
   }
 }
 
+@MainActor
 public let containerViewBackgroundStyle =
   UIView.lens.backgroundColor .~ LegacyColors.ksr_support_100.uiColor()
 
@@ -116,6 +117,7 @@ public func dropShadowStyleLarge<V: UIViewProtocol>() -> ((V) -> V) {
   return dropShadowStyle(radius: 6.0, offset: .init(width: 0, height: 3.0))
 }
 
+@MainActor
 public let feedTableViewCellStyle: (UITableViewCell) -> UITableViewCell = { cell in
   cell
     |> baseTableViewCellStyle()
@@ -126,6 +128,7 @@ public let feedTableViewCellStyle: (UITableViewCell) -> UITableViewCell = { cell
     }
 }
 
+@MainActor
 public let formTextInputStyle: TextFieldStyle = { (textField: UITextField) in
   textField
     |> \.autocapitalizationType .~ UITextAutocapitalizationType.none
@@ -133,6 +136,7 @@ public let formTextInputStyle: TextFieldStyle = { (textField: UITextField) in
     |> \.spellCheckingType .~ UITextSpellCheckingType.no
 }
 
+@MainActor
 public let formFieldStyle: TextFieldStyle = { (textField: UITextField) in
   textField
     |> formTextInputStyle
@@ -143,17 +147,20 @@ public let formFieldStyle: TextFieldStyle = { (textField: UITextField) in
     |> \.tintColor .~ LegacyColors.ksr_create_700.uiColor()
 }
 
+@MainActor
 public let ignoresInvertColorsImageViewStyle: ImageViewStyle = { (imageView: UIImageView) in
   imageView
     |> \.accessibilityIgnoresInvertColors .~ true
 }
 
+@MainActor
 public let separatorStyle: ViewStyle = { (view: UIView) in
   view
     |> \.backgroundColor .~ LegacyColors.ksr_support_300.uiColor()
     |> \.accessibilityElementsHidden .~ true
 }
 
+@MainActor
 public let separatorStyleDark: ViewStyle = { view in
   view
     |> \.backgroundColor .~ LegacyColors.ksr_support_300.uiColor()
@@ -172,6 +179,7 @@ public func roundedStyle<V: UIViewProtocol>(cornerRadius r: CGFloat = Dimension.
     <> V.lens.layer.cornerRadius .~ r
 }
 
+@MainActor
 public let baseSwitchControlStyle: SwitchControlStyle = { switchControl in
   switchControl
     |> \.onTintColor .~ LegacyColors.ksr_create_700.uiColor()
@@ -181,11 +189,13 @@ public let baseSwitchControlStyle: SwitchControlStyle = { switchControl in
 // MARK: - Private Helpers
 
 // Just a lil helper lens for getting inside a nav controller's nav bar.
+@MainActor
 private let navBarLens: Lens<UINavigationController?, UINavigationBar?> = Lens(
   view: { $0?.navigationBar },
   set: { _, whole in whole }
 )
 
+@MainActor
 private let baseNavigationBarStyle =
   UINavigationBar.lens.titleTextAttributes .~ [
     NSAttributedString.Key.foregroundColor: LegacyColors.ksr_black.uiColor()
@@ -195,6 +205,7 @@ private let baseNavigationBarStyle =
   <> UINavigationBar.lens.standardAppearance .~ navigationBarAppearance
   <> UINavigationBar.lens.scrollEdgeAppearance .~ navigationBarAppearance
 
+@MainActor
 private var navigationBarAppearance: UINavigationBarAppearance {
   let navBarAppearance = UINavigationBarAppearance()
   navBarAppearance.configureWithOpaqueBackground()
@@ -203,6 +214,7 @@ private var navigationBarAppearance: UINavigationBarAppearance {
   return navBarAppearance
 }
 
+@MainActor
 public let keyboardToolbarStyle: ToolbarStyle = { toolbar -> UIToolbar in
   toolbar
     |> roundedStyle(cornerRadius: 8)
@@ -210,6 +222,7 @@ public let keyboardToolbarStyle: ToolbarStyle = { toolbar -> UIToolbar in
     |> \.layer.maskedCorners .~ [.layerMaxXMinYCorner, .layerMinXMinYCorner]
 }
 
+@MainActor
 public let keyboardDoneButtonStyle: ButtonStyle = { button -> UIButton in
   if #available(iOS 26.0, *) {
     var config = UIButton.Configuration.borderless()
@@ -221,6 +234,7 @@ public let keyboardDoneButtonStyle: ButtonStyle = { button -> UIButton in
   return button
 }
 
+@MainActor
 public let verticalStackViewStyle: StackViewStyle = { (stackView: UIStackView) in
   stackView
     |> \.axis .~ NSLayoutConstraint.Axis.vertical

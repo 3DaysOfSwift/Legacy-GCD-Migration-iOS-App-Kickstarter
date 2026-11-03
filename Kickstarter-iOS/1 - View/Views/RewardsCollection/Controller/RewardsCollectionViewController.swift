@@ -401,7 +401,7 @@ extension RewardsCollectionViewController: PledgeShippingLocationViewControllerD
 
 // MARK: Styles
 
-private var collectionViewStyle: CollectionViewStyle = { collectionView -> UICollectionView in
+@MainActor private let collectionViewStyle: CollectionViewStyle = { collectionView -> UICollectionView in
   collectionView
     |> \.allowsSelection .~ true
     |> \.showsHorizontalScrollIndicator .~ true

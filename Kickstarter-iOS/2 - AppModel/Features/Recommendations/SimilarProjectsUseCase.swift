@@ -38,14 +38,14 @@ import ReactiveSwift
 
   private let projectDetailsFeature: ProjectDetailsFeature
   private let route = UUID()
-  private var observation: Disposable?
+  private let observation = ScopedDisposable(SerialDisposable())
   internal private(set) var loadingTask: Task<Void, Never>?
 
   init(projectDetailsFeature: ProjectDetailsFeature? = nil) {
     let feature = projectDetailsFeature ?? AppModel.shared.projectDetailsFeature
     self.projectDetailsFeature = feature
     self.navigateToProject = self.projectTappedSignal
-    self.observation = feature.relatedCompletions.observeValues { [weak self] route, result in
+    self.observation.inner.inner = feature.relatedCompletions.observeValues { [weak self] route, result in
       guard let self, self.route == route else { return }
       self.loadingTask = nil
       switch result {
@@ -57,7 +57,7 @@ import ReactiveSwift
 
   deinit {
     self.loadingTask?.cancel()
-    self.observation?.dispose()
+
     let feature = self.projectDetailsFeature
     let route = self.route
     Task { @MainActor in feature.releaseRelated(route: route) }

@@ -4,6 +4,7 @@ import KDS
 import Prelude
 import XCTest
 
+@MainActor
 final class UIStackViewTests: XCTestCase {
   func testAddArrangedSubviewsToStackView() {
     let firstView = UIView(frame: .zero)

@@ -290,30 +290,3 @@ public final class ProfileFeature {
     return task
   }
 }
-
-/// Serializes the existing disk cache away from UI rendering. URLSession's native
-/// async operation owns transport cancellation; the Feature owns request identity.
-public actor ProfileAvatarStore {
-  public static let shared = ProfileAvatarStore()
-  private let directory: URL?
-  private let download: @Sendable (URL) async throws -> Data
-  public init(
-    directory: URL? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first,
-    download: @escaping @Sendable (URL) async throws -> Data = { url in
-      let session = URLSession(configuration: .default)
-      defer { session.invalidateAndCancel() }
-      return try await session.data(from: url).0
-    }
-  ) { self.directory = directory; self.download = download }
-  public func data(for url: URL) async throws -> Data {
-    try Task.checkCancellation()
-    // Keep the existing cache name and cache-first/failure behavior.
-    guard let directory else { throw URLError(.cannotOpenFile) }
-    let file = directory.appendingPathComponent("tabbar-avatar-image-\(url.absoluteString.hashValue).dat")
-    if let data = try? Data(contentsOf: file) { return data }
-    let data = try await self.download(url)
-    try Task.checkCancellation()
-    try? data.write(to: file, options: .atomic)
-    return data
-  }
-}

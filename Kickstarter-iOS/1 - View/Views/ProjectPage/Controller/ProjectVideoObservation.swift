@@ -1,3 +1,4 @@
+import ReactiveSwift
 import AVFoundation
 import Foundation
 
@@ -61,7 +62,7 @@ final class NativeProjectVideoEvents: ProjectVideoEventSource {
   private let continuation: AsyncStream<ProjectVideoEvent>.Continuation
   private let player: AVPlayer
   private var observations: [NSKeyValueObservation] = []
-  private var boundaryToken: Any?
+  private var boundaryToken: ScopedDisposable<AnyDisposable>?
 
   init(player: AVPlayer) {
     self.player = player
@@ -81,9 +82,9 @@ final class NativeProjectVideoEvents: ProjectVideoEventSource {
   }
 
   func setBoundary(_ time: CMTime, id: UUID) {
-    if let token = self.boundaryToken { self.player.removeTimeObserver(token) }
+    if let token = self.boundaryToken { token.dispose() }
     let continuation = self.continuation
-    self.boundaryToken = self.player.addBoundaryTimeObserver(
+    self.boundaryToken = self.player.scopedBoundaryTimeObserver(
       forTimes: [NSValue(time: time)], queue: .main
     ) { continuation.yield(.completion(id)) }
   }
@@ -92,7 +93,7 @@ final class NativeProjectVideoEvents: ProjectVideoEventSource {
     self.observations.forEach { $0.invalidate() }
     self.observations.removeAll()
     self.continuation.finish()
-    if let token = self.boundaryToken { self.player.removeTimeObserver(token) }
+    if let token = self.boundaryToken { token.dispose() }
     self.boundaryToken = nil
     self.player.pause()
     self.player.currentItem?.cancelPendingSeeks()
@@ -102,11 +103,9 @@ final class NativeProjectVideoEvents: ProjectVideoEventSource {
     self.observations.forEach { $0.invalidate() }
     self.continuation.finish()
     let player = self.player
-    let token = self.boundaryToken
     // Finite platform-resource cleanup by value also supports synchronous UIKit
     // release on the current runtime; never capture the deinitializing owner.
     Task { @MainActor in
-      if let token { player.removeTimeObserver(token) }
       player.pause()
       player.currentItem?.cancelPendingSeeks()
       player.replaceCurrentItem(with: nil)

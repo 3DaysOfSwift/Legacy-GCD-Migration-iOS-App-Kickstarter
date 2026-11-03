@@ -71,7 +71,7 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
     fileprivate let facebookToken: String?
     fileprivate let code: String?
 
-    fileprivate enum lens {
+    @MainActor fileprivate enum lens {
       fileprivate static let code = Lens<TfaData, String?>(
         view: { $0.code },
         set: { TfaData(email: $1.email, password: $1.password, facebookToken: $1.facebookToken, code: $0) }

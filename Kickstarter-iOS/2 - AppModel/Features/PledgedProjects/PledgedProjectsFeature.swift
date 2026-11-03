@@ -23,9 +23,7 @@ public struct AsyncPledgedProjectsProvider: PledgedProjectsProvider {
 /// Owns overview requests, pagination and account isolation. Combine carries snapshots only.
 @MainActor
 public final class PledgedProjectsFeature {
-  public typealias Snapshot = Paginator<
-    PledgedProjectsResponse, PPOProjectCardModel, String, ErrorEnvelope, Void
-  >.Results
+  public typealias Snapshot = PaginationResult<PPOProjectCardModel, String, ErrorEnvelope>
   private let sessionFeature: SessionFeature
   private let makeProvider: () -> any PledgedProjectsProvider
   private let tiers: @MainActor () -> [PledgeProjectsOverviewSort]

@@ -2,6 +2,34 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## CFA implementation handover — 3 November 2026
+
+Final physical/target audit: 765 core Swift files, each compiled once in the app,
+with no old app-library imports, manifests or nib module names. Five local packages
+retain services/generated APIs/reusable components. No core app library remains.
+
+Final pass centralized native URLSession transport, separated avatar/redirect storage
+from Feature files, removed unused pagination engines, isolated UI/static helpers,
+made share payloads immutable and kept attributed formatting local to each request.
+Scoped subscription/notification/player handles now own cleanup. An isolated-deinit
+attempt crashed eight existing tests and was reverted; scoped disposal passes them.
+
+2,173 model/Feature +406 presentation +152 API +26 signed session +172 additional
+existing tests = **2,929 passed, zero failures/skips**. No new race-condition tests.
+The 28 removed tests belonged to deleted unused pagination engines; six projection
+assertions and the active Feature pagination coverage remain.
+
+Forced complete-checking recompile of all app Swift files passed with zero
+app-attributed concurrency diagnostics (210 at the start of this pass). Four
+unattributed SDK key-path warnings remain; this is not strict Swift 6 certification
+or a full dependency rebuild. Final public-demo Simulator startup passed.
+
+The requested CFA implementation/folder handover is complete and ready for the
+separate concurrency-analysis phase. Physical-device checks remain explicitly
+deferred by Matthew; full snapshots/visual, release and live-operation validation
+remain unverified. No live payment was made. See MIGRATION_COMPLETION_REPORT.md.
+Evidence: kickstarter-cfa-completion. No push/publication.
+
 ## Core application CFA structure — 3 November 2026
 
 Core application code now compiles directly in the application target under

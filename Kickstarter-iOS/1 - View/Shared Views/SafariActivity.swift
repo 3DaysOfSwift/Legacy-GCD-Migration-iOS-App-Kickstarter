@@ -35,7 +35,8 @@ public final class SafariActivity: UIActivity {
   public override func perform() {
     guard let url = self.url else { return }
 
-    UIApplication.shared.open(url)
+    // UIActivity performs this action from the system share UI.
+    MainActor.assumeIsolated { UIApplication.shared.open(url) }
     self.activityDidFinish(true)
   }
 }

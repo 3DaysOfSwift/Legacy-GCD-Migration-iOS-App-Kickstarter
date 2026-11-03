@@ -1,3 +1,4 @@
+import ReactiveSwift
 import Foundation
 import AVFoundation
 import MediaPlayer
@@ -44,7 +45,7 @@ public final class VideoFeedAudioController {
   internal private(set) var isResettingAudioSession = false
 
   private var volumeObservation: NSKeyValueObservation?
-  private var muteStateObserver: (any NSObjectProtocol)?
+  private var muteStateObserver: ScopedDisposable<AnyDisposable>?
 
   private enum AudioEvent: Sendable { case volumeUp, silentSwitch }
   private var eventContinuation: AsyncStream<AudioEvent>.Continuation?
@@ -72,7 +73,6 @@ public final class VideoFeedAudioController {
     self.observationTask?.cancel()
     self.eventContinuation?.finish()
     self.volumeObservation?.invalidate()
-    if let observer = self.muteStateObserver { NotificationCenter.default.removeObserver(observer) }
     // Bounded UIKit cleanup by value: never retain a deinitializing controller.
     // Avoid isolated deinit: the current toolchain crashes in its back-deployment
     // runtime when released from a synchronous XCTest/Objective-C main-thread call.
@@ -118,7 +118,7 @@ public final class VideoFeedAudioController {
         guard let old = change.oldValue, let new = change.newValue, new > old else { return }
         continuation.yield(.volumeUp)
       }
-    self.muteStateObserver = NotificationCenter.default.addObserver(
+    self.muteStateObserver = NotificationCenter.default.scopedObserver(
       forName: AVAudioSession.outputMuteStateChangeNotification, object: nil, queue: .main
     ) { _ in continuation.yield(.silentSwitch) }
     self.observationTask = Task { [weak self] in
@@ -140,7 +140,7 @@ public final class VideoFeedAudioController {
     self.observationVersion = UUID()
     self.volumeObservation?.invalidate()
     self.volumeObservation = nil
-    if let observer = self.muteStateObserver { NotificationCenter.default.removeObserver(observer) }
+    if let observer = self.muteStateObserver { observer.dispose() }
     self.muteStateObserver = nil
     self.eventContinuation?.finish()
     self.eventContinuation = nil

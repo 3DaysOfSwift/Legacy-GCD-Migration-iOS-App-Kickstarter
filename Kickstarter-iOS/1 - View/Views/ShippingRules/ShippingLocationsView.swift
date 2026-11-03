@@ -8,7 +8,7 @@ import SwiftUI
 /// by only exposing an opaque `UIViewController` type.
 /// `ShippingLocationsView` is intentionally left private.
 /// We should revisit this pattern and explore other naming conventions.
-class ShippingLocations {
+@MainActor class ShippingLocations {
   public static func viewController(
     withLocations locations: [Location],
     selectedLocation: Location?,

@@ -52,7 +52,7 @@ public enum RewardsCollectionViewContext {
   RewardsCollectionViewModelInputs, RewardsCollectionViewModelOutputs {
   private let rewardsFeature: RewardsFeature
   private let route = UUID()
-  private let observations = CompositeDisposable()
+  private let observations = ScopedDisposable(CompositeDisposable())
   internal private(set) var loadingTask: Task<Void, Never>?
 
   public init(rewardsFeature: RewardsFeature? = nil) {
@@ -371,7 +371,7 @@ public enum RewardsCollectionViewContext {
 
   deinit {
     self.loadingTask?.cancel()
-    self.observations.dispose()
+
     let feature = self.rewardsFeature
     let route = self.route
     Task { @MainActor in feature.release(route: route) }

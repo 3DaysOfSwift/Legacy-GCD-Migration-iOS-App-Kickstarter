@@ -17,6 +17,7 @@ import UIKit
 /// let presenter = BottomSheetPresenter()
 /// presenter.present(viewController: hostingController, from: self)
 /// ```
+@MainActor
 final class BottomSheetPresenter {
   private let transitioningDelegate = BottomSheetTransitioningDelegate()
 

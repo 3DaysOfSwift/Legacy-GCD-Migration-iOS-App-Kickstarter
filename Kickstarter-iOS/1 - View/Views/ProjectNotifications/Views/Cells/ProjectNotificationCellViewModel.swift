@@ -35,7 +35,7 @@ public final class ProjectNotificationCellViewModel: ProjectNotificationCellView
   ProjectNotificationCellViewModelInputs, ProjectNotificationCellViewModelOutputs {
   private let feature: SettingsFeature
   private var notification: ProjectNotification?
-  private var presentation: Disposable?
+  private let presentation = ScopedDisposable(SerialDisposable())
   private let names = Signal<String, Never>.pipe()
   private let switches = Signal<Bool, Never>.pipe()
   private let errors = Signal<String, Never>.pipe()
@@ -47,7 +47,7 @@ public final class ProjectNotificationCellViewModel: ProjectNotificationCellView
 
   public func configureWith(notification: ProjectNotification) {
     // Reused cells cannot receive a previous project's delayed save/error.
-    self.presentation?.dispose()
+    self.presentation.inner.inner = nil
     let current = self.feature.cachedProjectNotification(notification)
     self.notification = current
     self.names.input.send(value: current.project.name)
@@ -60,8 +60,8 @@ public final class ProjectNotificationCellViewModel: ProjectNotificationCellView
     let edited = source
       |> ProjectNotification.lens.email .~ on
       |> ProjectNotification.lens.mobile .~ on
-    self.presentation?.dispose()
-    self.presentation = self.feature.projectNotificationResult(edited).startWithResult { [weak self] result in
+    self.presentation.inner.inner = nil
+    self.presentation.inner.inner = self.feature.projectNotificationResult(edited).startWithResult { [weak self] result in
       guard let self else { return }
       switch result {
       case .success:
@@ -75,7 +75,6 @@ public final class ProjectNotificationCellViewModel: ProjectNotificationCellView
     }
   }
 
-  deinit { self.presentation?.dispose() }
 
   public var name: Signal<String, Never> { self.names.output }
   public let notificationOn: Signal<Bool, Never>

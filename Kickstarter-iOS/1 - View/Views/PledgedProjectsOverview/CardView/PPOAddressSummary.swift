@@ -36,7 +36,7 @@ struct PPOAddressSummary: View {
     .accessibilityElement(children: .combine)
   }
 
-  private enum Constants {
+  @MainActor private enum Constants {
     static let textAlignment = Alignment.topLeading
     static let maxWidth = CGFloat.infinity
     static let editIconSize = Spacing.unit_06

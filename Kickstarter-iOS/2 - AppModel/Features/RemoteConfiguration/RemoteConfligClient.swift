@@ -4,7 +4,7 @@ public class RemoteConfigClient: RemoteConfigClientType {
   @MainActor public func fetchAndActivateAsync() async throws {
     _ = try await self.sharedClient.fetchAndActivate()
   }
-  public func fetchAndActivate(completionHandler: ((RemoteConfigFetchAndActivateStatus, Error?) -> Void)?) {
+  public func fetchAndActivate(completionHandler: (@Sendable (RemoteConfigFetchAndActivateStatus, Error?) -> Void)?) {
     self.sharedClient.fetchAndActivate(completionHandler: completionHandler)
   }
 
@@ -14,11 +14,11 @@ public class RemoteConfigClient: RemoteConfigClientType {
     self.sharedClient = client
   }
 
-  public func activate(completion: ((Bool, Error?) -> Void)?) {
+  public func activate(completion: (@Sendable (Bool, Error?) -> Void)?) {
     self.sharedClient.activate(completion: completion)
   }
 
-  public func fetch(completionHandler: ((RemoteConfigFetchStatus, Error?) -> Void)?) {
+  public func fetch(completionHandler: (@Sendable (RemoteConfigFetchStatus, Error?) -> Void)?) {
     self.sharedClient.fetch(completionHandler: completionHandler)
   }
 
@@ -26,7 +26,7 @@ public class RemoteConfigClient: RemoteConfigClientType {
     self.sharedClient.setDefaults(defaults)
   }
 
-  public func addOnConfigUpdateListener(remoteConfigUpdateCompletion listener: @escaping (
+  public func addOnConfigUpdateListener(remoteConfigUpdateCompletion listener: @escaping @Sendable (
     RemoteConfigUpdate?,
     Error?
   ) -> Void) -> ConfigUpdateListenerRegistration {

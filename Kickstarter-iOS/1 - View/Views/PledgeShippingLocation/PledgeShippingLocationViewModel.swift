@@ -61,7 +61,7 @@ public struct PledgeShippingLocationViewData {
   PledgeShippingLocationViewModelOutputs {
   private let rewardsFeature: RewardsFeature
   private let route = UUID()
-  private let disposables = CompositeDisposable()
+  private let disposables = ScopedDisposable(CompositeDisposable())
   internal private(set) var loadingTask: Task<Void, Never>?
 
   public init(rewardsFeature: RewardsFeature? = nil) {
@@ -134,7 +134,7 @@ public struct PledgeShippingLocationViewData {
 
   deinit {
     self.loadingTask?.cancel()
-    self.disposables.dispose()
+
     let rewardsFeature = self.rewardsFeature
     let route = self.route
     Task { @MainActor in rewardsFeature.releaseShippingLocations(route: route) }

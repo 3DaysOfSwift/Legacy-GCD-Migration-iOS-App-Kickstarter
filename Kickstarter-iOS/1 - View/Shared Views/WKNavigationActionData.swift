@@ -6,7 +6,7 @@ public struct WKNavigationActionData {
   public let request: URLRequest
   public let targetFrame: WKFrameInfoData?
 
-  public init(navigationAction: WKNavigationAction) {
+  @MainActor public init(navigationAction: WKNavigationAction) {
     self.navigationAction = navigationAction
     self.navigationType = navigationAction.navigationType
     self.request = navigationAction.request
@@ -32,7 +32,7 @@ public struct WKFrameInfoData {
   public let frameInfo: WKFrameInfo?
   public let mainFrame: Bool
 
-  public init(frameInfo: WKFrameInfo) {
+  @MainActor public init(frameInfo: WKFrameInfo) {
     self.frameInfo = frameInfo
     self.mainFrame = frameInfo.isMainFrame
   }

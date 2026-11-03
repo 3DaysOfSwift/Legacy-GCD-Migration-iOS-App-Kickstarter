@@ -3,15 +3,15 @@ import UIKit.UIStackView
 
 private let stackViewBackgroundViewTag: Int = 1
 
-public func ksr_addArrangedSubviewsToStackView() -> (([UIView], UIStackView) -> UIStackView) {
+@MainActor public func ksr_addArrangedSubviewsToStackView() -> (@MainActor ([UIView], UIStackView) -> UIStackView) {
   return { subviews, stackView in
-    subviews.forEach(stackView.addArrangedSubview)
+    for view in subviews { stackView.addArrangedSubview(view) }
 
     return stackView
   }
 }
 
-public func ksr_setCustomSpacing(_ spacing: CGFloat) -> ((UIView, UIStackView) -> UIStackView) {
+@MainActor public func ksr_setCustomSpacing(_ spacing: CGFloat) -> (@MainActor (UIView, UIStackView) -> UIStackView) {
   return { view, stackView in
     stackView.setCustomSpacing(spacing, after: view)
 
@@ -19,7 +19,7 @@ public func ksr_setCustomSpacing(_ spacing: CGFloat) -> ((UIView, UIStackView) -
   }
 }
 
-public func ksr_setBackgroundColor(_ color: UIColor) -> ((UIStackView) -> (UIStackView)) {
+@MainActor public func ksr_setBackgroundColor(_ color: UIColor) -> (@MainActor (UIStackView) -> UIStackView) {
   return { stackView in
     if let firstSubview = stackView.subviews.first, firstSubview.tag == stackViewBackgroundViewTag {
       firstSubview.backgroundColor = color

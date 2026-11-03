@@ -8354,7 +8354,7 @@ from friends yet."
 from friends yet."
    - **de**: "Es gibt noch keine Beiträge von Freunden."
    - **es**: "Todavía no hay contribuciones de amigos."
-   - **fr**: "Mes amis 
+   - **fr**: "Mes amis
 n'ont rien soutenu."
    - **ja**: "友達からのプレッジはありません。"
   */
@@ -29326,7 +29326,7 @@ gespeichert"
 guardados"
    - **fr**: "%{projects_count}
 projets enregistrés"
-   - **ja**: "%{projects_count} 
+   - **ja**: "%{projects_count}
 保存済み"
   */
   public static func projects_count_newline_saved(projects_count: Int) -> String {
@@ -29349,7 +29349,7 @@ gespeichert"
 guardados"
    - **fr**: "%{projects_count}
 projets enregistrés"
-   - **ja**: "%{projects_count} 
+   - **ja**: "%{projects_count}
 保存済み"
   */
   public static func projects_count_newline_saved_other(projects_count: String) -> String {

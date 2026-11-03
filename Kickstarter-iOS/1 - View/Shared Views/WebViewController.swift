@@ -42,11 +42,7 @@ internal class WebViewController: UIViewController {
     self.webView.scrollView.delegate = self
   }
 
-  deinit {
-    self.webView.uiDelegate = nil
-    self.webView.navigationDelegate = nil
-    self.webView.scrollView.delegate = nil
-  }
+  // WebKit and scroll-view delegates are weak; releasing the controller clears them.
 
   func webView(
     _: WKWebView,

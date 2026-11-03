@@ -72,7 +72,7 @@ public final class FindFriendsViewModel: FindFriendsViewModelType, FindFriendsVi
   FindFriendsViewModelOutputs {
   private let feature: FriendsFeature
   private let route = UUID()
-  private let subscriptions = CompositeDisposable()
+  private let subscriptions = ScopedDisposable(CompositeDisposable())
 
   public init(feature: FriendsFeature? = nil) {
     let feature = feature ?? AppModel.shared.friendsFeature
@@ -163,7 +163,7 @@ public final class FindFriendsViewModel: FindFriendsViewModelType, FindFriendsVi
   }
 
   deinit {
-    self.subscriptions.dispose()
+
     let feature = self.feature
     let route = self.route
     Task { @MainActor in feature.release(route: route) }

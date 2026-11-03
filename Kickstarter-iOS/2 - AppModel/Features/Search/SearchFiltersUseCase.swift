@@ -154,7 +154,6 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
       }
   }
 
-  deinit { self.bindings.dispose() }
 
   private let showFiltersPipe = Signal<SearchFilterModalType, Never>.pipe()
 
@@ -167,7 +166,7 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
   }
 
   private let searchFeature: SearchFeature
-  private let bindings = CompositeDisposable()
+  private let bindings = ScopedDisposable(CompositeDisposable())
 
   nonisolated internal static let defaultSortOption = DiscoveryParams.Sort.magic
 

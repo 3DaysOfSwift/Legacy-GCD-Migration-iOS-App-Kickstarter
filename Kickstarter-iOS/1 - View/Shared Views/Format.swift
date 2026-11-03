@@ -212,7 +212,7 @@ public enum Format {
     config.maximumFractionDigits = minimumFractionDigits
 
     // Styling belongs to this request and must not mutate a cached formatter.
-    let formatter = config.formatter()
+    let formatter = AttributedNumberFormatter(formatter: config.formatter())
 
     _ = formatter
       |> \.defaultAttributes .~ defaultAttributes
@@ -598,8 +598,8 @@ private struct NumberFormatterConfig: Sendable {
   fileprivate var locale: Locale
   fileprivate var currencySymbol: String
 
-  fileprivate func formatter() -> AttributedNumberFormatter {
-    let formatter = AttributedNumberFormatter()
+  fileprivate func formatter() -> NumberFormatter {
+    let formatter = NumberFormatter()
     formatter.numberStyle = self.numberStyle
     formatter.roundingMode = self.roundingMode
     formatter.maximumFractionDigits = self.maximumFractionDigits

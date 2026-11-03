@@ -51,7 +51,7 @@ internal protocol UpdateViewModelType {
 internal final class UpdateViewModel: UpdateViewModelType, UpdateViewModelInputs, UpdateViewModelOutputs {
   private let feature: DiscussionFeature
   private let route = UUID()
-  private let disposables = CompositeDisposable()
+  private let disposables = ScopedDisposable(CompositeDisposable())
   private var updateTask: Task<Void, Never>?
   private var projectTask: Task<Void, Never>?
   private let projectNavigation = Signal<(WKNavigationActionData, Project, RefTag), Never>.pipe()
@@ -183,7 +183,7 @@ internal final class UpdateViewModel: UpdateViewModelType, UpdateViewModelInputs
   deinit {
     self.updateTask?.cancel()
     self.projectTask?.cancel()
-    self.disposables.dispose()
+
     let feature = self.feature
     let route = self.route
     Task { @MainActor in feature.release(route: route) }

@@ -8,6 +8,7 @@ public struct PushRegistration: PushRegistrationType {
   /// disposing this observer suppresses delivery without retracting system consent.
   public static func register(for options: UNAuthorizationOptions) -> SignalProducer<Bool, Never> {
     SignalProducer { observer, lifetime in
+      MainActor.assumeIsolated {
       let task = Task { @MainActor in
         guard !Task.isCancelled else { return }
         let granted = await AppModel.shared.appLifecycleFeature.notificationAuthorization(options: options)
@@ -16,6 +17,7 @@ public struct PushRegistration: PushRegistrationType {
         observer.sendCompleted()
       }
       lifetime.observeEnded { task.cancel() }
+      }
     }
   }
 
@@ -23,6 +25,7 @@ public struct PushRegistration: PushRegistrationType {
   /// consumers, which already observe UI work through their UI scheduler.
   public static func hasAuthorizedNotifications() -> SignalProducer<Bool, Never> {
     SignalProducer { observer, lifetime in
+      MainActor.assumeIsolated {
       let task = Task { @MainActor in
         guard !Task.isCancelled else { return }
         let settings = await UNUserNotificationCenter.current().notificationSettings()
@@ -31,6 +34,7 @@ public struct PushRegistration: PushRegistrationType {
         observer.sendCompleted()
       }
       lifetime.observeEnded { task.cancel() }
+      }
     }
   }
 }

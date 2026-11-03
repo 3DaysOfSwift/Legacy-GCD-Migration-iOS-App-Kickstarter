@@ -91,7 +91,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   CommentRepliesViewModelOutputs {
   private let feature: DiscussionFeature
   private let route = UUID()
-  private let disposables = CompositeDisposable()
+  private let disposables = ScopedDisposable(CompositeDisposable())
   private(set) var loadingTask: Task<Void, Never>?
   private(set) var contextTask: Task<Void, Never>?
 
@@ -351,7 +351,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   deinit {
     self.loadingTask?.cancel()
     self.contextTask?.cancel()
-    self.disposables.dispose()
+
     let feature = self.feature
     let route = self.route
     Task { @MainActor in

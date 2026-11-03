@@ -12,7 +12,7 @@ public class MockRemoteConfigClient: RemoteConfigClientType {
     throw URLError(.unsupportedURL)
   }
   public func fetchAndActivate(completionHandler _: (
-    (RemoteConfigFetchAndActivateStatus, Error?)
+    @Sendable (RemoteConfigFetchAndActivateStatus, Error?)
       -> Void
   )?) {}
 
@@ -22,7 +22,7 @@ public class MockRemoteConfigClient: RemoteConfigClientType {
     self.features = [:]
   }
 
-  public func activate(completion _: ((Bool, Error?) -> Void)?) {}
+  public func activate(completion _: (@Sendable (Bool, Error?) -> Void)?) {}
 
   public func configValue(forKey key: String?) -> RemoteConfigValue {
     let value = MockRemoteConfigValue()
@@ -36,11 +36,11 @@ public class MockRemoteConfigClient: RemoteConfigClientType {
     return value
   }
 
-  public func fetch(completionHandler _: ((RemoteConfigFetchStatus, Error?) -> Void)?) {}
+  public func fetch(completionHandler _: (@Sendable (RemoteConfigFetchStatus, Error?) -> Void)?) {}
 
   public func setDefaults(_: [String: NSObject]?) {}
 
-  public func addOnConfigUpdateListener(remoteConfigUpdateCompletion _: @escaping (
+  public func addOnConfigUpdateListener(remoteConfigUpdateCompletion _: @escaping @Sendable (
     RemoteConfigUpdate?,
     Error?
   ) -> Void) -> ConfigUpdateListenerRegistration {

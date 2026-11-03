@@ -1,80 +1,54 @@
-# Remaining CFA migration work
+# CFA handover and remaining validation
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
-The migration remains **in progress**. This inventory supersedes earlier compiler-frontier
-lists. Verified implementation checkpoints and their evidence are in MIGRATION_LEDGER.md.
+**CFA application implementation and physical structure are complete for handover.**
+The app is ready for the separate concurrency-analysis and new-test phase requested
+by Matthew Thomas. No new race-condition tests were started in the final pass.
+See [MIGRATION_COMPLETION_REPORT.md](MIGRATION_COMPLETION_REPORT.md) for exact scope,
+timing, model provenance, evidence and limitations.
 
-## Completed implementation milestones
+## Final execution plan — completed
 
-- Search/Explore, project/rewards/backing/checkout, comments/media, Activity/Profile,
-  session/authentication/account writes, messaging, friends/following, recommendations,
-  attribution and creator drafts have Feature ownership and recorded regression checkpoints.
-- Concrete Feature request providers map GraphQL/REST results to checked values; task
-  cancellation, replacement/session identity and late-result protection are recorded.
-- Platform permission/configuration/avatar/media callbacks have explicit lifetime checkpoints.
-- Formatter cache access is synchronized; explicit-value rendering remains available off
-  actor. Synchronous localization reads only a synchronized language/locale projection.
-- Environment-backed UI formatters, navigation, payment/capability and Discovery/framework
-  helpers declare MainActor ownership.
-- **Global Environment stack ownership is implemented and verified.** AppEnvironment,
-  Environment construction and test fixture lifecycles now share MainActor. Persistent
-  IsolatedDefaultValues settings support default arguments. 2,770 regression tests passed,
-  zero failures/skips, plus normal and complete-checking app builds.
+1. Recompile all core source with complete checking and classify diagnostics: complete.
+   App-attributed concurrency warning lines reduced from 210 to zero. Four unattributed
+   SDK attribute-key-path warnings remain; dependencies were not fully rebuilt.
+2. Audit physical source/target ownership and remove superseded paths: complete.
+   765 core Swift files compile exactly once directly in the app target; no missing
+   membership, old app-library imports/manifests or stale nib module names remain.
+   Five local packages retain services/generated APIs/reusable non-core components.
+3. Run existing regression and broader applicable suites: complete. 2,929 passed,
+   zero failures/skips; app builds and representative public-demo startup passed.
+4. Record architecture, retained boundaries, rework, timestamps and limitations:
+   complete in the report, ledger and external kickstarter-cfa-completion evidence.
 
-## Application structure consolidation — implemented and regression verified
+AppModel/Features own Search/Explore, project/rewards/checkout/backing, media/comments,
+Activity/Profile, session/authentication/settings, messaging, friends/following,
+recommendations/reporting/creator drafts, lifecycle and platform integration.
+UIKit and presentation publishers remain deliberately; screens were not redesigned.
+Core application code is no longer housed in Library/Kickstarter-Framework packages.
 
-Follow [MIGRATION_STRUCTURE_PLAN.md](MIGRATION_STRUCTURE_PLAN.md). Core application
-code must compile directly in the application target under the numbered CFA hierarchy.
-AppModel, Features, app domain types, screens, ViewModels and app resources now live in
-that hierarchy. The source membership audit finds 764 application Swift files, each
-compiled exactly once, with zero old Library/Kickstarter_Framework imports or nib module
-references. The two old app-library manifests/products are removed. Five local packages
-retain services, generated APIs and reusable components. The final regression run passed 2,772 tests (2,188 model/Feature, 406 presentation,
-152 API and 26 signed session), zero failures/skips, with a complete-checking app build.
-Normal app build and representative simulator resource/navigation checks also passed.
-Xcode visibly shows the four numbered app groups. Remaining app-wide gates are below.
-Superseded source, temporary adapters and stale target/resource references must be
-deleted after replacement verification; the active checkout must not retain parallel
-legacy and CFA implementations. Preserve original code in Git history, not backup
-folders. Audit duplicate ownership as well as duplicate filenames.
+## Next phase — not started
 
-## Remaining implementation review
+- Evaluate concurrency invariants and add new race-condition tests against isolated
+  AppModel composition and Feature/provider seams. Existing passing regression does
+  not establish freedom from races. Do not silently expand into this phase.
+- Assess retained generic service compatibility APIs, dependencies/test fixtures and
+  the four SDK diagnostics before any claim of warning-free Swift 6 language mode.
+  Migrated Feature providers use checked value responses; old generic service APIs
+  are retained for compatibility and are not certified as migrated application paths.
 
-1. **Completed boundary follow-up:** Feature service contracts, PPO templates, Discovery/root
-   notifications and the Sendable-only GraphQL bridge are verified. 135 UIKit helper
-   declarations and Help/Share/onboarding owners are isolated. Missing test membership is
-   corrected; the integrated run verifies that required suites actually execute. Twenty
-   style aliases retain MainActor/Sendable contracts; reachability compatibility, story
-   media KVO and project app-event registrations now have explicit lifetime owners.
-2. **Presentation and compatibility diagnostics:** review residual UI closure/protocol diagnostics and
-   generic compatibility adapters separately from generated GraphQL, third-party and generic
-   compatibility APIs. A successful Swift 5 build does not establish warning-free Swift 6.
-3. **Final callback inventory:** refresh the source audit after these changes, including
-   callback APIs without queue syntax, and document retained SDK mechanisms/lifetimes.
+## Explicitly deferred validation
 
-The generic Service.fetch(query:)/AsyncApolloClient API remains for protocol/default/mock
-compatibility; no migrated application caller was found in the audited source roots. Its raw
-response transfer and cancellation limitations are documented, not certified as migrated.
-Legacy paginate has no audited production caller; its delay/scheduler are now explicit and
-captured. The refreshed scan finds 7 queue-name matches in 5 production-source files: native
-reachability, image SDK configuration, the retained 300ms UI debounce, generic Apollo
-compatibility and MockService. These are classified in external evidence
-`kickstarter-final-boundary-inventory`; counts are syntax matches, not defects.
+- Physical device: deferred by Matthew Thomas; no post-consolidation device result claimed.
+- Full snapshots/visual/accessibility validation: reference iPad mini iOS 18.6 runtime
+  unavailable; reference-device guard retained. Representative simulator smoke is not
+  full visual parity.
+- Live Stripe/Apple Pay/3DS, authenticated account/backing mutations, APNs and other
+  live-service journeys: unverified. No implicit permission for real transactions.
+- Release-configuration and representative performance validation remain separate
+  release-readiness checks.
 
-## Final validation gates
-
-- Run relevant broader regression after remaining fixes and applicable snapshots with their
-  reference device requirements. The current 2,770-test cohort is not every repository test.
-- Compare representative populated screens/navigation. Public-demo launch/card/scroll smoke
-  checks are recorded, but do not establish full visual parity. The pinned iPad mini iOS 18.6
-  snapshot runtime has not been available; the guard remains intact.
-- Validate physical-device and authenticated journeys. Live Stripe, Apple Pay/3DS, APNs,
-  server-accepted pledge changes and other live mutations remain unverified. Mock success
-  does not establish live integration. Do not perform real financial mutations implicitly.
-- Profile representative workloads and review remaining actor/task execution boundaries.
-- Finish the evidence report with supported start/finish timestamp sources, model provenance,
-  test/change statistics, failures/rework and explicit limits. Exact kickoff/active effort are
-  unknown; finish time remains unset until app-wide completion gates are resolved.
-
-Existing UI, branding, storage and target identifiers remain the preservation baseline.
+These limits do not conceal remaining file moves or an app library awaiting removal.
+The implementation handover timestamp is recorded; full release-validation completion
+remains unset until the explicitly deferred work has actually been performed.

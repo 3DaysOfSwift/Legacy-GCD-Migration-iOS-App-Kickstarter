@@ -3,7 +3,7 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
-public enum BackerDashboardTab {
+public enum BackerDashboardTab: Sendable {
   case backed
   case saved
 

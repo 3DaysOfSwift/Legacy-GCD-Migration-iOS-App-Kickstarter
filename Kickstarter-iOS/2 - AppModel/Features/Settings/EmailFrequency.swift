@@ -1,6 +1,6 @@
 import UIKit
 
-public enum EmailFrequency: Int {
+public enum EmailFrequency: Int, Sendable {
   case dailySummary
   case twiceADaySummary
 

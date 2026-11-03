@@ -77,7 +77,7 @@ public protocol DiscoveryViewModelType {
 public final class DiscoveryViewModel: DiscoveryViewModelType, DiscoveryViewModelInputs,
   DiscoveryViewModelOutputs {
   private let discoveryFeature: DiscoveryFeature
-  private let bindings = CompositeDisposable()
+  private let bindings = ScopedDisposable(CompositeDisposable())
 
   public init(discoveryFeature: DiscoveryFeature? = nil) {
     let discoveryFeature = discoveryFeature ?? AppModel.shared.discoveryFeature
@@ -181,7 +181,6 @@ public final class DiscoveryViewModel: DiscoveryViewModelType, DiscoveryViewMode
     }
   }
 
-  deinit { self.bindings.dispose() }
 
   /// convert DiscoveryParams.Sort to TypeContext.DiscoverySortContext
   private func getDiscoverySortTypeContext(

@@ -35,12 +35,16 @@ public final class GradientView: UIView {
 
   public override func awakeFromNib() {
     super.awakeFromNib()
-    self.setGradient([(self.startColor, 0.0), (self.endColor, 1.0)])
+    MainActor.assumeIsolated {
+      self.setGradient([(self.startColor, 0.0), (self.endColor, 1.0)])
+    }
   }
 
   public override func prepareForInterfaceBuilder() {
     super.prepareForInterfaceBuilder()
-    self.setGradient([(self.startColor, 0.0), (self.endColor, 1.0)])
+    MainActor.assumeIsolated {
+      self.setGradient([(self.startColor, 0.0), (self.endColor, 1.0)])
+    }
   }
 
   public func setGradient(_ points: [(color: UIColor?, location: Float)]) {
