@@ -19,13 +19,13 @@ extension TabBarControllerScrollable where Self: UIViewController {
 }
 
 public final class RootTabBarViewController: UITabBarController, MessageBannerViewControllerPresenting {
-  private var applicationWillEnterForegroundObserver: Any?
+  private var applicationWillEnterForegroundObserver: MainActorNotificationObservation?
   public var messageBannerViewController: MessageBannerViewController?
   private var sessionEndedObserver: MainActorNotificationObservation?
   private var sessionStartedObserver: MainActorNotificationObservation?
   private var userUpdatedObserver: MainActorNotificationObservation?
-  private var userLocalePreferencesChangedObserver: Any?
-  private var voiceOverStatusDidChangeObserver: Any?
+  private var userLocalePreferencesChangedObserver: MainActorNotificationObservation?
+  private var voiceOverStatusDidChangeObserver: MainActorNotificationSignalObservation?
 
   fileprivate let viewModel: RootViewModelType = RootViewModel()
 
@@ -42,14 +42,9 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
     /// Capture the standard (non-floating) tab bar so we can revert safely if we toggle the floating tab bar off later.
     self.standardTabBar = self.tabBar
 
-    self.applicationWillEnterForegroundObserver = NotificationCenter
-      .default
-      .addObserver(
-        forName: UIApplication.willEnterForegroundNotification,
-        object: nil, queue: .main
-      ) { [weak self] _ in
-        self?.viewModel.inputs.applicationWillEnterForeground()
-      }
+    self.applicationWillEnterForegroundObserver = MainActorNotificationObservation(name: UIApplication.willEnterForegroundNotification) { [weak self] _ in
+      self?.viewModel.inputs.applicationWillEnterForeground()
+    }
 
     self.sessionStartedObserver = MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
         self?.viewModel.inputs.userSessionStarted()
@@ -63,13 +58,9 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
         self?.viewModel.inputs.currentUserUpdated()
       }
 
-    self.voiceOverStatusDidChangeObserver = NotificationCenter
-      .default
-      .addObserver(
-        forName: UIAccessibility.voiceOverStatusDidChangeNotification, object: nil, queue: .main
-      ) { [weak self] _ in
-        self?.viewModel.inputs.voiceOverStatusDidChange()
-      }
+    self.voiceOverStatusDidChangeObserver = MainActorNotificationSignalObservation(name: UIAccessibility.voiceOverStatusDidChangeNotification) { [weak self] in
+      self?.viewModel.inputs.voiceOverStatusDidChange()
+    }
 
     self.viewModel.outputs.updateUserInEnvironment
       .observeValues { _ in
@@ -77,16 +68,9 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
         NotificationCenter.default.post(.init(name: .ksr_userUpdated))
       }
 
-    self.userLocalePreferencesChangedObserver = NotificationCenter
-      .default
-      .addObserver(
-        forName: Notification.Name.ksr_userLocalePreferencesChanged,
-        object: nil,
-        queue: .main,
-        using: { [weak self] _ in
-          self?.viewModel.inputs.userLocalePreferencesChanged()
-        }
-      )
+    self.userLocalePreferencesChangedObserver = MainActorNotificationObservation(name: .ksr_userLocalePreferencesChanged) { [weak self] _ in
+      self?.viewModel.inputs.userLocalePreferencesChanged()
+    }
 
     self.messageBannerViewController = self.configureMessageBannerViewController(on: self)
 
@@ -99,16 +83,6 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
     self.setTabBarItemStyles(withData: data)
     view.setNeedsLayout()
     view.layoutIfNeeded()
-  }
-
-  deinit {
-    [
-      self.applicationWillEnterForegroundObserver,
-      self.userLocalePreferencesChangedObserver,
-      self.voiceOverStatusDidChangeObserver
-    ]
-    .compact()
-    .forEach(NotificationCenter.default.removeObserver)
   }
 
   public override func bindStyles() {

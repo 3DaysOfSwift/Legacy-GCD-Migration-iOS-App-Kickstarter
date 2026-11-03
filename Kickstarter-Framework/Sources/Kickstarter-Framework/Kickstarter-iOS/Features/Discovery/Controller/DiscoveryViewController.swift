@@ -8,10 +8,10 @@ internal final class DiscoveryViewController: UIViewController {
   fileprivate let viewModel: DiscoveryViewModelType = DiscoveryViewModel()
   fileprivate var dataSource: DiscoveryPagesDataSource?
 
-  private var recommendationsChangedObserver: Any?
+  private var recommendationsChangedObserver: MainActorNotificationObservation?
   private weak var navigationHeaderViewController: DiscoveryNavigationHeaderViewController!
-  private var remoteConfigConfiguredObserver: Any?
-  private var remoteConfigConfigurationFailedObserver: Any?
+  private var remoteConfigConfiguredObserver: MainActorNotificationSignalObservation?
+  private var remoteConfigConfigurationFailedObserver: MainActorNotificationSignalObservation?
   private weak var pageViewController: UIPageViewController!
   private weak var sortPagerViewController: SortPagerViewController!
 
@@ -47,41 +47,22 @@ internal final class DiscoveryViewController: UIViewController {
       .compactMap { $0 as? DiscoveryNavigationHeaderViewController }.first
     self.navigationHeaderViewController.delegate = self
 
-    self.recommendationsChangedObserver = NotificationCenter.default
-      .addObserver(
-        forName: Notification.Name.ksr_recommendationsSettingChanged,
-        object: nil,
-        queue: nil
-      ) { [weak self] _ in
-        self?.viewModel.inputs.didChangeRecommendationsSetting()
-      }
+    self.recommendationsChangedObserver = MainActorNotificationObservation(name: .ksr_recommendationsSettingChanged) { [weak self] _ in
+      self?.viewModel.inputs.didChangeRecommendationsSetting()
+    }
 
-    self.remoteConfigConfiguredObserver = NotificationCenter.default
-      .addObserver(forName: .ksr_remoteConfigClientConfigured, object: nil, queue: nil) { [weak self] _ in
-        self?.viewModel.inputs.remoteConfigClientConfigured()
-      }
+    self.remoteConfigConfiguredObserver = MainActorNotificationSignalObservation(name: .ksr_remoteConfigClientConfigured) { [weak self] in
+      self?.viewModel.inputs.remoteConfigClientConfigured()
+    }
 
-    self.remoteConfigConfigurationFailedObserver = NotificationCenter.default
-      .addObserver(
-        forName: .ksr_remoteConfigClientConfigurationFailed,
-        object: nil,
-        queue: nil
-      ) { [weak self] _ in
-        self?.viewModel.inputs.remoteConfigClientConfigurationFailed()
-      }
+    self.remoteConfigConfigurationFailedObserver = MainActorNotificationSignalObservation(name: .ksr_remoteConfigClientConfigurationFailed) { [weak self] in
+      self?.viewModel.inputs.remoteConfigClientConfigurationFailed()
+    }
 
     self.pagesBottomToSafeArea.isActive = false
     self.pagesBottomToSuperview.isActive = true
 
     self.viewModel.inputs.viewDidLoad()
-  }
-
-  deinit {
-    [
-      self.remoteConfigConfiguredObserver,
-      self.remoteConfigConfigurationFailedObserver,
-      self.recommendationsChangedObserver
-    ].forEach { $0.doIfSome(NotificationCenter.default.removeObserver) }
   }
 
   override func viewWillAppear(_ animated: Bool) {

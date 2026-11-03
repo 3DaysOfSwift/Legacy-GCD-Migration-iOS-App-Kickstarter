@@ -2,6 +2,14 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## Discovery and root notification handoff — 3 November 2026
+
+Actor-owned app events retain synchronous delivery. SDK/configuration and accessibility
+signals now cross to MainActor as Void through an owned AsyncStream consumer, cancelled
+on release. Discovery and root controllers retain these registrations. 95 tests passed,
+zero failures/skips; complete-checking app build passed. Background delivery, queued-event
+cancellation and release are covered. Evidence: kickstarter-discovery-notification-signals.
+
 ## UIKit app-event ownership — 3 November 2026
 
 Settings, backer dashboard and pledge CTA notification registrations now use the existing

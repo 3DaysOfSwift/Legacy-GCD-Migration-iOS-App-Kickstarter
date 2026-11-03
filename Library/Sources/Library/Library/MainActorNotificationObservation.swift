@@ -34,3 +34,48 @@ public final class MainActorNotificationObservation: NSObject {
 
   deinit { self.center.removeObserver(self) }
 }
+
+/// A payload-free notification from an arbitrary publisher, delivered on MainActor.
+/// The callback only yields a Sendable signal. The owner cancels queued delivery on
+/// release; neither the Notification nor its SDK-owned payload crosses actors.
+@MainActor
+public final class MainActorNotificationSignalObservation: NSObject {
+  private let center: NotificationCenter
+  nonisolated private let continuation: AsyncStream<Void>.Continuation
+  private var delivery: Task<Void, Never>?
+
+  public init(
+    center: NotificationCenter = .default,
+    name: Notification.Name,
+    handler: @escaping @MainActor () -> Void
+  ) {
+    let (stream, continuation) = AsyncStream<Void>.makeStream()
+    self.center = center
+    self.continuation = continuation
+    super.init()
+    center.addObserver(self, selector: #selector(self.receive(_:)), name: name, object: nil)
+    self.delivery = Task { @MainActor in
+      for await _ in stream {
+        guard !Task.isCancelled else { break }
+        handler()
+      }
+    }
+  }
+
+  @objc nonisolated private func receive(_: Notification) {
+    self.continuation.yield(())
+  }
+
+  public func cancel() {
+    self.center.removeObserver(self)
+    self.delivery?.cancel()
+    self.delivery = nil
+    self.continuation.finish()
+  }
+
+  deinit {
+    self.delivery?.cancel()
+    self.continuation.finish()
+    self.center.removeObserver(self)
+  }
+}

@@ -20,7 +20,8 @@ internal final class DiscoveryPageViewController: UITableViewController,
 
   // MARK: - Properties
 
-  private var observers: [Any] = []
+  private var observers: [MainActorNotificationObservation] = []
+  private var signalObservers: [MainActorNotificationSignalObservation] = []
   private var pendingRefresh: (loading: Bool, animated: Bool)?
   private var needsDeferredReload = false
   fileprivate let dataSource = DiscoveryProjectsDataSource()
@@ -58,7 +59,7 @@ internal final class DiscoveryPageViewController: UITableViewController,
     )
     self.refreshControl = refreshControl
 
-    self.subscribe(toNotification: .ksr_onboardingCompleted) { [weak self] _ in
+    self.subscribeToSignal(.ksr_onboardingCompleted) { [weak self] in
       self?.viewModel.inputs.onboardingCompleted()
     }
 
@@ -77,7 +78,7 @@ internal final class DiscoveryPageViewController: UITableViewController,
       )
     }
 
-    self.subscribe(toNotification: StatsigLoadedNotification) { [weak self] _ in
+    self.subscribeToSignal(StatsigLoadedNotification) { [weak self] in
       self?.viewModel.inputs.configUpdated()
     }
 
@@ -97,12 +98,6 @@ internal final class DiscoveryPageViewController: UITableViewController,
       emptyVC.view.trailingAnchor.constraint(equalTo: self.view.trailingAnchor)
     ])
     emptyVC.didMove(toParent: self)
-  }
-
-  deinit {
-    self.observers.forEach {
-      NotificationCenter.default.removeObserver($0)
-    }
   }
 
   internal override func viewWillAppear(_ animated: Bool) {
@@ -144,15 +139,19 @@ internal final class DiscoveryPageViewController: UITableViewController,
 
   private func subscribe(
     toNotification notification: Notification.Name,
-    using action: @escaping @Sendable (Notification) -> Void
+    using action: @escaping @MainActor (Notification) -> Void
   ) {
-    let observer = NotificationCenter.default.addObserver(
-      forName: notification,
-      object: nil,
-      queue: nil,
-      using: action
-    )
+    let observer = MainActorNotificationObservation(name: notification, handler: action)
     self.observers.append(observer)
+  }
+
+  private func subscribeToSignal(
+    _ notification: Notification.Name,
+    using action: @escaping @MainActor () -> Void
+  ) {
+    self.signalObservers.append(
+      MainActorNotificationSignalObservation(name: notification, handler: action)
+    )
   }
 
   internal override func bindStyles() {

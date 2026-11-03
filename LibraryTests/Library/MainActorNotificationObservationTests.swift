@@ -79,3 +79,52 @@ private actor ObservationOwner {
   init(_ observation: MainActorNotificationObservation?) { self.observation = observation }
   func release() { self.observation = nil }
 }
+
+@MainActor
+final class MainActorNotificationSignalObservationTests: XCTestCase {
+  func testBackgroundPublisherDeliversEverySignalOnMainActor() async {
+    let center = NotificationCenter()
+    let name = Notification.Name("background-signals")
+    let delivered = self.expectation(description: "Both events delivered")
+    delivered.expectedFulfillmentCount = 2
+    let observer = MainActorNotificationSignalObservation(center: center, name: name) {
+      MainActor.assertIsolated()
+      delivered.fulfill()
+    }
+    await Task.detached {
+      center.post(name: name, object: nil)
+      center.post(name: name, object: nil)
+    }.value
+    await self.fulfillment(of: [delivered], timeout: 2)
+    withExtendedLifetime(observer) {}
+  }
+
+  func testCancelSuppressesBufferedAndFutureSignals() async {
+    let center = NotificationCenter()
+    let name = Notification.Name("cancel-signals")
+    var calls = 0
+    let observer = MainActorNotificationSignalObservation(center: center, name: name) { calls += 1 }
+    center.post(name: name, object: nil)
+    observer.cancel()
+    observer.cancel()
+    center.post(name: name, object: nil)
+    await Task.yield()
+    XCTAssertEqual(calls, 0)
+  }
+
+  func testReleaseCancelsDeliveryWithoutRetainingOwner() async {
+    let center = NotificationCenter()
+    let name = Notification.Name("release-signals")
+    var calls = 0
+    var observer: MainActorNotificationSignalObservation? = .init(center: center, name: name) {
+      calls += 1
+    }
+    weak var released = observer
+    center.post(name: name, object: nil)
+    observer = nil
+    XCTAssertNil(released)
+    center.post(name: name, object: nil)
+    await Task.yield()
+    XCTAssertEqual(calls, 0)
+  }
+}
