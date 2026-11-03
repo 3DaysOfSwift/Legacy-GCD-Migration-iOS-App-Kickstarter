@@ -70,9 +70,11 @@ public func settingsEmailFieldAutoFillStyle(_ field: UITextField) -> UITextField
 }
 
 @MainActor
-public let settingsPasswordFormFieldStyle = passwordFieldStyle
-  <> settingsFormFieldStyle
-  <> UITextField.lens.textAlignment .~ .right
+public let settingsPasswordFormFieldStyle: TextFieldStyle = { field in
+  let field = settingsFormFieldStyle(passwordFieldStyle(field))
+  field.textAlignment = .right
+  return field
+}
 
 @MainActor
 public func settingsPasswordFormFieldAutoFillStyle(_ field: UITextField) -> UITextField {

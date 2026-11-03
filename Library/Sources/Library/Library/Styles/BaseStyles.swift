@@ -27,24 +27,24 @@ public enum Styles {
   }
 }
 
-public typealias ActivityIndicatorStyle = (UIActivityIndicatorView) -> UIActivityIndicatorView
-public typealias BarButtonStyle = (UIBarButtonItem) -> UIBarButtonItem
-public typealias ButtonStyle = (UIButton) -> UIButton
-public typealias CollectionViewStyle = (UICollectionView) -> UICollectionView
-public typealias ImageViewStyle = (UIImageView) -> UIImageView
-public typealias LabelStyle = (UILabel) -> UILabel
-public typealias LayerStyle = (CALayer) -> CALayer
-public typealias NavigationBarStyle = (UINavigationBar?) -> UINavigationBar?
-public typealias PageControlStyle = (UIPageControl) -> UIPageControl
-public typealias ScrollStyle = (UIScrollView) -> UIScrollView
-public typealias StackViewStyle = (UIStackView) -> UIStackView
-public typealias SwitchControlStyle = (UISwitch) -> UISwitch
-public typealias TableViewStyle = (UITableView) -> UITableView
-public typealias TableViewCellStyle = (UITableViewCell) -> UITableViewCell
-public typealias TextFieldStyle = (UITextField) -> UITextField
-public typealias TextViewStyle = (UITextView) -> UITextView
-public typealias ToolbarStyle = (UIToolbar) -> UIToolbar
-public typealias ViewStyle = (UIView) -> UIView
+public typealias ActivityIndicatorStyle = @MainActor @Sendable (UIActivityIndicatorView) -> UIActivityIndicatorView
+public typealias BarButtonStyle = @MainActor @Sendable (UIBarButtonItem) -> UIBarButtonItem
+public typealias ButtonStyle = @MainActor @Sendable (UIButton) -> UIButton
+public typealias CollectionViewStyle = @MainActor @Sendable (UICollectionView) -> UICollectionView
+public typealias ImageViewStyle = @MainActor @Sendable (UIImageView) -> UIImageView
+public typealias LabelStyle = @MainActor @Sendable (UILabel) -> UILabel
+public typealias LayerStyle = @MainActor @Sendable (CALayer) -> CALayer
+public typealias NavigationBarStyle = @MainActor @Sendable (UINavigationBar?) -> UINavigationBar?
+public typealias PageControlStyle = @MainActor @Sendable (UIPageControl) -> UIPageControl
+public typealias ScrollStyle = @MainActor @Sendable (UIScrollView) -> UIScrollView
+public typealias StackViewStyle = @MainActor @Sendable (UIStackView) -> UIStackView
+public typealias SwitchControlStyle = @MainActor @Sendable (UISwitch) -> UISwitch
+public typealias TableViewStyle = @MainActor @Sendable (UITableView) -> UITableView
+public typealias TableViewCellStyle = @MainActor @Sendable (UITableViewCell) -> UITableViewCell
+public typealias TextFieldStyle = @MainActor @Sendable (UITextField) -> UITextField
+public typealias TextViewStyle = @MainActor @Sendable (UITextView) -> UITextView
+public typealias ToolbarStyle = @MainActor @Sendable (UIToolbar) -> UIToolbar
+public typealias ViewStyle = @MainActor @Sendable (UIView) -> UIView
 
 public func baseControllerStyle<VC: UIViewControllerProtocol>() -> ((VC) -> VC) {
   return VC.lens.view.backgroundColor .~ LegacyColors.ksr_white.uiColor()

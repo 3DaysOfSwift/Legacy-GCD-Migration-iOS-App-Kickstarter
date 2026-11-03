@@ -40,7 +40,7 @@ public protocol SettingsViewModelType {
 public final class SettingsViewModel: SettingsViewModelInputs,
   SettingsViewModelOutputs, SettingsViewModelType {
   public init(
-    _ viewControllerFactory: @escaping (SettingsCellType) -> UIViewController?,
+    _ viewControllerFactory: @escaping @MainActor (SettingsCellType) -> UIViewController?,
     settingsFeature: SettingsFeature? = nil
   ) {
     let settings = settingsFeature ?? AppModel.shared.settingsFeature

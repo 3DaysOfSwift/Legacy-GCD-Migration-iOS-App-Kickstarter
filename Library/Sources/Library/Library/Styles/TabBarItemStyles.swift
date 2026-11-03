@@ -6,7 +6,7 @@ public let tabBarSelectedColor = LegacyColors.ksr_create_700.uiColor()
 public let tabBarTintColor = LegacyColors.ksr_white.uiColor()
 public let tabBarAvatarSize = CGSize(width: 25, height: 25)
 
-public typealias TabBarItemStyle = (UITabBarItem) -> UITabBarItem
+public typealias TabBarItemStyle = @MainActor @Sendable (UITabBarItem) -> UITabBarItem
 
 private let paddingY: CGFloat = 6.0
 

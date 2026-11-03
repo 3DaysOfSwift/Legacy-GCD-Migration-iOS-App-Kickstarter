@@ -2,6 +2,15 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## UIKit style closure contracts — 3 November 2026
+
+Twenty UI style aliases now retain MainActor/Sendable contracts. Actor-erasing
+compositions use equivalent direct calls; settings factories retain UI ownership.
+71 focused tests passed (32 Library, 39 framework), zero failures/skips, and the
+complete-checking app build passed. All six selected suites actually executed.
+Evidence: kickstarter-style-closures. Reachability compatibility and final validation
+remain open; this checkpoint does not establish visual parity or Swift 6 conformance.
+
 ## UIKit presentation ownership and test membership — 3 November 2026
 
 135 UI helper declarations and Help/Share/onboarding presentation owners now declare

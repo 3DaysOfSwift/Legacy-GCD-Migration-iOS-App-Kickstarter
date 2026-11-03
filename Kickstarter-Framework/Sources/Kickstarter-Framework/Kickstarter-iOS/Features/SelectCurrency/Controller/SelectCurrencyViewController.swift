@@ -153,8 +153,7 @@ final class SelectCurrencyViewController: UIViewController, MessageBannerViewCon
   // MARK: - Subviews
 
   private lazy var tableView: UITableView = {
-    UITableView(frame: .zero, style: .plain)
-      |> tableViewStyle
+    tableViewStyle(UITableView(frame: .zero, style: .plain))
       |> \.dataSource .~ self.dataSource
       |> \.delegate .~ self
   }()

@@ -69,8 +69,11 @@ public let adaptiveFormFieldStyle: TextFieldStyle = { (textField: UITextField) i
 
 // MARK: - Text Field
 
-public let adaptiveEmailFieldStyle = adaptiveFormFieldStyle
-  <> UITextField.lens.keyboardType .~ .emailAddress
+public let adaptiveEmailFieldStyle: TextFieldStyle = { field in
+  let field = adaptiveFormFieldStyle(field)
+  field.keyboardType = .emailAddress
+  return field
+}
 
 public func adaptiveAttributedPlaceholder(_ string: String) -> NSAttributedString {
   return NSAttributedString(

@@ -23,7 +23,7 @@ public enum ButtonStyleType: Equatable {
     }
   }
 
-  public var style: ButtonStyle {
+  @MainActor public var style: ButtonStyle {
     let buttonStyle = self.ksrButtonStyle
 
     return { button in

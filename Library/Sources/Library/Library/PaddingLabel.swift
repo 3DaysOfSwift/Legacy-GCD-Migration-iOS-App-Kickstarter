@@ -1,6 +1,6 @@
 import UIKit
 
-public typealias PaddingLabelStyle = (PaddingLabel) -> PaddingLabel
+public typealias PaddingLabelStyle = @MainActor @Sendable (PaddingLabel) -> PaddingLabel
 
 public class PaddingLabel: UILabel {
   var insets: UIEdgeInsets = UIEdgeInsets(all: Styles.grid(1))

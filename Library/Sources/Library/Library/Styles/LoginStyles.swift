@@ -41,9 +41,12 @@ public let showHidePasswordButtonStyle = UIButton.lens.title(for: .normal) .~ ""
   }
 
 @MainActor
-public let emailFieldStyle = formFieldStyle
-  <> UITextField.lens.placeholder %~ { _ in Strings.login_placeholder_email() }
-  <> UITextField.lens.keyboardType .~ .emailAddress
+public let emailFieldStyle: TextFieldStyle = { field in
+  let field = formFieldStyle(field)
+  field.placeholder = Strings.login_placeholder_email()
+  field.keyboardType = .emailAddress
+  return field
+}
 
 @MainActor
 public func emailFieldAutoFillStyle(_ textField: UITextField) -> UITextField {
@@ -53,10 +56,11 @@ public func emailFieldAutoFillStyle(_ textField: UITextField) -> UITextField {
 }
 
 @MainActor
-public let fbLoginButtonStyle = facebookButtonStyle
-  <> UIButton.lens.title(for: .normal) %~ { _ in
-    Strings.login_tout_buttons_log_in_with_facebook()
-  }
+public let fbLoginButtonStyle: ButtonStyle = { button in
+  let button = facebookButtonStyle(button)
+  button.setTitle(Strings.login_tout_buttons_log_in_with_facebook(), for: .normal)
+  return button
+}
 
 @MainActor
 public let fbConfirmationMessageLabelStyle = UILabel.lens.textColor .~ LegacyColors.ksr_support_700.uiColor()
@@ -96,9 +100,12 @@ public let loginWithEmailButtonStyle: ButtonStyle = { button in
 public let newsletterSwitchStyle = UISwitch.lens.onTintColor .~ LegacyColors.ksr_create_700.uiColor()
 
 @MainActor
-public let passwordFieldStyle = formFieldStyle
-  <> UITextField.lens.placeholder %~ { _ in Strings.login_placeholder_password() }
-  <> UITextField.lens.secureTextEntry .~ true
+public let passwordFieldStyle: TextFieldStyle = { field in
+  let field = formFieldStyle(field)
+  field.placeholder = Strings.login_placeholder_password()
+  field.isSecureTextEntry = true
+  return field
+}
 
 @MainActor
 public func passwordFieldAutoFillStyle(_ textField: UITextField) -> UITextField {
@@ -206,11 +213,17 @@ public func disclaimerAttributedString(
 }
 
 @MainActor
-public let tfaCodeFieldStyle = formFieldStyle
-  <> UITextField.lens.textAlignment .~ .center
-  <> UITextField.lens.font .~ .ksr_title1()
-  <> UITextField.lens.keyboardType .~ .numberPad
-  <> UITextField.lens.placeholder %~ { _ in Strings.two_factor_code_placeholder() }
+public let tfaCodeFieldStyle: TextFieldStyle = {
+  let font = UIFont.ksr_title1()
+  return { field in
+    let field = formFieldStyle(field)
+    field.textAlignment = .center
+    field.font = font
+    field.keyboardType = .numberPad
+    field.placeholder = Strings.two_factor_code_placeholder()
+    return field
+  }
+}()
 
 @MainActor
 public func tfaCodeFieldAutoFillStyle(_ textField: UITextField) -> UITextField {
