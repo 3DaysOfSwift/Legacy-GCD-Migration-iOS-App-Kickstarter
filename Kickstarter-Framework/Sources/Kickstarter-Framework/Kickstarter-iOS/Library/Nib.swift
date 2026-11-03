@@ -36,6 +36,7 @@ extension UITableView {
   }
 }
 
+@MainActor
 protocol NibLoading {
   associatedtype CustomNibType
 

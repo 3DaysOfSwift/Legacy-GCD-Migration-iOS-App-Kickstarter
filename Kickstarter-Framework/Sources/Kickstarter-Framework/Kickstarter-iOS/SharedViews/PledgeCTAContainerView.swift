@@ -91,7 +91,7 @@ final class PledgeCTAContainerView: UIView {
 
   private lazy var titleLabel: UILabel = { UILabel(frame: .zero) }()
 
-  private var projectSavedObserver: Any?
+  private var projectSavedObserver: MainActorNotificationObservation?
 
   weak var delegate: PledgeCTAContainerViewDelegate?
 
@@ -113,10 +113,6 @@ final class PledgeCTAContainerView: UIView {
   }
 
   // MARK: - Styles
-
-  deinit {
-    self.projectSavedObserver.doIfSome(NotificationCenter.default.removeObserver)
-  }
 
   override func bindStyles() {
     super.bindStyles()
@@ -199,8 +195,7 @@ final class PledgeCTAContainerView: UIView {
         self?.watchesLabel.isHidden = !isPrelaunch
       }
 
-    self.projectSavedObserver = NotificationCenter.default
-      .addObserver(forName: Notification.Name.ksr_projectSaved, object: nil, queue: nil) { [weak self]
+    self.projectSavedObserver = MainActorNotificationObservation(name: .ksr_projectSaved) { [weak self]
         notification in
           self?.viewModel.inputs.savedProjectFromNotification(
             project: notification.userInfo?["project"] as? Project

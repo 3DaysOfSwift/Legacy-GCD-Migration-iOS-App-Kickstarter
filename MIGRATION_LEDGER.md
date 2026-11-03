@@ -2,6 +2,13 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## UIKit app-event ownership — 3 November 2026
+
+Settings, backer dashboard and pledge CTA notification registrations now use the existing
+synchronous MainActor observation owner. NibLoading declares UI actor ownership. 38 tests
+passed (27 Library, 11 framework), zero failures/skips; complete-checking app build passed.
+SDK publishers remain a separate boundary. Evidence: kickstarter-ui-notification-ownership.
+
 ## Feature service contracts — 3 November 2026
 
 Discovery activity sampling and project-report options now declare MainActor consistently in

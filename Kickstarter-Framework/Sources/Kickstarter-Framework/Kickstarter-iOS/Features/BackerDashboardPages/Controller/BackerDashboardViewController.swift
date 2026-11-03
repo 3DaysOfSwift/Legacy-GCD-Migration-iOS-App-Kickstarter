@@ -32,7 +32,7 @@ internal final class BackerDashboardViewController: UIViewController {
   fileprivate var pagesDataSource: BackerDashboardPagesDataSource!
 
   private var panGesture = UIPanGestureRecognizer()
-  private var projectSavedObserver: Any?
+  private var projectSavedObserver: MainActorNotificationObservation?
 
   internal static func instantiate() -> BackerDashboardViewController {
     return Storyboard.BackerDashboard.instantiate(BackerDashboardViewController.self)
@@ -71,9 +71,7 @@ internal final class BackerDashboardViewController: UIViewController {
     tapRecognizer.cancelsTouchesInView = false
     self.pageViewController?.view.addGestureRecognizer(tapRecognizer)
 
-    self.projectSavedObserver = NotificationCenter
-      .default
-      .addObserver(forName: Notification.Name.ksr_projectSaved, object: nil, queue: nil) { [weak self] _ in
+    self.projectSavedObserver = MainActorNotificationObservation(name: .ksr_projectSaved) { [weak self] _ in
         self?.viewModel.inputs.projectSaved()
       }
 
@@ -98,10 +96,6 @@ internal final class BackerDashboardViewController: UIViewController {
     let superviewConstraint = containerView.bottomAnchor.constraint(equalTo: self.view.bottomAnchor)
     self.containerBottomToSuperview = superviewConstraint
     superviewConstraint.isActive = true
-  }
-
-  deinit {
-    self.projectSavedObserver.doIfSome(NotificationCenter.default.removeObserver)
   }
 
   internal override func viewWillAppear(_ animated: Bool) {

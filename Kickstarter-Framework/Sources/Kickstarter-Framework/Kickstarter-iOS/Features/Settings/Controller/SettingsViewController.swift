@@ -8,7 +8,7 @@ final class SettingsViewController: UIViewController {
   @IBOutlet fileprivate var tableView: UITableView!
 
   private let dataSource = SettingsDataSource()
-  private var userUpdatedObserver: Any?
+  private var userUpdatedObserver: MainActorNotificationObservation?
   private let viewModel: SettingsViewModelType = SettingsViewModel(
     SettingsViewController.viewController(for:)
   )
@@ -32,19 +32,11 @@ final class SettingsViewController: UIViewController {
       self.navigationItem.leftBarButtonItem = self.leftBarButtonItem()
     }
 
-    self.userUpdatedObserver = NotificationCenter.default
-      .addObserver(
-        forName: Notification.Name.ksr_userUpdated,
-        object: nil, queue: nil
-      ) { [weak self] _ in
+    self.userUpdatedObserver = MainActorNotificationObservation(name: .ksr_userUpdated) { [weak self] _ in
         self?.viewModel.inputs.currentUserUpdated()
       }
 
     self.viewModel.inputs.viewDidLoad()
-  }
-
-  deinit {
-    self.userUpdatedObserver.doIfSome(NotificationCenter.default.removeObserver)
   }
 
   override func bindStyles() {
