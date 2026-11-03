@@ -32,6 +32,10 @@ reusable non-core components. This work is **not yet implemented** and is a comp
 requirement, ahead of further isolated warning-cleanup passes. Folder aliases alone do
 not satisfy it. The plan covers dependency cutover, resource/runtime changes, tests,
 removal of old app-library products and final verification.
+Superseded source, temporary adapters and stale target/resource references must be
+deleted after replacement verification; the active checkout must not retain parallel
+legacy and CFA implementations. Preserve original code in Git history, not backup
+folders. Audit duplicate ownership as well as duplicate filenames.
 
 ## Remaining implementation review
 

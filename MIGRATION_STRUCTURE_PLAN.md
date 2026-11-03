@@ -135,6 +135,35 @@ Keep live-payment and authenticated-service validation separate; no real mutatio
 without explicit authorization. Publish no unconditional completion claim while required
 gates remain unresolved.
 
+## Remove superseded implementations — mandatory
+
+The finished checkout presents the CFA implementation, not parallel old and new apps.
+Use tracked moves where practical; do not leave source copies at their former locations.
+After replacement behavior is verified, delete superseded legacy implementations,
+unused migration adapters, obsolete tests that target removed APIs, and abandoned
+resources/scripts. Preserve meaningful behavior assertions by moving or adapting tests
+before removing their obsolete counterparts. Git history preserves the original app;
+do not keep Legacy, Old, Backup or archived source folders in the active checkout.
+
+For each deletion, check source callers, target membership, package consumers, extension
+consumers, storyboard/nib runtime references and resource/build-script lookups. Remove
+stale project references, imports, package products and build-phase entries in the same
+checkpoint. Verify that no source is compiled twice and no replacement has left an
+unreferenced old implementation behind. Search by responsibility and call sites as well
+as filenames: differently named types can still duplicate ownership.
+
+Do not delete required SDK callback bridges, generated API code, services or reusable
+components merely because they predate the migration. Retained code must have a current
+purpose and comply with its documented boundary. Remove compatibility code when its
+last consumer is gone; document any remaining necessity explicitly. Never delete user
+work, credentials or unrelated files as part of migration cleanup.
+
+Completion requires one authoritative implementation per migrated responsibility, no
+superseded legacy application paths, no temporary migration bridges, no duplicate source
+copies, no broken resource references and no abandoned app-library products. Record
+removed/replaced files and retained exceptions in the final inventory, then build and
+run relevant tests after cleanup. The original implementation remains available in Git.
+
 ## Progress reporting and completion criteria
 
 Report: core files mapped/moved/remaining, app-bearing packages remaining, screens with
