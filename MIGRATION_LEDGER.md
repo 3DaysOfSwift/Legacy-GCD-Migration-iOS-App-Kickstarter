@@ -2,6 +2,13 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## Checked GraphQL bridge — 3 November 2026
+
+Removed the unused raw-response bridge overload. Its shared continuation path now requires
+Sendable mapped values; the Search provider fixture uses the production snapshot contract.
+52 tests passed (35 Library, 17 API), zero failures/skips; complete-checking app build passed.
+The bridge transfer diagnostic is resolved. Evidence: kickstarter-checked-graphql-bridge.
+
 ## Discovery and root notification handoff — 3 November 2026
 
 Actor-owned app events retain synchronous delivery. SDK/configuration and accessibility

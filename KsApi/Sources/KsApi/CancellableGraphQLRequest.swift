@@ -6,12 +6,6 @@ import GraphAPI
 /// Shared bridge for migrated Search and Project-detail Apollo operations.
 /// The pinned Apollo callback APIs have no native cancellation-aware async form.
 internal enum CancellableGraphQLRequest {
-  @MainActor static func fetch<Data: RootSelectionSet>(
-    start: (@escaping GraphQLResultHandler<Data>) -> Cancellable
-  ) async throws -> Data {
-    try await self.perform(start: start, map: { $0 })
-  }
-
   /// Decode a checked value snapshot on the callback executor. Generated Apollo
   /// selection sets stay there instead of crossing into the awaiting Feature.
   @MainActor static func fetch<Data: RootSelectionSet, Value: Sendable>(
@@ -21,7 +15,7 @@ internal enum CancellableGraphQLRequest {
     try await self.perform(start: start, map: map)
   }
 
-  @MainActor private static func perform<Data: RootSelectionSet, Value>(
+  @MainActor private static func perform<Data: RootSelectionSet, Value: Sendable>(
     start: (@escaping GraphQLResultHandler<Data>) -> Cancellable,
     map: @escaping @Sendable (Data) throws -> Value
   ) async throws -> Value {
@@ -61,7 +55,7 @@ internal enum CancellableGraphQLRequest {
 /// resumption runs under the lock (both can re-enter through callbacks).
 /// This narrowly scoped unchecked conformance protects a callback/cancellation
 /// race; it does not declare Apollo payloads or the client globally Sendable.
-internal final class PendingGraphQLRequest<Data>: @unchecked Sendable {
+internal final class PendingGraphQLRequest<Data: Sendable>: @unchecked Sendable {
   private let lock = NSLock()
   private var continuation: CheckedContinuation<Data, Error>?
   private var request: Cancellable?

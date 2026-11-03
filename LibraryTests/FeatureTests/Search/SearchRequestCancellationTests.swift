@@ -15,25 +15,25 @@ final class SearchRequestCancellationTests: TestCase {
   func testSynchronousSuccessAndDuplicateCallbackCompleteOnce() async throws {
     let expected = try self.fixture()
     let token = CancellationProbe()
-    let actual = try await CancellableGraphQLRequest.fetch { completion in
+    let actual = try await CancellableGraphQLRequest.fetch(start: { completion in
       completion(.success(self.response(expected)))
       completion(.failure(ProbeError.failed))
       return token
-    }
-    XCTAssertEqual(actual.projects?.totalCount, expected.projects?.totalCount)
+    }, map: { (data: GraphAPI.SearchQuery.Data) in data.projects?.totalCount })
+    XCTAssertEqual(actual, expected.projects?.totalCount)
     XCTAssertEqual(token.count, 0)
   }
 
   func testGraphQLErrorTakesPrecedenceOverPartialData() async throws {
     let data = try self.fixture()
     do {
-      _ = try await CancellableGraphQLRequest.fetch { completion in
+      _ = try await CancellableGraphQLRequest.fetch(start: { completion in
         completion(.success(GraphQLResult(
           data: data, extensions: nil,
           errors: [GraphQLError(["message": "Denied"])], source: .server, dependentKeys: nil
         )))
         return CancellationProbe()
-      }
+      }, map: { (_: GraphAPI.SearchQuery.Data) in () })
       XCTFail("Expected GraphQL failure, not partial success")
     } catch let error as ErrorEnvelope {
       XCTAssertEqual(error.ksrCode, .GraphQLError)
@@ -46,10 +46,10 @@ final class SearchRequestCancellationTests: TestCase {
       .success(self.response(nil)), .failure(ProbeError.failed)
     ] {
       do {
-        _ = try await CancellableGraphQLRequest.fetch { completion in
+        _ = try await CancellableGraphQLRequest.fetch(start: { completion in
           completion(response)
           return CancellationProbe()
-        }
+        }, map: { (_: GraphAPI.SearchQuery.Data) in () })
         XCTFail("Expected error")
       } catch let error as ErrorEnvelope {
         XCTAssertEqual(error.ksrCode, .JSONParsingFailed)
@@ -60,11 +60,11 @@ final class SearchRequestCancellationTests: TestCase {
   }
 
   func testCancellationBeforeInvocationDoesNotStartRequest() async {
-    let task = Task<GraphAPI.SearchQuery.Data, Error> { @MainActor in
-      try await CancellableGraphQLRequest.fetch { _ in
+    let task = Task<Void, Error> { @MainActor in
+      try await CancellableGraphQLRequest.fetch(start: { _ in
         XCTFail("An already-cancelled task must not start transport")
         return CancellationProbe()
-      }
+      }, map: { (_: GraphAPI.SearchQuery.Data) in () })
     }
     task.cancel()
     await self.assertCancelled(task)
@@ -75,11 +75,11 @@ final class SearchRequestCancellationTests: TestCase {
     let token = CancellationProbe()
     var callback: GraphQLResultHandler<GraphAPI.SearchQuery.Data>?
     let task = Task { @MainActor in
-      try await CancellableGraphQLRequest.fetch { completion in
+      try await CancellableGraphQLRequest.fetch(start: { completion in
         callback = completion
         started.fulfill()
         return token
-      }
+      }, map: { (_: GraphAPI.SearchQuery.Data) in () })
     }
     defer { task.cancel() }
     await fulfillment(of: [started], timeout: 2)
@@ -94,11 +94,11 @@ final class SearchRequestCancellationTests: TestCase {
     let token = CancellationProbe()
     var callback: GraphQLResultHandler<GraphAPI.LocationsByTermQuery.Data>?
     let task = Task { @MainActor in
-      try await CancellableGraphQLRequest.fetch { completion in
+      try await CancellableGraphQLRequest.fetch(start: { completion in
         callback = completion
         started.fulfill()
         return token
-      }
+      }, map: { (_: GraphAPI.LocationsByTermQuery.Data) in () })
     }
     defer { task.cancel() }
     await fulfillment(of: [started], timeout: 2)
@@ -115,10 +115,10 @@ final class SearchRequestCancellationTests: TestCase {
 
   func testCancellationBeforeTokenRegistrationCancelsLateToken() async {
     // Exercise the registration race directly without a scheduling-dependent sleep.
-    let pending = PendingGraphQLRequest<GraphAPI.SearchQuery.Data>()
+    let pending = PendingGraphQLRequest<Void>()
     let token = CancellationProbe()
     do {
-      let _: GraphAPI.SearchQuery.Data = try await withCheckedThrowingContinuation { continuation in
+      let _: Void = try await withCheckedThrowingContinuation { continuation in
         XCTAssertTrue(pending.install(continuation))
         pending.cancel()
         pending.install(token)
@@ -134,10 +134,10 @@ final class SearchRequestCancellationTests: TestCase {
   }
 
   func testCancellationBeforeContinuationRegistrationResumesIt() async {
-    let pending = PendingGraphQLRequest<GraphAPI.SearchQuery.Data>()
+    let pending = PendingGraphQLRequest<Void>()
     pending.cancel()
     do {
-      let _: GraphAPI.SearchQuery.Data = try await withCheckedThrowingContinuation { continuation in
+      let _: Void = try await withCheckedThrowingContinuation { continuation in
         XCTAssertFalse(pending.install(continuation))
       }
       XCTFail("Expected cancellation")
@@ -191,7 +191,7 @@ final class SearchRequestCancellationTests: TestCase {
     }
   }
 
-  private func assertCancelled(_ task: Task<GraphAPI.SearchQuery.Data, Error>) async {
+  private func assertCancelled(_ task: Task<Void, Error>) async {
     do {
       _ = try await task.value
       XCTFail("Expected cancellation")
@@ -210,7 +210,7 @@ final class SearchRequestCancellationTests: TestCase {
     let firstToken = CancellationProbe(onCancel: { firstCancelled.fulfill() })
     var callbacks: [GraphQLResultHandler<GraphAPI.SearchQuery.Data>] = []
     let provider = AsyncSearchProjectsProvider { _, _ in
-      try await CancellableGraphQLRequest.fetch { completion in
+      try await CancellableGraphQLRequest.fetch(start: { completion in
         callbacks.append(completion)
         if callbacks.count == 1 {
           firstStarted.fulfill()
@@ -218,7 +218,7 @@ final class SearchRequestCancellationTests: TestCase {
         }
         secondStarted.fulfill()
         return CancellationProbe()
-      }
+      }, map: { SearchPageResponse($0) })
     }
     await self.withEnvironment(debounceInterval: .seconds(0), scheduler: QueueScheduler.main) {
       let feature = SearchFeature(provider: provider)

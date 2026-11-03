@@ -14,11 +14,9 @@ public final class AsyncSearchProjectsProvider: SearchProjectsProvider {
   }
 
   internal init(
-    requestPage: @escaping @MainActor (DiscoveryParams, String?) async throws -> GraphAPI.SearchQuery.Data
+    requestPage: @escaping @MainActor (DiscoveryParams, String?) async throws -> SearchPageResponse
   ) {
-    self.requestPage = { parameters, cursor in
-      SearchPageResponse(try await requestPage(parameters, cursor))
-    }
+    self.requestPage = requestPage
   }
 
   public func fetchPage(
