@@ -9,6 +9,8 @@ import ReactiveSwift
 import XCTest
 
 internal final class AudioVideoViewElementCellViewModelTests: TestCase {
+  // These assertions inspect values and playback commands, not reference images.
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private let vm: AudioVideoViewElementCellViewModelType = AudioVideoViewElementCellViewModel()
 
   private let pauseAudioVideo = TestObserver<Void, Never>()

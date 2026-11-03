@@ -2,6 +2,15 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## Story media observation lifetime — 3 November 2026
+
+The story audio/video cell now owns a single KVO token and cancellable MainActor
+consumer. Repeated thumbnails/player replacement invalidate the previous observation;
+release cancels pending delivery. 31 tests passed, zero failures/skips, plus the
+complete-checking app build. Evidence: kickstarter-story-media-observation. The
+three nonvisual model tests explicitly opt out of the reference-image simulator guard;
+snapshot guards remain unchanged.
+
 ## Reachability compatibility ownership — 3 November 2026
 
 A private, dependency-audited subscription bridge retains synchronous main-thread

@@ -15,7 +15,8 @@ class AudioVideoViewElementCell: UITableViewCell, ValueCell {
   // MARK: Properties
 
   private let viewModel: AudioVideoViewElementCellViewModelType = AudioVideoViewElementCellViewModel()
-  private let observerKeyPath = "timeControlStatus"
+  private var playbackObservation: NSKeyValueObservation?
+  private var playbackObservationTask: Task<Void, Never>?
   private lazy var playerController: AVPlayerViewController = { AVPlayerViewController() }()
 
   weak var delegate: AudioVideoViewElementCellPlaybackDelegate?
@@ -69,12 +70,7 @@ class AudioVideoViewElementCell: UITableViewCell, ValueCell {
       .observeValues { [weak self] image in
         guard let strongSelf = self else { return }
 
-        strongSelf.playerController.player?.addObserver(
-          strongSelf,
-          forKeyPath: strongSelf.observerKeyPath,
-          options: [.old, .new],
-          context: nil
-        )
+        strongSelf.observePlaybackStart()
 
         if let contentOverlayView = strongSelf.playerController.contentOverlayView {
           let imageView = UIImageView()
@@ -140,19 +136,37 @@ class AudioVideoViewElementCell: UITableViewCell, ValueCell {
 
   // MARK: Helpers
 
-  override func observeValue(
-    forKeyPath keyPath: String?,
-    of _: Any?,
-    change _: [NSKeyValueChangeKey: Any]?,
-    context _: UnsafeMutableRawPointer?
-  ) {
-    if keyPath == self.observerKeyPath {
-      self.playerController.contentOverlayView?.subviews.forEach { $0.removeFromSuperview() }
-      self.playerController.player?.removeObserver(self, forKeyPath: self.observerKeyPath, context: nil)
+  private func observePlaybackStart() {
+    self.playbackObservationTask?.cancel()
+    self.playbackObservation?.invalidate()
+    self.playbackObservation = nil
+    guard let player = self.playerController.player else { return }
+
+    let (changes, continuation) = AsyncStream<Void>.makeStream()
+    self.playbackObservation = player.observe(\.timeControlStatus, options: [.old, .new]) { _, _ in
+      // AVFoundation can publish off-main. No player or KVO payload crosses actors.
+      continuation.yield(())
+    }
+    self.playbackObservationTask = Task { @MainActor [weak self] in
+      for await _ in changes {
+        guard !Task.isCancelled else { return }
+        self?.playerController.contentOverlayView?.subviews.forEach { $0.removeFromSuperview() }
+        self?.playbackObservation?.invalidate()
+        self?.playbackObservation = nil
+        return
+      }
     }
   }
 
+  deinit {
+    self.playbackObservationTask?.cancel()
+  }
+
   private func resetPlayer() {
+    self.playbackObservationTask?.cancel()
+    self.playbackObservationTask = nil
+    self.playbackObservation?.invalidate()
+    self.playbackObservation = nil
     self.playerController.player = nil
     self.playerController.contentOverlayView?.subviews.forEach { $0.removeFromSuperview() }
   }
