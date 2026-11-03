@@ -2,6 +2,7 @@ import Foundation
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public final class Keyboard {
   public typealias Change = (
     frame: CGRect, duration: TimeInterval, options: UIView.AnimationOptions,

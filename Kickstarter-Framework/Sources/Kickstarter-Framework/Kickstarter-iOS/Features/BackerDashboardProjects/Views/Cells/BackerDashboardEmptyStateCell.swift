@@ -10,6 +10,7 @@ internal final class BackerDashboardEmptyStateCell: UITableViewCell, ValueCell {
   @IBOutlet private var titleLabel: UILabel!
   @IBOutlet private var iconImageView: UIImageView!
 
+  private var savedProjectObservation: MainActorNotificationObservation?
   private var isAnimating: Bool = false
   private let duration = 0.4
   private let hiddenHeartAlpha = CGFloat(0.0)
@@ -18,6 +19,8 @@ internal final class BackerDashboardEmptyStateCell: UITableViewCell, ValueCell {
   private let expandedHearTransform = CGAffineTransform(scaleX: 1.0, y: 1.0)
 
   internal func configureWith(value: ProfileProjectsType) {
+    self.savedProjectObservation?.cancel()
+    self.savedProjectObservation = nil
     switch value {
     case .backed:
       self.messageLabel.text = Strings.Pledge_to_your_favorites_then_view_all_the_projects()
@@ -35,12 +38,9 @@ internal final class BackerDashboardEmptyStateCell: UITableViewCell, ValueCell {
       self.messageLabel.text = Strings.Tap_the_heart_on_a_project_to_get_notified()
       self.titleLabel.text = Strings.No_saved_projects()
 
-      NotificationCenter.default.addObserver(
-        self,
-        selector: #selector(self.animateToFilledHeart),
-        name: .ksr_savedProjectEmptyStateTapped,
-        object: nil
-      )
+      self.savedProjectObservation = MainActorNotificationObservation(
+        name: .ksr_savedProjectEmptyStateTapped
+      ) { [weak self] _ in self?.animateToFilledHeart() }
       self.animateToFilledHeart()
     }
     self.titleLabel.numberOfLines = 0

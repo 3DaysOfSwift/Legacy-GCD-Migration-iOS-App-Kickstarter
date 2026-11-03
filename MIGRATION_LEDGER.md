@@ -2,6 +2,22 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## Project app events and combined regression — 3 November 2026
+
+Project-page/navigation and saved-project cells own app-event registrations, cancelling
+previous subscriptions before replacement. Keyboard singleton/delivery declares MainActor.
+113 focused tests passed, zero failures/skips; complete-checking app build passed.
+
+The combined boundary run passed 2,770 tests: 2,188 Library, 404 framework, 152 API and
+26 signed Environment/keychain; zero failures/skips. It preceded the final Keyboard
+annotation, which is covered by the final focused run above. Required Library suite
+execution was asserted. The final public demo launched with populated Explore artwork.
+Evidence: kickstarter-project-app-events and kickstarter-boundary-integration.
+
+The refreshed callback inventory distinguishes retained SDK/compatibility mechanisms
+from app-owned work. Compiler compatibility, complete visual/device/live-operation and
+profiling gates remain open. No migration finish timestamp is claimed.
+
 ## Story media observation lifetime — 3 November 2026
 
 The story audio/video cell now owns a single KVO token and cancellable MainActor

@@ -135,22 +135,18 @@ final class ProjectPageNavigation {
 
   // MARK: Helpers
 
-  private func setupNotifications() {
-    NotificationCenter.default
-      .addObserver(
-        self,
-        selector: #selector(ProjectPageNavigation.userSessionStarted),
-        name: .ksr_sessionStarted,
-        object: nil
-      )
+  private var appEventObservations: [MainActorNotificationObservation] = []
 
-    NotificationCenter.default
-      .addObserver(
-        self,
-        selector: #selector(ProjectPageNavigation.userSessionEnded),
-        name: .ksr_sessionEnded,
-        object: nil
-      )
+  private func setupNotifications() {
+    self.appEventObservations.forEach { $0.cancel() }
+    self.appEventObservations = [
+      MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
+        self?.userSessionStarted()
+      },
+      MainActorNotificationObservation(name: .ksr_sessionEnded) { [weak self] _ in
+        self?.userSessionEnded()
+      }
+    ]
   }
 
   private func configureButtons() {

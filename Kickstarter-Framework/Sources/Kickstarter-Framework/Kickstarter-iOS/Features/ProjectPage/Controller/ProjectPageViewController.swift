@@ -368,30 +368,21 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
     self.richTextViewConstraints = richTextViewConstraints
   }
 
+  private var appEventObservations: [MainActorNotificationObservation] = []
+
   private func setupNotifications() {
-    NotificationCenter.default
-      .addObserver(
-        self,
-        selector: #selector(ProjectPageViewController.didBackProject),
-        name: .ksr_projectBacked,
-        object: nil
-      )
-
-    NotificationCenter.default
-      .addObserver(
-        self,
-        selector: #selector(ProjectPageViewController.userSessionStarted),
-        name: .ksr_sessionStarted,
-        object: nil
-      )
-
-    NotificationCenter.default
-      .addObserver(
-        self,
-        selector: #selector(self.appBackgrounded),
-        name: .ksr_applicationDidEnterBackground,
-        object: nil
-      )
+    self.appEventObservations.forEach { $0.cancel() }
+    self.appEventObservations = [
+      MainActorNotificationObservation(name: .ksr_projectBacked) { [weak self] _ in
+        self?.didBackProject()
+      },
+      MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
+        self?.userSessionStarted()
+      },
+      MainActorNotificationObservation(name: .ksr_applicationDidEnterBackground) { [weak self] _ in
+        self?.appBackgrounded()
+      }
+    ]
   }
 
   private func bindProjectPageViewModel() {
