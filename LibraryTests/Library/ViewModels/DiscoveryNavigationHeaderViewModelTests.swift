@@ -8,8 +8,11 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class DiscoveryNavigationHeaderViewModelTests: TestCase {
-  fileprivate let vm: DiscoveryNavigationHeaderViewModelType = DiscoveryNavigationHeaderViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
+  fileprivate var vm: DiscoveryNavigationHeaderViewModelType!
 
   private let animateArrowToDown = TestObserver<Bool, Never>()
   private let arrowOpacity = TestObserver<CGFloat, Never>()
@@ -45,8 +48,9 @@ internal final class DiscoveryNavigationHeaderViewModelTests: TestCase {
 
   let selectableRow = SelectableRow(isSelected: false, params: .defaults)
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
+    self.vm = DiscoveryNavigationHeaderViewModel()
 
     self.vm.outputs.animateArrowToDown.observe(self.animateArrowToDown.observer)
     self.vm.outputs.arrowOpacityAnimated.map(first).observe(self.arrowOpacity.observer)

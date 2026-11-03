@@ -82,10 +82,12 @@ enum VideoFeedShareDestination: String, CaseIterable, Identifiable {
   }
 
   /// Returns only the destinations that are available on the current device.
+  @MainActor
   static func available() -> [VideoFeedShareDestination] {
     allCases.filter { $0.isAvailable }
   }
 
+  @MainActor
   var isAvailable: Bool {
     let schemes = self.requiredURLSchemes
 
@@ -98,12 +100,14 @@ enum VideoFeedShareDestination: String, CaseIterable, Identifiable {
 
   // MARK: - Project URL
 
+  @MainActor
   static func projectURL(for item: VideoFeedItem) -> URL? {
     AppEnvironment.current.apiService.serverConfig.webBaseUrl
       .appendingPathComponent("projects/\(item.slug)")
   }
 
   /// Returns the project URL with a `ref` query parameter appended for attribution tracking.
+  @MainActor
   static func projectURL(for item: VideoFeedItem, refTag: RefTag) -> URL? {
     guard let base = projectURL(for: item),
           var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
@@ -147,6 +151,7 @@ enum VideoFeedShareDestination: String, CaseIterable, Identifiable {
 
   // MARK: - Perform
 
+  @MainActor
   func perform(item: VideoFeedItem) {
     let encoded = Self.encodedProjectURL(for: item)
 
@@ -177,12 +182,14 @@ enum VideoFeedShareDestination: String, CaseIterable, Identifiable {
     }
   }
 
+  @MainActor
   private static func open(_ urlString: String) {
     guard let url = URL(string: urlString) else { return }
 
     UIApplication.shared.open(url)
   }
 
+  @MainActor
   private static func encodedProjectURL(for item: VideoFeedItem) -> String? {
     self.projectURL(for: item)?.absoluteString
       .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)

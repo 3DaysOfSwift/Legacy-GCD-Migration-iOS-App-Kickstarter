@@ -3,6 +3,7 @@ import Library
 import Prelude
 import ReactiveSwift
 
+@MainActor
 internal protocol HelpWebViewModelInputs {
   /// Call to configure with HelpType.
   func configureWith(helpType: HelpType)
@@ -11,16 +12,19 @@ internal protocol HelpWebViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 internal protocol HelpWebViewModelOutputs {
   /// Emits a request that should be loaded into the webview.
   var webViewLoadRequest: Signal<URLRequest, Never> { get }
 }
 
+@MainActor
 internal protocol HelpWebViewModelType {
   var inputs: HelpWebViewModelInputs { get }
   var outputs: HelpWebViewModelOutputs { get }
 }
 
+@MainActor
 internal final class HelpWebViewModel: HelpWebViewModelType, HelpWebViewModelInputs, HelpWebViewModelOutputs {
   internal init() {
     self.webViewLoadRequest = self.helpTypeProperty.signal.skipNil()

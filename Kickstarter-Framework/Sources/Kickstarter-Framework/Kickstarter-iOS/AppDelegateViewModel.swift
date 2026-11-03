@@ -269,7 +269,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       let request = lifecycleFeature.requestConfiguration()
       return lifecycleFeature.result { try await request.value }.demoteErrors()
     }
-    .map(configRetainingDebugFeatureFlags)
+    .map { configRetainingDebugFeatureFlags($0) }
 
     let currentUserUpdatedNotification = self.currentUserUpdatedInEnvironmentProperty.signal
       .mapConst(Notification(name: .ksr_userUpdated, object: nil))
@@ -364,7 +364,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     // https://app.getguru.com/card/cyRdjqgi/How-iOS-Universal-Links-work
 
     let deepLinkFromNotification = self.remoteNotificationProperty.signal.skipNil()
-      .map(navigation(fromPushEnvelope:))
+      .map { navigation(fromPushEnvelope: $0) }
 
     let urlFromBraze = self.brazeNotificationURLProperty.signal.skipNil()
 
@@ -831,6 +831,7 @@ private func shouldOpenUrlInBrowser(_ url: URL) -> Bool {
   return true
 }
 
+@MainActor
 private func navigation(fromPushEnvelope envelope: PushEnvelope) -> Navigation? {
   if let activity = envelope.activity {
     switch activity.category {
@@ -1041,6 +1042,7 @@ private func emailVerificationCompletionData(
   return (message, true)
 }
 
+@MainActor
 private func configRetainingDebugFeatureFlags(_ config: Config) -> Config {
   guard AppEnvironment.current.mainBundle.isRelease == false else { return config }
 
@@ -1101,6 +1103,7 @@ private enum ProjectDeepLink {
   }
 }
 
+@MainActor
 private func statsigSDKKey() -> StatsigClientSDKKey {
   let mainBundle = AppEnvironment.current.mainBundle
 

@@ -94,7 +94,7 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
     )
 
     let favoriteRows = selectedRowWithCategories
-      .map(favorites(selectedRow:categories:))
+      .map { favorites(selectedRow: $0, categories: $1) }
       .skipNil()
 
     self.loadFavoriteRows = Signal.combineLatest(favoriteRows, categoryId)
@@ -304,6 +304,7 @@ private func topFilters(forUser user: User?) -> [DiscoveryParams] {
   return filters
 }
 
+@MainActor
 private func favorites(selectedRow: SelectableRow, categories: [KsApi.Category])
   -> [SelectableRow]? {
   let subcategories = categories

@@ -182,7 +182,7 @@ public final class DiscoveryPostcardViewModel: DiscoveryPostcardViewModelType,
     self.deadlineTitleLabelText = deadlineTitleAndSubtitle.map(first)
     self.deadlineSubtitleLabelText = deadlineTitleAndSubtitle.map(second)
 
-    let possibleMetadataData = configuredProject.map(postcardMetadata(forProject:))
+    let possibleMetadataData = configuredProject.map { postcardMetadata(forProject: $0) }
 
     self.metadataViewHidden = possibleMetadataData.map { $0 == nil }
 
@@ -375,6 +375,7 @@ private func fundingStatusText(forProject project: Project) -> String {
 }
 
 // Returns the disparate metadata data for a project based on metadata precedence.
+@MainActor
 private func postcardMetadata(forProject project: Project) -> PostcardMetadataData? {
   let today = AppEnvironment.current.dateType.init().date
 

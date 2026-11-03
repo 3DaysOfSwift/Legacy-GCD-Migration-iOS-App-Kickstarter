@@ -4,6 +4,7 @@ import ReactiveExtensions
 import ReactiveSwift
 import UIKit
 
+@MainActor
 public protocol DiscoveryNavigationHeaderViewModelInputs {
   /// Call to configure with Discovery params.
   func configureWith(params: DiscoveryParams)
@@ -21,6 +22,7 @@ public protocol DiscoveryNavigationHeaderViewModelInputs {
   func viewDidLoad()
 }
 
+@MainActor
 public protocol DiscoveryNavigationHeaderViewModelOutputs {
   /// Emits to animate arrow image down or up.
   var animateArrowToDown: Signal<Bool, Never> { get }
@@ -86,14 +88,17 @@ public protocol DiscoveryNavigationHeaderViewModelOutputs {
   var updateFavoriteButton: Signal<(selected: Bool, animated: Bool), Never> { get }
 }
 
+@MainActor
 public protocol DiscoveryNavigationHeaderViewModelType {
   var inputs: DiscoveryNavigationHeaderViewModelInputs { get }
   var outputs: DiscoveryNavigationHeaderViewModelOutputs { get }
 }
 
+@MainActor
 public final class DiscoveryNavigationHeaderViewModel: DiscoveryNavigationHeaderViewModelType,
   DiscoveryNavigationHeaderViewModelInputs, DiscoveryNavigationHeaderViewModelOutputs {
   public init() {
+    let scheduler = AppEnvironment.current.scheduler
     let currentParams = Signal.merge(
       self.paramsProperty.signal.skipNil().skipRepeats(),
       self.filtersSelectedRowProperty.signal.skipNil().map { $0.params }
@@ -151,7 +156,7 @@ public final class DiscoveryNavigationHeaderViewModel: DiscoveryNavigationHeader
     )
 
     self.dismissDiscoveryFilters = dismissFiltersSignal
-      .ksr_debounce(.milliseconds(400), on: AppEnvironment.current.scheduler)
+      .ksr_debounce(.milliseconds(400), on: scheduler)
 
     self.notifyDelegateFilterSelectedParams = currentParams.skip(first: 1)
 
@@ -339,11 +344,13 @@ private func string(forCategoryId id: String) -> String {
   return RootCategory(categoryId: id).allProjectsString()
 }
 
+@MainActor
 private func isFavoriteCategoryStored(withId id: Int) -> Bool {
   return AppEnvironment.current.ubiquitousStore.favoriteCategoryIds.firstIndex(of: id) != nil ||
     AppEnvironment.current.userDefaults.favoriteCategoryIds.firstIndex(of: id) != nil
 }
 
+@MainActor
 private func toggleStoredFavoriteCategory(withId id: Int) {
   if let index = AppEnvironment.current.ubiquitousStore.favoriteCategoryIds.firstIndex(of: id) {
     AppEnvironment.current.ubiquitousStore.favoriteCategoryIds.remove(at: index)

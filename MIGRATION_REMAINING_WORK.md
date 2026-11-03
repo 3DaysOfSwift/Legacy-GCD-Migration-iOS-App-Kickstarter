@@ -142,3 +142,11 @@ ownership. 319 focused tests and app/framework compilation pass. Legacy paginato
 scheduling is explicit and captured; there are no audited production callers.
 Discovery favorites, navigation header and activity-cache callbacks are the next
 compiler-exposed callers. Global stack annotations remain experimental, not shipped.
+
+### Global stack compiler milestone — 3 November 2026
+
+Discovery and remaining framework Environment callers are verified (203 tests and app build).
+The app now builds with experimental AppEnvironment MainActor ownership, actor-owned
+Environment construction and IsolatedDefaultValues. These experimental annotations are
+not yet committed: test infrastructure and persistent compiler settings must be verified
+before shipping the global stack change. Device/visual/live-operation gates remain open.

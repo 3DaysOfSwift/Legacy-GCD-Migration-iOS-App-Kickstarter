@@ -2,6 +2,20 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## Discovery and framework Environment readers — 3 November 2026
+
+Discovery favorite storage/header, seen-activity cache and metadata clock helpers now declare
+MainActor ownership. The header captures its debounce scheduler; its fixture is constructed
+after installing the test Environment. Help request preparation, push routing/configuration,
+video sharing availability/URLs and pledge/demo terms rendering declare their actor owner.
+Existing layout, favorite selection, routing and output assertions are unchanged.
+
+80 Library and 123 framework tests passed (203 total), zero failures/skips; app build passed.
+The experimental global AppEnvironment/Environment actor build also passed with
+IsolatedDefaultValues enabled. Those two experimental annotations were removed for this
+checkpoint; test infrastructure and persisted compiler configuration are the next step.
+Evidence: kickstarter-discovery-framework-owners.
+
 ## Remaining Environment UI callers — 3 November 2026
 
 Payment/login/reward presentation use cases, beta tools, pager, project-content and message

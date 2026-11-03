@@ -76,8 +76,7 @@ final class DemoCTAContainerView: UIView {
     _ = self.ctaStackView
       |> ctaStackViewStyle
 
-    _ = self.termsTextView
-      |> termsTextViewStyle
+    _ = termsTextViewStyle(self.termsTextView)
 
     _ = self.disclaimerStackView
       |> disclaimerStackViewStyle
@@ -178,7 +177,8 @@ private let layerStyle: LayerStyle = { layer in
     ]
 }
 
-private let termsTextViewStyle: TextViewStyle = { (textView: UITextView) -> UITextView in
+@MainActor
+private func termsTextViewStyle(_ textView: UITextView) -> UITextView {
   _ = textView
     |> adaptiveTappableLinksViewStyle
     |> \.attributedText .~ attributedTermsText()
@@ -188,6 +188,7 @@ private let termsTextViewStyle: TextViewStyle = { (textView: UITextView) -> UITe
   return textView
 }
 
+@MainActor
 private func attributedTermsText() -> NSAttributedString? {
   let baseUrl = AppEnvironment.current.apiService.serverConfig.webBaseUrl
 

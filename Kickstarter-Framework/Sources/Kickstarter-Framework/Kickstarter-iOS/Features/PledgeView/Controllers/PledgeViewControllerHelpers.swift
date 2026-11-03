@@ -3,6 +3,7 @@ import KsApi
 import Library
 import UIKit
 
+@MainActor
 struct PledgeViewControllerHelpers {
   static func attributedLearnMoreText() -> NSAttributedString? {
     guard let trustLink = HelpType.trust.url(

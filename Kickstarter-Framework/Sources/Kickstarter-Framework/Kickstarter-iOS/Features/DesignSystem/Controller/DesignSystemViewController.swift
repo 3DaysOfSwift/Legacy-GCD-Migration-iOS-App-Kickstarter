@@ -477,6 +477,7 @@ final class DesignSystemViewController: UIViewController {
   }
 }
 
+@MainActor
 private func attributedTermsText() -> NSAttributedString? {
   let baseUrl = AppEnvironment.current.apiService.serverConfig.webBaseUrl
 

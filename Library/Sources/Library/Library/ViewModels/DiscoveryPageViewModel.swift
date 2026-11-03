@@ -350,7 +350,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     .skipRepeats()
 
     self.goToCuratedProjects = self.personalizationCellTappedProperty.signal
-      .map(cachedCategories)
+      .map { cachedCategories() }
       .skipNil()
 
     self.dismissPersonalizationCell = self.personalizationCellDismissTappedProperty.signal
@@ -524,10 +524,12 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   public var outputs: DiscoveryPageViewModelOutputs { return self }
 }
 
+@MainActor
 private func hasNotSeen(activity: Activity) -> Bool {
   return activity.id != AppEnvironment.current.userDefaults.lastSeenActivitySampleId
 }
 
+@MainActor
 private func saveSeen(activities: [Activity]) {
   activities.forEach { activity in
     AppEnvironment.current.userDefaults.lastSeenActivitySampleId = activity.id
@@ -538,6 +540,7 @@ private func shouldShowPersonalization() -> Bool {
   return false
 }
 
+@MainActor
 private func cachedCategories() -> [KsApi.Category]? {
   guard let data = AppEnvironment.current.userDefaults.onboardingCategories,
         let categories = try? JSONDecoder().decode([KsApi.Category].self, from: data)
@@ -548,6 +551,7 @@ private func cachedCategories() -> [KsApi.Category]? {
   return categories
 }
 
+@MainActor
 private func emptyState(forParams params: DiscoveryParams) -> EmptyState? {
   if params.starred == .some(true) {
     return .starred
