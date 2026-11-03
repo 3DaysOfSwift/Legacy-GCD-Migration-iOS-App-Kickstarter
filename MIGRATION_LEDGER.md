@@ -579,6 +579,17 @@ Other project/reward/related-query transport boundaries remain open, as do the p
 callback audit and final visual/device/live-operation validation. App-wide migration
 remains in progress. Evidence: sibling Migration Evidence/kickstarter-pledged-overview.
 
+## Pledge-summary identifiers — 3 November 2026
+
+Diffable snapshots now contain Sendable UUID identifiers; attributed display values stay
+in a MainActor store through animated transitions. Both summary controllers share the
+same apply path. Five focused tests passed with no failures/skips and the complete-checking
+app build succeeded. Evidence: sibling Migration Evidence/kickstarter-diffable-identifiers.
+
+Hardware demo installation and launch also succeeded at checkpoint 72427b3ca. A short
+trace recorded a 255 ms main-thread microhang whose cause remains unconfirmed. Device,
+visual and live-operation validation are not complete.
+
 ## Latest verified checkpoint
 
 ### Checkout and managed-pledge transport values — 29 October 2026

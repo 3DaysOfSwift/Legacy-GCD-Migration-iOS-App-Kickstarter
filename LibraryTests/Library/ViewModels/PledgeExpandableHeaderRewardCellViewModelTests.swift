@@ -6,6 +6,8 @@ import ReactiveSwift
 import XCTest
 
 final class PledgeExpandableHeaderRewardCellViewModelTests: TestCase {
+  // Value-output assertions do not compare reference images.
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   internal let vm: PledgeExpandableHeaderRewardCellViewModelType = PledgeExpandableHeaderRewardCellViewModel()
 
   private let amountAttributedText = TestObserver<NSAttributedString, Never>()

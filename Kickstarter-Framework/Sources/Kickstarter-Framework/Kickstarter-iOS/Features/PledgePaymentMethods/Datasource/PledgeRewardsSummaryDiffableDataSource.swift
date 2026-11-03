@@ -1,19 +1,20 @@
+import Foundation
 import Library
 import UIKit
 
-enum PledgeRewardsSummaryRow: Hashable {
-  case header(PledgeSummaryRewardCellData)
-  case reward(PledgeSummaryRewardCellData)
-  case addOns(PledgeSummaryRewardCellData)
-  case shipping(PledgeSummaryRewardCellData)
-  case bonusSupport(PledgeSummaryRewardCellData)
+enum PledgeRewardsSummaryRow: Hashable, Sendable {
+  case header(UUID)
+  case reward(UUID)
+  case addOns(UUID)
+  case shipping(UUID)
+  case bonusSupport(UUID)
 }
 
 /**
  A `UITableViewDiffableDataSource` that accepts two types.
 
  - `PledgeRewardsSummarySection`: defines the section type of the table.
- - `PledgeRewardsSummaryRow`: the model that represents the data to be displayed in each cell.
+ - `PledgeRewardsSummaryRow`: a Sendable section-qualified identifier. Attributed display data stays in the MainActor model store.
 
  These types are defined above and each UITableViewCell is configured based on the row being rendered.
  */
@@ -22,10 +23,15 @@ class PledgeRewardsSummaryDiffableDataSource: UITableViewDiffableDataSource<
   PledgeRewardsSummarySection,
   PledgeRewardsSummaryRow
 > {
+  private let models = PledgeSummaryModels()
+  private var updateID = UUID()
+
   init(tableView: UITableView) {
+    let models = self.models
     super.init(tableView: tableView) { tableView, indexPath, row in
+      guard let model = models.values[row.id] else { return nil }
       switch row {
-      case let .header(model):
+      case .header:
         let cell = tableView.dequeueReusableCell(
           withClass: PostCampaignPledgeRewardsSummaryHeaderCell.self,
           for: indexPath
@@ -34,7 +40,7 @@ class PledgeRewardsSummaryDiffableDataSource: UITableViewDiffableDataSource<
         cell.configureWith(value: model)
 
         return cell
-      case let .reward(model), let .addOns(model), let .shipping(model), let .bonusSupport(model):
+      case .reward, .addOns, .shipping, .bonusSupport:
         let cell = tableView.dequeueReusableCell(
           withClass: PostCampaignPledgeRewardsSummaryCell.self,
           for: indexPath
@@ -46,6 +52,22 @@ class PledgeRewardsSummaryDiffableDataSource: UITableViewDiffableDataSource<
       }
     }
   }
+
+  func apply(header: PledgeSummaryRewardCellData?, rewards: [PledgeSummaryRewardCellData]) {
+    let snapshot = diffableDataSourceSnapshot(using: header, rewards)
+    let values = rewards + (header.map { [$0] } ?? [])
+    for value in values { self.models.values[value.id] = value }
+    let updateID = UUID()
+    self.updateID = updateID
+    let retainedIDs = Set(snapshot.itemIdentifiers.map(\.id))
+    // Retain outgoing presentation values until their transition completes. Only
+    // the current snapshot may prune storage after overlapping updates.
+    self.apply(snapshot, animatingDifferences: true) { [weak self] in
+      guard let self, self.updateID == updateID else { return }
+      self.models.values = self.models.values.filter { retainedIDs.contains($0.key) }
+    }
+  }
+
 }
 
 /**
@@ -69,21 +91,21 @@ func diffableDataSourceSnapshot(
   /// Define the sections of the table and what data to use in each section.
   if let header = headerData {
     snapshot.appendSections([.header])
-    snapshot.appendItems([.header(header)], toSection: .header)
+    snapshot.appendItems([.header(header.id)], toSection: .header)
   }
 
   // MARK: Reward
 
   if let baseReward = rewards.first {
     snapshot.appendSections([.reward])
-    snapshot.appendItems([.reward(baseReward)], toSection: .reward)
+    snapshot.appendItems([.reward(baseReward.id)], toSection: .reward)
   }
 
   // MARK: Add-Ons
 
   let addOnsData = rewards
     .filter { reward in reward.id != rewards.first?.id && reward.type == .reward }
-    .map { PledgeRewardsSummaryRow.addOns($0) }
+    .map { PledgeRewardsSummaryRow.addOns($0.id) }
 
   /// We only want to add an add-ons section if any have been selected
   if addOnsData.count > 0 {
@@ -95,7 +117,7 @@ func diffableDataSourceSnapshot(
 
   let shippingInfo = rewards
     .filter { reward in reward.type == .shipping }
-    .map { PledgeRewardsSummaryRow.shipping($0) }
+    .map { PledgeRewardsSummaryRow.shipping($0.id) }
 
   if let shipping = shippingInfo.first {
     snapshot.appendSections([.shipping])
@@ -106,7 +128,7 @@ func diffableDataSourceSnapshot(
 
   let bonusSupport = rewards
     .filter { reward in reward.type == .bonusSupport }
-    .map { PledgeRewardsSummaryRow.bonusSupport($0) }
+    .map { PledgeRewardsSummaryRow.bonusSupport($0.id) }
 
   if let bonusSupportData = bonusSupport.first {
     snapshot.appendSections([.bonusSupport])
@@ -114,4 +136,18 @@ func diffableDataSourceSnapshot(
   }
 
   return snapshot
+}
+
+@MainActor
+private final class PledgeSummaryModels {
+  var values: [UUID: PledgeSummaryRewardCellData] = [:]
+}
+
+extension PledgeRewardsSummaryRow {
+  var id: UUID {
+    switch self {
+    case let .header(id), let .reward(id), let .addOns(id), let .shipping(id), let .bonusSupport(id):
+      return id
+    }
+  }
 }

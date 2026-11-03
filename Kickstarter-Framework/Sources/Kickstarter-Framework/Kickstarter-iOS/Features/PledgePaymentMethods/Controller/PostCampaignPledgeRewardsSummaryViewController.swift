@@ -123,10 +123,7 @@ final class PostCampaignPledgeRewardsSummaryViewController: UIViewController {
         guard let self else { return }
 
         /// Applies a snapshot of all of the data needed to render the table view.
-        self.dataSource.apply(
-          diffableDataSourceSnapshot(using: headerData, rewards),
-          animatingDifferences: true
-        )
+        self.dataSource.apply(header: headerData, rewards: rewards)
 
         self.setEntireViewToIsHidden(false)
         self.tableViewContainerHeightConstraint?.constant = self.tableView.intrinsicContentSize.height
