@@ -2,7 +2,10 @@
 @testable import LibraryTestHelpers
 import XCTest
 
+@MainActor
 final class CharacterSetTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   func testDecimalSeparators() {
     withEnvironment(locale: Locale(identifier: "en")) {
       XCTAssertTrue(CharacterSet.ksr_decimalSeparators().contains("."))

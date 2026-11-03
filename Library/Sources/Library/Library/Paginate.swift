@@ -1,3 +1,4 @@
+import Foundation
 import Prelude
 import ReactiveExtensions
 import ReactiveSwift
@@ -6,6 +7,9 @@ import ReactiveSwift
  Returns signals that can be used to coordinate the process of paginating through values. This function is
  specific to the type of pagination in which a page's results contains a cursor that can be used to request
  the next page of values.
+
+ The legacy compatibility pipeline captures its delay and scheduler when constructed.
+ Callers may supply these explicitly; subsequent Environment changes do not retarget it.
 
  This function is generic over the following types:
 
@@ -38,6 +42,7 @@ import ReactiveSwift
             or error). The `pageCount` signal emits the number of the page that loaded, starting at 1. Finally,
             `errors` emits the `ErrorEnvelope` when a page request fails.
  */
+@MainActor
 public func paginate<Cursor, Value: Equatable, Envelope, ErrorEnvelope, RequestParams>(
   requestFirstPageWith requestFirstPage: Signal<RequestParams, Never>,
   requestNextPageWhen requestNextPage: Signal<(), Never>,
@@ -47,7 +52,9 @@ public func paginate<Cursor, Value: Equatable, Envelope, ErrorEnvelope, RequestP
   cursorFromEnvelope: @escaping ((Envelope) -> Cursor?),
   requestFromParams: @escaping ((RequestParams) -> SignalProducer<Envelope, ErrorEnvelope>),
   requestFromCursor: @escaping ((Cursor) -> SignalProducer<Envelope, ErrorEnvelope>),
-  concater: @escaping (([Value], [Value]) -> [Value]) = (+)
+  concater: @escaping (([Value], [Value]) -> [Value]) = (+),
+  delayInterval: DispatchTimeInterval = AppEnvironment.current.apiDelayInterval,
+  scheduler: DateScheduler = AppEnvironment.current.scheduler
 )
   ->
   (
@@ -72,7 +79,7 @@ public func paginate<Cursor, Value: Equatable, Envelope, ErrorEnvelope, RequestP
 
           paramsOrCursor.ifLeft(requestFromParams, ifRight: requestFromCursor)
             .subdueError()
-            .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+            .ksr_delay(delayInterval, on: scheduler)
             .liftSubduedError()
             .on(
               starting: { [weak isLoading] in

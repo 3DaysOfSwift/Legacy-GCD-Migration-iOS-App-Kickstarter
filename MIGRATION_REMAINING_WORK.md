@@ -133,3 +133,12 @@ ownership and media/UI timer lifetimes have recorded checkpoints. Their tests co
 specified boundaries; they do not establish app-wide visual or live-service parity.
 
 Existing UI, branding, storage and target identifiers remain the preservation baseline.
+
+### Additional verified Environment callers — 3 November 2026
+
+Payment/login/reward presentation, beta tools, pager, project content, message cache,
+root badges, settings footer, cookie attribution and Statsig helpers now declare actor
+ownership. 319 focused tests and app/framework compilation pass. Legacy paginator
+scheduling is explicit and captured; there are no audited production callers.
+Discovery favorites, navigation header and activity-cache callbacks are the next
+compiler-exposed callers. Global stack annotations remain experimental, not shipped.

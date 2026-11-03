@@ -6,6 +6,7 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class RewardsUseCaseTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   private var vm: RewardsUseCase!
@@ -19,8 +20,8 @@ final class RewardsUseCaseTests: TestCase {
   private let (userSessionStartedSignal, userSessionStartedObserver) = Signal<Void, Never>.pipe()
   private let (goToRewardsTappedSignal, goToRewardsTappedObserver) = Signal<Void, Never>.pipe()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.secretRewardTokenSignal.observe(self.secretRewardToken.observer)
     self.userSessionStartedSignal.observe(self.userSessionStarted.observer)

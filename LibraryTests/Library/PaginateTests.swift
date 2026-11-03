@@ -5,6 +5,7 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class PaginateTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
@@ -15,6 +16,34 @@ final class PaginateTests: TestCase {
   let valuesFromEnvelope: ([Int]) -> [Int] = id
   let cursorFromEnvelope: ([Int]) -> Int = { ($0.last ?? 0) + 1 }
   let statsFromEnvelope: ([Int]) -> Int = { _ in 10 }
+
+  func testExplicitSchedulerAndDelaySurviveEnvironmentReplacement() {
+    let scheduler = TestScheduler()
+    let (values, _, _, _) = paginate(
+      requestFirstPageWith: newRequest,
+      requestNextPageWhen: nextPage,
+      clearOnNewRequest: false,
+      valuesFromEnvelope: valuesFromEnvelope,
+      cursorFromEnvelope: cursorFromEnvelope,
+      requestFromParams: requestFromParams,
+      requestFromCursor: requestFromCursor,
+      delayInterval: .seconds(1),
+      scheduler: scheduler
+    )
+    let observer = TestObserver<[Int], Never>()
+    values.observe(observer.observer)
+
+    withEnvironment(apiDelayInterval: .seconds(20)) {
+      self.newRequestObserver.send(value: 1)
+      self.scheduler.advance(by: .seconds(30))
+      observer.assertDidNotEmitValue()
+      scheduler.advance(by: .seconds(1))
+      observer.assertValues([[1]])
+      self.nextPageObserver.send(value: ())
+      scheduler.advance(by: .seconds(1))
+      observer.assertValues([[1], [1, 2]])
+    }
+  }
 
   func testEmitsEmptyState_ClearOnNewRequest() {
     let requestFromParams: (Int) -> SignalProducer<[Int], Never> = { _ in .init(value: []) }

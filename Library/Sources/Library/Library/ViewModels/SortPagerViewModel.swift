@@ -2,6 +2,7 @@ import KsApi
 import Prelude
 import ReactiveSwift
 
+@MainActor
 public protocol SortPagerViewModelInputs {
   /// Call with the sorts that the view was configured with.
   func configureWith(sorts: [DiscoveryParams.Sort])
@@ -28,6 +29,7 @@ public protocol SortPagerViewModelInputs {
   func viewWillAppear()
 }
 
+@MainActor
 public protocol SortPagerViewModelOutputs {
   /// Emits a list of sorts that should be used to create sort buttons.
   var createSortButtons: Signal<[DiscoveryParams.Sort], Never> { get }
@@ -51,14 +53,17 @@ public protocol SortPagerViewModelOutputs {
   > { get }
 }
 
+@MainActor
 public protocol SortPagerViewModelType {
   var inputs: SortPagerViewModelInputs { get }
   var outputs: SortPagerViewModelOutputs { get }
 }
 
+@MainActor
 public final class SortPagerViewModel: SortPagerViewModelType, SortPagerViewModelInputs,
   SortPagerViewModelOutputs {
   public init() {
+    let scheduler = AppEnvironment.current.scheduler
     let sorts: Signal<[DiscoveryParams.Sort], Never> = Signal.combineLatest(
       self.sortsProperty.signal.skipNil(),
       self.viewWillAppearProperty.signal
@@ -119,11 +124,11 @@ public final class SortPagerViewModel: SortPagerViewModelType, SortPagerViewMode
       self.viewDidAppearProperty.signal
         .take(first: 1)
         .mapConst(false)
-        .ksr_debounce(.milliseconds(100), on: AppEnvironment.current.scheduler),
+        .ksr_debounce(.milliseconds(100), on: scheduler),
       self.willRotateProperty.signal.mapConst(true),
       self.didRotateProperty.signal
         .mapConst(false)
-        .ksr_debounce(.milliseconds(100), on: AppEnvironment.current.scheduler)
+        .ksr_debounce(.milliseconds(100), on: scheduler)
     )
   }
 

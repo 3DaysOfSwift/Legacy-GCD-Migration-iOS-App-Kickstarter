@@ -553,6 +553,7 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   public var outputs: RootViewModelOutputs { return self }
 }
 
+@MainActor
 private func currentUserActivitiesAndErroredPledgeCount() -> Int {
   return (AppEnvironment.current.currentUser?.unseenActivityCount ?? 0)
 }
@@ -608,6 +609,7 @@ private func tabData(forUser user: User?, isFloatingTabBarEnabled: Bool) -> TabB
 extension TabBarItemsData: Equatable {}
 extension TabBarItem: Equatable {}
 
+@MainActor
 private func activitiesBadgeValue(with value: Int?, hasPPOAction: Bool) -> String? {
   guard !hasPPOAction else {
     // an empty string will show a dot as badge

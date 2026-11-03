@@ -5,6 +5,7 @@ import KsApi
 /// if a value is found, it is returned immediately as an "override" (e.g. via beta tools).
 /// Otherwise, the value from the Statsig client is used, falling back to
 /// `false` if neither place has a value.
+@MainActor
 public func statsigFeatureEnabled(feature: StatsigFeature) -> Bool {
   if let valueFromDefaults = AppEnvironment.current.userDefaults
     .statsigFeatureFlags[feature.rawValue] {
@@ -20,11 +21,13 @@ public func statsigFeatureEnabled(feature: StatsigFeature) -> Bool {
 }
 
 /// Returns whether the project story rich text feature is enabled for the current user.
+@MainActor
 public func featureProjectStoryRichTextEnabled() -> Bool {
   statsigFeatureEnabled(feature: .projectStoryRichText)
 }
 
 /// Returns whether the video feed feature is enabled for the current user.
+@MainActor
 public func featureVideoFeedEnabled() -> Bool {
   statsigFeatureEnabled(feature: .videoFeed)
 }
@@ -36,6 +39,7 @@ extension StatsigClientType {
     return StatsigFeature.allCases
   }
 
+  @MainActor
   public func isFeatureEnabled(featureKey key: StatsigFeature) -> Bool {
     AppEnvironment.current.statsigClient?.checkGate(for: key) == true
   }

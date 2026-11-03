@@ -3,7 +3,10 @@ import Experimentation
 @testable import LibraryTestHelpers
 import XCTest
 
+@MainActor
 final class StatsigExperimentHelperTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   func testExperimentValue_IsOverriddenByMockExperimentValues() {
     let experiment = iOSTestExperiment()
     let mockStatsigClient = MockStatsigWrapper()

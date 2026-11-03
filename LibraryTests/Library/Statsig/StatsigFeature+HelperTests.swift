@@ -3,7 +3,10 @@ import Experimentation
 @testable import LibraryTestHelpers
 import XCTest
 
+@MainActor
 final class StatsigFeatureHelpersTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   func testFeatureIsFalse_whenStatsigFeatureOff() {
     let mockStatsigClient = MockStatsigWrapper()
     mockStatsigClient.features[.videoFeed] = false

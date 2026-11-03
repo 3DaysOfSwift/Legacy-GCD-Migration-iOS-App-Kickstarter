@@ -210,6 +210,7 @@ public func projectCountry(
   return launchedCountries.countries.first { $0.currencyCode == currencyCode }
 }
 
+@MainActor
 public func updatedUserWithClearedActivityCountProducer() -> SignalProducer<User, Never> {
   return AppEnvironment.current.apiService.clearUserUnseenActivity(input: .init())
     .filter { _ in AppEnvironment.current.currentUser != nil }

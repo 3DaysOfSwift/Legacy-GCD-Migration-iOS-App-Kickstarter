@@ -1,21 +1,25 @@
 import KsApi
 import ReactiveSwift
 
+@MainActor
 public protocol PaymentMethodsUseCaseType {
   var uiInputs: PaymentMethodsUseCaseUIInputs { get }
   var uiOutputs: PaymentMethodsUseCaseUIOutputs { get }
   var dataOutputs: PaymentMethodsUseCaseDataOutputs { get }
 }
 
+@MainActor
 public protocol PaymentMethodsUseCaseUIInputs {
   func creditCardSelected(with paymentSourceData: PaymentSourceSelected)
 }
 
+@MainActor
 public protocol PaymentMethodsUseCaseUIOutputs {
   var paymentMethodsViewHidden: Signal<Bool, Never> { get }
   var configurePaymentMethodsViewControllerWithValue: Signal<PledgePaymentMethodsValue, Never> { get }
 }
 
+@MainActor
 public protocol PaymentMethodsUseCaseDataOutputs {
   var selectedPaymentSource: Signal<PaymentSourceSelected?, Never> { get }
   var paymentMethodChangedAndValid: Signal<Bool, Never> { get }
@@ -39,6 +43,7 @@ public protocol PaymentMethodsUseCaseDataOutputs {
   * `selectedPaymentSource` - The currently selected credit card, or `nil` if no card is selected. Sent at least once after   `initialData` is sent.
   * `paymentMethodChangedAndValid` - Whether or not the payment method is valid for the current pledge type. Sends an event after `initialData` and potentially more after `creditCardSelected(with:)` has happened.
   */
+@MainActor
 public final class PaymentMethodsUseCase: PaymentMethodsUseCaseType, PaymentMethodsUseCaseUIInputs,
   PaymentMethodsUseCaseUIOutputs, PaymentMethodsUseCaseDataOutputs {
   init(initialData: Signal<PledgeViewData, Never>, isLoggedIn isLoggedInChanged: Signal<Bool, Never>) {

@@ -6,6 +6,7 @@ private let escapedCookieSeparator = "%3F"
 
 // Extracts the ref tag stored in cookies for a particular project. Returns `nil` if no such cookie has
 // been previously set.
+@MainActor
 public func cookieRefTagFor(project: Project) -> RefTag? {
   return AppEnvironment.current.cookieStorage.cookies?
     .filter { cookie in cookie.name == cookieName(project) }
@@ -46,6 +47,7 @@ private func cleanUp(refTagString: String) -> String {
 }
 
 // Constructs a cookie from a ref tag and project.
+@MainActor
 public func cookieFrom(refTag: RefTag, project: Project) -> HTTPCookie? {
   let timestamp = Int(AppEnvironment.current.scheduler.currentDate.timeIntervalSince1970)
 

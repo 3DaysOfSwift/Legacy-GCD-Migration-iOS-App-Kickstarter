@@ -2,15 +2,18 @@ import Foundation
 import KsApi
 import ReactiveSwift
 
+@MainActor
 public protocol RewardsUseCaseOutputs {
   var goToLoginWithIntent: Signal<LoginIntent, Never> { get }
   var goToRewards: Signal<Void, Never> { get }
 }
 
+@MainActor
 public protocol RewardsUseCaseType {
   var outputs: RewardsUseCaseOutputs { get }
 }
 
+@MainActor
 public final class RewardsUseCase: RewardsUseCaseType, RewardsUseCaseOutputs {
   public init(
     secretRewardToken: Signal<String?, Never>,

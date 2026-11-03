@@ -56,6 +56,7 @@ public enum SettingsSectionType: Int, CaseIterable {
     }
   }
 
+  @MainActor
   public var footerText: String? {
     switch self {
     case .ratingAppVersion:

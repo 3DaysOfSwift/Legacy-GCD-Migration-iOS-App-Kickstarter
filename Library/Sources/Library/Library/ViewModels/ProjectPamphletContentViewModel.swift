@@ -4,6 +4,7 @@ import ReactiveSwift
 
 public typealias ProjectPamphletContentData = (Project, RefTag?)
 
+@MainActor
 public protocol ProjectPamphletContentViewModelInputs {
   func configureWith(value: (Project, RefTag?))
   func tappedComments()
@@ -16,6 +17,7 @@ public protocol ProjectPamphletContentViewModelInputs {
   func viewWillAppear(animated: Bool)
 }
 
+@MainActor
 public protocol ProjectPamphletContentViewModelOutputs {
   var goToBacking: Signal<ManagePledgeViewParamConfigData, Never> { get }
   var goToComments: Signal<Project, Never> { get }
@@ -25,11 +27,13 @@ public protocol ProjectPamphletContentViewModelOutputs {
   var loadProjectPamphletContentDataIntoDataSource: Signal<ProjectPamphletContentData, Never> { get }
 }
 
+@MainActor
 public protocol ProjectPamphletContentViewModelType {
   var inputs: ProjectPamphletContentViewModelInputs { get }
   var outputs: ProjectPamphletContentViewModelOutputs { get }
 }
 
+@MainActor
 public final class ProjectPamphletContentViewModel: ProjectPamphletContentViewModelType,
   ProjectPamphletContentViewModelInputs, ProjectPamphletContentViewModelOutputs {
   public init() {

@@ -4,12 +4,14 @@ import UIKit
 
 public typealias MessageBannerConfiguration = (type: MessageBannerType, message: String)
 
+@MainActor
 public protocol MessageBannerViewModelInputs {
   func bannerViewAnimationFinished(isHidden: Bool)
   func bannerViewWillShow(_ show: Bool)
   func update(with configuration: MessageBannerConfiguration)
 }
 
+@MainActor
 public protocol MessageBannerViewModelOutputs {
   var bannerBackgroundColor: Signal<UIColor, Never> { get }
   var bannerMessage: Signal<String, Never> { get }
@@ -22,6 +24,7 @@ public protocol MessageBannerViewModelOutputs {
   var messageTextColor: Signal<UIColor, Never> { get }
 }
 
+@MainActor
 public protocol MessageBannerViewModelType {
   var inputs: MessageBannerViewModelInputs { get }
   var outputs: MessageBannerViewModelOutputs { get }

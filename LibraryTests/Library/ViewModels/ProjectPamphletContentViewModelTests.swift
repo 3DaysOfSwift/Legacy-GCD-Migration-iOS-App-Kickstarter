@@ -7,7 +7,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class ProjectPamphletContentViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   fileprivate let vm: ProjectPamphletContentViewModelType = ProjectPamphletContentViewModel()
 
   fileprivate let goToBackingProjectParam = TestObserver<Param, Never>()
@@ -20,8 +23,8 @@ final class ProjectPamphletContentViewModelTests: TestCase {
   fileprivate let loadProjectIntoDataSourceRefTag = TestObserver<RefTag?, Never>()
   fileprivate let loadMinimalProjectIntoDataSource = TestObserver<Project, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.goToBacking.map(first).observe(self.goToBackingProjectParam.observer)
     self.vm.outputs.goToBacking.map(second).observe(self.goToBackingBackingParam.observer)

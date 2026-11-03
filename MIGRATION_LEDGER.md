@@ -2,6 +2,23 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## Remaining Environment UI callers — 3 November 2026
+
+Payment/login/reward presentation use cases, beta tools, pager, project-content and message
+presentation now declare MainActor. Settings footer, Statsig conveniences, cookie attribution,
+root badges and message cache helpers declare their dependency owner. Decimal separators use
+only the synchronized locale projection. The compatibility paginator accepts explicit delay/
+scheduler values and captures defaults at construction; no production caller was found.
+
+319 tests passed, zero failures/skips; app build and framework build-for-testing passed.
+A regression verifies explicit pagination scheduling survives Environment replacement. Pager
+fixture construction now follows test Environment setup; original timing assertions remain.
+The first run exposed that fixture lifetime mismatch (318 passed, one failed); corrected run
+passed all 319. Evidence: kickstarter-environment-ui-callers.
+
+The experimental global stack annotations were removed before verification. Discovery
+favorites/header/activity-cache callbacks remain the next compiler-exposed dependency group.
+
 ## Formatter defaults and presentation ownership — 3 November 2026
 
 Environment-backed formatter conveniences and their dashboard, discovery, messaging,

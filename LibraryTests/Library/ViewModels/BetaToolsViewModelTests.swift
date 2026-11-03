@@ -8,7 +8,10 @@ import XCTest
 
 import Foundation
 
+@MainActor
 final class BetaToolsViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   let vm: BetaToolsViewModelType = BetaToolsViewModel()
 
   private let goToBetaFeedback = TestObserver<(), Never>()
@@ -25,8 +28,8 @@ final class BetaToolsViewModelTests: TestCase {
   private let updateLanguage = TestObserver<Language, Never>()
   private let updateEnvironment = TestObserver<EnvironmentType, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.goToBetaFeedback.observe(self.goToBetaFeedback.observer)
     self.vm.outputs.goToConfigFeatureFlagTools.observe(self.goToFeatureFlagTools.observer)

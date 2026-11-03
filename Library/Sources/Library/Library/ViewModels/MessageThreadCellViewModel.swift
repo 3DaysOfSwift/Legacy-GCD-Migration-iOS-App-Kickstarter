@@ -95,6 +95,7 @@ public final class MessageThreadCellViewModel: MessageThreadCellViewModelType,
   public var outputs: MessageThreadCellViewModelOutputs { return self }
 }
 
+@MainActor
 private func hasUnreadMessages(for messageThread: MessageThread) -> Bool {
   return (AppEnvironment.current.cache[cacheKey(for: messageThread)] as? Bool)
     ?? (messageThread.unreadMessagesCount > 0)
@@ -104,6 +105,7 @@ private func cacheKey(for messageThread: MessageThread) -> String {
   return "\(KSCache.ksr_messageThreadHasUnreadMessages)_\(messageThread.id)"
 }
 
+@MainActor
 private func markedAsRead(for messageThread: MessageThread) {
   AppEnvironment.current.cache[cacheKey(for: messageThread)] = false
 }

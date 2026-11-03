@@ -98,7 +98,7 @@ public final class CommentCellViewModel:
       }
       .map(URL.init)
 
-    self.body = comment.map(getCommentBody)
+    self.body = comment.map { getCommentBody($0) }
 
     self.authorName = comment.map {
       if $0.author.isBlocked {
@@ -248,6 +248,7 @@ private func viewRepliesStackViewHidden(_ replyCount: Int?) -> Bool {
   return replyCount == 0
 }
 
+@MainActor
 private func getCommentBody(_ comment: Comment) -> String {
   switch true {
   case comment.author.isBlocked:
@@ -263,6 +264,7 @@ private func getCommentBody(_ comment: Comment) -> String {
   }
 }
 
+@MainActor
 private func commentRemovedPerGuidelines() -> String {
   guard let communityGuidelinesLink = HelpType.community
     .url(withBaseUrl: AppEnvironment.current.apiService.serverConfig.webBaseUrl)?.absoluteString else {
@@ -275,6 +277,7 @@ private func commentRemovedPerGuidelines() -> String {
     )
 }
 
+@MainActor
 private func commentDeletedText() -> String {
   guard let communityGuidelinesLink = HelpType.community
     .url(withBaseUrl: AppEnvironment.current.apiService.serverConfig.webBaseUrl)?.absoluteString else {
@@ -285,6 +288,7 @@ private func commentDeletedText() -> String {
     .Learn_more_about_comment_guidelines(community_link: communityGuidelinesLink)
 }
 
+@MainActor
 private func commentFlaggedText() -> String {
   guard let communityGuidelinesLink = HelpType.community
     .url(withBaseUrl: AppEnvironment.current.apiService.serverConfig.webBaseUrl)?.absoluteString else {

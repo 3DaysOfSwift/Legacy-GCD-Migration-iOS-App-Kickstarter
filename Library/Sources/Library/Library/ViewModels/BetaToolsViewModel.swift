@@ -65,6 +65,7 @@ public enum BetaToolsRow: Int, CaseIterable {
   }
 }
 
+@MainActor
 public protocol BetaToolsViewModelInputs {
   func betaFeedbackButtonTapped(canSendMail: Bool)
   func didSelectBetaToolsRow(_ row: BetaToolsRow)
@@ -76,6 +77,7 @@ public protocol BetaToolsViewModelInputs {
 
 public typealias BetaToolsData = (currentLanguage: String, currentEnvironment: String)
 
+@MainActor
 public protocol BetaToolsViewModelOutputs {
   var goToBetaFeedback: Signal<(), Never> { get }
   var goToConfigFeatureFlagTools: Signal<(), Never> { get }
@@ -95,11 +97,13 @@ public protocol BetaToolsViewModelOutputs {
   var updateEnvironment: Signal<EnvironmentType, Never> { get }
 }
 
+@MainActor
 public protocol BetaToolsViewModelType {
   var inputs: BetaToolsViewModelInputs { get }
   var outputs: BetaToolsViewModelOutputs { get }
 }
 
+@MainActor
 public final class BetaToolsViewModel: BetaToolsViewModelType,
   BetaToolsViewModelInputs, BetaToolsViewModelOutputs {
   public var inputs: BetaToolsViewModelInputs {

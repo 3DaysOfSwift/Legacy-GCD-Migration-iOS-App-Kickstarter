@@ -9,7 +9,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class PaymentMethodsUseCaseTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   private var useCase: PaymentMethodsUseCase!
 
   private var paymentMethodsViewHidden = TestObserver<Bool, Never>()
@@ -22,8 +25,8 @@ final class PaymentMethodsUseCaseTests: TestCase {
   private let (isLoggedInSignal, isLoggedInObserver) = Signal<Bool, Never>
     .pipe()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.useCase = PaymentMethodsUseCase(
       initialData: self.initialDataSignal,

@@ -6,7 +6,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 final class LoginSignupUseCaseTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   let userSessionChanged = TestObserver<Void, Never>()
   let goToLoginSignup = TestObserver<LoginIntent, Never>()
   let isLoggedIn = TestObserver<Bool, Never>()
@@ -14,8 +17,8 @@ final class LoginSignupUseCaseTests: TestCase {
   let (initialDataSignal, initialDataObserver) = Signal<Void, Never>.pipe()
   var useCase: LoginSignupUseCase!
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.useCase = LoginSignupUseCase(withLoginIntent: .generic, initialData: self.initialDataSignal)
 

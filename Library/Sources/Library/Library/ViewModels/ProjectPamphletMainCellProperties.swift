@@ -183,11 +183,13 @@ extension ProjectPamphletMainCellProperties {
   }
 
   /// Omit US currency code
+  @MainActor
   public var omitUSCurrencyCode: Bool {
     self.currentCurrency == Project.Country.us.currencyCode
   }
 
   /// Project pledge & goal values need conversion
+  @MainActor
   public var needsConversion: Bool {
     self.currency != self.currentCurrency
   }
@@ -196,11 +198,13 @@ extension ProjectPamphletMainCellProperties {
     self.pledged >= self.goal
   }
 
+  @MainActor
   public var currentCurrency: String {
     self.userCurrency ?? getCurrentCurrency()
   }
 }
 
+@MainActor
 private func getCurrentCurrency() -> String {
   AppEnvironment.current.currentUser?.chosenCurrency ?? Project.Country.us.currencyCode
 }

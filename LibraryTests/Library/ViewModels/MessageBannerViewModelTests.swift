@@ -7,7 +7,10 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class MessageBannerViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
   let vm = MessageBannerViewModel()
 
   let bannerBackgroundColor = TestObserver<UIColor, Never>()
@@ -18,8 +21,8 @@ internal final class MessageBannerViewModelTests: TestCase {
   let messageTextAlignment = TestObserver<NSTextAlignment, Never>()
   let messageTextColor = TestObserver<UIColor, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.bannerBackgroundColor.observe(self.bannerBackgroundColor.observer)
     self.vm.outputs.bannerMessage.observe(self.bannerMessage.observer)

@@ -8,8 +8,11 @@ import ReactiveSwift
 import UIKit
 import XCTest
 
+@MainActor
 internal final class SortPagerViewModelTests: TestCase {
-  fileprivate let vm: SortPagerViewModelType = SortPagerViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
+  fileprivate var vm: SortPagerViewModelType!
 
   fileprivate let createSortButtons = TestObserver<[DiscoveryParams.Sort], Never>()
   fileprivate let indicatorViewIsHidden = TestObserver<Bool, Never>()
@@ -21,8 +24,9 @@ internal final class SortPagerViewModelTests: TestCase {
   fileprivate let updateSortStyleSorts = TestObserver<[DiscoveryParams.Sort], Never>()
   fileprivate let updateSortStyleAnimated = TestObserver<Bool, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
+    self.vm = SortPagerViewModel()
 
     self.vm.outputs.createSortButtons.observe(self.createSortButtons.observer)
     self.vm.outputs.indicatorViewIsHidden.observe(self.indicatorViewIsHidden.observer)

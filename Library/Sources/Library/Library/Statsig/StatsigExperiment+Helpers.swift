@@ -1,6 +1,7 @@
 import Experimentation
 
 public extension StatsigExperimentProtocol {
+  @MainActor
   func boolValue(forKey key: Parameters) -> Bool? {
     // TODO(CHECK-109): Add a manual override stored in user preferences, like we use for features.
     // Or maybe just use Statsig's override code.

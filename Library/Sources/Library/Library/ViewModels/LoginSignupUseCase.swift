@@ -1,21 +1,25 @@
 import Foundation
 import ReactiveSwift
 
+@MainActor
 public protocol LoginSignupUseCaseType {
   var uiInputs: LoginSignupUseCaseUIInputs { get }
   var uiOutputs: LoginSignupUseCaseUIOutputs { get }
   var dataOutputs: LoginSignupUseCaseDataOutputs { get }
 }
 
+@MainActor
 public protocol LoginSignupUseCaseUIInputs {
   func goToLoginSignupTapped()
   func userSessionDidChange()
 }
 
+@MainActor
 public protocol LoginSignupUseCaseUIOutputs {
   var goToLoginSignup: Signal<LoginIntent, Never> { get }
 }
 
+@MainActor
 public protocol LoginSignupUseCaseDataOutputs {
   var userSessionChanged: Signal<Void, Never> { get }
   var isLoggedIn: Signal<Bool, Never> { get }
@@ -40,6 +44,7 @@ public protocol LoginSignupUseCaseDataOutputs {
  - `isLoggedIn` - A user is logged in or out. Happens once on `initialData`, and any time `userSessionDidChange` afterwards.
  */
 
+@MainActor
 public final class LoginSignupUseCase: LoginSignupUseCaseType, LoginSignupUseCaseUIInputs,
   LoginSignupUseCaseUIOutputs, LoginSignupUseCaseDataOutputs {
   init(withLoginIntent loginIntent: LoginIntent, initialData: Signal<Void, Never>) {
