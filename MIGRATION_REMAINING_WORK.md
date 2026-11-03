@@ -22,6 +22,17 @@ lists. Verified implementation checkpoints and their evidence are in MIGRATION_L
   IsolatedDefaultValues settings support default arguments. 2,770 regression tests passed,
   zero failures/skips, plus normal and complete-checking app builds.
 
+## Required application structure consolidation — next priority
+
+Follow [MIGRATION_STRUCTURE_PLAN.md](MIGRATION_STRUCTURE_PLAN.md). Core application
+code must compile directly in the application target under the numbered CFA hierarchy.
+Move AppModel, Features, app domain types, screens, ViewModels and app resources out of
+Library/Kickstarter-Framework. Retain packages only for services, generated APIs and
+reusable non-core components. This work is **not yet implemented** and is a completion
+requirement, ahead of further isolated warning-cleanup passes. Folder aliases alone do
+not satisfy it. The plan covers dependency cutover, resource/runtime changes, tests,
+removal of old app-library products and final verification.
+
 ## Remaining implementation review
 
 1. **Completed boundary follow-up:** Feature service contracts, PPO templates, Discovery/root
