@@ -1385,7 +1385,7 @@
       try self.completeAccountWrite(self.createFlaggingResult)
     }
 
-    func fetchProjectFlaggingOptions() async throws -> [ReportProjectInfoListItem] {
+    @MainActor func fetchProjectFlaggingOptions() async throws -> [ReportProjectInfoListItem] {
       try Task.checkCancellation()
       switch self.fetchFlaggingOptionsResult {
       case let .success(data):
@@ -1570,7 +1570,7 @@
       )
     }
 
-    internal func discoveryActivitySample() async throws -> ActivityEnvelope? {
+    @MainActor internal func discoveryActivitySample() async throws -> ActivityEnvelope? {
       try Task.checkCancellation()
       if let error = self.fetchActivitiesError { throw error }
       guard let activities = self.fetchActivitiesResponse else { return nil }

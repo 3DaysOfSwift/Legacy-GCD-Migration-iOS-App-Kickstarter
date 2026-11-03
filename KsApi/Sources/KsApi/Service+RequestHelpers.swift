@@ -209,7 +209,7 @@ extension Service {
     return try await self.discoveryResponse(for: self.preparedRequest(forURL: url))
   }
 
-  public func discoveryActivitySample() async throws -> ActivityEnvelope? {
+  @MainActor public func discoveryActivitySample() async throws -> ActivityEnvelope? {
     let categories: [Activity.Category] = [
       .backing, .cancellation, .failure, .follow, .launch, .shipped, .success, .update
     ]

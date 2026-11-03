@@ -3,6 +3,7 @@ import GraphAPI
 import KsApi
 
 #if targetEnvironment(simulator)
+  @MainActor
   extension PPOProjectCardModel {
     // Minimal set of representative templates to keep previews lightweight.
     public static let previewTemplates: [PPOProjectCardModel] = [

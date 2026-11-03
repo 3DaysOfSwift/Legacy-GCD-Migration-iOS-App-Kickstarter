@@ -268,7 +268,7 @@ public struct Service: ServiceType {
       .eraseToAnyPublisher()
   }
 
-  public func fetchProjectFlaggingOptions() async throws -> [ReportProjectInfoListItem] {
+  @MainActor public func fetchProjectFlaggingOptions() async throws -> [ReportProjectInfoListItem] {
     try await self.cancellableQuery(
       GraphAPI.FlaggingOptionsQuery(contentType: GraphQLEnum(.project)),
       map: { ReportProjectInfoListItem.items(from: $0) }

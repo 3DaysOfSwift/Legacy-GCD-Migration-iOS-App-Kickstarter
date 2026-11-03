@@ -149,7 +149,7 @@ public protocol ServiceType {
   @MainActor func recommendationCategory(id: String) async throws -> Category
   @MainActor func reportingEmail() async throws -> String?
   @MainActor func submitProjectReport(input: CreateFlaggingInput) async throws
-  func fetchProjectFlaggingOptions() async throws -> [ReportProjectInfoListItem]
+  @MainActor func fetchProjectFlaggingOptions() async throws -> [ReportProjectInfoListItem]
 
   /// Sends report project data for a specific project
   func createPaymentIntentInput(input: CreatePaymentIntentInput)
@@ -276,7 +276,7 @@ public protocol ServiceType {
 
   @MainActor func discoveryPage(params: DiscoveryParams) async throws -> DiscoveryEnvelope
   @MainActor func discoveryPage(paginationURL: String) async throws -> DiscoveryEnvelope
-  func discoveryActivitySample() async throws -> ActivityEnvelope?
+  @MainActor func discoveryActivitySample() async throws -> ActivityEnvelope?
 
   /// Fetch friends for a user.
   @MainActor func friendsPage(cursor: String?) async throws -> FindFriendsEnvelope

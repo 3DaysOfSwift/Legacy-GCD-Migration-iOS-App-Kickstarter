@@ -2,6 +2,14 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## Feature service contracts — 3 November 2026
+
+Discovery activity sampling and project-report options now declare MainActor consistently in
+service protocols, concrete implementations and mocks. PPO preview templates share UI actor
+ownership. 96 focused tests passed (82 Library, 14 framework), zero failures/skips; the
+complete-checking app build passed and targeted Feature concurrency diagnostics disappeared.
+Other presentation/compatibility diagnostics remain. Evidence: kickstarter-feature-isolation.
+
 ## Global Environment ownership — 3 November 2026
 
 AppEnvironment is now MainActor-isolated, including the mutable stack, replacement and

@@ -24,10 +24,10 @@ lists. Verified implementation checkpoints and their evidence are in MIGRATION_L
 
 ## Remaining implementation review
 
-1. **Concrete Feature diagnostics:** complete checking reports service-transfer warnings in
-   Discovery activity sampling and project-report options. Resolve these active boundaries.
+1. **Concrete Feature diagnostics resolved:** Discovery sampling/project-report service
+   contracts and PPO preview templates now have actor ownership; 96 focused tests passed.
 2. **Presentation and compatibility diagnostics:** review UI style/closure ownership and
-   PPO presentation templates separately from generated GraphQL, third-party and generic
+   notification callbacks separately from generated GraphQL, third-party and generic
    compatibility APIs. A successful Swift 5 build does not establish warning-free Swift 6.
 3. **Final callback inventory:** refresh the source audit after these changes, including
    callback APIs without queue syntax, and document retained SDK mechanisms/lifetimes.
