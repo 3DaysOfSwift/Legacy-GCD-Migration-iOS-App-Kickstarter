@@ -213,6 +213,7 @@
 			"children" = (
 				"89C531DD0452E91582EE5F8D",
 				"AEAB63647BC9E32C74090C14",
+				"23C6508F6D64FFC8CC056B78",
 			);
 		};
 		"2E429646B7F98953E7555C72" = {
@@ -801,6 +802,7 @@
 				"76E340A76B27B85930E4351E",
 				"BBAD0A804691BD9EEE3DF379",
 				"D59471B0ABDD7582F89FE200",
+				"C308ED7F0F01E915CA5EC733",
 			);
 		};
 		"056D2E6BF0DBF7672C625036" = {
@@ -1084,6 +1086,7 @@
 				"8A3AE0AF2AF9EDF60DD71523",
 				"DBDD92134D53B3711E10618A",
 				"6DB51B6F6A4655C6F1ECAF8E",
+				"A6F42FD1B336315400EF291E",
 			);
 		};
 		"3A74AA6BC2D38A2DD9523972" = {
@@ -1533,6 +1536,7 @@
 			"children" = (
 				"7EE1D57372AC67F123339E41",
 				"851DB8F6E190B0F8E6C1AE64",
+				"3081BE2B2C70318713816FFA",
 			);
 		};
 		"CFA030300000000000000003" = {
@@ -1569,9 +1573,9 @@
 			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"22978C96B9D0089E8FADC3D3" = {
-			"name" = "Video.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/Video.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/ProjectPage/Controller/Video.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "Video.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -1617,9 +1621,9 @@
 			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"DBA7BFEA8ACCF12139A75E78" = {
-			"name" = "SettingsNotifications.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/SettingsNotifications.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/SettingsNotifications/Controller/SettingsNotifications.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "SettingsNotifications.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -1840,6 +1844,7 @@
 			"children" = (
 				"5A11EA79B641C62F8ADB89CA",
 				"D48C74ABE8223B8F7F6983BC",
+				"7BFA0BEA2C9E68BEC7CC09D4",
 			);
 		};
 		"28150D546653865EC2DB3495" = {
@@ -2241,6 +2246,7 @@
 			"children" = (
 				"E945F4D15B73AD51099E484F",
 				"D210D41443F11DAE6213895E",
+				"F82AC006356B24E0535505A2",
 			);
 		};
 		"AAF5484D2F2445C0001DB5AC" = {
@@ -2617,6 +2623,7 @@
 			"children" = (
 				"C7ECC900310A321EE7230A5B",
 				"5E6536955791D7A0ED597049",
+				"FFCC3BF257340BB9B88688BD",
 			);
 		};
 		"5E56DD384AFD107D6A03B9FA" = {
@@ -3848,9 +3855,9 @@
 			"sourceTree" = "<group>";
 		};
 		"0F8AFC3F5198DB6CC32C266E" = {
-			"name" = "Discovery.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/Discovery.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/Discovery/Controller/Discovery.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "Discovery.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -5306,9 +5313,9 @@
 			"sourceTree" = "<group>";
 		};
 		"4AE5DF011A3A4F770FAE9F0D" = {
-			"name" = "SettingsAccountWarningCell.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/SettingsAccountWarningCell.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/SettingsAccount/Views/Cells/SettingsAccountWarningCell.xib";
 			"isa" = "PBXFileReference";
+			"name" = "SettingsAccountWarningCell.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -5490,6 +5497,8 @@
 				"6C8A6258BDE23BEDF87C3ACE",
 				"53EF12B1063AB064F955DE3A",
 				"AE5E125973A634F92D97426F",
+				"28949682527CAE5461369A5F",
+				"9900E021A3FCAAED7EA9031C",
 			);
 		};
 		"AAF548802F2445C0001DB5AC" = {
@@ -5679,9 +5688,9 @@
 			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"D0051F0CA783343018F372AF" = {
-			"name" = "PaymentMethodsFooterView.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/PaymentMethodsFooterView.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/PaymentMethods/Views/PaymentMethodsFooterView.xib";
 			"isa" = "PBXFileReference";
+			"name" = "PaymentMethodsFooterView.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -5690,9 +5699,9 @@
 			"fileRef" = "AAF548842F2445C0001DB5AC";
 		};
 		"28949682527CAE5461369A5F" = {
-			"name" = "ProjectPamphletMainCell.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/ProjectPamphletMainCell.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/ProjectPage/Views/Cells/ProjectPamphletMainCell.xib";
 			"isa" = "PBXFileReference";
+			"name" = "ProjectPamphletMainCell.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -5890,6 +5899,7 @@
 			"children" = (
 				"1B95DF81DE4F8BE30C89C005",
 				"EA72255FCF0D7FF883B0AEAF",
+				"3C0CE146F5D011E34BF31D38",
 			);
 		};
 		"C0075F2596C766E756F1544E" = {
@@ -6501,9 +6511,9 @@
 			"package" = "B3188C0FA0FF6B6B0588EC4B";
 		};
 		"89EE7157BE89DB1048B30148" = {
-			"name" = "Main.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/Main.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/RootTabBar/Main.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "Main.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -6701,9 +6711,9 @@
 			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"D6E0D795C61AB7BBB99D3ED5" = {
-			"name" = "SettingsTableViewHeader.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/SettingsTableViewHeader.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/PaymentMethods/Views/SettingsTableViewHeader.xib";
 			"isa" = "PBXFileReference";
+			"name" = "SettingsTableViewHeader.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -6739,9 +6749,9 @@
 			"fileRef" = "FFF8931F35723DDAAD563869";
 		};
 		"3B13E308E29206637318CB6A" = {
-			"name" = "SettingsTableViewCell.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/SettingsTableViewCell.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/Help/Views/Cells/SettingsTableViewCell.xib";
 			"isa" = "PBXFileReference";
+			"name" = "SettingsTableViewCell.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -8939,9 +8949,9 @@
 			"fileRef" = "DC3B4B851A978A95D7F81625";
 		};
 		"A6F42FD1B336315400EF291E" = {
-			"name" = "DiscoveryPostcardCell.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/DiscoveryPostcardCell.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/Discovery/Views/Cells/DiscoveryPostcardCell.xib";
 			"isa" = "PBXFileReference";
+			"name" = "DiscoveryPostcardCell.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -9186,6 +9196,7 @@
 				"15CB5751E7A4446365EDEAD8",
 				"7C98C7F68A0E414A02C59AE5",
 				"DC44B988BB8C344F1BE21483",
+				"AD2491B37562905CA6133301",
 			);
 		};
 		"AAF548702F2445C0001DB5AC" = {
@@ -9385,9 +9396,9 @@
 			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"5B3AB1A0971EF8C9FDCD7991" = {
-			"name" = "DebugPushNotifications.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/DebugPushNotifications.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/DebugPushNotifications/Controller/DebugPushNotifications.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "DebugPushNotifications.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -9416,55 +9427,13 @@
 			"sourceTree" = "<group>";
 			"children" = (
 				"802800561C88F62500141235",
-				"9102DE9BF266981989B46A4D",
 				"B68B73C8F53751B9B0B01DAD",
-				"BD331E616A98B76C2BE21A23",
-				"597317D14580A8FB69577400",
-				"8E690F64B8648E24697FFDF7",
 				"FD3C9CD00CA47632749D2549",
-				"BC73D0C2F4F60958AEB88CF0",
-				"F82AC006356B24E0535505A2",
 				"1B1F1B8E63B2A659B711F43E",
-				"5B3AB1A0971EF8C9FDCD7991",
-				"0F8AFC3F5198DB6CC32C266E",
-				"A664A301AB5B5791FF7FE955",
-				"A6F42FD1B336315400EF291E",
-				"0AC939740A1F43AB21BEB2BF",
-				"8E88B00E2460075BD11FECDF",
-				"3C0CE146F5D011E34BF31D38",
-				"C2CC35EADA71DE01E43344E8",
 				"8164663E4A115A42BFF987B5",
-				"A0A1AD8031725002B7241BF5",
 				"6C7307ABBA6FEF51FCAEB268",
-				"FFCC3BF257340BB9B88688BD",
-				"89EE7157BE89DB1048B30148",
-				"33B468BA50F0C4917864F060",
-				"07E865CD78157B7BCCA0B4B8",
-				"D0051F0CA783343018F372AF",
 				"8B30627F8F077CB9B4F6F6B2",
-				"28949682527CAE5461369A5F",
-				"9900E021A3FCAAED7EA9031C",
 				"53311950082FBE7AAFAC018A",
-				"123567DD1BED7DB58E3116D2",
-				"0F72700C5F2D3CA1953D5D3C",
-				"EDFAA30ADC9BAE26A7A07935",
-				"4AE5DF011A3A4F770FAE9F0D",
-				"BF1AA46A5DCAF25FDD87DF73",
-				"704293E86720876B39FCD44E",
-				"7BFA0BEA2C9E68BEC7CC09D4",
-				"278D17EDD47297DD0B86FBAF",
-				"1CEC5AAB1DF6B2FFAE5301D8",
-				"C820466A69EAB062BEA18882",
-				"12500AF4522F41D0F53E8F47",
-				"DBA7BFEA8ACCF12139A75E78",
-				"768D08BF35B40BDA59FCD6F7",
-				"C308ED7F0F01E915CA5EC733",
-				"3B13E308E29206637318CB6A",
-				"D6E0D795C61AB7BBB99D3ED5",
-				"3081BE2B2C70318713816FFA",
-				"DD2B24AA8F24BCB15DF8ACA0",
-				"23C6508F6D64FFC8CC056B78",
-				"22978C96B9D0089E8FADC3D3",
 				"6345D2CC0B896BB2F720490B",
 				"E3B667E618B58B65FF32C7E3",
 				"9DAC95CE397FAD6E6D9D3B1E",
@@ -9488,7 +9457,6 @@
 				"70E7C7890F26E8B3975CCCA6",
 				"D48B4CDA6E5E6FCA50EC9452",
 				"1EC400B0646C6934D425ACDC",
-				"AD2491B37562905CA6133301",
 			);
 		};
 		"EAE130829CAB7EABA75BCEDF" = {
@@ -9741,6 +9709,7 @@
 				"86CBEC5E3EF7C94D8B921DAC",
 				"EB63C6D98F53E0A20D85B9FD",
 				"E8970EF62386342DEBDABD8F",
+				"46E31139393BA93DE1B32D6C",
 			);
 		};
 		"AAF5489C2F2445C0001DB5AC" = {
@@ -10728,6 +10697,8 @@
 				"48FB85E7524AB6CD9569DA40",
 				"39190B64B52D44BFDAAC6FC2",
 				"CA27641E5380686BA48FC085",
+				"BF1AA46A5DCAF25FDD87DF73",
+				"704293E86720876B39FCD44E",
 			);
 		};
 		"DB341CECDD8E7645D944F3ED" = {
@@ -10850,6 +10821,7 @@
 				"4DDC2DEB834757D1463F51F1",
 				"26B2F0B4A79E481D66C60EF0",
 				"1662DAE2DC68AF7D9A8D014B",
+				"BC73D0C2F4F60958AEB88CF0",
 			);
 		};
 		"52F02CFAFB6BD7F2C9D9C17A" = {
@@ -11470,6 +11442,7 @@
 			"children" = (
 				"FE8A25535FBE2342F1BEE71D",
 				"555D37873561C58201EFE6D0",
+				"9102DE9BF266981989B46A4D",
 			);
 		};
 		"01483F222F0DDFF900A1D833" = {
@@ -11814,9 +11787,9 @@
 			);
 		};
 		"1CEC5AAB1DF6B2FFAE5301D8" = {
-			"name" = "SettingsNewslettersTopCell.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/SettingsNewslettersTopCell.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/SettingsNewsletters/Views/Cells/SettingsNewslettersTopCell.xib";
 			"isa" = "PBXFileReference";
+			"name" = "SettingsNewslettersTopCell.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -12503,9 +12476,9 @@
 			"fileRef" = "1EE421927BAEEEB14BC03076";
 		};
 		"8E690F64B8648E24697FFDF7" = {
-			"name" = "Backing.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/Backing.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/Backing/Backing.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "Backing.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -12667,6 +12640,7 @@
 			"children" = (
 				"93403923BC62EA39FF2005A0",
 				"9A56A2651AD9B2B0C53C1F1F",
+				"768D08BF35B40BDA59FCD6F7",
 			);
 		};
 		"506F4AE123167DB226961CB1" = {
@@ -13055,9 +13029,9 @@
 			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"BD331E616A98B76C2BE21A23" = {
-			"name" = "BackerDashboard.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/BackerDashboard.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/BackerDashboardPages/Controller/BackerDashboard.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "BackerDashboard.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -13318,6 +13292,8 @@
 				"5FC36AEAC9E869FFCA2068C6",
 				"7D2C66698603EF253519AE78",
 				"AA168C05CFCC6BD3CB8835E9",
+				"C820466A69EAB062BEA18882",
+				"12500AF4522F41D0F53E8F47",
 			);
 		};
 		"AAC4135C2F218F3200DAD7C6" = {
@@ -13368,9 +13344,9 @@
 			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"3081BE2B2C70318713816FFA" = {
-			"name" = "Thanks.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/Thanks.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/ThanksProjects/Controller/Thanks.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "Thanks.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -13547,6 +13523,7 @@
 			"children" = (
 				"49BF799870E4135E7FED7157",
 				"EB5348E8332B5C420119358D",
+				"123567DD1BED7DB58E3116D2",
 			);
 		};
 		"E10BE8D02B02975C00F73DC9" = {
@@ -13625,9 +13602,9 @@
 			"productRef" = "B7196DF85C30F5429349A8BD";
 		};
 		"07E865CD78157B7BCCA0B4B8" = {
-			"name" = "Messages.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/Messages.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/Messages/Controller/Messages.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "Messages.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -13800,9 +13777,9 @@
 			"fileRef" = "AAF548C72F2445C0001DB5AC";
 		};
 		"768D08BF35B40BDA59FCD6F7" = {
-			"name" = "SettingsPrivacy.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/SettingsPrivacy.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/SettingsPrivacy/Controller/SettingsPrivacy.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "SettingsPrivacy.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -14055,9 +14032,9 @@
 			"fileRef" = "CEBA893AB20B30F975399A18";
 		};
 		"704293E86720876B39FCD44E" = {
-			"name" = "SettingsHeaderView.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/SettingsHeaderView.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/Settings/Views/SettingsHeaderView.xib";
 			"isa" = "PBXFileReference";
+			"name" = "SettingsHeaderView.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -14100,9 +14077,9 @@
 			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"7BFA0BEA2C9E68BEC7CC09D4" = {
-			"name" = "SettingsNewsletters.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/SettingsNewsletters.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/SettingsNewsletters/Controller/SettingsNewsletters.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "SettingsNewsletters.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -14182,9 +14159,9 @@
 			"fileRef" = "718374DE78FF573EEEDF2AA4";
 		};
 		"278D17EDD47297DD0B86FBAF" = {
-			"name" = "SettingsNewslettersCell.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/SettingsNewslettersCell.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/SettingsNewsletters/Views/Cells/SettingsNewslettersCell.xib";
 			"isa" = "PBXFileReference";
+			"name" = "SettingsNewslettersCell.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -14311,13 +14288,13 @@
 			"lastKnownFileType" = "image.png";
 			"sourceTree" = "<group>";
 		};
-		"07DB1890C85C9ADE05B14981" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "B628A9ED708CAF0131BF2D80";
-		};
 		"95B3D68ECDF39FBC505362BA" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "BB9000C4B9E3CF564732175F";
+		};
+		"07DB1890C85C9ADE05B14981" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "B628A9ED708CAF0131BF2D80";
 		};
 		"F7A528156E9726A9C4DF0803" = {
 			"isa" = "PBXBuildFile";
@@ -14393,6 +14370,8 @@
 				"8137DD44E1543C982D266B20",
 				"03E250DE5A2B16443B4B05C3",
 				"C4CBB761D07EA4EA79636658",
+				"278D17EDD47297DD0B86FBAF",
+				"1CEC5AAB1DF6B2FFAE5301D8",
 			);
 		};
 		"690C0B6AE384658391952B92" = {
@@ -14653,9 +14632,9 @@
 			"fileRef" = "B08C8BAC7B56FC478A995194";
 		};
 		"0F72700C5F2D3CA1953D5D3C" = {
-			"name" = "Settings.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/Settings.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/Settings/Controller/Settings.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "Settings.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -14700,6 +14679,7 @@
 			"sourceTree" = "<group>";
 			"children" = (
 				"0D93416AF88D3D4162097212",
+				"3B13E308E29206637318CB6A",
 			);
 		};
 		"CFA030200000000000000001" = {
@@ -14736,9 +14716,9 @@
 			);
 		};
 		"9900E021A3FCAAED7EA9031C" = {
-			"name" = "ProjectPamphletSubpageCell.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/ProjectPamphletSubpageCell.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/ProjectPage/Views/Cells/ProjectPamphletSubpageCell.xib";
 			"isa" = "PBXFileReference";
+			"name" = "ProjectPamphletSubpageCell.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -14760,6 +14740,8 @@
 				"3ADD379F1FA4FAFCA28768F4",
 				"69C3149E0E6F9712CF0CF586",
 				"2DE2D726C233975BC556B1CB",
+				"0F8AFC3F5198DB6CC32C266E",
+				"A664A301AB5B5791FF7FE955",
 			);
 		};
 		"89E822B21876ABEFFDF468AF" = {
@@ -15051,9 +15033,9 @@
 			);
 		};
 		"12500AF4522F41D0F53E8F47" = {
-			"name" = "SettingsNotificationPickerCell.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/SettingsNotificationPickerCell.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/SettingsNotifications/Views/Cells/SettingsNotificationPickerCell.xib";
 			"isa" = "PBXFileReference";
+			"name" = "SettingsNotificationPickerCell.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -15203,9 +15185,9 @@
 			);
 		};
 		"DD2B24AA8F24BCB15DF8ACA0" = {
-			"name" = "ThanksCategoryCell.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/ThanksCategoryCell.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/ThanksProjects/Views/Cells/ThanksCategoryCell.xib";
 			"isa" = "PBXFileReference";
+			"name" = "ThanksCategoryCell.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -15477,6 +15459,7 @@
 			"children" = (
 				"D5B44A609FB4E513C88C12EA",
 				"3D984E4FFF9662E1062126EB",
+				"89EE7157BE89DB1048B30148",
 			);
 		};
 		"CFA027500000000000000001" = {
@@ -15969,6 +15952,13 @@
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
 		};
+		"BB9000C4B9E3CF564732175F" = {
+			"name" = "ScopedPlatformObservation.swift";
+			"path" = "Kickstarter-iOS/4 - Swift Extensions/ScopedPlatformObservation.swift";
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
 		"D7758FC856FECFF59CE67547" = {
 			"name" = "ProjectMediaFeature.swift";
 			"path" = "Kickstarter-iOS/2 - AppModel/Features/ProjectMedia/ProjectMediaFeature.swift";
@@ -15980,13 +15970,13 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "967284EC6227994E9F113490";
 		};
-		"97C1F67DAAEE714B44B772E2" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "44CDCA4A5F27C131BB570D9B";
-		};
 		"449DB823DDA355D79DB87493" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "89B51B5ED7490004E51B44A5";
+		};
+		"97C1F67DAAEE714B44B772E2" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "44CDCA4A5F27C131BB570D9B";
 		};
 		"D5B44A609FB4E513C88C12EA" = {
 			"name" = "RootTabBarViewController.swift";
@@ -15999,10 +15989,6 @@
 			"isa" = "XCSwiftPackageProductDependency";
 			"productName" = "KingfisherWebP";
 			"package" = "E1B2146F2BFD184500109961";
-		};
-		"1ACCF88C89121B7AD93BAA01" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "8701DE6FDD203B26E7CBF2D3";
 		};
 		"D59CC9118A4D2E4835F7282F" = {
 			"isa" = "XCSwiftPackageProductDependency";
@@ -16042,18 +16028,15 @@
 			"fileRef" = "84FD7FC98817B30F1ECAA434";
 		};
 		"123567DD1BED7DB58E3116D2" = {
-			"name" = "Search.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/Search.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/Search/Controller/Search.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "Search.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
-		"BB9000C4B9E3CF564732175F" = {
-			"name" = "ScopedPlatformObservation.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/ScopedPlatformObservation.swift";
-			"isa" = "PBXFileReference";
-			"lastKnownFileType" = "sourcecode.swift";
-			"sourceTree" = "SOURCE_ROOT";
+		"1ACCF88C89121B7AD93BAA01" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "8701DE6FDD203B26E7CBF2D3";
 		};
 		"93A8F0495C24645055299876" = {
 			"name" = "PledgePaymentMethodCell.swift";
@@ -16722,6 +16705,8 @@
 				"471CB3EBB7F4E36A2228EB74",
 				"6C4599D0D4A2DEB1FC91EC92",
 				"C08DF5A5BE7C41296EAA08A6",
+				"D0051F0CA783343018F372AF",
+				"D6E0D795C61AB7BBB99D3ED5",
 			);
 		};
 		"CBE44B6F4C569E909D7D6919" = {
@@ -16938,9 +16923,9 @@
 			"productRef" = "E0B6E461090C3162C913C6A2";
 		};
 		"BF1AA46A5DCAF25FDD87DF73" = {
-			"name" = "SettingsFooterView.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/SettingsFooterView.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/Settings/Views/SettingsFooterView.xib";
 			"isa" = "PBXFileReference";
+			"name" = "SettingsFooterView.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -17121,9 +17106,9 @@
 			"sourceTree" = "<group>";
 		};
 		"3C0CE146F5D011E34BF31D38" = {
-			"name" = "Friends.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/Friends.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/FindFriends/Controller/Friends.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "Friends.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -17640,9 +17625,9 @@
 			"productRef" = "AAFCED052F2038FC00EAC2FE";
 		};
 		"C308ED7F0F01E915CA5EC733" = {
-			"name" = "SettingsPrivacySwitchCell.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/SettingsPrivacySwitchCell.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/SettingsPrivacy/Views/Cells/SettingsPrivacySwitchCell.xib";
 			"isa" = "PBXFileReference";
+			"name" = "SettingsPrivacySwitchCell.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -18760,6 +18745,8 @@
 				"04931309CDA7307750692E63",
 				"4C8DDFCA5320936A45C428A1",
 				"6AB50E1DF6ADEB4178AC82DF",
+				"9DB1A81896E12ED29A1DC2AA",
+				"272A16C6EE1FFFA4804FAFAF",
 			);
 		};
 		"C233AB9B330F9BEBE953F1FF" = {
@@ -18836,9 +18823,9 @@
 			);
 		};
 		"597317D14580A8FB69577400" = {
-			"name" = "BackerDashboardEmptyStateCell.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/BackerDashboardEmptyStateCell.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/BackerDashboardProjects/Views/Cells/BackerDashboardEmptyStateCell.xib";
 			"isa" = "PBXFileReference";
+			"name" = "BackerDashboardEmptyStateCell.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -19019,6 +19006,7 @@
 			"children" = (
 				"7FF366314BFA3AFEEA417051",
 				"7DAE5EE76F9537F7F78F8BAE",
+				"597317D14580A8FB69577400",
 			);
 		};
 		"1AD1BC52B17CCBA114A2B15F" = {
@@ -19367,9 +19355,9 @@
 			);
 		};
 		"C820466A69EAB062BEA18882" = {
-			"name" = "SettingsNotificationCell.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/SettingsNotificationCell.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/SettingsNotifications/Views/Cells/SettingsNotificationCell.xib";
 			"isa" = "PBXFileReference";
+			"name" = "SettingsNotificationCell.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -19396,6 +19384,7 @@
 			"children" = (
 				"0695902C1EA2D2622065D593",
 				"5111462AAE813DE15BFCB85B",
+				"C2CC35EADA71DE01E43344E8",
 			);
 		};
 		"EDBBC2675062247428424AA5" = {
@@ -19568,9 +19557,9 @@
 			"fileRef" = "278D17EDD47297DD0B86FBAF";
 		};
 		"C2CC35EADA71DE01E43344E8" = {
-			"name" = "Help.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/Help.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/HelpWeb/Controller/Help.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "Help.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -19624,9 +19613,9 @@
 			"sourceTree" = "BUILT_PRODUCTS_DIR";
 		};
 		"F82AC006356B24E0535505A2" = {
-			"name" = "CreditCardCell.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/CreditCardCell.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/PaymentMethods/Views/Cells/CreditCardCell.xib";
 			"isa" = "PBXFileReference";
+			"name" = "CreditCardCell.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -19808,9 +19797,9 @@
 			);
 		};
 		"A664A301AB5B5791FF7FE955" = {
-			"name" = "DiscoveryPage.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/DiscoveryPage.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/Discovery/Controller/DiscoveryPage.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "DiscoveryPage.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -20184,6 +20173,8 @@
 			"sourceTree" = "<group>";
 			"children" = (
 				"A063899D78019636A004BD27",
+				"EDFAA30ADC9BAE26A7A07935",
+				"4AE5DF011A3A4F770FAE9F0D",
 			);
 		};
 		"3D915BD8AF02A2CBF626D368" = {
@@ -20544,9 +20535,9 @@
 			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"23C6508F6D64FFC8CC056B78" = {
-			"name" = "Update.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/Update.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/Update/Controller/Update.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "Update.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -20971,9 +20962,9 @@
 			"fileRef" = "E0C6208CC05E53C49890BF53";
 		};
 		"8E88B00E2460075BD11FECDF" = {
-			"name" = "FindFriendsCell.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/FindFriendsCell.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/Settings/Views/Cells/FindFriendsCell.xib";
 			"isa" = "PBXFileReference";
+			"name" = "FindFriendsCell.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -21359,6 +21350,7 @@
 			"children" = (
 				"7AED95B0F70C9742522DB5D1",
 				"B0AF0EE1F97DAB7DE6E5C948",
+				"0F72700C5F2D3CA1953D5D3C",
 			);
 		};
 		"335F2F1B34139D26F193F42B" = {
@@ -21815,9 +21807,9 @@
 			"fileRef" = "863F60206BBA0BD00C15236E";
 		};
 		"FFCC3BF257340BB9B88688BD" = {
-			"name" = "Login.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/Login.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/Login/Controller/Login.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "Login.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -22396,9 +22388,9 @@
 			"package" = "AA7B64922F20420F00602E54";
 		};
 		"EDFAA30ADC9BAE26A7A07935" = {
-			"name" = "SettingsAccountPickerCell.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/SettingsAccountPickerCell.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/SettingsAccount/Views/Cells/SettingsAccountPickerCell.xib";
 			"isa" = "PBXFileReference";
+			"name" = "SettingsAccountPickerCell.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -22447,9 +22439,9 @@
 			"fileRef" = "7F57CFD9D307BFB99301241B";
 		};
 		"9102DE9BF266981989B46A4D" = {
-			"name" = "Activity.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/Activity.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/Activities/Controller/Activity.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "Activity.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -22541,6 +22533,7 @@
 			"children" = (
 				"B8B7A96FF7BB195C870C12E3",
 				"AFB5D9195AAE527D877C4D06",
+				"DD2B24AA8F24BCB15DF8ACA0",
 			);
 		};
 		"EA5C04FCE8C1EB5B54559620" = {
@@ -22886,9 +22879,9 @@
 			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"A0A1AD8031725002B7241BF5" = {
-			"name" = "LaunchScreen.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/LaunchScreen.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/LaunchScreen/LaunchScreen.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "LaunchScreen.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -22899,6 +22892,7 @@
 			"children" = (
 				"DA6606C034685634C2FD41D6",
 				"4E598C82E825A25FAE330484",
+				"DBA7BFEA8ACCF12139A75E78",
 			);
 		};
 		"91FB578BE48CD6EFA6E06415" = {
@@ -23140,6 +23134,7 @@
 			"children" = (
 				"959E421745057D8655731B81",
 				"7D2487F3DFE41CCF61FDB564",
+				"07E865CD78157B7BCCA0B4B8",
 			);
 		};
 		"61A31DED1AB2C7F8D24189C1" = {
@@ -23213,9 +23208,9 @@
 			"package" = "335F2F1B34139D26F193F42B";
 		};
 		"AD2491B37562905CA6133301" = {
-			"name" = "DiscoveryProjectCategoryView.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/DiscoveryProjectCategoryView.xib";
+			"path" = "Kickstarter-iOS/1 - View/Views/Discovery/Views/DiscoveryProjectCategoryView.xib";
 			"isa" = "PBXFileReference";
+			"name" = "DiscoveryProjectCategoryView.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -23306,9 +23301,9 @@
 			"fileRef" = "207EFF05E7EE844CC2A753CC";
 		};
 		"0AC939740A1F43AB21BEB2BF" = {
-			"name" = "EmptyStates.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/EmptyStates.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Shared Components/EmptyStates/EmptyStates.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "EmptyStates.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -23471,6 +23466,7 @@
 				"D3875C5A080B993CD2051D5D",
 				"A819ABC4C709C94A815D2E9F",
 				"D75D39E282F96BD4EF03A8CF",
+				"22978C96B9D0089E8FADC3D3",
 			);
 		};
 		"FF9B08884169E93807E8B5AB" = {
@@ -23760,9 +23756,9 @@
 			"fileRef" = "AAF548A52F2445C0001DB5AC";
 		};
 		"BC73D0C2F4F60958AEB88CF0" = {
-			"name" = "CommentsDialog.storyboard";
-			"path" = "Kickstarter-iOS/3 - App Resources/CommentsDialog.storyboard";
+			"path" = "Kickstarter-iOS/1 - View/Views/Comments/Controllers/CommentsDialog.storyboard";
 			"isa" = "PBXFileReference";
+			"name" = "CommentsDialog.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
 		};
@@ -23860,6 +23856,7 @@
 			"children" = (
 				"3FA7EA06C4ACEE51AE1C146B",
 				"A1CADF17717003086BB4F398",
+				"BD331E616A98B76C2BE21A23",
 			);
 		};
 		"E93F1F7AF5802213D0B4F954" = {
@@ -23894,6 +23891,13 @@
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "sourcecode.swift";
 			"sourceTree" = "<group>";
+		};
+		"82A85865E804B689CDE62102" = {
+			"isa" = "PBXFileReference";
+			"path" = "Kickstarter-iOS/3 - App Resources/Configuration/Secrets.swift.example";
+			"name" = "Secrets.swift.example";
+			"sourceTree" = "SOURCE_ROOT";
+			"lastKnownFileType" = "text";
 		};
 		"8B58DC225AD94449A5C38583" = {
 			"path" = "ApplicationTests/Presentation/Kickstarter-iOS/Features/FacebookConfirmation/Controller/FacebookConfirmationViewControllerTests.swift";
@@ -24138,6 +24142,7 @@
 			"sourceTree" = "<group>";
 			"children" = (
 				"9192D7FFE20AACA67F65D69C",
+				"5B3AB1A0971EF8C9FDCD7991",
 			);
 		};
 		"AAF548202F2445C0001DB5AC" = {
@@ -24233,9 +24238,9 @@
 			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"33B468BA50F0C4917864F060" = {
-			"name" = "MessageBannerViewController.xib";
-			"path" = "Kickstarter-iOS/3 - App Resources/MessageBannerViewController.xib";
+			"path" = "Kickstarter-iOS/1 - View/Shared Components/MessageBanner/MessageBannerViewController.xib";
 			"isa" = "PBXFileReference";
+			"name" = "MessageBannerViewController.xib";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.xib";
 		};
@@ -24704,6 +24709,7 @@
 			"children" = (
 				"54419AA6F5F248E49664FA21",
 				"86FDB70BEE2CD7CF8950BD6A",
+				"8E88B00E2460075BD11FECDF",
 			);
 		};
 		"904AD592E9D54E2F79586C7E" = {
@@ -24787,12 +24793,46 @@
 			"lastKnownFileType" = "sourcecode.swift";
 			"sourceTree" = "<group>";
 		};
-		"82A85865E804B689CDE62102" = {
-			"isa" = "PBXFileReference";
-			"path" = "Kickstarter-iOS/3 - App Resources/Configuration/Secrets.swift.example";
-			"name" = "Secrets.swift.example";
-			"sourceTree" = "SOURCE_ROOT";
-			"lastKnownFileType" = "text";
+		"9DB1A81896E12ED29A1DC2AA" = {
+			"isa" = "PBXGroup";
+			"name" = "Backing";
+			"sourceTree" = "<group>";
+			"children" = (
+				"8E690F64B8648E24697FFDF7",
+			);
+		};
+		"46E31139393BA93DE1B32D6C" = {
+			"isa" = "PBXGroup";
+			"name" = "Shared Components";
+			"sourceTree" = "<group>";
+			"children" = (
+				"5C32B09D446E175F2AC36225",
+				"FB794AE0D3076B7DCFFF3CDD",
+			);
+		};
+		"5C32B09D446E175F2AC36225" = {
+			"isa" = "PBXGroup";
+			"name" = "EmptyStates";
+			"sourceTree" = "<group>";
+			"children" = (
+				"0AC939740A1F43AB21BEB2BF",
+			);
+		};
+		"272A16C6EE1FFFA4804FAFAF" = {
+			"isa" = "PBXGroup";
+			"name" = "LaunchScreen";
+			"sourceTree" = "<group>";
+			"children" = (
+				"A0A1AD8031725002B7241BF5",
+			);
+		};
+		"FB794AE0D3076B7DCFFF3CDD" = {
+			"isa" = "PBXGroup";
+			"name" = "MessageBanner";
+			"sourceTree" = "<group>";
+			"children" = (
+				"33B468BA50F0C4917864F060",
+			);
 		};
 	};
 	"rootObject" = "A7E06C711C5A6EB300EBDCC2";

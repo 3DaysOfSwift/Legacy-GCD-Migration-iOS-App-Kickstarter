@@ -2,6 +2,19 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## Post-migration review: UIKit file placement — 3 November 2026
+
+Moved all 43 storyboards/XIBs out of App Resources and into `1 - View`.
+Screen-specific files sit beside their controllers/cells; reusable message-banner
+and empty-state layouts sit in Shared Components. Existing runtime resource names,
+file contents, target membership and build settings are unchanged. Configuration,
+localization and data resources remain in App Resources.
+
+Verified all 43 files byte-identical to the prior commit, one navigator reference
+per moved file, valid project plist and unchanged build objects/settings. iPhone Air
+(iOS 26.2) Debug Simulator build passed. No new concurrency tests or device/live
+validation were performed for this structural correction.
+
 ## Post-migration review: configuration placement — 3 November 2026
 
 Moved the three checked-in root Configs files unchanged into
