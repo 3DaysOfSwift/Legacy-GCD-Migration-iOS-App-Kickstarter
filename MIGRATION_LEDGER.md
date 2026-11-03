@@ -2,6 +2,19 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## Post-migration review: configuration placement — 3 November 2026
+
+Moved the three checked-in root Configs files unchanged into
+`Kickstarter-iOS/3 - App Resources/Configuration`, and nested their Xcode group
+under App Resources. Updated build inputs, bootstrap template paths, ignore rule
+and public-demo documentation. Private Firebase references retain their external
+locations; no credentials were copied or changed. The template is not compiled or bundled.
+
+iPhone Air (iOS 26.2) Debug Simulator build passed; project plist and diff checks
+passed. This is a human-directed review correction after the immutable
+`cfa-automated-migration-end` milestone, not a change to its completion boundary.
+Device and live-operation validation remain deferred/unverified.
+
 ## CFA implementation handover — 3 November 2026
 
 Final physical/target audit: 765 core Swift files, each compiled once in the app,

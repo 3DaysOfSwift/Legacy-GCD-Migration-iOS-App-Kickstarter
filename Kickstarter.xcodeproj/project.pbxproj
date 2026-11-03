@@ -1333,11 +1333,13 @@
 			"sourceTree" = "<group>";
 		};
 		"A7E06C701C5A6EB300EBDCC2" = {
-			"sourceTree" = "<group>";
+			"tabWidth" = "2";
 			"isa" = "PBXGroup";
+			"usesTabs" = "0";
+			"indentWidth" = "2";
+			"sourceTree" = "<group>";
 			"children" = (
 				"A7D1F9461C850B7C000D41D5",
-				"802800561C88F62500141235",
 				"E15E22CD2E54B91B00EE6BB0",
 				"E1B33F502E538157008903BA",
 				"AAF3BB4D2F16FD7D00DAE921",
@@ -1348,9 +1350,6 @@
 				"A7E06C7A1C5A6EB300EBDCC2",
 				"BD1DD0311A34AA749C3E92EB",
 			);
-			"indentWidth" = "2";
-			"tabWidth" = "2";
-			"usesTabs" = "0";
 		};
 		"A846BA32EA6F8C49928D91A3" = {
 			"path" = "GraphAPI/GraphAPITestMocks/RichTextListOpen+Mock.graphql.swift";
@@ -1829,7 +1828,7 @@
 		};
 		"802800561C88F62500141235" = {
 			"isa" = "PBXGroup";
-			"name" = "Configs";
+			"name" = "Configuration";
 			"children" = (
 				"8A86D7F224FED01C00037A7B",
 				"8A86D7F424FED02A00037A7B",
@@ -1838,6 +1837,7 @@
 				"802800571C88F64D00141235",
 				"AAC4135C2F218F3200DAD7C6",
 				"AAC413552F215CE000DAD7C6",
+				"82A85865E804B689CDE62102",
 			);
 			"sourceTree" = "<group>";
 		};
@@ -3093,10 +3093,10 @@
 			"isa" = "PBXCopyFilesBuildPhase";
 			"runOnlyForDeploymentPostprocessing" = "0";
 			"dstPath" = "";
+			"name" = "Embed test support";
 			"files" = (
 				"7052E47944F546E7FA00DAB2",
 			);
-			"name" = "Embed test support";
 		};
 		"B219E54998B0C96A679DB947" = {
 			"isa" = "PBXGroup";
@@ -3338,7 +3338,7 @@
 		"E10BE8D92B02975C00F73DC9" = {
 			"isa" = "XCBuildConfiguration";
 			"buildSettings" = {
-				"GENERATE_INFOPLIST_FILE" = "YES";
+				"CLANG_ENABLE_OBJC_WEAK" = "YES";
 				"DEVELOPMENT_TEAM" = "";
 				"CURRENT_PROJECT_VERSION" = "1";
 				"PRODUCT_BUNDLE_IDENTIFIER" = "com.kickstarter.kickstarter.kickalpha.RichPushNotifications";
@@ -3373,7 +3373,7 @@
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
 				"PRODUCT_NAME" = "$(TARGET_NAME)";
 				"INFOPLIST_FILE" = "RichPushNotifications/Info.plist";
-				"CLANG_ENABLE_OBJC_WEAK" = "YES";
+				"GENERATE_INFOPLIST_FILE" = "YES";
 			};
 			"name" = "Internal Alpha";
 		};
@@ -4042,11 +4042,11 @@
 			"sourceTree" = "<group>";
 		};
 		"802800571C88F64D00141235" = {
-			"path" = "Configs/Base.xcconfig";
+			"path" = "Kickstarter-iOS/3 - App Resources/Configuration/Base.xcconfig";
 			"isa" = "PBXFileReference";
 			"name" = "Base.xcconfig";
 			"lastKnownFileType" = "text.xcconfig";
-			"sourceTree" = "<group>";
+			"sourceTree" = "SOURCE_ROOT";
 		};
 		"73E6187F3BA27EAB4F94BACC" = {
 			"isa" = "PBXBuildFile";
@@ -7433,10 +7433,10 @@
 		"8A86D7F224FED01C00037A7B" = {
 			"path" = "Frameworks/native-secrets/ios/Firebase-Beta/GoogleService-Info.plist";
 			"isa" = "PBXFileReference";
-			"lastKnownFileType" = "text.plist.xml";
-			"name" = "GoogleService-Info.plist";
-			"sourceTree" = "<group>";
 			"fileEncoding" = "4";
+			"name" = "GoogleService-Info.plist";
+			"lastKnownFileType" = "text.plist.xml";
+			"sourceTree" = "SOURCE_ROOT";
 		};
 		"55444E2500430C0E2E37F91A" = {
 			"isa" = "PBXBuildFile";
@@ -9115,6 +9115,7 @@
 			"name" = "3 - App Resources";
 			"sourceTree" = "<group>";
 			"children" = (
+				"802800561C88F62500141235",
 				"9102DE9BF266981989B46A4D",
 				"B68B73C8F53751B9B0B01DAD",
 				"BD331E616A98B76C2BE21A23",
@@ -9373,10 +9374,10 @@
 		"8A86D7F424FED02A00037A7B" = {
 			"path" = "Frameworks/native-secrets/ios/Firebase-Production/GoogleService-Info.plist";
 			"isa" = "PBXFileReference";
-			"lastKnownFileType" = "text.plist.xml";
-			"name" = "GoogleService-Info.plist";
-			"sourceTree" = "<group>";
 			"fileEncoding" = "4";
+			"name" = "GoogleService-Info.plist";
+			"lastKnownFileType" = "text.plist.xml";
+			"sourceTree" = "SOURCE_ROOT";
 		};
 		"87CA5EAE7708E5C1902CF0EA" = {
 			"isa" = "XCSwiftPackageProductDependency";
@@ -9636,13 +9637,13 @@
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
 		};
-		"AAF548F82F2445C0001DB5AC" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "AAF548162F2445C0001DB5AC";
-		};
 		"BC75CD59DDFE4739E98B543C" = {
 			"isa" = "PBXBuildFile";
 			"productRef" = "E2A109DC724FC600AB21B748";
+		};
+		"AAF548F82F2445C0001DB5AC" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "AAF548162F2445C0001DB5AC";
 		};
 		"A006FEB5540C735B24AC8C07" = {
 			"isa" = "PBXBuildFile";
@@ -9923,10 +9924,10 @@
 			"isa" = "PBXCopyFilesBuildPhase";
 			"runOnlyForDeploymentPostprocessing" = "0";
 			"dstPath" = "";
+			"name" = "Embed test support";
 			"files" = (
 				"92E20D783927BA4118AA61DE",
 			);
-			"name" = "Embed test support";
 		};
 		"CFA031000000000000000001" = {
 			"isa" = "PBXBuildFile";
@@ -10164,7 +10165,7 @@
 		"E10BE8D72B02975C00F73DC9" = {
 			"isa" = "XCBuildConfiguration";
 			"buildSettings" = {
-				"GENERATE_INFOPLIST_FILE" = "YES";
+				"CLANG_ENABLE_OBJC_WEAK" = "YES";
 				"DEVELOPMENT_TEAM" = "";
 				"CURRENT_PROJECT_VERSION" = "1";
 				"PRODUCT_BUNDLE_IDENTIFIER" = "com.kickstarter.kickstarter.RichPushNotifications";
@@ -10199,7 +10200,7 @@
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
 				"PRODUCT_NAME" = "$(TARGET_NAME)";
 				"INFOPLIST_FILE" = "RichPushNotifications/Info.plist";
-				"CLANG_ENABLE_OBJC_WEAK" = "YES";
+				"GENERATE_INFOPLIST_FILE" = "YES";
 			};
 			"name" = "Release";
 		};
@@ -11419,21 +11420,21 @@
 			);
 		};
 		"8A86D7C124FDB7A000037A7B" = {
-			"name" = "Firebase Crashlytics";
+			"files" = (
+			);
 			"inputPaths" = (
 			);
 			"buildActionMask" = "2147483647";
 			"shellPath" = "/bin/sh";
-			"isa" = "PBXShellScriptBuildPhase";
-			"runOnlyForDeploymentPostprocessing" = "0";
 			"outputPaths" = (
 			);
+			"isa" = "PBXShellScriptBuildPhase";
+			"runOnlyForDeploymentPostprocessing" = "0";
 			"shellScript" = "if [ \"${CONFIGURATION}\" != \"Debug\" ]; then\n  ${SRCROOT}/bin/firebase-crashlytics-run.sh\nfi\n";
 			"outputFileListPaths" = (
 			);
+			"name" = "Firebase Crashlytics";
 			"inputFileListPaths" = (
-			);
-			"files" = (
 			);
 		};
 		"1CEC5AAB1DF6B2FFAE5301D8" = {
@@ -11716,9 +11717,9 @@
 		"A7ED1F121E830FDC00BFFA01" = {
 			"path" = "AppEnvironmentTests.swift";
 			"isa" = "PBXFileReference";
+			"fileEncoding" = "4";
 			"lastKnownFileType" = "sourcecode.swift";
 			"sourceTree" = "<group>";
-			"fileEncoding" = "4";
 		};
 		"3B420B3964297B9BEA0BB692" = {
 			"isa" = "PBXBuildFile";
@@ -12549,9 +12550,9 @@
 		"E113BD772B7D1B7700D3A809" = {
 			"path" = "KeychainTests.swift";
 			"isa" = "PBXFileReference";
+			"fileEncoding" = "4";
 			"lastKnownFileType" = "sourcecode.swift";
 			"sourceTree" = "<group>";
-			"fileEncoding" = "4";
 		};
 		"9ED4D70AC1B94011BFB9F275" = {
 			"path" = "Kickstarter-iOS/1 - View/Views/PledgedProjectsOverview/CardView/PPOProjectCreator.swift";
@@ -12893,7 +12894,7 @@
 			"isa" = "PBXFileReference";
 			"name" = "KsApi.xctestplan";
 			"lastKnownFileType" = "text";
-			"sourceTree" = "<group>";
+			"sourceTree" = "SOURCE_ROOT";
 		};
 		"63850AFAE62B868FD618E2DF" = {
 			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-login-signup-de.json";
@@ -13852,6 +13853,10 @@
 		"07DB1890C85C9ADE05B14981" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "B628A9ED708CAF0131BF2D80";
+		};
+		"95B3D68ECDF39FBC505362BA" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "BB9000C4B9E3CF564732175F";
 		};
 		"F7A528156E9726A9C4DF0803" = {
 			"isa" = "PBXBuildFile";
@@ -15377,7 +15382,7 @@
 			"path" = "Kickstarter.xctestplan";
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "text";
-			"sourceTree" = "<group>";
+			"sourceTree" = "SOURCE_ROOT";
 		};
 		"AAF548772F2445C0001DB5AC" = {
 			"path" = "ProjectTabDisclaimerCellViewModelTests.swift";
@@ -15524,6 +15529,12 @@
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
+		};
+		"BB9000C4B9E3CF564732175F" = {
+			"path" = "Kickstarter-iOS/4 - Swift Extensions/ScopedPlatformObservation.swift";
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"sourceTree" = "SOURCE_ROOT";
 		};
 		"93A8F0495C24645055299876" = {
 			"path" = "Kickstarter-iOS/1 - View/Views/PledgePaymentMethods/Views/Cells/PledgePaymentMethodCell.swift";
@@ -15916,10 +15927,10 @@
 			"isa" = "PBXCopyFilesBuildPhase";
 			"runOnlyForDeploymentPostprocessing" = "0";
 			"dstPath" = "";
-			"name" = "Embed Foundation Extensions";
 			"files" = (
 				"E10BE8D42B02975C00F73DC9",
 			);
+			"name" = "Embed Foundation Extensions";
 		};
 		"B7C127B1BEB3E2762D20E893" = {
 			"isa" = "PBXBuildFile";
@@ -16761,11 +16772,11 @@
 			"sourceTree" = "<group>";
 		};
 		"8A65E79D2501AE89006F81CC" = {
-			"path" = "Configs/GoogleService-Info.plist";
+			"path" = "Kickstarter-iOS/3 - App Resources/Configuration/GoogleService-Info.plist";
 			"isa" = "PBXFileReference";
 			"name" = "GoogleService-Info.plist";
 			"lastKnownFileType" = "text.plist.xml";
-			"sourceTree" = "<group>";
+			"sourceTree" = "SOURCE_ROOT";
 		};
 		"C712E96A9092161E87EC6304" = {
 			"path" = "ApplicationTests/Presentation/Kickstarter-iOS/Features/FacebookResetPasswordViewController/Controller/FacebookResetPasswordViewControllerTests.swift";
@@ -16967,6 +16978,16 @@
 				"LastUpgradeCheck" = "1430";
 				"ORGANIZATIONNAME" = "Kickstarter";
 				"TargetAttributes" = {
+					"E113BD802B7D255000D3A809" = {
+						"TestTargetID" = "A7D1F9441C850B7C000D41D5";
+						"CreatedOnToolsVersion" = "15.2";
+					};
+					"E194DD202E254C6300235AEB" = {
+						"CreatedOnToolsVersion" = "16.0";
+					};
+					"E10BE8CC2B02975C00F73DC9" = {
+						"CreatedOnToolsVersion" = "15.0.1";
+					};
 					"A7D1F9441C850B7C000D41D5" = {
 						"LastSwiftMigration" = "1000";
 						"SystemCapabilities" = {
@@ -16985,19 +17006,9 @@
 						};
 						"CreatedOnToolsVersion" = "7.2.1";
 					};
-					"E194DD202E254C6300235AEB" = {
-						"CreatedOnToolsVersion" = "16.0";
-					};
-					"E10BE8CC2B02975C00F73DC9" = {
-						"CreatedOnToolsVersion" = "15.0.1";
-					};
 					"AAF3BB562F1845A200DAE921" = {
 						"TestTargetID" = "A7D1F9441C850B7C000D41D5";
 						"CreatedOnToolsVersion" = "26.0";
-					};
-					"E113BD802B7D255000D3A809" = {
-						"TestTargetID" = "A7D1F9441C850B7C000D41D5";
-						"CreatedOnToolsVersion" = "15.2";
 					};
 				};
 			};
@@ -17564,7 +17575,7 @@
 				"EXCLUDED_SOURCE_FILE_NAMES" = (
 					"${PROJECT_DIR}/Frameworks/native-secrets/ios/Firebase-Beta/GoogleService-Info.plist",
 					"${PROJECT_DIR}/Frameworks/native-secrets/ios/Firebase-Production/GoogleService-Info.plist",
-					"${PROJECT_DIR}/Configs/GoogleService-Info.plist",
+					"${PROJECT_DIR}/Kickstarter-iOS/3 - App Resources/Configuration/GoogleService-Info.plist",
 				);
 				"CLANG_WARN_RANGE_LOOP_ANALYSIS" = "YES";
 				"FRAMEWORK_SEARCH_PATHS" = (
@@ -17667,7 +17678,7 @@
 				"EXCLUDED_SOURCE_FILE_NAMES" = (
 					"${PROJECT_DIR}/Frameworks/native-secrets/ios/Firebase-Alpha/GoogleService-Info.plist",
 					"${PROJECT_DIR}/Frameworks/native-secrets/ios/Firebase-Beta/GoogleService-Info.plist",
-					"${PROJECT_DIR}/Configs/GoogleService-Info.plist",
+					"${PROJECT_DIR}/Kickstarter-iOS/3 - App Resources/Configuration/GoogleService-Info.plist",
 				);
 				"CLANG_WARN_RANGE_LOOP_ANALYSIS" = "YES";
 				"FRAMEWORK_SEARCH_PATHS" = "$(PROJECT_DIR)/Frameworks";
@@ -19389,10 +19400,10 @@
 			"isa" = "PBXCopyFilesBuildPhase";
 			"runOnlyForDeploymentPostprocessing" = "0";
 			"dstPath" = "";
+			"name" = "Embed test support";
 			"files" = (
 				"3CBB9EFAD139DCF26499536E",
 			);
-			"name" = "Embed test support";
 		};
 		"E993EE44A66CAAE094EE4D81" = {
 			"isa" = "PBXBuildFile";
@@ -20949,9 +20960,9 @@
 			"isa" = "PBXCopyFilesBuildPhase";
 			"runOnlyForDeploymentPostprocessing" = "0";
 			"dstPath" = "";
-			"name" = "Embed Frameworks";
 			"files" = (
 			);
+			"name" = "Embed Frameworks";
 		};
 		"A7D1F9461C850B7C000D41D5" = {
 			"path" = "Kickstarter-iOS";
@@ -21440,7 +21451,7 @@
 				"EXCLUDED_SOURCE_FILE_NAMES" = (
 					"${PROJECT_DIR}/Frameworks/native-secrets/ios/Firebase-Alpha/GoogleService-Info.plist",
 					"${PROJECT_DIR}/Frameworks/native-secrets/ios/Firebase-Production/GoogleService-Info.plist",
-					"${PROJECT_DIR}/Configs/GoogleService-Info.plist",
+					"${PROJECT_DIR}/Kickstarter-iOS/3 - App Resources/Configuration/GoogleService-Info.plist",
 				);
 				"CLANG_WARN_RANGE_LOOP_ANALYSIS" = "YES";
 				"FRAMEWORK_SEARCH_PATHS" = (
@@ -23264,10 +23275,10 @@
 		"194A8E4D2A13FB010099583B" = {
 			"path" = "Frameworks/native-secrets/ios/Firebase-Alpha/GoogleService-Info.plist";
 			"isa" = "PBXFileReference";
-			"lastKnownFileType" = "text.plist.xml";
-			"name" = "GoogleService-Info.plist";
-			"sourceTree" = "<group>";
 			"fileEncoding" = "4";
+			"name" = "GoogleService-Info.plist";
+			"lastKnownFileType" = "text.plist.xml";
+			"sourceTree" = "SOURCE_ROOT";
 		};
 		"71D31002BC99B4F6B2EF7DB2" = {
 			"path" = "Kickstarter-iOS/1 - View/Views/ProjectPage/Views/Cells/ExternalSourceViewElementCell.swift";
@@ -23939,15 +23950,12 @@
 			"lastKnownFileType" = "sourcecode.swift";
 			"sourceTree" = "<group>";
 		};
-		"BB9000C4B9E3CF564732175F" = {
+		"82A85865E804B689CDE62102" = {
 			"isa" = "PBXFileReference";
-			"lastKnownFileType" = "sourcecode.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/ScopedPlatformObservation.swift";
+			"path" = "Kickstarter-iOS/3 - App Resources/Configuration/Secrets.swift.example";
+			"name" = "Secrets.swift.example";
 			"sourceTree" = "SOURCE_ROOT";
-		};
-		"95B3D68ECDF39FBC505362BA" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "BB9000C4B9E3CF564732175F";
+			"lastKnownFileType" = "text";
 		};
 	};
 	"rootObject" = "A7E06C711C5A6EB300EBDCC2";

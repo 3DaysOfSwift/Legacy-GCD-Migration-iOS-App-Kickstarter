@@ -7,7 +7,7 @@ require Kickstarter API credentials and does not change the production service.
 
 ## Enable it
 
-Use the public `Configs/Secrets.swift.example` as
+Use the public `Kickstarter-iOS/3 - App Resources/Configuration/Secrets.swift.example` as
 `KsApi/Sources/KsApi/Secrets.swift`, then set `isOSS = true` in that local copy.
 The file is intentionally ignored by Git; do not commit real credentials.
 Select **Kickstarter iOS**, Debug, and an iOS simulator in Xcode. Do not run

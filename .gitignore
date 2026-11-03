@@ -68,7 +68,7 @@ fastlane/report.xml
 fastlane/screenshots
 
 # Ignore config files
-*/Configs/*.config
+/Kickstarter-iOS/3 - App Resources/Configuration/*.config
 
 # FBSnapshot failures
 Screenshots/FailureDiffs/*

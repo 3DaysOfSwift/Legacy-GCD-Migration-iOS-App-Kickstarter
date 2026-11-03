@@ -69,11 +69,8 @@ dependencies: configs secrets
 
 bootstrap: hooks dependencies
 
-configs = $(basename $(wildcard Kickstarter-iOS/Configs/*.example))
-$(configs):
-	cp $@.example $@
-
-configs: $(configs)
+# Build configuration is checked in under the CFA application resources.
+configs:
 
 hooks = $(addprefix .git/,$(wildcard hooks/*))
 $(hooks):
@@ -164,8 +161,8 @@ secrets:
 	if [ ! -d Frameworks/native-secrets ]; \
 	then \
 		mkdir -p Frameworks/native-secrets/ios \
-		&& cp -n Configs/Secrets.swift.example Frameworks/native-secrets/ios/Secrets.swift \
-		&& cp -n Configs/Secrets.swift.example KsApi/Sources/KsApi/Secrets.swift \
+		&& cp -n "Kickstarter-iOS/3 - App Resources/Configuration/Secrets.swift.example" Frameworks/native-secrets/ios/Secrets.swift \
+		&& cp -n "Kickstarter-iOS/3 - App Resources/Configuration/Secrets.swift.example" KsApi/Sources/KsApi/Secrets.swift \
 		|| true; \
 	else \
 		cp -n Frameworks/native-secrets/ios/Secrets.swift KsApi/Sources/KsApi/Secrets.swift || true; \
