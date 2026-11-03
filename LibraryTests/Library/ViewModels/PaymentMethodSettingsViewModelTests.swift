@@ -43,8 +43,8 @@ internal final class PaymentMethodSettingsViewModelTests: TestCase {
   private let showAlert = TestObserver<String, Never>()
   private let tableViewIsEditing = TestObserver<Bool, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
 
       self.vm = PaymentMethodSettingsViewModel(stripeIntentService: self.mockStripeIntentService)

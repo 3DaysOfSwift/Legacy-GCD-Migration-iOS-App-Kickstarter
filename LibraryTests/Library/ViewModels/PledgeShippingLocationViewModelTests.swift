@@ -28,8 +28,8 @@ final class PledgeShippingLocationViewModelTests: TestCase {
   private let shippingRulesError = TestObserver<String, Never>()
   private let shippingLocationViewHidden = TestObserver<Bool, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       self.vm.outputs.adaptableStackViewIsHidden.observe(self.adaptableStackViewIsHidden.observer)
       self.vm.outputs.dismissShippingLocations.observe(self.dismissShippingLocations.observer)

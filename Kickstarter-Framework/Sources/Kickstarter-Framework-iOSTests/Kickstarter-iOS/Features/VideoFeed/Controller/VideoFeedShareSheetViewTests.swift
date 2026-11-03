@@ -10,8 +10,8 @@ import XCTest
 final class VideoFeedShareSheetViewTests: TestCase {
   private let previewImageURL = URL(string: "https://test.com/preview.jpg")!
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     UIView.setAnimationsEnabled(false)
 
@@ -21,15 +21,15 @@ final class VideoFeedShareSheetViewTests: TestCase {
       ctx.fill(CGRect(x: 0, y: 0, width: 400, height: 225))
     }
 
-    KingfisherManager.shared.cache.store(testImage, forKey: self.previewImageURL.absoluteString)
+    try await KingfisherManager.shared.cache.store(testImage, forKey: self.previewImageURL.absoluteString)
   }
 
-  override func tearDown() {
-    KingfisherManager.shared.cache.removeImage(forKey: self.previewImageURL.absoluteString)
+  override func tearDown() async throws {
+    try await KingfisherManager.shared.cache.removeImage(forKey: self.previewImageURL.absoluteString)
 
     UIView.setAnimationsEnabled(true)
 
-    super.tearDown()
+    try await super.tearDown()
   }
 
   @MainActor

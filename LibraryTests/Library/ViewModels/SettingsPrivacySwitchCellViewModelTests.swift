@@ -13,8 +13,8 @@ final class SettingsPrivacySwitchCellViewModelTests: TestCase {
 
   private let vm = SettingsPrivacySwitchCellViewModel()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.privacySwitchIsOn.observe(self.privacySwitchIsOn.observer)
     self.vm.privacySwitchToggledOn.observe(self.privacySwitchToggledOn.observer)

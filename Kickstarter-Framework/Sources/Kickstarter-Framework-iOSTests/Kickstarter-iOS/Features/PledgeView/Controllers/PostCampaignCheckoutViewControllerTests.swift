@@ -23,14 +23,14 @@ final class PostCampaignCheckoutViewControllerTests: TestCase {
     checkout: CreateCheckoutEnvelope.Checkout(id: "19", paymentUrl: "fake", backingId: "93")
   )
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     UIView.setAnimationsEnabled(false)
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     UIView.setAnimationsEnabled(true)
-    super.tearDown()
+    try await super.tearDown()
   }
 
   func testView_PledgeContext_UnavailableStoredCards() {

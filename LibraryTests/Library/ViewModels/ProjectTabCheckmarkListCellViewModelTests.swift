@@ -20,8 +20,8 @@ internal final class ProjectTabCheckmarkListCellViewModelTests: TestCase {
     fundingForAiOption: true
   )
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.categoryLabelText.observe(self.categoryLabelText.observer)
     self.vm.outputs.descriptionOptionsText.observe(self.descriptionOptionsText.observer)

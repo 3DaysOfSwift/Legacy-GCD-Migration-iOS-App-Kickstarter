@@ -34,8 +34,8 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
   let subtitle = TestObserver<String, Never>()
   let title = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
 

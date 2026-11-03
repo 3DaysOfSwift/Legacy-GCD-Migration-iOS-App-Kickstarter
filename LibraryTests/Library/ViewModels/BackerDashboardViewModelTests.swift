@@ -43,8 +43,8 @@ internal final class BackerDashboardViewModelTests: TestCase {
   private let setSelectedButton = TestObserver<BackerDashboardTab, Never>()
   private let updateCurrentUserInEnvironment = TestObserver<User, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     MainActor.assumeIsolated {
       self.vm.outputs.avatarURL.map { $0?.absoluteString ?? "" }.observe(self.avatarURL.observer)

@@ -20,8 +20,8 @@ internal final class ActivityUpdateViewModelTests: TestCase {
   fileprivate let sequenceTitle = TestObserver<String, Never>()
   fileprivate let title = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       self.vm.outputs.body.observe(self.body.observer)
       self.vm.outputs.cellAccessibilityLabel.observe(self.cellAccessibilityLabel.observer)

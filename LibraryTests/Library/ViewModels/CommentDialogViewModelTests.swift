@@ -22,8 +22,8 @@ internal final class CommentDialogViewModelTests: TestCase {
   internal let notifyPresenterDialogWantsDismissal = TestObserver<(), Never>()
   internal let showKeyboard = TestObserver<Bool, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
 
     MainActor.assumeIsolated {
       self.vm.outputs.bodyTextViewText.observe(self.bodyTextViewText.observer)

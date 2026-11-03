@@ -36,8 +36,8 @@ internal final class MessagesViewModelTests: TestCase {
   private let didBlockUser = TestObserver<(), Never>()
   private let didBlockUserError = TestObserver<(), Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     MainActor.assumeIsolated {
       self.vm.outputs.backingAndProjectAndIsFromBacking.observe(self.backingAndProjectAndIsFromBacking.observer)

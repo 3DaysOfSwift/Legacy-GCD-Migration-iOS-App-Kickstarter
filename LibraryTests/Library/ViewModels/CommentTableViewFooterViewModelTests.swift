@@ -13,8 +13,8 @@ final class CommentTableViewFooterViewModelTests: TestCase {
   private let retryButtonHidden = TestObserver<Bool, Never>()
   private let rootStackViewHidden = TestObserver<Bool, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.activityIndicatorHidden.observe(self.activityIndicatorHidden.observer)
     self.vm.outputs.bottomInsetHeight.observe(self.bottomInsetHeight.observer)

@@ -41,8 +41,8 @@ final class ThanksViewModelTests: TestCase {
   private let facebookButtonIsHidden = TestObserver<Bool, Never>()
   private let twitterButtonIsHidden = TestObserver<Bool, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated { self.bindOutputs() }
   }
 

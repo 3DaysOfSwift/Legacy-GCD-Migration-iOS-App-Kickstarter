@@ -39,8 +39,8 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
   private let goToProjectRefTag = TestObserver<RefTag, Never>()
   private let projects = TestObserver<[ProjectCardProperties], Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     MainActor.assumeIsolated {
       self.vm.outputs.emptyStateIsVisible.map(first).observe(self.emptyStateIsVisible.observer)

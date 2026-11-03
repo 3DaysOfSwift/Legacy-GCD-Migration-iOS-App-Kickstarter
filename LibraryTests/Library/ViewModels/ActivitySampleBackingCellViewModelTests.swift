@@ -16,8 +16,8 @@ internal final class ActivitySampleBackingCellViewModelTests: TestCase {
   internal let backerImage = TestObserver<String?, Never>()
   internal let goToActivity = TestObserver<Void, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       self.vm.outputs.backingTitleText.map { $0.string }.observe(self.backingTitleText.observer)
       self.vm.outputs.backerImageURL.map { $0?.absoluteString }.observe(self.backerImage.observer)

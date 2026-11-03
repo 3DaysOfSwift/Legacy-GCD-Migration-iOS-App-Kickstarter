@@ -97,8 +97,8 @@ final class PledgeViewModelTests: TestCase {
   let shippingRule = ShippingRule.template
     |> ShippingRule.lens.location .~ (.template |> Location.lens.id .~ 55)
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
 
       self.vm.outputs.beginSCAFlowWithClientSecret.observe(self.beginSCAFlowWithClientSecret.observer)

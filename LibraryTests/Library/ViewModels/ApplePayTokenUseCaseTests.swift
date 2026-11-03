@@ -19,8 +19,8 @@ final class ApplePayTokenUseCaseTests: TestCase {
   let applePayParams = TestObserver<ApplePayParams?, Never>()
   let applePayAuthorizationStatus = TestObserver<PKPaymentAuthorizationStatus, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.useCase = ApplePayTokenUseCase(
       initialData: self.initialDataSignal

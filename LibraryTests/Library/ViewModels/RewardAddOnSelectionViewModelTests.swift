@@ -42,8 +42,8 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
   >()
   private let startRefreshing = TestObserver<(), Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
 
       self.vm.outputs.configureContinueCTAViewWithData.map(\.selectedQuantity)

@@ -12,8 +12,8 @@ internal final class SettingsDeleteOrRequestCellViewModelTests: TestCase {
   internal let vm = SettingsDeleteOrRequestCellViewModel()
   internal let notifyDeleteAccountTapped = TestObserver<URL, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     self.vm.outputs.notifyDeleteAccountTapped.observe(self.notifyDeleteAccountTapped.observer)
   }
 

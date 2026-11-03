@@ -12,8 +12,8 @@ final class PledgeLocalPickupViewModelTests: TestCase {
 
   private let locationLabelText = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.locationLabelText.observe(self.locationLabelText.observer)
   }

@@ -34,8 +34,8 @@ internal final class VideoViewModelTests: TestCase {
   let completedThreshold = CMTimeMake(value: 85, timescale: 1)
   let duration = CMTimeMake(value: 100, timescale: 1)
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       self.vm.outputs.addCompletionObserver.observe(self.addCompletionObserver.observer)
       self.vm.outputs.configurePlayerWithURL.map { $0.absoluteString }

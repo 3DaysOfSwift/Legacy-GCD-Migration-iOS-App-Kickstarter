@@ -10,14 +10,14 @@ import XCTest
 internal final class SortPagerViewControllerTests: TestCase {
   fileprivate let sorts: [DiscoveryParams.Sort] = [.magic, .popular, .newest, .endingSoon]
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     UIView.setAnimationsEnabled(false)
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     UIView.setAnimationsEnabled(true)
-    super.tearDown()
+    try await super.tearDown()
   }
 
   func testSortView() {

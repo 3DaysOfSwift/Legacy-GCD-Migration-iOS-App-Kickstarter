@@ -21,8 +21,8 @@ internal final class ImageViewElementCellViewModelTests: TestCase {
   private var expectedParagraphStyle = NSMutableParagraphStyle()
   private var expectedFontAttributes = [NSAttributedString.Key: Any]()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.expectedBaseFont = UIFont.ksr_body(size: self.expectedBaseFontSize).italicized
     self.expectedParagraphStyle.minimumLineHeight = 22

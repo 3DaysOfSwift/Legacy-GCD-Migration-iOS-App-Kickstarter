@@ -124,6 +124,7 @@ public struct Environment {
   /// A type that can generated `UUID`s.
   public let uuidType: UUIDType.Type
 
+  @MainActor
   public init(
     apiService: ServiceType = Service(),
     apiDelayInterval: DispatchTimeInterval = .seconds(0),

@@ -14,8 +14,8 @@ internal final class ExternalElementSourceViewElementCellViewModelTests: TestCas
   private let htmlText = TestObserver<String, Never>()
   private let contentHeight = TestObserver<Int, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.htmlText.observe(self.htmlText.observer)
     self.vm.outputs.contentHeight.observe(self.contentHeight.observer)

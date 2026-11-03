@@ -33,8 +33,8 @@ internal final class DiscoveryViewModelTests: TestCase {
   let subcategoryParams = .defaults |> DiscoveryParams.lens.category .~ .documentary
   let starredParams = .defaults |> DiscoveryParams.lens.starred .~ true
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
     self.vm.outputs.loadFilterIntoDataSource.observe(self.loadFilterIntoDataSource.observer)
     self.vm.outputs.configurePagerDataSource.observe(self.configureDataSource.observer)

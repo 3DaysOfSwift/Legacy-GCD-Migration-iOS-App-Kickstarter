@@ -21,13 +21,13 @@ internal final class SearchViewModelTests: TestCase {
   )
   fileprivate lazy var vm = SearchViewModel(searchFeature: self.searchFeature)
 
-  override func tearDown() {
+  override func tearDown() async throws {
     MainActor.assumeIsolated {
       self.searchFeature.cancelSearch()
       self.searchFeature.cancelFilterLookups()
       self.delay.releaseAll()
     }
-    super.tearDown()
+    try await super.tearDown()
   }
 
   /// Advance the injected request clock, then await actual Feature publication.
@@ -64,8 +64,8 @@ internal final class SearchViewModelTests: TestCase {
   fileprivate let showFilters = TestObserver<SearchFilterModalType, Never>()
   fileprivate let showVideoFeedBanner = TestObserver<Bool, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     MainActor.assumeIsolated {
       self.vm.outputs.goToProject.map { _, refTag in refTag }.observe(self.goToRefTag.observer)

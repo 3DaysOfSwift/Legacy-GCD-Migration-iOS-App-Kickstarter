@@ -19,8 +19,8 @@ final class EmptyStateViewModelTests: TestCase {
   private let titleLabelHidden = TestObserver<Bool, Never>()
   private let titleLabelText = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.bodyLabelHidden.observe(self.bodyLabelHidden.observer)
     self.vm.outputs.bodyLabelText.observe(self.bodyLabelText.observer)

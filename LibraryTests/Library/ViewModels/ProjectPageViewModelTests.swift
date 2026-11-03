@@ -23,12 +23,12 @@ final class ProjectPageViewModelTests: TestCase {
   )
   fileprivate var vm: ProjectPageViewModel!
 
-  override func tearDown() {
+  override func tearDown() async throws {
     MainActor.assumeIsolated {
       self.vm?.loadingTask?.cancel()
       self.vm = nil
     }
-    super.tearDown()
+    try await super.tearDown()
   }
 
   private let projectWithEmptyProperties = Project.template
@@ -91,8 +91,8 @@ final class ProjectPageViewModelTests: TestCase {
   private let updateFAQsInDataSourceIsExpandedValues = TestObserver<[Bool], Never>()
   private let updateWatchProjectWithPrelaunchProjectState = TestObserver<PledgeCTAPrelaunchState, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       self.vm = ProjectPageViewModel(projectDetailsFeature: ProjectPageViewModelTests.isolatedFeature())
 

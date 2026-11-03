@@ -16,16 +16,16 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   fileprivate var vm: ProjectPageViewModel!
 
-  override func tearDown() {
+  override func tearDown() async throws {
     MainActor.assumeIsolated {
       self.vm?.loadingTask?.cancel()
       self.vm = nil
     }
-    super.tearDown()
+    try await super.tearDown()
   }
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       self.vm = ProjectPageViewModel(projectDetailsFeature: ProjectPageViewModelTests.isolatedFeature())
     }

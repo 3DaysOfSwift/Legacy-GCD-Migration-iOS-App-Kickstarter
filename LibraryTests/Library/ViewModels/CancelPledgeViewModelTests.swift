@@ -44,8 +44,8 @@ final class CancelPledgeViewModelTests: TestCase {
   private let notifyDelegateCancelPledgeSuccess = TestObserver<String, Never>()
   private let popCancelPledgeViewController = TestObserver<Void, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
 
       self.vm.outputs.cancellationDetailsAttributedText

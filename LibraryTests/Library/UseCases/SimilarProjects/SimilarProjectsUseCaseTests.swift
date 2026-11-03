@@ -16,8 +16,8 @@ final class SimilarProjectsUseCaseTests: TestCase {
   private let similarProjectsObserver = TestObserver<SimilarProjectsState, Never>()
   private var mockService: MockService!
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       // Create mock data for similar projects
       let mockProjectNodes: [GraphAPI.FetchSimilarProjectsQuery.Data.Projects.Node?] = [
@@ -50,12 +50,12 @@ final class SimilarProjectsUseCaseTests: TestCase {
     }
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     MainActor.assumeIsolated {
       self.useCase = nil
       self.mockService = nil
     }
-    super.tearDown()
+    try await super.tearDown()
   }
 
   func testInitialState() async {

@@ -23,8 +23,8 @@ final class ActivityFriendFollowCellViewModelTests: TestCase {
   let friendImageURL = TestObserver<String?, Never>()
   let title = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     MainActor.assumeIsolated {
       self.vm.outputs.hideFollowButton.observe(self.hideFollowButton.observer)

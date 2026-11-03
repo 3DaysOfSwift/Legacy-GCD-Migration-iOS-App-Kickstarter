@@ -26,6 +26,7 @@ internal extension ScreenshotType {
 // Iterates through default screenshot configs using orthogonal sampling.
 /// Iterates over a representative set of screenshot configs using orthogonal sampling to avoid
 /// full Cartesian explosion while ensuring each dimension is covered at least once.
+@MainActor
 internal func forEachScreenshotType(
   devices: [Device] = Device.allCases,
   languages: [Language] = Language.allLanguages,
@@ -52,6 +53,7 @@ internal func forEachScreenshotType(
 }
 
 /// Iterates over screenshot configs plus an additional data set, using orthogonal sampling to keep counts low.
+@MainActor
 internal func forEachScreenshotType<T>(
   withData data: [T],
   devices: [Device] = Device.allCases,
@@ -80,6 +82,7 @@ internal func forEachScreenshotType<T>(
 }
 
 /// Asserts snapshots for all provided (or default) screenshot types, creating a fresh controller each time.
+@MainActor
 internal func assertAllSnapshots(
   forController controllerProvider: () -> UIViewController,
   types: [ScreenshotType]? = nil,
@@ -117,6 +120,7 @@ internal func assertAllSnapshots(
 }
 
 /// Configures environment, traits, style, font size, and naming before asserting a snapshot.
+@MainActor
 internal func assertSnapshot(
   forController controller: UIViewController,
   withType type: ScreenshotType,
@@ -187,6 +191,7 @@ internal func assertSnapshot(
 }
 
 /// Configures environment, traits, style, font size, and naming before asserting a snapshot of a UIView.
+@MainActor
 internal func assertSnapshot(
   forView view: UIView,
   withType type: ScreenshotType,
@@ -296,6 +301,7 @@ internal func assertSnapshot(
 }
 
 // Configures environment, traits, style, font size, and naming before asserting a snapshot of a SwiftUI View.
+@MainActor
 internal func assertSnapshot<Content: View>(
   forSwiftUIView view: Content,
   withType type: ScreenshotType,
@@ -437,6 +443,7 @@ private func snapshotDirectory(for file: StaticString) -> String {
   return fileURL.deletingLastPathComponent().appendingPathComponent("__Snapshots__").path
 }
 
+@MainActor
 private func withLanguage(_ language: Language, body: () -> Void) {
   AppEnvironment.pushEnvironment(language: language)
   body()

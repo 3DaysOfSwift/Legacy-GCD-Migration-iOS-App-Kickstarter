@@ -63,15 +63,15 @@ internal final class DiscoveryFiltersViewControllerTests: TestCase {
     .filmAndVideo, action, .documentary, .games, mobileGames, .tabletopGames
   ]
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     self.cache[KSCache.ksr_discoveryFiltersCategories] = self.categories
     UIView.setAnimationsEnabled(false)
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     UIView.setAnimationsEnabled(true)
-    super.tearDown()
+    try await super.tearDown()
   }
 
   func testDefaultRow_Selected_View() {

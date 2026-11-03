@@ -17,12 +17,12 @@ final class SearchLookupTests: TestCase {
     lookupSleep: { _ in }, sleep: { _ in }
   )
 
-  override func tearDown() {
+  override func tearDown() async throws {
     MainActor.assumeIsolated {
       self.feature.cancelFilterLookups()
       self.provider.releaseAll()
     }
-    super.tearDown()
+    try await super.tearDown()
   }
 
   func testConstructionDoesNotFetchOrPublish() {

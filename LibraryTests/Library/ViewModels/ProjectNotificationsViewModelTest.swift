@@ -21,8 +21,8 @@ internal final class ProjectNotificationsViewModelTests: TestCase {
   private lazy var vm = ProjectNotificationsViewModel(feature: self.feature)
   internal let projectNotificationsPresent = TestObserver<Bool, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
       self.vm.outputs.projectNotifications.map { !$0.isEmpty }

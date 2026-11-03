@@ -14,8 +14,8 @@ internal final class FindFriendsCellViewModelTests: TestCase {
 
   private let isDisabled = TestObserver<Bool, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.isDisabled.observe(self.isDisabled.observer)
   }

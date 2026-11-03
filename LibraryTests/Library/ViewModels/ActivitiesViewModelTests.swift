@@ -54,8 +54,8 @@ final class ActivitiesViewModelTests: TestCase {
   fileprivate let unansweredSurveyResponse = TestObserver<[SurveyResponse], Never>()
   fileprivate let updateUserInEnvironment = TestObserver<User, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     MainActor.assumeIsolated {
       self.vm.outputs.activities.observe(self.activities.observer)

@@ -12,8 +12,8 @@ final class ThanksCategoryCellViewModelTests: TestCase {
   private let seeAllProjectCategoryTitle = TestObserver<String, Never>()
   private let vm = ThanksCategoryCellViewModel()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.notifyDelegateToGoToDiscovery.observe(self.notifyDelegateToGoToDiscovery.observer)
     self.vm.seeAllProjectCategoryTitle.observe(self.seeAllProjectCategoryTitle.observer)

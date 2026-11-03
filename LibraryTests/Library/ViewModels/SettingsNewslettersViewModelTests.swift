@@ -21,8 +21,8 @@ internal final class SettingsNewslettersViewModelTests: TestCase {
 
   let currentUser = TestObserver<User, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       // Settings is a signed-in flow; the original fixtures omitted authentication.
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))

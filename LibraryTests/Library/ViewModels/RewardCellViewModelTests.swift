@@ -14,8 +14,8 @@ final class RewardCellViewModelTests: TestCase {
   private let backerLabelHidden = TestObserver<Bool, Never>()
   private let scrollScrollViewToTop = TestObserver<Void, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.backerLabelHidden.observe(self.backerLabelHidden.observer)
     self.vm.outputs.scrollScrollViewToTop.observe(self.scrollScrollViewToTop.observer)

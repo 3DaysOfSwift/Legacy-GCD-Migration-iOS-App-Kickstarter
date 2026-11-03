@@ -52,8 +52,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
   private let reloadPaymentMethodsShouldReload = TestObserver<Bool, Never>()
   private let addNewCardLoadingState = TestObserver<Bool, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
 
       self.vm = PledgePaymentMethodsViewModel(stripeIntentService: self.mockStripeIntentService)

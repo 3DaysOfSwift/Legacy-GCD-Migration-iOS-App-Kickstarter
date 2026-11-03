@@ -14,8 +14,8 @@ final class CategoryCollectionViewSectionHeaderViewModelTests: TestCase {
   private let vm: CategoryCollectionViewSectionHeaderViewModelType
     = CategoryCollectionViewSectionHeaderViewModel()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.text.observe(self.text.observer)
   }

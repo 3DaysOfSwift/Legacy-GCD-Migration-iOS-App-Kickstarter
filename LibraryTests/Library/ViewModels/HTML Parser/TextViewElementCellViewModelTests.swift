@@ -25,8 +25,8 @@ internal final class TextElementCellViewModelTests: TestCase {
   private var expectedHeaderFont = UIFont.ksr_body()
   private var expectedFontAttributes = [NSAttributedString.Key: Any]()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.expectedBaseFont = UIFont.ksr_body(size: self.expectedBaseFontSize)
     self.expectedParagraphStyle.minimumLineHeight = 22

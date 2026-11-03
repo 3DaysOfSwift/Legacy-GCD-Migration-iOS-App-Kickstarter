@@ -13,8 +13,8 @@ import XCTest
 
    fileprivate let showShareSheet = TestObserver<(UIActivityViewController, UIView?), Never>()
 
-   override func setUp() {
-     super.setUp()
+   override func setUp() async throws {
+     try await super.setUp()
 
      self.vm.outputs.showShareSheet.observe(self.showShareSheet.observer)
    }

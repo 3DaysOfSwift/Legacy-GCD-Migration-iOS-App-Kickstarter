@@ -77,8 +77,8 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
   private let showWebHelp = TestObserver<HelpType, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
 
       self.vm = PostCampaignCheckoutViewModel(

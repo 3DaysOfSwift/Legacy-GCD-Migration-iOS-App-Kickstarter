@@ -7,6 +7,7 @@ import Prelude
 import ReactiveSwift
 import XCTest
 
+@MainActor
 class TestCase: XCTestCase {
   /// Snapshot suites keep their pinned reference device. Non-visual suites may
   /// explicitly opt out without changing any behaviour assertions.
@@ -97,9 +98,9 @@ class TestCase: XCTestCase {
     }
   }
 
-  override func tearDown() {
-    super.tearDown()
+  override func tearDown() async throws {
     AppEnvironment.popEnvironment()
+    try await super.tearDown()
   }
 
   /// Fulfills an expectation on the next run loop to allow a layout pass when required in some tests.

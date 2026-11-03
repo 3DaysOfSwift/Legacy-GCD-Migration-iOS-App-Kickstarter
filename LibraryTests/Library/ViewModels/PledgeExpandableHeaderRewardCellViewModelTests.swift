@@ -11,8 +11,8 @@ final class PledgeExpandableHeaderRewardCellViewModelTests: TestCase {
   private let amountAttributedText = TestObserver<NSAttributedString, Never>()
   private let labelText = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.amountAttributedText.observe(self.amountAttributedText.observer)
     self.vm.outputs.labelText.observe(self.labelText.observer)

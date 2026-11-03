@@ -56,7 +56,8 @@ let package = Package(
       ],
       resources: [
         .process("Resources")
-      ]
+      ],
+      swiftSettings: [.enableUpcomingFeature("IsolatedDefaultValues")]
     ),
     .testTarget(
       name: "Kickstarter-Framework-Tests",
@@ -69,7 +70,8 @@ let package = Package(
       path: "Sources/Kickstarter-Framework-iOSTests",
       resources: [
         .process("Resources")
-      ]
+      ],
+      swiftSettings: [.enableUpcomingFeature("IsolatedDefaultValues")]
     )
   ],
   swiftLanguageModes: [.v5]

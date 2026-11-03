@@ -12,8 +12,8 @@ internal final class ProjectRisksCellViewModelTests: TestCase {
 
   private let descriptionLabelText = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     self.vm.outputs.descriptionLabelText.observe(self.descriptionLabelText.observer)
   }
 

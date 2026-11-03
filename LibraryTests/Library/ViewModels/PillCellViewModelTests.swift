@@ -13,8 +13,8 @@ final class PillCellViewModelTests: TestCase {
 
   private let vm: PillCellViewModelType = PillCellViewModel()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.text.observe(self.text.observer)
   }

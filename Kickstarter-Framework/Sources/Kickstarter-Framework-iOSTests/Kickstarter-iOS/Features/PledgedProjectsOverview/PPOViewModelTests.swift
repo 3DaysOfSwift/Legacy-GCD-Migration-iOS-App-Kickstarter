@@ -18,21 +18,21 @@ class PPOViewModelTests: XCTestCase {
   var viewModel: PPOViewModel!
   var cancellables: Set<AnyCancellable>!
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       self.viewModel = PPOViewModel(feature: self.feature)
       self.cancellables = []
     }
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     MainActor.assumeIsolated {
       self.feature.reset()
       self.viewModel = nil
       self.cancellables = nil
     }
-    super.tearDown()
+    try await super.tearDown()
   }
 
   func testInitialLoading_Once() async throws {

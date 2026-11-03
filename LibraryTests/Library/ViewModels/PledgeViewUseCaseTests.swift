@@ -16,8 +16,8 @@ final class PledgeViewUseCaseTests: TestCase {
 
   private let (projectAndBackingSignal, projectAndBackingObserver) = Signal<(Project, Backing), Never>.pipe()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.useCase = .init(with: self.projectAndBackingSignal)
 

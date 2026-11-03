@@ -12,8 +12,8 @@ internal final class ProjectRisksDisclaimerCellViewModelTests: TestCase {
 
   private let notifyDelegateDescriptionLabelTapped = TestObserver<URL, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     self.vm.outputs.notifyDelegateDescriptionLabelTapped
       .observe(self.notifyDelegateDescriptionLabelTapped.observer)
   }

@@ -26,8 +26,8 @@ final class FacebookConfirmationViewModelTests: TestCase {
   let postNotification = TestObserver<Notification.Name, Never>()
   let showSignupError = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated { self.bindOutputs() }
   }
 

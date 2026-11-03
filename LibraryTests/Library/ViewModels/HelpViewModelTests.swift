@@ -15,8 +15,8 @@ internal final class HelpViewModelTests: TestCase {
   fileprivate let showMailCompose = TestObserver<(), Never>()
   fileprivate let showWebHelp = TestObserver<HelpType, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.showNoEmailError.observe(self.showNoEmailError.observer)
     self.vm.outputs.showHelpSheet.observe(self.showHelpSheet.observer)

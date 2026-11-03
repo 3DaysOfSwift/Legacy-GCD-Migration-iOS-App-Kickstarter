@@ -2,6 +2,26 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## Global Environment ownership — 3 November 2026
+
+AppEnvironment is now MainActor-isolated, including the mutable stack, replacement and
+persistence paths. Environment construction uses the same actor. IsolatedDefaultValues is
+persisted in Xcode configurations and the Library/framework package targets, preserving
+synchronous default construction on the caller's actor without changing Swift 5 language mode.
+
+The shared test Environment and fixture lifecycle now run on MainActor. 150 legacy fixture
+files use async setup/teardown; existing behavior assertions and snapshot-device guards are
+retained. Snapshot helpers stay on the UI actor; the video-share image-cache fixture awaits
+its cache operations. No unchecked Sendable or isolation bypass was added.
+
+2,749 regression tests passed, zero failures/skips: 2,168 Library, 403 framework, 152 API and
+26 signed Environment/keychain tests. Normal and complete-concurrency-checking app builds
+passed. Complete checking still emits generated, compatibility and app-owned diagnostics;
+this is not warning-free Swift 6 certification. Two concrete Feature service-transfer warnings
+and presentation-template/global-style diagnostics require classification/follow-up.
+Evidence: kickstarter-global-environment. Physical-device, reference snapshots and live
+operations remain unverified; app-wide completion is not claimed.
+
 ## Discovery and framework Environment readers — 3 November 2026
 
 Discovery favorite storage/header, seen-activity cache and metadata clock helpers now declare

@@ -20,8 +20,8 @@ internal final class PledgeViewCTAContainerViewModelTests: TestCase {
   private let submitButtonIsHidden = TestObserver<Bool, Never>()
   private let submitButtonTitle = TestObserver<String, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.applePayButtonIsHidden.observe(self.applePayButtonIsHidden.observer)
     self.vm.outputs.continueButtonIsHidden.observe(self.continueButtonIsHidden.observer)

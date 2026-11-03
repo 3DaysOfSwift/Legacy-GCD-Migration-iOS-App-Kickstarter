@@ -22,8 +22,8 @@ internal final class ProjectNotificationCellViewModelTests: TestCase {
   internal let notificationOn = TestObserver<Bool, Never>()
   internal let notifyDelegateOfSaveError = TestObserver<String, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
       self.vm.outputs.name.observe(self.projectName.observer)

@@ -29,8 +29,8 @@ final class LoginViewModelTests: TestCase {
   fileprivate let tfaChallengePasswordText = TestObserver<String, Never>()
   fileprivate let showHidePassword = TestObserver<Bool, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated { self.bindOutputs() }
   }
 

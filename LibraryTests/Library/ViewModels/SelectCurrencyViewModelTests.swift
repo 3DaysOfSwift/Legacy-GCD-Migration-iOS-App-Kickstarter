@@ -30,8 +30,8 @@ internal final class SelectCurrencyViewModelTests: TestCase {
   private let updateCurrencyDidFailWithError = TestObserver<String, Never>()
   private let updateCurrencyDidSucceed = TestObserver<(), Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
 

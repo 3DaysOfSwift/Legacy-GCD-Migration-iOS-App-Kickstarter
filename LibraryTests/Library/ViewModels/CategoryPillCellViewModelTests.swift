@@ -16,8 +16,8 @@ final class CategoryPillCellViewModelTests: TestCase {
 
   private let vm: CategoryPillCellViewModelType = CategoryPillCellViewModel()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.buttonTitle.observe(self.buttonTitle.observer)
     self.vm.outputs.isSelected.observe(self.isSelected.observer)

@@ -14,8 +14,8 @@ internal final class ActivitySampleFollowCellViewModelTests: TestCase {
   internal let friendImage = TestObserver<String?, Never>()
   internal let goToActivity = TestObserver<Void, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     self.vm.outputs.friendFollowText.observe(self.friendFollowText.observer)
     self.vm.outputs.friendImageURL.map { $0?.absoluteString }.observe(self.friendImage.observer)
     self.vm.outputs.goToActivity.observe(self.goToActivity.observer)

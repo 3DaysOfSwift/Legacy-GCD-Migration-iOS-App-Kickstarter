@@ -40,8 +40,8 @@ final class UpdateDraftViewModelTests: TestCase {
   let title = TestObserver<String, Never>()
   let titleTextFieldBecomeFirstResponder = TestObserver<(), Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     MainActor.assumeIsolated { self.bindOutputs() }
   }

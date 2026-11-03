@@ -24,8 +24,8 @@ final class CuratedProjectsViewModelTests: TestCase {
   ), makeProvider: { AsyncRecommendationsProvider(service: AppEnvironment.current.apiService) })
   private lazy var viewModel: CuratedProjectsViewModelType = CuratedProjectsViewModel(recommendationsFeature: self.feature)
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated { self.bindOutputs() }
   }
 

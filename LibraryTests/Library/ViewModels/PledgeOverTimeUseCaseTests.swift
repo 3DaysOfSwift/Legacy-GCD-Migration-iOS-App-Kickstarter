@@ -32,8 +32,8 @@ final class PledgeOverTimeUseCaseTests: TestCase {
   let showPledgeOverTimeUI = TestObserver<Bool, Never>()
   let selectedPlan = TestObserver<PledgePaymentPlansType?, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     MainActor.assumeIsolated {
       self.useCase = PledgeOverTimeUseCase(

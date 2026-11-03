@@ -29,8 +29,8 @@ final class FindFriendsViewModelTests: TestCase {
   let stats = TestObserver<FriendStatsEnvelope, Never>()
   let statsSource = TestObserver<FriendsSource, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     MainActor.assumeIsolated {
       self.vm.outputs.friends.map { $0.0 }.observe(self.friends.observer)

@@ -50,8 +50,8 @@ final class RewardsCollectionViewModelTests: TestCase {
     sleep: { _ in try Task.checkCancellation() }
   ))
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       self.vm.outputs.reloadDataWithValues.map { $0.map { $0.reward } }
         .observe(self.reloadDataWithValues.observer)

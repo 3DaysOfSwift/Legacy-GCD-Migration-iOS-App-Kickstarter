@@ -30,8 +30,8 @@ final class SearchFiltersUseCaseTests: TestCase {
   private let (defaultLocationsSignal, defaultLocationsObserver) = Signal<[KsApi.Location], Never>.pipe()
   private let (suggestedLocationsSignal, suggestedLocationsObserver) = Signal<[KsApi.Location], Never>.pipe()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     MainActor.assumeIsolated {
     self.initialBinding = self.initialSignal.observeValues { [searchFeature] in

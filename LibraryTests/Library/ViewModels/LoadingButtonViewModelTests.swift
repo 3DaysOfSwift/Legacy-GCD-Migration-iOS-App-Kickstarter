@@ -12,8 +12,8 @@ final class LoadingButtonViewModelTests: TestCase {
   private let startLoading = TestObserver<Void, Never>()
   private let stopLoading = TestObserver<Void, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.isUserInteractionEnabled.observe(self.isUserInteractionEnabled.observer)
     self.vm.outputs.startLoading.observe(self.startLoading.observer)

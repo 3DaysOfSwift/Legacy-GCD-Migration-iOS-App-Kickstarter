@@ -7,14 +7,14 @@ import UIKit
 
 @MainActor
 final class VideoFeedViewControllerTests: TestCase {
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     UIView.setAnimationsEnabled(false)
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     UIView.setAnimationsEnabled(true)
-    super.tearDown()
+    try await super.tearDown()
   }
 
   func testView_VideoFeedCell() {

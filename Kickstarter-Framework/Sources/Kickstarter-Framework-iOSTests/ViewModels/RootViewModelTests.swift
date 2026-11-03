@@ -63,8 +63,8 @@ final class RootViewModelTests: TestCase {
     XCTAssertEqual(gate.count, 1)
   }
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     MainActor.assumeIsolated {
       self.vm.outputs.setViewControllers

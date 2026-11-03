@@ -24,8 +24,8 @@ internal final class MessageDialogViewModelTests: TestCase {
   fileprivate let keyboardIsVisible = TestObserver<Bool, Never>()
   fileprivate let showAlertMessage = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     MainActor.assumeIsolated {
       self.vm.outputs.loadingViewIsHidden.observe(self.loadingViewIsHidden.observer)

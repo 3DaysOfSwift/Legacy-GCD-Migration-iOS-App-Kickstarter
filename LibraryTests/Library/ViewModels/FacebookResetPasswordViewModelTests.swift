@@ -27,8 +27,8 @@ final class FacebookResetPasswordViewModelTests: TestCase {
   internal let shouldShowActivityIndicator = TestObserver<Bool, Never>()
   internal let textFieldAndSetPasswordButtonAreEnabled = TestObserver<Bool, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated { self.bindOutputs() }
   }
 

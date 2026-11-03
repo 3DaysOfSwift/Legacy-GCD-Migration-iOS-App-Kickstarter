@@ -31,8 +31,8 @@ internal final class CommentRepliesViewModelTests: TestCase {
   private let scrollToReply = TestObserver<String, Never>()
   private let showPaginationErrorState = TestObserver<(), Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       self.vm.outputs.configureCommentComposerViewWithData.map(\.becomeFirstResponder)
         .observe(self.configureCommentComposerBecomeFirstResponder.observer)

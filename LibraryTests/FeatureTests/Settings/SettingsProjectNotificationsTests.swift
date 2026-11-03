@@ -15,8 +15,8 @@ final class SettingsProjectNotificationsTests: TestCase {
   })
   private lazy var feature = SettingsFeature(sessionFeature: self.session, makeProvider: { self.provider })
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
     }

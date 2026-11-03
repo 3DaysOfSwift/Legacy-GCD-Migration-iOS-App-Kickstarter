@@ -26,8 +26,8 @@ final class PledgeManagerWebViewModelTests: TestCase {
   fileprivate let webViewLoadRequestIsPrepared = TestObserver<Bool, Never>()
   fileprivate let webViewLoadRequest = TestObserver<URLRequest, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
 
       self.vm.outputs.dismissViewController.observe(self.dismissViewController.observer)
@@ -356,6 +356,7 @@ private func navigationData(_ url: String) -> WKNavigationActionData {
   )
 }
 
+@MainActor
 private func surveyRequest(project: Project, prepared: Bool, method: KsApi.Method) -> URLRequest {
   let url = "\(project.urls.web.project)/surveys/1"
   var request = URLRequest(url: URL(string: url)!)

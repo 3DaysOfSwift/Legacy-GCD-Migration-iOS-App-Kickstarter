@@ -32,8 +32,8 @@ internal final class CommentsViewModelTests: TestCase {
   private let loadCommentsAndProjectIntoDataSourceProject = TestObserver<Project, Never>()
   private let showHelpWebViewController = TestObserver<HelpType, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       self.vm.outputs.beginOrEndRefreshing.observe(self.beginOrEndRefreshing.observer)
       self.vm.outputs.cellSeparatorHidden.observe(self.cellSeparatorHidden.observer)

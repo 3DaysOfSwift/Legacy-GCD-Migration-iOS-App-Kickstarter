@@ -25,8 +25,8 @@ final class ProjectCreatorViewModelTests: TestCase {
   fileprivate let goToSafariBrowser = TestObserver<URL, Never>()
   fileprivate let loadWebViewRequest = TestObserver<URLRequest, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       self.vm.outputs.goBackToProject.observe(self.goBackToProject.observer)
       self.vm.outputs.goToLoginTout.observe(self.goToLoginTout.observer)

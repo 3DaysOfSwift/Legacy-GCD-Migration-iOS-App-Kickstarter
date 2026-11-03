@@ -18,15 +18,15 @@ internal final class CommentCellHeaderStackViewTests: TestCase {
       height: Styles.grid(9)
     ))
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     self.commentCellHeaderStackView.layer.backgroundColor = LegacyColors.ksr_white.uiColor().cgColor
     UIView.setAnimationsEnabled(false)
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     UIView.setAnimationsEnabled(true)
-    super.tearDown()
+    try await super.tearDown()
   }
 
   func testAuthorBadge_Backer() {

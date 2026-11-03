@@ -27,8 +27,8 @@ final class ResetPasswordViewModelTests: TestCase {
   internal let showError = TestObserver<String, Never>()
   internal let setEmailInitial = TestObserver<String, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated { self.bindOutputs() }
   }
 

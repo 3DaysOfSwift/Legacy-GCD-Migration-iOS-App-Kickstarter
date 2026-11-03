@@ -14,8 +14,8 @@ final class CategorySelectionHeaderViewModelTests: TestCase {
   private let vm: CategorySelectionHeaderViewModelType
     = CategorySelectionHeaderViewModel()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.stepLabelIsHidden.observe(self.stepLabelIsHidden.observer)
     self.vm.outputs.stepLabelText.observe(self.stepLabelText.observer)

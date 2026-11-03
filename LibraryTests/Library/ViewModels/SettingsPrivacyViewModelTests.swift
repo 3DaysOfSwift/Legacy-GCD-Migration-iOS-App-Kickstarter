@@ -24,8 +24,8 @@ internal final class SettingsPrivacyViewModelTests: TestCase {
   internal let unableToSaveError = TestObserver<String, Never>()
   internal let updateCurrentUser = TestObserver<User, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       // Settings is a signed-in flow; the original fixtures omitted authentication.
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))

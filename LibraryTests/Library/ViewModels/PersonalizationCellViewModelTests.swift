@@ -14,8 +14,8 @@ final class PersonalizationCellViewModelTests: TestCase {
 
   private let vm: PersonalizationCellViewModelType = PersonalizationCellViewModel()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.notifyDelegateDismissButtonTapped.observe(self.notifyDelegateDismissButtonTapped.observer)
     self.vm.outputs.notifyDelegateViewTapped.observe(self.notifyDelegateViewTapped.observer)

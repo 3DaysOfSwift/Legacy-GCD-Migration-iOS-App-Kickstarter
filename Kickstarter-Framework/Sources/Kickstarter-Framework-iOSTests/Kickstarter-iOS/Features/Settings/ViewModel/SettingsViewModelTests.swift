@@ -32,8 +32,8 @@ internal final class SettingsViewModelTests: TestCase {
   private let showConfirmLogout = TestObserver<(message: String, cancel: String, confirm: String), Never>()
   private let transitionToViewController = TestObserver<UIViewController, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
 
     MainActor.assumeIsolated {
       self.vm.outputs.findFriendsDisabledProperty.signal.observe(self.findFriendsDisabled.observer)

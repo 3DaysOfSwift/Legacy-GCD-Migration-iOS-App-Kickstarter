@@ -9,6 +9,7 @@ import ReactiveSwift
 /**
  A global stack that captures the current state of global objects that the app wants access to.
  */
+@MainActor
 public struct AppEnvironment: AppEnvironmentType {
   internal static let environmentStorageKey = "com.kickstarter.AppEnvironment.current"
   internal static let oauthTokenStorageKey = "com.kickstarter.AppEnvironment.oauthToken"

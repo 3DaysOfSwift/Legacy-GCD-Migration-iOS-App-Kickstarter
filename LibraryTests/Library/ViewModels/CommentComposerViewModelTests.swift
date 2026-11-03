@@ -19,8 +19,8 @@ final class CommentComposerViewModelTests: TestCase {
   private let postButtonHidden = TestObserver<Bool, Never>()
   private let updateTextViewHeight = TestObserver<(), Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.bodyText.observe(self.bodyText.observer)
     self.vm.outputs.avatarURL.observe(self.avatarURL.observer)

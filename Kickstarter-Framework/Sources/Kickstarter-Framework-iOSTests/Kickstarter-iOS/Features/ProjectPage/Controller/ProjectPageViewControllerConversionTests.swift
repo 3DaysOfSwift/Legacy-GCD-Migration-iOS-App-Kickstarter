@@ -10,8 +10,8 @@ import XCTest
 internal final class ProjectPageViewControllerConversionTests: TestCase {
   fileprivate var cosmicSurgery: Project = Project.cosmicSurgery
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     let deadline = self.dateType.init().timeIntervalSince1970 + 60.0 * 60.0 * 24.0 * 14.0
     let launchedAt = self.dateType.init().timeIntervalSince1970 - 60.0 * 60.0 * 24.0 * 14.0
     let project = Project.cosmicSurgery
@@ -29,9 +29,9 @@ internal final class ProjectPageViewControllerConversionTests: TestCase {
     UIView.setAnimationsEnabled(false)
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     UIView.setAnimationsEnabled(true)
-    super.tearDown()
+    try await super.tearDown()
   }
 
   func test_UKProject_USUser_USLocation() {

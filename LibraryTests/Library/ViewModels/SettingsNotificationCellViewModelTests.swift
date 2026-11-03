@@ -30,8 +30,8 @@ final class SettingsNotificationCellViewModelTests: TestCase {
   private let unableToSaveError = TestObserver<String, Never>()
   private let updateCurrentUser = TestObserver<User, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       // Settings is a signed-in flow; the original fixtures omitted authentication.
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))

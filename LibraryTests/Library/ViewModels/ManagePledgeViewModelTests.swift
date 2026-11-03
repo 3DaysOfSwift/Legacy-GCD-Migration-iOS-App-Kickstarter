@@ -58,8 +58,8 @@ internal final class ManagePledgeViewModelTests: TestCase {
   private let startRefreshing = TestObserver<(), Never>()
   private let title = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
 
       self.vm = ManagePledgeViewModel(feature: self.pledgeFeature)

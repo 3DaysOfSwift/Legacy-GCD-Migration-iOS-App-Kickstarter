@@ -13,8 +13,8 @@ internal final class ProjectTabDisclaimerCellViewModelTests: TestCase {
 
   fileprivate let notifyDelegateLinkTappedWithURL = TestObserver<URL, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.notifyDelegateLinkTappedWithURL.observe(self.notifyDelegateLinkTappedWithURL.observer)
   }

@@ -15,8 +15,8 @@ internal final class SettingsFollowCellViewModelTests: TestCase {
   internal let showPrivacyFollowingPrompt = TestObserver<(), Never>()
   internal let updateCurrentUser = TestObserver<User, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     self.vm.outputs.followingPrivacyOn.observe(self.followingPrivacyOn.observer)
     self.vm.outputs.showPrivacyFollowingPrompt.observe(self.showPrivacyFollowingPrompt.observer)
     self.vm.outputs.updateCurrentUser.observe(self.updateCurrentUser.observer)

@@ -13,8 +13,8 @@ final class LoadingBarButtonItemViewModelTests: TestCase {
   private let titleButtonIsHidden = TestObserver<Bool, Never>()
   private let titleButtonText = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.activityIndicatorIsLoading.observe(self.activityIndicatorIsLoading.observer)
     self.vm.outputs.titleButtonIsEnabled.observe(self.titleButtonIsEnabled.observer)

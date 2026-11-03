@@ -24,8 +24,8 @@ final class ProjectUpdatesViewModelTests: TestCase {
   fileprivate let showNoEmailError = TestObserver<UIAlertController, Never>()
   fileprivate let webViewLoadRequest = TestObserver<URLRequest, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
     MainActor.assumeIsolated {
       self.vm.outputs.goToSafariBrowser.observe(self.goToSafariBrowser.observer)
       self.vm.outputs.goToUpdate.map { _, update in update.id }.observe(self.goToUpdateId.observer)

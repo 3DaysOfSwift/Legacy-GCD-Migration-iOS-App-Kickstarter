@@ -58,8 +58,8 @@ internal final class DiscoveryPageViewModelTests: TestCase {
   fileprivate let showPersonalization = TestObserver<Bool, Never>()
   fileprivate let showVideoFeedBanner = TestObserver<Bool, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
 
     MainActor.assumeIsolated {
     self.vm.outputs.activitiesForSample.observe(self.activitiesForSample.observer)

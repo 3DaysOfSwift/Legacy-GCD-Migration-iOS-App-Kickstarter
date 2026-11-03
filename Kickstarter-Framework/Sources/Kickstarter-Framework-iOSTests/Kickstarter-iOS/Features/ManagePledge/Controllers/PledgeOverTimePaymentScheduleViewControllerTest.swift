@@ -8,14 +8,14 @@ import SwiftUI
 import XCTest
 
 final class PledgeOverTimePaymentScheduleViewControllerTest: TestCase {
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     UIView.setAnimationsEnabled(false)
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     UIView.setAnimationsEnabled(true)
-    super.tearDown()
+    try await super.tearDown()
   }
 
   func testView_PaymentSchedule_Collapsed() {

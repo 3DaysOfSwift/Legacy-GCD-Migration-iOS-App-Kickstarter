@@ -67,6 +67,7 @@ let package = Package(
       resources: [
         .process("Resources")
       ],
+      swiftSettings: [.enableUpcomingFeature("IsolatedDefaultValues")],
     ),
     .target(
       name: "LibraryTestHelpers",
@@ -75,7 +76,8 @@ let package = Package(
         .product(name: "KsApiTestHelpers", package: "KsApi"),
         .product(name: "ExperimentationTestHelpers", package: "Experimentation")
       ],
-      path: "Sources/LibraryTestHelpers"
+      path: "Sources/LibraryTestHelpers",
+      swiftSettings: [.enableUpcomingFeature("IsolatedDefaultValues")]
     ),
     .testTarget(
       name: "Library-Tests",
@@ -86,7 +88,8 @@ let package = Package(
         .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         .product(name: "ReactiveExtensions-TestHelpers", package: "Kickstarter-ReactiveExtensions")
       ],
-      path: "Sources/LibraryTests"
+      path: "Sources/LibraryTests",
+      swiftSettings: [.enableUpcomingFeature("IsolatedDefaultValues")]
     )
   ],
   swiftLanguageModes: [.v5]

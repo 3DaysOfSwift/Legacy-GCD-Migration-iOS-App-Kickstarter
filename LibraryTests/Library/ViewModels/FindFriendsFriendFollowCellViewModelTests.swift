@@ -34,8 +34,8 @@ final class FindFriendsFriendFollowCellViewModelTests: TestCase {
   let hideProjectsCreated = TestObserver<Bool, Never>()
   let unfollowButtonAccessibilityLabel = TestObserver<String, Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     MainActor.assumeIsolated {
       self.vm.outputs.enableFollowButton.observe(self.enableFollowButton.observer)

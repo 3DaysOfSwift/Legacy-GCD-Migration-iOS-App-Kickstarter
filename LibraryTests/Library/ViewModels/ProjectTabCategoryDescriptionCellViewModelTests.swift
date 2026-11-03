@@ -14,8 +14,8 @@ internal final class ProjectTabCategoryDescriptionCellViewModelTests: TestCase {
   fileprivate let categoryLabelText = TestObserver<String, Never>()
   fileprivate let descriptionLabelText = TestObserver<String, Never>()
 
-  internal override func setUp() {
-    super.setUp()
+  internal override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.categoryLabelText.observe(self.categoryLabelText.observer)
     self.vm.outputs.descriptionLabelText.observe(self.descriptionLabelText.observer)

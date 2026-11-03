@@ -12,8 +12,8 @@ final class ActivityErroredBackingsCellViewModelTests: TestCase {
 
   private let erroredBackings = TestObserver<[ProjectAndBackingEnvelope], Never>()
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
 
     self.vm.outputs.erroredBackings.observe(self.erroredBackings.observer)
   }
