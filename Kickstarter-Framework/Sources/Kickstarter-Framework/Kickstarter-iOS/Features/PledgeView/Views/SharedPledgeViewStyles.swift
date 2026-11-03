@@ -2,6 +2,7 @@ import KDS
 import Library
 import UIKit
 
+@MainActor
 public enum PledgeViewStyles {
   public static func pledgeAmountHeadingStyle(_ label: UILabel) {
     label.accessibilityTraits = UIAccessibilityTraits.header

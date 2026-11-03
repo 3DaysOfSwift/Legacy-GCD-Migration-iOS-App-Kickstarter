@@ -8,9 +8,11 @@ internal final class SettingsPrivacyStaticCell: UITableViewCell, ValueCell {
 
   override func awakeFromNib() {
     super.awakeFromNib()
-
-    _ = self
-      |> \.accessibilityElementsHidden .~ true
+    // UIKit loads this view on the main thread; NSObject declares this hook nonisolated.
+    MainActor.assumeIsolated {
+      _ = self
+        |> \.accessibilityElementsHidden .~ true
+    }
   }
 
   func configureWith(value: String) {

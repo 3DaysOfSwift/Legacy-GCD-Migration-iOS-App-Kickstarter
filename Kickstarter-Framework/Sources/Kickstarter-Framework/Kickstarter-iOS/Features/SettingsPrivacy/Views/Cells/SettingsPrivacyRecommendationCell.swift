@@ -14,12 +14,14 @@ internal final class SettingsPrivacyRecommendationCell: UITableViewCell, ValueCe
 
   override func awakeFromNib() {
     super.awakeFromNib()
+    // UIKit loads this view on the main thread; NSObject declares this hook nonisolated.
+    MainActor.assumeIsolated {
+      _ = self
+        |> \.accessibilityElements .~ [self.recommendationsSwitch].compact()
 
-    _ = self
-      |> \.accessibilityElements .~ [self.recommendationsSwitch].compact()
-
-    _ = self.recommendationsSwitch
-      |> \.accessibilityLabel %~ { _ in Strings.Recommendations() }
+      _ = self.recommendationsSwitch
+        |> \.accessibilityLabel %~ { _ in Strings.Recommendations() }
+    }
   }
 
   internal func configureWith(value: SettingsPrivacyStaticCellValue) {

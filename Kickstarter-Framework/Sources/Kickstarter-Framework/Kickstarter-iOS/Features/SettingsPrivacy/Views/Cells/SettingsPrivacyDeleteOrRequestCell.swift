@@ -26,11 +26,13 @@ internal final class SettingsPrivacyDeleteOrRequestCell: UITableViewCell, ValueC
 
   internal override func awakeFromNib() {
     super.awakeFromNib()
+    // UIKit loads this view on the main thread; NSObject declares this hook nonisolated.
+    MainActor.assumeIsolated {
+      _ = self
+        |> \.accessibilityElements .~ [self.deleteAccountButton].compact()
 
-    _ = self
-      |> \.accessibilityElements .~ [self.deleteAccountButton].compact()
-
-    self.deleteAccountButton.addTarget(self, action: #selector(self.deleteAccountTapped), for: .touchUpInside)
+      self.deleteAccountButton.addTarget(self, action: #selector(self.deleteAccountTapped), for: .touchUpInside)
+    }
   }
 
   internal func configureWith(value: (user: User, cellType: CellType)) {

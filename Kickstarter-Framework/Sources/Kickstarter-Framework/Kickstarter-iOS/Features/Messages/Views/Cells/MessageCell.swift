@@ -24,17 +24,19 @@ internal final class MessageCell: UITableViewCell, ValueCell {
 
   override func awakeFromNib() {
     super.awakeFromNib()
+    // UIKit loads this view on the main thread; NSObject declares this hook nonisolated.
+    MainActor.assumeIsolated {
+      // NB: removes the default padding around UITextView.
+      self.bodyTextView.textContainerInset = UIEdgeInsets.zero
+      self.bodyTextView.textContainer.lineFragmentPadding = 0
 
-    // NB: removes the default padding around UITextView.
-    self.bodyTextView.textContainerInset = UIEdgeInsets.zero
-    self.bodyTextView.textContainer.lineFragmentPadding = 0
+      self.participantStackView.addGestureRecognizer(UITapGestureRecognizer(
+        target: self,
+        action: #selector(self.messageCellHeaderTapped)
+      ))
 
-    self.participantStackView.addGestureRecognizer(UITapGestureRecognizer(
-      target: self,
-      action: #selector(self.messageCellHeaderTapped)
-    ))
-
-    self.configureAccessibilityElements()
+      self.configureAccessibilityElements()
+    }
   }
 
   private func configureAccessibilityElements() {

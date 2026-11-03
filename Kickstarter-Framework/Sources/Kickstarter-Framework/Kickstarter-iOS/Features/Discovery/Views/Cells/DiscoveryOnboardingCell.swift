@@ -18,8 +18,10 @@ internal final class DiscoveryOnboardingCell: UITableViewCell, ValueCell {
 
   override func awakeFromNib() {
     super.awakeFromNib()
-
-    self.loginButton.addTarget(self, action: #selector(self.loginButtonTapped), for: .touchUpInside)
+    // UIKit loads this view on the main thread; NSObject declares this hook nonisolated.
+    MainActor.assumeIsolated {
+      self.loginButton.addTarget(self, action: #selector(self.loginButtonTapped), for: .touchUpInside)
+    }
   }
 
   internal func configureWith(value _: Void) {}

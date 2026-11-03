@@ -223,7 +223,7 @@ private let baseStackViewStyle: StackViewStyle = { stackView in
     |> UIStackView.lens.spacing .~ Styles.grid(2)
 }
 
-private let contextLabelStyle: (UILabel) -> UILabel = { label in
+@MainActor private let contextLabelStyle: LabelStyle = { label in
   label
     |> UILabel.lens.textAlignment .~ NSTextAlignment.left
     |> UILabel.lens.lineBreakMode .~ NSLineBreakMode.byWordWrapping
@@ -231,7 +231,7 @@ private let contextLabelStyle: (UILabel) -> UILabel = { label in
     |> UILabel.lens.font %~ { _ in UIFont.ksr_body(size: 16) }
 }
 
-private let textFieldLabelStyle: (UILabel) -> UILabel = { label in
+@MainActor private let textFieldLabelStyle: LabelStyle = { label in
   label
     |> UILabel.lens.textAlignment .~ NSTextAlignment.left
     |> UILabel.lens.lineBreakMode .~ NSLineBreakMode.byWordWrapping

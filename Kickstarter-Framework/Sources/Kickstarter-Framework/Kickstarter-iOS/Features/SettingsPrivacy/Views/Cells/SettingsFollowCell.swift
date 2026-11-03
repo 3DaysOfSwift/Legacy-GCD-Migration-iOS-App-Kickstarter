@@ -23,12 +23,14 @@ internal final class SettingsFollowCell: UITableViewCell, ValueCell {
 
   override func awakeFromNib() {
     super.awakeFromNib()
+    // UIKit loads this view on the main thread; NSObject declares this hook nonisolated.
+    MainActor.assumeIsolated {
+      _ = self
+        |> \.accessibilityElements .~ [self.followingSwitch].compact()
 
-    _ = self
-      |> \.accessibilityElements .~ [self.followingSwitch].compact()
-
-    _ = self.followingSwitch
-      |> \.accessibilityLabel %~ { _ in Strings.Following() }
+      _ = self.followingSwitch
+        |> \.accessibilityLabel %~ { _ in Strings.Following() }
+    }
   }
 
   internal func configureWith(value: SettingsPrivacyStaticCellValue) {

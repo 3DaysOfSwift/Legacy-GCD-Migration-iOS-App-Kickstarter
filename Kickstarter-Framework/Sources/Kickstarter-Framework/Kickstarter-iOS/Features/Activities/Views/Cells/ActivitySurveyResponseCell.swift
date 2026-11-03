@@ -25,11 +25,14 @@ internal final class ActivitySurveyResponseCell: UITableViewCell, ValueCell {
 
   internal override func awakeFromNib() {
     super.awakeFromNib()
-    self.respondNowButton.addTarget(
-      self,
-      action: #selector(self.respondNowTapped),
-      for: .touchUpInside
-    )
+    // UIKit loads this view on the main thread; NSObject declares this hook nonisolated.
+    MainActor.assumeIsolated {
+      self.respondNowButton.addTarget(
+        self,
+        action: #selector(self.respondNowTapped),
+        for: .touchUpInside
+      )
+    }
   }
 
   internal func configureWith(value: (surveyResponse: SurveyResponse, count: Int, position: Int)) {

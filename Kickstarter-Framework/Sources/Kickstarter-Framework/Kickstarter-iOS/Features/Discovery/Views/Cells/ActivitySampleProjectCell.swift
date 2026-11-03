@@ -26,12 +26,14 @@ internal final class ActivitySampleProjectCell: UITableViewCell, ValueCell {
 
   internal override func awakeFromNib() {
     super.awakeFromNib()
-
-    self.seeAllActivityButton.addTarget(
-      self,
-      action: #selector(self.seeAllActivityButtonTapped),
-      for: .touchUpInside
-    )
+    // UIKit loads this view on the main thread; NSObject declares this hook nonisolated.
+    MainActor.assumeIsolated {
+      self.seeAllActivityButton.addTarget(
+        self,
+        action: #selector(self.seeAllActivityButtonTapped),
+        for: .touchUpInside
+      )
+    }
   }
 
   internal override func bindStyles() {

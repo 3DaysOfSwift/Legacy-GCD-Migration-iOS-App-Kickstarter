@@ -23,9 +23,11 @@ internal final class SettingsNewslettersCell: UITableViewCell, ValueCell {
 
   override func awakeFromNib() {
     super.awakeFromNib()
-
-    _ = self
-      |> \.accessibilityElements .~ [self.newslettersSwitch].compact()
+    // UIKit loads this view on the main thread; NSObject declares this hook nonisolated.
+    MainActor.assumeIsolated {
+      _ = self
+        |> \.accessibilityElements .~ [self.newslettersSwitch].compact()
+    }
   }
 
   func configureWith(value: (newsletter: Newsletter, user: User)) {

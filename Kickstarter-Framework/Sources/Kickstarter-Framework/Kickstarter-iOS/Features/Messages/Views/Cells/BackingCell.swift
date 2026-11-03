@@ -25,11 +25,13 @@ internal final class BackingCell: UITableViewCell, ValueCell {
 
   internal override func awakeFromNib() {
     super.awakeFromNib()
-
-    self.backingInfoButton.addTarget(
-      self, action: #selector(self.backingInfoButtonTapped),
-      for: .touchUpInside
-    )
+    // UIKit loads this view on the main thread; NSObject declares this hook nonisolated.
+    MainActor.assumeIsolated {
+      self.backingInfoButton.addTarget(
+        self, action: #selector(self.backingInfoButtonTapped),
+        for: .touchUpInside
+      )
+    }
   }
 
   internal func configureWith(value: (backing: Backing, project: Project, isFromBacking: Bool)) {

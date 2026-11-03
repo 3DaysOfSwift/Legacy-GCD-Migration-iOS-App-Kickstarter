@@ -16,9 +16,11 @@ internal final class ThanksCategoryCell: UITableViewCell, ValueCell {
 
   override func awakeFromNib() {
     super.awakeFromNib()
-
-    self.seeAllProjectsButton
-      .addTarget(self, action: #selector(self.seeAllProjectsButtonTapped), for: .touchUpInside)
+    // UIKit loads this view on the main thread; NSObject declares this hook nonisolated.
+    MainActor.assumeIsolated {
+      self.seeAllProjectsButton
+        .addTarget(self, action: #selector(self.seeAllProjectsButtonTapped), for: .touchUpInside)
+    }
   }
 
   func configureWith(value category: KsApi.Category) {

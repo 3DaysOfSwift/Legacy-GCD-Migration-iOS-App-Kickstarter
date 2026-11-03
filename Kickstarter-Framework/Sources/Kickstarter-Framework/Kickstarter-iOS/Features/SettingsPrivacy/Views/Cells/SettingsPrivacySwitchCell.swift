@@ -24,9 +24,11 @@ final class SettingsPrivacySwitchCell: UITableViewCell, ValueCell, NibLoading {
 
   override func awakeFromNib() {
     super.awakeFromNib()
-
-    _ = self
-      |> \.accessibilityElements .~ [self.switchButton].compact()
+    // UIKit loads this view on the main thread; NSObject declares this hook nonisolated.
+    MainActor.assumeIsolated {
+      _ = self
+        |> \.accessibilityElements .~ [self.switchButton].compact()
+    }
   }
 
   func configureWith(value: SettingsPrivacySwitchCellValue) {

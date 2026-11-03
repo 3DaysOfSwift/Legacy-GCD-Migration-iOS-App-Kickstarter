@@ -1,4 +1,4 @@
-public enum PledgeRewardsSummarySection: CaseIterable {
+public enum PledgeRewardsSummarySection: CaseIterable, Sendable {
   case header
   case reward
   case addOns

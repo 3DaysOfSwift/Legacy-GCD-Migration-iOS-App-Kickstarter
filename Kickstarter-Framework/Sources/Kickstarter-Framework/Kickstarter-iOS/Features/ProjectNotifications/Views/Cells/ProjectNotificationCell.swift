@@ -19,11 +19,13 @@ internal final class ProjectNotificationCell: UITableViewCell, ValueCell {
 
   internal override func awakeFromNib() {
     super.awakeFromNib()
+    // UIKit loads this view on the main thread; NSObject declares this hook nonisolated.
+    MainActor.assumeIsolated {
+      _ = self
+        |> \.accessibilityElements .~ [self.notificationSwitch].compact()
 
-    _ = self
-      |> \.accessibilityElements .~ [self.notificationSwitch].compact()
-
-    self.notificationSwitch.addTarget(self, action: #selector(self.notificationTapped), for: .valueChanged)
+      self.notificationSwitch.addTarget(self, action: #selector(self.notificationTapped), for: .valueChanged)
+    }
   }
 
   internal override func bindStyles() {

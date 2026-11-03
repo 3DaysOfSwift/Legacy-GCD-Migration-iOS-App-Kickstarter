@@ -23,19 +23,21 @@ internal final class SettingsNewslettersTopCell: UITableViewCell, ValueCell {
 
   override func awakeFromNib() {
     super.awakeFromNib()
+    // UIKit loads this view on the main thread; NSObject declares this hook nonisolated.
+    MainActor.assumeIsolated {
+      _ = self
+        |> \.accessibilityElements .~ [self.newsletterSwitch].compact()
 
-    _ = self
-      |> \.accessibilityElements .~ [self.newsletterSwitch].compact()
+      _ = self.descriptionLabel
+        |> \.text %~ { _ in Strings.Stay_up_to_date_newsletter() }
 
-    _ = self.descriptionLabel
-      |> \.text %~ { _ in Strings.Stay_up_to_date_newsletter() }
+      _ = self.newsletterSwitch
+        |> \.accessibilityLabel %~ { _ in Strings.profile_settings_newsletter_subscribe_all() }
+        |> \.accessibilityHint %~ { _ in Strings.Stay_up_to_date_newsletter() }
 
-    _ = self.newsletterSwitch
-      |> \.accessibilityLabel %~ { _ in Strings.profile_settings_newsletter_subscribe_all() }
-      |> \.accessibilityHint %~ { _ in Strings.Stay_up_to_date_newsletter() }
-
-    _ = self.titleLabel
-      |> \.text %~ { _ in Strings.profile_settings_newsletter_subscribe_all() }
+      _ = self.titleLabel
+        |> \.text %~ { _ in Strings.profile_settings_newsletter_subscribe_all() }
+    }
   }
 
   func configureWith(value: User) {

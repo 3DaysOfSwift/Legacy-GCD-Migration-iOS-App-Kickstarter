@@ -2,6 +2,15 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## UIKit nib and presentation boundary review — 3 November 2026
+
+Seventeen nib hooks now explicitly enter MainActor for UI setup, preserving their
+super-call ordering. UI-only debug payloads and pledge/reset-password styles are
+isolated; the payload-free pledge section identifier is Sendable. 2,772 integrated
+tests passed, zero failures/skips, with normal and complete-checking app builds.
+Evidence: kickstarter-final-ui-boundaries. Diffable-row/compatibility diagnostics and
+full visual/device/live validation remain open; snapshot guards were preserved.
+
 ## Project app events and combined regression — 3 November 2026
 
 Project-page/navigation and saved-project cells own app-event registrations, cancelling
