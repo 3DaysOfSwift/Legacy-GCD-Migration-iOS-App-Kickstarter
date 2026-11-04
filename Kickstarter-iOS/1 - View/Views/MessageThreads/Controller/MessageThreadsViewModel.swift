@@ -1,180 +1,84 @@
 import Foundation
 import KsApi
-import Prelude
-import ReactiveSwift
+import Observation
 
 @MainActor
-public protocol MessageThreadsViewModelInputs {
-  /// Call when the mailbox chooser button is pressed.
-  func mailboxButtonPressed()
+@Observable
+public final class MessageThreadsViewModel {
+  public private(set) var emptyStateIsVisible = false
+  public private(set) var loadingFooterIsHidden = false
+  public private(set) var mailboxName = ""
+  public private(set) var messageThreads: [MessageThread] = []
+  public private(set) var isRefreshing = false
+  public var onSearch: (() -> Void)?
+  public var onMailboxChooser: (() -> Void)?
 
-  /// Call with the project whose message threads we are viewing. If no project or refTag is given, then use
-  /// `nil`.
-  func configureWith(project: Project?, refTag: RefTag?)
-
-  /// Call when pull-to-refresh is invoked.
-  func refresh()
-
-  /// Call when the search button is pressed.
-  func searchButtonPressed()
-
-  /// Call when the user has selected a mailbox to switch to.
-  func switchTo(mailbox: Mailbox)
-
-  /// Call when the view loads.
-  func viewDidLoad()
-
-  /// Call when a new row is displayed.
-  func willDisplayRow(_ row: Int, outOf totalRows: Int)
-}
-
-@MainActor
-public protocol MessageThreadsViewModelOutputs {
-  /// Emits a boolean that determines if the empty state is visible.
-  var emptyStateIsVisible: Signal<Bool, Never> { get }
-
-  /// Emits when we should go to the search messages screen.
-  var goToSearch: Signal<(), Never> { get }
-
-  /// Emits a boolean that determines if the footer loading view is hidden.
-  var loadingFooterIsHidden: Signal<Bool, Never> { get }
-
-  /// Emits a string of the mailbox we are currently viewing.
-  var mailboxName: Signal<String, Never> { get }
-
-  /// Emits an array of message threads to be displayed.
-  var messageThreads: Signal<[MessageThread], Never> { get }
-
-  /// Emits when the refresh control should end refreshing.
-  var refreshControlEndRefreshing: Signal<(), Never> { get }
-
-  /// Emits when an action sheet should be displayed that allows the user to choose mailboxes.
-  var showMailboxChooserActionSheet: Signal<(), Never> { get }
-}
-
-@MainActor
-public protocol MessageThreadsViewModelType {
-  var inputs: MessageThreadsViewModelInputs { get }
-  var outputs: MessageThreadsViewModelOutputs { get }
-}
-
-@MainActor
-public final class MessageThreadsViewModel: MessageThreadsViewModelType, MessageThreadsViewModelInputs,
-  MessageThreadsViewModelOutputs {
   private let feature: MessagingFeature
-  public convenience init() { self.init(feature: AppModel.shared.messagingFeature) }
-  public init(feature: MessagingFeature) {
-    self.feature = feature
-    let isCloseToBottom = self.willDisplayRowProperty.signal.skipNil()
-      .filter { _, total in total > 1 }
-      .map { row, total in row >= total - 3 }
-      .skipRepeats()
-      .filter { isClose in isClose }
-      .ignoreValues()
-
-    let mailbox = Signal.merge(
-      self.switchToMailbox.signal.skipNil(),
-      self.viewDidLoadProperty.signal.mapConst(.inbox)
-    )
-
-    let requestFirstPageWith = Signal.merge(
-      mailbox,
-      mailbox.takeWhen(self.refreshProperty.signal)
-    )
-
-    let route = self.route
-    let messageThreads = feature.pages.filter { $0.0 == route }.map { $0.1 }.skipRepeats(==)
-    let isLoading = feature.loading.filter { $0.0 == route }.map { $0.1 }
-
-    self.mailboxName = mailbox.map {
-      switch $0 {
-      case .inbox: return Strings.messages_navigation_inbox()
-      case .sent: return Strings.messages_navigation_sent()
-      }
-    }
-
-    self.messageThreads = messageThreads
-
-    self.refreshControlEndRefreshing = isLoading.filter(isFalse).ignoreValues()
-
-    self.emptyStateIsVisible = Signal.merge(
-      self.messageThreads.filter { !$0.isEmpty }.mapConst(false),
-      self.messageThreads.takeWhen(isLoading.filter(isFalse)).filter { $0.isEmpty }.mapConst(true)
-    ).skipRepeats()
-
-    self.loadingFooterIsHidden = Signal.merge([
-      self.viewDidLoadProperty.signal.take(first: 1).mapConst(false),
-      isCloseToBottom.mapConst(false),
-      mailbox.mapConst(false),
-      isLoading.filter(isFalse).mapConst(true)
-    ]).skipRepeats()
-
-    self.showMailboxChooserActionSheet = self.mailboxButtonPressedProperty.signal
-
-    self.goToSearch = self.searchButtonPressedProperty.signal
-    requestFirstPageWith.observeValues { [weak self] mailbox in
-      guard let self else { return }
-      feature.requestMailbox(route: route, mailbox: mailbox, project: self.configDataProperty.value?.project,
-                             refresh: true)
-    }
-    isCloseToBottom.observeValues { feature.requestNextPage(route: route) }
-
-  }
-
   private let route = UUID()
+  private var project: Project?
+  private var mailbox: Mailbox?
+  private var isNearBottom = false
+  private var requestGeneration = 0
+  private var hadRequested = false
+  private var projectionTask: Task<Void, Never>?
+
+  public convenience init() { self.init(feature: AppModel.shared.messagingFeature) }
+  public init(feature: MessagingFeature) { self.feature = feature }
+
   deinit {
     let feature = self.feature, route = self.route
     Task { @MainActor in feature.release(route: route) }
   }
 
-  fileprivate let mailboxButtonPressedProperty = MutableProperty(())
-  public func mailboxButtonPressed() {
-    self.mailboxButtonPressedProperty.value = ()
-  }
-
-  fileprivate let configDataProperty = MutableProperty<ConfigData?>(nil)
-  public func configureWith(project: Project?, refTag: RefTag?) {
-    self.configDataProperty.value = ConfigData(project: project, refTag: refTag)
-  }
-
-  fileprivate let refreshProperty = MutableProperty(())
-  public func refresh() {
-    self.refreshProperty.value = ()
-  }
-
-  fileprivate let searchButtonPressedProperty = MutableProperty(())
-  public func searchButtonPressed() {
-    self.searchButtonPressedProperty.value = ()
-  }
-
-  fileprivate let switchToMailbox = MutableProperty<Mailbox?>(nil)
+  public func configureWith(project: Project?, refTag _: RefTag?) { self.project = project }
+  public func mailboxButtonPressed() { self.onMailboxChooser?() }
+  public func searchButtonPressed() { self.onSearch?() }
+  public func viewDidLoad() { self.switchTo(mailbox: .inbox) }
   public func switchTo(mailbox: Mailbox) {
-    self.switchToMailbox.value = mailbox
+    self.mailbox = mailbox
+    self.mailboxName = mailbox == .inbox ? Strings.messages_navigation_inbox() : Strings.messages_navigation_sent()
+    self.loadingFooterIsHidden = false
+    self.loadFirstPage()
   }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+  public func refresh() {
+    guard self.mailbox != nil else { return }
+    self.isRefreshing = true
+    self.loadFirstPage()
   }
-
-  fileprivate let willDisplayRowProperty = MutableProperty<(row: Int, total: Int)?>(nil)
   public func willDisplayRow(_ row: Int, outOf totalRows: Int) {
-    self.willDisplayRowProperty.value = (row, totalRows)
+    guard totalRows > 1 else { return }
+    let nearBottom = row >= totalRows - 3
+    defer { self.isNearBottom = nearBottom }
+    guard nearBottom, !self.isNearBottom else { return }
+    self.loadingFooterIsHidden = false
+    guard let task = self.feature.requestNextPage(route: self.route) else { return }
+    self.projectResult(task)
   }
 
-  public let emptyStateIsVisible: Signal<Bool, Never>
-  public let loadingFooterIsHidden: Signal<Bool, Never>
-  public let goToSearch: Signal<(), Never>
-  public let mailboxName: Signal<String, Never>
-  public let messageThreads: Signal<[MessageThread], Never>
-  public let refreshControlEndRefreshing: Signal<(), Never>
-  public let showMailboxChooserActionSheet: Signal<(), Never>
+  internal func waitForPresentation() async { await self.projectionTask?.value }
 
-  public var inputs: MessageThreadsViewModelInputs { return self }
-  public var outputs: MessageThreadsViewModelOutputs { return self }
-}
+  private func loadFirstPage() {
+    guard let mailbox = self.mailbox else { return }
+    if self.hadRequested { self.messageThreads = [] }
+    self.hadRequested = true
+    let task = self.feature.requestMailbox(route: self.route, mailbox: mailbox, project: self.project, refresh: true)
+    self.projectResult(task)
+  }
 
-private struct ConfigData {
-  fileprivate let project: Project?
-  fileprivate let refTag: RefTag?
+  private func projectResult(_ task: Task<Void, Never>) {
+    self.requestGeneration += 1
+    let generation = self.requestGeneration
+    self.projectionTask?.cancel()
+    self.projectionTask = Task { [weak self] in
+      await task.value
+      guard let self, !Task.isCancelled, self.requestGeneration == generation else { return }
+      let snapshot = self.feature.snapshot(route: self.route)
+      if snapshot.error == nil {
+        self.messageThreads = snapshot.threads
+        self.emptyStateIsVisible = snapshot.threads.isEmpty
+      }
+      self.isRefreshing = false
+      self.loadingFooterIsHidden = true
+    }
+  }
 }

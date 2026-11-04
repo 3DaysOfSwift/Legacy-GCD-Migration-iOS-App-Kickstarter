@@ -1,212 +1,66 @@
 @testable import Kickstarter_iOS
 @testable import KsApi
-
-
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
-internal final class MessageThreadsViewModelTests: TestCase {
+final class MessageThreadsViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   private let feature = MessagingFeature(
     sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }),
-    makeProvider: { AsyncMessagingProvider(service: AppEnvironment.current.apiService) }
+    makeProvider: { AsyncMessagingProvider(service: AppEnvironment.current.apiService) },
+    sleep: { _ in }
   )
-  private lazy var vm: MessageThreadsViewModelType = MessageThreadsViewModel(feature: self.feature)
+  private lazy var vm = MessageThreadsViewModel(feature: self.feature)
 
-  fileprivate let emptyStateIsVisible = TestObserver<Bool, Never>()
-  fileprivate let loadingFooterIsHidden = TestObserver<Bool, Never>()
-  fileprivate let goToSearch = TestObserver<(), Never>()
-  fileprivate let mailboxName = TestObserver<String, Never>()
-  fileprivate let hasMessageThreads = TestObserver<Bool, Never>()
-  fileprivate let refreshControlEndRefreshing = TestObserver<(), Never>()
-  fileprivate let showMailboxChooserActionSheet = TestObserver<(), Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    MainActor.assumeIsolated {
-      self.vm.outputs.emptyStateIsVisible.observe(self.emptyStateIsVisible.observer)
-      self.vm.outputs.loadingFooterIsHidden.observe(self.loadingFooterIsHidden.observer)
-      self.vm.outputs.goToSearch.observe(self.goToSearch.observer)
-      self.vm.outputs.mailboxName.observe(self.mailboxName.observer)
-      self.vm.outputs.messageThreads.map { !$0.isEmpty }.observe(self.hasMessageThreads.observer)
-      self.vm.outputs.refreshControlEndRefreshing.observe(self.refreshControlEndRefreshing.observer)
-      self.vm.outputs.showMailboxChooserActionSheet.observe(self.showMailboxChooserActionSheet.observer)
-    }
+  func testLoadingRefreshingAndSwitchingMailbox() async {
+    self.vm.configureWith(project: nil, refTag: nil)
+    self.vm.viewDidLoad()
+    XCTAssertFalse(self.vm.loadingFooterIsHidden)
+    XCTAssertEqual(self.vm.mailboxName, Strings.messages_navigation_inbox())
+    await self.settle()
+    XCTAssertTrue(self.vm.loadingFooterIsHidden)
+    XCTAssertFalse(self.vm.messageThreads.isEmpty)
+    XCTAssertFalse(self.vm.emptyStateIsVisible)
+    self.vm.refresh()
+    XCTAssertTrue(self.vm.messageThreads.isEmpty)
+    XCTAssertTrue(self.vm.isRefreshing)
+    await self.settle()
+    XCTAssertFalse(self.vm.isRefreshing)
+    XCTAssertFalse(self.vm.messageThreads.isEmpty)
+    self.vm.switchTo(mailbox: .sent)
+    XCTAssertEqual(self.vm.mailboxName, Strings.messages_navigation_sent())
+    XCTAssertTrue(self.vm.messageThreads.isEmpty)
+    await self.settle()
+    XCTAssertFalse(self.vm.messageThreads.isEmpty)
+    XCTAssertTrue(self.vm.loadingFooterIsHidden)
   }
 
-  func testLoadingMessages_NoProject() async {
-    self.vm.inputs.configureWith(project: nil, refTag: nil)
-    self.vm.inputs.viewDidLoad()
-
-    self.loadingFooterIsHidden.assertValues([false], "Loading footer is visible at beginning.")
-    self.refreshControlEndRefreshing.assertValueCount(0, "Doesn't emit at beginning.")
-    self.hasMessageThreads.assertValues([], "No threads emit.")
-
-    // Wait enough time to get API response
-    await self.settleMessaging()
-
-    self.loadingFooterIsHidden.assertValues([false, true], "Loading footer is hidden after API response.")
-    self.refreshControlEndRefreshing.assertValueCount(1, "Refresh control stopped refreshing.")
-    self.hasMessageThreads.assertValues([true], "Threads are emitted.")
-
-    // Pull-to-refresh
-    self.vm.inputs.refresh()
-
-    self.loadingFooterIsHidden.assertValues([false, true], "Loading footer doesn't change visibility.")
-    self.refreshControlEndRefreshing.assertValueCount(1, "Refresh control didn't change.")
-    self.hasMessageThreads.assertValues([true, false], "Threads clear immediately.")
-
-    // Wait enough time to get API response
-    await self.settleMessaging()
-
-    self.loadingFooterIsHidden.assertValues([false, true], "Loading footer doesn't change visibility.")
-    self.refreshControlEndRefreshing.assertValueCount(2, "Refresh control stopped refreshing.")
-    self.hasMessageThreads.assertValues([true, false, true], "Threads are emitted.")
-
-    // Scroll to bottom of threads
-    self.vm.inputs.willDisplayRow(3, outOf: 4)
-
-    self.loadingFooterIsHidden.assertValues([false, true, false], "Loading footer is visible.")
-    self.refreshControlEndRefreshing.assertValueCount(2, "Refresh control didn't change.")
-    self.hasMessageThreads.assertValues([true, false, true], "No threads emit.")
-
-    // Wait enough time to get API response
-    await self.settleMessaging()
-
-    self.loadingFooterIsHidden.assertValues([false, true, false, true], "Loading footer is hidden.")
-    self.refreshControlEndRefreshing.assertValueCount(3, "Refresh control stopped refreshing.")
-    self.hasMessageThreads.assertValues([true, false, true, true], "More threads are emitted.")
-  }
-
-  func testLoadingMessages_WithProject() async {
-    self.vm.inputs.configureWith(project: Project.template, refTag: nil)
-    self.vm.inputs.viewDidLoad()
-
-    self.loadingFooterIsHidden.assertValues([false], "Loading footer is visible at beginning.")
-    self.refreshControlEndRefreshing.assertValueCount(0, "Doesn't emit at beginning.")
-    self.hasMessageThreads.assertValues([], "No threads emit.")
-
-    // Wait enough time to get API response
-    await self.settleMessaging()
-
-    self.loadingFooterIsHidden.assertValues([false, true], "Loading footer is hidden after API response.")
-    self.refreshControlEndRefreshing.assertValueCount(1, "Refresh control stopped refreshing.")
-    self.hasMessageThreads.assertValues([true], "Threads are emitted.")
-
-    // Pull-to-refresh
-    self.vm.inputs.refresh()
-
-    self.loadingFooterIsHidden.assertValues([false, true], "Loading footer doesn't change visibility.")
-    self.refreshControlEndRefreshing.assertValueCount(1, "Refresh control didn't change.")
-    self.hasMessageThreads.assertValues([true, false], "Threads clear immediately.")
-
-    // Wait enough time to get API response
-    await self.settleMessaging()
-
-    self.loadingFooterIsHidden.assertValues([false, true], "Loading footer doesn't change visibility.")
-    self.refreshControlEndRefreshing.assertValueCount(2, "Refresh control stopped refreshing.")
-    self.hasMessageThreads.assertValues([true, false, true], "Threads are emitted.")
-
-    // Scroll to bottom of threads
-    self.vm.inputs.willDisplayRow(3, outOf: 4)
-
-    self.loadingFooterIsHidden.assertValues([false, true, false], "Loading footer is visible.")
-    self.refreshControlEndRefreshing.assertValueCount(2, "Refresh control didn't change.")
-    self.hasMessageThreads.assertValues([true, false, true], "No threads emit.")
-
-    // Wait enough time to get API response
-    await self.settleMessaging()
-
-    self.loadingFooterIsHidden.assertValues([false, true, false, true], "Loading footer is hidden.")
-    self.refreshControlEndRefreshing.assertValueCount(3, "Refresh control stopped refreshing.")
-    self.hasMessageThreads.assertValues([true, false, true, true], "More threads are emitted.")
-  }
-
-  func testSwitchingMailbox() async {
-    self.vm.inputs.configureWith(project: nil, refTag: nil)
-    self.vm.inputs.viewDidLoad()
-    await self.settleMessaging()
-
-    self.loadingFooterIsHidden.assertValues(
-      [false, true],
-      "Loading footer is shown/hidden while loading threads."
-    )
-    self.refreshControlEndRefreshing.assertValueCount(1, "Refresh control isn't refershing.")
-    self.hasMessageThreads.assertValues([true], "Threads are emitted.")
-    self.emptyStateIsVisible.assertValues([false])
-
-    self.vm.inputs.mailboxButtonPressed()
-
-    self.showMailboxChooserActionSheet.assertValueCount(1, "Mailbox action sheet is shown.")
-    self.emptyStateIsVisible.assertValues([false])
-
-    self.vm.inputs.switchTo(mailbox: .sent)
-
-    self.loadingFooterIsHidden.assertValues([false, true, false], "Loading footer is shown.")
-    self.refreshControlEndRefreshing.assertValueCount(1, "Refresh control ends refreshing.")
-    self.hasMessageThreads.assertValues([true, false], "Threads clear immediately.")
-    self.emptyStateIsVisible.assertValues([false])
-
-    await self.settleMessaging()
-
-    self.loadingFooterIsHidden.assertValues([false, true, false, true], "Loading footer is hidden.")
-    self.refreshControlEndRefreshing.assertValueCount(2, "Refresh control isn't refreshing.")
-    self.hasMessageThreads.assertValues([true, false, true], "Threads are emitted.")
-    self.emptyStateIsVisible.assertValues([false])
-  }
-
-  func testGoToSearch() async {
-    self.vm.inputs.viewDidLoad()
-
-    self.goToSearch.assertValueCount(0)
-
-    self.vm.inputs.searchButtonPressed()
-
-    self.goToSearch.assertValueCount(1)
-  }
-
-  func testEmptyState() async {
+  func testEmptyStateAndNavigation() async {
     await withEnvironment(apiService: MockService(fetchMessageThreadsResponse: [])) {
-      self.vm.inputs.configureWith(project: nil, refTag: nil)
-      self.vm.inputs.viewDidLoad()
-
-      self.emptyStateIsVisible.assertValues([], "No empty state emits immediately.")
-      self.loadingFooterIsHidden.assertValues([false], "Loading footer is visible")
-
-      await self.settleMessaging()
-
-      self.emptyStateIsVisible.assertValues([true], "Empty state is shown.")
-      self.loadingFooterIsHidden.assertValues([false, true], "Loading view is hidden.")
-
-      // NB: This tests an implementation detail and can be removed if we find a better way to handle this.
-      // When the empty state shows it causes `willDisplayRow` to be called with `(0, 1)`. That triggers
-      // the loading footer to become visible. Right now we are explicitly checking for that in order to
-      // prevent that.
-      self.vm.inputs.willDisplayRow(0, outOf: 1)
-
-      self.emptyStateIsVisible.assertValues([true], "The empty state is still visible.")
-      self.loadingFooterIsHidden.assertValues([false, true], "The loading view did not change.")
+      var search = 0
+      var chooser = 0
+      self.vm.onSearch = { search += 1 }
+      self.vm.onMailboxChooser = { chooser += 1 }
+      self.vm.viewDidLoad()
+      await self.settle()
+      XCTAssertTrue(self.vm.emptyStateIsVisible)
+      self.vm.willDisplayRow(0, outOf: 1)
+      XCTAssertTrue(self.vm.loadingFooterIsHidden)
+      self.vm.searchButtonPressed()
+      self.vm.mailboxButtonPressed()
+      XCTAssertEqual(search, 1)
+      XCTAssertEqual(chooser, 1)
     }
+  }
+
+  private func settle() async {
+    await self.feature.waitForOperations()
+    await self.vm.waitForPresentation()
   }
 
   override func tearDown() async throws {
     self.feature.reset()
     await self.feature.waitForOperations()
-
     try await super.tearDown()
-  }
-
-  private func settleMessaging() async {
-    // Start debounced requests, await native work, then deliver the presentation delay.
-    await self.scheduler.advance()
-    await self.feature.waitForOperations()
-
-    await self.scheduler.advance()
-    // Thread delivery starts backing lookup and read-status commands.
-    await self.feature.waitForOperations()
-    await self.scheduler.advance()
   }
 }

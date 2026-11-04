@@ -91,10 +91,6 @@ public final class MessagingFeature {
     }
   }
   private var mailboxes: [UUID: MailboxRoute] = [:]
-  private let pagePipe = Signal<(UUID, [MessageThread]), Never>.pipe()
-  private let loadingPipe = Signal<(UUID, Bool), Never>.pipe()
-  public var pages: Signal<(UUID, [MessageThread]), Never> { self.pagePipe.output }
-  public var loading: Signal<(UUID, Bool), Never> { self.loadingPipe.output }
   public func snapshot(route: UUID) -> MailboxSnapshot { self.mailboxes[route]?.snapshot ?? MailboxSnapshot() }
 
   @discardableResult
@@ -108,7 +104,6 @@ public final class MessagingFeature {
     previous?.request?.task.cancel()
     let state = MailboxRoute(mailbox: mailbox, project: project, session: self.session)
     self.mailboxes[route] = state
-    if previous != nil { self.pagePipe.input.send(value: (route, [])) }
     return self.startPage(route: route, state: state, cursor: nil)
   }
 
@@ -132,7 +127,6 @@ public final class MessagingFeature {
         if self.mailboxes[route]?.request?.id == id {
           state.request = nil
           state.snapshot.isLoading = false
-          self.loadingPipe.input.send(value: (route, false))
         }
       }
       do {
@@ -144,7 +138,6 @@ public final class MessagingFeature {
         // Preserve the original concatenation and empty-page sentinel.
         state.cursor = envelope.messageThreads.isEmpty ? nil : envelope.urls.api.moreMessageThreads
         state.snapshot.threads += envelope.messageThreads
-        self.pagePipe.input.send(value: (route, state.snapshot.threads))
       } catch {
         guard !Task.isCancelled, self.session == state.session,
               self.mailboxes[route]?.request?.id == id else { return }
@@ -152,7 +145,6 @@ public final class MessagingFeature {
       }
     }
     state.request = (id, task)
-    self.loadingPipe.input.send(value: (route, true))
     return task
   }
 

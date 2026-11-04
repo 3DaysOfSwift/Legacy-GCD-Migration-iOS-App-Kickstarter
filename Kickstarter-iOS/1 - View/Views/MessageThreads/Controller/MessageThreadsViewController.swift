@@ -1,12 +1,12 @@
+import Observation
 import KDS
 import KsApi
 
 import Prelude
-import ReactiveSwift
 import UIKit
 
 internal final class MessageThreadsViewController: UITableViewController {
-  fileprivate let viewModel: MessageThreadsViewModelType = MessageThreadsViewModel()
+  fileprivate let viewModel = MessageThreadsViewModel()
   fileprivate let dataSource = MessageThreadsDataSource()
 
   @IBOutlet fileprivate var footerView: UIView!
@@ -14,7 +14,7 @@ internal final class MessageThreadsViewController: UITableViewController {
 
   internal static func configuredWith(project: Project?, refTag: RefTag?) -> MessageThreadsViewController {
     let vc = Storyboard.Messages.instantiate(MessageThreadsViewController.self)
-    vc.viewModel.inputs.configureWith(project: project, refTag: refTag)
+    vc.viewModel.configureWith(project: project, refTag: refTag)
     return vc
   }
 
@@ -25,7 +25,7 @@ internal final class MessageThreadsViewController: UITableViewController {
     self.tableView.estimatedRowHeight = 100.0
     self.tableView.dataSource = self.dataSource
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   internal override func bindStyles() {
@@ -41,32 +41,31 @@ internal final class MessageThreadsViewController: UITableViewController {
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.mailboxLabel.rac.text = self.viewModel.outputs.mailboxName
-    self.navigationItem.rac.title = self.viewModel.outputs.mailboxName
-    self.refreshControl?.rac.refreshing = self.viewModel.outputs.refreshControlEndRefreshing.mapConst(false)
-    self.tableView.tableFooterView?.rac.hidden = self.viewModel.outputs.loadingFooterIsHidden
+    self.viewModel.onMailboxChooser = { [weak self] in self?.showMailboxChooserActionSheet() }
+    self.viewModel.onSearch = { [weak self] in self?.goToSearch() }
+    self.observeState()
+    self.observeThreads()
+  }
 
-    self.viewModel.outputs.messageThreads
-      .observeForUI()
-      .observeValues { [weak self] threads in
-        self?.dataSource.load(messageThreads: threads)
-        self?.tableView.reloadData()
-      }
+  private func observeState() {
+    withObservationTracking {
+      self.mailboxLabel.text = self.viewModel.mailboxName
+      self.navigationItem.title = self.viewModel.mailboxName
+      if !self.viewModel.isRefreshing { self.refreshControl?.endRefreshing() }
+      self.tableView.tableFooterView?.isHidden = self.viewModel.loadingFooterIsHidden
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeState() }
+    }
+  }
 
-    self.viewModel.outputs.emptyStateIsVisible
-      .observeForUI()
-      .observeValues { [weak self] isVisible in
-        self?.dataSource.emptyState(isVisible: isVisible)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.showMailboxChooserActionSheet
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.showMailboxChooserActionSheet() }
-
-    self.viewModel.outputs.goToSearch
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.goToSearch() }
+  private func observeThreads() {
+    withObservationTracking {
+      self.dataSource.load(messageThreads: self.viewModel.messageThreads)
+      self.dataSource.emptyState(isVisible: self.viewModel.emptyStateIsVisible)
+      self.tableView.reloadData()
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeThreads() }
+    }
   }
 
   internal override func tableView(
@@ -74,7 +73,7 @@ internal final class MessageThreadsViewController: UITableViewController {
     willDisplay _: UITableViewCell,
     forRowAt indexPath: IndexPath
   ) {
-    self.viewModel.inputs.willDisplayRow(
+    self.viewModel.willDisplayRow(
       self.dataSource.itemIndexAt(indexPath),
       outOf: self.dataSource.numberOfItems()
     )
@@ -88,7 +87,7 @@ internal final class MessageThreadsViewController: UITableViewController {
       let vc = MessagesViewController.configuredWith(messageThread: messageThread)
 
       vc.dismissedAfterBlockingUserHandler = { [weak self] in
-        self?.viewModel.inputs.refresh()
+        self?.viewModel.refresh()
       }
 
       self.navigationController?.pushViewController(vc, animated: true)
@@ -100,13 +99,13 @@ internal final class MessageThreadsViewController: UITableViewController {
 
     alert.addAction(
       UIAlertAction(title: Strings.messages_navigation_inbox(), style: .default) { [weak self] _ in
-        self?.viewModel.inputs.switchTo(mailbox: .inbox)
+        self?.viewModel.switchTo(mailbox: .inbox)
       }
     )
 
     alert.addAction(
       UIAlertAction(title: Strings.messages_navigation_sent(), style: .default) { [weak self] _ in
-        self?.viewModel.inputs.switchTo(mailbox: .sent)
+        self?.viewModel.switchTo(mailbox: .sent)
       }
     )
 
@@ -125,15 +124,15 @@ internal final class MessageThreadsViewController: UITableViewController {
   }
 
   @IBAction fileprivate func mailboxButtonPressed() {
-    self.viewModel.inputs.mailboxButtonPressed()
+    self.viewModel.mailboxButtonPressed()
   }
 
   @IBAction fileprivate func searchButtonPressed() {
-    self.viewModel.inputs.searchButtonPressed()
+    self.viewModel.searchButtonPressed()
   }
 
   @IBAction fileprivate func refresh() {
-    self.viewModel.inputs.refresh()
+    self.viewModel.refresh()
   }
 
   fileprivate func goToSearch() {
