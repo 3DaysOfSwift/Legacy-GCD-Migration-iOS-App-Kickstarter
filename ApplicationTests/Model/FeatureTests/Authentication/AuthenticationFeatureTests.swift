@@ -14,13 +14,14 @@ final class AuthenticationFeatureTests: XCTestCase {
       sessionFeature: fixture.session, makeProvider: { fixture.provider },
       trackOAuthLogin: { loginCountsAtTracking.append(fixture.logins) }
     )
-    let first = feature.result(.oauth(code: "fixture", verifier: "fixture")).start()
-    let second = feature.result(.oauth(code: "fixture", verifier: "fixture")).start()
-    defer { first.dispose(); second.dispose() }
+    let first = Task { try await feature.authenticate(.oauth(code: "fixture", verifier: "fixture")) }
+    let second = Task { try await feature.authenticate(.oauth(code: "fixture", verifier: "fixture")) }
+    defer { first.cancel(); second.cancel() }
     await fixture.provider.gate.waitFor(1)
     XCTAssertTrue(loginCountsAtTracking.isEmpty)
     try fixture.provider.gate.finish(0, .success(fixture.envelope))
-    await feature.waitForOperations()
+    _ = try await first.value
+    _ = try await second.value
     XCTAssertEqual(loginCountsAtTracking, [0])
     XCTAssertEqual(fixture.logins, 1)
   }
@@ -29,18 +30,15 @@ final class AuthenticationFeatureTests: XCTestCase {
     let fixture = AuthenticationFixture()
     defer { fixture.provider.gate.releaseAll() }
     let credentials = AuthenticationFeature.Credentials.facebookSignup("fixture", sendNewsletters: true)
-    var successes = 0
-    let first = fixture.feature.result(credentials)
-      .startWithResult { if case .success = $0 { successes += 1 } }
-    let second = fixture.feature.result(credentials)
-      .startWithResult { if case .success = $0 { successes += 1 } }
-    defer { first.dispose(); second.dispose() }
+    let first = Task { try await fixture.feature.authenticate(credentials) }
+    let second = Task { try await fixture.feature.authenticate(credentials) }
+    defer { first.cancel(); second.cancel() }
     await fixture.provider.gate.waitFor(1)
     XCTAssertEqual(fixture.provider.credentials, [credentials])
     XCTAssertEqual(fixture.logins, 0)
     try fixture.provider.gate.finish(0, .success(fixture.envelope))
-    await fixture.feature.waitForOperations()
-    XCTAssertEqual(successes, 2)
+    _ = try await first.value
+    _ = try await second.value
     XCTAssertEqual(fixture.logins, 1)
   }
 
@@ -56,18 +54,16 @@ final class AuthenticationFeatureTests: XCTestCase {
     ] {
       let fixture = AuthenticationFixture()
       defer { fixture.provider.gate.releaseAll() }
-      var oldSuccesses = 0
-      let old = fixture.feature.result(credentials)
-        .startWithResult { if case .success = $0 { oldSuccesses += 1 } }
+      let old = Task { try await fixture.feature.authenticate(credentials) }
       await fixture.provider.gate.waitFor(1)
-      let newer = fixture.feature.result(.facebook("new-token")).start()
-      defer { old.dispose(); newer.dispose() }
+      let newer = Task { try await fixture.feature.authenticate(.facebook("new-token")) }
+      defer { old.cancel(); newer.cancel() }
       await fixture.provider.gate.waitFor(2)
       fixture.session.sessionChanged()
       try fixture.provider.gate.finish(0, .success(fixture.envelope))
       try fixture.provider.gate.finish(1, .success(fixture.envelope))
-      await fixture.feature.waitForOperations()
-      XCTAssertEqual(oldSuccesses, 0)
+      do { _ = try await old.value; XCTFail("Obsolete attempt succeeded") } catch is CancellationError {} catch { XCTFail("\(error)") }
+      do { _ = try await newer.value; XCTFail("Changed-session attempt succeeded") } catch is CancellationError {} catch { XCTFail("\(error)") }
       XCTAssertEqual(fixture.logins, 0)
       XCTAssertNil(fixture.user)
     }
@@ -76,11 +72,11 @@ final class AuthenticationFeatureTests: XCTestCase {
   func testDisposedSocialSignupDoesNotCommitLateServerSuccess() async throws {
     let fixture = AuthenticationFixture()
     defer { fixture.provider.gate.releaseAll() }
-    let pending = fixture.feature.result(.facebookSignup("fixture", sendNewsletters: false)).start()
+    let pending = Task { try await fixture.feature.authenticate(.facebookSignup("fixture", sendNewsletters: false)) }
     await fixture.provider.gate.waitFor(1)
-    pending.dispose()
+    pending.cancel()
     try fixture.provider.gate.finish(0, .success(fixture.envelope))
-    await fixture.feature.waitForOperations()
+    do { _ = try await pending.value; XCTFail("Cancelled signup succeeded") } catch is CancellationError {} catch { XCTFail("\(error)") }
     XCTAssertEqual(fixture.logins, 0)
     XCTAssertEqual(fixture.provider.gate.count, 1, "No automatic retry of account creation")
   }
