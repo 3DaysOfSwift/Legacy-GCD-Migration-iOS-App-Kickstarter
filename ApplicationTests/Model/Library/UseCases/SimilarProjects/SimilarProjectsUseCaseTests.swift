@@ -4,16 +4,14 @@ import GraphAPI
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class SimilarProjectsUseCaseTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   private var useCase: SimilarProjectsUseCase!
-  private let projectTappedObserver = TestObserver<ProjectCardProperties, Never>()
-  private let similarProjectsObserver = TestObserver<SimilarProjectsState, Never>()
+  private var tappedProjects: [ProjectCardProperties] = []
+  private var states: [SimilarProjectsState] = []
   private var mockService: MockService!
 
   override func setUp() async throws {
@@ -45,8 +43,9 @@ final class SimilarProjectsUseCaseTests: TestCase {
       discussionFeature: DiscussionFeature(sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }), makeProvider: { AsyncDiscussionProvider(service: AppEnvironment.current.apiService) }),
       makeProvider: { AsyncProjectDetailsProvider(service: AppEnvironment.current.apiService) }
       ))
-      self.useCase.navigateToProject.observe(self.projectTappedObserver.observer)
-      self.useCase.similarProjects.producer.start(self.similarProjectsObserver.observer)
+      self.states = [self.useCase.similarProjects]
+      self.useCase.onState = { [weak self] in self?.states.append($0) }
+      self.useCase.onNavigate = { [weak self] in self?.tappedProjects.append($0) }
     }
   }
 
@@ -61,9 +60,9 @@ final class SimilarProjectsUseCaseTests: TestCase {
   func testInitialState() async {
     await withEnvironment(apiService: self.mockService) {
       // The useCase should start with a loading state
-      XCTAssertEqual(1, self.similarProjectsObserver.values.count)
+      XCTAssertEqual(1, self.states.count)
 
-      if case .loading = self.similarProjectsObserver.values[0] {
+      if case .loading = self.states[0] {
         // Expected loading state
       } else {
         XCTFail("Expected initial loading state")
@@ -74,8 +73,8 @@ final class SimilarProjectsUseCaseTests: TestCase {
   func testProjectIDLoaded_emitsLoadedState() async {
     await withEnvironment(apiService: self.mockService) {
       // Verify we're in loading state
-      XCTAssertEqual(1, self.similarProjectsObserver.values.count)
-      if case .loading = self.similarProjectsObserver.values[0] {
+      XCTAssertEqual(1, self.states.count)
+      if case .loading = self.states[0] {
         // Expected loading state
       } else {
         XCTFail("Expected loading state")
@@ -86,9 +85,9 @@ final class SimilarProjectsUseCaseTests: TestCase {
       await self.useCase.loadingTask?.value
 
       // Verify we received loaded state with projects
-      XCTAssertEqual(2, self.similarProjectsObserver.values.count)
+      XCTAssertEqual(2, self.states.count)
 
-      if case let .loaded(projects) = similarProjectsObserver.values[1] {
+      if case let .loaded(projects) = self.states[1] {
         XCTAssertEqual(4, projects.count, "Expected 4 similar projects")
       } else {
         XCTFail("Expected loaded state with projects")
@@ -102,7 +101,7 @@ final class SimilarProjectsUseCaseTests: TestCase {
       self.useCase.projectIDLoaded(projectID: "1")
       await self.useCase.loadingTask?.value
       guard
-        case let .loaded(projects) = similarProjectsObserver.values[1],
+        case let .loaded(projects) = self.states[1],
         let project = projects.first
       else {
         return XCTFail()
@@ -112,8 +111,8 @@ final class SimilarProjectsUseCaseTests: TestCase {
       self.useCase.projectTapped(project: project)
 
       // Verify navigate signal fired
-      XCTAssertEqual(1, self.projectTappedObserver.values.count)
-      XCTAssertEqual(project.projectID, self.projectTappedObserver.values[0].projectID)
+      XCTAssertEqual(1, self.tappedProjects.count)
+      XCTAssertEqual(project.projectID, self.tappedProjects[0].projectID)
     }
   }
 

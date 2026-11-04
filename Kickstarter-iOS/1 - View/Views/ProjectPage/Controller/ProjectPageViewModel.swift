@@ -316,6 +316,10 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     let projectDetailsFeature = projectDetailsFeature ?? AppModel.shared.projectDetailsFeature
     self.projectDetailsFeature = projectDetailsFeature
     self.similarProjectsUseCase = SimilarProjectsUseCase(projectDetailsFeature: projectDetailsFeature)
+    let relatedState = self.relatedState
+    let relatedNavigation = self.relatedNavigation
+    self.similarProjectsUseCase.onState = { relatedState.value = $0 }
+    self.similarProjectsUseCase.onNavigate = { relatedNavigation.input.send(value: $0) }
     let isLoading = MutableProperty(false)
 
     self.navigateBackToProjectPage = self.didBackProjectProperty.signal.ignoreValues()
@@ -612,9 +616,9 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         return (navSection, project, refTag, initialIsExpandedArray, urls, contentView)
       }
 
-    let similarProjectsState = self.similarProjectsUseCase.similarProjects.signal
+    let similarProjectsState = self.relatedState.signal
       .merge(
-        with: self.similarProjectsUseCase.similarProjects.producer
+        with: self.relatedState.producer
           .takeWhen(self.viewDidLoadProperty.signal)
       )
 
@@ -751,7 +755,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
       .skipRepeats()
       .observeForControllerAction()
       .observeValues { [weak self] projectID in
-        self?.similarProjectsUseCase.inputs.projectIDLoaded(projectID: projectID)
+        self?.similarProjectsUseCase.projectIDLoaded(projectID: projectID)
       }
 
     let route = self.projectRoute
@@ -992,17 +996,19 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   // MARK: - Similar Projects
 
   private let similarProjectsUseCase: SimilarProjectsUseCase
+  private let relatedState = MutableProperty<SimilarProjectsState>(.loading)
+  private let relatedNavigation = Signal<ProjectCardProperties, Never>.pipe()
 
   public func similarProjectTapped(project: ProjectCardProperties) {
     self.similarProjectsUseCase.projectTapped(project: project)
   }
 
   public var similarProjects: Property<SimilarProjectsState> {
-    self.similarProjectsUseCase.similarProjects
+    Property(self.relatedState)
   }
 
   public var navigateToSimilarProject: Signal<ProjectCardProperties, Never> {
-    self.similarProjectsUseCase.navigateToProject
+    self.relatedNavigation.output
   }
 
   // MARK: - RewardsUseCase
