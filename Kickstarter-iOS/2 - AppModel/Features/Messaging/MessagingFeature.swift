@@ -1,6 +1,5 @@
 import Foundation
 import KsApi
-import ReactiveSwift
 
 @MainActor
 public protocol MessagingProvider {
@@ -45,7 +44,6 @@ public struct AsyncMessagingProvider: MessagingProvider {
 }
 
 /// Owns mailbox history, screen reads, and admitted message mutations.
-/// Reactive outputs only adapt these commands to the existing UIKit screens.
 @MainActor
 public final class MessagingFeature {
   public let sessionFeature: SessionFeature
@@ -148,24 +146,12 @@ public final class MessagingFeature {
     return task
   }
 
-  private var readTasks: [UUID: Task<Void, Never>] = [:]
-  private var reads: [UUID: (id: UUID, task: Task<Void, Never>)] = [:]
-
-  /// Each screen supplies an independent route. Replacing or clearing a query
-  /// cancels that route before the next debounced request is admitted.
-  public func cancelRead(route: UUID) {
-    self.reads.removeValue(forKey: route)?.task.cancel()
-  }
-
   public func release(route: UUID) {
-    self.cancelRead(route: route)
     self.mailboxes.removeValue(forKey: route)?.request?.task.cancel()
   }
 
   public func reset() {
-    for task in self.readTasks.values { task.cancel() }
     for route in self.mailboxes.values { route.request?.task.cancel() }
-    self.reads = [:]
     self.mailboxes = [:]
   }
 
@@ -203,42 +189,6 @@ public final class MessagingFeature {
     else { value = try await provider.backing(project: project, user: user) }
     try self.requireCurrent(session)
     return value
-  }
-
-  // Typed, route-owned read execution. Disposing presentation cancels the read;
-  // providers that ignore cancellation still cannot deliver obsolete results.
-  public func readResult<Value>(
-    route: UUID, operation: @escaping @MainActor () async throws -> Value
-  ) -> SignalProducer<Value, ErrorEnvelope> {
-    let session = self.session
-    return SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        self.cancelRead(route: route)
-        let id = UUID()
-        let task = Task { [weak self] in
-          guard let self else { return }
-          defer {
-            self.readTasks[id] = nil
-            if self.reads[route]?.id == id { self.reads[route] = nil }
-          }
-          do {
-            try self.requireCurrent(session)
-            let value = try await operation()
-            try self.requireCurrent(session)
-            guard self.reads[route]?.id == id else { return }
-            observer.send(value: value)
-            observer.sendCompleted()
-          } catch {
-            guard !Task.isCancelled, !(error is CancellationError), self.session == session,
-                  self.reads[route]?.id == id else { observer.sendInterrupted(); return }
-            observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
-          }
-        }
-        self.readTasks[id] = task
-        self.reads[route] = (id, task)
-        lifetime.observeEnded { task.cancel() }
-      }
-    }
   }
 
   private struct Destination: Hashable { let id: Int; let isThread: Bool; let session: Session }
@@ -316,61 +266,12 @@ public final class MessagingFeature {
     return task
   }
 
-  // Admission is synchronous, so rapid inputs keep their order. Only the
-  // observation task is canceled on screen release, never the admitted write.
-  /// Guard both values and errors after the existing presentation delay.
-  func delayedResult<Value>(_ producer: SignalProducer<Value, ErrorEnvelope>) -> SignalProducer<Value, ErrorEnvelope> {
-    let session = self.session
-    return producer.ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-      .materialize()
-      .filter { _ in MainActor.assumeIsolated { self.session == session } }
-      .dematerialize()
-  }
-
-  func sendResult(body: String, subject: MessageSubject) -> SignalProducer<Message, ErrorEnvelope> {
-    self.mutationResult { self.requestSend(body: body, subject: subject) }
-  }
-  private func mutationResult<Value>(
-    admit: @escaping @MainActor () -> Task<Value, Error>
-  ) -> SignalProducer<Value, ErrorEnvelope> {
-    let session = self.session
-    return SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        guard self.session == session else { observer.sendInterrupted(); return }
-        let command = admit()
-        let observerTask = Task {
-          do {
-            let value = try await command.value
-            try self.requireCurrent(session)
-            observer.send(value: value)
-            observer.sendCompleted()
-          } catch {
-            guard !Task.isCancelled, !(error is CancellationError), self.session == session
-            else { observer.sendInterrupted(); return }
-            observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
-          }
-        }
-        lifetime.observeEnded { observerTask.cancel() }
-        // Include delivery in deterministic adapter tests.
-        let id = UUID()
-        self.deliveries[id] = observerTask
-        Task { [weak self] in
-          await observerTask.value
-          self?.deliveries[id] = nil
-        }
-      }
-    }
-  }
-  private var deliveries: [UUID: Task<Void, Never>] = [:]
-
   public func waitForOperations() async {
-    while !self.readTasks.isEmpty || !self.sendTasks.isEmpty || !self.readWrites.isEmpty || !self.deliveries.isEmpty
+    while !self.sendTasks.isEmpty || !self.readWrites.isEmpty
       || self.mailboxes.values.contains(where: { $0.request != nil }) {
-      for task in Array(self.readTasks.values) { await task.value }
       for route in Array(self.mailboxes.values) { await route.request?.task.value }
       for task in Array(self.sendTasks.values) { _ = await task.result }
       for task in Array(self.readWrites.values) { _ = await task.result }
-      for task in Array(self.deliveries.values) { await task.value }
       await Task.yield()
     }
   }

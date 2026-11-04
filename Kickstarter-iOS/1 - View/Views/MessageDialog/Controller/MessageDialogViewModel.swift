@@ -13,6 +13,7 @@ public final class MessageDialogViewModel {
   var onError: ((String) -> Void)?
 
   private let feature: MessagingFeature
+  private let sleep: (TimeInterval) async throws -> Void
   private var subject: MessageSubject?
   private var body: String?
   private var enabled = false
@@ -20,7 +21,13 @@ public final class MessageDialogViewModel {
   private var sendVersion = UUID()
 
   public convenience init() { self.init(feature: AppModel.shared.messagingFeature) }
-  public init(feature: MessagingFeature) { self.feature = feature }
+  public init(feature: MessagingFeature, sleep: @escaping (TimeInterval) async throws -> Void = { delay in
+    if delay.isInfinite { try await Task.sleep(nanoseconds: UInt64.max) }
+    else if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
+  }) {
+    self.feature = feature
+    self.sleep = sleep
+  }
 
   public func configureWith(messageSubject: MessageSubject, context _: KSRAnalytics.MessageDialogContext) {
     self.subject = messageSubject
@@ -67,11 +74,11 @@ public final class MessageDialogViewModel {
     let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
     // Admit the write immediately; canceling presentation must not cancel a sent message.
     let command = self.feature.requestSend(body: body, subject: subject)
+    let sleep = self.sleep
     self.sendTask = Task { [weak self] in
       let result = await command.result
       do {
-        if delay.isInfinite { try await Task.sleep(nanoseconds: UInt64.max) }
-        else if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
+        try await sleep(delay)
         try Task.checkCancellation()
       } catch { return }
       guard let self, self.sendVersion == version,

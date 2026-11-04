@@ -179,11 +179,12 @@ final class MessagingFeatureTests: TestCase {
 
   func testSendOrderDuplicateSharingAndDisposedObserversDoNotDropWrites() async throws {
     let subject = MessageSubject.project(id: 42, name: "Fixture")
-    let first = self.feature.sendResult(body: "A", subject: subject).start()
-    let duplicate = self.feature.sendResult(body: "A", subject: subject).start()
-    let second = self.feature.sendResult(body: "B", subject: subject).start()
-    let third = self.feature.sendResult(body: "A", subject: subject).start()
-    first.dispose(); duplicate.dispose(); second.dispose(); third.dispose()
+    let first = self.feature.requestSend(body: "A", subject: subject)
+    let duplicate = self.feature.requestSend(body: "A", subject: subject)
+    let second = self.feature.requestSend(body: "B", subject: subject)
+    let third = self.feature.requestSend(body: "A", subject: subject)
+    let observer = Task { _ = await first.result }
+    observer.cancel()
     await self.provider.sends.waitFor(1)
     XCTAssertEqual(self.provider.bodies, ["A"])
     try self.provider.sends.finish(0, .success(.template))
@@ -193,6 +194,7 @@ final class MessagingFeatureTests: TestCase {
     await self.provider.sends.waitFor(3)
     XCTAssertEqual(self.provider.bodies, ["A", "B", "A"])
     try self.provider.sends.finish(2, .success(.template))
+    for command in [first, duplicate, second, third] { _ = try await command.value }
     await self.feature.waitForOperations()
   }
 
@@ -252,17 +254,19 @@ final class MessagingFeatureTests: TestCase {
   }
 
   func testSessionChangeDuringPresentationDelaySuppressesSuccess() async throws {
-    let producer = self.feature.delayedResult(self.feature.sendResult(
-      body: "Hello", subject: .project(id: 1, name: "Fixture")
-    ))
+    let delay = AccountRequestGate<Void>()
+    defer { delay.releaseAll() }
+    let vm = MessageDialogViewModel(feature: self.feature, sleep: { _ in try await delay.request() })
     var delivered = 0
-    let observation = producer.startWithResult { if case .success = $0 { delivered += 1 } }
-    defer { observation.dispose() }
+    vm.onPosted = { _ in delivered += 1 }
+    vm.configureWith(messageSubject: .project(id: 1, name: "Fixture"), context: .messages)
+    vm.viewDidLoad(); vm.bodyTextChanged("Hello"); vm.postButtonPressed()
     await self.provider.sends.waitFor(1)
     try self.provider.sends.finish(0, .success(.template))
-    await self.feature.waitForOperations()
+    await delay.waitFor(1)
     self.session.sessionChanged()
-    await self.scheduler.advance()
+    try delay.finish(0, .success(()))
+    await vm.waitForSend()
     XCTAssertEqual(delivered, 0)
   }
 
@@ -276,24 +280,25 @@ final class MessagingFeatureTests: TestCase {
     catch { XCTAssertTrue(error is CancellationError) }
   }
 
-  func testReleasedReadCannotDeliverLateFailure() async throws {
-    let route = UUID()
+  func testCancelledReadCannotDeliverLateFailure() async throws {
     var events = 0
-    let observation = self.feature.readResult(route: route) {
-      try await self.feature.thread(id: 42)
-    }.start { event in
-      switch event {
-      case .value, .failed: events += 1
-      case .completed, .interrupted: break
+    let task = Task {
+      do {
+        _ = try await self.feature.thread(id: 42)
+        guard !Task.isCancelled else { return }
+        events += 1
+      } catch {
+        guard !Task.isCancelled else { return }
+        events += 1
       }
     }
-    defer { observation.dispose() }
     await self.provider.threads.waitFor(1)
-    self.feature.release(route: route)
+    task.cancel()
     try self.provider.threads.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
-    await self.feature.waitForOperations()
+    await task.value
     XCTAssertEqual(events, 0)
   }
+
 }
 
 @MainActor
