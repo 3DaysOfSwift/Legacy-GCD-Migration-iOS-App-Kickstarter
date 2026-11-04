@@ -4,13 +4,13 @@ import Prelude
 import UIKit
 
 internal final class HelpWebViewController: WebViewController {
-  fileprivate let viewModel: HelpWebViewModelType = HelpWebViewModel()
+  fileprivate let viewModel = HelpWebViewModel()
 
   @IBOutlet private var logoImageView: UIImageView!
 
   internal static func configuredWith(helpType: HelpType) -> HelpWebViewController {
     let vc = Storyboard.Help.instantiate(HelpWebViewController.self)
-    vc.viewModel.inputs.configureWith(helpType: helpType)
+    vc.viewModel.configureWith(helpType: helpType)
     return vc
   }
 
@@ -26,7 +26,9 @@ internal final class HelpWebViewController: WebViewController {
       )
     }
 
-    self.viewModel.inputs.viewDidLoad()
+    if let request = self.viewModel.requestForViewDidLoad() {
+      self.webView.load(request)
+    }
   }
 
   override func bindStyles() {
@@ -34,12 +36,6 @@ internal final class HelpWebViewController: WebViewController {
 
     _ = self.logoImageView
       |> \.tintColor .~ Colors.Brand.logo.uiColor()
-  }
-
-  internal override func bindViewModel() {
-    self.viewModel.outputs.webViewLoadRequest
-      .observeForControllerAction()
-      .observeValues { [weak self] in _ = self?.webView.load($0) }
   }
 
   @objc fileprivate func closeButtonTapped() {
