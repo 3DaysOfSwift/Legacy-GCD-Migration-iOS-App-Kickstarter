@@ -1,4 +1,3 @@
-import ReactiveSwift
 import AVFoundation
 import Foundation
 
@@ -8,6 +7,18 @@ enum ProjectVideoEvent: Sendable {
   case duration(CMTime)
   case rate(Double, CMTime)
   case completion(UUID)
+}
+
+private final class ProjectVideoBoundaryToken {
+  private let player: AVPlayer
+  private let token: Any
+
+  init(player: AVPlayer, token: Any) {
+    self.player = player
+    self.token = token
+  }
+
+  deinit { self.player.removeTimeObserver(self.token) }
 }
 
 @MainActor
@@ -62,7 +73,7 @@ final class NativeProjectVideoEvents: ProjectVideoEventSource {
   private let continuation: AsyncStream<ProjectVideoEvent>.Continuation
   private let player: AVPlayer
   private var observations: [NSKeyValueObservation] = []
-  private var boundaryToken: ScopedDisposable<AnyDisposable>?
+  private var boundaryToken: ProjectVideoBoundaryToken?
 
   init(player: AVPlayer) {
     self.player = player
@@ -82,18 +93,18 @@ final class NativeProjectVideoEvents: ProjectVideoEventSource {
   }
 
   func setBoundary(_ time: CMTime, id: UUID) {
-    if let token = self.boundaryToken { token.dispose() }
+    self.boundaryToken = nil
     let continuation = self.continuation
-    self.boundaryToken = self.player.scopedBoundaryTimeObserver(
-      forTimes: [NSValue(time: time)], queue: .main
-    ) { continuation.yield(.completion(id)) }
+    let token = self.player.addBoundaryTimeObserver(forTimes: [NSValue(time: time)], queue: .main) {
+      continuation.yield(.completion(id))
+    }
+    self.boundaryToken = ProjectVideoBoundaryToken(player: self.player, token: token)
   }
 
   func stop() {
     self.observations.forEach { $0.invalidate() }
     self.observations.removeAll()
     self.continuation.finish()
-    if let token = self.boundaryToken { token.dispose() }
     self.boundaryToken = nil
     self.player.pause()
     self.player.currentItem?.cancelPendingSeeks()

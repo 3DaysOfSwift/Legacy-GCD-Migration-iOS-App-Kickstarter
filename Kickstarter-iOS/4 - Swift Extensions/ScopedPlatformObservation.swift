@@ -16,13 +16,6 @@ extension NotificationCenter {
 }
 
 extension AVPlayer {
-  func scopedBoundaryTimeObserver(
-    forTimes times: [NSValue], queue: DispatchQueue?, using block: @escaping @Sendable () -> Void
-  ) -> ScopedDisposable<AnyDisposable> {
-    let token = self.addBoundaryTimeObserver(forTimes: times, queue: queue, using: block)
-    return ScopedDisposable(AnyDisposable { self.removeTimeObserver(token) })
-  }
-
   func scopedPeriodicTimeObserver(
     forInterval interval: CMTime, queue: DispatchQueue?, using block: @escaping @Sendable (CMTime) -> Void
   ) -> ScopedDisposable<AnyDisposable> {
