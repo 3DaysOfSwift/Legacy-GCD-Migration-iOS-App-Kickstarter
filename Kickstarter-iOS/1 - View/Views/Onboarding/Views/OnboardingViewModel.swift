@@ -1,34 +1,12 @@
 import AppTrackingTransparency
 import Foundation
 import KsApi
+import Observation
 import UserNotifications
 
 @MainActor
-public protocol OnboardingViewModelInputs {
-  func allowTrackingTapped()
-  func didCompleteAppTrackingDialog(with authStatus: ATTrackingManager.AuthorizationStatus)
-  func didCompletePushNotificationsDialog(with authStatus: UNAuthorizationStatus)
-  func getNotifiedTapped()
-  func goToLoginSignupTapped()
-  func goToNextItemTapped(item: OnboardingItem)
-  func onAppear()
-  func onboardingFlowEnded()
-}
-
-@MainActor
-public protocol OnboardingViewModelOutputs {
-  var onboardingItems: [OnboardingItem] { get }
-}
-
-@MainActor
-public protocol OnboardingViewModelType {
-  var inputs: OnboardingViewModelInputs { get }
-  var outputs: OnboardingViewModelOutputs { get }
-}
-
-@MainActor
-public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Identifiable & ObservableObject,
-  OnboardingViewModelOutputs, OnboardingViewModelInputs {
+@Observable
+public final class OnboardingViewModel {
   @MainActor private var completionTask: Task<Void, Never>?
   @MainActor private var completionVersion = UUID()
   var onTrackingPrompt: (() -> Void)?
@@ -89,13 +67,6 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
     self.onboardingItems = self.useCase.uiOutputs.onboardingItems
 
   }
-
-  public nonisolated static func == (lhs: OnboardingViewModel, rhs: OnboardingViewModel) -> Bool {
-    lhs.id == rhs.id
-  }
-
-  public var inputs: OnboardingViewModelInputs { return self }
-  public var outputs: OnboardingViewModelOutputs { return self }
 
   // MARK: - Inputs
 

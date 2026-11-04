@@ -19,7 +19,7 @@ private enum Constants {
 
 public struct OnboardingView: View {
   @SwiftUI.Environment(\.dismiss) private var dismiss
-  @StateObject private var viewModel = OnboardingViewModel()
+  @State private var viewModel = OnboardingViewModel()
   @Namespace private var animation
   @State private var currentIndex: Int = 0
   @State private var onboardingItems: [OnboardingItem] = []
@@ -67,7 +67,7 @@ public struct OnboardingView: View {
       .padding(.top)
     }
     .onAppear {
-      self.viewModel.inputs.onAppear()
+      self.viewModel.onAppear()
 
       self.viewModel.bind(items: { self.onboardingItems = $0 }, advance: { self.goToNextItem() })
     }
@@ -113,13 +113,13 @@ public struct OnboardingView: View {
     case .welcome, .saveProjects:
       self.goToNextItem()
     case .enableNotifications:
-      self.viewModel.inputs.getNotifiedTapped()
+      self.viewModel.getNotifiedTapped()
     case .allowTracking:
-      self.viewModel.inputs.allowTrackingTapped()
+      self.viewModel.allowTrackingTapped()
     case .loginSignUp:
       /// Triggers the `goToLoginFromOnboarding` notification to inform the AppDelegate to dismiss this view and launch the login/signup flow.
       NotificationCenter.default.post(name: .ksr_goToLoginFromOnboarding, object: nil)
-      self.viewModel.inputs.goToLoginSignupTapped()
+      self.viewModel.goToLoginSignupTapped()
     }
   }
 
@@ -134,7 +134,7 @@ public struct OnboardingView: View {
 
   private func handleClose() {
     self.viewModel.stopObserving()
-    self.viewModel.inputs.onboardingFlowEnded()
+    self.viewModel.onboardingFlowEnded()
     self.hasSeenOnboarding()
     self.dismiss()
   }
@@ -145,7 +145,7 @@ public struct OnboardingView: View {
 
     self.currentIndex += 1
 
-    self.viewModel.inputs.goToNextItemTapped(item: self.onboardingItems[self.currentIndex])
+    self.viewModel.goToNextItemTapped(item: self.onboardingItems[self.currentIndex])
   }
 
   private func hasSeenOnboarding() {

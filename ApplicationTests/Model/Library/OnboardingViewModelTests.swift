@@ -3,8 +3,6 @@ import AppTrackingTransparency
 @testable import KsApi
 
 
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 import UserNotifications
 
@@ -15,7 +13,7 @@ final class OnboardingViewModelTest: TestCase {
 
   private var viewModel: OnboardingViewModel!
 
-  let appTrackingTransparencyDialogObserver = TestObserver<Void, Never>()
+  private var trackingPromptCount = 0
 
   // MARK: Lifecycle
 
@@ -25,7 +23,7 @@ final class OnboardingViewModelTest: TestCase {
     self.viewModel = OnboardingViewModel(with: Bundle.main)
 
     self.viewModel.onTrackingPrompt = { [weak self] in
-      self?.appTrackingTransparencyDialogObserver.observer.send(value: ())
+      self?.trackingPromptCount += 1
     }
   }
 
@@ -73,7 +71,7 @@ final class OnboardingViewModelTest: TestCase {
   }
 
   func testOnboardingItems_AreReturned_OnInit() {
-    let items = self.viewModel.outputs.onboardingItems
+    let items = self.viewModel.onboardingItems
     XCTAssertEqual(items.count, 5)
     XCTAssertTrue(items.contains(where: { $0.type == .welcome }))
     XCTAssertTrue(items.contains(where: { $0.type == .saveProjects }))
@@ -110,9 +108,9 @@ final class OnboardingViewModelTest: TestCase {
     appTrackingTransparency.shouldRequestAuthStatus = true
 
     withEnvironment(appTrackingTransparency: appTrackingTransparency) {
-      self.viewModel.inputs.allowTrackingTapped()
+      self.viewModel.allowTrackingTapped()
 
-      XCTAssertEqual(self.appTrackingTransparencyDialogObserver.values.count, 1)
+      XCTAssertEqual(self.trackingPromptCount, 1)
     }
   }
 
@@ -121,14 +119,14 @@ final class OnboardingViewModelTest: TestCase {
     appTrackingTransparency.shouldRequestAuthStatus = false
 
     withEnvironment(appTrackingTransparency: appTrackingTransparency) {
-      self.viewModel.inputs.allowTrackingTapped()
+      self.viewModel.allowTrackingTapped()
 
-      XCTAssertEqual(self.appTrackingTransparencyDialogObserver.values.count, 0)
+      XCTAssertEqual(self.trackingPromptCount, 0)
     }
   }
 
   func testOnAppear_FiresPageViewedAnalyticsEvents() {
-    self.viewModel.inputs.onAppear()
+    self.viewModel.onAppear()
 
     XCTAssertEqual(["Page Viewed"], self.segmentTrackingClient.events)
     XCTAssertEqual("onboarding", self.segmentTrackingClient.properties.last?["context_page"] as? String)
@@ -136,7 +134,7 @@ final class OnboardingViewModelTest: TestCase {
   }
 
   func testDidCompleteAppTrackingDialog_FiresAnalyticsEvent() {
-    self.viewModel.inputs.didCompleteAppTrackingDialog(with: .authorized)
+    self.viewModel.didCompleteAppTrackingDialog(with: .authorized)
 
     XCTAssertEqual(["CTA Clicked"], self.segmentTrackingClient.events)
     XCTAssertEqual("onboarding", self.segmentTrackingClient.properties.last?["context_page"] as? String)
@@ -146,7 +144,7 @@ final class OnboardingViewModelTest: TestCase {
     )
     XCTAssertEqual("allow", self.segmentTrackingClient.properties.last?["context_cta"] as? String)
 
-    self.viewModel.inputs.didCompleteAppTrackingDialog(with: .denied)
+    self.viewModel.didCompleteAppTrackingDialog(with: .denied)
 
     XCTAssertEqual(["CTA Clicked"], self.segmentTrackingClient.events)
     XCTAssertEqual("onboarding", self.segmentTrackingClient.properties.last?["context_page"] as? String)
@@ -160,7 +158,7 @@ final class OnboardingViewModelTest: TestCase {
   }
 
   func testGoToLoginSignupTapped_FiresAnalyticsEvents() {
-    self.viewModel.inputs.goToLoginSignupTapped()
+    self.viewModel.goToLoginSignupTapped()
 
     /// Two events should be fired. One that tracks login/signup tapped and one that tracks that the onboarding flow was closed.
     /// We're asserting on both events (that will be the last two in `self.segmentTrackingClient.properties`).
@@ -191,7 +189,7 @@ final class OnboardingViewModelTest: TestCase {
   }
 
   func testOnboardingFlowEnded_FiresAnalyticsEvent() {
-    self.viewModel.inputs.onboardingFlowEnded()
+    self.viewModel.onboardingFlowEnded()
 
     XCTAssertEqual("onboarding", self.segmentTrackingClient.properties.last?["context_page"] as? String)
     XCTAssertNil(self.segmentTrackingClient.properties.last?["context_section"] as? String)
@@ -201,7 +199,7 @@ final class OnboardingViewModelTest: TestCase {
   func testGoToNextItemTapped_FiresAnalyticsEvents() {
     let onboardingItem = OnboardingItem(title: "test", subtitle: "test", type: .saveProjects)
 
-    self.viewModel.inputs.goToNextItemTapped(item: onboardingItem)
+    self.viewModel.goToNextItemTapped(item: onboardingItem)
 
     /// Two events should be fired. One that tracks when 'next' tapped and one that tracks that the next onboarding flow item has been viewed..
     /// We're asserting on both events (that will be the last two in `self.segmentTrackingClient.properties`).
