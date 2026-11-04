@@ -1,72 +1,26 @@
 import KsApi
-import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 import UIKit
 
 @MainActor
-public protocol ActivitySampleBackingCellViewModelInputs {
-  /// Call to configure cell with activity value.
-  func configureWith(activity: Activity)
+public final class ActivitySampleBackingCellViewModel {
+  public struct Display {
+    let title: NSAttributedString
+    let imageURL: URL?
+  }
+  var onGoToActivity: (() -> Void)?
+  public init() {}
 
-  /// Call when the see all activity button is tapped.
-  func seeAllActivityTapped()
-}
-
-@MainActor
-public protocol ActivitySampleBackingCellViewModelOutputs {
-  /// Emits the backer image url to be displayed.
-  var backerImageURL: Signal<URL?, Never> { get }
-
-  /// Emits the backing message to be displayed.
-  var backingTitleText: Signal<NSAttributedString, Never> { get }
-
-  /// Emits when should go to activities screen.
-  var goToActivity: Signal<Void, Never> { get }
-}
-
-@MainActor
-public protocol ActivitySampleBackingCellViewModelType {
-  var inputs: ActivitySampleBackingCellViewModelInputs { get }
-  var outputs: ActivitySampleBackingCellViewModelOutputs { get }
-}
-
-@MainActor
-public final class ActivitySampleBackingCellViewModel: ActivitySampleBackingCellViewModelInputs,
-  ActivitySampleBackingCellViewModelOutputs, ActivitySampleBackingCellViewModelType {
-  public init() {
-    let activity = self.activityProperty.signal.skipNil()
-
-    self.backingTitleText = activity.map {
-      let string = Strings.activity_friend_backed_project_name_by_creator_name(
-        friend_name: $0.user?.name ?? "",
-        project_name: $0.project?.name ?? "",
-        creator_name: $0.project?.creator.name ?? ""
-      )
-
-      return string.simpleHtmlAttributedString(font: UIFont.ksr_subhead()) ?? NSAttributedString(string: "")
-    }
-
-    self.backerImageURL = activity
-      .map { ($0.user?.avatar.medium).flatMap(URL.init) }
-
-    self.goToActivity = self.seeAllActivityTappedProperty.signal
+  public func configureWith(activity: Activity) -> Display {
+    let string = Strings.activity_friend_backed_project_name_by_creator_name(
+      friend_name: activity.user?.name ?? "",
+      project_name: activity.project?.name ?? "",
+      creator_name: activity.project?.creator.name ?? ""
+    )
+    return Display(
+      title: string.simpleHtmlAttributedString(font: UIFont.ksr_subhead()) ?? NSAttributedString(string: ""),
+      imageURL: (activity.user?.avatar.medium).flatMap(URL.init)
+    )
   }
 
-  fileprivate let activityProperty = MutableProperty<Activity?>(nil)
-  public func configureWith(activity: Activity) {
-    self.activityProperty.value = activity
-  }
-
-  fileprivate let seeAllActivityTappedProperty = MutableProperty(())
-  public func seeAllActivityTapped() {
-    self.seeAllActivityTappedProperty.value = ()
-  }
-
-  public let backingTitleText: Signal<NSAttributedString, Never>
-  public let backerImageURL: Signal<URL?, Never>
-  public let goToActivity: Signal<Void, Never>
-
-  public var inputs: ActivitySampleBackingCellViewModelInputs { return self }
-  public var outputs: ActivitySampleBackingCellViewModelOutputs { return self }
+  public func seeAllActivityTapped() { self.onGoToActivity?() }
 }

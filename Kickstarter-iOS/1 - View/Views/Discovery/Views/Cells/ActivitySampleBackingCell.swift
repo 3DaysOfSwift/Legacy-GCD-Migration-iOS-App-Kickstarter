@@ -11,7 +11,7 @@ internal protocol ActivitySampleBackingCellDelegate: AnyObject {
 }
 
 internal final class ActivitySampleBackingCell: UITableViewCell, ValueCell {
-  fileprivate let viewModel: ActivitySampleBackingCellViewModelType = ActivitySampleBackingCellViewModel()
+  fileprivate let viewModel = ActivitySampleBackingCellViewModel()
   internal weak var delegate: ActivitySampleBackingCellDelegate?
 
   @IBOutlet fileprivate var activityStackView: UIStackView!
@@ -70,36 +70,18 @@ internal final class ActivitySampleBackingCell: UITableViewCell, ValueCell {
 
   internal override func bindViewModel() {
     super.bindViewModel()
-
-    self.viewModel.outputs.backerImageURL
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.backerImageView.af.cancelImageRequest()
-        self?.backerImageView.image = nil
-      })
-      .skipNil()
-      .observeValues { [weak self] url in
-        self?.backerImageView.ksr_setImageWithURL(url)
-      }
-
-    self.viewModel.outputs.backingTitleText
-      .observeForUI()
-      .observeValues { [weak element = backingTitleLabel] attrString in
-        element?.attributedText = attrString
-      }
-
-    self.viewModel.outputs.goToActivity
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        self?.delegate?.goToActivity()
-      }
+    self.viewModel.onGoToActivity = { [weak self] in self?.delegate?.goToActivity() }
   }
 
   internal func configureWith(value: Activity) {
-    self.viewModel.inputs.configureWith(activity: value)
+    let display = self.viewModel.configureWith(activity: value)
+    self.backingTitleLabel.attributedText = display.title
+    self.backerImageView.af.cancelImageRequest()
+    self.backerImageView.image = nil
+    if let url = display.imageURL { self.backerImageView.ksr_setImageWithURL(url) }
   }
 
   @objc fileprivate func seeAllActivityButtonTapped() {
-    self.viewModel.inputs.seeAllActivityTapped()
+    self.viewModel.seeAllActivityTapped()
   }
 }

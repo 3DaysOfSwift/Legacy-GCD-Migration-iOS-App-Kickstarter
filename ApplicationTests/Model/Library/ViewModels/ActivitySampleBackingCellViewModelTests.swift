@@ -3,28 +3,12 @@
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 internal final class ActivitySampleBackingCellViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   internal let vm = ActivitySampleBackingCellViewModel()
-  internal let backingTitleText = TestObserver<String, Never>()
-  internal let backerImage = TestObserver<String?, Never>()
-  internal let goToActivity = TestObserver<Void, Never>()
-
-  internal override func setUp() async throws {
-    try await super.setUp()
-    MainActor.assumeIsolated {
-      self.vm.outputs.backingTitleText.map { $0.string }.observe(self.backingTitleText.observer)
-      self.vm.outputs.backerImageURL.map { $0?.absoluteString }.observe(self.backerImage.observer)
-      self.vm.outputs.goToActivity.observe(self.goToActivity.observer)
-    }
-  }
-
   func testBackingDataEmits() {
     let backer = User.template
       |> \.name .~ "Best Friend"
@@ -42,21 +26,19 @@ internal final class ActivitySampleBackingCellViewModelTests: TestCase {
       |> Activity.lens.project .~ project
       |> Activity.lens.user .~ backer
 
-    self.vm.inputs.configureWith(activity: activity)
+    let display = self.vm.configureWith(activity: activity)
 
-    self.backingTitleText.assertValues(
-      ["Best Friend backed Super Sweet Project Name by Super Cool Creator"],
-      "Attributed backing string emits."
-    )
-    self.backerImage.assertValues([backer.avatar.medium])
+    XCTAssertEqual(display.title.string, "Best Friend backed Super Sweet Project Name by Super Cool Creator")
+    XCTAssertEqual(display.imageURL?.absoluteString, backer.avatar.medium)
   }
 
   func testGoToActivity() {
     let activity = Activity.template
 
-    self.vm.inputs.configureWith(activity: activity)
-    self.vm.inputs.seeAllActivityTapped()
-
-    self.goToActivity.assertValueCount(1)
+    _ = self.vm.configureWith(activity: activity)
+    var events = 0
+    self.vm.onGoToActivity = { events += 1 }
+    self.vm.seeAllActivityTapped()
+    XCTAssertEqual(events, 1)
   }
 }
