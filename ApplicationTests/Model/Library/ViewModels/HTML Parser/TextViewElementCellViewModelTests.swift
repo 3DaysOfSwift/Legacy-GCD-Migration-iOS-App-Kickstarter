@@ -3,14 +3,13 @@ import KDS
 @testable import KsApi
 
 
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class TextElementCellViewModelTests: TestCase {
-  private let vm: TextViewElementCellViewModelType = TextViewElementCellViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let vm = TextViewElementCellViewModel()
 
-  private let bodyText = TestObserver<NSAttributedString, Never>()
 
   private let expectedSampleString = "sample attributed string"
   private let expectedBaseFontSize: CGFloat = 16.0
@@ -36,7 +35,6 @@ internal final class TextElementCellViewModelTests: TestCase {
       NSAttributedString.Key.paragraphStyle: self.expectedParagraphStyle
     ]
 
-    self.vm.outputs.attributedText.observe(self.bodyText.observer)
   }
 
   func testPlainTextElement() {
@@ -51,8 +49,8 @@ internal final class TextElementCellViewModelTests: TestCase {
       attributes: expectedFontAttributes
     )
 
-    self.vm.inputs.configureWith(textElement: plainTextElement)
-    self.bodyText.assertValue(expectedPlainAttributedText)
+    self.vm.configureWith(textElement: plainTextElement)
+    XCTAssertEqual(self.vm.attributedText, expectedPlainAttributedText)
   }
 
   func testBoldTextElement() {
@@ -70,8 +68,8 @@ internal final class TextElementCellViewModelTests: TestCase {
       attributes: expectedFontAttributes
     )
 
-    self.vm.inputs.configureWith(textElement: boldTextElement)
-    self.bodyText.assertValue(expectedBoldAttributedText)
+    self.vm.configureWith(textElement: boldTextElement)
+    XCTAssertEqual(self.vm.attributedText, expectedBoldAttributedText)
   }
 
   func testItalicTextElement() {
@@ -89,8 +87,8 @@ internal final class TextElementCellViewModelTests: TestCase {
       attributes: expectedFontAttributes
     )
 
-    self.vm.inputs.configureWith(textElement: italicTextElement)
-    self.bodyText.assertValue(expectedItalicAttributedText)
+    self.vm.configureWith(textElement: italicTextElement)
+    XCTAssertEqual(self.vm.attributedText, expectedItalicAttributedText)
   }
 
   func testBoldItalicTextElement() {
@@ -108,8 +106,8 @@ internal final class TextElementCellViewModelTests: TestCase {
       attributes: expectedFontAttributes
     )
 
-    self.vm.inputs.configureWith(textElement: italicTextElement)
-    self.bodyText.assertValue(expectedItalicAttributedText)
+    self.vm.configureWith(textElement: italicTextElement)
+    XCTAssertEqual(self.vm.attributedText, expectedItalicAttributedText)
   }
 
   func testLinkWithStylesTextElement() {
@@ -131,8 +129,8 @@ internal final class TextElementCellViewModelTests: TestCase {
       attributes: expectedFontAttributes
     )
 
-    self.vm.inputs.configureWith(textElement: linkWithStylesTextElement)
-    self.bodyText.assertValue(expectedLinkWithStylesAttributedText)
+    self.vm.configureWith(textElement: linkWithStylesTextElement)
+    XCTAssertEqual(self.vm.attributedText, expectedLinkWithStylesAttributedText)
   }
 
   func testLinkWithNoStylesTextElement() {
@@ -153,8 +151,8 @@ internal final class TextElementCellViewModelTests: TestCase {
       attributes: expectedFontAttributes
     )
 
-    self.vm.inputs.configureWith(textElement: linkWithNoStylesTextElement)
-    self.bodyText.assertValue(expectedLinkWithNoStylesAttributedText)
+    self.vm.configureWith(textElement: linkWithNoStylesTextElement)
+    XCTAssertEqual(self.vm.attributedText, expectedLinkWithNoStylesAttributedText)
   }
 
   func testHeaderElements() {
@@ -186,8 +184,8 @@ internal final class TextElementCellViewModelTests: TestCase {
         attributes: expectedFontAttributes
       )
 
-      self.vm.inputs.configureWith(textElement: headerTextElement)
-      self.bodyText.assertLastValue(expectedHeaderAttributedText)
+      self.vm.configureWith(textElement: headerTextElement)
+      XCTAssertEqual(self.vm.attributedText, expectedHeaderAttributedText)
     }
   }
 
@@ -260,7 +258,7 @@ internal final class TextElementCellViewModelTests: TestCase {
     combinedListAttributedString.append(expectedFirstListAttributedText)
     combinedListAttributedString.append(expectedSecondListAttributedText)
 
-    self.vm.inputs.configureWith(textElement: listTextElement)
-    self.bodyText.assertValue(combinedListAttributedString)
+    self.vm.configureWith(textElement: listTextElement)
+    XCTAssertEqual(self.vm.attributedText, combinedListAttributedString)
   }
 }

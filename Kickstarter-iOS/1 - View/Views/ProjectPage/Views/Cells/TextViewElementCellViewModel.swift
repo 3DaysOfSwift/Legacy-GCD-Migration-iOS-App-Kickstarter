@@ -1,48 +1,20 @@
 import KDS
 import KsApi
-import Prelude
-import ReactiveSwift
+import Observation
 import UIKit
 
-public protocol TextViewElementCellViewModelInputs {
-  /// Call to configure with a TextElement representing raw HTML
-  func configureWith(textElement: TextViewElement)
-}
-
-public protocol TextViewElementCellViewModelOutputs {
-  /// Emits attributed text containing content of HTML after styling has been applied.
-  var attributedText: Signal<NSAttributedString, Never> { get }
-}
-
-public protocol TextViewElementCellViewModelType {
-  var inputs: TextViewElementCellViewModelInputs { get }
-  var outputs: TextViewElementCellViewModelOutputs { get }
-}
-
-public final class TextViewElementCellViewModel:
-  TextViewElementCellViewModelType, TextViewElementCellViewModelInputs, TextViewElementCellViewModelOutputs {
-  // MARK: Helpers
-
-  public init() {
-    let attributedText = self.textElement.signal
-      .skipNil()
-      .switchMap(attributedText(textElement:))
-
-    self.attributedText = attributedText
-  }
-
-  fileprivate let textElement = MutableProperty<TextViewElement?>(nil)
+@MainActor
+@Observable
+public final class TextViewElementCellViewModel {
+  public init() {}
+  public private(set) var attributedText: NSAttributedString?
   public func configureWith(textElement: TextViewElement) {
-    self.textElement.value = textElement
+    self.attributedText = renderAttributedText(textElement: textElement)
   }
-
-  public let attributedText: Signal<NSAttributedString, Never>
-
-  public var inputs: TextViewElementCellViewModelInputs { self }
-  public var outputs: TextViewElementCellViewModelOutputs { self }
 }
 
-private func attributedText(textElement: TextViewElement) -> SignalProducer<NSAttributedString, Never> {
+@MainActor
+private func renderAttributedText(textElement: TextViewElement) -> NSAttributedString {
   let completedAttributedText = NSMutableAttributedString()
 
   for textItemIndex in 0..<textElement.components.count {
@@ -144,5 +116,5 @@ private func attributedText(textElement: TextViewElement) -> SignalProducer<NSAt
     completedAttributedText.append(currentAttributedText)
   }
 
-  return SignalProducer(value: completedAttributedText)
+  return completedAttributedText
 }

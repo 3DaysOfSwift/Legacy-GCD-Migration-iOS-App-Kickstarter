@@ -17,7 +17,6 @@ class TextViewElementCell: UITableViewCell, ValueCell {
 
     self.configureViews()
     self.bindStyles()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -26,18 +25,11 @@ class TextViewElementCell: UITableViewCell, ValueCell {
   }
 
   func configureWith(value textElement: TextViewElement) {
-    self.viewModel.inputs.configureWith(textElement: textElement)
+    self.viewModel.configureWith(textElement: textElement)
+    self.textView.attributedText = self.viewModel.attributedText
   }
 
   // MARK: View Model
-
-  internal override func bindViewModel() {
-    self.viewModel.outputs.attributedText
-      .observeForUI()
-      .observeValues { [weak self] attributedText in
-        self?.textView.attributedText = attributedText
-      }
-  }
 
   // MARK: View Styles
 
