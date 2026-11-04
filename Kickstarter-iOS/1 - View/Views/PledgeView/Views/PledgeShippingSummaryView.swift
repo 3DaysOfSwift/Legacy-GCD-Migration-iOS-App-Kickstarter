@@ -12,8 +12,6 @@ final class PledgeShippingSummaryView: UIView {
   private let rootStackView = UIStackView(frame: .zero)
   private let titleLabel = UILabel(frame: .zero)
 
-  private let viewModel: PledgeShippingSummaryViewModelType = PledgeShippingSummaryViewModel()
-
   // MARK: - Lifecycle
 
   override init(frame: CGRect) {
@@ -21,7 +19,6 @@ final class PledgeShippingSummaryView: UIView {
 
     self.configureSubviews()
     self.bindStyles()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -32,7 +29,9 @@ final class PledgeShippingSummaryView: UIView {
   // MARK: - Configuration
 
   public func configure(with data: PledgeShippingSummaryViewData) {
-    self.viewModel.inputs.configure(with: data)
+    let presentation = PledgeShippingSummaryPresentation(data: data)
+    self.locationLabel.text = presentation.location
+    if let amount = presentation.amount { self.amountLabel.attributedText = amount }
   }
 
   // MARK: - Views
@@ -70,12 +69,4 @@ final class PledgeShippingSummaryView: UIView {
       |> \.textColor .~ LegacyColors.ksr_support_700.uiColor()
   }
 
-  // MARK: - View model
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.locationLabel.rac.text = self.viewModel.outputs.locationLabelText
-    self.amountLabel.rac.attributedText = self.viewModel.outputs.amountLabelAttributedText
-  }
 }
