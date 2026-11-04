@@ -7,8 +7,7 @@ import UIKit
 final class ManageViewPledgeRewardReceivedViewController: UIViewController {
   // MARK: - Properties
 
-  private let viewModel: ManageViewPledgeRewardReceivedViewModelType
-    = ManageViewPledgeRewardReceivedViewModel()
+  private let viewModel = ManageViewPledgeRewardReceivedViewModel()
 
   private lazy var rootStackView: UIStackView = { UIStackView(frame: .zero) }()
   private lazy var rewardReceivedInfoStackView: UIStackView = { UIStackView(frame: .zero) }()
@@ -37,7 +36,7 @@ final class ManageViewPledgeRewardReceivedViewController: UIViewController {
     self.configureViews()
     self.configureDisclaimerView()
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   // MARK: - Views
@@ -58,13 +57,13 @@ final class ManageViewPledgeRewardReceivedViewController: UIViewController {
   // MARK: - Actions
 
   @objc private func toggleValueDidChange(_ toggle: UISwitch) {
-    self.viewModel.inputs.rewardReceivedToggleTapped(isOn: toggle.isOn)
+    self.viewModel.rewardReceivedToggleTapped(isOn: toggle.isOn)
   }
 
   // MARK: - Configuration
 
   public func configureWith(data: ManageViewPledgeRewardReceivedViewData) {
-    self.viewModel.inputs.configureWith(data)
+    self.viewModel.configureWith(data)
   }
 
   // MARK: - Styles
@@ -89,33 +88,21 @@ final class ManageViewPledgeRewardReceivedViewController: UIViewController {
 
   override func bindViewModel() {
     super.bindViewModel()
+    self.viewModel.onChange = { [weak self] in self?.renderState() }
+  }
 
-    self.deliveryLabel.rac.attributedText = self.viewModel.outputs.estimatedDeliveryDateLabelAttributedText
-    self.shippingLabel.rac.attributedText = self.viewModel.outputs.estimatedShippingAttributedText
-    self.shippingLabel.rac.hidden = self.viewModel.outputs.estimatedShippingHidden
-    self.toggleViewController.toggle.rac.on = self.viewModel.outputs.rewardReceived
-    self.toggleViewController.view.rac.hidden = self.viewModel.outputs.rewardReceivedHidden
-    self.pledgeDisclaimerView.rac.hidden = self.viewModel.outputs.pledgeDisclaimerViewHidden
-
-    self.viewModel.outputs.marginWidth
-      .observeForUI()
-      .observeValues { [weak self] borderWidth in
-        self?.rewardReceivedInfoStackView.layer.borderWidth = borderWidth
-      }
-
-    self.viewModel.outputs.layoutMargins
-      .observeForUI()
-      .observeValues { [weak self] layoutMargins in
-        self?.rewardReceivedInfoStackView.layoutMargins = layoutMargins
-      }
-
-    self.viewModel.outputs.cornerRadius
-      .observeForUI()
-      .observeValues { [weak self] radius in
-        guard let self = self else { return }
-        self.rewardReceivedInfoStackView.layer.cornerRadius = radius
-        self.view.layoutIfNeeded()
-      }
+  private func renderState() {
+    let model = self.viewModel
+    if let text = model.estimatedDeliveryDateLabelAttributedText { self.deliveryLabel.attributedText = text }
+    if let text = model.estimatedShippingAttributedText { self.shippingLabel.attributedText = text }
+    self.shippingLabel.isHidden = model.estimatedShippingHidden
+    self.toggleViewController.toggle.isOn = model.rewardReceived
+    self.toggleViewController.view.isHidden = model.rewardReceivedHidden
+    self.pledgeDisclaimerView.isHidden = model.pledgeDisclaimerViewHidden
+    self.rewardReceivedInfoStackView.layer.borderWidth = model.marginWidth
+    self.rewardReceivedInfoStackView.layoutMargins = model.layoutMargins
+    self.rewardReceivedInfoStackView.layer.cornerRadius = model.cornerRadius
+    self.view.layoutIfNeeded()
   }
 
   // MARK: - Helpers

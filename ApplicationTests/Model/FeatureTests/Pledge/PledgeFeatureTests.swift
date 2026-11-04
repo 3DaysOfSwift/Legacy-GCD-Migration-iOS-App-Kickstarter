@@ -131,20 +131,18 @@ final class PledgeFeatureTests: TestCase {
   }
 
   func testRewardToggleTrueFalseTrueRetainsEveryDistinctCommand() async throws {
-    let first = self.feature.receivedResult(projectID: 1, userID: 2, received: true).start()
-    let duplicate = self.feature.receivedResult(projectID: 1, userID: 2, received: true).start()
-    let second = self.feature.receivedResult(projectID: 1, userID: 2, received: false).start()
-    let third = self.feature.receivedResult(projectID: 1, userID: 2, received: true).start()
-    defer {
-      first.dispose()
-      duplicate.dispose()
-      second.dispose()
-      third.dispose()
-    }
+    let first = self.feature.startReceived(projectID: 1, userID: 2, received: true)
+    let duplicate = self.feature.startReceived(projectID: 1, userID: 2, received: true)
+    let second = self.feature.startReceived(projectID: 1, userID: 2, received: false)
+    let third = self.feature.startReceived(projectID: 1, userID: 2, received: true)
     for i in 0..<3 {
       await self.provider.receipts.waitFor(i + 1)
       try self.provider.receipts.finish(i, .success(.template))
     }
+    _ = try await first.value
+    _ = try await duplicate.value
+    _ = try await second.value
+    _ = try await third.value
     await self.feature.waitForOperations()
     XCTAssertEqual(self.provider.receivedValues, [true, false, true])
     XCTAssertEqual(self.provider.receivedProjects, [1, 1, 1])

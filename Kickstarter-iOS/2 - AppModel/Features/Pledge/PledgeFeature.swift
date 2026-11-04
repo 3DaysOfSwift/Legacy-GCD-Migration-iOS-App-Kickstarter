@@ -248,6 +248,14 @@ public final class PledgeFeature {
       await self.execute(.received(projectID: projectID, userID: userID, received: received)))
   }
 
+  /// Admit writes synchronously so rapid toggle changes keep their order even if
+  /// their presentation tasks are cancelled.
+  func startReceived(projectID: Int, userID: Int, received: Bool) -> Task<Backing, Error> {
+    let command = self.request(.received(projectID: projectID, userID: userID, received: received))
+    return Task { try Self.received(await command.value) }
+  }
+
+
   public func openCheckout(_ input: KsApi.CreateCheckoutInput) async throws
     -> CreateCheckoutEnvelope
   {
@@ -323,13 +331,6 @@ public final class PledgeFeature {
   {
     self.result(.cancel(input), transform: { _ in () })
   }
-  public func receivedResult(projectID: Int, userID: Int, received: Bool) -> SignalProducer<
-    Backing, ErrorEnvelope
-  > {
-    self.result(
-      .received(projectID: projectID, userID: userID, received: received), transform: Self.received)
-  }
-
   private func result<Output>(
     _ command: Command, transform: @escaping @MainActor (Value) throws -> Output
   ) -> SignalProducer<Output, ErrorEnvelope> {

@@ -1,7 +1,7 @@
 import KDS
 import KsApi
 import Prelude
-import ReactiveSwift
+import Observation
 import UIKit
 
 public struct ManageViewPledgeRewardReceivedViewData: Equatable {
@@ -13,132 +13,89 @@ public struct ManageViewPledgeRewardReceivedViewData: Equatable {
   public let pledgeDisclaimerViewHidden: Bool
 }
 
-@MainActor
-public protocol ManageViewPledgeRewardReceivedViewModelInputs {
-  func configureWith(_ data: ManageViewPledgeRewardReceivedViewData)
-  func rewardReceivedToggleTapped(isOn: Bool)
-  func viewDidLoad()
-}
+@MainActor @Observable
+public final class ManageViewPledgeRewardReceivedViewModel {
+  public private(set) var cornerRadius: CGFloat = 0
+  public private(set) var estimatedDeliveryDateLabelAttributedText: NSAttributedString?
+  public private(set) var estimatedShippingAttributedText: NSAttributedString?
+  public private(set) var estimatedShippingHidden = true
+  public private(set) var layoutMargins: UIEdgeInsets = .zero
+  public private(set) var marginWidth: CGFloat = 0
+  public private(set) var pledgeDisclaimerViewHidden = false
+  public private(set) var rewardReceived = false
+  public private(set) var rewardReceivedHidden = true
+  @ObservationIgnored public var onChange: (@MainActor () -> Void)?
+  @ObservationIgnored private let feature: PledgeFeature
+  @ObservationIgnored private let delay: @MainActor () async throws -> Void
+  @ObservationIgnored private var observation: Task<Void, Never>?
+  private var data: ManageViewPledgeRewardReceivedViewData?
+  private var loaded = false
 
-@MainActor
-public protocol ManageViewPledgeRewardReceivedViewModelOutputs {
-  var cornerRadius: Signal<CGFloat, Never> { get }
-  var estimatedDeliveryDateLabelAttributedText: Signal<NSAttributedString, Never> { get }
-  var estimatedShippingAttributedText: Signal<NSAttributedString, Never> { get }
-  var estimatedShippingHidden: Signal<Bool, Never> { get }
-  var layoutMargins: Signal<UIEdgeInsets, Never> { get }
-  var marginWidth: Signal<CGFloat, Never> { get }
-  var pledgeDisclaimerViewHidden: Signal<Bool, Never> { get }
-  var rewardReceived: Signal<Bool, Never> { get }
-  var rewardReceivedHidden: Signal<Bool, Never> { get }
-}
-
-@MainActor
-public protocol ManageViewPledgeRewardReceivedViewModelType {
-  var inputs: ManageViewPledgeRewardReceivedViewModelInputs { get }
-  var outputs: ManageViewPledgeRewardReceivedViewModelOutputs { get }
-}
-
-@MainActor
-public class ManageViewPledgeRewardReceivedViewModel:
-  ManageViewPledgeRewardReceivedViewModelType,
-  ManageViewPledgeRewardReceivedViewModelInputs,
-  ManageViewPledgeRewardReceivedViewModelOutputs {
-  public init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
-    let data = Signal.combineLatest(
-      self.configureWithDataProperty.signal,
-      self.viewDidLoadSignal
-    )
-    .map(first)
-    .skipNil()
-
-    let project = data.map(\.project)
-
-    let backer = project
-      .map { _ in AppEnvironment.current.currentUser }
-      .skipNil()
-
-    let rewardReceivedEvent = Signal.combineLatest(
-      project,
-      backer
-    )
-    .takePairWhen(self.rewardReceivedToggleTappedProperty.signal)
-    .map(unpack)
-    .switchMap { project, backer, received in
-      feature.delayedResult(feature.receivedResult(
-        projectID: project.id, userID: backer.id, received: received
-      ))
-      .materialize()
+  public init(feature: PledgeFeature = AppModel.shared.pledgeFeature,
+              delay: @escaping @MainActor () async throws -> Void = {
+    let interval = AppEnvironment.current.apiDelayInterval
+    switch interval {
+    case .seconds(let n): try await Task.sleep(for: .seconds(n))
+    case .milliseconds(let n): try await Task.sleep(for: .milliseconds(n))
+    case .microseconds(let n): try await Task.sleep(for: .microseconds(n))
+    case .nanoseconds(let n): try await Task.sleep(for: .nanoseconds(n))
+    case .never: try await Task.sleep(nanoseconds: UInt64.max)
+    @unknown default: break
     }
-
-    let markedReceivedBacking = rewardReceivedEvent.values()
-
-    let initialRewardReceived = data
-      .map(\.backerCompleted)
-
-    let updatedRewardReceived = markedReceivedBacking
-      .map { $0.backerCompleted.coalesceWith(false) }
-
-    self.rewardReceived = Signal.merge(
-      initialRewardReceived,
-      updatedRewardReceived
-    )
-
-    self.estimatedDeliveryDateLabelAttributedText = data.map(\.estimatedDeliveryOn)
-      .map { estimatedDeliveryAttributedText(with: $0) }
-
-    self.estimatedShippingAttributedText = data.map(\.estimatedShipping).skipNil()
-      .map(formatEstimatedShipping)
-
-    self.estimatedShippingHidden = data.map(\.estimatedShipping)
-      .map { $0 == nil }
-
-    self.rewardReceivedHidden = data.map(\.backingState).map { state in state != .collected }
-    self.cornerRadius = self.rewardReceivedHidden.map { $0 ? 0 : Styles.grid(2) }
-    self.layoutMargins = self.rewardReceivedHidden.map { $0 ? .zero : .init(all: Styles.gridHalf(5)) }
-    self.marginWidth = self.rewardReceivedHidden.map { $0 ? 0 : 1 }
-
-    self.pledgeDisclaimerViewHidden = data.map(\.pledgeDisclaimerViewHidden)
-
-    // MARK: Analytics
-
-    self.rewardReceivedToggleTappedProperty.signal.withLatestFrom(project)
-      .observeValues { rewardReceived, project in
-        AppEnvironment.current.ksrAnalytics.trackRewardReceivedToggled(
-          toggleOn: rewardReceived,
-          project: project,
-          context: .managePledgeScreen
-        )
-      }
+  }) {
+    self.feature = feature
+    self.delay = delay
   }
 
-  private let configureWithDataProperty = MutableProperty<ManageViewPledgeRewardReceivedViewData?>(nil)
   public func configureWith(_ data: ManageViewPledgeRewardReceivedViewData) {
-    self.configureWithDataProperty.value = data
+    self.data = data
+    if self.loaded { self.apply(data) }
   }
 
-  private let rewardReceivedToggleTappedProperty = MutableProperty<Bool>(false)
-  public func rewardReceivedToggleTapped(isOn: Bool) {
-    self.rewardReceivedToggleTappedProperty.value = isOn
-  }
-
-  private let (viewDidLoadSignal, viewDidLoadObserver) = Signal<(), Never>.pipe()
   public func viewDidLoad() {
-    self.viewDidLoadObserver.send(value: ())
+    self.loaded = true
+    if let data = self.data { self.apply(data) }
   }
 
-  public let cornerRadius: Signal<CGFloat, Never>
-  public let estimatedDeliveryDateLabelAttributedText: Signal<NSAttributedString, Never>
-  public let estimatedShippingAttributedText: Signal<NSAttributedString, Never>
-  public let estimatedShippingHidden: Signal<Bool, Never>
-  public let layoutMargins: Signal<UIEdgeInsets, Never>
-  public let marginWidth: Signal<CGFloat, Never>
-  public let pledgeDisclaimerViewHidden: Signal<Bool, Never>
-  public let rewardReceived: Signal<Bool, Never>
-  public let rewardReceivedHidden: Signal<Bool, Never>
+  private func apply(_ data: ManageViewPledgeRewardReceivedViewData) {
+    self.rewardReceived = data.backerCompleted
+    self.estimatedDeliveryDateLabelAttributedText = estimatedDeliveryAttributedText(with: data.estimatedDeliveryOn)
+    if let shipping = data.estimatedShipping { self.estimatedShippingAttributedText = formatEstimatedShipping(with: shipping) }
+    self.estimatedShippingHidden = data.estimatedShipping == nil
+    self.rewardReceivedHidden = data.backingState != .collected
+    self.cornerRadius = self.rewardReceivedHidden ? 0 : Styles.grid(2)
+    self.layoutMargins = self.rewardReceivedHidden ? .zero : .init(all: Styles.gridHalf(5))
+    self.marginWidth = self.rewardReceivedHidden ? 0 : 1
+    self.pledgeDisclaimerViewHidden = data.pledgeDisclaimerViewHidden
+    self.onChange?()
+  }
 
-  public var inputs: ManageViewPledgeRewardReceivedViewModelInputs { return self }
-  public var outputs: ManageViewPledgeRewardReceivedViewModelOutputs { return self }
+  public func rewardReceivedToggleTapped(isOn: Bool) {
+    guard self.loaded, let data = self.data else { return }
+    AppEnvironment.current.ksrAnalytics.trackRewardReceivedToggled(
+      toggleOn: isOn, project: data.project, context: .managePledgeScreen
+    )
+    guard let user = AppEnvironment.current.currentUser else { return }
+    let generation = self.feature.sessionFeature.generation
+    let sessionUserID = self.feature.sessionFeature.currentUser?.id
+    let task = self.feature.startReceived(projectID: data.project.id, userID: user.id, received: isOn)
+    self.observation?.cancel()
+    self.observation = Task { [weak self] in
+      do {
+        let backing = try await task.value
+        guard let self else { return }
+        try await self.delay()
+        try Task.checkCancellation()
+        guard self.feature.sessionFeature.generation == generation,
+              self.feature.sessionFeature.currentUser?.id == sessionUserID else { return }
+        self.rewardReceived = backing.backerCompleted ?? false
+        self.onChange?()
+      } catch { }
+    }
+  }
+
+  func waitForObservation() async { await self.observation?.value }
+  deinit { self.observation?.cancel() }
 }
 
 private func formatEstimatedShipping(with shippingRange: String) -> NSAttributedString {
