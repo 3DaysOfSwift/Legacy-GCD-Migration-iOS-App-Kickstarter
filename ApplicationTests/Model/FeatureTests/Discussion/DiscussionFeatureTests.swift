@@ -428,38 +428,37 @@ final class DiscussionFeatureTests: TestCase {
     defer { provider.releaseAll() }
     let feature = self.feature(provider)
     let route = UUID()
-    var updates: [Int] = []
-    let observation = feature.updateValues.observeValues { updates.append($0.1.id) }
-    defer { observation?.dispose() }
     let first = feature.requestUpdate(route: route, id: 1, project: .id(9))
     let duplicate = feature.requestUpdate(route: route, id: 1, project: .id(9))
     await provider.waitForUpdates(1)
     let second = feature.requestUpdate(route: route, id: 2, project: .id(9))
     await provider.waitForUpdates(2)
     try provider.finishUpdate(1, id: 2)
-    await second.value
+    let secondValue = await second.value
     try provider.finishUpdate(0, id: 1)
-    await first.value
-    await duplicate.value
-    XCTAssertEqual(updates, [2])
+    let firstValue = await first.value
+    let duplicateValue = await duplicate.value
+    XCTAssertEqual(secondValue?.id, 2)
+    XCTAssertNil(firstValue)
+    XCTAssertNil(duplicateValue)
     XCTAssertEqual(provider.updateIDs, [1, 2])
   }
 
   func testContextAndUpdateRoutesAreIndependentAndFailuresStaySilent() async {
     let provider = ControlledDiscussionProvider()
     let feature = self.feature(provider)
-    var projects: [Project] = [], updates: [Int] = []
+    var projects: [Project] = []
     let p = feature.projectValues.observeValues { projects.append($0.1) }
-    let u = feature.updateValues.observeValues { updates.append($0.1.id) }
-    defer { p?.dispose(); u?.dispose() }
+    defer { p?.dispose() }
     let route = UUID()
     await feature.loadProject(route: route, param: .id(9))
-    await feature.loadUpdate(route: route, id: 7, project: .id(9))
+    let update = await feature.loadUpdate(route: route, id: 7, project: .id(9))
     provider.fail = true
     await feature.loadProject(route: route, param: .id(10))
-    await feature.loadUpdate(route: route, id: 8, project: .id(9))
+    let failedUpdate = await feature.loadUpdate(route: route, id: 8, project: .id(9))
     XCTAssertEqual(projects.count, 1)
-    XCTAssertEqual(updates, [7])
+    XCTAssertEqual(update?.id, 7)
+    XCTAssertNil(failedUpdate)
   }
 }
 

@@ -93,7 +93,7 @@ public final class CommentsViewModel: CommentsViewModelType,
   private let route = UUID()
   private let disposables = ScopedDisposable(CompositeDisposable())
   private(set) var loadingTask: Task<Void, Never>?
-  private(set) var contextTask: Task<Void, Never>?
+  private(set) var contextTask: Task<Project?, Never>?
 
   public init(feature: DiscussionFeature? = nil) {
     let feature = feature ?? AppModel.shared.discussionFeature
@@ -510,7 +510,7 @@ public final class CommentsViewModel: CommentsViewModelType,
   }
 
   func waitForLoads() async {
-    await self.contextTask?.value
+    _ = await self.contextTask?.value
     await self.loadingTask?.value
     await self.feature.waitForMutations()
   }

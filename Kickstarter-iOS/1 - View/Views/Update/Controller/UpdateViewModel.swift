@@ -1,201 +1,111 @@
 import Foundation
 import KsApi
-
-import Prelude
-import ReactiveSwift
 import WebKit
 
-private struct UpdateData {
-  fileprivate let project: Project
-  fileprivate let update: Update
-}
-
 @MainActor
-internal protocol UpdateViewModelInputs {
-  /// Call with the project and update given to the controller.
-  func configureWith(project: Project, update: Update)
-
-  /// Call when the webview needs to decide a policy for a navigation action. Returns the decision policy.
-  func decidePolicyFor(navigationAction: WKNavigationActionData)
-    -> WKNavigationActionPolicy
-
-  /// Call when the view loads.
-  func viewDidLoad()
-}
-
-@MainActor
-internal protocol UpdateViewModelOutputs {
-  /// Emits when we should go to comments for the update.
-  var goToComments: Signal<Update, Never> { get }
-
-  /// Emits when we should go to the project.
-  var goToProject: Signal<(Project, RefTag), Never> { get }
-
-  /// Emits when we should open a safari browser with the URL.
-  var goToSafariBrowser: Signal<URL, Never> { get }
-
-  /// Emits the title of the controller.
-  var title: Signal<String, Never> { get }
-
-  /// Emits a request that should be loaded into the webview.
-  var webViewLoadRequest: Signal<URLRequest, Never> { get }
-}
-
-@MainActor
-internal protocol UpdateViewModelType {
-  var inputs: UpdateViewModelInputs { get }
-  var outputs: UpdateViewModelOutputs { get }
-}
-
-@MainActor
-internal final class UpdateViewModel: UpdateViewModelType, UpdateViewModelInputs, UpdateViewModelOutputs {
+internal final class UpdateViewModel {
+  var onComments: ((Update) -> Void)?
+  var onProject: ((Project, RefTag) -> Void)?
+  var onSafari: ((URL) -> Void)?
+  var onTitle: ((String) -> Void)?
+  var onLoadRequest: ((URLRequest) -> Void)?
   private let feature: DiscussionFeature
   private let route = UUID()
-  private let disposables = ScopedDisposable(CompositeDisposable())
-  private var updateTask: Task<Update?, Never>?
+  private var project: Project?
+  private var currentUpdate: Update?
+  private var loaded = false
+  private var updateTask: Task<Void, Never>?
   private var projectTask: Task<Void, Never>?
-  private let projectNavigation = Signal<(WKNavigationActionData, Project, RefTag), Never>.pipe()
-  private var pendingProjectNavigation: (WKNavigationActionData, RefTag)?
+  private var updateRevision = 0
+  private var projectRevision = 0
 
   internal init(feature: DiscussionFeature? = nil) {
-    let feature = feature ?? AppModel.shared.discussionFeature
-    self.feature = feature
-    let route = self.route
-    let configurationData = self.configurationDataProperty.signal.skipNil()
+    self.feature = feature ?? AppModel.shared.discussionFeature
+  }
 
-    let initialUpdate = configurationData.map { $0.update }
+  internal func configureWith(project: Project, update: Update) {
+    self.project = project
+    self.currentUpdate = update
+    if self.loaded { self.displayTitle(update) }
+  }
 
-    let project = configurationData.map { $0.project }
+  internal func viewDidLoad() {
+    self.loaded = true
+    guard let update = self.currentUpdate else { return }
+    if let url = URL(string: update.urls.web.update) {
+      self.onLoadRequest?(AppEnvironment.current.apiService.preparedRequest(forURL: url))
+    }
+    self.displayTitle(update)
+  }
 
-    let initialUpdateLoadRequest = initialUpdate
-      .takeWhen(self.viewDidLoadProperty.signal)
-      .map { URL(string: $0.urls.web.update) }
-      .skipNil()
-      .map { AppEnvironment.current.apiService.preparedRequest(forURL: $0) }
+  private func displayTitle(_ update: Update) {
+    self.onTitle?(Strings.activity_project_update_update_count(update_count: Format.wholeNumber(update.sequence)))
+  }
 
-    let navigationAction = self.policyForNavigationActionProperty.signal.skipNil()
-
-    let anotherUpdateLoadRequest = navigationAction
-      .filter {
-        $0.navigationType == .linkActivated && Navigation.Project.updateWithRequest($0.request) != nil
+  internal func decidePolicyFor(navigationAction action: WKNavigationActionData) -> WKNavigationActionPolicy {
+    if action.navigationType == .linkActivated {
+      if let (param, id) = Navigation.Project.updateWithRequest(action.request) {
+        let request = AppEnvironment.current.apiService.preparedRequest(forRequest: action.request)
+        self.onLoadRequest?(request)
+        self.loadUpdate(project: param, id: id)
       }
-      .map { AppEnvironment.current.apiService.preparedRequest(forRequest: $0.request) }
-
-    self.webViewLoadRequest = Signal.merge(
-      initialUpdateLoadRequest,
-      anotherUpdateLoadRequest
-    )
-
-    let updateRequests = anotherUpdateLoadRequest.map { Navigation.Project.updateWithRequest($0) }.skipNil()
-    let anotherUpdate = feature.updateValues.filter { $0.0 == route }.map { $0.1 }
-    let currentUpdate = Signal.merge(initialUpdate, anotherUpdate)
-
-    self.title = Signal.combineLatest(currentUpdate, self.viewDidLoadProperty.signal.take(first: 1))
-      .map(first)
-      .map { Strings.activity_project_update_update_count(update_count: Format.wholeNumber($0.sequence)) }
-
-    self.policyDecisionProperty <~ navigationAction
-      .map { action in
-        action.navigationType == .other || action.targetFrame?.mainFrame == .some(false)
-          ? .allow
-          : .cancel
-      }
-
-    let externalNavigationAction = navigationAction
-      .filter { action in action.navigationType == .linkActivated }
-      .filter { isExternalNavigation($0) }
-
-    let internalNavigationAction = navigationAction
-      .filter { action in action.navigationType == .linkActivated }
-      .filter { !isExternalNavigation($0) }
-
-    let goToComments = currentUpdate
-      .takePairWhen(internalNavigationAction)
-      .map { update, action -> Update? in
-        Navigation.Project.updateCommentsWithRequest(action.request) != nil ? update : nil
-      }
-      .skipNil()
-
-    let goToProject = internalNavigationAction
-      .map { action in (action, Navigation.Project.withRequest(action.request)) }
-      .filter(second >>> isNotNil)
-
-    let projectAndRefTag = self.projectNavigation.output
-
-    self.goToComments = goToComments
-    self.goToProject = projectAndRefTag.filter { _, project, _ in project.displayPrelaunch != .some(true) }
-      .map { _, project, refTag in (project, refTag) }
-
-    let goToPrelaunchPage = projectAndRefTag
-      .filter { _, project, _ in project.displayPrelaunch == true }
-      .map(first)
-
-    self.goToSafariBrowser = Signal.merge(externalNavigationAction, goToPrelaunchPage)
-      .map { action in action.request.url }
-      .skipNil()
-    self.disposables += feature.projectValues.filter { $0.0 == route }
-      .observeValues { [weak self] _, project in
-        guard let self, let (action, refTag) = self.pendingProjectNavigation else { return }
-        self.pendingProjectNavigation = nil
-        self.projectNavigation.input.send(value: (action, project, refTag))
-      }
-    self.disposables += project.takePairWhen(goToProject).map(unpack)
-      .observeValues { [weak self] project, action, params in
-        guard let self, let (param, refTag) = params else { return }
-        self.pendingProjectNavigation = nil
-        if param == .id(project.id) || param == .slug(project.slug) {
-          feature.cancelProject(route: route)
-          self.projectNavigation.input.send(value: (action, project, refTag ?? .update))
-        } else {
-          self.pendingProjectNavigation = (action, refTag ?? .update)
-          self.projectTask = feature.requestProject(route: route, param: param)
+      if isExternalNavigation(action) {
+        if let url = action.request.url { self.onSafari?(url) }
+      } else {
+        if Navigation.Project.updateCommentsWithRequest(action.request) != nil, let update = self.currentUpdate {
+          self.onComments?(update)
+        }
+        if let (param, refTag) = Navigation.Project.withRequest(action.request), let current = self.project {
+          self.navigateToProject(param: param, refTag: refTag ?? .update, action: action, current: current)
         }
       }
-    self.disposables += updateRequests.observeValues { [weak self] project, id in
-      self?.updateTask = feature.requestUpdate(route: route, id: id, project: project)
+    }
+    return action.navigationType == .other || action.targetFrame?.mainFrame == .some(false) ? .allow : .cancel
+  }
+
+  private func loadUpdate(project: Param, id: Int) {
+    let request = self.feature.requestUpdate(route: self.route, id: id, project: project)
+    self.updateRevision += 1
+    let revision = self.updateRevision
+    self.updateTask = Task { [weak self] in
+      guard let update = await request.value, !Task.isCancelled, let self, self.updateRevision == revision else { return }
+      self.currentUpdate = update
+      if self.loaded { self.displayTitle(update) }
     }
   }
 
-  fileprivate let configurationDataProperty = MutableProperty<UpdateData?>(nil)
-  internal func configureWith(project: Project, update: Update) {
-    self.configurationDataProperty.value = UpdateData(project: project, update: update)
+  private func navigateToProject(param: Param, refTag: RefTag, action: WKNavigationActionData, current: Project) {
+    self.projectRevision += 1
+    let revision = self.projectRevision
+    if param == .id(current.id) || param == .slug(current.slug) {
+      self.feature.cancelProject(route: self.route)
+      self.deliverProject(current, refTag: refTag, action: action)
+      return
+    }
+    let request = self.feature.requestProject(route: self.route, param: param)
+    self.projectTask = Task { [weak self] in
+      guard let project = await request.value, !Task.isCancelled, let self, self.projectRevision == revision else { return }
+      self.deliverProject(project, refTag: refTag, action: action)
+    }
   }
 
-  fileprivate let policyForNavigationActionProperty = MutableProperty<WKNavigationActionData?>(nil)
-  fileprivate let policyDecisionProperty = MutableProperty(WKNavigationActionPolicy.allow)
-  internal func decidePolicyFor(navigationAction: WKNavigationActionData)
-    -> WKNavigationActionPolicy {
-    self.policyForNavigationActionProperty.value = navigationAction
-    return self.policyDecisionProperty.value
+  private func deliverProject(_ project: Project, refTag: RefTag, action: WKNavigationActionData) {
+    if project.displayPrelaunch == true {
+      if let url = action.request.url { self.onSafari?(url) }
+    } else {
+      self.onProject?(project, refTag)
+    }
   }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
-  internal func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
-  }
-
-  internal let goToComments: Signal<Update, Never>
-  internal let goToProject: Signal<(Project, RefTag), Never>
-  internal let goToSafariBrowser: Signal<URL, Never>
-  internal let title: Signal<String, Never>
-  internal let webViewLoadRequest: Signal<URLRequest, Never>
 
   deinit {
     self.updateTask?.cancel()
     self.projectTask?.cancel()
-
     let feature = self.feature
     let route = self.route
     Task { @MainActor in feature.release(route: route) }
   }
 
-  func waitForLoads() async {
-    _ = await self.updateTask?.value
-    await self.projectTask?.value
-  }
-
-  internal var inputs: UpdateViewModelInputs { return self }
-  internal var outputs: UpdateViewModelOutputs { return self }
+  func waitForLoads() async { await self.updateTask?.value; await self.projectTask?.value }
 }
 
 @MainActor

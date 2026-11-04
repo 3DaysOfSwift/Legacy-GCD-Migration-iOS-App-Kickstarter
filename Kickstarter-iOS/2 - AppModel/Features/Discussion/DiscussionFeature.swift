@@ -441,15 +441,13 @@ public final class DiscussionFeature {
   }
 
   private var updates: [UUID: (identity: UpdateIdentity, id: UUID, task: Task<Update?, Never>)] = [:]
-  private var projects: [UUID: (param: Param, userID: Int?, id: UUID, task: Task<Void, Never>)] = [:]
-  private let updatePipe = Signal<(UUID, Update), Never>.pipe()
+  private var projects: [UUID: (param: Param, userID: Int?, id: UUID, task: Task<Project?, Never>)] = [:]
   private let projectPipe = Signal<(UUID, Project), Never>.pipe()
-  public var updateValues: Signal<(UUID, Update), Never> { self.updatePipe.output }
   public var projectValues: Signal<(UUID, Project), Never> { self.projectPipe.output }
 
-  public func loadUpdate(route: UUID, id: Int, project: Param) async {
-    guard !Task.isCancelled else { return }
-    _ = await self.requestUpdate(route: route, id: id, project: project).value
+  public func loadUpdate(route: UUID, id: Int, project: Param) async -> Update? {
+    guard !Task.isCancelled else { return nil }
+    return await self.requestUpdate(route: route, id: id, project: project).value
   }
 
   @discardableResult
@@ -468,7 +466,6 @@ public final class DiscussionFeature {
         try Task.checkCancellation()
         guard let self, self.updates[route]?.id == token,
               identity.userID == AppEnvironment.current.currentUser?.id else { return nil }
-        self.updatePipe.input.send(value: (route, update))
         return update
       } catch {
         // Existing navigation silently demotes lookup errors.
@@ -481,11 +478,11 @@ public final class DiscussionFeature {
 
   public func loadProject(route: UUID, param: Param) async {
     guard !Task.isCancelled else { return }
-    await self.requestProject(route: route, param: param).value
+    _ = await self.requestProject(route: route, param: param).value
   }
 
   @discardableResult
-  public func requestProject(route: UUID, param: Param) -> Task<Void, Never> {
+  public func requestProject(route: UUID, param: Param) -> Task<Project?, Never> {
     let userID = AppEnvironment.current.currentUser?.id
     if let existing = self.projects[route], existing.param == param, existing.userID == userID {
       return existing.task
@@ -493,18 +490,20 @@ public final class DiscussionFeature {
     self.projects[route]?.task.cancel()
     let provider = self.makeProvider()
     let token = UUID()
-    let task = Task { [weak self] in
+    let task: Task<Project?, Never> = Task { [weak self] in
       defer { if self?.projects[route]?.id == token { self?.projects[route] = nil } }
       do {
         try Task.checkCancellation()
-        guard userID == AppEnvironment.current.currentUser?.id else { return }
+        guard userID == AppEnvironment.current.currentUser?.id else { return nil }
         let project = try await provider.project(param: param)
         try Task.checkCancellation()
         guard let self, self.projects[route]?.id == token,
-              userID == AppEnvironment.current.currentUser?.id else { return }
+              userID == AppEnvironment.current.currentUser?.id else { return nil }
         self.projectPipe.input.send(value: (route, project))
+        return project
       } catch {
         // Preserve the legacy context lookup's silent error delivery.
+        return nil
       }
     }
     self.projects[route] = (param, userID, token, task)

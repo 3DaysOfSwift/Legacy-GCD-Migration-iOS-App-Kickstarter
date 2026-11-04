@@ -4,8 +4,6 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import WebKit
 import XCTest
 
@@ -20,27 +18,24 @@ final class UpdateViewModelTests: TestCase {
   fileprivate let update = .template
     |> Update.lens.projectId .~ 1
 
-  fileprivate let goToComments = TestObserver<Update, Never>()
-  fileprivate let goToProject = TestObserver<Project, Never>()
-  fileprivate let goToSafariBrowser = TestObserver<URL, Never>()
-  fileprivate let title = TestObserver<String, Never>()
-  fileprivate let webViewLoadRequest = TestObserver<String?, Never>()
+  fileprivate let goToComments = UpdateRecorder<Update>()
+  fileprivate let goToProject = UpdateRecorder<Project>()
+  fileprivate let goToSafariBrowser = UpdateRecorder<URL>()
+  fileprivate let title = UpdateRecorder<String>()
+  fileprivate let webViewLoadRequest = UpdateRecorder<String?>()
 
   override func setUp() async throws {
     try await super.setUp()
-    MainActor.assumeIsolated {
-      self.vm.outputs.goToComments.observe(self.goToComments.observer)
-      self.vm.outputs.goToProject.map { $0.0 }.observe(self.goToProject.observer)
-      self.vm.outputs.goToSafariBrowser.observe(self.goToSafariBrowser.observer)
-      self.vm.outputs.title.observe(self.title.observer)
-      self.vm.outputs.webViewLoadRequest.map { $0.url?.absoluteString }
-        .observe(self.webViewLoadRequest.observer)
-    }
+    self.vm.onComments = { self.goToComments.values.append($0) }
+    self.vm.onProject = { project, _ in self.goToProject.values.append(project) }
+    self.vm.onSafari = { self.goToSafariBrowser.values.append($0) }
+    self.vm.onTitle = { self.title.values.append($0) }
+    self.vm.onLoadRequest = { self.webViewLoadRequest.values.append($0.url?.absoluteString) }
   }
 
   func testUpdateUrlLoads() async {
-    self.vm.inputs.configureWith(project: self.project, update: self.update)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(project: self.project, update: self.update)
+    self.vm.viewDidLoad()
 
     let query = "client_id=\(self.apiService.serverConfig.apiClientAuth.clientId)&currency=USD"
     self.webViewLoadRequest.assertValues(
@@ -49,8 +44,8 @@ final class UpdateViewModelTests: TestCase {
   }
 
   func testTitle() async {
-    self.vm.inputs.configureWith(project: self.project, update: self.update)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(project: self.project, update: self.update)
+    self.vm.viewDidLoad()
 
     await self.vm.waitForLoads()
 
@@ -68,8 +63,8 @@ final class UpdateViewModelTests: TestCase {
       .flatMap { $0.deletingLastPathComponent() }
       .map { $0.appendingPathComponent(String(prevUpdate.id)) }!
 
-    self.vm.inputs.configureWith(project: self.project, update: self.update)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(project: self.project, update: self.update)
+    self.vm.viewDidLoad()
 
     await withEnvironment(apiService: MockService(fetchUpdateResponse: prevUpdate)) {
       let request = URLRequest(url: prevUpdateUrl)
@@ -80,7 +75,7 @@ final class UpdateViewModelTests: TestCase {
         targetFrame: WKFrameInfoData(mainFrame: true, request: request)
       )
 
-      let policy = self.vm.inputs.decidePolicyFor(navigationAction: navigationAction)
+      let policy = self.vm.decidePolicyFor(navigationAction: navigationAction)
 
       XCTAssertEqual(WKNavigationActionPolicy.cancel.rawValue, policy.rawValue)
 
@@ -113,8 +108,8 @@ final class UpdateViewModelTests: TestCase {
       .flatMap { $0.deletingLastPathComponent() }
       .map { $0.appendingPathComponent(String(anotherProject.id)) }!
 
-    self.vm.inputs.configureWith(project: self.project, update: self.update)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(project: self.project, update: self.update)
+    self.vm.viewDidLoad()
 
     await withEnvironment(apiService: MockService(fetchProjectResult: .success(anotherProject))) {
       let request = URLRequest(url: anotherProjectUrl)
@@ -125,7 +120,7 @@ final class UpdateViewModelTests: TestCase {
         targetFrame: WKFrameInfoData(mainFrame: true, request: request)
       )
 
-      let policy = self.vm.inputs.decidePolicyFor(navigationAction: navigationAction)
+      let policy = self.vm.decidePolicyFor(navigationAction: navigationAction)
 
       XCTAssertEqual(WKNavigationActionPolicy.cancel.rawValue, policy.rawValue)
 
@@ -142,8 +137,8 @@ final class UpdateViewModelTests: TestCase {
   }
 
   func testGoToComments() async {
-    self.vm.inputs.configureWith(project: self.project, update: self.update)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(project: self.project, update: self.update)
+    self.vm.viewDidLoad()
 
     let commentsRequest = URL(string: self.update.urls.web.update)
       .map { $0.appendingPathComponent("comments") }
@@ -158,7 +153,7 @@ final class UpdateViewModelTests: TestCase {
 
     XCTAssertEqual(
       WKNavigationActionPolicy.cancel.rawValue,
-      self.vm.inputs.decidePolicyFor(navigationAction: navigationAction).rawValue
+      self.vm.decidePolicyFor(navigationAction: navigationAction).rawValue
     )
     self.goToComments.assertValues([self.update])
     await self.vm.waitForLoads()
@@ -168,8 +163,8 @@ final class UpdateViewModelTests: TestCase {
   }
 
   func testGoToSafariBrowser() async {
-    self.vm.inputs.configureWith(project: self.project, update: self.update)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(project: self.project, update: self.update)
+    self.vm.viewDidLoad()
 
     let updateRequest = URLRequest(url: URL(string: self.update.urls.web.update)!)
     var navigationAction = WKNavigationActionData(
@@ -181,7 +176,7 @@ final class UpdateViewModelTests: TestCase {
 
     XCTAssertEqual(
       WKNavigationActionPolicy.allow.rawValue,
-      self.vm.inputs.decidePolicyFor(navigationAction: navigationAction).rawValue
+      self.vm.decidePolicyFor(navigationAction: navigationAction).rawValue
     )
     self.webViewLoadRequest.assertValueCount(1)
     await self.vm.waitForLoads()
@@ -199,7 +194,7 @@ final class UpdateViewModelTests: TestCase {
 
     XCTAssertEqual(
       WKNavigationActionPolicy.cancel.rawValue,
-      self.vm.inputs.decidePolicyFor(navigationAction: navigationAction).rawValue
+      self.vm.decidePolicyFor(navigationAction: navigationAction).rawValue
     )
     self.goToComments.assertValueCount(0)
     await self.vm.waitForLoads()
@@ -219,8 +214,8 @@ final class UpdateViewModelTests: TestCase {
       .flatMap { $0.deletingLastPathComponent() }
       .map { $0.appendingPathComponent(String(prelaunchProject.id)) }!
 
-    self.vm.inputs.configureWith(project: self.project, update: self.update)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(project: self.project, update: self.update)
+    self.vm.viewDidLoad()
 
     await withEnvironment(apiService: MockService(fetchProjectResult: .success(prelaunchProject))) {
       guard let google = URL(string: "https://www.google.com") else {
@@ -239,10 +234,8 @@ final class UpdateViewModelTests: TestCase {
 
       XCTAssertEqual(
         WKNavigationActionPolicy.allow.rawValue,
-        self.vm.inputs.decidePolicyFor(navigationAction: navigationAction1).rawValue
+        self.vm.decidePolicyFor(navigationAction: navigationAction1).rawValue
       )
-
-      await self.scheduler.run()
 
       await self.vm.waitForLoads()
 
@@ -266,10 +259,8 @@ final class UpdateViewModelTests: TestCase {
 
       XCTAssertEqual(
         WKNavigationActionPolicy.cancel.rawValue,
-        self.vm.inputs.decidePolicyFor(navigationAction: navigationAction2).rawValue
+        self.vm.decidePolicyFor(navigationAction: navigationAction2).rawValue
       )
-
-      await self.scheduler.run()
 
       await self.vm.waitForLoads()
 
@@ -282,5 +273,20 @@ final class UpdateViewModelTests: TestCase {
       XCTAssertEqual([], self.segmentTrackingClient.events)
       XCTAssertEqual(nil, self.segmentTrackingClient.properties.last?["context"] as? String)
     }
+  }
+}
+
+private final class UpdateRecorder<Value> {
+  var values: [Value] = []
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, message, file: file, line: line)
+  }
+}
+private extension UpdateRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
   }
 }

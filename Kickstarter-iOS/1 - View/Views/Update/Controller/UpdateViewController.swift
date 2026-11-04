@@ -6,7 +6,7 @@ import UIKit
 import WebKit
 
 internal final class UpdateViewController: WebViewController {
-  fileprivate let viewModel: UpdateViewModelType = UpdateViewModel()
+  fileprivate let viewModel: UpdateViewModel = UpdateViewModel()
   fileprivate let shareViewModel: ShareViewModelType = ShareViewModel()
 
   fileprivate let closeButton = UIBarButtonItem()
@@ -16,7 +16,7 @@ internal final class UpdateViewController: WebViewController {
   internal static func configuredWith(project: Project, update: Update, context _: KSRAnalytics.UpdateContext)
     -> UpdateViewController {
     let vc = Storyboard.Update.instantiate(UpdateViewController.self)
-    vc.viewModel.inputs.configureWith(project: project, update: update)
+    vc.viewModel.configureWith(project: project, update: update)
     vc.shareViewModel.inputs.configureWith(shareContext: .update(project, update), shareContextView: nil)
 
     return vc
@@ -24,7 +24,7 @@ internal final class UpdateViewController: WebViewController {
 
   internal override func viewDidLoad() {
     super.viewDidLoad()
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   override func viewWillAppear(_ animated: Bool) {
@@ -51,27 +51,11 @@ internal final class UpdateViewController: WebViewController {
   }
 
   internal override func bindViewModel() {
-    self.navigationItem.rac.title = self.viewModel.outputs.title
-
-    self.viewModel.outputs.webViewLoadRequest
-      .observeForControllerAction()
-      .observeValues { [weak self] in _ = self?.webView.load($0) }
-
-    self.viewModel.outputs.goToComments
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.goToComments(forUpdate: $0) }
-
-    self.viewModel.outputs.goToProject
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.goTo(project: $0, refTag: $1) }
-
-    self.shareViewModel.outputs.showShareSheet
-      .observeForControllerAction()
-      .observeValues { [weak self] controller, _ in self?.showShareSheet(controller) }
-
-    self.viewModel.outputs.goToSafariBrowser
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.goTo(url: $0) }
+    self.viewModel.onTitle = { [weak self] in self?.navigationItem.title = $0 }
+    self.viewModel.onLoadRequest = { [weak self] in _ = self?.webView.load($0) }
+    self.viewModel.onComments = { [weak self] in self?.goToComments(forUpdate: $0) }
+    self.viewModel.onProject = { [weak self] project, refTag in self?.goTo(project: project, refTag: refTag) }
+    self.viewModel.onSafari = { [weak self] in self?.goTo(url: $0) }
   }
 
   internal func webView(
@@ -80,7 +64,7 @@ internal final class UpdateViewController: WebViewController {
     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
   ) {
     decisionHandler(
-      self.viewModel.inputs.decidePolicyFor(navigationAction: .init(navigationAction: navigationAction))
+      self.viewModel.decidePolicyFor(navigationAction: .init(navigationAction: navigationAction))
     )
   }
 
