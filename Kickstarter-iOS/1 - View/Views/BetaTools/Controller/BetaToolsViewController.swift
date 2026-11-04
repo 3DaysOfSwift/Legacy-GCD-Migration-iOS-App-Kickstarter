@@ -13,7 +13,7 @@ internal final class BetaToolsViewController: UITableViewController {
 
   private var betaToolsData: BetaToolsData?
   private let helpViewModel: HelpViewModel = HelpViewModel()
-  private let viewModel: BetaToolsViewModelType = BetaToolsViewModel()
+  private let viewModel = BetaToolsViewModel()
 
   internal static func instantiate() -> BetaToolsViewController {
     return BetaToolsViewController(style: .plain)
@@ -38,7 +38,7 @@ internal final class BetaToolsViewController: UITableViewController {
     _ = self.navigationItem
       ?|> \.rightBarButtonItem .~ doneButton
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   override func viewDidLayoutSubviews() {
@@ -53,103 +53,37 @@ internal final class BetaToolsViewController: UITableViewController {
   }
 
   override func bindViewModel() {
-    self.viewModel.outputs.reloadWithData
-      .observeForUI()
-      .observeValues { [weak self] data in
-        self?.betaToolsData = data
-
-        self?.tableView.reloadData()
+    self.observeBetaToolsData()
+    self.viewModel.onSelectRow = { [weak self] row in
+      guard let self else { return }
+      switch row {
+      case .debugPushNotifications: self.goToDebugPushNotifications()
+      case .debugConfigFeatureFlags: self.goToConfigFeatureFlagTools()
+      case .debugRemoteConfigFeatureFlags: self.goToRemoteConfigFeatureFlagTools()
+      case .statsig: self.showStatsigDebugger()
+      case .paginatedScrollView: self.goToPaginatedScrollView()
+      case .richTextExample: self.goToRichTextExample()
+      case .designSystem: self.goToDesignSystem()
+      case .colors: self.goToColors()
+      case .changeEnvironment: self.showEnvironmentActionSheet(sourceViewIndex: row.rawValue)
+      case .changeLanguage: self.showLanguageActionSheet(sourceViewIndex: row.rawValue)
       }
+    }
+    self.viewModel.onFeedback = { [weak self] canSend in
+      if canSend { self?.goToBetaFeedback() } else { self?.showMailDisabledAlert() }
+    }
+    self.viewModel.onLanguage = { [weak self] in self?.updateLanguage(language: $0) }
+    self.viewModel.onEnvironment = { [weak self] in self?.updateEnvironment(environment: $0) }
+    self.viewModel.onLogout = { [weak self] in self?.logoutAndDismiss(params: $0) }
+  }
 
-    self.viewModel.outputs.goToPushNotificationTools
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.goToDebugPushNotifications()
-      }
-
-    self.viewModel.outputs.goToConfigFeatureFlagTools
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.goToConfigFeatureFlagTools()
-      }
-
-    self.viewModel.outputs.goToRemoteConfigFeatureFlagTools
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.goToRemoteConfigFeatureFlagTools()
-      }
-
-    self.viewModel.outputs.showStatsigDebugger
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.showStatsigDebugger()
-      }
-
-    self.viewModel.outputs.goToPaginatedScrollView
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.goToPaginatedScrollView()
-      }
-
-    self.viewModel.outputs.goToRichTextExample
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.goToRichTextExample()
-      }
-
-    self.viewModel.outputs.goToDesignSystem
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.goToDesignSystem()
-      }
-
-    self.viewModel.outputs.goToBetaFeedback
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.goToBetaFeedback()
-      }
-
-    self.viewModel.outputs.goToColors
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.goToColors()
-      }
-
-    self.viewModel.outputs.showChangeEnvironmentSheetWithSourceViewIndex
-      .observeForControllerAction()
-      .observeValues { [weak self] index in
-        self?.showEnvironmentActionSheet(sourceViewIndex: index)
-      }
-
-    self.viewModel.outputs.showChangeLanguageSheetWithSourceViewIndex
-      .observeForControllerAction()
-      .observeValues { [weak self] index in
-        self?.showLanguageActionSheet(sourceViewIndex: index)
-      }
-
-    self.viewModel.outputs.updateLanguage
-      .observeForControllerAction()
-      .observeValues { [weak self] language in
-        self?.updateLanguage(language: language)
-      }
-
-    self.viewModel.outputs.updateEnvironment
-      .observeForControllerAction()
-      .observeValues { [weak self] environment in
-        self?.updateEnvironment(environment: environment)
-      }
-
-    self.viewModel.outputs.logoutWithParams
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.logoutAndDismiss(params: $0)
-      }
-
-    self.viewModel.outputs.showMailDisabledAlert
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.showMailDisabledAlert()
-      }
+  private func observeBetaToolsData() {
+    withObservationTracking {
+      self.betaToolsData = self.viewModel.data
+      self.tableView.reloadData()
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeBetaToolsData() }
+    }
   }
 
   // MARK: - Selectors
@@ -268,7 +202,7 @@ internal final class BetaToolsViewController: UITableViewController {
     Language.allLanguages.forEach { language in
       alert.addAction(
         UIAlertAction(title: language.displayString, style: .default) { [weak self] _ in
-          self?.viewModel.inputs.setCurrentLanguage(language)
+          self?.viewModel.setCurrentLanguage(language)
         }
       )
     }
@@ -303,7 +237,7 @@ internal final class BetaToolsViewController: UITableViewController {
     customAlertController.addTextField()
     let submitAction = UIAlertAction(title: "Update", style: .default) { [weak self] _ in
       guard let url = customAlertController.textFields?[0].text else { return }
-      self?.viewModel.inputs.setEnvironment(.custom(url))
+      self?.viewModel.setEnvironment(.custom(url))
     }
     customAlertController.addAction(submitAction)
     customAlertController.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
@@ -314,7 +248,7 @@ internal final class BetaToolsViewController: UITableViewController {
         case .custom:
           self?.present(customAlertController, animated: true)
         default:
-          self?.viewModel.inputs.setEnvironment(environment)
+          self?.viewModel.setEnvironment(environment)
         }
       })
     }
@@ -343,7 +277,7 @@ internal final class BetaToolsViewController: UITableViewController {
 
     AppEnvironment.updateServerConfig(serverConfig)
 
-    self.viewModel.inputs.didUpdateEnvironment()
+    self.viewModel.didUpdateEnvironment()
   }
 
   private func goToBetaFeedback() {
@@ -401,7 +335,7 @@ extension BetaToolsViewController {
       return
     }
 
-    self.viewModel.inputs.didSelectBetaToolsRow(row)
+    self.viewModel.didSelectBetaToolsRow(row)
 
     tableView.deselectRow(at: indexPath, animated: true)
   }
@@ -411,7 +345,7 @@ extension BetaToolsViewController {
 
 extension BetaToolsViewController: BetaToolsFooterViewDelegate {
   func betaToolsFooterViewDelegateDidTapFeedbackButton() {
-    self.viewModel.inputs.betaFeedbackButtonTapped(canSendMail: MFMailComposeViewController.canSendMail())
+    self.viewModel.betaFeedbackButtonTapped(canSendMail: MFMailComposeViewController.canSendMail())
   }
 }
 

@@ -1,8 +1,7 @@
 import KDS
 import KsApi
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
+import Observation
 import UIKit
 
 public enum BetaToolsRow: Int, CaseIterable {
@@ -65,199 +64,55 @@ public enum BetaToolsRow: Int, CaseIterable {
   }
 }
 
-@MainActor
-public protocol BetaToolsViewModelInputs {
-  func betaFeedbackButtonTapped(canSendMail: Bool)
-  func didSelectBetaToolsRow(_ row: BetaToolsRow)
-  func didUpdateEnvironment()
-  func setEnvironment(_ environment: EnvironmentType)
-  func setCurrentLanguage(_ language: Language)
-  func viewDidLoad()
-}
-
 public typealias BetaToolsData = (currentLanguage: String, currentEnvironment: String)
 
 @MainActor
-public protocol BetaToolsViewModelOutputs {
-  var goToBetaFeedback: Signal<(), Never> { get }
-  var goToConfigFeatureFlagTools: Signal<(), Never> { get }
-  var goToRemoteConfigFeatureFlagTools: Signal<(), Never> { get }
-  var goToPushNotificationTools: Signal<(), Never> { get }
-  var showStatsigDebugger: Signal<(), Never> { get }
-  var goToPaginatedScrollView: Signal<(), Never> { get }
-  var goToRichTextExample: Signal<(), Never> { get }
-  var goToDesignSystem: Signal<(), Never> { get }
-  var goToColors: Signal<(), Never> { get }
-  var logoutWithParams: Signal<DiscoveryParams, Never> { get }
-  var reloadWithData: Signal<BetaToolsData, Never> { get }
-  var showChangeEnvironmentSheetWithSourceViewIndex: Signal<Int, Never> { get }
-  var showChangeLanguageSheetWithSourceViewIndex: Signal<Int, Never> { get }
-  var showMailDisabledAlert: Signal<(), Never> { get }
-  var updateLanguage: Signal<Language, Never> { get }
-  var updateEnvironment: Signal<EnvironmentType, Never> { get }
-}
+@Observable
+public final class BetaToolsViewModel {
+  public private(set) var data: BetaToolsData?
+  public var onSelectRow: ((BetaToolsRow) -> Void)?
+  public var onFeedback: ((Bool) -> Void)?
+  public var onLanguage: ((Language) -> Void)?
+  public var onEnvironment: ((EnvironmentType) -> Void)?
+  public var onLogout: ((DiscoveryParams) -> Void)?
+  private var originalLanguage: Language?
+  private var originalEnvironment: EnvironmentType?
+  private var lastLanguage: Language?
+  private var lastEnvironment: EnvironmentType?
+  private var selectedLanguage: Language?
+  private var selectedEnvironment: EnvironmentType?
 
-@MainActor
-public protocol BetaToolsViewModelType {
-  var inputs: BetaToolsViewModelInputs { get }
-  var outputs: BetaToolsViewModelOutputs { get }
-}
-
-@MainActor
-public final class BetaToolsViewModel: BetaToolsViewModelType,
-  BetaToolsViewModelInputs, BetaToolsViewModelOutputs {
-  public var inputs: BetaToolsViewModelInputs {
-    return self
-  }
-
-  public var outputs: BetaToolsViewModelOutputs {
-    return self
-  }
-
-  public init() {
-    let languageFromAppEnvironment = self.viewDidLoadProperty.signal
-      .map { _ in AppEnvironment.current.language }
-    let serverConfigEnvironmentFromAppEnvironment = self.viewDidLoadProperty.signal
-      .map { _ in AppEnvironment.current.apiService.serverConfig.environment }
-
-    self.updateLanguage = languageFromAppEnvironment
-      .takePairWhen(self.currentLanguageProperty.signal.skipRepeats())
-      .filter(!=)
-      .map(second)
-
-    let currentLanguageString = Signal.merge(languageFromAppEnvironment, self.updateLanguage)
-      .map { $0.displayString }
-
-    self.updateEnvironment = serverConfigEnvironmentFromAppEnvironment
-      .takePairWhen(self.environmentProperty.signal.skipRepeats())
-      .filter(!=)
-      .map(second)
-      .skipNil()
-
-    let currentEnvironmentString = Signal.merge(
-      serverConfigEnvironmentFromAppEnvironment,
-      self.updateEnvironment
-    )
-    .map { $0.description }
-
-    self.reloadWithData = Signal.combineLatest(
-      currentLanguageString,
-      currentEnvironmentString
-    )
-    .map { BetaToolsData(
-      currentLanguage: $0.0,
-      currentEnvironment: $0.1
-    ) }
-
-    self.goToBetaFeedback = self.canSendMailProperty.signal.filter(isTrue).ignoreValues()
-
-    let betaFeedbackMailDisabled = self.canSendMailProperty.signal.filter(isFalse)
-
-    self.showMailDisabledAlert = betaFeedbackMailDisabled.ignoreValues()
-
-    self.goToPushNotificationTools = self.didSelectBetaToolsRowProperty.signal
-      .skipNil()
-      .filter { $0 == BetaToolsRow.debugPushNotifications }
-      .ignoreValues()
-
-    self.goToConfigFeatureFlagTools = self.didSelectBetaToolsRowProperty.signal
-      .skipNil()
-      .filter { $0 == BetaToolsRow.debugConfigFeatureFlags }
-      .ignoreValues()
-
-    self.goToRemoteConfigFeatureFlagTools = self.didSelectBetaToolsRowProperty.signal
-      .skipNil()
-      .filter { $0 == BetaToolsRow.debugRemoteConfigFeatureFlags }
-      .ignoreValues()
-
-    self.showStatsigDebugger = self.didSelectBetaToolsRowProperty.signal
-      .skipNil()
-      .filter { $0 == BetaToolsRow.statsig }
-      .ignoreValues()
-
-    self.goToPaginatedScrollView = self.didSelectBetaToolsRowProperty.signal
-      .skipNil()
-      .filter { $0 == BetaToolsRow.paginatedScrollView }
-      .ignoreValues()
-
-    self.goToRichTextExample = self.didSelectBetaToolsRowProperty.signal
-      .skipNil()
-      .filter { $0 == BetaToolsRow.richTextExample }
-      .ignoreValues()
-
-    self.goToDesignSystem = self.didSelectBetaToolsRowProperty.signal
-      .skipNil()
-      .filter { $0 == BetaToolsRow.designSystem }
-      .ignoreValues()
-
-    self.showChangeEnvironmentSheetWithSourceViewIndex = self.didSelectBetaToolsRowProperty.signal
-      .skipNil()
-      .filter { $0 == BetaToolsRow.changeEnvironment }
-      .map { $0.rawValue }
-
-    self.showChangeLanguageSheetWithSourceViewIndex = self.didSelectBetaToolsRowProperty.signal
-      .skipNil()
-      .filter { $0 == BetaToolsRow.changeLanguage }
-      .map { $0.rawValue }
-
-    self.goToColors =
-      self.didSelectBetaToolsRowProperty.signal
-        .skipNil()
-        .filter { $0 == BetaToolsRow.colors }
-        .ignoreValues()
-
-    self.logoutWithParams = self.didUpdateEnvironmentProperty.signal
-      .map {
-        .defaults
-          |> DiscoveryParams.lens.includePOTD .~ true
-          |> DiscoveryParams.lens.sort .~ .magic
-      }
-  }
-
-  fileprivate let canSendMailProperty = MutableProperty(true)
-  public func betaFeedbackButtonTapped(canSendMail: Bool) {
-    self.canSendMailProperty.value = canSendMail
-  }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
+  public init() {}
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    self.originalLanguage = AppEnvironment.current.language
+    self.originalEnvironment = AppEnvironment.current.apiService.serverConfig.environment
+    self.selectedLanguage = self.originalLanguage
+    self.selectedEnvironment = self.originalEnvironment
+    self.updateData()
   }
-
-  private let didSelectBetaToolsRowProperty = MutableProperty<BetaToolsRow?>(nil)
-  public func didSelectBetaToolsRow(_ row: BetaToolsRow) {
-    self.didSelectBetaToolsRowProperty.value = row
-  }
-
-  private let didUpdateEnvironmentProperty = MutableProperty(())
-  public func didUpdateEnvironment() {
-    self.didUpdateEnvironmentProperty.value = ()
-  }
-
-  private let environmentProperty = MutableProperty<EnvironmentType?>(nil)
-  public func setEnvironment(_ environment: EnvironmentType) {
-    self.environmentProperty.value = environment
-  }
-
-  private let currentLanguageProperty = MutableProperty(AppEnvironment.current.language)
+  public func betaFeedbackButtonTapped(canSendMail: Bool) { self.onFeedback?(canSendMail) }
+  public func didSelectBetaToolsRow(_ row: BetaToolsRow) { self.onSelectRow?(row) }
   public func setCurrentLanguage(_ language: Language) {
-    self.currentLanguageProperty.value = language
+    guard self.lastLanguage != language else { return }
+    self.lastLanguage = language
+    guard let originalLanguage = self.originalLanguage, originalLanguage != language else { return }
+    self.selectedLanguage = language
+    self.updateData()
+    self.onLanguage?(language)
   }
-
-  public let goToBetaFeedback: Signal<(), Never>
-  public let goToConfigFeatureFlagTools: Signal<(), Never>
-  public let goToRemoteConfigFeatureFlagTools: Signal<(), Never>
-  public let goToPushNotificationTools: Signal<(), Never>
-  public let goToPaginatedScrollView: Signal<(), Never>
-  public let goToRichTextExample: Signal<(), Never>
-  public let goToDesignSystem: Signal<(), Never>
-  public let showStatsigDebugger: Signal<(), Never>
-  public let goToColors: Signal<(), Never>
-  public let updateLanguage: Signal<Language, Never>
-  public let updateEnvironment: Signal<EnvironmentType, Never>
-  public let logoutWithParams: Signal<DiscoveryParams, Never>
-  public let reloadWithData: Signal<BetaToolsData, Never>
-  public let showMailDisabledAlert: Signal<(), Never>
-  public let showChangeEnvironmentSheetWithSourceViewIndex: Signal<Int, Never>
-  public let showChangeLanguageSheetWithSourceViewIndex: Signal<Int, Never>
+  public func setEnvironment(_ environment: EnvironmentType) {
+    guard self.lastEnvironment != environment else { return }
+    self.lastEnvironment = environment
+    guard let originalEnvironment = self.originalEnvironment, originalEnvironment != environment else { return }
+    self.selectedEnvironment = environment
+    self.updateData()
+    self.onEnvironment?(environment)
+  }
+  public func didUpdateEnvironment() {
+    self.onLogout?(.defaults |> DiscoveryParams.lens.includePOTD .~ true |> DiscoveryParams.lens.sort .~ .magic)
+  }
+  private func updateData() {
+    guard let language = self.selectedLanguage, let environment = self.selectedEnvironment else { return }
+    self.data = (currentLanguage: language.displayString, currentEnvironment: environment.description)
+  }
 }
