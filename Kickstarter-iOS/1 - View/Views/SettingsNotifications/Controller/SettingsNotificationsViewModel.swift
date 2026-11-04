@@ -1,156 +1,100 @@
 import Foundation
 import KsApi
-import Prelude
-import ReactiveExtensions
-import ReactiveSwift
+import Observation
 
 @MainActor
-public protocol SettingsNotificationsViewModelInputs {
-  func didSelectRow(cellType: SettingsNotificationCellType)
-  func didSelectEmailFrequency(frequency: EmailFrequency)
-  func dismissPickerTap()
-  func failedToUpdateUser(error: String)
-  func updateUser(user: User)
-  func viewDidLoad()
-}
+@Observable
+public final class SettingsNotificationsViewModel {
+  public var onUser: ((User) -> Void)?
+  public var onPickerHidden: ((Bool) -> Void)?
+  public var onPickerSelection: ((EmailFrequency) -> Void)?
+  public var onError: ((String) -> Void)?
+  public var onManageProjects: (() -> Void)?
+  private let feature: SettingsFeature
+  private let sleep: (TimeInterval) async throws -> Void
+  private var initialUser: User?
+  private var pickerHidden: Bool?
+  private var reads: [UUID: Task<Void, Never>] = [:]
+  private var saves: [UUID: Task<Void, Never>] = [:]
+  private var revision = 0
 
-@MainActor
-public protocol SettingsNotificationsViewModelOutputs {
-  var goToManageProjectNotifications: Signal<Void, Never> { get }
-  var pickerViewIsHidden: Signal<Bool, Never> { get }
-  var pickerViewSelectedRow: Signal<EmailFrequency, Never> { get }
-  var updateCurrentUser: Signal<User, Never> { get }
-  var unableToSaveError: Signal<String, Never> { get }
-}
-
-@MainActor
-public protocol SettingsNotificationsViewModelType {
-  var inputs: SettingsNotificationsViewModelInputs { get }
-  var outputs: SettingsNotificationsViewModelOutputs { get }
-
-  func shouldSelectRow(for cellType: SettingsNotificationCellType) -> Bool
-}
-
-@MainActor
-public final class SettingsNotificationsViewModel: SettingsNotificationsViewModelType,
-  SettingsNotificationsViewModelInputs, SettingsNotificationsViewModelOutputs {
-  public init(feature: SettingsFeature? = nil) {
-    let feature = feature ?? AppModel.shared.settingsFeature
-    let initialUser = self.viewDidLoadProperty.signal
-      .flatMap {
-        feature.userResult().wrapInOptional().demoteErrors()
-      }.skipNil()
-
-    let userAttributeChanged = self.emailFrequencyProperty.signal
-      .map { frequency -> (UserAttribute, Bool) in
-        let digestValue = frequency == .dailySummary ? true : false
-
-        return (UserAttribute.notification(.creatorDigest), digestValue)
-      }
-
-    let updateEvent = initialUser.takePairWhen(userAttributeChanged)
-      .switchMap { user, edit in
-        feature.saveResult([SettingsFeature.Change(edit.0, edit.1)], from: user)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .materialize()
-      }
-
-    let updateEmailFrequencyError = updateEvent.errors()
-      .map { env in
-        env.errorMessages.first ?? Strings.profile_settings_error()
-      }
-
-    let emailFrequencyUpdated = updateEvent.values()
-
-    self.unableToSaveError = Signal.merge(
-      self.updateUserErrorProperty.signal.skipNil(),
-      updateEmailFrequencyError.signal
-    )
-
-    self.updateCurrentUser = Signal.merge(
-      initialUser,
-      self.updatedUserProperty.signal.skipNil(),
-      emailFrequencyUpdated
-    )
-
-    let emailFrequencyCellSelected = self.selectedCellType.signal
-      .skipNil()
-      .filter { $0 == .emailFrequency }
-
-    let projectActivityEmailFrequencyDisabled = self.updateCurrentUser.signal
-      .map(isNil)
-
-    self.pickerViewIsHidden = Signal.merge(
-      emailFrequencyCellSelected.signal.mapConst(false),
-      self.emailFrequencyProperty.signal.mapConst(true),
-      self.dismissPickerTapProperty.signal.mapConst(true),
-      projectActivityEmailFrequencyDisabled.signal.mapConst(true)
-    ).skipRepeats()
-
-    self.pickerViewSelectedRow = self.updateCurrentUser.signal
-      .map { $0 |> UserAttribute.notification(.creatorDigest).keyPath.view }
-      .skipNil()
-      .map { creatorDigest -> EmailFrequency in
-        creatorDigest ? EmailFrequency.dailySummary : EmailFrequency.twiceADaySummary
-      }
-
-    let manageProjectNotificationsSelected = self.selectedCellType.signal
-      .skipNil()
-      .filter { $0 == .projectNotifications }
-
-    self.goToManageProjectNotifications = manageProjectNotificationsSelected.signal
-      .ignoreValues()
-
-    // MARK: - Tracking
-
-    self.updatedUserProperty.signal.observeValues { user in
-      AppEnvironment.current.identify(user: user)
-    }
+  public init(feature: SettingsFeature? = nil, sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
+    if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
+  }) {
+    self.feature = feature ?? AppModel.shared.settingsFeature
+    self.sleep = sleep
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
-  }
-
-  fileprivate let dismissPickerTapProperty = MutableProperty(())
-  public func dismissPickerTap() {
-    self.dismissPickerTapProperty.value = ()
-  }
-
-  public func shouldSelectRow(for cellType: SettingsNotificationCellType) -> Bool {
-    switch cellType {
-    case .projectNotifications, .emailFrequency: return true
-    default: return false
+    if let user = self.feature.sessionFeature.currentUser { self.displayInitial(user) }
+    let id = UUID()
+    self.reads[id] = Task { [weak self, feature] in
+      defer { self?.reads[id] = nil }
+      guard let user = try? await feature.refresh(), !Task.isCancelled else { return }
+      self?.displayInitial(user)
     }
   }
 
-  fileprivate let emailFrequencyProperty = MutableProperty<EmailFrequency?>(nil)
-  public func didSelectEmailFrequency(frequency: EmailFrequency) {
-    self.emailFrequencyProperty.value = frequency
+  private func displayInitial(_ user: User) {
+    self.initialUser = user
+    self.display(user)
   }
 
-  fileprivate let selectedCellType = MutableProperty<SettingsNotificationCellType?>(nil)
+  private func display(_ user: User) {
+    self.onUser?(user)
+    self.setPickerHidden(true)
+    if let digest = user[keyPath: UserAttribute.notification(.creatorDigest).keyPath] {
+      self.onPickerSelection?(digest ? .dailySummary : .twiceADaySummary)
+    }
+  }
+
+  private func setPickerHidden(_ hidden: Bool) {
+    guard self.pickerHidden != hidden else { return }
+    self.pickerHidden = hidden
+    self.onPickerHidden?(hidden)
+  }
+
   public func didSelectRow(cellType: SettingsNotificationCellType) {
-    self.selectedCellType.value = cellType
+    if cellType == .emailFrequency { self.setPickerHidden(false) }
+    if cellType == .projectNotifications { self.onManageProjects?() }
   }
 
-  fileprivate let updatedUserProperty = MutableProperty<User?>(nil)
+  public func didSelectEmailFrequency(frequency: EmailFrequency) {
+    self.setPickerHidden(true)
+    guard let source = self.initialUser else { return }
+    self.revision += 1
+    let revision = self.revision
+    let id = UUID()
+    let feature = self.feature
+    let sleep = self.sleep
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    self.saves[id] = Task { [weak self] in
+      defer { self?.saves[id] = nil }
+      let result: Result<User, Error>
+      do {
+        result = .success(try await feature.save([.init(.notification(.creatorDigest), frequency == .dailySummary)],
+                                                 from: source))
+      } catch { result = .failure(error) }
+      do { try await sleep(delay) } catch { return }
+      guard let self, self.revision == revision else { return }
+      switch result {
+      case let .success(user): self.display(user)
+      case let .failure(error):
+        guard !(error is CancellationError) else { return }
+        self.onError?((error as? ErrorEnvelope)?.errorMessages.first ?? Strings.profile_settings_error())
+      }
+    }
+  }
+
+  public func dismissPickerTap() { self.setPickerHidden(true) }
   public func updateUser(user: User) {
-    self.updatedUserProperty.value = user
+    AppEnvironment.current.identify(user: user)
+    self.display(user)
   }
-
-  fileprivate let updateUserErrorProperty = MutableProperty<String?>(nil)
-  public func failedToUpdateUser(error: String) {
-    self.updateUserErrorProperty.value = error
+  public func failedToUpdateUser(error: String) { self.onError?(error) }
+  public func shouldSelectRow(for cellType: SettingsNotificationCellType) -> Bool {
+    cellType == .projectNotifications || cellType == .emailFrequency
   }
-
-  public let goToManageProjectNotifications: Signal<Void, Never>
-  public let pickerViewIsHidden: Signal<Bool, Never>
-  public let pickerViewSelectedRow: Signal<EmailFrequency, Never>
-  public let unableToSaveError: Signal<String, Never>
-  public let updateCurrentUser: Signal<User, Never>
-
-  public var inputs: SettingsNotificationsViewModelInputs { return self }
-  public var outputs: SettingsNotificationsViewModelOutputs { return self }
+  internal func waitForLoads() async { for task in Array(self.reads.values) { await task.value } }
+  internal func waitForSaves() async { for task in Array(self.saves.values) { await task.value } }
 }

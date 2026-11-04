@@ -8,7 +8,7 @@ internal final class SettingsNotificationsViewController: UIViewController {
   @IBOutlet fileprivate var emailFrequencyPickerView: UIPickerView!
   @IBOutlet fileprivate var emailPickerViewTopConstraint: NSLayoutConstraint!
 
-  private let viewModel: SettingsNotificationsViewModelType = SettingsNotificationsViewModel()
+  private let viewModel = SettingsNotificationsViewModel()
   private let dataSource: SettingsNotificationsDataSource = SettingsNotificationsDataSource()
 
   internal static func instantiate() -> SettingsNotificationsViewController {
@@ -30,7 +30,7 @@ internal final class SettingsNotificationsViewController: UIViewController {
     self.tableView.register(nib: .SettingsNotificationPickerCell)
     self.tableView.registerHeaderFooter(nib: .SettingsHeaderView)
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   internal override func bindStyles() {
@@ -51,38 +51,18 @@ internal final class SettingsNotificationsViewController: UIViewController {
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.pickerViewIsHidden
-      .observeForUI()
-      .observeValues { [weak self] isHidden in
-        self?.animatePickerView(isHidden: isHidden)
-      }
-
-    self.viewModel.outputs.pickerViewSelectedRow
-      .observeForUI()
-      .observeValues { [weak self] emailFrequency in
-        self?.emailFrequencyPickerView.selectRow(
-          emailFrequency.rawValue,
-          inComponent: 0,
-          animated: false
-        )
-      }
-
-    self.viewModel.outputs.unableToSaveError
-      .observeForControllerAction()
-      .observeValues { [weak self] message in
-        self?.present(UIAlertController.genericError(message), animated: true, completion: nil)
-      }
-
-    self.viewModel.outputs.updateCurrentUser
-      .observeForUI()
-      .observeValues { [weak self] user in
-        self?.dataSource.load(user: user)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.goToManageProjectNotifications
-      .observeForControllerAction()
-      .observeValues { [weak self] _ in self?.goToManageProjectNotifications() }
+    self.viewModel.onPickerHidden = { [weak self] in self?.animatePickerView(isHidden: $0) }
+    self.viewModel.onPickerSelection = { [weak self] frequency in
+      self?.emailFrequencyPickerView.selectRow(frequency.rawValue, inComponent: 0, animated: false)
+    }
+    self.viewModel.onError = { [weak self] message in
+      self?.present(UIAlertController.genericError(message), animated: true, completion: nil)
+    }
+    self.viewModel.onUser = { [weak self] user in
+      self?.dataSource.load(user: user)
+      self?.tableView.reloadData()
+    }
+    self.viewModel.onManageProjects = { [weak self] in self?.goToManageProjectNotifications() }
   }
 
   fileprivate func goToManageProjectNotifications() {
@@ -91,7 +71,7 @@ internal final class SettingsNotificationsViewController: UIViewController {
   }
 
   @objc private func tapGestureToDismissEmailFrequencyPicker() {
-    self.viewModel.inputs.dismissPickerTap()
+    self.viewModel.dismissPickerTap()
   }
 
   private func animatePickerView(isHidden: Bool) {
@@ -187,7 +167,7 @@ extension SettingsNotificationsViewController: UITableViewDelegate {
       return
     }
 
-    self.viewModel.inputs.didSelectRow(cellType: cellType)
+    self.viewModel.didSelectRow(cellType: cellType)
   }
 }
 
@@ -195,11 +175,11 @@ extension SettingsNotificationsViewController: UITableViewDelegate {
 
 extension SettingsNotificationsViewController: SettingsNotificationCellDelegate {
   func settingsNotificationCell(_: SettingsNotificationCell, didFailToUpdateUser errorMessage: String) {
-    self.viewModel.inputs.failedToUpdateUser(error: errorMessage)
+    self.viewModel.failedToUpdateUser(error: errorMessage)
   }
 
   func settingsNotificationCell(_: SettingsNotificationCell, didUpdateUser user: User) {
-    self.viewModel.inputs.updateUser(user: user)
+    self.viewModel.updateUser(user: user)
   }
 }
 
@@ -225,7 +205,7 @@ extension SettingsNotificationsViewController: UIPickerViewDelegate {
       return
     }
 
-    self.viewModel.inputs.didSelectEmailFrequency(frequency: selectedEmailFrequency)
+    self.viewModel.didSelectEmailFrequency(frequency: selectedEmailFrequency)
   }
 
   func pickerView(_: UIPickerView, rowHeightForComponent _: Int) -> CGFloat {
