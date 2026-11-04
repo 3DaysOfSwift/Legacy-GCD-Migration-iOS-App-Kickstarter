@@ -1,292 +1,160 @@
 import AVFoundation
 import KsApi
-import Prelude
-import ReactiveExtensions
-import ReactiveSwift
-
-private let playRate = 1.0
-private let pauseRate = 0.0
 
 @MainActor
-public protocol VideoViewModelInputs {
-  /// Call to configure cell with project value.
-  func configureWith(project: any VideoViewConfiguration)
+public final class VideoViewModel {
+  public var onCompletionBoundary: ((CMTime) -> Void)?
+  public var onPlayerURL: ((URL) -> Void)?
+  public var onReportCompletion: ((VoidEnvelope) -> Void)?
+  public var onReportStart: ((VoidEnvelope) -> Void)?
+  public var onFinish: (() -> Void)?
+  public var onStart: (() -> Void)?
+  public var onOpacity: ((CGFloat) -> Void)?
+  public var onPause: (() -> Void)?
+  public var onPlay: (() -> Void)?
+  public var onPlayButtonHidden: ((Bool) -> Void)?
+  public var onProjectImageHidden: ((Bool) -> Void)?
+  public var onProjectImageURL: ((URL?) -> Void)?
+  public var onSeekToBeginning: (() -> Void)?
+  public var onVideoHidden: ((Bool) -> Void)?
 
-  /// Call when the video playback crosses the completion threshold.
-  func crossedCompletionThreshold()
-
-  /// Call with duration when video duration changes.
-  func durationChanged(toNew duration: CMTime)
-
-  /// Call when the play button is tapped.
-  func playButtonTapped()
-
-  /// Call with rate and current time when playback rate changes.
-  func rateChanged(toNew rate: Double, atTime currentTime: CMTime)
-
-  /// Call when the view did appear.
-  func viewDidAppear()
-
-  /// Call when the view did disappear.
-  func viewDidDisappear(animated: Bool)
-
-  /// Call when the view did load.
-  func viewDidLoad()
-
-  /// Call when the view will disappear.
-  func viewWillDisappear()
-}
-
-@MainActor
-public protocol VideoViewModelOutputs {
-  /// Emits when should add a boundary observer for the 85% completion time.
-  var addCompletionObserver: Signal<CMTime, Never> { get }
-
-  /// Emits with the video url to be played.
-  var configurePlayerWithURL: Signal<URL, Never> { get }
-
-  /// Emits for testing when the video complete stat is incremented.
-  var incrementVideoCompletion: Signal<VoidEnvelope, Never> { get }
-
-  /// Emits for testing when the video start stat is incremented.
-  var incrementVideoStart: Signal<VoidEnvelope, Never> { get }
-
-  var notifyDelegateThatVideoDidFinish: Signal<(), Never> { get }
-  var notifyDelegateThatVideoDidStart: Signal<(), Never> { get }
-
-  /// Emits alpha value for play button and video overlay for transitioning.
-  var opacityForViews: Signal<CGFloat, Never> { get }
-
-  /// Emits when the video should be paused.
-  var pauseVideo: Signal<Void, Never> { get }
-
-  /// Emits when the video should be played.
-  var playVideo: Signal<Void, Never> { get }
-
-  /// Emits a boolean to determine whether or not the play button should be hidden.
-  var playButtonHidden: Signal<Bool, Never> { get }
-
-  /// Emits a boolean to determine whether or not the project image should be hidden.
-  var projectImageHidden: Signal<Bool, Never> { get }
-
-  /// Emits with the project image url to be displayed.
-  var projectImageURL: Signal<URL?, Never> { get }
-
-  /// Emits when should seek video back to beginning.
-  var seekToBeginning: Signal<Void, Never> { get }
-
-  /// Emits a boolean to determine whether or not the video player should be hidden.
-  var videoViewHidden: Signal<Bool, Never> { get }
-}
-
-@MainActor
-public protocol VideoViewModelType {
-  var inputs: VideoViewModelInputs { get }
-  var outputs: VideoViewModelOutputs { get }
-}
-
-@MainActor
-public final class VideoViewModel: VideoViewModelInputs, VideoViewModelOutputs, VideoViewModelType {
   private let feature: ProjectMediaFeature
   private let route = UUID()
-  private let disposables = ScopedDisposable(CompositeDisposable())
+  private var project: (any VideoViewConfiguration)?
+  private var loaded = false
+  private var duration: CMTime?
+  private var rateAndTime: (Double, CMTime)?
+  private var lastPlayingTime: CMTime?
+  private var hasStarted = false
+  private var hasCompleted = false
+  private var hasPlayed = false
+  private var playHidden: Bool?
+  private var imageHidden: Bool?
+  private var hasImageURL = false
+  private var imageURL: URL?
+  private var playerURL: URL?
   private var startTask: Task<Void, Never>?
   private var completionTask: Task<Void, Never>?
 
   public init(feature: ProjectMediaFeature? = nil) {
-    let feature = feature ?? AppModel.shared.projectMediaFeature
-    self.feature = feature
-    let route = self.route
-    let project = Signal.combineLatest(
-      self.projectProperty.signal.skipNil(),
-      self.viewDidLoadProperty.signal
-    )
-    .map(first)
-
-    let duration = self.durationProperty.signal.skipNil().skipRepeats()
-    let rateCurrentTime = self.rateCurrentTimeProperty.signal.skipNil().skipRepeats(==)
-
-    let completionThreshold = duration
-      .map { 0.85 * CMTimeGetSeconds($0) }
-
-    let reachedEndOfVideo = Signal.combineLatest(rateCurrentTime, duration)
-      .filter { rateCurrentTime, duration in rateCurrentTime.1 == duration }
-
-    let videoCompletedOnScrub = Signal.combineLatest(rateCurrentTime, completionThreshold)
-      .filter { rateCurrentTime, completionThreshold in
-        let currentTimeSeconds = CMTimeGetSeconds(rateCurrentTime.1)
-        return currentTimeSeconds >= completionThreshold
-      }
-      .take(first: 1)
-      .ignoreValues()
-
-    let videoCompleted = Signal.merge(videoCompletedOnScrub, self.crossedCompletionThresholdProperty.signal)
-      .take(first: 1)
-
-    let videoStarted = rateCurrentTime
-      .filter { rate, currentTime in currentTime == CMTime.zero && rate == playRate }
-      .take(first: 1)
-
-    self.addCompletionObserver = completionThreshold.map { CMTimeMakeWithSeconds($0, preferredTimescale: 1) }
-
-    self.configurePlayerWithURL = project
-      .map { $0.videoViewProperties }
-      .filter { $0.video != nil }
-      .takeWhen(self.playButtonTappedProperty.signal)
-      .map { URL(string: $0.video?.hls ?? $0.video?.high ?? "") }
-      .skipNil()
-      .skipRepeats()
-
-    self.playVideo = self.playButtonTappedProperty.signal
-
-    self.pauseVideo = self.playVideo
-      .takeWhen(self.viewWillDisappearProperty.signal)
-
-    let elementsHiddenOnPlayback = Signal.merge(
-      self.playVideo.mapConst(true),
-      reachedEndOfVideo.mapConst(false)
-    )
-    .skipRepeats()
-
-    self.projectImageHidden = Signal.merge(elementsHiddenOnPlayback, project.mapConst(false))
-      .skipRepeats()
-
-    self.playButtonHidden = Signal.merge(
-      project.map { $0.videoViewProperties.video == nil },
-      elementsHiddenOnPlayback
-    )
-    .skipRepeats()
-
-    self.projectImageURL = project.map { URL(string: $0.videoViewProperties.photoFull) }.skipRepeats(==)
-
-    self.seekToBeginning = reachedEndOfVideo.ignoreValues()
-
-    let completionOutput = Signal<VoidEnvelope, Never>.pipe()
-    let startOutput = Signal<VoidEnvelope, Never>.pipe()
-    self.incrementVideoCompletion = completionOutput.output
-    self.incrementVideoStart = startOutput.output
-
-    self.videoViewHidden = self.projectImageHidden.map(negate)
-
-    self.notifyDelegateThatVideoDidFinish = reachedEndOfVideo.ignoreValues()
-    self.notifyDelegateThatVideoDidStart = self.playButtonTappedProperty.signal
-
-    self.opacityForViews = Signal.merge(
-      self.viewDidLoadProperty.signal.mapConst(0.0),
-      self.playButtonHidden.filter(isFalse)
-        .takeWhen(self.viewDidAppearProperty.signal)
-        .mapConst(1.0)
-    )
-
-    // Tracking
-
-    /// When the rate == 1, the video is playing
-    let currentPlayTime = rateCurrentTime
-      .filter { $0.rate == 1 }
-      .map { $0.currentTime }
-
-    Signal.combineLatest(
-      project,
-      duration,
-      currentPlayTime
-    )
-    .observeValues { project, duration, currentPlayTime in
-      AppEnvironment.current.ksrAnalytics.trackProjectVideoPlaybackStarted(
-        project: project,
-        videoLength: lround(duration.seconds),
-        videoPosition: lround(currentPlayTime.seconds)
-      )
-    }
-    self.disposables += Signal.combineLatest(project, videoCompleted).map(first)
-      .observeValues { [weak self] project in
-        let report = feature.requestReport(route: route, project: project, completed: true)
-        self?.completionTask = Task {
-          if let value = await report.value, !Task.isCancelled { completionOutput.input.send(value: value) }
-        }
-      }
-    self.disposables += Signal.combineLatest(project, videoStarted).map(first)
-      .observeValues { [weak self] project in
-        let report = feature.requestReport(route: route, project: project, completed: false)
-        self?.startTask = Task {
-          if let value = await report.value, !Task.isCancelled { startOutput.input.send(value: value) }
-        }
-      }
+    self.feature = feature ?? AppModel.shared.projectMediaFeature
   }
 
-  fileprivate let crossedCompletionThresholdProperty = MutableProperty(())
-  public func crossedCompletionThreshold() {
-    self.crossedCompletionThresholdProperty.value = ()
-  }
-
-  fileprivate let durationProperty = MutableProperty<CMTime?>(nil)
-  public func durationChanged(toNew duration: CMTime) {
-    self.durationProperty.value = duration
-  }
-
-  fileprivate let playButtonTappedProperty = MutableProperty(())
-  public func playButtonTapped() {
-    self.playButtonTappedProperty.value = ()
-  }
-
-  fileprivate let projectProperty = MutableProperty<(any VideoViewConfiguration)?>(nil)
   public func configureWith(project: any VideoViewConfiguration) {
-    self.projectProperty.value = project
+    self.project = project
+    if self.loaded { self.displayProject(project); self.trackPlaybackIfReady() }
   }
 
-  fileprivate let rateCurrentTimeProperty = MutableProperty<(rate: Double, currentTime: CMTime)?>(nil)
-  public func rateChanged(toNew rate: Double, atTime currentTime: CMTime) {
-    self.rateCurrentTimeProperty.value = (rate, currentTime)
-  }
-
-  fileprivate let viewDidAppearProperty = MutableProperty(())
-  public func viewDidAppear() {
-    self.viewDidAppearProperty.value = ()
-  }
-
-  fileprivate let viewDidDisappearProperty = MutableProperty(false)
-  public func viewDidDisappear(animated: Bool) {
-    self.viewDidDisappearProperty.value = animated
-  }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    self.loaded = true
+    if let project = self.project { self.displayProject(project); self.trackPlaybackIfReady() }
+    self.onOpacity?(0)
   }
 
-  fileprivate let viewWillDisappearProperty = MutableProperty(())
-  public func viewWillDisappear() {
-    self.viewWillDisappearProperty.value = ()
+  private func displayProject(_ project: any VideoViewConfiguration) {
+    let properties = project.videoViewProperties
+    self.setImageHidden(false)
+    self.setPlayHidden(properties.video == nil)
+    let url = URL(string: properties.photoFull)
+    if !self.hasImageURL || self.imageURL != url {
+      self.hasImageURL = true
+      self.imageURL = url
+      self.onProjectImageURL?(url)
+    }
+    if self.hasStarted, self.startTask == nil { self.startTask = self.report(project: project, completed: false) }
+    if self.hasCompleted, self.completionTask == nil {
+      self.completionTask = self.report(project: project, completed: true)
+    }
   }
 
-  public let addCompletionObserver: Signal<CMTime, Never>
-  public let configurePlayerWithURL: Signal<URL, Never>
-  public let incrementVideoCompletion: Signal<VoidEnvelope, Never>
-  public let incrementVideoStart: Signal<VoidEnvelope, Never>
-  public let notifyDelegateThatVideoDidFinish: Signal<(), Never>
-  public let notifyDelegateThatVideoDidStart: Signal<(), Never>
-  public let opacityForViews: Signal<CGFloat, Never>
-  public let pauseVideo: Signal<Void, Never>
-  public let playVideo: Signal<Void, Never>
-  public var playButtonHidden: Signal<Bool, Never>
-  public var projectImageHidden: Signal<Bool, Never>
-  public let projectImageURL: Signal<URL?, Never>
-  public let seekToBeginning: Signal<Void, Never>
-  public var videoViewHidden: Signal<Bool, Never>
+  public func playButtonTapped() {
+    if self.loaded, let video = self.project?.videoViewProperties.video,
+       let url = URL(string: video.hls ?? video.high ?? ""), self.playerURL != url {
+      self.playerURL = url
+      self.onPlayerURL?(url)
+    }
+    self.hasPlayed = true
+    self.onPlay?()
+    self.setImageHidden(true)
+    self.setPlayHidden(true)
+    self.onStart?()
+  }
+
+  public func durationChanged(toNew duration: CMTime) {
+    guard self.duration != duration else { return }
+    self.duration = duration
+    self.onCompletionBoundary?(CMTimeMakeWithSeconds(0.85 * duration.seconds, preferredTimescale: 1))
+    self.evaluateCompletionAndEnd()
+    self.trackPlaybackIfReady()
+  }
+
+  public func rateChanged(toNew rate: Double, atTime currentTime: CMTime) {
+    if let previous = self.rateAndTime, previous.0 == rate, previous.1 == currentTime { return }
+    self.rateAndTime = (rate, currentTime)
+    if rate == 1 { self.lastPlayingTime = currentTime; self.trackPlaybackIfReady() }
+    if !self.hasStarted, rate == 1, currentTime == .zero {
+      self.hasStarted = true
+      if self.loaded, let project = self.project { self.startTask = self.report(project: project, completed: false) }
+    }
+    self.evaluateCompletionAndEnd()
+  }
+
+  private func evaluateCompletionAndEnd() {
+    guard let duration = self.duration, let (_, time) = self.rateAndTime else { return }
+    if time.seconds >= 0.85 * duration.seconds { self.crossedCompletionThreshold() }
+    if time == duration {
+      self.setImageHidden(false)
+      self.setPlayHidden(false)
+      self.onSeekToBeginning?()
+      self.onFinish?()
+    }
+  }
+
+  public func crossedCompletionThreshold() {
+    guard !self.hasCompleted else { return }
+    self.hasCompleted = true
+    if self.loaded, let project = self.project { self.completionTask = self.report(project: project, completed: true) }
+  }
+
+  private func report(project: any VideoViewConfiguration, completed: Bool) -> Task<Void, Never> {
+    let request = self.feature.requestReport(route: self.route, project: project, completed: completed)
+    return Task { [weak self] in
+      guard let value = await request.value, !Task.isCancelled, let self else { return }
+      if completed { self.onReportCompletion?(value) } else { self.onReportStart?(value) }
+    }
+  }
+
+  private func trackPlaybackIfReady() {
+    guard self.loaded, let project = self.project, let duration = self.duration,
+          let time = self.lastPlayingTime else { return }
+    AppEnvironment.current.ksrAnalytics.trackProjectVideoPlaybackStarted(
+      project: project, videoLength: lround(duration.seconds), videoPosition: lround(time.seconds)
+    )
+  }
+
+  private func setPlayHidden(_ hidden: Bool) {
+    guard self.playHidden != hidden else { return }
+    self.playHidden = hidden
+    self.onPlayButtonHidden?(hidden)
+  }
+
+  private func setImageHidden(_ hidden: Bool) {
+    guard self.imageHidden != hidden else { return }
+    self.imageHidden = hidden
+    self.onProjectImageHidden?(hidden)
+    self.onVideoHidden?(!hidden)
+  }
+
+  public func viewDidAppear() { if self.playHidden == false { self.onOpacity?(1) } }
+  public func viewDidDisappear(animated: Bool) {}
+  public func viewWillDisappear() { if self.hasPlayed { self.onPause?() } }
+  internal func waitForReports() async { await self.startTask?.value; await self.completionTask?.value }
 
   deinit {
     self.startTask?.cancel()
     self.completionTask?.cancel()
-
     let feature = self.feature
     let route = self.route
     Task { @MainActor in feature.release(route: route) }
   }
-
-  func waitForReports() async {
-    await self.startTask?.value
-    await self.completionTask?.value
-  }
-
-  public var inputs: VideoViewModelInputs { return self }
-  public var outputs: VideoViewModelOutputs { return self }
 }
