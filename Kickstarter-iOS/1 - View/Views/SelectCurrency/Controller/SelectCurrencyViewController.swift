@@ -1,11 +1,12 @@
 
+import Observation
 import Prelude
 import Prelude_UIKit
 import UIKit
 
 final class SelectCurrencyViewController: UIViewController, MessageBannerViewControllerPresenting {
   private let dataSource = SelectCurrencyDataSource()
-  private let viewModel: SelectCurrencyViewModelType = SelectCurrencyViewModel()
+  private let viewModel = SelectCurrencyViewModel()
 
   internal var messageBannerViewController: MessageBannerViewController?
   private var saveButtonView: LoadingBarButtonItemView!
@@ -15,7 +16,7 @@ final class SelectCurrencyViewController: UIViewController, MessageBannerViewCon
   }
 
   public func configure(with currency: Currency) {
-    self.viewModel.inputs.configure(with: currency)
+    self.viewModel.configure(with: currency)
   }
 
   override func viewDidLoad() {
@@ -50,7 +51,8 @@ final class SelectCurrencyViewController: UIViewController, MessageBannerViewCon
     let navigationBarButton = LoadingBarButtonItemView.uiBarButtonItem(for: self.saveButtonView)
     self.navigationItem.setRightBarButton(navigationBarButton, animated: false)
 
-    self.viewModel.inputs.viewDidLoad()
+    self.observeSaveState()
+    self.viewModel.viewDidLoad()
   }
 
   override func viewDidLayoutSubviews() {
@@ -78,59 +80,30 @@ final class SelectCurrencyViewController: UIViewController, MessageBannerViewCon
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.reloadDataWithCurrencies
-      .observeForUI()
-      .observeValues { [weak self] currencies, reload in
-        self?.dataSource.load(currencies: currencies)
-        if reload {
-          self?.tableView.reloadData()
-        }
-      }
+    self.viewModel.onFailure = { [weak self] error in
+      self?.messageBannerViewController?.showBanner(with: .error, message: error)
+    }
+    self.viewModel.onSuccess = { [weak self] in self?.handleDidUpdateCurrency() }
+    self.observeCurrencies()
+  }
 
-    self.viewModel.outputs.activityIndicatorShouldShow
-      .observeForUI()
-      .observeValues { [weak self] shouldShow in
-        if shouldShow {
-          self?.saveButtonView.startAnimating()
-        } else {
-          self?.saveButtonView.stopAnimating()
-        }
-      }
+  private func observeCurrencies() {
+    withObservationTracking {
+      self.dataSource.load(currencies: self.viewModel.currencyRows)
+      self.tableView.reloadData()
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeCurrencies() }
+    }
+  }
 
-    self.viewModel.outputs.saveButtonIsEnabled
-      .observeForUI()
-      .observeValues { [weak self] isEnabled in
-        self?.saveButtonView.setIsEnabled(isEnabled: isEnabled)
-      }
-
-    self.viewModel.outputs.updateCurrencyDidFailWithError
-      .observeForUI()
-      .observeValues { [weak self] error in
-        self?.messageBannerViewController?.showBanner(
-          with: .error,
-          message: error
-        )
-      }
-
-    self.viewModel.outputs.deselectCellAtIndex
-      .map { IndexPath(row: $0, section: 0) }
-      .observeForUI()
-      .observeValues { [weak self] indexPath in
-        self?.tableView.cellForRow(at: indexPath)?.accessoryType = .none
-      }
-
-    self.viewModel.outputs.selectCellAtIndex
-      .map { IndexPath(row: $0, section: 0) }
-      .observeForUI()
-      .observeValues { [weak self] indexPath in
-        self?.tableView.cellForRow(at: indexPath)?.accessoryType = .checkmark
-      }
-
-    self.viewModel.outputs.didUpdateCurrency
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.handleDidUpdateCurrency()
-      }
+  private func observeSaveState() {
+    withObservationTracking {
+      if self.viewModel.isLoading { self.saveButtonView?.startAnimating() }
+      else { self.saveButtonView?.stopAnimating() }
+      self.saveButtonView?.setIsEnabled(isEnabled: self.viewModel.saveButtonIsEnabled)
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeSaveState() }
+    }
   }
 
   // MARK: - Functions
@@ -147,7 +120,7 @@ final class SelectCurrencyViewController: UIViewController, MessageBannerViewCon
   // MARK: - Actions
 
   @objc private func saveButtonTapped(_: Any) {
-    self.viewModel.inputs.saveButtonTapped()
+    self.viewModel.saveButtonTapped()
   }
 
   // MARK: - Subviews
@@ -165,7 +138,7 @@ final class SelectCurrencyViewController: UIViewController, MessageBannerViewCon
 
 extension SelectCurrencyViewController: UITableViewDelegate {
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-    self.viewModel.inputs.didSelectCurrency(atIndex: indexPath.row)
+    self.viewModel.didSelectCurrency(atIndex: indexPath.row)
 
     tableView.deselectRow(at: indexPath, animated: true)
   }

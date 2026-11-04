@@ -1,7 +1,6 @@
 import Foundation
 import KsApi
-import Prelude
-import ReactiveSwift
+import Observation
 
 public struct SelectedCurrencyData: Equatable {
   public let currency: Currency
@@ -9,153 +8,76 @@ public struct SelectedCurrencyData: Equatable {
 }
 
 @MainActor
-public protocol SelectCurrencyViewModelInputs {
-  func configure(with selectedCurrency: Currency)
-  func didSelectCurrency(atIndex index: Int)
-  func saveButtonTapped()
-  func viewDidLoad()
-}
+@Observable
+public final class SelectCurrencyViewModel {
+  public private(set) var currencyRows: [SelectedCurrencyData] = []
+  public private(set) var isLoading = false
+  public private(set) var saveButtonIsEnabled = false
+  public var onSuccess: (() -> Void)?
+  public var onFailure: ((String) -> Void)?
+  private let settingsFeature: SettingsFeature
+  private let sleep: (TimeInterval) async throws -> Void
+  private var initial: Currency?
+  private var saved: Currency?
+  private var selected: Currency?
+  private var ordered: [Currency] = []
+  private var hasLoaded = false
+  private var saveTask: Task<Void, Never>?
+  private var revision = 0
 
-@MainActor
-public protocol SelectCurrencyViewModelOutputs {
-  var activityIndicatorShouldShow: Signal<Bool, Never> { get }
-  var deselectCellAtIndex: Signal<Int, Never> { get }
-  var didUpdateCurrency: Signal<(), Never> { get }
-  var reloadDataWithCurrencies: Signal<([SelectedCurrencyData], Bool), Never> { get }
-  var saveButtonIsEnabled: Signal<Bool, Never> { get }
-  var selectCellAtIndex: Signal<Int, Never> { get }
-  var updateCurrencyDidFailWithError: Signal<String, Never> { get }
-  var updateCurrencyDidSucceed: Signal<Void, Never> { get }
-}
-
-@MainActor
-public protocol SelectCurrencyViewModelType {
-  var inputs: SelectCurrencyViewModelInputs { get }
-  var outputs: SelectCurrencyViewModelOutputs { get }
-}
-
-@MainActor
-public final class SelectCurrencyViewModel: SelectCurrencyViewModelType, SelectCurrencyViewModelInputs,
-  SelectCurrencyViewModelOutputs {
-  public init(settingsFeature: SettingsFeature? = nil) {
-    let settingsFeature = settingsFeature ?? AppModel.shared.settingsFeature
-    let initialChosenCurrency = Signal.combineLatest(
-      self.selectedCurrencySignal,
-      self.viewDidLoadSignal
-    )
-    .map(first)
-
-    let orderedCurrencies = initialChosenCurrency
-      .map { currencies(orderedBySelected: $0) }
-
-    let didSelectCurrency = orderedCurrencies
-      .takePairWhen(self.didSelectCurrencyAtIndexSignal)
-      .map { $0[$1] }
-
-    let orderedAndInitial = Signal.combineLatest(orderedCurrencies, initialChosenCurrency)
-      .map { ($0, $1) }
-      .map(selectedCurrencyData(with:selected:))
-      .map { ($0, true) }
-
-    let orderedAndSelected = Signal.combineLatest(orderedCurrencies, didSelectCurrency)
-      .map { ($0, $1) }
-      .map(selectedCurrencyData(with:selected:))
-      .map { ($0, false) }
-
-    self.reloadDataWithCurrencies = Signal.merge(
-      orderedAndInitial,
-      orderedAndSelected
-    )
-
-    let selectedCurrency = Signal.merge(initialChosenCurrency, didSelectCurrency)
-
-    self.selectCellAtIndex = Signal.combineLatest(
-      selectedCurrency,
-      initialChosenCurrency
-    )
-    .map { currencies(orderedBySelected: $1).firstIndex(of: $0) }
-    .skipNil()
-
-    self.deselectCellAtIndex = self.selectCellAtIndex
-      .combinePrevious()
-      .map(first)
-
-    let updateCurrencyEvent = didSelectCurrency
-      .takeWhen(self.saveButtonTappedSignal.ignoreValues())
-      .switchMap { input in
-        settingsFeature.accountResult(.currency(input.rawValue))
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .map { _ in input }
-          .materialize()
-      }
-
-    self.updateCurrencyDidSucceed = updateCurrencyEvent.values().ignoreValues()
-
-    self.updateCurrencyDidFailWithError = updateCurrencyEvent.errors().map { $0.localizedDescription }
-
-    self.activityIndicatorShouldShow = Signal.merge(
-      self.saveButtonTappedSignal.mapConst(true),
-      updateCurrencyEvent.filter { $0.isTerminating }.mapConst(false)
-    )
-
-    let updatedCurrency = updateCurrencyEvent.values()
-
-    let initialAndSelected = Signal.combineLatest(
-      initialChosenCurrency,
-      didSelectCurrency
-    )
-
-    let updatedAndSelected = Signal.combineLatest(
-      updatedCurrency,
-      didSelectCurrency
-    )
-
-    let currenciesDoNotMatch = Signal.merge(
-      initialAndSelected,
-      updatedAndSelected
-    )
-    .map(!=)
-
-    self.saveButtonIsEnabled = Signal.merge(
-      self.viewDidLoadSignal.mapConst(false),
-      currenciesDoNotMatch
-    )
-
-    self.didUpdateCurrency = updateCurrencyEvent.values().ignoreValues()
+  public init(settingsFeature: SettingsFeature? = nil, sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
+    if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
+  }) {
+    self.settingsFeature = settingsFeature ?? AppModel.shared.settingsFeature
+    self.sleep = sleep
   }
-
-  private let (selectedCurrencySignal, selectedCurrencyObserver) = Signal<Currency, Never>.pipe()
   public func configure(with selectedCurrency: Currency) {
-    self.selectedCurrencyObserver.send(value: selectedCurrency)
+    self.initial = selectedCurrency
+    if self.hasLoaded { self.configureCurrencies(selectedCurrency) }
   }
-
-  private let (didSelectCurrencyAtIndexSignal, didSelectCurrencyAtIndexObserver)
-    = Signal<Int, Never>.pipe()
-  public func didSelectCurrency(atIndex index: Int) {
-    self.didSelectCurrencyAtIndexObserver.send(value: index)
-  }
-
-  private let (viewDidLoadSignal, viewDidLoadObserver) = Signal<(), Never>.pipe()
   public func viewDidLoad() {
-    self.viewDidLoadObserver.send(value: ())
+    self.hasLoaded = true
+    if let initial = self.initial { self.configureCurrencies(initial) }
   }
-
-  private let (saveButtonTappedSignal, saveButtonTappedObserver) = Signal<(), Never>.pipe()
+  private func configureCurrencies(_ initial: Currency) {
+    self.saved = initial
+    self.selected = initial
+    self.ordered = currencies(orderedBySelected: initial)
+    self.currencyRows = selectedCurrencyData(with: self.ordered, selected: initial)
+    self.saveButtonIsEnabled = false
+  }
+  public func didSelectCurrency(atIndex index: Int) {
+    guard self.ordered.indices.contains(index) else { return }
+    let currency = self.ordered[index]
+    self.selected = currency
+    self.currencyRows = selectedCurrencyData(with: self.ordered, selected: currency)
+    self.saveButtonIsEnabled = currency != self.saved
+  }
   public func saveButtonTapped() {
-    self.saveButtonTappedObserver.send(value: ())
+    guard let currency = self.selected, self.saveButtonIsEnabled else { return }
+    self.saveTask?.cancel()
+    self.revision += 1
+    let revision = self.revision
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    self.isLoading = true
+    self.saveTask = Task { [weak self, settingsFeature, sleep] in
+      do {
+        _ = try await settingsFeature.updateAccount(.currency(currency.rawValue))
+        try await sleep(delay)
+        try Task.checkCancellation()
+        guard let self, self.revision == revision else { return }
+        self.isLoading = false
+        self.saved = currency
+        self.saveButtonIsEnabled = self.selected != currency
+        self.onSuccess?()
+      } catch {
+        guard let self, !Task.isCancelled, !(error is CancellationError), self.revision == revision else { return }
+        self.isLoading = false
+        self.onFailure?(error.localizedDescription)
+      }
+    }
   }
-
-  public let activityIndicatorShouldShow: Signal<Bool, Never>
-  public let deselectCellAtIndex: Signal<Int, Never>
-  public let didUpdateCurrency: Signal<(), Never>
-  public let reloadDataWithCurrencies: Signal<([SelectedCurrencyData], Bool), Never>
-  public let saveButtonIsEnabled: Signal<Bool, Never>
-  public let selectCellAtIndex: Signal<Int, Never>
-  public let updateCurrencyDidFailWithError: Signal<String, Never>
-  public let updateCurrencyDidSucceed: Signal<Void, Never>
-
-  public var inputs: SelectCurrencyViewModelInputs { return self }
-  public var outputs: SelectCurrencyViewModelOutputs { return self }
+  internal func waitForSave() async { await self.saveTask?.value }
 }
 
 internal func currencies(orderedBySelected selected: Currency) -> [Currency] {
