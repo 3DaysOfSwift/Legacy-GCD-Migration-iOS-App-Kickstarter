@@ -1,96 +1,70 @@
 import Foundation
 import KsApi
-import Prelude
-import ReactiveExtensions
-import ReactiveSwift
+import Observation
 
 @MainActor
-public protocol SettingsRecommendationsCellViewModelInputs {
-  func configureWith(user: User)
-  func recommendationsTapped(on: Bool)
-}
+@Observable
+public final class SettingsRecommendationsCellViewModel {
+  public private(set) var recommendationsOn: Bool?
+  public var onSaved: (() -> Void)?
+  public var onError: ((String) -> Void)?
+  private let feature: SettingsFeature
+  private let sleep: (TimeInterval) async throws -> Void
+  private var initialUser: User?
+  private var currentUser: User?
+  private var revision = 0
+  private var tasks: [UUID: Task<Void, Never>] = [:]
 
-@MainActor
-public protocol SettingsRecommendationsCellViewModelOutputs {
-  var postNotification: Signal<Notification, Never> { get }
-  var recommendationsOn: Signal<Bool, Never> { get }
-  var unableToSaveError: Signal<String, Never> { get }
-  var updateCurrentUser: Signal<User, Never> { get }
-}
-
-@MainActor
-public protocol SettingsRecommendationsCellViewModelType {
-  var inputs: SettingsRecommendationsCellViewModelInputs { get }
-  var outputs: SettingsRecommendationsCellViewModelOutputs { get }
-}
-
-@MainActor
-public final class SettingsRecommendationsCellViewModel: SettingsRecommendationsCellViewModelType,
-  SettingsRecommendationsCellViewModelInputs, SettingsRecommendationsCellViewModelOutputs {
-  public init(feature: SettingsFeature? = nil) {
-    let feature = feature ?? AppModel.shared.settingsFeature
-    let initialUser = self.configureWithProperty.signal
-      .skipNil()
-
-    let userAttributeChanged: Signal<(UserAttribute, Bool), Never> =
-      self.recommendationsTappedProperty.signal.map {
-        (UserAttribute.privacy(UserAttribute.Privacy.recommendations), !$0)
-      }
-
-    let updatedUser = initialUser
-      .switchMap { user in
-        userAttributeChanged.scan(user) { user, attributeAndOn in
-          let (attribute, on) = attributeAndOn
-          return user |> attribute.keyPath .~ on
-        }
-      }
-
-    let updateEvent = initialUser.takePairWhen(userAttributeChanged)
-      .switchMap { user, edit in
-        feature.saveResult([SettingsFeature.Change(edit.0, edit.1)], from: user)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .materialize()
-      }
-
-    self.postNotification = updateEvent.values()
-      .map { _ in
-        Notification(
-          name: .ksr_recommendationsSettingChanged,
-          userInfo: nil
-        )
-      }
-
-    self.unableToSaveError = updateEvent.errors()
-      .map { env in
-        env.errorMessages.first ?? Strings.profile_settings_error()
-      }
-
-    let previousUserOnError = Signal.merge(initialUser, updatedUser)
-      .combinePrevious()
-      .takeWhen(self.unableToSaveError)
-      .map { previous, _ in previous }
-
-    self.updateCurrentUser = Signal.merge(initialUser, updatedUser, previousUserOnError)
-
-    self.recommendationsOn = self.updateCurrentUser
-      .map { $0.optedOutOfRecommendations }.skipNil().map { $0 ? false : true }.skipRepeats()
+  public init(feature: SettingsFeature? = nil, sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
+    if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
+  }) {
+    self.feature = feature ?? AppModel.shared.settingsFeature
+    self.sleep = sleep
   }
 
-  fileprivate let configureWithProperty = MutableProperty<User?>(nil)
   public func configureWith(user: User) {
-    self.configureWithProperty.value = user
+    self.initialUser = user
+    self.currentUser = user
+    if let optedOut = user.optedOutOfRecommendations { self.recommendationsOn = !optedOut }
   }
 
-  fileprivate let recommendationsTappedProperty = MutableProperty(false)
   public func recommendationsTapped(on: Bool) {
-    self.recommendationsTappedProperty.value = on
+    guard let source = self.initialUser, var current = self.currentUser else { return }
+    let previous = current
+    current[keyPath: UserAttribute.privacy(.recommendations).keyPath] = !on
+    self.currentUser = current
+    if let optedOut = current.optedOutOfRecommendations { self.recommendationsOn = !optedOut }
+    self.revision += 1
+    let revision = self.revision
+    let feature = self.feature
+    let sleep = self.sleep
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    let id = UUID()
+    let task = Task { [weak self] in
+      defer { self?.tasks[id] = nil }
+      let result: Result<User, Error>
+      do {
+        result = .success(try await feature.save([.init(.privacy(.recommendations), !on)], from: source))
+      } catch {
+        result = .failure(error)
+      }
+      do { try await sleep(delay) } catch { return }
+      guard let self, self.revision == revision else { return }
+      switch result {
+      case .success:
+        self.onSaved?()
+      case let .failure(error):
+        guard !(error is CancellationError) else { return }
+        self.currentUser = previous
+        if let optedOut = previous.optedOutOfRecommendations { self.recommendationsOn = !optedOut }
+        self.onError?((error as? ErrorEnvelope)?.errorMessages.first ?? Strings.profile_settings_error())
+      }
+    }
+    self.tasks[id] = task
   }
 
-  public let postNotification: Signal<Notification, Never>
-  public let recommendationsOn: Signal<Bool, Never>
-  public let unableToSaveError: Signal<String, Never>
-  public let updateCurrentUser: Signal<User, Never>
-
-  public var inputs: SettingsRecommendationsCellViewModelInputs { return self }
-  public var outputs: SettingsRecommendationsCellViewModelOutputs { return self }
+  internal func waitForSaves() async {
+    let tasks = Array(self.tasks.values)
+    for task in tasks { await task.value }
+  }
 }

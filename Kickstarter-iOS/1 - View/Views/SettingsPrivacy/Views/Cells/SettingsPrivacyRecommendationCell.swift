@@ -2,11 +2,11 @@ import KsApi
 
 import Prelude
 import Prelude_UIKit
-import ReactiveSwift
+import Observation
 import UIKit
 
 internal final class SettingsPrivacyRecommendationCell: UITableViewCell, ValueCell {
-  fileprivate let viewModel: SettingsRecommendationsCellViewModelType = SettingsRecommendationsCellViewModel()
+  fileprivate let viewModel = SettingsRecommendationsCellViewModel()
 
   @IBOutlet fileprivate var recommendationsLabel: UILabel!
   @IBOutlet fileprivate var recommendationsSwitch: UISwitch!
@@ -25,7 +25,8 @@ internal final class SettingsPrivacyRecommendationCell: UITableViewCell, ValueCe
   }
 
   internal func configureWith(value: SettingsPrivacyStaticCellValue) {
-    self.viewModel.inputs.configureWith(user: value.user)
+    self.viewModel.configureWith(user: value.user)
+    if let isOn = self.viewModel.recommendationsOn { self.recommendationsSwitch.isOn = isOn }
 
     _ = self.recommendationsSwitch
       |> \.accessibilityHint .~ value.cellType.description
@@ -54,15 +55,21 @@ internal final class SettingsPrivacyRecommendationCell: UITableViewCell, ValueCe
 
   internal override func bindViewModel() {
     super.bindViewModel()
+    self.viewModel.onSaved = {
+      NotificationCenter.default.post(name: .ksr_recommendationsSettingChanged, object: nil)
+    }
+    self.observeRecommendations()
+  }
 
-    self.viewModel.outputs.postNotification
-      .observeForUI()
-      .observeValues { NotificationCenter.default.post($0) }
-
-    self.recommendationsSwitch.rac.on = self.viewModel.outputs.recommendationsOn
+  private func observeRecommendations() {
+    withObservationTracking {
+      if let isOn = self.viewModel.recommendationsOn { self.recommendationsSwitch.isOn = isOn }
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeRecommendations() }
+    }
   }
 
   @IBAction func recommendationsSwitch(_ recommendationsSwitch: UISwitch) {
-    self.viewModel.inputs.recommendationsTapped(on: recommendationsSwitch.isOn)
+    self.viewModel.recommendationsTapped(on: recommendationsSwitch.isOn)
   }
 }
