@@ -5,37 +5,38 @@ import KDS
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 internal final class BackerDashboardProjectCellViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private let vm: BackerDashboardProjectCellViewModelType = BackerDashboardProjectCellViewModel()
+  private let vm = BackerDashboardProjectCellViewModel()
 
-  private let metadataIconIsHidden = TestObserver<Bool, Never>()
-  private let metadataText = TestObserver<String, Never>()
-  private let prelaunchProject = TestObserver<Bool, Never>()
-  private let percentFundedText = TestObserver<String, Never>()
-  private let photoURL = TestObserver<String, Never>()
-  private let progress = TestObserver<Float, Never>()
-  private let progressBarColor = TestObserver<UIColor, Never>()
-  private let projectTitleText = TestObserver<String, Never>()
-  private let savedIconIsHidden = TestObserver<Bool, Never>()
+  private let metadataIconIsHidden = DashboardRecorder<Bool>()
+  private let metadataText = DashboardRecorder<String>()
+  private let prelaunchProject = DashboardRecorder<Bool>()
+  private let percentFundedText = DashboardRecorder<String>()
+  private let photoURL = DashboardRecorder<String>()
+  private let progress = DashboardRecorder<Float>()
+  private let progressBarColor = DashboardRecorder<UIColor>()
+  private let projectTitleText = DashboardRecorder<String>()
+  private let savedIconIsHidden = DashboardRecorder<Bool>()
 
   override func setUp() async throws {
     try await super.setUp()
-    self.vm.outputs.metadataIconIsHidden.observe(self.metadataIconIsHidden.observer)
-    self.vm.outputs.metadataText.observe(self.metadataText.observer)
-    self.vm.outputs.percentFundedText.map { $0.string }.observe(self.percentFundedText.observer)
-    self.vm.outputs.photoURL.map { $0?.absoluteString ?? "" }.observe(self.photoURL.observer)
-    self.vm.outputs.progress.observe(self.progress.observer)
-    self.vm.outputs.prelaunchProject.observe(self.prelaunchProject.observer)
-    self.vm.outputs.progressBarColor.observe(self.progressBarColor.observer)
-    self.vm.outputs.projectTitleText.map { $0.string }.observe(self.projectTitleText.observer)
-    self.vm.outputs.savedIconIsHidden.observe(self.savedIconIsHidden.observer)
+    self.vm.onChange = {
+      guard let state = self.vm.state else { return }
+      self.metadataIconIsHidden.values.append(state.metadataIconIsHidden)
+      self.metadataText.values.append(state.metadataText)
+      self.percentFundedText.values.append(state.percentFundedText.string)
+      self.photoURL.values.append(state.photoURL?.absoluteString ?? "")
+      self.progress.values.append(state.progress)
+      self.prelaunchProject.values.append(state.prelaunchProject)
+      self.progressBarColor.values.append(state.progressBarColor)
+      self.projectTitleText.values.append(state.projectTitleText.string)
+      self.savedIconIsHidden.values.append(state.savedIconIsHidden)
+    }
   }
 
   func testProjectData_Live() {
@@ -49,7 +50,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
       |> Project.lens.prelaunchActivated .~ false
       |> Project.lens.displayPrelaunch .~ false
 
-    self.vm.inputs.configureWith(project: project)
+    self.vm.configureWith(project: project)
 
     self.metadataIconIsHidden.assertValues([false])
     self.metadataText.assertValues(["14 days"])
@@ -70,7 +71,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
       |> Project.lens.prelaunchActivated .~ false
       |> Project.lens.displayPrelaunch .~ false
 
-    self.vm.inputs.configureWith(project: project)
+    self.vm.configureWith(project: project)
 
     self.metadataIconIsHidden.assertValues([true])
     self.metadataText.assertValues(["Successful"])
@@ -91,7 +92,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
       |> Project.lens.prelaunchActivated .~ false
       |> Project.lens.displayPrelaunch .~ false
 
-    self.vm.inputs.configureWith(project: project)
+    self.vm.configureWith(project: project)
 
     self.metadataIconIsHidden.assertValues([true])
     self.metadataText.assertValues(["Unsuccessful"])
@@ -113,7 +114,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
       |> Project.lens.prelaunchActivated .~ false
       |> Project.lens.displayPrelaunch .~ false
 
-    self.vm.inputs.configureWith(project: project)
+    self.vm.configureWith(project: project)
 
     self.metadataIconIsHidden.assertValues([true])
     self.metadataText.assertValues(["Successful"])
@@ -135,7 +136,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
 
     self.prelaunchProject.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(project: project)
+    self.vm.configureWith(project: project)
 
     self.prelaunchProject.assertValues([true])
     self.metadataText.assertValues(["Coming soon"])
@@ -152,7 +153,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
 
     self.prelaunchProject.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(project: project)
+    self.vm.configureWith(project: project)
 
     self.prelaunchProject.assertValues([false])
     self.metadataText.assertValues(["Successful"])
@@ -170,7 +171,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
 
     self.prelaunchProject.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(project: project)
+    self.vm.configureWith(project: project)
 
     self.prelaunchProject.assertValues([true])
     self.metadataText.assertValues(["Coming soon"])
@@ -212,7 +213,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
 
     let fragment: GraphAPI.BackerDashboardProjectCellFragment = try! testGraphObject(jsonString: jsonString)
 
-    self.vm.inputs.configureWith(project: fragment)
+    self.vm.configureWith(project: fragment)
 
     self.metadataIconIsHidden.assertValues([false])
     self.metadataText.assertValues(["10 days"])
@@ -258,7 +259,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
 
     let fragment: GraphAPI.BackerDashboardProjectCellFragment = try! testGraphObject(jsonString: jsonString)
 
-    self.vm.inputs.configureWith(project: fragment)
+    self.vm.configureWith(project: fragment)
 
     self.metadataIconIsHidden.assertValues([true])
     self.metadataText.assertValues(["Successful"])
@@ -304,7 +305,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
 
     let fragment: GraphAPI.BackerDashboardProjectCellFragment = try! testGraphObject(jsonString: jsonString)
 
-    self.vm.inputs.configureWith(project: fragment)
+    self.vm.configureWith(project: fragment)
 
     self.metadataIconIsHidden.assertValues([true])
     self.metadataText.assertValues(["Unsuccessful"])
@@ -352,7 +353,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
 
     let fragment: GraphAPI.BackerDashboardProjectCellFragment = try! testGraphObject(jsonString: jsonString)
 
-    self.vm.inputs.configureWith(project: fragment)
+    self.vm.configureWith(project: fragment)
 
     self.metadataIconIsHidden.assertValues([false])
     self.metadataText.assertValues(["94 days"])
@@ -398,7 +399,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
 
     let fragment: GraphAPI.BackerDashboardProjectCellFragment = try! testGraphObject(jsonString: jsonString)
 
-    self.vm.inputs.configureWith(project: fragment)
+    self.vm.configureWith(project: fragment)
 
     self.prelaunchProject.assertValues([true])
     self.metadataText.assertValues(["Coming soon"])
@@ -438,7 +439,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
 
     let fragment: GraphAPI.BackerDashboardProjectCellFragment = try! testGraphObject(jsonString: jsonString)
 
-    self.vm.inputs.configureWith(project: fragment)
+    self.vm.configureWith(project: fragment)
 
     self.prelaunchProject.assertValues([false])
     self.metadataText.assertValues(["Successful"])
@@ -446,5 +447,15 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
 
   private func endingIn(days: Int) -> TimeInterval {
     self.dateType.init().timeIntervalSince1970 + 60.0 * 60.0 * 24.0 * Double(days)
+  }
+}
+
+private final class DashboardRecorder<Value: Equatable> {
+  var values: [Value] = []
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, message, file: file, line: line)
+  }
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
   }
 }

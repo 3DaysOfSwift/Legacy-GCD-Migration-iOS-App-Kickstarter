@@ -6,7 +6,7 @@ import Prelude
 import UIKit
 
 internal final class BackerDashboardProjectCell: UITableViewCell, ValueCell {
-  fileprivate let viewModel: BackerDashboardProjectCellViewModelType = BackerDashboardProjectCellViewModel()
+  fileprivate let viewModel = BackerDashboardProjectCellViewModel()
 
   private lazy var cardView: UIView = {
     UIView(frame: .zero)
@@ -64,7 +64,7 @@ internal final class BackerDashboardProjectCell: UITableViewCell, ValueCell {
   }()
 
   internal func configureWith(value: any BackerDashboardProjectCellViewModel.ProjectCellModel) {
-    self.viewModel.inputs.configureWith(project: value)
+    self.viewModel.configureWith(project: value)
   }
 
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
@@ -207,25 +207,27 @@ internal final class BackerDashboardProjectCell: UITableViewCell, ValueCell {
   }
 
   internal override func bindViewModel() {
-    self.metadataBackgroundView.rac.backgroundColor = self.viewModel.outputs.metadataBackgroundColor
-    self.metadataLabel.rac.text = self.viewModel.outputs.metadataText
-    self.metadataIconImageView.rac.hidden = self.viewModel.outputs.metadataIconIsHidden
-    self.percentFundedLabel.rac.attributedText = self.viewModel.outputs.percentFundedText
-    self.projectNameLabel.rac.attributedText = self.viewModel.outputs.projectTitleText
-    self.projectImageView.rac.ksr_imageUrl = self.viewModel.outputs.photoURL
-    self.progressBarView.rac.backgroundColor = self.viewModel.outputs.progressBarColor
-    self.progressBarView.rac.hidden = self.viewModel.outputs.prelaunchProject
-    self.progressStaticView.rac.hidden = self.viewModel.outputs.prelaunchProject
-    self.percentFundedLabel.rac.hidden = self.viewModel.outputs.prelaunchProject
-    self.savedIconImageView.rac.hidden = self.viewModel.outputs.savedIconIsHidden
+    self.viewModel.onChange = { [weak self] in self?.renderProject() }
+  }
 
-    self.viewModel.outputs.progress
-      .observeForUI()
-      .observeValues { [weak element = progressBarView] progress in
-        let anchorX = progress == 0 ? 0 : 0.5 / progress
-        element?.layer.anchorPoint = CGPoint(x: CGFloat(max(anchorX, 0.5)), y: 0.5)
-        element?.transform = CGAffineTransform(scaleX: CGFloat(min(progress, 1.0)), y: 1.0)
-      }
+  private func renderProject() {
+    guard let state = self.viewModel.state else { return }
+    self.metadataBackgroundView.backgroundColor = state.metadataBackgroundColor
+    self.metadataLabel.text = state.metadataText
+    self.metadataIconImageView.isHidden = state.metadataIconIsHidden
+    self.percentFundedLabel.attributedText = state.percentFundedText
+    self.projectNameLabel.attributedText = state.projectTitleText
+    self.projectImageView.af.cancelImageRequest()
+    self.projectImageView.image = nil
+    if let url = state.photoURL { self.projectImageView.ksr_setImageWithURL(url) }
+    self.progressBarView.backgroundColor = state.progressBarColor
+    self.progressBarView.isHidden = state.prelaunchProject
+    self.progressStaticView.isHidden = state.prelaunchProject
+    self.percentFundedLabel.isHidden = state.prelaunchProject
+    self.savedIconImageView.isHidden = state.savedIconIsHidden
+    let anchorX = state.progress == 0 ? 0 : 0.5 / state.progress
+    self.progressBarView.layer.anchorPoint = CGPoint(x: CGFloat(max(anchorX, 0.5)), y: 0.5)
+    self.progressBarView.transform = CGAffineTransform(scaleX: CGFloat(min(state.progress, 1.0)), y: 1)
   }
 
   internal override func bindStyles() {
