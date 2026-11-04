@@ -1,8 +1,6 @@
 @testable import Kickstarter_iOS
 import GraphAPI
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @testable import KsApi
@@ -11,10 +9,6 @@ import XCTest
 @MainActor
 final class PledgeOverTimeUseCaseTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  let (projectSignal, projectObserver) = Signal<Project, Never>.pipe()
-  let (pledgeTotalSignal, pledgeTotalObserver) = Signal<Double, Never>.pipe()
-  let (pledgeViewContextSignal, pledgeViewContextObserver) = Signal<PledgeViewContext, Never>.pipe()
-
   private let feature = PledgeFeature(
     sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
     makeProvider: { AsyncPledgeProvider(service: AppEnvironment.current.apiService) })
@@ -26,26 +20,20 @@ final class PledgeOverTimeUseCaseTests: TestCase {
   }
   var useCase: PledgeOverTimeUseCase?
 
-  let buildPaymentPlanInputs = TestObserver<(String, String), Never>()
-  let pledgeOverTimeIsLoading = TestObserver<Bool, Never>()
-  let showPledgeOverTimeUI = TestObserver<Bool, Never>()
-  let selectedPlan = TestObserver<PledgePaymentPlansType?, Never>()
+  private let buildPaymentPlanInputs = OverTimeRecorder<(String, String)>()
+  private let pledgeOverTimeIsLoading = OverTimeRecorder<Bool>()
+  private let showPledgeOverTimeUI = OverTimeRecorder<Bool>()
+  private let selectedPlan = OverTimeRecorder<PledgePaymentPlansType?>()
 
   override func setUp() async throws {
     try await super.setUp()
 
     MainActor.assumeIsolated {
-      self.useCase = PledgeOverTimeUseCase(
-        project: self.projectSignal,
-        pledgeTotal: self.pledgeTotalSignal,
-        context: self.pledgeViewContextSignal,
-        feature: self.feature
-      )
-      self.useCase!.outputs.buildPaymentPlanInputs.observe(self.buildPaymentPlanInputs.observer)
-      self.useCase!.outputs.pledgeOverTimeIsLoading.observe(self.pledgeOverTimeIsLoading.observer)
-      self.useCase!.outputs.showPledgeOverTimeUI.observe(self.showPledgeOverTimeUI.observer)
-      self.useCase!.outputs.pledgeOverTimeConfigData.map { $0?.selectedPlan }
-        .observe(self.selectedPlan.observer)
+      self.useCase = PledgeOverTimeUseCase(feature: self.feature)
+      self.useCase!.onRequest = { [weak self] slug, amount in self?.buildPaymentPlanInputs.record((slug, amount)) }
+      self.useCase!.onLoading = { [weak self] in self?.pledgeOverTimeIsLoading.record($0) }
+      self.useCase!.onShow = { [weak self] in self?.showPledgeOverTimeUI.record($0) }
+      self.useCase!.onConfig = { [weak self] in self?.selectedPlan.record($0?.selectedPlan) }
     }
   }
 
@@ -55,23 +43,23 @@ final class PledgeOverTimeUseCaseTests: TestCase {
     await withEnvironment(apiService: MockService(buildPaymentPlanResult: .success(query))) {
       () async in
       var projects: [Int] = []
-      let observation = self.useCase!.outputs.pledgeOverTimeConfigData.observeValues {
-        if let data = $0 { projects.append(data.project.id) }
+      self.useCase!.onConfig = { [weak self] data in
+        self?.selectedPlan.record(data?.selectedPlan)
+        if let data { projects.append(data.project.id) }
       }
-      defer { observation?.dispose() }
       var project = Project.template
       project.isPledgeOverTimeAllowed = true
       project.id = 1
       project.slug = "first-project"
-      self.pledgeViewContextObserver.send(value: .pledge)
-      self.projectObserver.send(value: project)
-      self.pledgeTotalObserver.send(value: 100)
+      self.useCase!.updateContext(.pledge)
+      self.useCase!.updateProject(project)
+      self.useCase!.updateTotal(100)
       await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
       XCTAssertEqual(projects, [1])
       project.id = 2
       project.slug = "second-project"
-      self.projectObserver.send(value: project)
+      self.useCase!.updateProject(project)
       XCTAssertEqual(projects, [1], "Do not pair the previous plan with the new project")
       await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
@@ -89,9 +77,9 @@ final class PledgeOverTimeUseCaseTests: TestCase {
         |> Project.lens.isPledgeOverTimeAllowed .~ true
       let pledgeTotal = 928.66
 
-      self.pledgeViewContextObserver.send(value: .pledge)
-      self.projectObserver.send(value: project)
-      self.pledgeTotalObserver.send(value: pledgeTotal)
+      self.useCase!.updateContext(.pledge)
+      self.useCase!.updateProject(project)
+      self.useCase!.updateTotal(pledgeTotal)
 
       self.buildPaymentPlanInputs.assertValueCount(1)
       XCTAssertEqual(self.buildPaymentPlanInputs.lastValue?.0, "some-slug")
@@ -110,26 +98,26 @@ final class PledgeOverTimeUseCaseTests: TestCase {
         |> Project.lens.slug .~ "some-slug"
         |> Project.lens.isPledgeOverTimeAllowed .~ true
 
-      self.pledgeViewContextObserver.send(value: .pledge)
-      self.projectObserver.send(value: project)
-      self.pledgeTotalObserver.send(value: 100.0)
+      self.useCase!.updateContext(.pledge)
+      self.useCase!.updateProject(project)
+      self.useCase!.updateTotal(100.0)
 
       self.buildPaymentPlanInputs.assertValueCount(1)
       XCTAssertEqual(self.buildPaymentPlanInputs.lastValue?.0, "some-slug")
       XCTAssertEqual(self.buildPaymentPlanInputs.lastValue?.1, "100.00")
 
-      self.pledgeTotalObserver.send(value: 98.0)
+      self.useCase!.updateTotal(98.0)
 
       self.buildPaymentPlanInputs.assertValueCount(2)
       XCTAssertEqual(self.buildPaymentPlanInputs.lastValue?.0, "some-slug")
       XCTAssertEqual(self.buildPaymentPlanInputs.lastValue?.1, "98.00")
 
-      self.pledgeTotalObserver.send(value: 98.0)
+      self.useCase!.updateTotal(98.0)
 
       // Count remains the same as the previous one since the value ("98.00") did not change.
       self.buildPaymentPlanInputs.assertValueCount(2)
 
-      self.pledgeTotalObserver.send(value: 165.0)
+      self.useCase!.updateTotal(165.0)
       self.buildPaymentPlanInputs.assertValueCount(3)
       XCTAssertEqual(self.buildPaymentPlanInputs.lastValue?.0, "some-slug")
       XCTAssertEqual(self.buildPaymentPlanInputs.lastValue?.1, "165.00")
@@ -170,9 +158,9 @@ final class PledgeOverTimeUseCaseTests: TestCase {
         |> Project.lens.slug .~ "some-slug"
         |> Project.lens.isPledgeOverTimeAllowed .~ true
 
-      self.pledgeViewContextObserver.send(value: .pledge)
-      self.projectObserver.send(value: project)
-      self.pledgeTotalObserver.send(value: 100.0)
+      self.useCase!.updateContext(.pledge)
+      self.useCase!.updateProject(project)
+      self.useCase!.updateTotal(100.0)
       await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
 
@@ -195,9 +183,9 @@ final class PledgeOverTimeUseCaseTests: TestCase {
         |> Project.lens.slug .~ "some-slug"
         |> Project.lens.isPledgeOverTimeAllowed .~ false
 
-      self.pledgeViewContextObserver.send(value: .pledge)
-      self.projectObserver.send(value: project)
-      self.pledgeTotalObserver.send(value: 100.0)
+      self.useCase!.updateContext(.pledge)
+      self.useCase!.updateProject(project)
+      self.useCase!.updateTotal(100.0)
       await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
 
@@ -215,9 +203,9 @@ final class PledgeOverTimeUseCaseTests: TestCase {
         |> Project.lens.slug .~ "some-slug"
         |> Project.lens.isPledgeOverTimeAllowed .~ true
 
-      self.pledgeViewContextObserver.send(value: .pledge)
-      self.projectObserver.send(value: project)
-      self.pledgeTotalObserver.send(value: 100.0)
+      self.useCase!.updateContext(.pledge)
+      self.useCase!.updateProject(project)
+      self.useCase!.updateTotal(100.0)
       await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
 
@@ -236,9 +224,9 @@ final class PledgeOverTimeUseCaseTests: TestCase {
         |> Project.lens.slug .~ "some-slug"
         |> Project.lens.isPledgeOverTimeAllowed .~ false
 
-      self.pledgeViewContextObserver.send(value: .pledge)
-      self.projectObserver.send(value: project)
-      self.pledgeTotalObserver.send(value: 100.0)
+      self.useCase!.updateContext(.pledge)
+      self.useCase!.updateProject(project)
+      self.useCase!.updateTotal(100.0)
 
       self.showPledgeOverTimeUI.assertValues([false])
       self.selectedPlan.assertValues([nil])
@@ -258,9 +246,9 @@ final class PledgeOverTimeUseCaseTests: TestCase {
         |> Project.lens.slug .~ "some-slug"
         |> Project.lens.isPledgeOverTimeAllowed .~ true
 
-      self.pledgeViewContextObserver.send(value: .pledge)
-      self.projectObserver.send(value: project)
-      self.pledgeTotalObserver.send(value: 100.0)
+      self.useCase!.updateContext(.pledge)
+      self.useCase!.updateProject(project)
+      self.useCase!.updateTotal(100.0)
       await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
 
@@ -287,9 +275,9 @@ final class PledgeOverTimeUseCaseTests: TestCase {
         |> Project.lens.isPledgeOverTimeAllowed .~ true
       let pledgeTotal = 928.66
 
-      self.pledgeViewContextObserver.send(value: .pledge)
-      self.projectObserver.send(value: project)
-      self.pledgeTotalObserver.send(value: pledgeTotal)
+      self.useCase!.updateContext(.pledge)
+      self.useCase!.updateProject(project)
+      self.useCase!.updateTotal(pledgeTotal)
       await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
 
@@ -319,9 +307,9 @@ final class PledgeOverTimeUseCaseTests: TestCase {
         |> Project.lens.isPledgeOverTimeAllowed .~ true
         |> Project.lens.personalization.backing .~ Backing.templatePlot
 
-      self.pledgeViewContextObserver.send(value: .pledge)
-      self.projectObserver.send(value: project)
-      self.pledgeTotalObserver.send(value: 100.0)
+      self.useCase!.updateContext(.pledge)
+      self.useCase!.updateProject(project)
+      self.useCase!.updateTotal(100.0)
       await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
 
@@ -346,9 +334,9 @@ final class PledgeOverTimeUseCaseTests: TestCase {
         |> Project.lens.isPledgeOverTimeAllowed .~ true
         |> Project.lens.personalization.backing .~ Backing.templatePlot
 
-      self.pledgeViewContextObserver.send(value: .pledge)
-      self.projectObserver.send(value: project)
-      self.pledgeTotalObserver.send(value: 100.0)
+      self.useCase!.updateContext(.pledge)
+      self.useCase!.updateProject(project)
+      self.useCase!.updateTotal(100.0)
       await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
 
@@ -367,8 +355,8 @@ final class PledgeOverTimeUseCaseTests: TestCase {
         |> Project.lens.slug .~ "some-slug"
         |> Project.lens.isPledgeOverTimeAllowed .~ true
 
-      self.projectObserver.send(value: project)
-      self.pledgeTotalObserver.send(value: 100.0)
+      self.useCase!.updateProject(project)
+      self.useCase!.updateTotal(100.0)
 
       let contextsToHideUI: [PledgeViewContext] = [
         .changePaymentMethod,
@@ -379,17 +367,28 @@ final class PledgeOverTimeUseCaseTests: TestCase {
       ]
 
       for context in contextsToHideUI {
-        self.pledgeViewContextObserver.send(value: context)
+        self.useCase!.updateContext(context)
         self.showPledgeOverTimeUI.assertLastValue(false)
       }
 
       let contextsThatShowUI: [PledgeViewContext] = [.pledge, .editPledgeOverTime]
       for context in contextsThatShowUI {
-        self.pledgeViewContextObserver.send(value: context)
+        self.useCase!.updateContext(context)
         self.showPledgeOverTimeUI.assertLastValue(true)
       }
       await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
     }
   }
+}
+
+private final class OverTimeRecorder<Value> {
+  private var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func record(_ value: Value) { self.values.append(value) }
+  func assertDidNotEmitValue(file: StaticString = #filePath, line: UInt = #line) { XCTAssertTrue(self.values.isEmpty, file: file, line: line) }
+  func assertDidEmitValue(file: StaticString = #filePath, line: UInt = #line) { XCTAssertFalse(self.values.isEmpty, file: file, line: line) }
+  func assertValueCount(_ count: Int, file: StaticString = #filePath, line: UInt = #line) { XCTAssertEqual(self.values.count, count, file: file, line: line) }
+  func assertLastValue(_ expected: Value, file: StaticString = #filePath, line: UInt = #line) where Value: Equatable { XCTAssertEqual(self.values.last, expected, file: file, line: line) }
+  func assertValues(_ expected: [Value], file: StaticString = #filePath, line: UInt = #line) where Value: Equatable { XCTAssertEqual(self.values, expected, file: file, line: line) }
 }

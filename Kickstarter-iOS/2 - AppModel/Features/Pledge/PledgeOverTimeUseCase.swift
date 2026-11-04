@@ -1,192 +1,119 @@
 import Foundation
-import GraphAPI
 import KsApi
-import ReactiveSwift
+import Observation
+import Prelude
 
 @MainActor
-public protocol PledgeOverTimeUseCaseInputs {
-  func paymentPlanSelected(_ paymentPlan: PledgePaymentPlansType)
-}
-
-@MainActor
-public protocol PledgeOverTimeUseCaseOutputs {
-  var showPledgeOverTimeUI: Signal<Bool, Never> { get }
-  var pledgeOverTimeConfigData: Signal<PledgePaymentPlansAndSelectionData?, Never> { get }
-  var pledgeOverTimeIsLoading: Signal<Bool, Never> { get }
-
-  // Visible only for testing
-  var buildPaymentPlanInputs: Signal<(String, String), Never> { get }
-}
-
-@MainActor
-public protocol PledgeOverTimeUseCaseType {
-  var inputs: PledgeOverTimeUseCaseInputs { get }
-  var outputs: PledgeOverTimeUseCaseOutputs { get }
-}
-
-/**
- A component view model for Pledge Over Time in the pledge checkout flow.
- Creates one BuildPaymentPlanQuery and uses those results to create data for the UI.
-
- Inputs:
-  - `project`: A project.
-  - `pledgeTotal`: Total amount to pledge, a double.
-  - `paymentPlanSelected:`: The payment plan selected by the user.
-
- A `project` and `pledgeTotal` are required before `showPledgeOverTimeUI` or `pledgeOverTimeIsLoading` will send.
-
- If `showPledgeOverTimeUI` is false, or if a server error occurs, the model will immediately send `nil` for `pledgeOverTimeConfigData`.
- Otherwise, `pledgeOverTimeConfigData` sends after the BuildPaymentPlanQuery loads. It will also send again each time `paymentPlanSelected:` is called.
-
- Outputs:
-  - `showPledgeOverTimeUI`:  Whether the PLOT module should be shown. Sends one or more events. The PLOT module should disappear if an error occurs in the BuildPaymentPlanQuery.
-  - `pledgeOverTimeConfigData`: Info needed to display the PLOT module. Sends one or more events.
-  - `pledgeOverTimeIsLoading`: Whether the PLOT module is loading. Sends one or more events.
- */
-
-@MainActor
-public final class PledgeOverTimeUseCase: PledgeOverTimeUseCaseType, PledgeOverTimeUseCaseInputs,
-  PledgeOverTimeUseCaseOutputs
-{
-  init(
-    project: Signal<Project, Never>,
-    pledgeTotal: Signal<Double, Never>,
-    context: Signal<PledgeViewContext, Never>,
-    feature: PledgeFeature = AppModel.shared.pledgeFeature
-  ) {
-    self.feature = feature
-    let route = self.route
-    let pledgeOverTimeUIEnabled = Signal.combineLatest(project, context)
-      .map { project, context -> Bool in
-        project.isPledgeOverTimeAllowed == true && context.isAny(of: .pledge, .editPledgeOverTime)
-      }
-
-    let planRequests: Signal<(Project, String), Never> = Signal.combineLatest(
-      project,
-      // just re-evaluate if the total is changed
-      pledgeTotal.skipRepeats()
-    )
-    .map {
-      (project: Project, pledgeTotal: Double) -> (
-        Project,
-        String
-      ) in
-      let amountFormatter = NumberFormatter()
-      amountFormatter.minimumFractionDigits = 2
-      amountFormatter.maximumFractionDigits = 2
-      let amount = amountFormatter.string(from: NSNumber(value: pledgeTotal)) ?? ""
-
-      return (project, amount)
-    }
-
-    self.buildPaymentPlanInputs = planRequests.map { ($0.0.slug, $0.1) }
-
-    // The checkout still consumes signals, but request execution is owned by
-    // this screen and uses the feature's cancellation-aware async API.
-    let planEvents = Signal<Signal<(Project, PledgePaymentPlan?), ErrorEnvelope>.Event, Never>.pipe()
-    let pledgeOverTimeQuery = planEvents.output
-
-    self.showPledgeOverTimeUI = Signal.merge(
-      // Hide PLOT if the feature flag is off on either client or server
-      pledgeOverTimeUIEnabled,
-      // Hide PLOT if an error occurs
-      pledgeOverTimeQuery.errors().map(value: false)
-    )
-
-    self.pledgeOverTimeIsLoading = Signal.merge(
-      pledgeOverTimeUIEnabled,
-      pledgeOverTimeQuery.values().map(value: false),
-      pledgeOverTimeQuery.errors().map(value: false)
-    )
-    .skipRepeats()
-
-    // Send an empty config when the view model is initialized
-    let emptyConfigData: Signal<PledgePaymentPlansAndSelectionData?, Never> = self
-      .showPledgeOverTimeUI
-      .filter { $0 == false }
-      .mapConst(nil)
-
-    // Send a config once the query loads, defaulting to .pledgeInFull
-    let configDataAfterQueryLoads: Signal<PledgePaymentPlansAndSelectionData?, Never> =
-      pledgeOverTimeQuery
-      .values()
-      .map {
-        (
-          project: Project,
-          pledgeOverTimeApiValues: PledgePaymentPlan?
-        ) -> PledgePaymentPlansAndSelectionData? in
-
-        // Wrap the value in `nil` to ensure the Signal emits consistently,
-        // even when the API request fails or Pledge Over Time is disabled.
-        guard let paymentPlan = pledgeOverTimeApiValues else { return nil }
-
-        let isPledgeOverTimePreSelected =
-          project.personalization.backing?.paymentIncrements.isEmpty == false
-        let isPledgeOverTimeEligible = paymentPlan.amountIsPledgeOverTimeEligible
-
-        // Retain PLOT pre-selection only if the new pledge amount meets the eligibility threshold (amountIsPledgeOverTimeEligible)
-        let defaultPlan =
-          isPledgeOverTimePreSelected && isPledgeOverTimeEligible
-          ? PledgePaymentPlansType.pledgeOverTime : PledgePaymentPlansType.pledgeInFull
-
-        return PledgePaymentPlansAndSelectionData(
-          selectedPlan: defaultPlan,
-          increments: paymentPlan.paymentIncrements,
-          ineligible: !paymentPlan.amountIsPledgeOverTimeEligible,
-          project: project
-        )
-      }
-
-    // Send an updated config after changing the plan
-    let configDataAfterChangingPlan: Signal<PledgePaymentPlansAndSelectionData?, Never> =
-      Signal
-      .combineLatest(configDataAfterQueryLoads.skipNil(), self.paymentPlanSelectedProperty.signal)
-      .map { data, selectedPlan in
-        PledgePaymentPlansAndSelectionData(
-          selectedPlan: selectedPlan,
-          increments: data.paymentIncrements,
-          ineligible: data.ineligible,
-          project: data.project
-        )
-      }
-
-    self.pledgeOverTimeConfigData = Signal.merge(
-      emptyConfigData,
-      configDataAfterQueryLoads,
-      configDataAfterChangingPlan
-    )
-    .skipRepeats { a, b in
-      if a.isNil && b.isNil {
-        return true
-      }
-
-      return false
-    }
-    planRequests.observeValues { [weak self] project, amount in
-      guard let self else { return }
-      self.planTask?.cancel()
-      let revision = UUID()
-      self.planRevision = revision
-      let command = feature.requestPaymentPlan(route: route, slug: project.slug, amount: amount)
-      self.planTask = Task { [weak self] in
-        do {
-          let plan = try await command.value
-          try Task.checkCancellation()
-          guard let self, self.planRevision == revision else { return }
-          planEvents.input.send(value: .value((project, plan)))
-        } catch {
-          guard !Task.isCancelled, !(error is CancellationError), let self, self.planRevision == revision else { return }
-          planEvents.input.send(value: .failed((error as? ErrorEnvelope) ?? .couldNotParseJSON))
-        }
-      }
-    }
-
-  }
-
+@Observable
+public final class PledgeOverTimeUseCase {
+  public private(set) var showPledgeOverTimeUI = false
+  public private(set) var pledgeOverTimeIsLoading = false
+  public private(set) var pledgeOverTimeConfigData: PledgePaymentPlansAndSelectionData?
+  var onShow: ((Bool) -> Void)?
+  var onLoading: ((Bool) -> Void)?
+  var onConfig: ((PledgePaymentPlansAndSelectionData?) -> Void)?
+  var onRequest: ((String, String) -> Void)?
   private let feature: PledgeFeature
   private let route = UUID()
-  private var planTask: Task<Void, Never>?
+  private var project: Project?
+  private var total: Double?
+  private var context: PledgeViewContext?
+  private var selectedPlan: PledgePaymentPlansType?
+  private var latestPlan: PledgePaymentPlansAndSelectionData?
+  private var emittedConfig = false
+  private var lastConfigWasNil = false
+  private var lastLoading: Bool?
   private var planRevision = UUID()
+  @ObservationIgnored private var planTask: Task<Void, Never>?
+
+  init(feature: PledgeFeature = AppModel.shared.pledgeFeature) { self.feature = feature }
+
+  func updateProject(_ project: Project) {
+    self.project = project
+    self.publishAvailability()
+    self.requestPlan()
+  }
+  func updateTotal(_ total: Double) {
+    guard self.total != total else { return }
+    self.total = total
+    self.requestPlan()
+  }
+  func updateContext(_ context: PledgeViewContext) {
+    self.context = context
+    self.publishAvailability()
+  }
+  func paymentPlanSelected(_ plan: PledgePaymentPlansType) {
+    self.selectedPlan = plan
+    if var latest = self.latestPlan {
+      latest.selectedPlan = plan
+      self.publishConfig(latest)
+    }
+  }
+
+  private func publishAvailability() {
+    guard let project = self.project, let context = self.context else { return }
+    let enabled = project.isPledgeOverTimeAllowed == true && context.isAny(of: .pledge, .editPledgeOverTime)
+    self.showPledgeOverTimeUI = enabled
+    self.onShow?(enabled)
+    self.publishLoading(enabled)
+    if !enabled { self.publishConfig(nil) }
+  }
+
+  private func requestPlan() {
+    guard let project = self.project, let total = self.total else { return }
+    let formatter = NumberFormatter()
+    formatter.minimumFractionDigits = 2
+    formatter.maximumFractionDigits = 2
+    let amount = formatter.string(from: NSNumber(value: total)) ?? ""
+    self.onRequest?(project.slug, amount)
+    self.planTask?.cancel()
+    let revision = UUID()
+    self.planRevision = revision
+    let command = self.feature.requestPaymentPlan(route: self.route, slug: project.slug, amount: amount)
+    self.planTask = Task { [weak self] in
+      do {
+        let plan = try await command.value
+        try Task.checkCancellation()
+        guard let self, self.planRevision == revision else { return }
+        self.publishLoading(false)
+        guard let plan else { self.publishConfig(nil); return }
+        let preselected = project.personalization.backing?.paymentIncrements.isEmpty == false
+        let defaultPlan: PledgePaymentPlansType = preselected && plan.amountIsPledgeOverTimeEligible
+          ? .pledgeOverTime : .pledgeInFull
+        let data = PledgePaymentPlansAndSelectionData(
+          selectedPlan: defaultPlan, increments: plan.paymentIncrements,
+          ineligible: !plan.amountIsPledgeOverTimeEligible, project: project
+        )
+        self.latestPlan = data
+        self.publishConfig(data)
+        if let selected = self.selectedPlan {
+          var changed = data
+          changed.selectedPlan = selected
+          self.publishConfig(changed)
+        }
+      } catch {
+        guard !Task.isCancelled, !(error is CancellationError), let self, self.planRevision == revision else { return }
+        self.showPledgeOverTimeUI = false
+        self.onShow?(false)
+        self.publishConfig(nil)
+        self.publishLoading(false)
+      }
+    }
+  }
+
+  private func publishLoading(_ loading: Bool) {
+    self.pledgeOverTimeIsLoading = loading
+    guard self.lastLoading != loading else { return }
+    self.lastLoading = loading
+    self.onLoading?(loading)
+  }
+  private func publishConfig(_ data: PledgePaymentPlansAndSelectionData?) {
+    guard !(self.emittedConfig && self.lastConfigWasNil && data == nil) else { return }
+    self.emittedConfig = true
+    self.lastConfigWasNil = data == nil
+    self.pledgeOverTimeConfigData = data
+    self.onConfig?(data)
+  }
   func waitForPlan() async { await self.planTask?.value }
   deinit {
     self.planTask?.cancel()
@@ -194,21 +121,4 @@ public final class PledgeOverTimeUseCase: PledgeOverTimeUseCaseType, PledgeOverT
     let route = self.route
     Task { @MainActor in feature.releaseRead(route: route) }
   }
-
-  public let showPledgeOverTimeUI: Signal<Bool, Never>
-  public let pledgeOverTimeConfigData: Signal<PledgePaymentPlansAndSelectionData?, Never>
-  public let pledgeOverTimeIsLoading: Signal<Bool, Never>
-  public let buildPaymentPlanInputs: Signal<(String, String), Never>
-
-  public var outputs: PledgeOverTimeUseCaseOutputs { return self }
-  public var inputs: PledgeOverTimeUseCaseInputs { return self }
-
-  // MARK: - Inputs
-
-  private let paymentPlanSelectedProperty = MutableProperty<PledgePaymentPlansType>(.pledgeInFull)
-  public func paymentPlanSelected(_ paymentPlan: PledgePaymentPlansType) {
-    self.paymentPlanSelectedProperty.value = paymentPlan
-  }
-
-  // MARK: - Outputs
 }

@@ -501,16 +501,21 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     // MARK: Pledge Over Time
 
-    self.pledgeOverTimeUseCase = PledgeOverTimeUseCase(
-      project: project,
-      pledgeTotal: pledgeTotal,
-      context: context,
-      feature: feature
-    )
+    self.pledgeOverTimeUseCase = PledgeOverTimeUseCase(feature: feature)
+    let planUseCase = self.pledgeOverTimeUseCase
+    let planShow = self.planShowPipe
+    let planConfig = self.planConfigPipe
+    let planLoading = self.planLoadingPipe
+    planUseCase.onShow = { planShow.input.send(value: $0) }
+    planUseCase.onConfig = { planConfig.input.send(value: $0) }
+    planUseCase.onLoading = { planLoading.input.send(value: $0) }
+    project.observeValues { planUseCase.updateProject($0) }
+    pledgeTotal.observeValues { planUseCase.updateTotal($0) }
+    context.observeValues { planUseCase.updateContext($0) }
 
     // MARK: - Create Backing
 
-    let selectedPaymentPlan = self.pledgeOverTimeUseCase.pledgeOverTimeConfigData
+    let selectedPaymentPlan = self.planConfigPipe.output
       .map { $0?.selectedPlan ?? .pledgeInFull }
 
     let createBackingData = Signal.combineLatest(
@@ -673,7 +678,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     let valuesChangedAndValid = Signal.combineLatest(
       self.paymentMethodsUseCase.dataOutputs.paymentMethodChangedAndValid,
-      self.pledgeOverTimeUseCase.pledgeOverTimeIsLoading,
+      self.planLoadingPipe.output,
       context
     )
     .map(allValuesChangedAndValid)
@@ -1004,7 +1009,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   }
 
   public func paymentPlanSelected(_ paymentPlan: PledgePaymentPlansType) {
-    self.pledgeOverTimeUseCase.inputs.paymentPlanSelected(paymentPlan)
+    self.pledgeOverTimeUseCase.paymentPlanSelected(paymentPlan)
   }
 
   public func goToLoginSignupTapped() {
@@ -1091,11 +1096,11 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   public let title: Signal<String, Never>
 
   public var showPledgeOverTimeUI: Signal<Bool, Never> {
-    return self.pledgeOverTimeUseCase.outputs.showPledgeOverTimeUI
+    return self.planShowPipe.output
   }
 
   public var pledgeOverTimeConfigData: Signal<PledgePaymentPlansAndSelectionData?, Never> {
-    return self.pledgeOverTimeUseCase.outputs.pledgeOverTimeConfigData
+    return self.planConfigPipe.output
   }
 
   public var inputs: PledgeViewModelInputs { return self }
@@ -1104,6 +1109,9 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   // MARK: - Use cases
 
   private let pledgeOverTimeUseCase: PledgeOverTimeUseCase
+  private let planShowPipe = Signal<Bool, Never>.pipe()
+  private let planLoadingPipe = Signal<Bool, Never>.pipe()
+  private let planConfigPipe = Signal<PledgePaymentPlansAndSelectionData?, Never>.pipe()
   private let loginSignupUseCase: LoginSignupUseCase
   private let paymentMethodsUseCase: PaymentMethodsUseCase
 }
