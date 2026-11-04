@@ -12,7 +12,7 @@ internal final class BetaToolsViewController: UITableViewController {
   // MARK: - Properties
 
   private var betaToolsData: BetaToolsData?
-  private let helpViewModel: HelpViewModelType = HelpViewModel()
+  private let helpViewModel: HelpViewModel = HelpViewModel()
   private let viewModel: BetaToolsViewModelType = BetaToolsViewModel()
 
   internal static func instantiate() -> BetaToolsViewController {
@@ -459,7 +459,7 @@ extension BetaToolsViewController: @MainActor MFMailComposeViewControllerDelegat
     didFinishWith result: MFMailComposeResult,
     error _: Error?
   ) {
-    self.helpViewModel.inputs.mailComposeCompletion(result: result)
+    self.helpViewModel.mailComposeCompletion(result: result)
     controller.dismiss(animated: true, completion: nil)
   }
 }

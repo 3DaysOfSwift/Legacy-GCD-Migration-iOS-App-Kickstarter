@@ -7,7 +7,7 @@ final class HelpViewController: UIViewController {
   @IBOutlet fileprivate var tableView: UITableView!
 
   private let dataSource = HelpDataSource()
-  fileprivate let helpViewModel: HelpViewModelType = HelpViewModel()
+  fileprivate let helpViewModel: HelpViewModel = HelpViewModel()
 
   internal static func instantiate() -> HelpViewController {
     return Storyboard.Settings.instantiate(HelpViewController.self)
@@ -16,7 +16,7 @@ final class HelpViewController: UIViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
 
-    self.helpViewModel.inputs.canSendEmail(MFMailComposeViewController.canSendMail())
+    self.helpViewModel.canSendEmail(MFMailComposeViewController.canSendMail())
 
     self.tableView.dataSource = self.dataSource
     self.tableView.delegate = self
@@ -43,23 +43,17 @@ final class HelpViewController: UIViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.helpViewModel.outputs.showMailCompose
-      .observeForControllerAction()
-      .observeValues { [weak self] in
+    self.helpViewModel.onMailCompose = { [weak self] in
         let controller = MFMailComposeViewController.support()
         controller.mailComposeDelegate = self
         self?.present(controller, animated: true, completion: nil)
       }
 
-    self.helpViewModel.outputs.showNoEmailError
-      .observeForControllerAction()
-      .observeValues { [weak self] alert in
+    self.helpViewModel.onNoEmailError = { [weak self] alert in
         self?.present(alert, animated: true, completion: nil)
       }
 
-    self.helpViewModel.outputs.showWebHelp
-      .observeForControllerAction()
-      .observeValues { [weak self] helpType in
+    self.helpViewModel.onWebHelp = { [weak self] helpType in
         self?.goToHelpType(helpType)
       }
   }
@@ -90,7 +84,7 @@ extension HelpViewController: UITableViewDelegate {
       return
     }
 
-    self.helpViewModel.inputs.helpTypeButtonTapped(helpType)
+    self.helpViewModel.helpTypeButtonTapped(helpType)
   }
 }
 
@@ -100,7 +94,7 @@ extension HelpViewController: @MainActor MFMailComposeViewControllerDelegate {
     didFinishWith result: MFMailComposeResult,
     error _: Error?
   ) {
-    self.helpViewModel.inputs.mailComposeCompletion(result: result)
+    self.helpViewModel.mailComposeCompletion(result: result)
 
     controller.dismiss(animated: true, completion: nil)
   }

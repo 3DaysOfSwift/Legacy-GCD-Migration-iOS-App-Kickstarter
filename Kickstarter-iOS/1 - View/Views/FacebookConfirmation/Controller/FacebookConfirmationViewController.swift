@@ -26,8 +26,8 @@ internal final class FacebookConfirmationViewController: UIViewController,
     let vc = Storyboard.Login.instantiate(FacebookConfirmationViewController.self)
     vc.viewModel.inputs.email(email)
     vc.viewModel.inputs.facebookToken(token)
-    vc.helpViewModel.inputs.configureWith(helpContext: .facebookConfirmation)
-    vc.helpViewModel.inputs.canSendEmail(MFMailComposeViewController.canSendMail())
+    vc.helpViewModel.configureWith(helpContext: .facebookConfirmation)
+    vc.helpViewModel.canSendEmail(MFMailComposeViewController.canSendMail())
     return vc
   }
 
@@ -107,30 +107,22 @@ internal final class FacebookConfirmationViewController: UIViewController,
         self?.present(UIAlertController.genericError(message), animated: true, completion: nil)
       }
 
-    self.helpViewModel.outputs.showHelpSheet
-      .observeForControllerAction()
-      .observeValues { [weak self] in
+    self.helpViewModel.onHelpSheet = { [weak self] in
         self?.showHelpSheet(helpTypes: $0)
       }
 
-    self.helpViewModel.outputs.showMailCompose
-      .observeForControllerAction()
-      .observeValues { [weak self] in
+    self.helpViewModel.onMailCompose = { [weak self] in
         guard let _self = self else { return }
         let controller = MFMailComposeViewController.support()
         controller.mailComposeDelegate = _self
         _self.present(controller, animated: true, completion: nil)
       }
 
-    self.helpViewModel.outputs.showNoEmailError
-      .observeForControllerAction()
-      .observeValues { [weak self] alert in
+    self.helpViewModel.onNoEmailError = { [weak self] alert in
         self?.present(alert, animated: true, completion: nil)
       }
 
-    self.helpViewModel.outputs.showWebHelp
-      .observeForControllerAction()
-      .observeValues { [weak self] helpType in
+    self.helpViewModel.onWebHelp = { [weak self] helpType in
         self?.goToHelpType(helpType)
       }
 
@@ -156,7 +148,7 @@ internal final class FacebookConfirmationViewController: UIViewController,
     helpTypes.forEach { helpType in
       helpSheet.addAction(
         UIAlertAction(title: helpType.title, style: .default) { [weak helpVM = self.helpViewModel] _ in
-          helpVM?.inputs.helpTypeButtonTapped(helpType)
+          helpVM?.helpTypeButtonTapped(helpType)
         }
       )
     }
@@ -188,7 +180,7 @@ internal final class FacebookConfirmationViewController: UIViewController,
   }
 
   @objc fileprivate func newsletterLabelTapped() {
-    self.helpViewModel.inputs.showHelpSheetButtonTapped()
+    self.helpViewModel.showHelpSheetButtonTapped()
   }
 
   @objc internal func mailComposeController(
@@ -196,7 +188,7 @@ internal final class FacebookConfirmationViewController: UIViewController,
     didFinishWith result: MFMailComposeResult,
     error _: Error?
   ) {
-    self.helpViewModel.inputs.mailComposeCompletion(result: result)
+    self.helpViewModel.mailComposeCompletion(result: result)
     self.dismiss(animated: true, completion: nil)
   }
 }

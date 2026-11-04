@@ -63,8 +63,8 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
   ) -> LoginToutViewController {
     let vc = LoginToutViewController.instantiate()
     vc.viewModel.inputs.configureWith(intent)
-    vc.helpViewModel.inputs.configureWith(helpContext: .loginTout)
-    vc.helpViewModel.inputs.canSendEmail(MFMailComposeViewController.canSendMail())
+    vc.helpViewModel.configureWith(helpContext: .loginTout)
+    vc.helpViewModel.canSendEmail(MFMailComposeViewController.canSendMail())
     return vc
   }
 
@@ -223,30 +223,22 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
         self?.dismiss(animated: true)
       }
 
-    self.helpViewModel.outputs.showHelpSheet
-      .observeForControllerAction()
-      .observeValues { [weak self] in
+    self.helpViewModel.onHelpSheet = { [weak self] in
         self?.showHelpSheet(helpTypes: $0)
       }
 
-    self.helpViewModel.outputs.showMailCompose
-      .observeForControllerAction()
-      .observeValues { [weak self] in
+    self.helpViewModel.onMailCompose = { [weak self] in
         guard let strongSelf = self else { return }
         let controller = MFMailComposeViewController.support()
         controller.mailComposeDelegate = strongSelf
         strongSelf.present(controller, animated: true, completion: nil)
       }
 
-    self.helpViewModel.outputs.showNoEmailError
-      .observeForControllerAction()
-      .observeValues { [weak self] alert in
+    self.helpViewModel.onNoEmailError = { [weak self] alert in
         self?.present(alert, animated: true, completion: nil)
       }
 
-    self.helpViewModel.outputs.showWebHelp
-      .observeForControllerAction()
-      .observeValues { [weak self] helpType in
+    self.helpViewModel.onWebHelp = { [weak self] helpType in
         self?.goToHelpType(helpType)
       }
 
@@ -421,7 +413,7 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
     helpTypes.forEach { helpType in
       helpSheet.addAction(
         UIAlertAction(title: helpType.title, style: .default) { [weak helpVM = self.helpViewModel] _ in
-          helpVM?.inputs.helpTypeButtonTapped(helpType)
+          helpVM?.helpTypeButtonTapped(helpType)
         }
       )
     }
@@ -461,7 +453,7 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
     didFinishWith result: MFMailComposeResult,
     error _: Error?
   ) {
-    self.helpViewModel.inputs.mailComposeCompletion(result: result)
+    self.helpViewModel.mailComposeCompletion(result: result)
     self.dismiss(animated: true, completion: nil)
   }
 
@@ -474,7 +466,7 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
   }
 
   @objc private func helpButtonPressed() {
-    self.helpViewModel.inputs.showHelpSheetButtonTapped()
+    self.helpViewModel.showHelpSheetButtonTapped()
   }
 
   @objc private func facebookLoginButtonPressed(_: UIButton) {
