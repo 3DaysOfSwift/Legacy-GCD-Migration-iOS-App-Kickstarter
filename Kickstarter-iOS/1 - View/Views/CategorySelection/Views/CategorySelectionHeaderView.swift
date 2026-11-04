@@ -18,7 +18,7 @@ final class CategorySelectionHeaderView: UIView {
   private lazy var stepLabel = { UILabel(frame: .zero) }()
   private lazy var subtitleLabel = { UILabel(frame: .zero) }()
   private lazy var titleLabel = { UILabel(frame: .zero) }()
-  private let viewModel: CategorySelectionHeaderViewModelType = CategorySelectionHeaderViewModel()
+  private let viewModel: CategorySelectionHeaderViewModel = CategorySelectionHeaderViewModel()
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -34,7 +34,7 @@ final class CategorySelectionHeaderView: UIView {
   }
 
   public func configure(with context: CategorySelectionOnboardingHeaderViewContext) {
-    self.viewModel.inputs.configure(with: context)
+    self.viewModel.configure(with: context)
   }
 
   override func bindStyles() {
@@ -87,9 +87,9 @@ final class CategorySelectionHeaderView: UIView {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.stepLabel.rac.text = self.viewModel.outputs.stepLabelText
-    self.subtitleLabel.rac.text = self.viewModel.outputs.subtitleLabelText
-    self.titleLabel.rac.text = self.viewModel.outputs.titleLabelText
+    self.viewModel.onStepText = { [weak self] in self?.stepLabel.text = $0 }
+    self.viewModel.onSubtitle = { [weak self] in self?.subtitleLabel.text = $0 }
+    self.viewModel.onTitle = { [weak self] in self?.titleLabel.text = $0 }
   }
 }
 

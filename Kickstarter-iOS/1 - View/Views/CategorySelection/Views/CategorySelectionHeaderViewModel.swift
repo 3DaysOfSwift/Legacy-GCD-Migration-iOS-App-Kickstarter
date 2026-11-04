@@ -1,5 +1,4 @@
 import Foundation
-import ReactiveSwift
 
 public enum CuratedProjectsContext {
   case onboarding
@@ -57,51 +56,17 @@ public enum CategorySelectionOnboardingHeaderViewContext {
   }
 }
 
-public protocol CategorySelectionHeaderViewModelInputs {
-  func configure(with context: CategorySelectionOnboardingHeaderViewContext)
-}
+@MainActor
+public final class CategorySelectionHeaderViewModel {
+  var onStepHidden: ((Bool) -> Void)?
+  var onStepText: ((String) -> Void)?
+  var onSubtitle: ((String) -> Void)?
+  var onTitle: ((String) -> Void)?
 
-public protocol CategorySelectionHeaderViewModelOutputs {
-  var stepLabelIsHidden: Signal<Bool, Never> { get }
-  var stepLabelText: Signal<String, Never> { get }
-  var subtitleLabelText: Signal<String, Never> { get }
-  var titleLabelText: Signal<String, Never> { get }
-}
-
-public protocol CategorySelectionHeaderViewModelType {
-  var inputs: CategorySelectionHeaderViewModelInputs { get }
-  var outputs: CategorySelectionHeaderViewModelOutputs { get }
-}
-
-public final class CategorySelectionHeaderViewModel: CategorySelectionHeaderViewModelType,
-  CategorySelectionHeaderViewModelInputs, CategorySelectionHeaderViewModelOutputs {
-  public init() {
-    self.stepLabelText = self.contextSignal
-      .map(\.stepLabelText)
-      .skipNil()
-
-    self.subtitleLabelText = self.contextSignal
-      .map(\.subtitleLabelText)
-      .skipNil()
-
-    self.titleLabelText = self.contextSignal
-      .map(\.titleLabelText)
-
-    self.stepLabelIsHidden = self.contextSignal
-      .map(\.stepLabelHidden)
+  func configure(with context: CategorySelectionOnboardingHeaderViewContext) {
+    if let step = context.stepLabelText { self.onStepText?(step) }
+    if let subtitle = context.subtitleLabelText { self.onSubtitle?(subtitle) }
+    self.onTitle?(context.titleLabelText)
+    self.onStepHidden?(context.stepLabelHidden)
   }
-
-  private let (contextSignal, contextObserver)
-    = Signal<CategorySelectionOnboardingHeaderViewContext, Never>.pipe()
-  public func configure(with context: CategorySelectionOnboardingHeaderViewContext) {
-    self.contextObserver.send(value: context)
-  }
-
-  public let stepLabelIsHidden: Signal<Bool, Never>
-  public let stepLabelText: Signal<String, Never>
-  public let subtitleLabelText: Signal<String, Never>
-  public let titleLabelText: Signal<String, Never>
-
-  public var inputs: CategorySelectionHeaderViewModelInputs { return self }
-  public var outputs: CategorySelectionHeaderViewModelOutputs { return self }
 }
