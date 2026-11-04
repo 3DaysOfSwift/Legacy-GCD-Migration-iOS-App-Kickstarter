@@ -1,225 +1,87 @@
 import Foundation
 import KsApi
-import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 
 @MainActor
-public protocol TwoFactorViewModelInputs {
-  /// Call when code textfield is updated
-  func codeChanged(_ code: String?)
+public final class TwoFactorViewModel {
+  var onFirstResponder: (() -> Void)?
+  var onFormValid: ((Bool) -> Void)?
+  var onLoading: ((Bool) -> Void)?
+  var onLogin: ((AccessTokenEnvelope) -> Void)?
+  var onNotification: ((Notification, Notification) -> Void)?
+  var onResendSuccess: (() -> Void)?
+  var onError: ((String) -> Void)?
 
-  /// Call to set email and password
-  func email(_ email: String, password: String)
-
-  /// Call when the environment has been logged into
-  func environmentLoggedIn()
-
-  /// Call to set facebook token
-  func facebookToken(_ token: String)
-
-  /// Call when resend button pressed
-  func resendPressed()
-
-  /// Call when submit button pressed
-  func submitPressed()
-
-  /// Call when the view did load.
-  func viewDidLoad()
-
-  /// Call when view will appear
-  func viewWillAppear()
-}
-
-@MainActor
-public protocol TwoFactorViewModelOutputs {
-  /// Emits when the code text field is the first responder.
-  var codeTextFieldBecomeFirstResponder: Signal<(), Never> { get }
-
-  /// Emits whether the form is valid or not
-  var isFormValid: Signal<Bool, Never> { get }
-
-  /// Emits whether a request is loading or not
-  var isLoading: Signal<Bool, Never> { get }
-
-  /// Emits confirmation of a session already persisted by AuthenticationFeature.
-  var logIntoEnvironment: Signal<AccessTokenEnvelope, Never> { get }
-
-  /// Emits when a login success notification should be posted.
-  var postNotification: Signal<(Notification, Notification), Never> { get }
-
-  /// Emits when code was resent successfully
-  var resendSuccess: Signal<(), Never> { get }
-
-  /// Emits a message when the code submitted is not correct or login fails
-  var showError: Signal<String, Never> { get }
-}
-
-@MainActor
-public protocol TwoFactorViewModelType {
-  var inputs: TwoFactorViewModelInputs { get }
-  var outputs: TwoFactorViewModelOutputs { get }
-}
-
-@MainActor
-public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewModelInputs,
-  TwoFactorViewModelOutputs {
-  // A simple type to hold all the data needed to login.
-  fileprivate struct TfaData {
-    fileprivate let email: String?
-    fileprivate let password: String?
-    fileprivate let facebookToken: String?
-    fileprivate let code: String?
-
-    @MainActor fileprivate enum lens {
-      fileprivate static let code = Lens<TfaData, String?>(
-        view: { $0.code },
-        set: { TfaData(email: $1.email, password: $1.password, facebookToken: $1.facebookToken, code: $0) }
-      )
-    }
-  }
+  private let feature: AuthenticationFeature
+  private var emailValue: String?
+  private var password: String?
+  private var token: String?
+  private var code: String?
+  private var lastValid: Bool?
+  private var loginTask: Task<Void, Never>?
+  private var resendTask: Task<Void, Never>?
+  private var loginVersion = UUID()
+  private var resendVersion = UUID()
 
   public init(authenticationFeature: AuthenticationFeature? = nil) {
-    let authenticationFeature = authenticationFeature ?? AppModel.shared.authenticationFeature
-    let isLoading = MutableProperty(false)
+    self.feature = authenticationFeature ?? AppModel.shared.authenticationFeature
+  }
+  deinit { self.loginTask?.cancel(); self.resendTask?.cancel() }
 
-    let loginData = SignalProducer.combineLatest(
-      self.emailProperty.producer,
-      self.passwordProperty.producer,
-      self.facebookTokenProperty.producer,
-      self.codeProperty.producer
-    )
-    .map(TfaData.init)
-
-    let resendData = loginData.map(TfaData.lens.code .~ nil)
-
-    let loginEvent = loginData
-      .takeWhen(self.submitPressedProperty.signal)
-      .switchMap { data in
-        login(data, authenticationFeature: authenticationFeature, isLoading: isLoading)
-          .materialize()
+  func codeChanged(_ code: String?) { self.code = code; self.publishValidity(code?.count == 6) }
+  func email(_ email: String, password: String) { self.emailValue = email; self.password = password }
+  func facebookToken(_ token: String) { self.token = token }
+  func viewDidLoad() { self.onFirstResponder?() }
+  func viewWillAppear() { self.publishValidity(false) }
+  private func publishValidity(_ value: Bool) {
+    guard self.lastValid != value else { return }
+    self.lastValid = value; self.onFormValid?(value)
+  }
+  private var credentials: AuthenticationFeature.Credentials? {
+    if let email = self.emailValue, let password = self.password { return .email(email, password: password) }
+    if let token = self.token { return .facebook(token) }
+    return nil
+  }
+  func submitPressed() {
+    guard let credentials = self.credentials else { return }
+    if self.loginTask != nil { self.loginTask?.cancel(); self.onLoading?(false) }
+    let version = UUID(); self.loginVersion = version
+    let feature = self.feature, code = self.code
+    self.onLoading?(true)
+    self.loginTask = Task { [weak self] in
+      do {
+        let result = try await feature.authenticate(credentials, code: code)
+        guard !Task.isCancelled, let self, self.loginVersion == version else { return }
+        self.onLogin?(result)
+      } catch {
+        guard !Task.isCancelled, let self, self.loginVersion == version else { return }
+        let envelope = error as? ErrorEnvelope ?? .couldNotParseJSON
+        self.onError?(envelope.errorMessages.first ?? (envelope.ksrCode == .TfaFailed ? Strings.two_factor_error_message() : Strings.login_errors_unable_to_log_in()))
       }
-
-    self.codeTextFieldBecomeFirstResponder = self.viewDidLoadProperty.signal
-
-    self.logIntoEnvironment = loginEvent.values()
-
-    self.resendSuccess = resendData
-      .takeWhen(self.resendPressedProperty.signal)
-      .switchMap { data in
-        login(data, authenticationFeature: authenticationFeature, isLoading: isLoading, resend: true)
-          .materialize()
-          .errors()
-          .filter { error in error.ksrCode == .TfaRequired }
-          .ignoreValues()
+      guard let self, self.loginVersion == version else { return }
+      self.loginTask = nil; self.onLoading?(false)
+    }
+  }
+  func resendPressed() {
+    guard let credentials = self.credentials else { return }
+    if self.resendTask != nil { self.resendTask?.cancel(); self.onLoading?(false) }
+    let version = UUID(); self.resendVersion = version
+    let feature = self.feature
+    self.onLoading?(true)
+    self.resendTask = Task { [weak self] in
+      do { try await feature.resendCode(credentials) }
+      catch {
+        guard !Task.isCancelled, let self, self.resendVersion == version else { return }
+        if (error as? ErrorEnvelope)?.ksrCode == .TfaRequired { self.onResendSuccess?() }
       }
-
-    self.isLoading = isLoading.signal
-
-    self.isFormValid = Signal.merge([
-      self.codeProperty.signal.map { code in code?.count == 6 },
-      self.viewWillAppearProperty.signal.mapConst(false)
-    ])
-    .skipRepeats()
-
-    let codeMismatch = loginEvent.errors()
-      .filter { $0.ksrCode == .TfaFailed }
-      .map { $0.errorMessages.first ?? Strings.two_factor_error_message() }
-
-    let genericFail = loginEvent.errors()
-      .filter { $0.ksrCode != .TfaFailed }
-      .map { $0.errorMessages.first ?? Strings.login_errors_unable_to_log_in() }
-
-    self.showError = Signal.merge([codeMismatch, genericFail])
-
-    self.postNotification = self.environmentLoggedInProperty.signal
-      .mapConst((
-        Notification(name: .ksr_sessionStarted),
-        Notification(
-          name: .ksr_showNotificationsDialog,
-          userInfo: [UserInfoKeys.context: PushNotificationDialog.Context.login]
-        )
-      ))
+      guard let self, self.resendVersion == version else { return }
+      self.resendTask = nil; self.onLoading?(false)
+    }
   }
-
-  fileprivate let codeProperty = MutableProperty<String?>(nil)
-  public func codeChanged(_ code: String?) {
-    self.codeProperty.value = code
+  func environmentLoggedIn() {
+    self.onNotification?(Notification(name: .ksr_sessionStarted), Notification(
+      name: .ksr_showNotificationsDialog,
+      userInfo: [UserInfoKeys.context: PushNotificationDialog.Context.login]
+    ))
   }
-
-  fileprivate let emailProperty = MutableProperty<String?>(nil)
-  fileprivate let passwordProperty = MutableProperty<String?>(nil)
-  public func email(_ email: String, password: String) {
-    self.emailProperty.value = email
-    self.passwordProperty.value = password
-  }
-
-  fileprivate let environmentLoggedInProperty = MutableProperty(())
-  public func environmentLoggedIn() {
-    self.environmentLoggedInProperty.value = ()
-  }
-
-  fileprivate let facebookTokenProperty = MutableProperty<String?>(nil)
-  public func facebookToken(_ token: String) {
-    self.facebookTokenProperty.value = token
-  }
-
-  fileprivate let resendPressedProperty = MutableProperty(())
-  public func resendPressed() {
-    self.resendPressedProperty.value = ()
-  }
-
-  fileprivate let submitPressedProperty = MutableProperty(())
-  public func submitPressed() {
-    self.submitPressedProperty.value = ()
-  }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
-  }
-
-  fileprivate let viewWillAppearProperty = MutableProperty(())
-  public func viewWillAppear() {
-    self.viewWillAppearProperty.value = ()
-  }
-
-  public let codeTextFieldBecomeFirstResponder: Signal<(), Never>
-  public let isFormValid: Signal<Bool, Never>
-  public let isLoading: Signal<Bool, Never>
-  public let logIntoEnvironment: Signal<AccessTokenEnvelope, Never>
-  public let postNotification: Signal<(Notification, Notification), Never>
-  public let resendSuccess: Signal<(), Never>
-  public let showError: Signal<String, Never>
-
-  public var inputs: TwoFactorViewModelInputs { return self }
-  public var outputs: TwoFactorViewModelOutputs { return self }
-}
-
-@MainActor
-private func login(
-  _ tfaData: TwoFactorViewModel.TfaData,
-  authenticationFeature: AuthenticationFeature,
-  isLoading: MutableProperty<Bool>,
-  resend: Bool = false
-) -> SignalProducer<AccessTokenEnvelope, ErrorEnvelope> {
-  let login: SignalProducer<AccessTokenEnvelope, ErrorEnvelope>
-
-  if let email = tfaData.email, let password = tfaData.password {
-    login = authenticationFeature.result(
-      .email(email, password: password),
-      code: tfaData.code,
-      resend: resend
-    )
-  } else if let facebookToken = tfaData.facebookToken {
-    login = authenticationFeature.result(.facebook(facebookToken), code: tfaData.code, resend: resend)
-  } else {
-    login = .empty
-  }
-
-  return login
-    .on(
-      starting: { isLoading.value = true },
-      terminated: { isLoading.value = false }
-    )
+  func waitForRequests() async { await self.loginTask?.value; await self.resendTask?.value }
 }

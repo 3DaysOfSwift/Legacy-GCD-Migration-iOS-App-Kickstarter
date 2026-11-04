@@ -2,12 +2,10 @@ import Foundation
 import KDS
 
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 import UIKit
 
 internal final class TwoFactorViewController: UIViewController {
-  fileprivate let viewModel: TwoFactorViewModelType = TwoFactorViewModel()
+  fileprivate let viewModel: TwoFactorViewModel = TwoFactorViewModel()
 
   @IBOutlet fileprivate var codeTextField: UITextField!
   @IBOutlet fileprivate var formBackgroundView: UIView!
@@ -18,12 +16,12 @@ internal final class TwoFactorViewController: UIViewController {
 
   internal override func viewDidLoad() {
     super.viewDidLoad()
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   internal override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
-    self.viewModel.inputs.viewWillAppear()
+    self.viewModel.viewWillAppear()
   }
 
   internal override func bindStyles() {
@@ -65,38 +63,25 @@ internal final class TwoFactorViewController: UIViewController {
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.codeTextField.rac.becomeFirstResponder = self.viewModel.outputs.codeTextFieldBecomeFirstResponder
-    self.submitButton.rac.enabled = self.viewModel.outputs.isFormValid
-
-    self.viewModel.outputs.logIntoEnvironment
-      .observeValues { [weak self] _ in
-        // AuthenticationFeature has already committed the verified session.
-        self?.viewModel.inputs.environmentLoggedIn()
-      }
-
-    self.viewModel.outputs.postNotification
-      .observeForUI()
-      .observeValues {
-        NotificationCenter.default.post($0.0)
-        NotificationCenter.default.post($0.1)
-      }
-
-    self.viewModel.outputs.showError
-      .observeForControllerAction()
-      .observeValues { [weak self] message in
-        self?.showError(message)
-      }
+    self.viewModel.onFirstResponder = { [weak self] in self?.codeTextField.becomeFirstResponder() }
+    self.viewModel.onFormValid = { [weak self] in self?.submitButton.isEnabled = $0 }
+    self.viewModel.onLogin = { [weak self] _ in self?.viewModel.environmentLoggedIn() }
+    self.viewModel.onNotification = { first, second in
+      NotificationCenter.default.post(first)
+      NotificationCenter.default.post(second)
+    }
+    self.viewModel.onError = { [weak self] in self?.showError($0) }
   }
 
   internal static func configuredWith(email: String, password: String) -> TwoFactorViewController {
     let vc = self.instantiate()
-    vc.viewModel.inputs.email(email, password: password)
+    vc.viewModel.email(email, password: password)
     return vc
   }
 
   internal static func configuredWith(facebookAccessToken token: String) -> TwoFactorViewController {
     let vc = self.instantiate()
-    vc.viewModel.inputs.facebookToken(token)
+    vc.viewModel.facebookToken(token)
     return vc
   }
 
@@ -110,16 +95,16 @@ internal final class TwoFactorViewController: UIViewController {
 
   @IBAction
   internal func codeEditingChanged(_ textField: UITextField) {
-    self.viewModel.inputs.codeChanged(textField.text)
+    self.viewModel.codeChanged(textField.text)
   }
 
   @IBAction
   internal func resendButtonPressed(_: AnyObject) {
-    self.viewModel.inputs.resendPressed()
+    self.viewModel.resendPressed()
   }
 
   @IBAction
   internal func submitButtonPressed(_: AnyObject) {
-    self.viewModel.inputs.submitPressed()
+    self.viewModel.submitPressed()
   }
 }
