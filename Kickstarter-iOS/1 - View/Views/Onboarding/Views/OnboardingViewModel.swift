@@ -1,7 +1,6 @@
 import AppTrackingTransparency
 import Foundation
 import KsApi
-import ReactiveSwift
 import UserNotifications
 
 @MainActor
@@ -19,7 +18,6 @@ public protocol OnboardingViewModelInputs {
 @MainActor
 public protocol OnboardingViewModelOutputs {
   var onboardingItems: [OnboardingItem] { get }
-  var didCompletePushNotificationSystemDialog: Signal<Void, Never> { get }
 }
 
 @MainActor
@@ -33,8 +31,8 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
   OnboardingViewModelOutputs, OnboardingViewModelInputs {
   @MainActor private var completionTask: Task<Void, Never>?
   @MainActor private var completionVersion = UUID()
-  @MainActor private var bindings = CompositeDisposable()
   var onTrackingPrompt: (() -> Void)?
+  var onNotificationCompletion: ((UNAuthorizationStatus) -> Void)?
 
   /// Own the subscriptions for this appearance and invalidate callbacks on exit.
   @MainActor public func bind(
@@ -42,13 +40,13 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
     advance: @escaping () -> Void
   ) {
     self.stopObserving()
-    self.bindings = CompositeDisposable()
     items(self.onboardingItems)
-    self.bindings += self.didCompletePushNotificationSystemDialog.observeForUI().observeValues { [weak self] in
-      self?.completePermission(tracking: false, advance: advance)
+    self.onNotificationCompletion = { [weak self] status in
+      self?.didCompletePushNotificationsDialog(with: status)
+      advance()
     }
     self.onTrackingPrompt = { [weak self] in
-      self?.completePermission(tracking: true, advance: advance)
+      self?.completeTracking(advance: advance)
     }
   }
   @MainActor public func cancelCompletion() {
@@ -58,24 +56,17 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
   }
   @MainActor public func stopObserving() {
     self.cancelCompletion()
-    self.bindings.dispose()
+    self.onNotificationCompletion = nil
     self.onTrackingPrompt = nil
   }
-  @MainActor private func completePermission(tracking: Bool, advance: @escaping () -> Void) {
+  @MainActor private func completeTracking(advance: @escaping () -> Void) {
     guard self.completionTask == nil else { return }
     let version = self.completionVersion
     let feature = self.lifecycleFeature ?? AppModel.shared.appLifecycleFeature
     self.completionTask = Task { [weak self] in
-      if tracking {
-        let status = await feature.trackingAuthorization()
-        guard !Task.isCancelled, let self, self.completionVersion == version else { return }
-        self.didCompleteAppTrackingDialog(with: status)
-      } else {
-        let status = await feature.notificationStatus()
-        guard !Task.isCancelled, let self, self.completionVersion == version else { return }
-        self.didCompletePushNotificationsDialog(with: status)
-      }
-      guard !Task.isCancelled, self?.completionVersion == version else { return }
+      let status = await feature.trackingAuthorization()
+      guard !Task.isCancelled, let self, self.completionVersion == version else { return }
+      self.didCompleteAppTrackingDialog(with: status)
       advance()
     }
   }
@@ -88,7 +79,6 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
   // MARK: - Outputs
 
   public let onboardingItems: [OnboardingItem]
-  public let didCompletePushNotificationSystemDialog: Signal<Void, Never>
 
   // MARK: - Init
 
@@ -97,10 +87,6 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
     self.useCase = OnboardingUseCase(for: bundle)
 
     self.onboardingItems = self.useCase.uiOutputs.onboardingItems
-
-    self.didCompletePushNotificationSystemDialog = self.useCase.outputs
-      .didCompletePushNotificationSystemDialog
-
 
   }
 
@@ -118,7 +104,20 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
   }
 
   public func getNotifiedTapped() {
-    self.useCase.uiInputs.getNotifiedTapped()
+    guard self.completionTask == nil else { return }
+    let feature = self.lifecycleFeature ?? AppModel.shared.appLifecycleFeature
+    let version = self.completionVersion
+    self.completionTask = Task { [weak self] in
+      let existing = await feature.notificationStatus()
+      guard !Task.isCancelled, let self, self.completionVersion == version else { return }
+      guard existing != .authorized else { self.completionTask = nil; return }
+      AppEnvironment.current.ksrAnalytics.trackSystemPermissionsDialogViewed(on: .onboardingNotificationsDialog)
+      _ = await feature.notificationAuthorization(options: [.alert, .sound, .badge])
+      guard !Task.isCancelled, self.completionVersion == version else { return }
+      let status = await feature.notificationStatus()
+      guard !Task.isCancelled, self.completionVersion == version else { return }
+      self.onNotificationCompletion?(status)
+    }
 
     AppEnvironment.current.ksrAnalytics.trackOnboardingPageButtonTapped(
       context: .onboardingGetNotified,

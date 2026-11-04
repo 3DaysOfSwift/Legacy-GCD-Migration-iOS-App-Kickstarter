@@ -16,7 +16,6 @@ final class OnboardingViewModelTest: TestCase {
   private var viewModel: OnboardingViewModel!
 
   let appTrackingTransparencyDialogObserver = TestObserver<Void, Never>()
-  let didCompletePushNotificationSystemDialog = TestObserver<Void, Never>()
 
   // MARK: Lifecycle
 
@@ -28,8 +27,6 @@ final class OnboardingViewModelTest: TestCase {
     self.viewModel.onTrackingPrompt = { [weak self] in
       self?.appTrackingTransparencyDialogObserver.observer.send(value: ())
     }
-    self.viewModel.outputs.didCompletePushNotificationSystemDialog
-      .observe(self.didCompletePushNotificationSystemDialog.observer)
   }
 
   @MainActor
@@ -47,9 +44,7 @@ final class OnboardingViewModelTest: TestCase {
     let advance = expectation(description: "Closed onboarding must not advance")
     advance.isInverted = true
     model.bind(items: { _ in }, advance: { advance.fulfill() })
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
-    MockPushRegistration.registerProducer = .init(value: true)
-    withEnvironment(pushRegistrationType: MockPushRegistration.self) { model.getNotifiedTapped() }
+    model.getNotifiedTapped()
     await gate.waitFor(1)
     model.stopObserving()
     try gate.finish(0, .success(.authorized))
@@ -64,6 +59,8 @@ final class OnboardingViewModelTest: TestCase {
       settingsFeature: SettingsFeature(sessionFeature: session, makeProvider: { AsyncAccountPreferencesProvider(service: MockService()) }),
       messagingFeature: MessagingFeature(sessionFeature: session, makeProvider: { AsyncMessagingProvider(service: MockService()) }),
       makeProvider: { AsyncAppLifecycleProvider(service: MockService()) },
+      authorizeNotifications: { _ in true },
+      registerNotifications: {},
       readNotificationStatus: { .denied })
     let model = OnboardingViewModel(lifecycleFeature: feature)
     defer { model.stopObserving() }
@@ -71,9 +68,7 @@ final class OnboardingViewModelTest: TestCase {
     let advance = expectation(description: "Current appearance advances")
     advance.assertForOverFulfill = true
     model.bind(items: { _ in }, advance: { advance.fulfill() })
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
-    MockPushRegistration.registerProducer = .init(value: true)
-    withEnvironment(pushRegistrationType: MockPushRegistration.self) { model.getNotifiedTapped() }
+    model.getNotifiedTapped()
     await fulfillment(of: [advance], timeout: 2)
   }
 
@@ -87,26 +82,26 @@ final class OnboardingViewModelTest: TestCase {
     XCTAssertTrue(items.contains(where: { $0.type == .loginSignUp }))
   }
 
-  func testTriggerPushNotificationPopup_IsCalled_OnGetNotifiedTapped() {
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
-    MockPushRegistration.registerProducer = .init(value: true)
-
-    withEnvironment(pushRegistrationType: MockPushRegistration.self) {
-      self.viewModel.inputs.getNotifiedTapped()
-
-      XCTAssertEqual(self.didCompletePushNotificationSystemDialog.values.count, 1)
-    }
-  }
-
-  func testGetNotifiedTapped_DoesNotTriggerDialog_WhenAlreadyAuthorized() {
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: true)
-    MockPushRegistration.registerProducer = .init(value: false)
-
-    withEnvironment(pushRegistrationType: MockPushRegistration.self) {
-      self.viewModel.inputs.getNotifiedTapped()
-
-      XCTAssertEqual(self.didCompletePushNotificationSystemDialog.values.count, 0)
-    }
+  func testAlreadyAuthorizedNotificationsDoNotPromptOrAdvance() async {
+    let session = SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) })
+    var requested = false
+    let feature = AppLifecycleFeature(
+      sessionFeature: session,
+      settingsFeature: SettingsFeature(sessionFeature: session, makeProvider: { AsyncAccountPreferencesProvider(service: MockService()) }),
+      messagingFeature: MessagingFeature(sessionFeature: session, makeProvider: { AsyncMessagingProvider(service: MockService()) }),
+      makeProvider: { AsyncAppLifecycleProvider(service: MockService()) },
+      authorizeNotifications: { _ in requested = true; return true },
+      registerNotifications: {},
+      readNotificationStatus: { .authorized }
+    )
+    let model = OnboardingViewModel(lifecycleFeature: feature)
+    let advance = expectation(description: "Already authorized does not advance")
+    advance.isInverted = true
+    model.bind(items: { _ in }, advance: { advance.fulfill() })
+    model.getNotifiedTapped()
+    await fulfillment(of: [advance], timeout: 0.1)
+    XCTAssertFalse(requested)
+    model.stopObserving()
   }
 
   func testAppTrackingTransparencyPopup_IsCalled_OnAllowTrackingTapped() {
