@@ -1,7 +1,6 @@
 import KsApi
 
 import Prelude
-import ReactiveSwift
 import UIKit
 
 final class SettingsViewController: UIViewController {
@@ -9,7 +8,7 @@ final class SettingsViewController: UIViewController {
 
   private let dataSource = SettingsDataSource()
   private var userUpdatedObserver: MainActorNotificationObservation?
-  private let viewModel: SettingsViewModelType = SettingsViewModel(
+  private let viewModel = SettingsViewModel(
     SettingsViewController.viewController(for:)
   )
 
@@ -33,10 +32,10 @@ final class SettingsViewController: UIViewController {
     }
 
     self.userUpdatedObserver = MainActorNotificationObservation(name: .ksr_userUpdated) { [weak self] _ in
-        self?.viewModel.inputs.currentUserUpdated()
+        self?.viewModel.currentUserUpdated()
       }
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   override func bindStyles() {
@@ -52,32 +51,18 @@ final class SettingsViewController: UIViewController {
   }
 
   override func bindViewModel() {
-    self.viewModel.outputs.reloadDataWithUser
-      .observeForUI()
-      .observeValues { [weak self] user in
-        self?.dataSource.configureRows(with: user)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.transitionToViewController
-      .observeForControllerAction()
-      .observeValues { [weak self] viewController in
-        self?.navigationController?.pushViewController(viewController, animated: true)
-      }
-
-    self.viewModel.outputs.showConfirmLogoutPrompt
-      .observeForControllerAction()
-      .observeValues { [weak self] message, cancel, confirm in
-        self?.showLogoutPrompt(message: message, cancel: cancel, confirm: confirm)
-      }
-
-    self.viewModel.outputs.logoutWithParams
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.logout(params: $0) }
-
-    self.viewModel.outputs.goToAppStoreRating
-      .observeForControllerAction()
-      .observeValues { [weak self] link in self?.goToAppStore(link: link) }
+    self.viewModel.onReload = { [weak self] user in
+      self?.dataSource.configureRows(with: user)
+      self?.tableView.reloadData()
+    }
+    self.viewModel.onNavigate = { [weak self] controller in
+      self?.navigationController?.pushViewController(controller, animated: true)
+    }
+    self.viewModel.onLogoutPrompt = { [weak self] message, cancel, confirm in
+      self?.showLogoutPrompt(message: message, cancel: cancel, confirm: confirm)
+    }
+    self.viewModel.onLogout = { [weak self] in self?.logout(params: $0) }
+    self.viewModel.onRate = { [weak self] in self?.goToAppStore(link: $0) }
   }
 
   // MARK: - Functions
@@ -85,7 +70,7 @@ final class SettingsViewController: UIViewController {
   private func shouldHideFooter(for section: Int) -> Bool {
     guard let section = SettingsSectionType(rawValue: section), section.hasSectionFooter else { return true }
 
-    if !self.viewModel.outputs.findFriendsDisabledProperty.value {
+    if !self.viewModel.findFriendsDisabled {
       return true
     }
 
@@ -145,7 +130,7 @@ final class SettingsViewController: UIViewController {
         title: confirm,
         style: .default,
         handler: { [weak self] _ in
-          self?.viewModel.inputs.logoutConfirmed()
+          self?.viewModel.logoutConfirmed()
         }
       )
     )
@@ -202,7 +187,7 @@ extension SettingsViewController: UITableViewDelegate {
       return
     }
 
-    self.viewModel.inputs.settingsCellTapped(cellType: cellType)
+    self.viewModel.settingsCellTapped(cellType: cellType)
   }
 }
 

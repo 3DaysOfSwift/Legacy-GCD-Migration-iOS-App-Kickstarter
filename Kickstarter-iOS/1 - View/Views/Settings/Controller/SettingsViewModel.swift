@@ -1,137 +1,65 @@
 import KsApi
-
+import Observation
 import Prelude
-import ReactiveSwift
 import UIKit
 
 @MainActor
-public protocol SettingsViewModelInputs {
-  func currentUserUpdated()
-  func logoutConfirmed()
-  func settingsCellTapped(cellType: SettingsCellType)
-  func viewDidLoad()
-  func viewWillAppear()
-}
+@Observable
+public final class SettingsViewModel {
+  public private(set) var findFriendsDisabled = false
+  public var onReload: ((User) -> Void)?
+  public var onRate: ((String) -> Void)?
+  public var onLogout: ((DiscoveryParams) -> Void)?
+  public var onLogoutPrompt: ((String, String, String) -> Void)?
+  public var onNavigate: ((UIViewController) -> Void)?
+  private let settings: SettingsFeature
+  private let viewControllerFactory: @MainActor (SettingsCellType) -> UIViewController?
+  private var reads: [UUID: Task<Void, Never>] = [:]
 
-@MainActor
-public protocol SettingsViewModelOutputs {
-  var findFriendsDisabledProperty: MutableProperty<Bool> { get }
-  var goToAppStoreRating: Signal<String, Never> { get }
-  var logoutWithParams: Signal<DiscoveryParams, Never> { get }
-  var reloadDataWithUser: Signal<User, Never> { get }
-  var showConfirmLogoutPrompt: Signal<(message: String, cancel: String, confirm: String), Never> { get }
-  var transitionToViewController: Signal<UIViewController, Never> { get }
-}
+  public init(_ viewControllerFactory: @escaping @MainActor (SettingsCellType) -> UIViewController?,
+              settingsFeature: SettingsFeature? = nil) {
+    self.viewControllerFactory = viewControllerFactory
+    self.settings = settingsFeature ?? AppModel.shared.settingsFeature
+  }
 
-@MainActor
-public protocol SettingsViewModelType {
-  var inputs: SettingsViewModelInputs { get }
-  var outputs: SettingsViewModelOutputs { get }
+  public func viewDidLoad() { self.loadUser() }
+  public func currentUserUpdated() { self.loadUser() }
+  public func viewWillAppear() {}
 
-  func shouldSelectRow(for cellType: SettingsCellType) -> Bool
-}
-
-@MainActor
-public final class SettingsViewModel: SettingsViewModelInputs,
-  SettingsViewModelOutputs, SettingsViewModelType {
-  public init(
-    _ viewControllerFactory: @escaping @MainActor (SettingsCellType) -> UIViewController?,
-    settingsFeature: SettingsFeature? = nil
-  ) {
-    let settings = settingsFeature ?? AppModel.shared.settingsFeature
-    let user = Signal.merge(
-      self.viewDidLoadProperty.signal,
-      self.currentUserUpdatedProperty.signal
-    )
-    .flatMap {
-      settings.userResult().demoteErrors()
+  private func loadUser() {
+    if let user = self.settings.sessionFeature.currentUser { self.display(user) }
+    let id = UUID()
+    self.reads[id] = Task { [weak self, settings] in
+      defer { self?.reads[id] = nil }
+      guard let user = try? await settings.refresh(), !Task.isCancelled else { return }
+      self?.display(user)
     }
-
-    let isFollowingEnabled = user
-      .map { $0 |> (\User.social).view }
-      .map { $0 ?? true }
-
-    self.findFriendsDisabledProperty <~ isFollowingEnabled.negate()
-
-    self.reloadDataWithUser = Signal.zip(user, self.findFriendsDisabledProperty.signal).map(first)
-
-    self.showConfirmLogoutPrompt = self.selectedCellTypeProperty.signal
-      .skipNil()
-      .filter { $0 == .logout }
-      .map { _ in
-        (
-          message: Strings.profile_settings_logout_alert_message(),
-          cancel: Strings.profile_settings_logout_alert_cancel_button(),
-          confirm: Strings.Yes()
-        )
-      }
-
-    self.logoutWithParams = self.logoutConfirmedProperty.signal
-      .map { .defaults
-        |> DiscoveryParams.lens.includePOTD .~ true
-        |> DiscoveryParams.lens.sort .~ .magic
-      }
-
-    self.goToAppStoreRating = self.selectedCellTypeProperty.signal
-      .skipNil()
-      .filter { $0 == .rateInAppStore }
-      .map { _ in AppEnvironment.current.config?.iTunesLink ?? "" }
-
-    self.transitionToViewController = self.selectedCellTypeProperty.signal
-      .skipNil()
-      .map(viewControllerFactory)
-      .skipNil()
   }
 
-  private var currentUserUpdatedProperty = MutableProperty(())
-  public func currentUserUpdated() {
-    self.currentUserUpdatedProperty.value = ()
+  private func display(_ user: User) {
+    self.findFriendsDisabled = !(user.social ?? true)
+    self.onReload?(user)
   }
 
-  private var selectedCellTypeProperty = MutableProperty<SettingsCellType?>(nil)
   public func settingsCellTapped(cellType: SettingsCellType) {
-    self.selectedCellTypeProperty.value = cellType
-  }
-
-  fileprivate let logoutConfirmedProperty = MutableProperty(())
-  public func logoutConfirmed() {
-    self.logoutConfirmedProperty.value = ()
-  }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
-  }
-
-  fileprivate let viewWillAppearProperty = MutableProperty(())
-  public func viewWillAppear() {
-    self.viewWillAppearProperty.value = ()
-  }
-
-  public let findFriendsDisabledProperty = MutableProperty<Bool>(false)
-  public let goToAppStoreRating: Signal<String, Never>
-  public let logoutWithParams: Signal<DiscoveryParams, Never>
-  public let showConfirmLogoutPrompt: Signal<(message: String, cancel: String, confirm: String), Never>
-  public let reloadDataWithUser: Signal<User, Never>
-  public let transitionToViewController: Signal<UIViewController, Never>
-
-  public var inputs: SettingsViewModelInputs { return self }
-  public var outputs: SettingsViewModelOutputs { return self }
-}
-
-// MARK: - Helpers
-
-extension SettingsViewModel {
-  public func shouldSelectRow(for cellType: SettingsCellType) -> Bool {
-    switch cellType {
-    case .findFriends:
-      guard let user = AppEnvironment.current.currentUser else {
-        return true
-      }
-
-      return (user |> User.lens.social.view) ?? true
-    default:
-      return true
+    if cellType == .logout {
+      self.onLogoutPrompt?(Strings.profile_settings_logout_alert_message(),
+                           Strings.profile_settings_logout_alert_cancel_button(), Strings.Yes())
     }
+    if cellType == .rateInAppStore { self.onRate?(AppEnvironment.current.config?.iTunesLink ?? "") }
+    if let controller = self.viewControllerFactory(cellType) { self.onNavigate?(controller) }
+  }
+
+  public func logoutConfirmed() {
+    self.onLogout?(.defaults |> DiscoveryParams.lens.includePOTD .~ true |> DiscoveryParams.lens.sort .~ .magic)
+  }
+
+  public func shouldSelectRow(for cellType: SettingsCellType) -> Bool {
+    guard cellType == .findFriends else { return true }
+    return AppEnvironment.current.currentUser?.social ?? true
+  }
+
+  internal func waitForLoads() async {
+    for task in Array(self.reads.values) { await task.value }
   }
 }
