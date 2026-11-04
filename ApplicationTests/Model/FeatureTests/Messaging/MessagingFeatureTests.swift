@@ -4,7 +4,6 @@ import Foundation
 
 
 import Prelude
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -130,15 +129,12 @@ final class MessagingFeatureTests: TestCase {
     let vm = MessagesSearchViewModel(feature: self.feature, sleep: { _ in })
     vm.configureWith(project: nil); vm.viewDidLoad()
     vm.searchTextChanged("old")
-    await self.scheduler.advance()
     await self.provider.searches.waitFor(1)
     vm.clearSearchText()
     try self.provider.searches.finish(0, .success(self.page([99])))
     await self.feature.waitForOperations()
-    await self.scheduler.advance()
     XCTAssertTrue(vm.messageThreads.isEmpty)
     vm.searchTextChanged("new")
-    await self.scheduler.advance()
     await self.provider.searches.waitFor(2)
     try self.provider.searches.finish(1, .success(self.page([2])))
     await self.feature.waitForOperations()
@@ -147,26 +143,25 @@ final class MessagingFeatureTests: TestCase {
     XCTAssertEqual(self.provider.queries, ["old", "new"])
   }
 
-  func testDisappearingBeforeDebounceDoesNotStartHiddenSearch() async {
-    await withEnvironment(debounceInterval: .seconds(1)) {
-      let vm = MessagesSearchViewModel(feature: self.feature)
-      vm.configureWith(project: nil); vm.viewDidLoad()
-      vm.searchTextChanged("hidden")
-      vm.viewWillDisappear()
-      await self.scheduler.advance(by: .seconds(2))
-      await self.feature.waitForOperations()
-      XCTAssertEqual(self.provider.searches.count, 0)
-    }
+  func testDisappearingBeforeDebounceDoesNotStartHiddenSearch() async throws {
+    let debounce = AccountRequestGate<Void>()
+    defer { debounce.releaseAll() }
+    let vm = MessagesSearchViewModel(feature: self.feature, sleep: { _ in try await debounce.request() })
+    vm.configureWith(project: nil); vm.viewDidLoad()
+    vm.searchTextChanged("hidden")
+    await debounce.waitFor(1)
+    vm.viewWillDisappear()
+    try debounce.finish(0, .success(()))
+    await vm.waitForSearch()
+    XCTAssertEqual(self.provider.searches.count, 0)
   }
 
   func testNewQueryCancelsOldBeforeDebounceAndLateErrorCannotStopNewSearch() async throws {
     let vm = MessagesSearchViewModel(feature: self.feature, sleep: { _ in })
     vm.configureWith(project: nil); vm.viewDidLoad()
     vm.searchTextChanged("first")
-    await self.scheduler.advance()
     await self.provider.searches.waitFor(1)
     vm.searchTextChanged("second")
-    await self.scheduler.advance()
     await self.provider.searches.waitFor(2)
     try self.provider.searches.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
     await Task.yield()
@@ -248,7 +243,6 @@ final class MessagingFeatureTests: TestCase {
     vm.cancelButtonPressed()
     try self.provider.sends.finish(0, .success(.template))
     await self.feature.waitForOperations()
-    await self.scheduler.advance()
     XCTAssertEqual(self.provider.bodies, ["Hello"])
     XCTAssertEqual(posted, 0)
   }
