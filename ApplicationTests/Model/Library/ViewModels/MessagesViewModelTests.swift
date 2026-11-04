@@ -569,6 +569,7 @@ internal final class MessagesViewModelTests: TestCase {
   private func settleMessaging() async {
     // Start debounced requests, await native work, then deliver the presentation delay.
     await self.scheduler.advance()
+    await self.vm.waitForThread()
     await self.feature.waitForOperations()
     await self.discussion.waitForMutations()
     await self.vm.waitForBlock()

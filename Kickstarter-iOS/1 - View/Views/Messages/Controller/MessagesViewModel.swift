@@ -74,6 +74,9 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
   private let feature: MessagingFeature
   private let discussion: DiscussionFeature
   private var blockTask: Task<Void, Never>?
+  private var threadTask: Task<Void, Never>?
+  private var threadVersion = UUID()
+  private let threadPipe = Signal<MessageThreadEnvelope?, Never>.pipe()
   private var markReadTask: Task<Void, Never>?
   private var markReadVersion = UUID()
   var onMarkedRead: (() -> Void)?
@@ -87,7 +90,6 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
   public init(feature: MessagingFeature, discussion: DiscussionFeature) {
     self.feature = feature
     self.discussion = discussion
-    let threadRoute = self.threadRoute
     let backingRoute = self.backingRoute
     let configData = self.configData.signal.skipNil()
       .takeWhen(self.viewDidLoadProperty.signal)
@@ -116,23 +118,12 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
       configThread.map(Either.right)
     )
 
-    let messageThreadEnvelopeEvent = Signal.merge(
+    let threadRequests = Signal.merge(
       backingOrThread,
       backingOrThread.takeWhen(self.messageSentProperty.signal)
     )
-    .switchMap { backingOrThread
-      -> SignalProducer<Signal<MessageThreadEnvelope?, ErrorEnvelope>.Event, Never> in
-      switch backingOrThread {
-      case let .left(backing):
-        return feature.delayedResult(feature.readResult(route: threadRoute) { try await feature.thread(backing: backing) })
-          .materialize()
-      case let .right(thread):
-        return feature.delayedResult(feature.readResult(route: threadRoute) { try await feature.thread(id: thread.id) })
-          .materialize()
-      }
-    }
-
-    let messageThreadEnvelope = messageThreadEnvelopeEvent.values().skipNil()
+    let messageThreadEnvelopeEvent = self.threadPipe.output
+    let messageThreadEnvelope = messageThreadEnvelopeEvent.skipNil()
 
     let participant = messageThreadEnvelope.map { $0.messageThread.participant }
 
@@ -173,7 +164,7 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
     self.emptyStateIsVisibleAndMessageToUser = Signal.merge(
       self.viewDidLoadProperty.signal.mapConst((false, "")),
       Signal.combineLatest(
-        messageThreadEnvelopeEvent.values().filter(isNil),
+        messageThreadEnvelopeEvent.filter(isNil),
         configBacking.skipNil(),
         self.project
       )
@@ -199,6 +190,7 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
       messages && !isBlocked
     }
 
+    threadRequests.observeValues { [weak self] in self?.loadThread($0) }
     self.project.observeValues { [weak self] project in
       guard let self else { return }
       self.latestProject = project
@@ -210,6 +202,36 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
     }
 
   }
+
+  private func loadThread(_ route: Either<Backing, MessageThread>) {
+    self.threadTask?.cancel()
+    let version = UUID()
+    self.threadVersion = version
+    let feature = self.feature
+    let session = feature.sessionFeature
+    let userID = session.currentUser?.id
+    let generation = session.generation
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    self.threadTask = Task { [weak self] in
+      defer { if let self, self.threadVersion == version { self.threadTask = nil } }
+      do {
+        let result: MessageThreadEnvelope?
+        switch route {
+        case let .left(backing): result = try await feature.thread(backing: backing)
+        case let .right(thread): result = try await feature.thread(id: thread.id)
+        }
+        if delay.isInfinite { try await Task.sleep(nanoseconds: UInt64.max) }
+        else if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
+        try Task.checkCancellation()
+        guard let self, self.threadVersion == version,
+              session.isCurrent(userID: userID, generation: generation) else { return }
+        self.threadPipe.input.send(value: result)
+      } catch {
+        // The existing screen leaves failed reads silent and permits a later reload.
+      }
+    }
+  }
+  func waitForThread() async { await self.threadTask?.value }
 
   private func markRead(_ thread: MessageThread) {
     self.markReadTask?.cancel()
@@ -229,16 +251,13 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
   }
   func waitForMarkRead() async { await self.markReadTask?.value }
 
-  private let threadRoute = UUID()
   private let backingRoute = UUID()
   deinit {
     self.blockTask?.cancel()
     self.markReadTask?.cancel()
-    let feature = self.feature, thread = self.threadRoute, backing = self.backingRoute
-    Task { @MainActor in
-      feature.release(route: thread)
-      feature.release(route: backing)
-    }
+    self.threadTask?.cancel()
+    let feature = self.feature, backing = self.backingRoute
+    Task { @MainActor in feature.release(route: backing) }
   }
 
   public func backingInfoPressed() {
