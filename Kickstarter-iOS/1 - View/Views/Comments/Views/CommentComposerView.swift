@@ -44,7 +44,8 @@ final class CommentComposerView: UIView {
 
   weak var delegate: CommentComposerViewDelegate?
   private var inputAreaHeightConstraint: NSLayoutConstraint?
-  private let viewModel: CommentComposerViewModelType = CommentComposerViewModel()
+  private let viewModel = CommentComposerViewModel()
+  private var hasConfigured = false
 
   // MARK: - Lifecycle
 
@@ -52,7 +53,6 @@ final class CommentComposerView: UIView {
     super.init(frame: frame)
 
     self.configureViews()
-    self.bindViewModel()
     self.setupConstraints()
   }
 
@@ -73,11 +73,25 @@ final class CommentComposerView: UIView {
    - parameter with: `CommentComposerViewData` object that determines.the avatarURL and if the user is a backer
    */
   public func configure(with data: CommentComposerViewData) {
-    self.viewModel.inputs.configure(with: data)
+    if !self.hasConfigured {
+      self.inputContainerView.placeholderLabel.isHidden = false
+      self.inputContainerView.postButton.isHidden = true
+      self.hasConfigured = true
+    }
+    self.avatarImageView.af.cancelImageRequest()
+    self.avatarImageView.image = nil
+    if let url = data.avatarURL { self.avatarImageView.ksr_setRoundedImageWith(url) }
+    self.hideInputArea(!data.canPostComment)
+    self.inputAreaHeightConstraint?.isActive = data.hidden
+    if data.becomeFirstResponder { self.inputContainerView.inputTextView.becomeFirstResponder() }
+    else { self.inputContainerView.inputTextView.resignFirstResponder() }
   }
 
   public func resetInput() {
-    self.viewModel.inputs.resetInput()
+    self.viewModel.resetInput()
+    self.inputContainerView.inputTextView.text = nil
+    self.inputContainerView.inputTextView.resignFirstResponder()
+    self.updateInputPresentation()
   }
 
   // MARK: - Views
@@ -138,64 +152,10 @@ final class CommentComposerView: UIView {
     _ = self.onlyBackersLabel |> onlyBackersLabelStyle
   }
 
-  // MARK: - ViewModel
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.viewModel.outputs.clearInputTextView
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        self?.inputContainerView.inputTextView.text = nil
-      }
-
-    self.viewModel.outputs.inputTextViewDidBecomeFirstResponder
-      .observeForControllerAction()
-      .observeValues { [weak self] becomeFirstResponder in
-        guard let self = self else { return }
-        _ = becomeFirstResponder
-          ? self.inputContainerView.inputTextView.becomeFirstResponder()
-          : self.inputContainerView.inputTextView.resignFirstResponder()
-      }
-
-    self.viewModel.outputs.updateTextViewHeight
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        self?.inputContainerView.inputTextView.invalidateIntrinsicContentSize()
-      }
-
-    self.inputContainerView.placeholderLabel.rac.hidden = self.viewModel.outputs.placeholderHidden
-    self.inputContainerView.postButton.rac.hidden = self.viewModel.outputs.postButtonHidden
-
-    self.viewModel.outputs.avatarURL
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.avatarImageView.af.cancelImageRequest()
-        self?.avatarImageView.image = nil
-      })
-      .skipNil()
-      .observeValues { [weak self] url in
-        self?.avatarImageView.ksr_setRoundedImageWith(url)
-      }
-
-    self.viewModel.outputs.notifyDelegateDidSubmitText
-      .observeForUI()
-      .observeValues { [weak self] text in
-        guard let self = self else { return }
-        self.delegate?.commentComposerView(self, didSubmitText: text)
-      }
-
-    self.viewModel.outputs.inputAreaHidden
-      .observeForUI()
-      .observeValues { [weak self] isHidden in
-        self?.hideInputArea(isHidden)
-      }
-
-    self.viewModel.outputs.commentComposerHidden
-      .observeForUI()
-      .observeValues { [weak self] isHidden in
-        self?.inputAreaHeightConstraint?.isActive = isHidden
-      }
+  private func updateInputPresentation() {
+    self.inputContainerView.placeholderLabel.isHidden = self.viewModel.placeholderHidden
+    self.inputContainerView.postButton.isHidden = self.viewModel.postButtonHidden
+    self.inputContainerView.inputTextView.invalidateIntrinsicContentSize()
   }
 
   // MARK: - Helpers
@@ -212,7 +172,8 @@ final class CommentComposerView: UIView {
   // MARK: - Actions
 
   @objc private func postButtonPressed() {
-    self.viewModel.inputs.postButtonPressed()
+    guard let text = self.viewModel.textToSubmit() else { return }
+    self.delegate?.commentComposerView(self, didSubmitText: text)
   }
 }
 
@@ -220,7 +181,8 @@ final class CommentComposerView: UIView {
 
 extension CommentComposerView: UITextViewDelegate {
   func textViewDidChange(_ textView: UITextView) {
-    self.viewModel.inputs.bodyTextDidChange(textView.text)
+    self.viewModel.bodyTextDidChange(textView.text)
+    self.updateInputPresentation()
   }
 
   func textView(
@@ -228,7 +190,7 @@ extension CommentComposerView: UITextViewDelegate {
     shouldChangeTextIn range: NSRange,
     replacementText text: String
   ) -> Bool {
-    return self.viewModel.inputs.textViewShouldChange(text: textView.text, in: range, replacementText: text)
+    return self.viewModel.textViewShouldChange(text: textView.text, in: range, replacementText: text)
   }
 }
 
