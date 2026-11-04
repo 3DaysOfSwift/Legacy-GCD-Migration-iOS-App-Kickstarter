@@ -16,7 +16,6 @@ final class ProjectTabDisclaimerCell: UITableViewCell, ValueCell {
   // MARK: - Properties
 
   weak var delegate: ProjectTabDisclaimerCellDelegate?
-  private let viewModel = ProjectTabDisclaimerCellViewModel()
 
   private lazy var descriptionTextView: UITextView = {
     UITextView(frame: .zero)
@@ -35,7 +34,6 @@ final class ProjectTabDisclaimerCell: UITableViewCell, ValueCell {
 
     self.bindStyles()
     self.configureViews()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -44,26 +42,6 @@ final class ProjectTabDisclaimerCell: UITableViewCell, ValueCell {
   }
 
   // MARK: - Bindings
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.viewModel.outputs.notifyDelegateLinkTappedWithURL
-      .observeForUI()
-      .observeValues { [weak self] url in
-        guard let self = self else { return }
-        self.delegate?.projectTabDisclaimerCell(self, didTapURL: url)
-      }
-
-    self.viewModel.outputs.updateURLFromProjectType
-      .observeForUI()
-      .observeValues { [weak self] disclaimerType in
-        guard let self = self else { return }
-
-        _ = self.descriptionTextView
-          |> \.attributedText .~ self.attributedText(from: disclaimerType)
-      }
-  }
 
   override func bindStyles() {
     super.bindStyles()
@@ -90,7 +68,7 @@ final class ProjectTabDisclaimerCell: UITableViewCell, ValueCell {
   // MARK: - Configuration
 
   func configureWith(value: ProjectDisclaimerType) {
-    self.viewModel.inputs.configure(with: value)
+    self.descriptionTextView.attributedText = self.attributedText(from: value)
   }
 
   private func configureViews() {
@@ -190,7 +168,7 @@ extension ProjectTabDisclaimerCell: UITextViewDelegate {
     _: UITextView, shouldInteractWith url: URL, in _: NSRange,
     interaction _: UITextItemInteraction
   ) -> Bool {
-    self.viewModel.inputs.linkTapped(url: url)
+    self.delegate?.projectTabDisclaimerCell(self, didTapURL: url)
     return false
   }
 }

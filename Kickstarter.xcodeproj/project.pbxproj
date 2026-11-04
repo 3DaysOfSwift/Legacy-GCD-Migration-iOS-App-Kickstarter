@@ -14744,8 +14744,8 @@
 			"sourceTree" = "<group>";
 		};
 		"967284EC6227994E9F113490" = {
-			"name" = "ProjectTabDisclaimerCellViewModel.swift";
-			"path" = "Kickstarter-iOS/1 - View/Views/ProjectPage/Views/Cells/ProjectTabDisclaimerCellViewModel.swift";
+			"name" = "ProjectDisclaimerType.swift";
+			"path" = "Kickstarter-iOS/1 - View/Views/ProjectPage/Views/Cells/ProjectDisclaimerType.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -15837,7 +15837,7 @@
 			"sourceTree" = "SOURCE_ROOT";
 		};
 		"AAF548772F2445C0001DB5AC" = {
-			"path" = "ProjectTabDisclaimerCellViewModelTests.swift";
+			"path" = "ProjectTabDisclaimerCellTests.swift";
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "sourcecode.swift";
 			"sourceTree" = "<group>";
