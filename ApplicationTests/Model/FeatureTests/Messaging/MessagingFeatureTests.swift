@@ -102,10 +102,7 @@ final class MessagingFeatureTests: TestCase {
   }
 
   func testClearedSearchRejectsTransportThatIgnoresCancellation() async throws {
-    let vm = MessagesSearchViewModel(feature: self.feature)
-    var values: [[MessageThread]] = []
-    let observation = vm.outputs.messageThreads.observeValues { values.append($0) }
-    defer { observation?.dispose() }
+    let vm = MessagesSearchViewModel(feature: self.feature, sleep: { _ in })
     vm.configureWith(project: nil); vm.viewDidLoad()
     vm.searchTextChanged("old")
     await self.scheduler.advance()
@@ -114,13 +111,14 @@ final class MessagingFeatureTests: TestCase {
     try self.provider.searches.finish(0, .success(self.page([99])))
     await self.feature.waitForOperations()
     await self.scheduler.advance()
-    XCTAssertTrue(values.isEmpty)
+    XCTAssertTrue(vm.messageThreads.isEmpty)
     vm.searchTextChanged("new")
     await self.scheduler.advance()
     await self.provider.searches.waitFor(2)
     try self.provider.searches.finish(1, .success(self.page([2])))
     await self.feature.waitForOperations()
-    XCTAssertEqual(values.last?.map(\.id), [2])
+    await vm.waitForSearch()
+    XCTAssertEqual(vm.messageThreads.map(\.id), [2])
     XCTAssertEqual(self.provider.queries, ["old", "new"])
   }
 
@@ -137,10 +135,7 @@ final class MessagingFeatureTests: TestCase {
   }
 
   func testNewQueryCancelsOldBeforeDebounceAndLateErrorCannotStopNewSearch() async throws {
-    let vm = MessagesSearchViewModel(feature: self.feature)
-    var searching: [Bool] = []
-    let observation = vm.outputs.isSearching.observeValues { searching.append($0) }
-    defer { observation?.dispose() }
+    let vm = MessagesSearchViewModel(feature: self.feature, sleep: { _ in })
     vm.configureWith(project: nil); vm.viewDidLoad()
     vm.searchTextChanged("first")
     await self.scheduler.advance()
@@ -150,10 +145,11 @@ final class MessagingFeatureTests: TestCase {
     await self.provider.searches.waitFor(2)
     try self.provider.searches.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
     await Task.yield()
-    XCTAssertEqual(searching.last, true)
+    XCTAssertTrue(vm.isSearching)
     try self.provider.searches.finish(1, .success(self.page([2])))
     await self.feature.waitForOperations()
-    XCTAssertEqual(searching.last, false)
+    await vm.waitForSearch()
+    XCTAssertFalse(vm.isSearching)
   }
 
   func testSendOrderDuplicateSharingAndDisposedObserversDoNotDropWrites() async throws {
