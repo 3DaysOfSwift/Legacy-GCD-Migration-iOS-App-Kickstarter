@@ -1,129 +1,48 @@
 import Experimentation
 import Foundation
 import KsApi
-import Prelude
-import ReactiveSwift
+import Observation
 
 public typealias RemoteConfigFeatures = [(RemoteConfigFeature, Bool)]
 public typealias StatsigFeatures = [(StatsigFeature, Bool)]
 
 @MainActor
-public protocol RemoteConfigFeatureFlagToolsViewModelOutputs {
-  var reloadWithRemoteConfigData: Signal<RemoteConfigFeatures, Never> { get }
-  var updateUserDefaultsWithRemoteConfigFeatures: Signal<RemoteConfigFeatures, Never> { get }
-  var reloadWithStatsigData: Signal<StatsigFeatures, Never> { get }
-  var updateUserDefaultsWithStatsigFeatures: Signal<StatsigFeatures, Never> { get }
-}
+@Observable
+public final class RemoteConfigFeatureFlagToolsViewModel {
+  public private(set) var remoteConfigFeatures: RemoteConfigFeatures = []
+  public private(set) var statsigFeatures: StatsigFeatures = []
+  private var reloadTask: Task<Void, Never>?
+  private let sleep: () async throws -> Void
 
-@MainActor
-public protocol RemoteConfigFeatureFlagToolsViewModelInputs {
-  func didUpdateUserDefaults()
-  func setFeatureAtIndexEnabled(index: Int, isEnabled: Bool)
-  func setStatsigFeatureAtIndexEnabled(index: Int, isEnabled: Bool)
-  func viewDidLoad()
-}
-
-@MainActor
-public protocol RemoteConfigFeatureFlagToolsViewModelType {
-  var inputs: RemoteConfigFeatureFlagToolsViewModelInputs { get }
-  var outputs: RemoteConfigFeatureFlagToolsViewModelOutputs { get }
-}
-
-@MainActor
-public final class RemoteConfigFeatureFlagToolsViewModel: RemoteConfigFeatureFlagToolsViewModelType,
-  RemoteConfigFeatureFlagToolsViewModelInputs,
-  RemoteConfigFeatureFlagToolsViewModelOutputs {
-  public init() {
-    let didUpdateUserDefaultsAndUI = self.didUpdateUserDefaultsProperty.signal
-      .ksr_debounce(.seconds(1), on: AppEnvironment.current.scheduler)
-
-    let features = Signal.merge(
-      self.viewDidLoadProperty.signal,
-      didUpdateUserDefaultsAndUI
-    )
-
-    let remoteConfigFeatures = features
-      .map { _ in RemoteConfigFeature.allCases }
-      .map { features in
-        features.map { feature -> (RemoteConfigFeature, Bool) in
-          (feature, isFeatureEnabled(feature))
-        }
-      }
-
-    self.reloadWithRemoteConfigData = remoteConfigFeatures
-
-    self.updateUserDefaultsWithRemoteConfigFeatures = remoteConfigFeatures
-      .takePairWhen(self.setFeatureEnabledAtIndexProperty.signal.skipNil())
-      .map(unpack)
-      .map { features, index, isEnabled -> RemoteConfigFeatures? in
-        let (feature, _) = features[index]
-        var mutatedFeatures = features
-
-        setValueInUserDefaults(for: feature, and: isEnabled)
-
-        mutatedFeatures[index] = (feature, isEnabled)
-        return mutatedFeatures
-      }
-      .skipNil()
-
-    // MARK: Statsig
-
-    let statsigFeatures = features
-      .map { _ in StatsigFeature.allCases }
-      .map { features in
-        features.map { feature -> (StatsigFeature, Bool) in
-          (feature, statsigFeatureEnabled(feature: feature))
-        }
-      }
-
-    self.reloadWithStatsigData = statsigFeatures
-
-    self.updateUserDefaultsWithStatsigFeatures = statsigFeatures
-      .takePairWhen(self.setStatsigFeatureEnabledAtIndexProperty.signal.skipNil())
-      .map(unpack)
-      .map { features, index, isEnabled -> StatsigFeatures? in
-        let (feature, _) = features[index]
-        var mutatedFeatures = features
-
-        setStatsigValueInUserDefaults(for: feature, and: isEnabled)
-
-        mutatedFeatures[index] = (feature, isEnabled)
-        return mutatedFeatures
-      }
-      .skipNil()
+  public init(sleep: @escaping () async throws -> Void = { try await Task.sleep(for: .seconds(1)) }) {
+    self.sleep = sleep
   }
-
-  // MARK: - Inputs
-
-  private let setFeatureEnabledAtIndexProperty = MutableProperty<(Int, Bool)?>(nil)
-  public func setFeatureAtIndexEnabled(index: Int, isEnabled: Bool) {
-    self.setFeatureEnabledAtIndexProperty.value = (index, isEnabled)
-  }
-
-  private let setStatsigFeatureEnabledAtIndexProperty = MutableProperty<(Int, Bool)?>(nil)
-  public func setStatsigFeatureAtIndexEnabled(index: Int, isEnabled: Bool) {
-    self.setStatsigFeatureEnabledAtIndexProperty.value = (index, isEnabled)
-  }
-
-  private let didUpdateUserDefaultsProperty = MutableProperty(())
+  public func viewDidLoad() { self.reload() }
   public func didUpdateUserDefaults() {
-    self.didUpdateUserDefaultsProperty.value = ()
+    self.reloadTask?.cancel()
+    self.reloadTask = Task { [weak self, sleep] in
+      do {
+        try await sleep()
+        try Task.checkCancellation()
+        self?.reload()
+      } catch { }
+    }
   }
-
-  private let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+  public func setFeatureAtIndexEnabled(index: Int, isEnabled: Bool) {
+    guard self.remoteConfigFeatures.indices.contains(index) else { return }
+    setValueInUserDefaults(for: self.remoteConfigFeatures[index].0, and: isEnabled)
+    self.didUpdateUserDefaults()
   }
-
-  // MARK: - Outputs
-
-  public let reloadWithRemoteConfigData: Signal<RemoteConfigFeatures, Never>
-  public let updateUserDefaultsWithRemoteConfigFeatures: Signal<RemoteConfigFeatures, Never>
-  public let reloadWithStatsigData: Signal<StatsigFeatures, Never>
-  public let updateUserDefaultsWithStatsigFeatures: Signal<StatsigFeatures, Never>
-
-  public var inputs: RemoteConfigFeatureFlagToolsViewModelInputs { return self }
-  public var outputs: RemoteConfigFeatureFlagToolsViewModelOutputs { return self }
+  public func setStatsigFeatureAtIndexEnabled(index: Int, isEnabled: Bool) {
+    guard self.statsigFeatures.indices.contains(index) else { return }
+    setStatsigValueInUserDefaults(for: self.statsigFeatures[index].0, and: isEnabled)
+    self.didUpdateUserDefaults()
+  }
+  private func reload() {
+    self.remoteConfigFeatures = RemoteConfigFeature.allCases.map { ($0, isFeatureEnabled($0)) }
+    self.statsigFeatures = StatsigFeature.allCases.map { ($0, statsigFeatureEnabled(feature: $0)) }
+  }
+  internal func waitForReload() async { await self.reloadTask?.value }
 }
 
 // MARK: - Private Helpers (Remote Config)

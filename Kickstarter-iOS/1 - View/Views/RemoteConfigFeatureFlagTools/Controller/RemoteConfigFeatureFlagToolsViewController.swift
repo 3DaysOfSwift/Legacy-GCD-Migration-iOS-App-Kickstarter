@@ -1,3 +1,4 @@
+import Observation
 import Foundation
 import KsApi
 
@@ -10,7 +11,7 @@ final class RemoteConfigFeatureFlagToolsViewController: UITableViewController {
   private var remoteConfigFeatures = RemoteConfigFeatures()
   private var statsigFeatures = StatsigFeatures()
   private let reuseId = "FeatureFlagTools.TableViewCell"
-  private let viewModel: RemoteConfigFeatureFlagToolsViewModelType = RemoteConfigFeatureFlagToolsViewModel()
+  private let viewModel = RemoteConfigFeatureFlagToolsViewModel()
 
   static func instantiate() -> RemoteConfigFeatureFlagToolsViewController {
     return RemoteConfigFeatureFlagToolsViewController(style: .plain)
@@ -29,7 +30,7 @@ final class RemoteConfigFeatureFlagToolsViewController: UITableViewController {
 
     self.tableView.register(UITableViewCell.self, forCellReuseIdentifier: self.reuseId)
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   // MARK: - View model
@@ -37,49 +38,31 @@ final class RemoteConfigFeatureFlagToolsViewController: UITableViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.reloadWithRemoteConfigData
-      .observeForUI()
-      .observeValues { [weak self] features in
-        self?.remoteConfigFeatures = features
-        self?.tableView.reloadData()
-      }
+    self.observeFeatures()
+  }
 
-    self.viewModel.outputs.updateUserDefaultsWithRemoteConfigFeatures
-      .observeForUI()
-      .observeValues { [weak self] features in
-        self?.updateUserDefaults(with: features)
-      }
-
-    self.viewModel.outputs.reloadWithStatsigData
-      .observeForUI()
-      .observeValues { [weak self] features in
-        self?.statsigFeatures = features
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.updateUserDefaultsWithStatsigFeatures
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        self?.viewModel.inputs.didUpdateUserDefaults()
-      }
+  private func observeFeatures() {
+    withObservationTracking {
+      self.remoteConfigFeatures = self.viewModel.remoteConfigFeatures
+      self.statsigFeatures = self.viewModel.statsigFeatures
+      self.tableView.reloadData()
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeFeatures() }
+    }
   }
 
   @objc private func switchToggled(_ switchControl: UISwitch) {
-    self.viewModel.inputs.setFeatureAtIndexEnabled(index: switchControl.tag, isEnabled: switchControl.isOn)
+    self.viewModel.setFeatureAtIndexEnabled(index: switchControl.tag, isEnabled: switchControl.isOn)
   }
 
   @objc private func statsigSwitchToggled(_ switchControl: UISwitch) {
-    self.viewModel.inputs.setStatsigFeatureAtIndexEnabled(
+    self.viewModel.setStatsigFeatureAtIndexEnabled(
       index: switchControl.tag,
       isEnabled: switchControl.isOn
     )
   }
 
-  // MARK: - Private Helpers
 
-  private func updateUserDefaults(with _: RemoteConfigFeatures) {
-    self.viewModel.inputs.didUpdateUserDefaults()
-  }
 }
 
 // MARK: - UITableViewDataSource
