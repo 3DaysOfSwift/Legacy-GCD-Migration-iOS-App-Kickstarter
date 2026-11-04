@@ -3,8 +3,6 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -19,49 +17,49 @@ internal final class MessagesViewModelTests: TestCase {
   })
   private lazy var vm: MessagesViewModel = MessagesViewModel(feature: self.feature, discussion: self.discussion)
 
-  private let backingAndProjectAndIsFromBacking = TestObserver<(Backing, Project, Bool), Never>()
-  private let emptyStateIsVisible = TestObserver<Bool, Never>()
-  private let emptyStateMessage = TestObserver<String, Never>()
-  private let goToBackingProjectParam = TestObserver<Param, Never>()
-  private let goToBackingBackingParam = TestObserver<Param?, Never>()
-  private let goToPledgeManagementViewPledge = TestObserver<String, Never>()
-  private let goToProject = TestObserver<Project, Never>()
-  private let goToRefTag = TestObserver<RefTag, Never>()
-  private let messages = TestObserver<[Message], Never>()
-  private let participantPreviouslyBlocked = TestObserver<Bool, Never>()
-  private let presentMessageDialog = TestObserver<MessageThread, Never>()
-  private let project = TestObserver<Project, Never>()
-  private let replyButtonIsEnabled = TestObserver<Bool, Never>()
-  private let successfullyMarkedAsRead = TestObserver<(), Never>()
-  private let didBlockUser = TestObserver<(), Never>()
-  private let didBlockUserError = TestObserver<(), Never>()
+  private let backingAndProjectAndIsFromBacking = MessageRecorder<(Backing, Project, Bool)>()
+  private let emptyStateIsVisible = MessageRecorder<Bool>()
+  private let emptyStateMessage = MessageRecorder<String>()
+  private let goToBackingProjectParam = MessageRecorder<Param>()
+  private let goToBackingBackingParam = MessageRecorder<Param?>()
+  private let goToPledgeManagementViewPledge = MessageRecorder<String>()
+  private let goToProject = MessageRecorder<Project>()
+  private let goToRefTag = MessageRecorder<RefTag>()
+  private let messages = MessageRecorder<[Message]>()
+  private let participantPreviouslyBlocked = MessageRecorder<Bool>()
+  private let presentMessageDialog = MessageRecorder<MessageThread>()
+  private let project = MessageRecorder<Project>()
+  private let replyButtonIsEnabled = MessageRecorder<Bool>()
+  private let successfullyMarkedAsRead = MessageRecorder<()>()
+  private let didBlockUser = MessageRecorder<()>()
+  private let didBlockUserError = MessageRecorder<()>()
 
   override func setUp() async throws {
     try await super.setUp()
 
     MainActor.assumeIsolated {
-      self.vm.onBacking = { [weak self] in self?.backingAndProjectAndIsFromBacking.observer.send(value: ($0, $1, $2)) }
+      self.vm.onBacking = { [weak self] in self?.backingAndProjectAndIsFromBacking.values.append(($0, $1, $2)) }
       self.vm.onEmptyState = { [weak self] visible, message in
-        self?.emptyStateIsVisible.observer.send(value: visible)
-        self?.emptyStateMessage.observer.send(value: message)
+        self?.emptyStateIsVisible.values.append(visible)
+        self?.emptyStateMessage.values.append(message)
       }
       self.vm.onBackingNavigation = { [weak self] params in
-        self?.goToBackingProjectParam.observer.send(value: params.projectParam)
-        self?.goToBackingBackingParam.observer.send(value: params.backingParam)
+        self?.goToBackingProjectParam.values.append(params.projectParam)
+        self?.goToBackingBackingParam.values.append(params.backingParam)
       }
-      self.vm.onPledgeManagement = { [weak self] in self?.goToPledgeManagementViewPledge.observer.send(value: $0) }
+      self.vm.onPledgeManagement = { [weak self] in self?.goToPledgeManagementViewPledge.values.append($0) }
       self.vm.onProjectNavigation = { [weak self] project, refTag in
-        self?.goToProject.observer.send(value: project)
-        self?.goToRefTag.observer.send(value: refTag)
+        self?.goToProject.values.append(project)
+        self?.goToRefTag.values.append(refTag)
       }
-      self.vm.onMessages = { [weak self] in self?.messages.observer.send(value: $0) }
-      self.vm.onParticipantBlocked = { [weak self] in self?.participantPreviouslyBlocked.observer.send(value: $0) }
-      self.vm.onReply = { [weak self] thread, _ in self?.presentMessageDialog.observer.send(value: thread) }
-      self.vm.onProject = { [weak self] in self?.project.observer.send(value: $0) }
-      self.vm.onReplyEnabled = { [weak self] in self?.replyButtonIsEnabled.observer.send(value: $0) }
-      self.vm.onMarkedRead = { [weak self] in self?.successfullyMarkedAsRead.observer.send(value: ()) }
-      self.vm.onBlockSuccess = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
-      self.vm.onBlockError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }
+      self.vm.onMessages = { [weak self] in self?.messages.values.append($0) }
+      self.vm.onParticipantBlocked = { [weak self] in self?.participantPreviouslyBlocked.values.append($0) }
+      self.vm.onReply = { [weak self] thread, _ in self?.presentMessageDialog.values.append(thread) }
+      self.vm.onProject = { [weak self] in self?.project.values.append($0) }
+      self.vm.onReplyEnabled = { [weak self] in self?.replyButtonIsEnabled.values.append($0) }
+      self.vm.onMarkedRead = { [weak self] in self?.successfullyMarkedAsRead.values.append(()) }
+      self.vm.onBlockSuccess = { [weak self] in self?.didBlockUser.values.append(()) }
+      self.vm.onBlockError = { [weak self] in self?.didBlockUserError.values.append(()) }
 
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
     }
@@ -570,17 +568,33 @@ internal final class MessagesViewModelTests: TestCase {
   }
 
   private func settleMessaging() async {
-    // Start debounced requests, await native work, then deliver the presentation delay.
-    await self.scheduler.advance()
+    // Await screen-owned requests and the operations they start.
     await self.vm.waitForThread()
     await self.vm.waitForBacking()
     await self.feature.waitForOperations()
     await self.discussion.waitForMutations()
     await self.vm.waitForBlock()
-    await self.scheduler.advance()
-    // Thread delivery starts backing lookup and read-status commands.
+    // Thread delivery can start a backing lookup and read-status command.
     await self.feature.waitForOperations()
     await self.vm.waitForMarkRead()
-    await self.scheduler.advance()
+  }
+}
+
+private final class MessageRecorder<Value> {
+  var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, message, file: file, line: line)
+  }
+}
+private extension MessageRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
+  }
+  func assertLastValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.last, expected, message, file: file, line: line)
   }
 }
