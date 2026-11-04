@@ -329,16 +329,19 @@ private final class PreferencesFixture {
 
 @MainActor
 extension SettingsFeatureTests {
-  func testDeferredEmailObservationCannotStartUnderReplacementSession() async {
+  func testEmailLookupRejectsResultAfterSessionReplacement() async throws {
     let fixture = AccountWritesFixture()
-    let producer = fixture.feature.emailUserResult()
+    defer { fixture.provider.emails.releaseAll() }
+    let read = Task { try await fixture.feature.emailUser() }
+    await fixture.provider.emails.waitFor(1)
     fixture.session.sessionChanged()
-    var received = false
-    let observation = producer.startWithResult { _ in received = true }
-    defer { observation.dispose(); fixture.provider.emails.releaseAll() }
-    await fixture.feature.waitForOperations()
-    XCTAssertEqual(fixture.provider.emails.count, 0)
-    XCTAssertFalse(received)
+    try fixture.provider.emails.finish(0, .success(.template))
+    do {
+      _ = try await read.value
+      XCTFail("A result from a replaced session must not be returned")
+    } catch is CancellationError {
+      // Expected.
+    }
   }
 
   func testDisposedAccountFieldsReadCannotPublishLateValue() async throws {

@@ -460,28 +460,6 @@ public final class SettingsFeature {
     return try result.get()
   }
 
-  public func emailUserResult() -> SignalProducer<GraphUser, ErrorEnvelope> {
-    let generation = self.session.generation
-    let userID = self.session.currentUser?.id
-    return SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        let id = UUID()
-        let task = Task { [self] in
-          defer { self.reads[id] = nil }
-          do {
-            guard self.session.isCurrent(userID: userID, generation: generation) else { throw CancellationError() }
-            let user = try await self.emailUser()
-            observer.send(value: user)
-            observer.sendCompleted()
-          } catch is CancellationError { observer.sendInterrupted() }
-          catch { observer.send(error: error as? ErrorEnvelope ?? .couldNotParseJSON) }
-        }
-        self.reads[id] = task
-        lifetime.observeEnded { task.cancel() }
-      }
-    }
-  }
-
   /// App lifecycle receives only a freshly committed user, not the cached initial emission.
   public func refreshResult(allowSessionRestore: Bool = false) -> SignalProducer<User, ErrorEnvelope> {
     self.userResult(includeCurrent: false, allowSessionRestore: allowSessionRestore)
