@@ -1,35 +1,16 @@
 @testable import Kickstarter_iOS
 @testable import KsApi
-
-
-import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
-internal final class ExternalElementSourceViewElementCellViewModelTests: TestCase {
-  private let vm: ExternalSourceViewElementCellViewModelType = ExternalSourceViewElementCellViewModel()
-  private let expectedExternalURLString = "https://source.com"
-  private let expectedContentHeight = 32
-  private let htmlText = TestObserver<String, Never>()
-  private let contentHeight = TestObserver<Int, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.htmlText.observe(self.htmlText.observer)
-    self.vm.outputs.contentHeight.observe(self.contentHeight.observer)
-  }
-
-  func testExternalSourceElementData_Success() {
-    let externalSourceElement = ExternalSourceViewElement(
-      embeddedURLString: expectedExternalURLString,
-      embeddedURLContentHeight: expectedContentHeight
-    )
-
-    self.vm.inputs.configureWith(element: externalSourceElement)
-
-    self.htmlText.assertLastValue(self.expectedExternalURLString)
-    self.contentHeight.assertLastValue(self.expectedContentHeight)
+@MainActor
+final class ExternalElementSourceViewElementCellViewModelTests: XCTestCase {
+  func testSourceAndHeightOnlyForNonemptyURL() {
+    let vm = ExternalSourceViewElementCellViewModel()
+    vm.configureWith(element: .init(embeddedURLString: "https://source.com", embeddedURLContentHeight: 32))
+    XCTAssertEqual(vm.htmlText, "https://source.com")
+    XCTAssertEqual(vm.contentHeight, 32)
+    vm.configureWith(element: .init(embeddedURLString: "", embeddedURLContentHeight: 50))
+    XCTAssertNil(vm.htmlText)
+    XCTAssertNil(vm.contentHeight)
   }
 }

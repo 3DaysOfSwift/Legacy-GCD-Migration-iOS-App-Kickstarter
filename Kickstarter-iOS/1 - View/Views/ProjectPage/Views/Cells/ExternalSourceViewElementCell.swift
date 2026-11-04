@@ -20,7 +20,7 @@ class ExternalSourceViewElementCell: UITableViewCell, ValueCell {
     return webView
   }()
 
-  private let viewModel: ExternalSourceViewElementCellViewModelType = ExternalSourceViewElementCellViewModel()
+  private let viewModel = ExternalSourceViewElementCellViewModel()
   private var contentHeightConstraint: NSLayoutConstraint?
 
   // MARK: Initializers
@@ -32,7 +32,6 @@ class ExternalSourceViewElementCell: UITableViewCell, ValueCell {
     self.setupDelegate()
     self.setupConstraints()
     self.bindStyles()
-    self.bindViewModel()
   }
 
   // MARK: Lifecycle
@@ -43,38 +42,6 @@ class ExternalSourceViewElementCell: UITableViewCell, ValueCell {
   }
 
   // MARK: View Model
-
-  internal override func bindViewModel() {
-    self.viewModel.outputs.htmlText
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        guard let emptyContentURL = URL(string: "about:blank") else { return }
-
-        let request = URLRequest(url: emptyContentURL)
-
-        self?.webView.load(request)
-      })
-      .observeValues { [weak self] htmlText in
-        guard let url = URL(string: htmlText + "?playsinline=1") else { return }
-
-        var request = URLRequest(url: url)
-        let referrer = AppEnvironment.current.apiService.serverConfig.webBaseUrl.absoluteString
-        // The HTTP header is called `Referer` instead of `Referrer` due to an old misspelling.
-        request.addValue(referrer, forHTTPHeaderField: "Referer")
-
-        self?.webView.load(request)
-      }
-
-    self.viewModel.outputs.contentHeight
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.contentHeightConstraint?.isActive = false
-      })
-      .observeValues { [weak self] value in
-        self?.contentHeightConstraint = self?.webView.heightAnchor.constraint(equalToConstant: CGFloat(value))
-        self?.contentHeightConstraint?.isActive = true
-      }
-  }
 
   // MARK: View Styles
 
@@ -101,7 +68,21 @@ class ExternalSourceViewElementCell: UITableViewCell, ValueCell {
   // MARK: Helpers
 
   func configureWith(value: ExternalSourceViewElement) {
-    self.viewModel.inputs.configureWith(element: value)
+    self.viewModel.configureWith(element: value)
+    if let htmlText = self.viewModel.htmlText {
+      if let blank = URL(string: "about:blank") { self.webView.load(URLRequest(url: blank)) }
+      if let url = URL(string: htmlText + "?playsinline=1") {
+        var request = URLRequest(url: url)
+        request.addValue(AppEnvironment.current.apiService.serverConfig.webBaseUrl.absoluteString,
+                         forHTTPHeaderField: "Referer")
+        self.webView.load(request)
+      }
+    }
+    if let height = self.viewModel.contentHeight {
+      self.contentHeightConstraint?.isActive = false
+      self.contentHeightConstraint = self.webView.heightAnchor.constraint(equalToConstant: CGFloat(height))
+      self.contentHeightConstraint?.isActive = true
+    }
   }
 
   private func configureViews() {
