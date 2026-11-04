@@ -2,11 +2,10 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveExtensions
 import UIKit
 
 internal final class MessageThreadCell: UITableViewCell, ValueCell {
-  fileprivate let viewModel: MessageThreadCellViewModelType = MessageThreadCellViewModel()
+  private let viewModel = MessageThreadCellViewModel()
 
   @IBOutlet private var avatarImageView: UIImageView!
   @IBOutlet private var bodyLabel: UILabel!
@@ -18,13 +17,24 @@ internal final class MessageThreadCell: UITableViewCell, ValueCell {
   @IBOutlet private var unreadIndicatorView: UIView!
 
   func configureWith(value: MessageThread) {
-    self.viewModel.inputs.configureWith(messageThread: value)
+    let state = self.viewModel.configureWith(messageThread: value)
+    self.avatarImageView.af.cancelImageRequest()
+    self.avatarImageView.image = nil
+    if let url = state.participantAvatarURL { self.avatarImageView.af.setImage(withURL: url) }
+    self.nameLabel.setHTML(state.participantName)
+    self.replyIndicator?.isHidden = state.replyIndicatorHidden
+    self.projectNameLabel.text = state.projectName
+    self.dateLabel.text = state.date
+    self.dateLabel.accessibilityLabel = state.dateAccessibilityLabel
+    self.unreadIndicatorView?.isHidden = state.unreadIndicatorHidden
+    self.bodyLabel.text = state.messageBody
   }
 
   override func setSelected(_ selected: Bool, animated: Bool) {
     super.setSelected(selected, animated: animated)
 
-    self.viewModel.inputs.setSelected(selected)
+    self.viewModel.setSelected(selected)
+    if selected { self.unreadIndicatorView?.isHidden = true }
   }
 
   internal override func bindStyles() {
@@ -62,29 +72,4 @@ internal final class MessageThreadCell: UITableViewCell, ValueCell {
       |> UILabel.lens.font .~ UIFont.ksr_subhead(size: 15.0)
   }
 
-  internal override func bindViewModel() {
-    self.viewModel.outputs.participantAvatarURL
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.avatarImageView.af.cancelImageRequest()
-        self?.avatarImageView.image = nil
-      })
-      .skipNil()
-      .observeValues { [weak self] url in
-        self?.avatarImageView.af.setImage(withURL: url)
-      }
-
-    self.viewModel.outputs.participantName
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.nameLabel.setHTML($0)
-      }
-
-    self.replyIndicator?.rac.hidden = self.viewModel.outputs.replyIndicatorHidden
-    self.projectNameLabel.rac.text = self.viewModel.outputs.projectName
-    self.dateLabel.rac.text = self.viewModel.outputs.date
-    self.dateLabel.rac.accessibilityLabel = self.viewModel.outputs.dateAccessibilityLabel
-    self.unreadIndicatorView?.rac.hidden = self.viewModel.outputs.unreadIndicatorHidden
-    self.bodyLabel.rac.text = self.viewModel.outputs.messageBody
-  }
 }
