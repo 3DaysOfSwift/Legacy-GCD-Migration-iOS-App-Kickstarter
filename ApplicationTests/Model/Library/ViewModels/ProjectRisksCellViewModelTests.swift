@@ -1,25 +1,16 @@
 @testable import Kickstarter_iOS
-@testable import KsApi
-
-
-import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class ProjectRisksCellViewModelTests: TestCase {
-  let vm: ProjectRisksCellViewModelType = ProjectRisksCellViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private let descriptionLabelText = TestObserver<String, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-    self.vm.outputs.descriptionLabelText.observe(self.descriptionLabelText.observer)
-  }
-
-  func testOutput_DescriptionLabelText() {
-    self.vm.inputs.configureWith(value: "Hello World")
-
-    self.descriptionLabelText.assertValues(["Hello World"])
+  func testConfigurationReplacesDescription() {
+    let vm = ProjectRisksCellViewModel()
+    XCTAssertNil(vm.descriptionLabelText)
+    vm.configureWith(value: "Hello World")
+    XCTAssertEqual(vm.descriptionLabelText, "Hello World")
+    vm.configureWith(value: "Updated")
+    XCTAssertEqual(vm.descriptionLabelText, "Updated")
   }
 }

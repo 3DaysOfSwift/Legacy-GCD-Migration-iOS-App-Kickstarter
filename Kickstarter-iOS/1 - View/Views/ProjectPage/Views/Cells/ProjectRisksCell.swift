@@ -26,7 +26,6 @@ final class ProjectRisksCell: UITableViewCell, ValueCell {
 
     self.bindStyles()
     self.configureViews()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -35,12 +34,6 @@ final class ProjectRisksCell: UITableViewCell, ValueCell {
   }
 
   // MARK: - Bindings
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.descriptionLabel.rac.text = self.viewModel.outputs.descriptionLabelText
-  }
 
   override func bindStyles() {
     super.bindStyles()
@@ -63,7 +56,8 @@ final class ProjectRisksCell: UITableViewCell, ValueCell {
   // MARK: - Configuration
 
   func configureWith(value: String) {
-    self.viewModel.inputs.configureWith(value: value)
+    self.viewModel.configureWith(value: value)
+    self.descriptionLabel.text = self.viewModel.descriptionLabelText
   }
 
   private func configureViews() {
