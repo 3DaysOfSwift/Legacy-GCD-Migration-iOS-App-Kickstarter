@@ -4,34 +4,13 @@ import KDS
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 internal final class MostPopularSearchProjectCellViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private let vm: MostPopularSearchProjectCellViewModelType = MostPopularSearchProjectCellViewModel()
-
-  private let metadataText = TestObserver<String, Never>()
-  private let percentFundedText = TestObserver<String, Never>()
-  private let progress = TestObserver<Float, Never>()
-  private let prelaunchProject = TestObserver<Bool, Never>()
-  private let progressBarColor = TestObserver<UIColor, Never>()
-  private let projectImageUrl = TestObserver<String, Never>()
-  private let projectName = TestObserver<String, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-    self.vm.outputs.metadataText.observe(self.metadataText.observer)
-    self.vm.outputs.percentFundedText.map { $0.string }.observe(self.percentFundedText.observer)
-    self.vm.outputs.progress.observe(self.progress.observer)
-    self.vm.outputs.progressBarColor.observe(self.progressBarColor.observer)
-    self.vm.outputs.projectImageUrl.map { $0?.absoluteString ?? "" }.observe(self.projectImageUrl.observer)
-    self.vm.outputs.projectName.map { $0.string }.observe(self.projectName.observer)
-    self.vm.outputs.prelaunchProject.observe(self.prelaunchProject.observer)
-  }
+  private let vm = MostPopularSearchProjectCellViewModel()
 
   func testProjectData_Live() {
     let project = .cosmicSurgery
@@ -39,14 +18,14 @@ internal final class MostPopularSearchProjectCellViewModelTests: TestCase {
       |> Project.lens.state .~ .live
       |> Project.lens.photo.full .~ "http://wwww.cosmicsurgery.com/theproject.jpg"
 
-    self.vm.inputs.configureWith(project: project)
+    self.vm.configureWith(project: project)
 
-    self.metadataText.assertValues(["15 days"])
-    self.percentFundedText.assertValues(["50%"])
-    self.progress.assertValues([0.5])
-    self.progressBarColor.assertValues([LegacyColors.ksr_create_700.uiColor()])
-    self.projectImageUrl.assertValues(["http://wwww.cosmicsurgery.com/theproject.jpg"])
-    self.projectName.assertValues(["Cosmic Surgery"])
+    XCTAssertEqual(self.vm.metadataText, "15 days")
+    XCTAssertEqual(self.vm.percentFundedText.string, "50%")
+    XCTAssertEqual(self.vm.progress, 0.5)
+    XCTAssertEqual(self.vm.progressBarColor, LegacyColors.ksr_create_700.uiColor())
+    XCTAssertEqual(self.vm.projectImageUrl?.absoluteString ?? "", "http://wwww.cosmicsurgery.com/theproject.jpg")
+    XCTAssertEqual(self.vm.projectName.string, "Cosmic Surgery")
   }
 
   func testProjectData_Successful() {
@@ -55,14 +34,14 @@ internal final class MostPopularSearchProjectCellViewModelTests: TestCase {
       |> Project.lens.state .~ .successful
       |> Project.lens.photo.full .~ "http://wwww.cosmicsurgery.com/theproject.jpg"
 
-    self.vm.inputs.configureWith(project: project)
+    self.vm.configureWith(project: project)
 
-    self.metadataText.assertValues(["Successful"])
-    self.percentFundedText.assertValues(["225%"])
-    self.progress.assertValues([2.25])
-    self.progressBarColor.assertValues([LegacyColors.ksr_create_700.uiColor()])
-    self.projectImageUrl.assertValues(["http://wwww.cosmicsurgery.com/theproject.jpg"])
-    self.projectName.assertValues(["Cosmic Surgery"])
+    XCTAssertEqual(self.vm.metadataText, "Successful")
+    XCTAssertEqual(self.vm.percentFundedText.string, "225%")
+    XCTAssertEqual(self.vm.progress, 2.25)
+    XCTAssertEqual(self.vm.progressBarColor, LegacyColors.ksr_create_700.uiColor())
+    XCTAssertEqual(self.vm.projectImageUrl?.absoluteString ?? "", "http://wwww.cosmicsurgery.com/theproject.jpg")
+    XCTAssertEqual(self.vm.projectName.string, "Cosmic Surgery")
   }
 
   func testProjectData_Failure() {
@@ -71,14 +50,14 @@ internal final class MostPopularSearchProjectCellViewModelTests: TestCase {
       |> Project.lens.state .~ .failed
       |> Project.lens.photo.full .~ "http://wwww.cosmicsurgery.com/theproject.jpg"
 
-    self.vm.inputs.configureWith(project: project)
+    self.vm.configureWith(project: project)
 
-    self.metadataText.assertValues(["Unsuccessful"])
-    self.percentFundedText.assertValues(["25%"])
-    self.progress.assertValues([0.25])
-    self.progressBarColor.assertValues([LegacyColors.ksr_support_400.uiColor()])
-    self.projectImageUrl.assertValues(["http://wwww.cosmicsurgery.com/theproject.jpg"])
-    self.projectName.assertValues(["Cosmic Surgery"])
+    XCTAssertEqual(self.vm.metadataText, "Unsuccessful")
+    XCTAssertEqual(self.vm.percentFundedText.string, "25%")
+    XCTAssertEqual(self.vm.progress, 0.25)
+    XCTAssertEqual(self.vm.progressBarColor, LegacyColors.ksr_support_400.uiColor())
+    XCTAssertEqual(self.vm.projectImageUrl?.absoluteString ?? "", "http://wwww.cosmicsurgery.com/theproject.jpg")
+    XCTAssertEqual(self.vm.projectName.string, "Cosmic Surgery")
   }
 
   func testProjectData_Canceled() {
@@ -87,14 +66,14 @@ internal final class MostPopularSearchProjectCellViewModelTests: TestCase {
       |> Project.lens.state .~ .canceled
       |> Project.lens.photo.full .~ "http://wwww.cosmicsurgery.com/theproject.jpg"
 
-    self.vm.inputs.configureWith(project: project)
+    self.vm.configureWith(project: project)
 
-    self.metadataText.assertValues(["Canceled"])
-    self.percentFundedText.assertValues(["15%"])
-    self.progress.assertValues([0.15])
-    self.progressBarColor.assertValues([LegacyColors.ksr_support_400.uiColor()])
-    self.projectImageUrl.assertValues(["http://wwww.cosmicsurgery.com/theproject.jpg"])
-    self.projectName.assertValues(["Cosmic Surgery"])
+    XCTAssertEqual(self.vm.metadataText, "Canceled")
+    XCTAssertEqual(self.vm.percentFundedText.string, "15%")
+    XCTAssertEqual(self.vm.progress, 0.15)
+    XCTAssertEqual(self.vm.progressBarColor, LegacyColors.ksr_support_400.uiColor())
+    XCTAssertEqual(self.vm.projectImageUrl?.absoluteString ?? "", "http://wwww.cosmicsurgery.com/theproject.jpg")
+    XCTAssertEqual(self.vm.projectName.string, "Cosmic Surgery")
   }
 
   func testProjectData_Prelaunch() {
@@ -105,10 +84,10 @@ internal final class MostPopularSearchProjectCellViewModelTests: TestCase {
       |> Project.lens.prelaunchActivated .~ true
       |> Project.lens.personalization.isStarred .~ true
 
-    self.prelaunchProject.assertDidNotEmitValue()
+    XCTAssertFalse(self.vm.prelaunchProject)
 
-    self.vm.inputs.configureWith(project: project)
+    self.vm.configureWith(project: project)
 
-    self.prelaunchProject.assertValues([true])
+    XCTAssertEqual(self.vm.prelaunchProject, true)
   }
 }

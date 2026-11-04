@@ -6,8 +6,7 @@ import Prelude_UIKit
 import UIKit
 
 internal final class MostPopularSearchProjectCell: UITableViewCell, ValueCell {
-  fileprivate let viewModel: MostPopularSearchProjectCellViewModelType =
-    MostPopularSearchProjectCellViewModel()
+  fileprivate let viewModel = MostPopularSearchProjectCellViewModel()
 
   @IBOutlet fileprivate var cardView: UIView!
   @IBOutlet fileprivate var metadataBackgroundView: UIView!
@@ -24,7 +23,8 @@ internal final class MostPopularSearchProjectCell: UITableViewCell, ValueCell {
   @IBOutlet fileprivate var statsStackView: UIStackView!
 
   internal func configureWith(value: any BackerDashboardProjectCellViewModel.ProjectCellModel) {
-    self.viewModel.inputs.configureWith(project: value)
+    self.viewModel.configureWith(project: value)
+    self.renderProject()
   }
 
   internal override func bindStyles() {
@@ -95,25 +95,22 @@ internal final class MostPopularSearchProjectCell: UITableViewCell, ValueCell {
       |> UIView.lens.alpha .~ 0.15
   }
 
-  internal override func bindViewModel() {
-    super.bindViewModel()
-
-    self.metadataBackgroundView.rac.backgroundColor = self.viewModel.outputs.progressBarColor
-    self.metadataLabel.rac.text = self.viewModel.outputs.metadataText
-    self.percentFundedLabel.rac.attributedText = self.viewModel.outputs.percentFundedText
-    self.progressBarView.rac.backgroundColor = self.viewModel.outputs.progressBarColor
-    self.projectImageView.rac.ksr_imageUrl = self.viewModel.outputs.projectImageUrl
-    self.projectNameLabel.rac.attributedText = self.viewModel.outputs.projectName
-    self.statsStackView.rac.hidden = self.viewModel.outputs.prelaunchProject
-    self.progressBarView.rac.hidden = self.viewModel.outputs.prelaunchProject
-    self.metadataIconImageView.rac.hidden = self.viewModel.outputs.prelaunchProject
-
-    self.viewModel.outputs.progress
-      .observeForUI()
-      .observeValues { [weak element = progressBarView] progress in
-        let anchorX = progress == 0 ? 0 : 0.5 / progress
-        element?.layer.anchorPoint = CGPoint(x: CGFloat(max(anchorX, 0.5)), y: 0.5)
-        element?.transform = CGAffineTransform(scaleX: CGFloat(min(progress, 1.0)), y: 1.0)
-      }
+  private func renderProject() {
+    let model = self.viewModel
+    self.metadataBackgroundView.backgroundColor = model.progressBarColor
+    self.metadataLabel.text = model.metadataText
+    self.percentFundedLabel.attributedText = model.percentFundedText
+    self.progressBarView.backgroundColor = model.progressBarColor
+    self.projectImageView.af.cancelImageRequest()
+    self.projectImageView.image = nil
+    if let url = model.projectImageUrl { self.projectImageView.ksr_setImageWithURL(url) }
+    self.projectNameLabel.attributedText = model.projectName
+    self.statsStackView.isHidden = model.prelaunchProject
+    self.progressBarView.isHidden = model.prelaunchProject
+    self.metadataIconImageView.isHidden = model.prelaunchProject
+    let progress = model.progress
+    let anchorX = progress == 0 ? 0 : 0.5 / progress
+    self.progressBarView.layer.anchorPoint = CGPoint(x: CGFloat(max(anchorX, 0.5)), y: 0.5)
+    self.progressBarView.transform = CGAffineTransform(scaleX: CGFloat(min(progress, 1.0)), y: 1.0)
   }
 }
