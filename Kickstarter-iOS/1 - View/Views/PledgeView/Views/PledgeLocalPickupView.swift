@@ -10,8 +10,6 @@ final class PledgeLocalPickupView: UIView {
   private let rootStackView = UIStackView(frame: .zero)
   private let titleLabel = UILabel(frame: .zero)
 
-  private let viewModel: PledgeLocalPickupViewModelType = PledgeLocalPickupViewModel()
-
   // MARK: - Lifecycle
 
   override init(frame: CGRect) {
@@ -19,7 +17,6 @@ final class PledgeLocalPickupView: UIView {
 
     self.configureSubviews()
     self.bindStyles()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -30,7 +27,7 @@ final class PledgeLocalPickupView: UIView {
   // MARK: - Configuration
 
   public func configure(with data: PledgeLocalPickupViewData) {
-    self.viewModel.inputs.configure(with: data)
+    self.locationLabel.text = data.locationName
   }
 
   // MARK: - Views
@@ -65,11 +62,4 @@ final class PledgeLocalPickupView: UIView {
       |> \.textColor .~ LegacyColors.ksr_support_400.uiColor()
   }
 
-  // MARK: - View model
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.locationLabel.rac.text = self.viewModel.outputs.locationLabelText
-  }
 }

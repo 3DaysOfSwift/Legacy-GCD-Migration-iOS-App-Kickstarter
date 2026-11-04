@@ -1,30 +1,22 @@
 @testable import Kickstarter_iOS
-@testable import KsApi
-
-
-import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
+import UIKit
 import XCTest
 
+@MainActor
 final class PledgeLocalPickupViewModelTests: TestCase {
-  private let vm: PledgeLocalPickupViewModelType = PledgeLocalPickupViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private let locationLabelText = TestObserver<String, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.locationLabelText.observe(self.locationLabelText.observer)
+  func testLocationAppearsAndUpdatesWhenReconfigured() {
+    let view = PledgeLocalPickupView(frame: .zero)
+    view.configure(with: PledgeLocalPickupViewData(locationName: "New York"))
+    XCTAssertTrue(self.labels(in: view).contains("New York"))
+    view.configure(with: PledgeLocalPickupViewData(locationName: "London"))
+    XCTAssertTrue(self.labels(in: view).contains("London"))
+    XCTAssertFalse(self.labels(in: view).contains("New York"))
   }
 
-  func testLocationLabelText() {
-    self.locationLabelText.assertDidNotEmitValue()
-
-    let data = PledgeLocalPickupViewData(locationName: "new york city")
-
-    self.vm.inputs.configure(with: data)
-
-    self.locationLabelText.assertValues(["new york city"])
+  private func labels(in view: UIView) -> [String] {
+    let own = (view as? UILabel)?.text.map { [$0] } ?? []
+    return own + view.subviews.flatMap { self.labels(in: $0) }
   }
 }

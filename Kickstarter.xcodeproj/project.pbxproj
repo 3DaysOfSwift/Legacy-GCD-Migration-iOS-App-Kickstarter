@@ -11919,8 +11919,8 @@
 			"sourceTree" = "<group>";
 		};
 		"4F042A58E90C46D74F449DB2" = {
-			"name" = "PledgeLocalPickupViewModel.swift";
-			"path" = "Kickstarter-iOS/1 - View/Views/PledgeView/Views/PledgeLocalPickupViewModel.swift";
+			"name" = "PledgeLocalPickupViewData.swift";
+			"path" = "Kickstarter-iOS/1 - View/Views/PledgeView/Views/PledgeLocalPickupViewData.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
