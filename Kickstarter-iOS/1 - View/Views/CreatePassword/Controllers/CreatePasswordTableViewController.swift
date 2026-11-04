@@ -1,6 +1,6 @@
 
+import Observation
 import Prelude
-import ReactiveSwift
 import UIKit
 
 enum CreatePasswordRow: CaseIterable {
@@ -57,7 +57,7 @@ protocol CreatePasswordTableViewControllerDelegate: AnyObject {
 final class CreatePasswordTableViewController: UITableViewController {
   // MARK: - Properties
 
-  private let viewModel: CreatePasswordViewModelType = CreatePasswordViewModel()
+  private let viewModel = CreatePasswordViewModel()
   weak var delegate: CreatePasswordTableViewControllerDelegate?
   private weak var newPasswordTextField: UITextField?
   private weak var newPasswordConfirmationTextField: UITextField?
@@ -80,7 +80,7 @@ final class CreatePasswordTableViewController: UITableViewController {
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
 
-    self.viewModel.inputs.viewDidAppear()
+    self.viewModel.viewDidAppear()
   }
 
   // MARK: - Styles
@@ -98,98 +98,50 @@ final class CreatePasswordTableViewController: UITableViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.activityIndicatorShouldShow
-      .observeForUI()
-      .observeValues { [weak self] shouldShow in
-        guard let self = self else { return }
-        if shouldShow {
-          self.delegate?.createPasswordTableViewControllerStartAnimatingSaveButton(self)
-        } else {
-          self.delegate?.createPasswordTableViewControllerStopAnimatingSaveButton(self)
-        }
+    self.viewModel.onAccessibilityFocus = { [weak self] in
+      UIAccessibility.post(notification: .layoutChanged, argument: self?.groupedFooterView?.label)
+    }
+    self.viewModel.onFocusCell = { [weak self] indexPath in
+      (self?.tableView.cellForRow(at: indexPath) as? SettingsTextInputCell)?.textField.becomeFirstResponder()
+    }
+    self.viewModel.onFailure = { [weak self] message in
+      guard let self else { return }
+      self.delegate?.createPasswordTableViewController(self, showErrorMessage: message)
+    }
+    self.viewModel.onSuccess = { [weak self] in
+      guard let self else { return }
+      logoutAndDismiss(viewController: self)
+    }
+    self.viewModel.onDismissKeyboard = { [weak self] in self?.tableView.endEditing(true) }
+    self.viewModel.onFocusPassword = { [weak self] in self?.newPasswordTextField?.becomeFirstResponder() }
+    self.viewModel.onFocusConfirmation = { [weak self] in self?.newPasswordConfirmationTextField?.becomeFirstResponder() }
+    self.viewModel.onResignConfirmation = { [weak self] in self?.newPasswordConfirmationTextField?.resignFirstResponder() }
+    self.observeState()
+  }
+
+  private func observeState() {
+    withObservationTracking {
+      let loading = self.viewModel.isLoading
+      let enabled = self.viewModel.saveButtonIsEnabled
+      let validation = self.viewModel.validationLabelText
+      if loading { self.delegate?.createPasswordTableViewControllerStartAnimatingSaveButton(self) }
+      else { self.delegate?.createPasswordTableViewControllerStopAnimatingSaveButton(self) }
+      self.delegate?.createPasswordTableViewController(self, setSaveButtonIsEnabled: enabled)
+      self.groupedFooterView?.isHidden = validation == nil
+      UIView.performWithoutAnimation {
+        self.tableView.beginUpdates()
+        self.groupedFooterView?.label.text = validation
+        self.tableView.endUpdates()
       }
-
-    self.viewModel.outputs.accessibilityFocusValidationLabel
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        UIAccessibility.post(notification: .layoutChanged, argument: self?.groupedFooterView?.label)
-      }
-
-    self.viewModel.outputs.cellAtIndexPathDidBecomeFirstResponder
-      .observeForUI()
-      .observeValues { [weak self] indexPath in
-        guard let cell = self?.tableView.cellForRow(at: indexPath) as? SettingsTextInputCell else { return }
-        cell.textField.becomeFirstResponder()
-      }
-
-    self.viewModel.outputs.createPasswordFailure
-      .observeForControllerAction()
-      .observeValues { [weak self] errorMessage in
-        guard let self = self else { return }
-        self.delegate?.createPasswordTableViewController(self, showErrorMessage: errorMessage)
-      }
-
-    self.viewModel.outputs.createPasswordSuccess
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        guard let self = self else { return }
-        logoutAndDismiss(viewController: self)
-      }
-
-    self.viewModel.outputs.dismissKeyboard
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.tableView.endEditing(true)
-      }
-
-    self.viewModel.outputs.newPasswordTextFieldDidBecomeFirstResponder
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.newPasswordTextField?.becomeFirstResponder()
-      }
-
-    self.viewModel.outputs.newPasswordConfirmationTextFieldDidBecomeFirstResponder
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.newPasswordConfirmationTextField?.becomeFirstResponder()
-      }
-
-    self.viewModel.outputs.newPasswordConfirmationTextFieldDidResignFirstResponder
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.newPasswordConfirmationTextField?.resignFirstResponder()
-      }
-
-    self.viewModel.outputs.saveButtonIsEnabled
-      .observeForUI()
-      .observeValues { [weak self] isEnabled in
-        guard let self = self else { return }
-        self.delegate?.createPasswordTableViewController(self, setSaveButtonIsEnabled: isEnabled)
-      }
-
-    self.viewModel.outputs.validationLabelIsHidden
-      .observeForUI()
-      .observeValues { [weak self] isHidden in
-        self?.groupedFooterView?.isHidden = isHidden
-      }
-
-    self.viewModel.outputs.validationLabelText
-      .observeForUI()
-      .observeValues { [weak self] text in
-        UIView.performWithoutAnimation {
-          self?.tableView.beginUpdates()
-
-          _ = self?.groupedFooterView?.label ?|> \.text .~ text
-
-          self?.tableView.endUpdates()
-        }
-      }
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeState() }
+    }
   }
 
   // MARK: - Actions
 
   @objc func saveButtonTapped(_: Any) {
-    self.viewModel.inputs.saveButtonTapped()
+    self.viewModel.saveButtonTapped()
   }
 
   // MARK: - UITableViewDataSource
@@ -214,7 +166,7 @@ final class CreatePasswordTableViewController: UITableViewController {
   // MARK: - UITableViewDelegate
 
   override func tableView(_: UITableView, didSelectRowAt indexPath: IndexPath) {
-    self.viewModel.inputs.cellAtIndexPathShouldBecomeFirstResponder(indexPath)
+    self.viewModel.cellAtIndexPathShouldBecomeFirstResponder(indexPath)
   }
 
   override func tableView(_ tableView: UITableView, viewForHeaderInSection _: Int) -> UIView? {
@@ -237,7 +189,7 @@ final class CreatePasswordTableViewController: UITableViewController {
       as? SettingsGroupedFooterView else { return nil }
 
     _ = footerView.label
-      |> \.text .~ self.viewModel.outputs.currentValidationLabelText()
+      |> \.text .~ self.viewModel.validationLabelText
 
     return footerView
   }
@@ -263,19 +215,19 @@ final class CreatePasswordTableViewController: UITableViewController {
 
 extension CreatePasswordTableViewController: CreatePasswordTableViewControllerType {
   @objc func newPasswordTextFieldChanged(_ sender: UITextField) {
-    self.viewModel.inputs.newPasswordTextFieldChanged(text: sender.text)
+    self.viewModel.newPasswordTextFieldChanged(text: sender.text)
   }
 
   @objc func newPasswordTextFieldDidReturn(_: UITextField) {
-    self.viewModel.inputs.newPasswordTextFieldDidReturn()
+    self.viewModel.newPasswordTextFieldDidReturn()
   }
 
   @objc func newPasswordConfirmationTextFieldChanged(_ sender: UITextField) {
-    self.viewModel.inputs.newPasswordConfirmationTextFieldChanged(text: sender.text)
+    self.viewModel.newPasswordConfirmationTextFieldChanged(text: sender.text)
   }
 
   @objc func newPasswordConfirmationTextFieldDidReturn(_: UITextField) {
-    self.viewModel.inputs.newPasswordConfirmationTextFieldDidReturn()
+    self.viewModel.newPasswordConfirmationTextFieldDidReturn()
   }
 }
 

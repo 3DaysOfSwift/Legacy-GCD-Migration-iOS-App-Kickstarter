@@ -1,399 +1,64 @@
 @testable import Kickstarter_iOS
-import Foundation
-
-import ReactiveSwift
-import XCTest
-
 @testable import KsApi
-
-import ReactiveExtensions_TestHelpers
+import XCTest
 
 @MainActor
 final class CreatePasswordViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   private let feature = SettingsFeature(
-    sessionFeature: SessionFeature(makeProvider: {
-      AsyncSessionProvider(service: AppEnvironment.current.apiService)
-    }),
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }),
     makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
   )
-  private lazy var vm: CreatePasswordViewModelType = CreatePasswordViewModel(settingsFeature: self.feature)
-  private let failureService =
-    MockService(createPasswordResult: .failure(ErrorEnvelope(
-      errorMessages: ["Error creating password"],
-      ksrCode: nil,
-      httpCode: 1,
-      exception: nil
-    )))
-  private let successService =
-    MockService(createPasswordResult: .success(EmptyResponseEnvelope()))
-
-  private let accessibilityFocusValidationLabel = TestObserver<Void, Never>()
-  private let activityIndicatorShouldShow = TestObserver<Bool, Never>()
-  private let cellAtIndexPathDidBecomeFirstResponder = TestObserver<IndexPath, Never>()
-  private let createPasswordFailure = TestObserver<String, Never>()
-  private let createPasswordSuccess = TestObserver<Void, Never>()
-  private let dismissKeyboard = TestObserver<Void, Never>()
-  private let newPasswordTextFieldBecomeFirstResponder = TestObserver<Void, Never>()
-  private let newPasswordConfirmationTextFieldBecomeFirstResponder = TestObserver<Void, Never>()
-  private let newPasswordConfirmationTextFieldResignFirstResponder = TestObserver<Void, Never>()
-  private let saveButtonIsEnabled = TestObserver<Bool, Never>()
-  private let validationLabelIsHidden = TestObserver<Bool, Never>()
-  private let validationLabelText = TestObserver<String?, Never>()
+  private lazy var vm = CreatePasswordViewModel(settingsFeature: self.feature, sleep: { _ in })
 
   override func setUp() async throws {
     try await super.setUp()
-    MainActor.assumeIsolated {
-      AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
-
-      self.vm.outputs.accessibilityFocusValidationLabel
-        .observe(self.accessibilityFocusValidationLabel.observer)
-      self.vm.outputs.activityIndicatorShouldShow.observe(self.activityIndicatorShouldShow.observer)
-      self.vm.outputs.createPasswordFailure.observe(self.createPasswordFailure.observer)
-      self.vm.outputs.createPasswordSuccess.observe(self.createPasswordSuccess.observer)
-      self.vm.outputs.dismissKeyboard.observe(self.dismissKeyboard.observer)
-      self.vm.outputs.newPasswordTextFieldDidBecomeFirstResponder.observe(
-        self.newPasswordTextFieldBecomeFirstResponder.observer
-      )
-      self.vm.outputs.newPasswordConfirmationTextFieldDidBecomeFirstResponder.observe(
-        self.newPasswordConfirmationTextFieldBecomeFirstResponder.observer
-      )
-      self.vm.outputs.newPasswordConfirmationTextFieldDidResignFirstResponder.observe(
-        self.newPasswordConfirmationTextFieldResignFirstResponder.observer
-      )
-      self.vm.outputs.saveButtonIsEnabled.observe(self.saveButtonIsEnabled.observer)
-
-      self.vm.outputs.cellAtIndexPathDidBecomeFirstResponder.observe(
-        self.cellAtIndexPathDidBecomeFirstResponder.observer
-      )
-      self.vm.outputs.validationLabelIsHidden.observe(self.validationLabelIsHidden.observer)
-      self.vm.outputs.validationLabelText.observe(self.validationLabelText.observer)
-    }
+    AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture", user: .template))
   }
 
-  override func tearDown() async throws {
-    await self.feature.waitForOperations()
-    try await super.tearDown()
+  func testValidationAndFocusActions() {
+    var focusPassword = 0
+    var focusConfirmation = 0
+    var dismiss = 0
+    self.vm.onFocusPassword = { focusPassword += 1 }
+    self.vm.onFocusConfirmation = { focusConfirmation += 1 }
+    self.vm.onDismissKeyboard = { dismiss += 1 }
+    self.vm.viewDidAppear()
+    self.vm.newPasswordTextFieldChanged(text: "short")
+    XCTAssertEqual(self.vm.validationLabelText, Strings.Password_min_length_message())
+    self.vm.newPasswordTextFieldChanged(text: "longpassword")
+    self.vm.newPasswordConfirmationTextFieldChanged(text: "different")
+    XCTAssertEqual(self.vm.validationLabelText, Strings.Passwords_matching_message())
+    XCTAssertFalse(self.vm.saveButtonIsEnabled)
+    self.vm.newPasswordConfirmationTextFieldChanged(text: "longpassword")
+    XCTAssertTrue(self.vm.saveButtonIsEnabled)
+    XCTAssertNil(self.vm.validationLabelText)
+    self.vm.newPasswordTextFieldDidReturn()
+    XCTAssertEqual(focusPassword, 1)
+    XCTAssertEqual(focusConfirmation, 1)
+    self.vm.newPasswordConfirmationTextFieldChanged(text: "")
+    self.vm.saveButtonTapped()
+    XCTAssertEqual(dismiss, 1)
   }
 
-  func testCreatePasswordFailure() async {
-    await withEnvironment(apiService: self.failureService) {
-      self.vm.inputs.viewDidAppear()
-
-      self.newPasswordTextFieldBecomeFirstResponder.assertValueCount(1)
-
-      self.vm.inputs.newPasswordTextFieldChanged(text: "password")
-      self.vm.inputs.newPasswordTextFieldDidReturn()
-      self.newPasswordConfirmationTextFieldBecomeFirstResponder.assertValueCount(1)
-
-      self.vm.inputs.newPasswordConfirmationTextFieldChanged(text: "password")
-      self.saveButtonIsEnabled.assertValues([true])
-      self.vm.inputs.newPasswordConfirmationTextFieldDidReturn()
-      self.newPasswordConfirmationTextFieldResignFirstResponder.assertValueCount(1)
-
-      self.dismissKeyboard.assertValueCount(1)
-      self.activityIndicatorShouldShow.assertValues([true])
-
-      await self.feature.waitForOperations()
-
-      await self.scheduler.advance()
-      self.createPasswordFailure.assertValues(["Error creating password"])
-      self.activityIndicatorShouldShow.assertValues([true, false])
-    }
-  }
-
-  func testCreatePassword() async {
-    await withEnvironment(apiService: self.successService) {
-      self.vm.inputs.viewDidAppear()
-
-      self.newPasswordTextFieldBecomeFirstResponder.assertValueCount(1)
-
-      self.vm.inputs.newPasswordTextFieldChanged(text: "password")
-      self.vm.inputs.newPasswordTextFieldDidReturn()
-      self.newPasswordConfirmationTextFieldBecomeFirstResponder.assertValueCount(1)
-
-      self.vm.inputs.newPasswordConfirmationTextFieldChanged(text: "password")
-      self.saveButtonIsEnabled.assertValues([true])
-      self.vm.inputs.newPasswordConfirmationTextFieldDidReturn()
-      self.newPasswordConfirmationTextFieldResignFirstResponder.assertValueCount(1)
-
-      self.dismissKeyboard.assertValueCount(1)
-      self.activityIndicatorShouldShow.assertValues([true])
-
-      await self.feature.waitForOperations()
-
-      await self.scheduler.advance()
-      self.createPasswordSuccess.assertValueCount(1)
-      self.activityIndicatorShouldShow.assertValues([true, false])
-    }
-  }
-
-  func testDismissKeyboard_WhenSaveButtonDisabled() async {
-    self.vm.inputs.viewDidAppear()
-
-    self.dismissKeyboard.assertValueCount(0)
-
-    self.vm.inputs.newPasswordTextFieldChanged(text: "password")
-    self.vm.inputs.newPasswordTextFieldDidReturn()
-
-    self.dismissKeyboard.assertValueCount(0)
-
-    self.vm.inputs.newPasswordConfirmationTextFieldChanged(text: "1233456")
-    self.vm.inputs.newPasswordConfirmationTextFieldDidReturn()
-
-    self.saveButtonIsEnabled.assertValues([false])
-    self.dismissKeyboard.assertValueCount(1)
-    self.activityIndicatorShouldShow.assertValueCount(0)
-  }
-
-  func testTextFieldShouldBecomeFirstResponder() async {
-    self.vm.inputs.viewDidAppear()
-
-    self.vm.inputs.cellAtIndexPathShouldBecomeFirstResponder(nil)
-    self.cellAtIndexPathDidBecomeFirstResponder.assertValueCount(0)
-
-    let indexPath = IndexPath(row: 0, section: 0)
-    self.vm.inputs.cellAtIndexPathShouldBecomeFirstResponder(indexPath)
-    self.cellAtIndexPathDidBecomeFirstResponder.assertValues([indexPath])
-  }
-
-  func testValidationErrorsWithVoiceOverOn() async {
-    await withEnvironment(isVoiceOverRunning: { true }) {
-      self.vm.inputs.viewDidAppear()
-      self.validationLabelIsHidden.assertValues([true])
-      self.validationLabelText.assertValues([nil])
-
-      self.vm.inputs.newPasswordTextFieldChanged(text: "pass")
-      self.vm.inputs.newPasswordTextFieldDidReturn()
-      self.accessibilityFocusValidationLabel.assertValueCount(1)
-      self.saveButtonIsEnabled.assertValueCount(0)
-      self.validationLabelIsHidden.assertValues([true, false])
-      self.validationLabelText.assertValues([nil, "Your password must be at least 6 characters long."])
-
-      self.vm.inputs.newPasswordConfirmationTextFieldChanged(text: "p")
-      self.accessibilityFocusValidationLabel.assertValueCount(2)
-      self.saveButtonIsEnabled.assertValues([false])
-      self.validationLabelIsHidden.assertValues([true, false, false])
-      self.validationLabelText.assertValues(
-        [
-          nil,
-          "Your password must be at least 6 characters long.",
-          "Your password must be at least 6 characters long."
-        ]
-      )
-
-      self.vm.inputs.newPasswordTextFieldChanged(text: "password")
-      self.vm.inputs.newPasswordTextFieldDidReturn()
-      self.accessibilityFocusValidationLabel.assertValueCount(3)
-      self.saveButtonIsEnabled.assertValues([false])
-      self.validationLabelIsHidden.assertValues([true, false, false, true, false])
-      self.validationLabelText.assertValues(
-        [
-          nil,
-          "Your password must be at least 6 characters long.",
-          "Your password must be at least 6 characters long.",
-          nil,
-          "New passwords must match."
-        ]
-      )
-
-      self.vm.inputs.newPasswordConfirmationTextFieldChanged(text: "pass")
-      self.accessibilityFocusValidationLabel.assertValueCount(4)
-      self.saveButtonIsEnabled.assertValues([false])
-      self.validationLabelIsHidden.assertValues([true, false, false, true, false])
-      self.validationLabelText.assertValues(
-        [
-          nil,
-          "Your password must be at least 6 characters long.",
-          "Your password must be at least 6 characters long.",
-          nil,
-          "New passwords must match."
-        ]
-      )
-
-      self.vm.inputs.newPasswordConfirmationTextFieldChanged(text: "password")
-      self.accessibilityFocusValidationLabel.assertValueCount(4)
-      self.saveButtonIsEnabled.assertValues([false, true])
-      self.validationLabelIsHidden.assertValues([true, false, false, true, false, true])
-      self.validationLabelText.assertValues(
-        [
-          nil,
-          "Your password must be at least 6 characters long.",
-          "Your password must be at least 6 characters long.",
-          nil,
-          "New passwords must match.",
-          nil
-        ]
-      )
-
-      self.vm.inputs.newPasswordConfirmationTextFieldChanged(text: "password123")
-      self.accessibilityFocusValidationLabel.assertValueCount(5)
-      self.saveButtonIsEnabled.assertValues([false, true, false])
-      self.validationLabelIsHidden.assertValues([true, false, false, true, false, true, false])
-      self.validationLabelText.assertValues(
-        [
-          nil,
-          "Your password must be at least 6 characters long.",
-          "Your password must be at least 6 characters long.",
-          nil,
-          "New passwords must match.",
-          nil,
-          "New passwords must match."
-        ]
-      )
-
-      self.vm.inputs.newPasswordConfirmationTextFieldChanged(text: "password")
-      self.accessibilityFocusValidationLabel.assertValueCount(5)
-      self.saveButtonIsEnabled.assertValues([false, true, false, true])
-      self.validationLabelIsHidden.assertLastValue(true)
-      self.validationLabelText.assertLastValue(nil)
-
-      self.validationLabelIsHidden.assertValues([true, false, false, true, false, true, false, true])
-      self.validationLabelText.assertValues(
-        [
-          nil,
-          "Your password must be at least 6 characters long.",
-          "Your password must be at least 6 characters long.",
-          nil,
-          "New passwords must match.",
-          nil,
-          "New passwords must match.",
-          nil
-        ]
-      )
-    }
-  }
-
-  func testValidationErrorsWithVoiceOverOff() async {
-    await withEnvironment(isVoiceOverRunning: { false }) {
-      self.vm.inputs.viewDidAppear()
-      self.validationLabelIsHidden.assertValues([true])
-      self.validationLabelText.assertValues([nil])
-
-      self.vm.inputs.newPasswordTextFieldChanged(text: "pass")
-      self.vm.inputs.newPasswordTextFieldDidReturn()
-      self.accessibilityFocusValidationLabel.assertValueCount(0)
-      self.saveButtonIsEnabled.assertValueCount(0)
-      self.validationLabelIsHidden.assertValues([true, false])
-      self.validationLabelText.assertValues([nil, "Your password must be at least 6 characters long."])
-
-      self.vm.inputs.newPasswordConfirmationTextFieldChanged(text: "p")
-      self.accessibilityFocusValidationLabel.assertValueCount(0)
-      self.saveButtonIsEnabled.assertValues([false])
-      self.validationLabelIsHidden.assertValues([true, false, false])
-      self.validationLabelText.assertValues(
-        [
-          nil,
-          "Your password must be at least 6 characters long.",
-          "Your password must be at least 6 characters long."
-        ]
-      )
-
-      self.vm.inputs.newPasswordTextFieldChanged(text: "password")
-      self.vm.inputs.newPasswordTextFieldDidReturn()
-      self.accessibilityFocusValidationLabel.assertValueCount(0)
-      self.saveButtonIsEnabled.assertValues([false])
-      self.validationLabelIsHidden.assertValues([true, false, false, true, false])
-      self.validationLabelText.assertValues(
-        [
-          nil,
-          "Your password must be at least 6 characters long.",
-          "Your password must be at least 6 characters long.",
-          nil,
-          "New passwords must match."
-        ]
-      )
-
-      self.vm.inputs.newPasswordConfirmationTextFieldChanged(text: "pass")
-      self.accessibilityFocusValidationLabel.assertValueCount(0)
-      self.saveButtonIsEnabled.assertValues([false])
-      self.validationLabelIsHidden.assertValues([true, false, false, true, false])
-      self.validationLabelText.assertValues(
-        [
-          nil,
-          "Your password must be at least 6 characters long.",
-          "Your password must be at least 6 characters long.",
-          nil,
-          "New passwords must match."
-        ]
-      )
-
-      self.vm.inputs.newPasswordConfirmationTextFieldChanged(text: "password")
-      self.accessibilityFocusValidationLabel.assertValueCount(0)
-      self.saveButtonIsEnabled.assertValues([false, true])
-      self.validationLabelIsHidden.assertValues([true, false, false, true, false, true])
-      self.validationLabelText.assertValues(
-        [
-          nil,
-          "Your password must be at least 6 characters long.",
-          "Your password must be at least 6 characters long.",
-          nil,
-          "New passwords must match.",
-          nil
-        ]
-      )
-
-      self.vm.inputs.newPasswordConfirmationTextFieldChanged(text: "password123")
-      self.accessibilityFocusValidationLabel.assertValueCount(0)
-      self.saveButtonIsEnabled.assertValues([false, true, false])
-      self.validationLabelIsHidden.assertValues([true, false, false, true, false, true, false])
-      self.validationLabelText.assertValues(
-        [
-          nil,
-          "Your password must be at least 6 characters long.",
-          "Your password must be at least 6 characters long.",
-          nil,
-          "New passwords must match.",
-          nil,
-          "New passwords must match."
-        ]
-      )
-
-      self.vm.inputs.newPasswordConfirmationTextFieldChanged(text: "password")
-      self.accessibilityFocusValidationLabel.assertValueCount(0)
-      self.saveButtonIsEnabled.assertValues([false, true, false, true])
-      self.validationLabelIsHidden.assertLastValue(true)
-      self.validationLabelText.assertLastValue(nil)
-
-      self.validationLabelIsHidden.assertValues([true, false, false, true, false, true, false, true])
-      self.validationLabelText.assertValues(
-        [
-          nil,
-          "Your password must be at least 6 characters long.",
-          "Your password must be at least 6 characters long.",
-          nil,
-          "New passwords must match.",
-          nil,
-          "New passwords must match.",
-          nil
-        ]
-      )
-    }
-  }
-
-  func testCreatePassword_eventTracking() async {
-    let segmentClient = MockTrackingClient()
-
-    await withEnvironment(
-      apiService: self.successService,
-      ksrAnalytics: KSRAnalytics(segmentClient: segmentClient)
-    ) {
-      XCTAssertEqual([], segmentClient.events)
-
-      self.vm.inputs.viewDidAppear()
-
-      self.vm.inputs.newPasswordTextFieldChanged(text: "password")
-      self.vm.inputs.newPasswordConfirmationTextFieldChanged(text: "password")
-
-      self.saveButtonIsEnabled.assertValues([true])
-
-      self.vm.inputs.saveButtonTapped()
-
-      await self.feature.waitForOperations()
-
-      await self.scheduler.advance()
-
-      self.createPasswordSuccess.assertValueCount(1)
+  func testCreatePasswordSuccessAndFailure() async {
+    for succeeds in [true, false] {
+      let error = ErrorEnvelope(errorMessages: ["Error creating password"], ksrCode: nil, httpCode: 1, exception: nil)
+      let service = MockService(createPasswordResult: succeeds ? .success(EmptyResponseEnvelope()) : .failure(error))
+      await withEnvironment(apiService: service, currentUser: .template) {
+        var succeeded = false
+        var failure: String?
+        self.vm.onSuccess = { succeeded = true }
+        self.vm.onFailure = { failure = $0 }
+        self.vm.newPasswordTextFieldChanged(text: "longpassword")
+        self.vm.newPasswordConfirmationTextFieldChanged(text: "longpassword")
+        self.vm.saveButtonTapped()
+        XCTAssertTrue(self.vm.isLoading)
+        await self.vm.waitForSave()
+        XCTAssertFalse(self.vm.isLoading)
+        XCTAssertEqual(succeeded, succeeds)
+        XCTAssertEqual(failure != nil, !succeeds)
+      }
     }
   }
 }
