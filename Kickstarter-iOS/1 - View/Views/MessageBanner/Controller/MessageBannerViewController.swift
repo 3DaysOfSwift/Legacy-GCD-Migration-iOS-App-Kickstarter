@@ -37,7 +37,7 @@ public final class MessageBannerViewController: UIViewController, NibLoading {
   private var dismissType: DismissType = .bannerOnly
 
   internal var bottomConstraint: NSLayoutConstraint?
-  private let viewModel: MessageBannerViewModelType = MessageBannerViewModel()
+  private let viewModel = MessageBannerViewModel()
 
   weak var delegate: MessageBannerViewControllerDelegate?
 
@@ -74,48 +74,22 @@ public final class MessageBannerViewController: UIViewController, NibLoading {
   public override func bindViewModel() {
     super.bindViewModel()
 
-    self.iconImageView.rac.hidden = self.viewModel.outputs.iconIsHidden
-    self.backgroundView.rac.backgroundColor = self.viewModel.outputs.bannerBackgroundColor
-    self.backgroundView.rac.accessibilityLabel = self.viewModel.outputs.bannerMessageAccessibilityLabel
-    self.messageLabel.rac.text = self.viewModel.outputs.bannerMessage
-    self.messageLabel.rac.textColor = self.viewModel.outputs.messageTextColor
-
-    self.viewModel.outputs.messageBannerViewIsHidden
-      .observeForUI()
-      .observeValues { [weak self] isHidden in
-        guard let self else { return }
-
-        if isHidden, self.dismissType == .persist {
-          return
-        }
-
-        self.showViewAndAnimate(isHidden)
-      }
-
-    self.viewModel.outputs.iconTintColor
-      .observeForUI()
-      .observeValues { [weak self] color in
-        _ = self?.iconImageView
-          ?|> \.tintColor .~ color
-      }
-
-    self.viewModel.outputs.iconImageName
-      .observeForUI()
-      .map { image(named: $0, inBundle: Bundle.main) }
-      .observeValues { [weak self] image in
-        guard let self = self else { return }
-        _ = self.iconImageView
-          |> UIImageView.lens.image .~ image
-      }
-
-    self.viewModel.outputs.messageTextAlignment
-      .observeForUI()
-      .observeValues { [weak self] textAlignment in
-        guard let self = self else { return }
-
-        _ = self.messageLabel
-          |> UILabel.lens.textAlignment .~ textAlignment
-      }
+    self.viewModel.onConfiguration = { [weak self] configuration in
+      guard let self else { return }
+      let type = configuration.type
+      self.iconImageView.isHidden = !type.shouldShowIconImage
+      self.backgroundView.backgroundColor = type.backgroundColor
+      self.backgroundView.accessibilityLabel = "\(configuration.message) \(Strings.Message_banner_accessibility_Double_tap_to_dismiss())"
+      self.messageLabel.text = configuration.message
+      self.messageLabel.textColor = type.textColor
+      self.messageLabel.textAlignment = type.textAlignment
+      if let color = type.iconImageTintColor { self.iconImageView.tintColor = color }
+      if let name = type.iconImageName { self.iconImageView.image = image(named: name, inBundle: Bundle.main) }
+    }
+    self.viewModel.onHidden = { [weak self] isHidden in
+      guard let self, !(isHidden && self.dismissType == .persist) else { return }
+      self.showViewAndAnimate(isHidden)
+    }
   }
 
   public func showBanner(
@@ -125,8 +99,8 @@ public final class MessageBannerViewController: UIViewController, NibLoading {
   ) {
     self.bannerType = type
     self.dismissType = dismissType
-    self.viewModel.inputs.update(with: (type, message))
-    self.viewModel.inputs.bannerViewWillShow(true)
+    self.viewModel.update(with: (type, message))
+    self.viewModel.bannerViewWillShow(true)
   }
 
   private func showViewAndAnimate(_ isHidden: Bool) {
@@ -172,7 +146,7 @@ public final class MessageBannerViewController: UIViewController, NibLoading {
       completion: { [weak self] _ in
         self?.view.isHidden = isHidden
 
-        self?.viewModel.inputs.bannerViewAnimationFinished(isHidden: isHidden)
+        self?.viewModel.bannerViewAnimationFinished(isHidden: isHidden)
 
         if !isHidden {
           // Tells VoiceOver to focus on the message banner.
@@ -207,7 +181,7 @@ public final class MessageBannerViewController: UIViewController, NibLoading {
     let currentTouchPoint = sender.translation(in: self.view.superview)
 
     if sender.state == .cancelled || sender.state == .ended {
-      self.viewModel.inputs.bannerViewWillShow(false)
+      self.viewModel.bannerViewWillShow(false)
 
       return
     }
@@ -231,7 +205,7 @@ public final class MessageBannerViewController: UIViewController, NibLoading {
   @IBAction private func bannerViewTapped(_: Any) {
     guard self.dismissType != .persist else { return }
 
-    self.viewModel.inputs.bannerViewWillShow(false)
+    self.viewModel.bannerViewWillShow(false)
   }
 }
 
