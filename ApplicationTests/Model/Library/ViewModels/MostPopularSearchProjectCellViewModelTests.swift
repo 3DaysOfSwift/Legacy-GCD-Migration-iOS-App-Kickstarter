@@ -91,3 +91,24 @@ internal final class MostPopularSearchProjectCellViewModelTests: TestCase {
     XCTAssertEqual(self.vm.prelaunchProject, true)
   }
 }
+
+@MainActor
+final class SearchEmptyStateNativeStateTests: XCTestCase {
+  func testQueryAndFilterCombinationsAndReuse() {
+    let model = SearchEmptyStateCellViewModel()
+    model.configureWith(data: .init(query: "cats", hasFilters: true))
+    XCTAssertEqual(model.titleText, Strings.No_results_for(query: "cats"))
+    XCTAssertEqual(model.subtitleText, Strings.Try_rephrasing_your_search_or_adjusting_the_filters())
+    XCTAssertFalse(model.hideClearFiltersButton)
+
+    model.configureWith(data: .init(query: nil, hasFilters: true))
+    XCTAssertEqual(model.titleText, Strings.No_results())
+    XCTAssertEqual(model.subtitleText, Strings.Try_adjusting_the_filters())
+    XCTAssertFalse(model.hideClearFiltersButton)
+
+    model.configureWith(data: .init(query: "", hasFilters: false))
+    XCTAssertEqual(model.titleText, Strings.No_results())
+    XCTAssertEqual(model.subtitleText, Strings.Try_rephrasing_your_search())
+    XCTAssertTrue(model.hideClearFiltersButton)
+  }
+}

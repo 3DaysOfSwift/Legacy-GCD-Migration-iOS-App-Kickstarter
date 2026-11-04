@@ -2,7 +2,6 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveSwift
 import UIKit
 
 @MainActor
@@ -15,7 +14,7 @@ protocol SearchEmptyStateCellDelegate: AnyObject {
 internal final class SearchEmptyStateCell: UITableViewCell, ValueCell {
   typealias Value = SearchEmptyStateSearchData
 
-  fileprivate let viewModel: SearchEmptyStateCellViewModelType = SearchEmptyStateCellViewModel()
+  fileprivate let viewModel = SearchEmptyStateCellViewModel()
 
   weak var delegate: SearchEmptyStateCellDelegate?
 
@@ -25,7 +24,10 @@ internal final class SearchEmptyStateCell: UITableViewCell, ValueCell {
   private var rootStackView: UIStackView = UIStackView()
 
   internal func configureWith(value: SearchEmptyStateSearchData) {
-    self.viewModel.inputs.configureWith(data: value)
+    self.viewModel.configureWith(data: value)
+    self.titleLabel.text = self.viewModel.titleText
+    self.subtitleLabel.text = self.viewModel.subtitleText
+    self.clearFiltersButton.isHidden = self.viewModel.hideClearFiltersButton
   }
 
   override init(
@@ -37,7 +39,6 @@ internal final class SearchEmptyStateCell: UITableViewCell, ValueCell {
     super.init(style: style, reuseIdentifier: reuseIdentifier)
 
     self.setupViews()
-    self.bindViewModel()
     self.bindStyles()
   }
 
@@ -69,14 +70,6 @@ internal final class SearchEmptyStateCell: UITableViewCell, ValueCell {
     self.subtitleLabel.font = InterFont.bodyMD.font()
     self.subtitleLabel.textAlignment = .center
     self.subtitleLabel.numberOfLines = 0
-  }
-
-  internal override func bindViewModel() {
-    super.bindViewModel()
-
-    self.titleLabel.rac.text = self.viewModel.outputs.titleText
-    self.subtitleLabel.rac.text = self.viewModel.outputs.subtitleText
-    self.clearFiltersButton.rac.hidden = self.viewModel.outputs.hideClearFiltersButton
   }
 
   private func setupViews() {
