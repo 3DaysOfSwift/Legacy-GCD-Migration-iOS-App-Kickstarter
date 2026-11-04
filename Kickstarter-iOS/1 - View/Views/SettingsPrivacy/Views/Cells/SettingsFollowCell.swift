@@ -2,7 +2,6 @@ import KsApi
 
 import Prelude
 import Prelude_UIKit
-import ReactiveSwift
 import UIKit
 
 @MainActor
@@ -13,7 +12,7 @@ internal protocol SettingsFollowCellDelegate: AnyObject {
 }
 
 internal final class SettingsFollowCell: UITableViewCell, ValueCell {
-  fileprivate let viewModel: SettingsFollowCellViewModelType = SettingsFollowCellViewModel()
+  fileprivate let viewModel = SettingsFollowCellViewModel()
   internal weak var delegate: SettingsFollowCellDelegate?
 
   @IBOutlet fileprivate var followingLabel: UILabel!
@@ -34,7 +33,10 @@ internal final class SettingsFollowCell: UITableViewCell, ValueCell {
   }
 
   internal func configureWith(value: SettingsPrivacyStaticCellValue) {
-    self.viewModel.inputs.configureWith(user: value.user)
+    self.viewModel.configureWith(user: value.user)
+    if value.user.social != nil, let isOn = self.viewModel.followingPrivacyOn {
+      self.followingSwitch.isOn = isOn
+    }
 
     _ = self.followingSwitch
       |> \.accessibilityHint .~ value.cellType.description
@@ -63,30 +65,17 @@ internal final class SettingsFollowCell: UITableViewCell, ValueCell {
       |> UILabel.lens.numberOfLines .~ 1
   }
 
-  internal override func bindViewModel() {
-    super.bindViewModel()
-
-    self.viewModel.outputs.updateCurrentUser
-      .observeForUI()
-      .observeValues { [weak self] user in
-        self?.delegate?.settingsFollowCellDidUpdate(user: user)
-      }
-
-    self.viewModel.outputs.showPrivacyFollowingPrompt
-      .observeForUI()
-      .observeValues { [weak self] in
-        guard let _self = self else { return }
-        self?.delegate?.settingsFollowCellDidDisableFollowing(_self)
-      }
-
-    self.followingSwitch.rac.on = self.viewModel.outputs.followingPrivacyOn
-  }
-
   func toggleOn(animated: Bool = true) {
     self.followingSwitch.setOn(true, animated: animated)
   }
 
   @IBAction func followingPrivacySwitchTapped(_ followingPrivacySwitch: UISwitch) {
-    self.viewModel.inputs.followTapped(on: followingPrivacySwitch.isOn)
+    if followingPrivacySwitch.isOn {
+      if let user = self.viewModel.followTapped(on: true) {
+        self.delegate?.settingsFollowCellDidUpdate(user: user)
+      }
+    } else {
+      self.delegate?.settingsFollowCellDidDisableFollowing(self)
+    }
   }
 }
