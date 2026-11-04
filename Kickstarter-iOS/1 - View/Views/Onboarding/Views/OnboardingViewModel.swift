@@ -20,7 +20,6 @@ public protocol OnboardingViewModelInputs {
 public protocol OnboardingViewModelOutputs {
   var onboardingItems: [OnboardingItem] { get }
   var didCompletePushNotificationSystemDialog: Signal<Void, Never> { get }
-  var triggerAppTrackingTransparencyPopup: Signal<Void, Never> { get }
 }
 
 @MainActor
@@ -35,6 +34,7 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
   @MainActor private var completionTask: Task<Void, Never>?
   @MainActor private var completionVersion = UUID()
   @MainActor private var bindings = CompositeDisposable()
+  var onTrackingPrompt: (() -> Void)?
 
   /// Own the subscriptions for this appearance and invalidate callbacks on exit.
   @MainActor public func bind(
@@ -47,7 +47,7 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
     self.bindings += self.didCompletePushNotificationSystemDialog.observeForUI().observeValues { [weak self] in
       self?.completePermission(tracking: false, advance: advance)
     }
-    self.bindings += self.triggerAppTrackingTransparencyPopup.observeForUI().observeValues { [weak self] in
+    self.onTrackingPrompt = { [weak self] in
       self?.completePermission(tracking: true, advance: advance)
     }
   }
@@ -59,6 +59,7 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
   @MainActor public func stopObserving() {
     self.cancelCompletion()
     self.bindings.dispose()
+    self.onTrackingPrompt = nil
   }
   @MainActor private func completePermission(tracking: Bool, advance: @escaping () -> Void) {
     guard self.completionTask == nil else { return }
@@ -88,7 +89,6 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
 
   public let onboardingItems: [OnboardingItem]
   public let didCompletePushNotificationSystemDialog: Signal<Void, Never>
-  public let triggerAppTrackingTransparencyPopup: Signal<Void, Never>
 
   // MARK: - Init
 
@@ -101,13 +101,7 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
     self.didCompletePushNotificationSystemDialog = self.useCase.outputs
       .didCompletePushNotificationSystemDialog
 
-    self.triggerAppTrackingTransparencyPopup = self.useCase.outputs.triggerAppTrackingTransparencyDialog
-      .map { _ in
-        AppEnvironment.current.ksrAnalytics
-          .trackSystemPermissionsDialogViewed(on: .onboardingAppTrackingDialog)
 
-        return ()
-      }
   }
 
   public nonisolated static func == (lhs: OnboardingViewModel, rhs: OnboardingViewModel) -> Bool {
@@ -133,7 +127,10 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
   }
 
   public func allowTrackingTapped() {
-    self.useCase.uiInputs.allowTrackingTapped()
+    if self.useCase.uiInputs.allowTrackingTapped(), let prompt = self.onTrackingPrompt {
+      AppEnvironment.current.ksrAnalytics.trackSystemPermissionsDialogViewed(on: .onboardingAppTrackingDialog)
+      prompt()
+    }
 
     AppEnvironment.current.ksrAnalytics.trackOnboardingPageButtonTapped(
       context: .onboardingAllowTracking,

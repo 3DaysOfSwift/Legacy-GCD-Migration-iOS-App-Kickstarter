@@ -12,7 +12,6 @@ final class OnboardingUseCaseTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   var useCase: OnboardingUseCase!
 
-  let triggerAppTrackingTransparencyDialog = TestObserver<Void, Never>()
   let didCompletePushNotificationSystemDialog = TestObserver<Void, Never>()
 
   override func setUp() async throws {
@@ -20,8 +19,6 @@ final class OnboardingUseCaseTests: TestCase {
 
     self.useCase = OnboardingUseCase(for: Bundle.main)
 
-    self.useCase.outputs.triggerAppTrackingTransparencyDialog
-      .observe(self.triggerAppTrackingTransparencyDialog.observer)
     self.useCase.outputs.didCompletePushNotificationSystemDialog
       .observe(self.didCompletePushNotificationSystemDialog.observer)
   }
@@ -64,13 +61,8 @@ final class OnboardingUseCaseTests: TestCase {
     withEnvironment(
       appTrackingTransparency: appTrackingTransparency
     ) {
-      self.triggerAppTrackingTransparencyDialog.assertValueCount(0)
-
       XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
-
-      self.useCase.uiInputs.allowTrackingTapped()
-
-      self.triggerAppTrackingTransparencyDialog.assertValueCount(1)
+      XCTAssertTrue(self.useCase.uiInputs.allowTrackingTapped())
     }
   }
 }

@@ -63,7 +63,7 @@ public protocol OnboardingUseCaseType {
 @MainActor
 public protocol OnboardingUseCaseUIInputs {
   /// Triggers the AppTrackingTransparency system dialog.
-  func allowTrackingTapped()
+  func allowTrackingTapped() -> Bool
 
   /// Triggers the Push notifications  system dialog.
   func getNotifiedTapped()
@@ -77,9 +77,6 @@ public protocol OnboardingUseCaseUIOutputs {
 
 @MainActor
 public protocol OnboardingUseCaseOutputs {
-  /// Emits when the user has finished interacting with the Push Notificaiton system dialog.
-  var triggerAppTrackingTransparencyDialog: Signal<Void, Never> { get }
-
   /// Emits when the user has finished interacting with the Push Notification system permission dialog.
   var didCompletePushNotificationSystemDialog: Signal<Void, Never> { get }
 }
@@ -111,14 +108,6 @@ public final class OnboardingUseCase: OnboardingUseCaseType, OnboardingUseCaseUI
     let onboardingItems = allOnboardingItems(in: bundle)
 
     self.onboardingItems = onboardingItems
-
-    self.triggerAppTrackingTransparencyDialog = self.allowTrackingTappedSignal.signal
-      .filter {
-        let appTrackingTransparency = AppEnvironment.current.appTrackingTransparency
-        return appTrackingTransparency.advertisingIdentifier == nil && appTrackingTransparency
-          .shouldRequestAuthorizationStatus()
-      }
-      .map { _ in () }
 
     self.didCompletePushNotificationSystemDialog = self.getNotifiedTappedSignal.signal
       .flatMap {
@@ -155,14 +144,13 @@ public final class OnboardingUseCase: OnboardingUseCaseType, OnboardingUseCaseUI
     self.getNotifiedTappedObserver.send(value: ())
   }
 
-  private let (allowTrackingTappedSignal, allowTrackingTappedObserver) = Signal<Void, Never>.pipe()
-  public func allowTrackingTapped() {
-    self.allowTrackingTappedObserver.send(value: ())
+  public func allowTrackingTapped() -> Bool {
+    let tracking = AppEnvironment.current.appTrackingTransparency
+    return tracking.advertisingIdentifier == nil && tracking.shouldRequestAuthorizationStatus()
   }
 
   // MARK: - UI Outputs
 
-  public let triggerAppTrackingTransparencyDialog: Signal<Void, Never>
   public let didCompletePushNotificationSystemDialog: Signal<Void, Never>
 
   // MARK: - Data Outputs

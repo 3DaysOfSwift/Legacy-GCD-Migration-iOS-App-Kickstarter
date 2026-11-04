@@ -25,8 +25,9 @@ final class OnboardingViewModelTest: TestCase {
 
     self.viewModel = OnboardingViewModel(with: Bundle.main)
 
-    self.viewModel.outputs.triggerAppTrackingTransparencyPopup
-      .observe(self.appTrackingTransparencyDialogObserver.observer)
+    self.viewModel.onTrackingPrompt = { [weak self] in
+      self?.appTrackingTransparencyDialogObserver.observer.send(value: ())
+    }
     self.viewModel.outputs.didCompletePushNotificationSystemDialog
       .observe(self.didCompletePushNotificationSystemDialog.observer)
   }
