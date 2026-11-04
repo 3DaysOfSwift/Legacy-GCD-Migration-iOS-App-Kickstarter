@@ -7863,7 +7863,6 @@
 				"8FD29135900823D4AD76CC81",
 				"7250F912AF2BF21BB3DE3CB6",
 				"CE08548F60D66AB00F8AA0A9",
-				"ADE5DCB21DDDF13B9701916F",
 				"EEFBCB26A90725FE5D4A8528",
 				"495FBAF3F579D96C0D998CDE",
 				"4EC054F0336A602C6299650F",
@@ -9913,10 +9912,6 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "690C0B6AE384658391952B92";
 		};
-		"ADE5DCB21DDDF13B9701916F" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "86E13D66D4A6C71D8184E5D0";
-		};
 		"6AF6222936916F39D110A123" = {
 			"name" = "RadioButton.swift";
 			"path" = "Kickstarter-iOS/1 - View/Views/SortFilter/Components/RadioButton.swift";
@@ -11539,7 +11534,6 @@
 			"sourceTree" = "<group>";
 			"children" = (
 				"187FEA49B36A129F35D85900",
-				"86E13D66D4A6C71D8184E5D0",
 				"2073D99D2B936F90BB1A8476",
 				"D215886324EC2697915791AB",
 				"F2EC9D63D3DA442BC9612C27",
@@ -22273,13 +22267,6 @@
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "sourcecode.swift";
 			"sourceTree" = "<group>";
-		};
-		"86E13D66D4A6C71D8184E5D0" = {
-			"name" = "ActivityErroredBackingsCellViewModel.swift";
-			"path" = "Kickstarter-iOS/1 - View/Views/Activities/Views/Cells/ActivityErroredBackingsCellViewModel.swift";
-			"isa" = "PBXFileReference";
-			"sourceTree" = "SOURCE_ROOT";
-			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"FD4902C4E148DC6AA3AC2169" = {
 			"name" = "MessagingFeature.swift";

@@ -22,9 +22,6 @@ final class ActivityErroredBackingsCell: UITableViewCell, ValueCell {
     }
   }
 
-  private let viewModel: ActivityErroredBackingsCellViewModelType =
-    ActivityErroredBackingsCellViewModel()
-
   // MARK: - Lifecycle
 
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
@@ -32,7 +29,6 @@ final class ActivityErroredBackingsCell: UITableViewCell, ValueCell {
 
     self.bindStyles()
     self.configureViews()
-    self.bindViewModel()
   }
 
   required init?(coder aDecoder: NSCoder) {
@@ -42,7 +38,7 @@ final class ActivityErroredBackingsCell: UITableViewCell, ValueCell {
   // MARK: - Configuration
 
   internal func configureWith(value backings: [ProjectAndBackingEnvelope]) {
-    self.viewModel.inputs.configure(with: backings)
+    self.configureErroredBackingViews(with: backings)
   }
 
   private func configureViews() {
@@ -56,18 +52,6 @@ final class ActivityErroredBackingsCell: UITableViewCell, ValueCell {
 
     _ = ([self.headerView, self.erroredBackingsStackView], self.rootStackView)
       |> ksr_addArrangedSubviewsToStackView()
-  }
-
-  // MARK: - View model
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.viewModel.outputs.erroredBackings
-      .observeForUI()
-      .observeValues { [weak self] backings in
-        self?.configureErroredBackingViews(with: backings)
-      }
   }
 
   // MARK: - Styles

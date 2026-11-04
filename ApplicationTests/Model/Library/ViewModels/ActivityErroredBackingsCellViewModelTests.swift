@@ -1,30 +1,25 @@
 @testable import Kickstarter_iOS
 @testable import KsApi
-
-
-import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
+import UIKit
 
+@MainActor
 final class ActivityErroredBackingsCellViewModelTests: TestCase {
-  private let vm: ActivityErroredBackingsCellViewModelType = ActivityErroredBackingsCellViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private let erroredBackings = TestObserver<[ProjectAndBackingEnvelope], Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.erroredBackings.observe(self.erroredBackings.observer)
-  }
-
-  func testErroredBackings() {
-    let backings = [ProjectAndBackingEnvelope(project: .template, backing: .errored)]
-
-    self.erroredBackings.assertDidNotEmitValue()
-
-    self.vm.inputs.configure(with: backings)
-
-    self.erroredBackings.assertValue(backings)
+  func testConfigurationReplacesBackingViews() {
+    let cell = ActivityErroredBackingsCell(style: .default, reuseIdentifier: nil)
+    func backingViews(in view: UIView) -> [ErroredBackingView] {
+      view.subviews.flatMap { child in
+        (child as? ErroredBackingView).map { [$0] } ?? backingViews(in: child)
+      }
+    }
+    let backing = ProjectAndBackingEnvelope(project: .template, backing: .errored)
+    cell.configureWith(value: [backing, backing])
+    XCTAssertEqual(backingViews(in: cell).count, 2)
+    cell.configureWith(value: [backing])
+    XCTAssertEqual(backingViews(in: cell).count, 1)
+    cell.configureWith(value: [])
+    XCTAssertEqual(backingViews(in: cell).count, 0)
   }
 }
