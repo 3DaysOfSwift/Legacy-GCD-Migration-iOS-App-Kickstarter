@@ -1,63 +1,27 @@
 import Foundation
 import KsApi
 import Prelude
-import ReactiveSwift
+import Observation
 
-@MainActor
-public protocol ErroredBackingViewViewModelInputs {
-  func configure(with value: ProjectAndBackingEnvelope)
-  func manageButtonTapped()
-}
+@MainActor @Observable
+public final class ErroredBackingViewViewModel {
+  public init() {}
 
-@MainActor
-public protocol ErroredBackingViewViewModelOutputs {
-  var finalCollectionDateText: Signal<String, Never> { get }
-  var notifyDelegateManageButtonTapped: Signal<ProjectAndBackingEnvelope, Never> { get }
-  var projectName: Signal<String, Never> { get }
-}
+  public private(set) var projectName: String?
+  public private(set) var finalCollectionDateText: String?
+  private var backing: ProjectAndBackingEnvelope?
 
-@MainActor
-public protocol ErroredBackingViewViewModelType {
-  var inputs: ErroredBackingViewViewModelInputs { get }
-  var outputs: ErroredBackingViewViewModelOutputs { get }
-}
-
-@MainActor
-public final class ErroredBackingViewViewModel: ErroredBackingViewViewModelType,
-  ErroredBackingViewViewModelInputs, ErroredBackingViewViewModelOutputs {
-  public init() {
-    let project = self.configDataSignal.map(\.project)
-
-    self.projectName = project
-      .map(\.name)
-
-    let collectionDate = project
-      .map(\.dates.finalCollectionDate)
-      .skipNil()
-
-    self.finalCollectionDateText = collectionDate
-      .map { timeLeftString(finalCollectionDate: $0) }
-
-    self.notifyDelegateManageButtonTapped = self.configDataSignal
-      .takeWhen(self.manageButtonTappedSignal)
-  }
-
-  private let (configDataSignal, configDataObserver) = Signal<ProjectAndBackingEnvelope, Never>.pipe()
   public func configure(with value: ProjectAndBackingEnvelope) {
-    self.configDataObserver.send(value: value)
+    self.backing = value
+    self.projectName = value.project.name
+    if let date = value.project.dates.finalCollectionDate {
+      self.finalCollectionDateText = timeLeftString(finalCollectionDate: date)
+    }
   }
 
-  private let (manageButtonTappedSignal, manageButtonTappedObserver) = Signal<Void, Never>.pipe()
-  public func manageButtonTapped() {
-    self.manageButtonTappedObserver.send(value: ())
+  public func backingForManageAction() -> ProjectAndBackingEnvelope? {
+    self.backing
   }
-
-  public let finalCollectionDateText: Signal<String, Never>
-  public let notifyDelegateManageButtonTapped: Signal<ProjectAndBackingEnvelope, Never>
-  public let projectName: Signal<String, Never>
-
-  public var inputs: ErroredBackingViewViewModelInputs { return self }
-  public var outputs: ErroredBackingViewViewModelOutputs { return self }
 }
 
 @MainActor

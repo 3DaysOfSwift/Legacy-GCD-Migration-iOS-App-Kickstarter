@@ -3,37 +3,20 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class ErroredBackingViewViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  private lazy var vm: ErroredBackingViewViewModelType = {
-    let vm = ErroredBackingViewViewModel()
-    vm.outputs.finalCollectionDateText.observe(self.finalCollectionDateText.observer)
-    vm.outputs.notifyDelegateManageButtonTapped.observe(self.notifyDelegateManageButtonTapped.observer)
-    vm.outputs.projectName.observe(self.projectName.observer)
-    return vm
-  }()
-
-  private let finalCollectionDateText = TestObserver<String, Never>()
-  private let notifyDelegateManageButtonTapped = TestObserver<ProjectAndBackingEnvelope, Never>()
-  private let projectName = TestObserver<String, Never>()
-
-
+  private let vm = ErroredBackingViewViewModel()
 
   func testNotifyDelegateManageButtonTapped_Emits_WhenButtonIsTapped() {
     let env = ProjectAndBackingEnvelope.template
 
-    self.vm.inputs.configure(with: env)
+    XCTAssertNil(self.vm.backingForManageAction())
+    self.vm.configure(with: env)
 
-    self.notifyDelegateManageButtonTapped.assertDidNotEmitValue()
-
-    self.vm.inputs.manageButtonTapped()
-
-    self.notifyDelegateManageButtonTapped.assertValue(env)
+    XCTAssertEqual(self.vm.backingForManageAction(), env)
   }
 
   func testErroredBackings() {
@@ -46,13 +29,13 @@ final class ErroredBackingViewViewModelTests: TestCase {
     let env = ProjectAndBackingEnvelope.template
       |> \.project .~ project
 
-    self.projectName.assertDidNotEmitValue()
-    self.finalCollectionDateText.assertDidNotEmitValue()
+    XCTAssertNil(self.vm.projectName)
+    XCTAssertNil(self.vm.finalCollectionDateText)
 
-    self.vm.inputs.configure(with: env)
+    self.vm.configure(with: env)
 
-    self.projectName.assertValue("Awesome tabletop collection")
-    self.finalCollectionDateText.assertValue("4 days left")
+    XCTAssertEqual(self.vm.projectName, "Awesome tabletop collection")
+    XCTAssertEqual(self.vm.finalCollectionDateText, "4 days left")
   }
 
   func testErroredBackings_lessThanAnHour() {
@@ -65,12 +48,12 @@ final class ErroredBackingViewViewModelTests: TestCase {
     let env = ProjectAndBackingEnvelope.template
       |> \.project .~ project
 
-    self.projectName.assertDidNotEmitValue()
-    self.finalCollectionDateText.assertDidNotEmitValue()
+    XCTAssertNil(self.vm.projectName)
+    XCTAssertNil(self.vm.finalCollectionDateText)
 
-    self.vm.inputs.configure(with: env)
+    self.vm.configure(with: env)
 
-    self.projectName.assertValue("Awesome tabletop collection")
-    self.finalCollectionDateText.assertValue("1 hour left")
+    XCTAssertEqual(self.vm.projectName, "Awesome tabletop collection")
+    XCTAssertEqual(self.vm.finalCollectionDateText, "1 hour left")
   }
 }

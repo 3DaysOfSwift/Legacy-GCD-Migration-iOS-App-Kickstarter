@@ -2,7 +2,6 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveSwift
 import UIKit
 
 private enum Layout {
@@ -36,7 +35,7 @@ final class ErroredBackingView: UIView {
   private let manageButton: UIButton = { UIButton(type: .custom) }()
   private let projectNameLabel: UILabel = { UILabel(frame: .zero) }()
   private let rootStackView: UIStackView = { UIStackView(frame: .zero) }()
-  private let viewModel: ErroredBackingViewViewModelType = ErroredBackingViewViewModel()
+  private let viewModel = ErroredBackingViewViewModel()
 
   // MARK: - Life cycle
 
@@ -47,7 +46,6 @@ final class ErroredBackingView: UIView {
 
     self.configureViews()
     self.configureConstraints()
-    self.bindViewModel()
   }
 
   required init?(coder aDecoder: NSCoder) {
@@ -57,7 +55,9 @@ final class ErroredBackingView: UIView {
   // MARK: - Configuration
 
   func configureWith(value: ProjectAndBackingEnvelope) {
-    self.viewModel.inputs.configure(with: value)
+    self.viewModel.configure(with: value)
+    self.projectNameLabel.text = self.viewModel.projectName
+    self.finalCollectionDateLabel.text = self.viewModel.finalCollectionDateText
   }
 
   private func configureViews() {
@@ -83,27 +83,11 @@ final class ErroredBackingView: UIView {
     ])
   }
 
-  // MARK: - View model
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.projectNameLabel.rac.text = self.viewModel.outputs.projectName
-    self.finalCollectionDateLabel.rac.text = self.viewModel.outputs.finalCollectionDateText
-
-    self.viewModel.outputs.notifyDelegateManageButtonTapped
-      .observeForUI()
-      .observeValues { [weak self] backing in
-        guard let self = self else { return }
-
-        self.delegate?.erroredBackingViewDidTapManage(self, backing: backing)
-      }
-  }
-
   // MARK: - Actions
 
   @objc func manageButtonTapped() {
-    self.viewModel.inputs.manageButtonTapped()
+    guard let backing = self.viewModel.backingForManageAction() else { return }
+    self.delegate?.erroredBackingViewDidTapManage(self, backing: backing)
   }
 
   // MARK: - Styles
