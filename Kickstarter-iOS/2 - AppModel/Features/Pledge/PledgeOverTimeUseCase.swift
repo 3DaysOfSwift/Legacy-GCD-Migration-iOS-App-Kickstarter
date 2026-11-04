@@ -81,24 +81,10 @@ public final class PledgeOverTimeUseCase: PledgeOverTimeUseCaseType, PledgeOverT
 
     self.buildPaymentPlanInputs = planRequests.map { ($0.0.slug, $0.1) }
 
-    let pledgeOverTimeQuery =
-      planRequests
-      .switchMap {
-        (
-          paymentPlanInputs: (project: Project, amount: String)
-        ) -> SignalProducer<
-          Signal<(Project, PledgePaymentPlan?), ErrorEnvelope>.Event,
-          Never
-        > in
-        feature.paymentPlanResult(
-          route: route, slug: paymentPlanInputs.project.slug,
-          amount: paymentPlanInputs.amount
-        )
-        // Keep each result paired with its request's project. A new project must
-        // never receive eligibility or installments retained from the previous one.
-        .map { (paymentPlanInputs.project, $0) }
-        .materialize()
-      }
+    // The checkout still consumes signals, but request execution is owned by
+    // this screen and uses the feature's cancellation-aware async API.
+    let planEvents = Signal<Signal<(Project, PledgePaymentPlan?), ErrorEnvelope>.Event, Never>.pipe()
+    let pledgeOverTimeQuery = planEvents.output
 
     self.showPledgeOverTimeUI = Signal.merge(
       // Hide PLOT if the feature flag is off on either client or server
@@ -176,11 +162,34 @@ public final class PledgeOverTimeUseCase: PledgeOverTimeUseCaseType, PledgeOverT
 
       return false
     }
+    planRequests.observeValues { [weak self] project, amount in
+      guard let self else { return }
+      self.planTask?.cancel()
+      let revision = UUID()
+      self.planRevision = revision
+      let command = feature.requestPaymentPlan(route: route, slug: project.slug, amount: amount)
+      self.planTask = Task { [weak self] in
+        do {
+          let plan = try await command.value
+          try Task.checkCancellation()
+          guard let self, self.planRevision == revision else { return }
+          planEvents.input.send(value: .value((project, plan)))
+        } catch {
+          guard !Task.isCancelled, !(error is CancellationError), let self, self.planRevision == revision else { return }
+          planEvents.input.send(value: .failed((error as? ErrorEnvelope) ?? .couldNotParseJSON))
+        }
+      }
+    }
+
   }
 
   private let feature: PledgeFeature
   private let route = UUID()
+  private var planTask: Task<Void, Never>?
+  private var planRevision = UUID()
+  func waitForPlan() async { await self.planTask?.value }
   deinit {
+    self.planTask?.cancel()
     let feature = self.feature
     let route = self.route
     Task { @MainActor in feature.releaseRead(route: route) }

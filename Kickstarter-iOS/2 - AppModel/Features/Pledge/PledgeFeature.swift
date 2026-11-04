@@ -493,27 +493,29 @@ public final class PledgeFeature {
     return (project, update)
   }
 
-  public func paymentPlan(route: UUID, slug: String, amount: String) async throws
-    -> PledgePaymentPlan?
-  {
-    try Task.checkCancellation()
+  func requestPaymentPlan(route: UUID, slug: String, amount: String) -> Task<PledgePaymentPlan?, Error> {
     let session = self.session
-    do {
-      let request = self.requestRead(route: route, input: .plan(slug, amount))
-      let version = self.readVersions[route]
-      let value = try await request.value()
-      try self.requireCurrent(session)
-      guard self.readVersions[route] == version else { throw CancellationError() }
-      return try Self.plan(value)
-    } catch {
-      try self.requireCurrent(session)
-      throw error
+    let request = self.requestRead(route: route, input: .plan(slug, amount))
+    let version = self.readVersions[route]
+    return Task {
+      do {
+        let value = try await request.value()
+        try self.requireCurrent(session)
+        guard self.readVersions[route] == version else { throw CancellationError() }
+        return try Self.plan(value)
+      } catch {
+        try self.requireCurrent(session)
+        throw error
+      }
     }
   }
-  public func paymentPlanResult(route: UUID, slug: String, amount: String) -> SignalProducer<
-    PledgePaymentPlan?, ErrorEnvelope
-  > {
-    self.readResult(route: route, input: .plan(slug, amount), transform: Self.plan)
+
+  public func paymentPlan(route: UUID, slug: String, amount: String) async throws -> PledgePaymentPlan? {
+    try Task.checkCancellation()
+    let command = self.requestPaymentPlan(route: route, slug: slug, amount: amount)
+    let result = try await command.value
+    try Task.checkCancellation()
+    return result
   }
   private static func plan(_ value: ReadValue) throws -> PledgePaymentPlan? {
     guard case .plan(let data) = value else { throw ErrorEnvelope.couldNotParseJSON }

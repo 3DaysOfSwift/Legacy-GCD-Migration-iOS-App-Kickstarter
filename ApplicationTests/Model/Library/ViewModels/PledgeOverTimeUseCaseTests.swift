@@ -66,12 +66,14 @@ final class PledgeOverTimeUseCaseTests: TestCase {
       self.pledgeViewContextObserver.send(value: .pledge)
       self.projectObserver.send(value: project)
       self.pledgeTotalObserver.send(value: 100)
+      await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
       XCTAssertEqual(projects, [1])
       project.id = 2
       project.slug = "second-project"
       self.projectObserver.send(value: project)
       XCTAssertEqual(projects, [1], "Do not pair the previous plan with the new project")
+      await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
       XCTAssertEqual(projects, [1, 2])
     }
@@ -94,6 +96,7 @@ final class PledgeOverTimeUseCaseTests: TestCase {
       self.buildPaymentPlanInputs.assertValueCount(1)
       XCTAssertEqual(self.buildPaymentPlanInputs.lastValue?.0, "some-slug")
       XCTAssertEqual(self.buildPaymentPlanInputs.lastValue?.1, "928.66")
+      await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
     }
   }
@@ -148,6 +151,7 @@ final class PledgeOverTimeUseCaseTests: TestCase {
 
       // Updates from paymentPlanSelected should not trigger additional emissions to buildPaymentPlanInputs.
       self.buildPaymentPlanInputs.assertValueCount(3)
+      await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
     }
   }
@@ -169,6 +173,7 @@ final class PledgeOverTimeUseCaseTests: TestCase {
       self.pledgeViewContextObserver.send(value: .pledge)
       self.projectObserver.send(value: project)
       self.pledgeTotalObserver.send(value: 100.0)
+      await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
 
       self.showPledgeOverTimeUI.assertValues([true])
@@ -193,6 +198,7 @@ final class PledgeOverTimeUseCaseTests: TestCase {
       self.pledgeViewContextObserver.send(value: .pledge)
       self.projectObserver.send(value: project)
       self.pledgeTotalObserver.send(value: 100.0)
+      await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
 
       self.pledgeOverTimeIsLoading.assertValues([false])
@@ -212,6 +218,7 @@ final class PledgeOverTimeUseCaseTests: TestCase {
       self.pledgeViewContextObserver.send(value: .pledge)
       self.projectObserver.send(value: project)
       self.pledgeTotalObserver.send(value: 100.0)
+      await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
 
       self.pledgeOverTimeIsLoading.assertValues([true, false])
@@ -235,6 +242,7 @@ final class PledgeOverTimeUseCaseTests: TestCase {
 
       self.showPledgeOverTimeUI.assertValues([false])
       self.selectedPlan.assertValues([nil])
+      await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
     }
   }
@@ -253,6 +261,7 @@ final class PledgeOverTimeUseCaseTests: TestCase {
       self.pledgeViewContextObserver.send(value: .pledge)
       self.projectObserver.send(value: project)
       self.pledgeTotalObserver.send(value: 100.0)
+      await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
 
       self.buildPaymentPlanInputs.assertDidEmitValue()
@@ -281,6 +290,7 @@ final class PledgeOverTimeUseCaseTests: TestCase {
       self.pledgeViewContextObserver.send(value: .pledge)
       self.projectObserver.send(value: project)
       self.pledgeTotalObserver.send(value: pledgeTotal)
+      await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
 
       // Defaults to pledgeInFull
@@ -312,6 +322,7 @@ final class PledgeOverTimeUseCaseTests: TestCase {
       self.pledgeViewContextObserver.send(value: .pledge)
       self.projectObserver.send(value: project)
       self.pledgeTotalObserver.send(value: 100.0)
+      await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
 
       self.showPledgeOverTimeUI.assertValues([true])
@@ -338,6 +349,7 @@ final class PledgeOverTimeUseCaseTests: TestCase {
       self.pledgeViewContextObserver.send(value: .pledge)
       self.projectObserver.send(value: project)
       self.pledgeTotalObserver.send(value: 100.0)
+      await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
 
       self.showPledgeOverTimeUI.assertValues([true])
@@ -376,6 +388,7 @@ final class PledgeOverTimeUseCaseTests: TestCase {
         self.pledgeViewContextObserver.send(value: context)
         self.showPledgeOverTimeUI.assertLastValue(true)
       }
+      await self.useCase?.waitForPlan()
       await self.feature.waitForOperations()
     }
   }

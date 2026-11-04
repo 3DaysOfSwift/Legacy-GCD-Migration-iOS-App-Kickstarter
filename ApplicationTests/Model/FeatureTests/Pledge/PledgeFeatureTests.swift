@@ -579,65 +579,39 @@ final class PledgeFeatureTests: TestCase {
   }
   func testPaymentPlanAmountChangeRejectsOldResult() async throws {
     let route = UUID()
-    var oldDelivered = false
-    var latestDelivered = false
-    let old = self.feature.paymentPlanResult(route: route, slug: "project", amount: "10.00")
-      .startWithResult { _ in oldDelivered = true }
+    let old = Task { try await self.feature.paymentPlan(route: route, slug: "project", amount: "10.00") }
     await self.provider.plans.waitFor(1)
-    let latest = self.feature.paymentPlanResult(route: route, slug: "project", amount: "20.00")
-      .startWithResult {
-        if case let .success(plan) = $0 {
-          latestDelivered = true
-          XCTAssertEqual(plan?.amountIsPledgeOverTimeEligible, true)
-        } else { XCTFail("Unexpected plan failure") }
-      }
-    defer {
-      old.dispose()
-      latest.dispose()
-    }
+    let latest = Task { try await self.feature.paymentPlan(route: route, slug: "project", amount: "20.00") }
     await self.provider.plans.waitFor(2)
-    try self.provider.plans.finish(
-      1, .success(PledgePaymentPlan(amountIsPledgeOverTimeEligible: true, paymentIncrements: [])))
-    try self.provider.plans.finish(
-      0, .success(PledgePaymentPlan(amountIsPledgeOverTimeEligible: false, paymentIncrements: [])))
-    await self.feature.waitForOperations()
-    XCTAssertFalse(oldDelivered)
-    XCTAssertTrue(latestDelivered)
+    try self.provider.plans.finish(1, .success(PledgePaymentPlan(amountIsPledgeOverTimeEligible: true, paymentIncrements: [])))
+    try self.provider.plans.finish(0, .success(PledgePaymentPlan(amountIsPledgeOverTimeEligible: false, paymentIncrements: [])))
+    do { _ = try await old.value; XCTFail("Old request must not deliver") }
+    catch { XCTAssertTrue(error is CancellationError) }
+    let plan = try await latest.value
+    XCTAssertEqual(plan?.amountIsPledgeOverTimeEligible, true)
     XCTAssertEqual(self.provider.planInputs.map { $0.1 }, ["10.00", "20.00"])
   }
+
   func testPaymentPlanEquivalentPendingSharesAndReleaseSuppressesBothObservers() async throws {
     let route = UUID()
-    var delivered = 0
-    let first = self.feature.paymentPlanResult(route: route, slug: "project", amount: "10.00")
-      .startWithResult { _ in delivered += 1 }
-    let duplicate = self.feature.paymentPlanResult(route: route, slug: "project", amount: "10.00")
-      .startWithResult { _ in delivered += 1 }
-    defer {
-      first.dispose()
-      duplicate.dispose()
-    }
+    let first = self.feature.requestPaymentPlan(route: route, slug: "project", amount: "10.00")
+    let duplicate = self.feature.requestPaymentPlan(route: route, slug: "project", amount: "10.00")
     await self.provider.plans.waitFor(1)
     self.feature.releaseRead(route: route)
-    try self.provider.plans.finish(
-      0, .success(PledgePaymentPlan(amountIsPledgeOverTimeEligible: true, paymentIncrements: [])))
-    await self.feature.waitForOperations()
-    XCTAssertEqual(delivered, 0)
+    try self.provider.plans.finish(0, .success(PledgePaymentPlan(amountIsPledgeOverTimeEligible: true, paymentIncrements: [])))
+    for task in [first, duplicate] {
+      do { _ = try await task.value; XCTFail("Released request must not deliver") }
+      catch { XCTAssertTrue(error is CancellationError) }
+    }
     XCTAssertEqual(self.provider.planInputs.count, 1)
   }
+
   func testAbsentPaymentPlanIsDeliveredAsSuccessfulAbsence() async throws {
-    var delivered = false
-    let observer = self.feature.paymentPlanResult(route: UUID(), slug: "project", amount: "10.00")
-      .startWithResult {
-        if case let .success(plan) = $0 {
-          delivered = true
-          XCTAssertNil(plan)
-        } else { XCTFail("Absent plan is not a request failure") }
-      }
-    defer { observer.dispose() }
+    let task = Task { try await self.feature.paymentPlan(route: UUID(), slug: "project", amount: "10.00") }
     await self.provider.plans.waitFor(1)
     try self.provider.plans.finish(0, .success(nil))
-    await self.feature.waitForOperations()
-    XCTAssertTrue(delivered)
+    let plan = try await task.value
+    XCTAssertNil(plan)
   }
 
   func testCheckoutCompletionFailureIsDeliveredWithoutAutomaticRetry() async throws {
