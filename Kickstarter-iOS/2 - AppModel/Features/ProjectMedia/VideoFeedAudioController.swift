@@ -1,4 +1,3 @@
-import ReactiveSwift
 import Foundation
 import AVFoundation
 import MediaPlayer
@@ -45,7 +44,7 @@ public final class VideoFeedAudioController {
   internal private(set) var isResettingAudioSession = false
 
   private var volumeObservation: NSKeyValueObservation?
-  private var muteStateObserver: ScopedDisposable<AnyDisposable>?
+  private var muteStateObserver: PlatformObservation?
 
   private enum AudioEvent: Sendable { case volumeUp, silentSwitch }
   private var eventContinuation: AsyncStream<AudioEvent>.Continuation?

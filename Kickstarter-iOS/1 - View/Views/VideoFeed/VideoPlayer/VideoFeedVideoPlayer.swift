@@ -1,4 +1,3 @@
-import ReactiveSwift
 import AVFoundation
 import AVKit
 import Foundation
@@ -30,10 +29,10 @@ class VideoFeedVideoPlayer {
   private var seekVersion = UUID()
   private let sleep: @MainActor (Duration) async throws -> Void
   private let performSeek: @MainActor (AVPlayer, Double) async -> Bool
-  @ObservationIgnored private var timeObserverToken: ScopedDisposable<AnyDisposable>?
-  @ObservationIgnored private var endObserver: ScopedDisposable<AnyDisposable>?
-  @ObservationIgnored private var failedObserver: ScopedDisposable<AnyDisposable>?
-  @ObservationIgnored private var stalledObserver: ScopedDisposable<AnyDisposable>?
+  @ObservationIgnored private var timeObserverToken: PlatformObservation?
+  @ObservationIgnored private var endObserver: PlatformObservation?
+  @ObservationIgnored private var failedObserver: PlatformObservation?
+  @ObservationIgnored private var stalledObserver: PlatformObservation?
   /// Once `onReady` has fired, flip this so we don't fire it repeatedly.
   private var hasFiredOnReady = false
   private var hasFiredOnFailed = false

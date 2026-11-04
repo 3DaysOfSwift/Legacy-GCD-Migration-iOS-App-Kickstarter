@@ -1,4 +1,3 @@
-import ReactiveSwift
 import FirebaseCrashlytics
 import KDS
 import Kingfisher
@@ -41,7 +40,7 @@ final class VideoFeedViewController: UIViewController {
   private var isFeedVisible = false
   private var isBackgrounded = false
 
-  private var lifecycleObservers: [ScopedDisposable<AnyDisposable>] = []
+  private var lifecycleObservers: [PlatformObservation] = []
   private var previewImagePrefetcher: ImagePrefetcher?
   private var isScrolling = false
   private var currentPageIndex: Int = 0

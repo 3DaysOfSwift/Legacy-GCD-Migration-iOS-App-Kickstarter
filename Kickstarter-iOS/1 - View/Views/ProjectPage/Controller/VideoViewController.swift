@@ -1,4 +1,3 @@
-import ReactiveSwift
 import AVFoundation
 import AVKit
 import KDS
@@ -19,7 +18,7 @@ public final class VideoViewController: UIViewController {
   fileprivate let viewModel: VideoViewModelType = VideoViewModel()
   fileprivate var playerController: AVPlayerViewController!
   private var videoObservation: ProjectVideoObservation?
-  private var backgroundObserver: ScopedDisposable<AnyDisposable>?
+  private var backgroundObserver: PlatformObservation?
 
   @IBOutlet fileprivate var playButton: UIButton!
   @IBOutlet fileprivate var projectImageView: UIImageView!
