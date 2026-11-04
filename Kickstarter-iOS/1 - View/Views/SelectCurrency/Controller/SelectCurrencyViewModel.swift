@@ -73,7 +73,7 @@ public final class SelectCurrencyViewModel {
       } catch {
         guard let self, !Task.isCancelled, !(error is CancellationError), self.revision == revision else { return }
         self.isLoading = false
-        self.onFailure?(error.localizedDescription)
+        self.onFailure?((error as? ErrorEnvelope)?.localizedDescription ?? error.localizedDescription)
       }
     }
   }

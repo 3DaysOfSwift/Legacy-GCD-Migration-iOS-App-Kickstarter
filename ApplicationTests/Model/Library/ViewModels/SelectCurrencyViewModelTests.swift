@@ -46,7 +46,7 @@ final class SelectCurrencyViewModelTests: TestCase {
       self.vm.didSelectCurrency(atIndex: currencies(orderedBySelected: .USD).firstIndex(of: .AUD)!)
       self.vm.saveButtonTapped()
       await self.vm.waitForSave()
-      XCTAssertNotNil(error)
+      XCTAssertEqual(error, ErrorEnvelope.couldNotParseJSON.localizedDescription)
       XCTAssertFalse(self.vm.isLoading)
       XCTAssertTrue(self.vm.saveButtonIsEnabled)
     }

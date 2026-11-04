@@ -91,7 +91,7 @@ final class ChangeEmailScreenModel {
         self.newEmail = ""
         self.password = ""
         self.isLoading = false
-        self.banner = MessageBannerViewViewModel((type: .error, message: error.localizedDescription))
+        self.banner = MessageBannerViewViewModel((type: .error, message: (error as? ErrorEnvelope)?.localizedDescription ?? error.localizedDescription))
         self.bannerRevision += 1
       }
     }
@@ -114,7 +114,7 @@ final class ChangeEmailScreenModel {
         guard let self, !Task.isCancelled, !(error is CancellationError), self.verifyRevision == revision else { return }
         do { try await sleep(delay); try Task.checkCancellation() } catch { return }
         guard self.verifyRevision == revision else { return }
-        self.banner = MessageBannerViewViewModel((type: .error, message: error.localizedDescription))
+        self.banner = MessageBannerViewViewModel((type: .error, message: (error as? ErrorEnvelope)?.localizedDescription ?? error.localizedDescription))
         self.bannerRevision += 1
       }
     }

@@ -82,7 +82,7 @@ public final class ChangePasswordViewModel {
         self.saveTasks[id] = nil
         self.isLoading = !self.saveTasks.isEmpty
         guard !Task.isCancelled, !(error is CancellationError) else { return }
-        self.onFailure?(error.localizedDescription)
+        self.onFailure?((error as? ErrorEnvelope)?.localizedDescription ?? error.localizedDescription)
       }
     }
   }

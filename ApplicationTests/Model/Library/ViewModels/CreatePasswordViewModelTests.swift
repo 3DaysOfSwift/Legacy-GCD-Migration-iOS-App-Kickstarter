@@ -58,6 +58,7 @@ final class CreatePasswordViewModelTests: TestCase {
         XCTAssertFalse(self.vm.isLoading)
         XCTAssertEqual(succeeded, succeeds)
         XCTAssertEqual(failure != nil, !succeeds)
+        if !succeeds { XCTAssertEqual(failure, error.localizedDescription) }
       }
     }
   }

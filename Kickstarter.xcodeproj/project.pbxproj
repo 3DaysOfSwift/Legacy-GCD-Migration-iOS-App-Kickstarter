@@ -7888,7 +7888,6 @@
 				"5DDE5E4B06030D78B6AB2CD5",
 				"76709A86A8AAF3E9793AA250",
 				"CFEDBAAC9FBAEDA2873D1C5B",
-				"E57F76011F1F61FF2D527D3D",
 				"C1176668C83A8392C2FF6447",
 				"40101510F0666FCA43DEA2DA",
 				"44652613579312DEF2031C55",
@@ -12457,10 +12456,6 @@
 			"name" = "Backing.storyboard";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "file.storyboard";
-		};
-		"E57F76011F1F61FF2D527D3D" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "EA5C04FCE8C1EB5B54559620";
 		};
 		"AAF5488C2F2445C0001DB5AC" = {
 			"path" = "SettingsNotificationCellViewModelTests.swift";
@@ -19870,7 +19865,6 @@
 			"sourceTree" = "<group>";
 			"children" = (
 				"842D8C8A726C4BEE5CD5D693",
-				"EA5C04FCE8C1EB5B54559620",
 			);
 		};
 		"D6F741A821836E5700C2DDA2" = {
@@ -22483,13 +22477,6 @@
 				"AFB5D9195AAE527D877C4D06",
 				"DD2B24AA8F24BCB15DF8ACA0",
 			);
-		};
-		"EA5C04FCE8C1EB5B54559620" = {
-			"name" = "ChangeEmailViewModel.swift";
-			"path" = "Kickstarter-iOS/1 - View/Views/ChangeEmail/ChangeEmailViewModel.swift";
-			"isa" = "PBXFileReference";
-			"sourceTree" = "SOURCE_ROOT";
-			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"44652613579312DEF2031C55" = {
 			"isa" = "PBXBuildFile";

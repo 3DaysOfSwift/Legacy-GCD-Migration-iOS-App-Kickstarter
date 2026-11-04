@@ -53,6 +53,7 @@ final class ChangePasswordViewModelTests: TestCase {
         XCTAssertFalse(self.vm.isLoading)
         XCTAssertEqual(success, succeeds)
         XCTAssertEqual(failure != nil, !succeeds)
+        if !succeeds { XCTAssertEqual(failure, error.localizedDescription) }
       }
     }
   }
