@@ -291,13 +291,6 @@ public final class FriendsFeature {
   public func followAll() async throws { try await self.execute(.all) }
 
   // Compatibility outputs carry values only; the Feature owns native async execution.
-  public func setFollowingResult(user: User, following: Bool) -> SignalProducer<User, ErrorEnvelope> {
-    self.result(.follow(user.id, following)).map {
-      var value = user
-      value.isFriend = following
-      return value
-    }
-  }
   public func followAllResult() -> SignalProducer<Void, ErrorEnvelope> { self.result(.all) }
   private func result(_ command: Command) -> SignalProducer<Void, ErrorEnvelope> {
     let session = self.session

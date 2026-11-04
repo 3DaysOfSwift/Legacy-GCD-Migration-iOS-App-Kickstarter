@@ -143,114 +143,74 @@ final class FriendsFeatureTests: TestCase {
 
   func testEquivalentPendingWritesShareButOppositeWritesRunInOrder() async throws {
     let user = Self.user(9)
-    var values: [Bool] = []
-    let a = self.feature.setFollowingResult(user: user, following: true).startWithResult { result in
-      switch result {
-      case .success(let user): values.append(user.isFriend == true)
-      case .failure: XCTFail("Expected successful follow command")
-      }
-    }
-    let b = self.feature.setFollowingResult(user: user, following: true).startWithResult { result in
-      switch result {
-      case .success(let user): values.append(user.isFriend == true)
-      case .failure: XCTFail("Expected successful follow command")
-      }
-    }
-    let c = self.feature.setFollowingResult(user: user, following: false).startWithResult { result in
-      switch result {
-      case .success(let user): values.append(user.isFriend == true)
-      case .failure: XCTFail("Expected successful follow command")
-      }
-    }
-    defer { a.dispose(); b.dispose(); c.dispose() }
+    let a = self.feature.startFollowing(user: user, following: true)
+    let b = self.feature.startFollowing(user: user, following: true)
+    let c = self.feature.startFollowing(user: user, following: false)
     await self.provider.writes.waitFor(1)
     XCTAssertEqual(self.provider.operations, ["9:true"])
     try self.provider.writes.finish(0, .success(()))
     await self.provider.writes.waitFor(2)
     XCTAssertEqual(self.provider.operations, ["9:true", "9:false"])
     try self.provider.writes.finish(1, .success(()))
-    await self.feature.waitForOperations()
-    XCTAssertEqual(values.filter { $0 }.count, 2)
-    XCTAssertEqual(values.last, false)
+    let first = try await a.value
+    let duplicate = try await b.value
+    let last = try await c.value
+    XCTAssertEqual(first.isFriend, true)
+    XCTAssertEqual(duplicate.isFriend, true)
+    XCTAssertEqual(last.isFriend, false)
     XCTAssertEqual(self.feature.cached(user).isFriend, false)
   }
 
-  func testDisposedObserverDoesNotCancelAdmittedWriteOrDuplicateRetry() async throws {
-    var values = 0
-    let old = self.feature.setFollowingResult(user: Self.user(1), following: true)
-      .startWithResult { result in
-        switch result {
-        case .success: values += 1
-        case .failure: XCTFail("Expected successful follow command")
-        }
-      }
+  func testCancelledObserverDoesNotCancelAdmittedWriteOrDuplicateRetry() async throws {
+    let old = self.feature.startFollowing(user: Self.user(1), following: true)
     await self.provider.writes.waitFor(1)
-    old.dispose()
-    let next = self.feature.setFollowingResult(user: Self.user(1), following: true)
-      .startWithResult { result in
-        switch result {
-        case .success: values += 1
-        case .failure: XCTFail("Expected successful follow command")
-        }
-      }
-    defer { next.dispose() }
+    old.cancel()
+    let next = self.feature.startFollowing(user: Self.user(1), following: true)
     try self.provider.writes.finish(0, .success(()))
+    _ = try await next.value
     await self.feature.waitForOperations()
     XCTAssertEqual(self.provider.operations, ["1:true"])
-    XCTAssertEqual(values, 1)
     XCTAssertEqual(self.feature.cached(Self.user(1)).isFriend, true)
   }
 
   func testFailedWriteDoesNotPoisonQueueOrCacheAndIsNotAutomaticallyRetried() async throws {
-    var errors = 0
-    let first = self.feature.setFollowingResult(user: Self.user(1), following: true)
-      .startWithFailed { _ in errors += 1 }
-    let next = self.feature.setFollowingResult(user: Self.user(2), following: true).start()
-    defer { first.dispose(); next.dispose() }
+    let first = self.feature.startFollowing(user: Self.user(1), following: true)
+    let next = self.feature.startFollowing(user: Self.user(2), following: true)
     await self.provider.writes.waitFor(1)
     try self.provider.writes.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
     await self.provider.writes.waitFor(2)
     try self.provider.writes.finish(1, .success(()))
-    await self.feature.waitForOperations()
-    XCTAssertEqual(errors, 1)
+    do { _ = try await first.value; XCTFail("Expected failed follow") } catch { }
+    _ = try await next.value
     XCTAssertEqual(self.provider.operations, ["1:true", "2:true"])
     XCTAssertEqual(self.feature.cached(Self.user(1)).isFriend, false)
     XCTAssertEqual(self.feature.cached(Self.user(2)).isFriend, true)
   }
 
   func testNewSessionRejectsOldQueuedWriteAndOldCacheCommit() async throws {
-    let first = self.feature.setFollowingResult(user: Self.user(1), following: true).start()
-    let queued = self.feature.setFollowingResult(user: Self.user(2), following: true).start()
-    defer { first.dispose(); queued.dispose() }
+    let first = self.feature.startFollowing(user: Self.user(1), following: true)
+    let queued = self.feature.startFollowing(user: Self.user(2), following: true)
     await self.provider.writes.waitFor(1)
     self.session.sessionChanged()
-    let current = self.feature.setFollowingResult(user: Self.user(3), following: true).start()
-    defer { current.dispose() }
+    let current = self.feature.startFollowing(user: Self.user(3), following: true)
     await self.provider.writes.waitFor(2)
     try self.provider.writes.finish(1, .success(()))
     try self.provider.writes.finish(0, .success(()))
-    await self.feature.waitForOperations()
+    _ = await first.result
+    _ = await queued.result
+    _ = try await current.value
     XCTAssertEqual(self.provider.operations, ["1:true", "3:true"])
     XCTAssertEqual(self.feature.cached(Self.user(1)).isFriend, false)
     XCTAssertEqual(self.feature.cached(Self.user(3)).isFriend, true)
   }
 
-  func testDeferredProducerCannotBeAdmittedIntoNewSession() async {
-    let deferred = self.feature.setFollowingResult(user: Self.user(1), following: true)
-    self.session.sessionChanged()
-    let subscription = deferred.start()
-    defer { subscription.dispose() }
-    await self.feature.waitForOperations()
-    XCTAssertEqual(self.provider.operations, [])
-  }
-
   func testFollowAllIsOrderedAndInvalidatesOldPageBeforeRefresh() async throws {
     let page = self.feature.requestPage(route: self.route)
     await self.provider.pages.waitFor(1)
-    let follow = self.feature.setFollowingResult(user: Self.user(1), following: true).start()
+    let follow = self.feature.startFollowing(user: Self.user(1), following: true)
     let completed = expectation(description: "Follow all settled")
     let all = self.feature.followAllResult().startWithCompleted { completed.fulfill() }
-    defer { follow.dispose(); all.dispose() }
+    defer { follow.cancel(); all.dispose() }
     await self.provider.writes.waitFor(1)
     try self.provider.writes.finish(0, .success(()))
     await self.provider.writes.waitFor(2)
@@ -268,8 +228,8 @@ final class FriendsFeatureTests: TestCase {
   }
 
   func testNewReadWaitsForAdmittedWriteAndUsesSharedFollowState() async throws {
-    let follow = self.feature.setFollowingResult(user: Self.user(1), following: true).start()
-    defer { follow.dispose() }
+    let follow = self.feature.startFollowing(user: Self.user(1), following: true)
+    defer { follow.cancel() }
     let page = self.feature.requestPage(route: self.route)
     await self.provider.writes.waitFor(1)
     XCTAssertEqual(self.provider.pages.count, 0)
