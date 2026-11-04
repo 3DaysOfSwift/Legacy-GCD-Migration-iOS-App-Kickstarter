@@ -1,229 +1,137 @@
 import Foundation
 import KsApi
+import Observation
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 
-@MainActor
-public protocol FindFriendsViewModelInputs {
-  /// Call to set where Friends View Controller was loaded from
-  func configureWith(source: FriendsSource)
+@MainActor @Observable
+public final class FindFriendsViewModel {
+  public enum Event {
+    case followAllConfirmation(Int)
+    case error(AlertError)
+    case discovery(DiscoveryParams)
+  }
+  public private(set) var source: FriendsSource = .findFriends
+  public private(set) var friends: [User]?
+  public private(set) var stats: FriendStatsEnvelope?
+  public private(set) var showFacebookConnect: Bool?
+  public private(set) var showLoadingIndicator = false
+  @ObservationIgnored var onChange: (@MainActor () -> Void)?
+  @ObservationIgnored var onEvent: (@MainActor (Event) -> Void)?
+  @ObservationIgnored private let feature: FriendsFeature
+  @ObservationIgnored private let refreshDelay: @MainActor () async throws -> Void
+  @ObservationIgnored private let route = UUID()
+  @ObservationIgnored private var pageObservation: Task<Void, Never>?
+  @ObservationIgnored private var statisticsObservation: Task<Void, Never>?
+  @ObservationIgnored private var followAllObservation: Task<Void, Never>?
+  private var appeared = false
+  private var lastPaginationTrigger = false
+  private var showedInitialLoader = false
 
-  /// Call when press OK on Follow All Friends confirmation alert
-  func confirmFollowAllFriends()
+  public init(feature: FriendsFeature? = nil, refreshDelay: (@MainActor () async throws -> Void)? = nil) {
+    self.feature = feature ?? AppModel.shared.friendsFeature
+    self.refreshDelay = refreshDelay ?? { try await Task.sleep(for: .seconds(2)) }
+  }
 
-  /// Call when "Discover projects" button is tapped
-  func discoverButtonTapped()
+  public func configureWith(source: FriendsSource) {
+    self.source = source
+    if self.appeared { self.onChange?() }
+  }
 
-  /// Call when user updates to be Facebook Connected.
-  func findFriendsFacebookConnectCellDidFacebookConnectUser()
+  public func viewDidLoad() {
+    self.appeared = true
+    self.updateFacebookState()
+  }
 
-  /// Call when the Facebook Connect section is dismissed.
-  func findFriendsFacebookConnectCellDidDismissHeader()
+  public func findFriendsFacebookConnectCellDidFacebookConnectUser() { self.updateFacebookState() }
+  public func findFriendsFacebookConnectCellDidDismissHeader() {}
+  public func findFriendsFacebookConnectCellShowErrorAlert(_ alert: AlertError) { self.onEvent?(.error(alert)) }
+  public func findFriendsStatsCellShowFollowAllFriendsAlert(friendCount: Int) { self.onEvent?(.followAllConfirmation(friendCount)) }
+  public func updateFriend(_ updatedFriend: User) {}
+  public func discoverButtonTapped() {
+    self.onEvent?(.discovery(DiscoveryParams.defaults |> DiscoveryParams.lens.social .~ true |> DiscoveryParams.lens.sort .~ .magic))
+  }
 
-  /// Call when an alert should be shown.
-  func findFriendsFacebookConnectCellShowErrorAlert(_ alert: AlertError)
+  private func updateFacebookState() {
+    let show = FindFriendsFacebookConnectCellViewModel.showFacebookConnectionSection(for: AppEnvironment.current.currentUser)
+    self.showFacebookConnect = show
+    self.onChange?()
+    if !show { self.loadPage(); self.loadStatistics() }
+  }
 
-  /// Call when should display "Follow all friends?" confirmation alert
-  func findFriendsStatsCellShowFollowAllFriendsAlert(friendCount: Int)
-
-  /// Call when friend status updates from a FriendFollowCell.
-  func updateFriend(_ updatedFriend: User)
-
-  /// Call when view loads
-  func viewDidLoad()
-
-  /// Call when a new row of friends is displayed
-  func willDisplayRow(_ row: Int, outOf totalRows: Int)
-}
-
-@MainActor
-public protocol FindFriendsViewModelOutputs {
-  /// Emits an array of friend users with the source that presented the controller.
-  var friends: Signal<([User], FriendsSource), Never> { get }
-
-  /// Emits DiscoveryParams when should go to Discovery
-  var goToDiscovery: Signal<DiscoveryParams, Never> { get }
-
-  /// Emits when error alert should show with AlertError
-  var showErrorAlert: Signal<AlertError, Never> { get }
-
-  /// Emits bool whether Facebook Connect view should show with the source that presented the controller.
-  var showFacebookConnect: Signal<(FriendsSource, Bool), Never> { get }
-
-  /// Emits friends count when should display "Follow all friends" alert.
-  var showFollowAllFriendsAlert: Signal<Int, Never> { get }
-
-  /// Emits a boolean that determines if loader is hidden.
-  var showLoadingIndicatorView: Signal<Bool, Never> { get }
-
-  /// Emits the current user and the source that presented the controller.
-  var stats: Signal<(FriendStatsEnvelope, FriendsSource), Never> { get }
-}
-
-@MainActor
-public protocol FindFriendsViewModelType {
-  var inputs: FindFriendsViewModelInputs { get }
-  var outputs: FindFriendsViewModelOutputs { get }
-}
-
-@MainActor
-public final class FindFriendsViewModel: FindFriendsViewModelType, FindFriendsViewModelInputs,
-  FindFriendsViewModelOutputs {
-  private let feature: FriendsFeature
-  private let route = UUID()
-  private let subscriptions = ScopedDisposable(CompositeDisposable())
-
-  public init(feature: FriendsFeature? = nil) {
-    let feature = feature ?? AppModel.shared.friendsFeature
-    self.feature = feature
-    let route = self.route
-    let source = self.configureWithProperty.signal
-
-    let followAll = self.confirmFollowAllFriendsProperty.signal
-      .switchMap {
-        feature.followAllResult()
-          .demoteErrors()
-      }
-
-    let shouldShowFacebookConnect = Signal.merge(
-      self.viewDidLoadProperty.signal,
-      self.userFacebookConnectedProperty.signal
-    )
-    .map { _ in
-      FindFriendsFacebookConnectCellViewModel
-        .showFacebookConnectionSection(for: AppEnvironment.current.currentUser)
+  private func loadPage(next: Bool = false) {
+    guard let task = self.feature.requestPage(route: self.route, next: next) else { return }
+    let feature = self.feature, route = self.route
+    let generation = feature.sessionFeature.generation
+    let userID = feature.sessionFeature.currentUser?.id
+    if !next, self.friends != nil { self.friends = []; self.onChange?() }
+    if !self.showedInitialLoader {
+      self.showedInitialLoader = true
+      self.showLoadingIndicator = true
+      self.onChange?()
     }
-
-    let refreshAfterFollowAll = followAll.map { _ in
-      (feature.sessionFeature.currentUser?.id, feature.sessionFeature.generation)
+    self.pageObservation?.cancel()
+    self.pageObservation = Task { [weak self] in
+      await task.value
+      guard let self, !Task.isCancelled, feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+      let snapshot = feature.snapshot(route: route)
+      if snapshot.pageError == nil { self.friends = snapshot.users }
+      self.showLoadingIndicator = false
+      self.onChange?()
     }
-    .ksr_debounce(.seconds(2), on: AppEnvironment.current.scheduler)
-    .filter { feature.sessionFeature.isCurrent(userID: $0.0, generation: $0.1) }
-    .ignoreValues()
+  }
 
-    let requestFirstPageWith = Signal.merge(
-      shouldShowFacebookConnect.filter(isFalse).ignoreValues(),
-      refreshAfterFollowAll
-    )
-
-    let requestNextPageWhen = self.willDisplayRowProperty.signal.skipNil()
-      .map { row, total in row >= total - 3 && total > 1 }
-      .skipRepeats()
-      .filter(isTrue)
-      .ignoreValues()
-
-    let friends = feature.pageValues.filter { $0.0 == route }.map { $0.1 }
-    let isLoading = feature.loadingValues.filter { $0.0 == route }.map { $0.1 }
-
-    self.friends = Signal.combineLatest(
-      Signal.merge(friends, followAll.mapConst([])).skipRepeats(==),
-      source
-    )
-
-    self.goToDiscovery = self.discoverButtonTappedProperty.signal
-      .map {
-        DiscoveryParams.defaults
-          |> DiscoveryParams.lens.social .~ true
-          |> DiscoveryParams.lens.sort .~ .magic
-      }
-
-    self.showFollowAllFriendsAlert = self.showFollowAllFriendsAlertProperty.signal
-
-    self.showErrorAlert = self.showFacebookConnectErrorAlertProperty.signal.skipNil()
-
-    self.showFacebookConnect = shouldShowFacebookConnect.signal
-      .map { (.findFriends, $0) }
-
-    self.showLoadingIndicatorView = Signal.merge(
-      isLoading.take(first: 1),
-      friends.mapConst(false)
-    ).skipRepeats()
-
-    let stats = Signal.combineLatest(
-      feature.statisticsValues.filter { $0.0 == route }.map { $0.1 }, source
-    )
-
-    self.stats = Signal.combineLatest(
-      shouldShowFacebookConnect,
-      stats
-    ).map(unpack) // unpack into 3-tuple (shouldShowFacebookConnect, friends, source)
-      .filter { shouldShowFacebookConnect, _, _ in
-        !shouldShowFacebookConnect
-      }.map { _, friends, source in
-        (friends, source)
-      }
-    // Subscribe after the output graph is connected so initial loading is observable.
-    self.subscriptions += requestFirstPageWith.observeValues { feature.requestPage(route: route) }
-    self.subscriptions += requestNextPageWhen.observeValues { feature.requestPage(route: route, next: true) }
-    self.subscriptions += shouldShowFacebookConnect.filter(isFalse).observeValues { _ in
-      feature.requestStatistics(route: route)
+  private func loadStatistics() {
+    let feature = self.feature, route = self.route
+    let generation = feature.sessionFeature.generation
+    let userID = feature.sessionFeature.currentUser?.id
+    let task = feature.requestStatistics(route: route)
+    self.statisticsObservation?.cancel()
+    self.statisticsObservation = Task { [weak self] in
+      await task.value
+      guard let self, !Task.isCancelled, feature.sessionFeature.isCurrent(userID: userID, generation: generation),
+            self.showFacebookConnect == false else { return }
+      if let stats = feature.snapshot(route: route).statistics { self.stats = stats; self.onChange?() }
     }
+  }
 
+  public func willDisplayRow(_ row: Int, outOf totalRows: Int) {
+    let trigger = row >= totalRows - 3 && totalRows > 1
+    guard trigger != self.lastPaginationTrigger else { return }
+    self.lastPaginationTrigger = trigger
+    if trigger { self.loadPage(next: true) }
+  }
+
+  public func confirmFollowAllFriends() {
+    let generation = self.feature.sessionFeature.generation
+    let userID = self.feature.sessionFeature.currentUser?.id
+    let command = self.feature.startFollowAll()
+    self.followAllObservation?.cancel()
+    self.followAllObservation = Task { [weak self] in
+      do {
+        try await command.value
+        guard let self, !Task.isCancelled,
+              self.feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+        self.friends = []
+        self.onChange?()
+        try await self.refreshDelay()
+        try Task.checkCancellation()
+        guard self.feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+        self.loadPage()
+      } catch { }
+    }
+  }
+
+  func waitForObservations() async {
+    await self.followAllObservation?.value
+    await self.pageObservation?.value
+    await self.statisticsObservation?.value
   }
 
   deinit {
-
-    let feature = self.feature
-    let route = self.route
+    self.pageObservation?.cancel()
+    self.statisticsObservation?.cancel()
+    self.followAllObservation?.cancel()
+    let feature = self.feature, route = self.route
     Task { @MainActor in feature.release(route: route) }
   }
-
-  fileprivate let configureWithProperty = MutableProperty<FriendsSource>(FriendsSource.findFriends)
-  public func configureWith(source: FriendsSource) {
-    self.configureWithProperty.value = source
-  }
-
-  fileprivate let confirmFollowAllFriendsProperty = MutableProperty(())
-  public func confirmFollowAllFriends() {
-    self.confirmFollowAllFriendsProperty.value = ()
-  }
-
-  public func findFriendsFacebookConnectCellDidDismissHeader() {}
-
-  fileprivate let userFacebookConnectedProperty = MutableProperty(())
-  public func findFriendsFacebookConnectCellDidFacebookConnectUser() {
-    self.userFacebookConnectedProperty.value = ()
-  }
-
-  fileprivate let showFacebookConnectErrorAlertProperty = MutableProperty<AlertError?>(nil)
-  public func findFriendsFacebookConnectCellShowErrorAlert(_ alert: AlertError) {
-    self.showFacebookConnectErrorAlertProperty.value = alert
-  }
-
-  fileprivate let updateFriendProperty = MutableProperty<User?>(nil)
-  public func updateFriend(_ updatedFriend: User) {
-    self.updateFriendProperty.value = updatedFriend
-  }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
-  }
-
-  fileprivate let discoverButtonTappedProperty = MutableProperty(())
-  public func discoverButtonTapped() {
-    self.discoverButtonTappedProperty.value = ()
-  }
-
-  fileprivate let showFollowAllFriendsAlertProperty = MutableProperty<Int>(0)
-  public func findFriendsStatsCellShowFollowAllFriendsAlert(friendCount: Int) {
-    self.showFollowAllFriendsAlertProperty.value = friendCount
-  }
-
-  fileprivate let willDisplayRowProperty = MutableProperty<(row: Int, total: Int)?>(nil)
-  public func willDisplayRow(_ row: Int, outOf totalRows: Int) {
-    self.willDisplayRowProperty.value = (row, totalRows)
-  }
-
-  public let friends: Signal<([User], FriendsSource), Never>
-  public let goToDiscovery: Signal<DiscoveryParams, Never>
-  public let showErrorAlert: Signal<AlertError, Never>
-  public let showFacebookConnect: Signal<(FriendsSource, Bool), Never>
-  public let showFollowAllFriendsAlert: Signal<Int, Never>
-  public let showLoadingIndicatorView: Signal<Bool, Never>
-  public let stats: Signal<(FriendStatsEnvelope, FriendsSource), Never>
-
-  public var inputs: FindFriendsViewModelInputs { return self }
-  public var outputs: FindFriendsViewModelOutputs { return self }
 }

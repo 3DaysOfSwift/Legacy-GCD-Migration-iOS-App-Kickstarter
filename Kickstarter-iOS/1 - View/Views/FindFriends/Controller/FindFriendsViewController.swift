@@ -2,19 +2,17 @@ import Foundation
 import KsApi
 
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 import UIKit
 
 internal final class FindFriendsViewController: UITableViewController {
-  fileprivate let viewModel: FindFriendsViewModelType = FindFriendsViewModel()
+  fileprivate let viewModel = FindFriendsViewModel()
   fileprivate let dataSource = FindFriendsDataSource()
   fileprivate let loadingIndicatorView = UIActivityIndicatorView()
   fileprivate let backgroundView = UIView()
 
   internal static func configuredWith(source: FriendsSource) -> FindFriendsViewController {
     let vc = Storyboard.Friends.instantiate(FindFriendsViewController.self)
-    vc.viewModel.inputs.configureWith(source: source)
+    vc.viewModel.configureWith(source: source)
     return vc
   }
 
@@ -30,7 +28,7 @@ internal final class FindFriendsViewController: UITableViewController {
 
     self.tableView.dataSource = self.dataSource
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   override func viewDidAppear(_ animated: Bool) {
@@ -41,44 +39,24 @@ internal final class FindFriendsViewController: UITableViewController {
 
   override func bindViewModel() {
     super.bindViewModel()
-
-    self.loadingIndicatorView.rac.animating = self.viewModel.outputs.showLoadingIndicatorView
-    self.viewModel.outputs.friends
-      .observeForUI()
-      .observeValues { [weak self] friends, source in
-        self?.dataSource.friends(friends, source: source)
-        self?.tableView.reloadData()
+    self.viewModel.onChange = { [weak self] in self?.renderState() }
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case .followAllConfirmation(let count): self.showFollowAllConfirmationAlert(count: count)
+      case .error(let error): self.present(UIAlertController.alertController(forError: error), animated: true)
+      case .discovery: break
       }
+    }
+  }
 
-    self.viewModel.outputs.stats
-      .observeForUI()
-      .observeValues { [weak self] stats, source in
-        self?.dataSource.stats(stats: stats, source: source)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.showFacebookConnect
-      .observeForUI()
-      .observeValues { [weak self] source, visible in
-        self?.dataSource.facebookConnect(source: source, visible: visible)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.showFollowAllFriendsAlert
-      .observeForUI()
-      .observeValues { [weak self] count in
-        self?.showFollowAllConfirmationAlert(count: count)
-      }
-
-    self.viewModel.outputs.showErrorAlert
-      .observeForUI()
-      .observeValues { [weak self] error in
-        self?.present(
-          UIAlertController.alertController(forError: error),
-          animated: true,
-          completion: nil
-        )
-      }
+  private func renderState() {
+    if self.viewModel.showLoadingIndicator { self.loadingIndicatorView.startAnimating() }
+    else { self.loadingIndicatorView.stopAnimating() }
+    if let friends = self.viewModel.friends { self.dataSource.friends(friends, source: self.viewModel.source) }
+    if let stats = self.viewModel.stats { self.dataSource.stats(stats: stats, source: self.viewModel.source) }
+    if let visible = self.viewModel.showFacebookConnect { self.dataSource.facebookConnect(source: .findFriends, visible: visible) }
+    self.tableView.reloadData()
   }
 
   internal override func viewDidLayoutSubviews() {
@@ -104,7 +82,7 @@ internal final class FindFriendsViewController: UITableViewController {
       fbConnectCell.delegate = self
     }
 
-    self.viewModel.inputs.willDisplayRow(
+    self.viewModel.willDisplayRow(
       self.dataSource.itemIndexAt(indexPath),
       outOf: self.dataSource.numberOfItems()
     )
@@ -115,7 +93,7 @@ internal final class FindFriendsViewController: UITableViewController {
       UIAlertController.confirmFollowAllFriends(
         friendsCount: count,
         yesHandler: { _ in
-          self.viewModel.inputs.confirmFollowAllFriends()
+          self.viewModel.confirmFollowAllFriends()
         },
         noHandler: { _ in }
       ),
@@ -127,18 +105,18 @@ internal final class FindFriendsViewController: UITableViewController {
 
 extension FindFriendsViewController: FindFriendsStatsCellDelegate {
   func findFriendsStatsCellShowFollowAllFriendsAlert(friendCount: Int) {
-    self.viewModel.inputs.findFriendsStatsCellShowFollowAllFriendsAlert(friendCount: friendCount)
+    self.viewModel.findFriendsStatsCellShowFollowAllFriendsAlert(friendCount: friendCount)
   }
 }
 
 extension FindFriendsViewController: FindFriendsFacebookConnectCellDelegate {
   func findFriendsFacebookConnectCellDidFacebookConnectUser() {
-    self.viewModel.inputs.findFriendsFacebookConnectCellDidFacebookConnectUser()
+    self.viewModel.findFriendsFacebookConnectCellDidFacebookConnectUser()
   }
 
   func findFriendsFacebookConnectCellDidDismissHeader() {}
 
   func findFriendsFacebookConnectCellShowErrorAlert(_ alert: AlertError) {
-    self.viewModel.inputs.findFriendsFacebookConnectCellShowErrorAlert(alert)
+    self.viewModel.findFriendsFacebookConnectCellShowErrorAlert(alert)
   }
 }

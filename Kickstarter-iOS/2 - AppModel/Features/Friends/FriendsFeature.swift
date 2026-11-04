@@ -1,6 +1,5 @@
 import Foundation
 import KsApi
-import ReactiveSwift
 
 @MainActor
 public protocol FriendsProvider {
@@ -69,14 +68,6 @@ public final class FriendsFeature {
   private var tails: [Session: Pending] = [:]
   private var commands: [UUID: Task<Void, Error>] = [:]
   private var reads: [UUID: Task<Void, Never>] = [:]
-  private var observations: [UUID: Task<Void, Never>] = [:]
-  private let pagePipe = Signal<(UUID, [User]), Never>.pipe()
-  private let loadingPipe = Signal<(UUID, Bool), Never>.pipe()
-  private let statisticsPipe = Signal<(UUID, FriendStatsEnvelope), Never>.pipe()
-  public var pageValues: Signal<(UUID, [User]), Never> { self.pagePipe.output }
-  public var loadingValues: Signal<(UUID, Bool), Never> { self.loadingPipe.output }
-  public var statisticsValues: Signal<(UUID, FriendStatsEnvelope), Never> { self.statisticsPipe.output }
-
   public init(
     sessionFeature: SessionFeature, makeProvider: @escaping () -> any FriendsProvider,
     sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
@@ -126,7 +117,6 @@ public final class FriendsFeature {
     for route in Array(self.routes.keys) { self.release(route: route) }
     self.following.removeAll()
     self.cacheSession = self.session
-    for task in self.observations.values { task.cancel() }
   }
 
   public func refresh(route: UUID) async { await self.requestPage(route: route)?.value }
@@ -141,7 +131,6 @@ public final class FriendsFeature {
     let cursor = next ? state.cursor : nil
     if !next, state.started {
       state.snapshot.users = []
-      self.pagePipe.input.send(value: (route, []))
     }
     state.started = true
     state.snapshot.pageError = nil
@@ -155,9 +144,6 @@ public final class FriendsFeature {
         self.reads[id] = nil
         if state.page?.id == id {
           state.page = nil
-          if self.routes[route] === state, self.session == state.session {
-            self.loadingPipe.input.send(value: (route, false))
-          }
         }
       }
       do {
@@ -170,7 +156,6 @@ public final class FriendsFeature {
         state.cursor = page.users.isEmpty ? nil : page.urls.api.moreUsers
         let users = page.users.map(self.cached)
         state.snapshot.users = cursor == nil ? users : state.snapshot.users + users
-        self.pagePipe.input.send(value: (route, state.snapshot.users))
       } catch {
         guard !Task.isCancelled, !(error is CancellationError), self.session == state.session,
               self.routes[route] === state, state.page?.id == id else { return }
@@ -179,7 +164,6 @@ public final class FriendsFeature {
     }
     state.page = (id, cursor, task)
     self.reads[id] = task
-    self.loadingPipe.input.send(value: (route, true))
     return task
   }
 
@@ -204,7 +188,6 @@ public final class FriendsFeature {
         try self.requireCurrent(state.session)
         guard self.routes[route] === state, state.statistics?.id == id else { return }
         state.snapshot.statistics = statistics
-        self.statisticsPipe.input.send(value: (route, statistics))
       } catch {
         guard !Task.isCancelled, !(error is CancellationError), self.session == state.session,
               self.routes[route] === state, state.statistics?.id == id else { return }
@@ -293,41 +276,10 @@ public final class FriendsFeature {
   /// Admits Follow All immediately, preserving its position among account writes.
   func startFollowAll() -> Task<Void, Error> { self.request(.all) }
 
-  // Compatibility outputs carry values only; the Feature owns native async execution.
-  public func followAllResult() -> SignalProducer<Void, ErrorEnvelope> { self.result(.all) }
-  private func result(_ command: Command) -> SignalProducer<Void, ErrorEnvelope> {
-    let session = self.session
-    return SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        guard self.session == session else { observer.sendInterrupted(); return }
-        let commandTask = self.request(command)
-        let id = UUID()
-        let task = Task { [self] in
-          defer { self.observations[id] = nil }
-          do {
-            try await commandTask.value
-            try self.requireCurrent(session)
-            observer.send(value: ())
-            observer.sendCompleted()
-          } catch {
-            guard !Task.isCancelled, !(error is CancellationError), self.session == session else {
-              observer.sendInterrupted()
-              return
-            }
-            observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
-          }
-        }
-        self.observations[id] = task
-        lifetime.observeEnded { task.cancel() }
-      }
-    }
-  }
-
   public func waitForOperations() async {
-    while !self.commands.isEmpty || !self.observations.isEmpty || !self.reads.isEmpty {
+    while !self.commands.isEmpty || !self.reads.isEmpty {
       for task in Array(self.commands.values) { _ = await task.result }
       for task in Array(self.reads.values) { await task.value }
-      for task in Array(self.observations.values) { await task.value }
     }
   }
 }

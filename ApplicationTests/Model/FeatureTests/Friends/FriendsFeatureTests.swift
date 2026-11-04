@@ -290,27 +290,54 @@ final class FriendsFeatureTests: TestCase {
   }
 
   func testFollowAllDelayedRefreshCannotStartInReplacementSession() async throws {
+    let gate = AccountRequestGate<Void>()
+    defer { gate.releaseAll() }
     var currentUser = User.template
     currentUser.facebookConnected = true
     await withEnvironment(currentUser: currentUser) {
       do {
-      let vm = FindFriendsViewModel(feature: self.feature)
-      vm.configureWith(source: .findFriends)
-      vm.viewDidLoad()
-      await self.provider.pages.waitFor(1)
-      await self.provider.statisticsGate.waitFor(1)
-      try self.provider.pages.finish(0, .success(Self.page([1])))
-      try self.provider.statisticsGate.finish(0, .success(.template))
-      await self.feature.waitForOperations()
-      vm.confirmFollowAllFriends()
-      await self.provider.writes.waitFor(1)
-      try self.provider.writes.finish(0, .success(()))
-      await self.feature.waitForOperations()
-      self.provider.immediatePage = Self.page([2])
-      self.session.sessionChanged()
-      await self.scheduler.advance(by: .seconds(2))
-      await self.feature.waitForOperations()
-      XCTAssertEqual(self.provider.cursors.count, 1)
+        let vm = FindFriendsViewModel(feature: self.feature, refreshDelay: { try await gate.request() })
+        vm.configureWith(source: .findFriends)
+        vm.viewDidLoad()
+        await self.provider.pages.waitFor(1)
+        await self.provider.statisticsGate.waitFor(1)
+        try self.provider.pages.finish(0, .success(Self.page([1])))
+        try self.provider.statisticsGate.finish(0, .success(.template))
+        await self.feature.waitForOperations()
+        vm.confirmFollowAllFriends()
+        await self.provider.writes.waitFor(1)
+        try self.provider.writes.finish(0, .success(()))
+        await gate.waitFor(1)
+        self.provider.immediatePage = Self.page([2])
+        self.session.sessionChanged()
+        try gate.finish(0, .success(()))
+        await vm.waitForObservations()
+        XCTAssertEqual(self.provider.cursors.count, 1)
+      } catch { XCTFail("Unexpected fixture failure: \(error)") }
+    }
+  }
+
+  func testScreenRequestsNextPageAtThreshold() async throws {
+    var user = User.template
+    user.facebookConnected = true
+    await withEnvironment(currentUser: user) {
+      do {
+        let vm = FindFriendsViewModel(feature: self.feature, refreshDelay: {})
+        vm.viewDidLoad()
+        await self.provider.pages.waitFor(1)
+        await self.provider.statisticsGate.waitFor(1)
+        try self.provider.pages.finish(0, .success(Self.page([1], cursor: "next")))
+        try self.provider.statisticsGate.finish(0, .success(.template))
+        await vm.waitForObservations()
+        XCTAssertEqual(vm.friends?.map(\.id), [1])
+        vm.willDisplayRow(5, outOf: 10)
+        XCTAssertEqual(self.provider.cursors.count, 1)
+        vm.willDisplayRow(8, outOf: 10)
+        await self.provider.pages.waitFor(2)
+        try self.provider.pages.finish(1, .success(Self.page([2])))
+        await vm.waitForObservations()
+        XCTAssertEqual(self.provider.cursors, [nil, "next"])
+        XCTAssertEqual(vm.friends?.map(\.id), [1, 2])
       } catch { XCTFail("Unexpected fixture failure: \(error)") }
     }
   }
