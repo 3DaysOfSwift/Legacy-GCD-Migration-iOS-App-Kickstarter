@@ -1,53 +1,38 @@
 @testable import Kickstarter_iOS
-
-
-import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
+import KDS
+import UIKit
 import XCTest
 
+@MainActor
 final class CommentTableViewFooterViewModelTests: TestCase {
-  private let vm: CommentTableViewFooterViewModelType = CommentTableViewFooterViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private let activityIndicatorHidden = TestObserver<Bool, Never>()
-  private let bottomInsetHeight = TestObserver<Int, Never>()
-  private let retryButtonHidden = TestObserver<Bool, Never>()
-  private let rootStackViewHidden = TestObserver<Bool, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.activityIndicatorHidden.observe(self.activityIndicatorHidden.observer)
-    self.vm.outputs.bottomInsetHeight.observe(self.bottomInsetHeight.observer)
-    self.vm.outputs.retryButtonHidden.observe(self.retryButtonHidden.observer)
-    self.vm.outputs.rootStackViewHidden.observe(self.rootStackViewHidden.observer)
+  func testFooterStatesAndRetry() throws {
+    let view = CommentTableViewFooterView(frame: .zero)
+    let delegate = RetryDelegate()
+    view.delegate = delegate
+    let stack = try XCTUnwrap(view.subviews.compactMap { $0 as? UIStackView }.first)
+    let indicator = try XCTUnwrap(stack.arrangedSubviews.compactMap { $0 as? UIActivityIndicatorView }.first)
+    let button = try XCTUnwrap(stack.arrangedSubviews.compactMap { $0 as? UIButton }.first)
+    view.configureWith(value: .activity)
+    XCTAssertFalse(indicator.isHidden)
+    XCTAssertTrue(button.isHidden)
+    XCTAssertFalse(stack.isHidden)
+    XCTAssertEqual(stack.layoutMargins.bottom, Styles.grid(2))
+    view.configureWith(value: .error)
+    XCTAssertTrue(indicator.isHidden)
+    XCTAssertFalse(button.isHidden)
+    XCTAssertEqual(stack.layoutMargins.bottom, Styles.grid(4))
+    button.sendActions(for: .touchUpInside)
+    XCTAssertEqual(delegate.count, 1)
+    view.configureWith(value: .hidden)
+    XCTAssertTrue(stack.isHidden)
+    XCTAssertEqual(stack.layoutMargins.bottom, Styles.grid(2))
   }
+}
 
-  func testStates() {
-    self.activityIndicatorHidden.assertDidNotEmitValue()
-    self.bottomInsetHeight.assertDidNotEmitValue()
-    self.retryButtonHidden.assertDidNotEmitValue()
-    self.rootStackViewHidden.assertDidNotEmitValue()
-
-    self.vm.inputs.configure(with: .activity)
-
-    self.activityIndicatorHidden.assertValues([false])
-    self.bottomInsetHeight.assertValues([2])
-    self.retryButtonHidden.assertValues([true])
-    self.rootStackViewHidden.assertValues([false])
-
-    self.vm.inputs.configure(with: .error)
-
-    self.activityIndicatorHidden.assertValues([false, true])
-    self.bottomInsetHeight.assertValues([2, 4])
-    self.retryButtonHidden.assertValues([true, false])
-    self.rootStackViewHidden.assertValues([false, false])
-
-    self.vm.inputs.configure(with: .hidden)
-
-    self.activityIndicatorHidden.assertValues([false, true, true])
-    self.bottomInsetHeight.assertValues([2, 4, 2])
-    self.retryButtonHidden.assertValues([true, false, true])
-    self.rootStackViewHidden.assertValues([false, false, true])
-  }
+@MainActor
+private final class RetryDelegate: CommentTableViewFooterViewDelegate {
+  var count = 0
+  func commentTableViewFooterViewDidTapRetry(_ view: CommentTableViewFooterView) { self.count += 1 }
 }

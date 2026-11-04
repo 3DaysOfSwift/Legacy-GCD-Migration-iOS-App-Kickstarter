@@ -11,8 +11,6 @@ protocol CommentTableViewFooterViewDelegate: AnyObject {
 final class CommentTableViewFooterView: UIView {
   // MARK: - Properties
 
-  private let viewModel = CommentTableViewFooterViewModel()
-
   private lazy var activityIndicatorView: UIActivityIndicatorView = {
     let indicator = UIActivityIndicatorView(frame: .zero)
       |> \.translatesAutoresizingMaskIntoConstraints .~ false
@@ -33,7 +31,6 @@ final class CommentTableViewFooterView: UIView {
   override init(frame: CGRect) {
     super.init(frame: frame)
 
-    self.bindViewModel()
     self.configureViews()
 
     self.retryButton.addTarget(self, action: #selector(self.retryButtonTapped), for: .touchUpInside)
@@ -55,7 +52,13 @@ final class CommentTableViewFooterView: UIView {
   // MARK: - Configuration
 
   func configureWith(value: CommentTableViewFooterViewState) {
-    self.viewModel.inputs.configure(with: value)
+    self.activityIndicatorView.isHidden = value != .activity
+    self.retryButton.isHidden = value != .error
+    self.rootStackView.isHidden = value == .hidden
+    self.rootStackView.layoutMargins = .init(
+      top: Styles.grid(2), left: Styles.grid(3),
+      bottom: Styles.grid(value == .error ? 4 : 2), right: Styles.grid(3)
+    )
   }
 
   private func configureViews() {
@@ -68,29 +71,6 @@ final class CommentTableViewFooterView: UIView {
 
     _ = ([self.activityIndicatorView, self.retryButton], self.rootStackView)
       |> ksr_addArrangedSubviewsToStackView()
-  }
-
-  // MARK: - View model
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.activityIndicatorView.rac.hidden = self.viewModel.outputs.activityIndicatorHidden
-    self.retryButton.rac.hidden = self.viewModel.outputs.retryButtonHidden
-    self.rootStackView.rac.hidden = self.viewModel.outputs.rootStackViewHidden
-
-    self.viewModel.outputs.bottomInsetHeight
-      .observeForUI()
-      .observeValues { [weak self] height in
-        guard let self = self else { return }
-        _ = self.rootStackView
-          |> \.layoutMargins .~ .init(
-            top: Styles.grid(2),
-            left: Styles.grid(3),
-            bottom: Styles.grid(height),
-            right: Styles.grid(3)
-          )
-      }
   }
 
   // MARK: - Styles
