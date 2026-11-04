@@ -1,3 +1,4 @@
+import Observation
 import Foundation
 import KDS
 
@@ -37,7 +38,7 @@ public final class FacebookResetPasswordViewController: UIViewController {
       |> \.cancelsTouchesInView .~ false
   }()
 
-  private let viewModel: FacebookResetPasswordViewModelType = FacebookResetPasswordViewModel()
+  private let viewModel = FacebookResetPasswordViewModel()
 
   // MARK: - Lifecycle
 
@@ -52,13 +53,13 @@ public final class FacebookResetPasswordViewController: UIViewController {
     self.setupConstraints()
     self.configureTargets()
 
-    self.viewModel.inputs.viewDidLoad()
   }
 
   public override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
 
-    self.viewModel.inputs.viewWillAppear()
+    self.contextLabel.text = Strings.We_re_simplifying_our_login_process_To_log_in()
+    self.emailLabel.text = Strings.forgot_password_placeholder_email()
   }
 
   // MARK: - Styles
@@ -100,33 +101,27 @@ public final class FacebookResetPasswordViewController: UIViewController {
   public override func bindViewModel() {
     super.bindViewModel()
 
-    self.loadingIndicator.rac.animating = self.viewModel.outputs.shouldShowActivityIndicator
-    self.contextLabel.rac.text = self.viewModel.outputs.contextLabelText
-    self.emailLabel.rac.text = self.viewModel.outputs.emailLabel
-    self.setPasswordButton.rac.enabled = self.viewModel.outputs.setPasswordButtonIsEnabled
-
-    self.viewModel.outputs.setPasswordFailure
-      .observeForControllerAction()
-      .observeValues { [weak self] errorMessage in
-        self?.present(UIAlertController.genericError(errorMessage), animated: true, completion: nil)
-        self?.enableTextFieldsAndSaveButton(true)
-      }
-
-    self.viewModel.outputs.setPasswordSuccess
-      .observeForControllerAction()
-      .observeValues { [weak self] successMessage in
-        self?.present(UIAlertController.alert(message: successMessage), animated: true)
-        self?.enableTextFieldsAndSaveButton(true)
-      }
-
-    self.viewModel.outputs.textFieldAndSetPasswordButtonAreEnabled
-      .observeForUI()
-      .observeValues { [weak self] isEnabled in
-        self?.enableTextFieldsAndSaveButton(isEnabled)
-      }
+    self.observeState()
+    self.viewModel.onFailure = { [weak self] message in
+      self?.present(UIAlertController.genericError(message), animated: true, completion: nil)
+    }
+    self.viewModel.onSuccess = { [weak self] message in
+      self?.present(UIAlertController.alert(message: message), animated: true)
+    }
 
     Keyboard.change.observeForUI()
       .observeValues { [weak self] in self?.animateTextViewConstraint($0) }
+  }
+
+  private func observeState() {
+    withObservationTracking {
+      if self.viewModel.isLoading { self.loadingIndicator.startAnimating() }
+      else { self.loadingIndicator.stopAnimating() }
+      self.setPasswordButton.isEnabled = self.viewModel.isValid
+      self.enableTextFieldsAndSaveButton(!self.viewModel.isLoading)
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeState() }
+    }
   }
 
   // MARK: - Functions
@@ -201,15 +196,15 @@ public final class FacebookResetPasswordViewController: UIViewController {
   @objc private func emailTextFieldDidChange(_ textField: UITextField) {
     guard let email = textField.text else { return }
 
-    self.viewModel.inputs.emailTextFieldFieldDidChange(email)
+    self.viewModel.emailTextFieldFieldDidChange(email)
   }
 
   @objc internal func emailTextFieldReturn(_: UITextField) {
-    self.viewModel.inputs.emailTextFieldFieldDidReturn()
+    self.viewModel.emailTextFieldFieldDidReturn()
   }
 
   @objc private func setPasswordButtonPressed() {
-    self.viewModel.inputs.setPasswordButtonPressed()
+    self.viewModel.setPasswordButtonPressed()
   }
 }
 

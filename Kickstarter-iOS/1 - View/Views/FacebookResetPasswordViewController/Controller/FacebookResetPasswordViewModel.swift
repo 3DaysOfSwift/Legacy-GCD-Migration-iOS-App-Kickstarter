@@ -1,129 +1,47 @@
-import Foundation
 import KsApi
-import Prelude
-import ReactiveSwift
+import Observation
 
 @MainActor
-public protocol FacebookResetPasswordViewModelInputs {
-  func viewDidLoad()
-  func viewWillAppear()
-  func emailTextFieldFieldDidChange(_ text: String)
-  func emailTextFieldFieldDidReturn()
-  func setPasswordButtonPressed()
-}
+@Observable
+public final class FacebookResetPasswordViewModel {
+  public private(set) var isLoading = false
+  public private(set) var isValid = false
+  public var onFailure: ((String) -> Void)?
+  public var onSuccess: ((String) -> Void)?
+  private let authenticationFeature: AuthenticationFeature
+  private var email = ""
+  private var resetTask: Task<Void, Never>?
+  private var revision = 0
 
-@MainActor
-public protocol FacebookResetPasswordViewModelOutputs {
-  var shouldShowActivityIndicator: Signal<Bool, Never> { get }
-  var setPasswordButtonIsEnabled: Signal<Bool, Never> { get }
-  var contextLabelText: Signal<String, Never> { get }
-  var emailLabel: Signal<String, Never> { get }
-  var setPasswordFailure: Signal<String, Never> { get }
-  var setPasswordSuccess: Signal<String, Never> { get }
-  var textFieldAndSetPasswordButtonAreEnabled: Signal<Bool, Never> { get }
-}
-
-@MainActor
-public protocol FacebookResetPasswordViewModelType {
-  var inputs: FacebookResetPasswordViewModelInputs { get }
-  var outputs: FacebookResetPasswordViewModelOutputs { get }
-}
-
-@MainActor
-public final class FacebookResetPasswordViewModel: FacebookResetPasswordViewModelType,
-  FacebookResetPasswordViewModelInputs,
-  FacebookResetPasswordViewModelOutputs {
   public init(authenticationFeature: AuthenticationFeature? = nil) {
-    let authenticationFeature = authenticationFeature ?? AppModel.shared.authenticationFeature
-    self.contextLabelText = self.viewWillAppearProperty.signal
-      .map { Strings.We_re_simplifying_our_login_process_To_log_in() }
-    self.emailLabel = self.viewWillAppearProperty.signal
-      .map { Strings.forgot_password_placeholder_email() }
-
-    let formIsValid = Signal.combineLatest(
-      self.viewDidLoadProperty.signal,
-      self.emailTextFieldProperty.signal.skipNil()
-    )
-    .map(second)
-    .map(isValidEmail)
-    .skipRepeats()
-
-    self.setPasswordButtonIsEnabled = formIsValid
-
-    let submitFormEvent = Signal.merge(
-      self.emailTextFieldReturnProperty.signal,
-      self.setPasswordButtonPressedProperty.signal
-    )
-
-    let submitAction = formIsValid
-      .takeWhen(submitFormEvent)
-      .filter(isTrue)
-      .ignoreValues()
-
-    let setPasswordEvent = self.emailTextFieldProperty.signal.skipNil()
-      .takeWhen(submitAction)
-      .switchMap { email in
-        authenticationFeature.passwordResetResult(email: email)
-          .mapConst(email)
-          .materialize()
-      }
-
-    self.setPasswordFailure = setPasswordEvent.errors()
-      .map { envelope in
-        envelope.errorMessages.last ?? Strings.general_error_something_wrong()
-      }
-
-    self.setPasswordSuccess = setPasswordEvent.values().map { email in
-      Strings.forgot_password_we_sent_an_email_to_email_address_with_instructions_to_reset_your_password(
-        email: email
-      )
-    }
-
-    self.shouldShowActivityIndicator = Signal.merge(
-      submitAction.signal.ignoreValues().mapConst(true),
-      setPasswordEvent.filter { $0.isTerminating }.mapConst(false)
-    )
-
-    self.textFieldAndSetPasswordButtonAreEnabled = self.shouldShowActivityIndicator.map { $0 }.negate()
+    self.authenticationFeature = authenticationFeature ?? AppModel.shared.authenticationFeature
   }
-
-  public var inputs: FacebookResetPasswordViewModelInputs { return self }
-  public var outputs: FacebookResetPasswordViewModelOutputs { return self }
-
-  // MARK: - Input Methods
-
-  private let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
-  }
-
-  private let viewWillAppearProperty = MutableProperty(())
-  public func viewWillAppear() {
-    self.viewWillAppearProperty.value = ()
-  }
-
-  private let emailTextFieldProperty = MutableProperty<String?>(nil)
   public func emailTextFieldFieldDidChange(_ text: String) {
-    self.emailTextFieldProperty.value = text
+    self.email = text
+    self.isValid = isValidEmail(text)
   }
-
-  private let emailTextFieldReturnProperty = MutableProperty(())
-  public func emailTextFieldFieldDidReturn() {
-    self.emailTextFieldReturnProperty.value = ()
+  public func emailTextFieldFieldDidReturn() { self.submit() }
+  public func setPasswordButtonPressed() { self.submit() }
+  private func submit() {
+    guard self.isValid else { return }
+    self.resetTask?.cancel()
+    self.revision += 1
+    let revision = self.revision
+    let email = self.email
+    self.isLoading = true
+    self.resetTask = Task { [weak self, authenticationFeature] in
+      do {
+        try await authenticationFeature.resetPassword(email: email)
+        try Task.checkCancellation()
+        guard let self, self.revision == revision else { return }
+        self.isLoading = false
+        self.onSuccess?(Strings.forgot_password_we_sent_an_email_to_email_address_with_instructions_to_reset_your_password(email: email))
+      } catch {
+        guard let self, !Task.isCancelled, !(error is CancellationError), self.revision == revision else { return }
+        self.isLoading = false
+        self.onFailure?((error as? ErrorEnvelope)?.errorMessages.last ?? Strings.general_error_something_wrong())
+      }
+    }
   }
-
-  private let setPasswordButtonPressedProperty = MutableProperty(())
-  public func setPasswordButtonPressed() {
-    self.setPasswordButtonPressedProperty.value = ()
-  }
-
-  // MARK: - Output Properties
-
-  public var shouldShowActivityIndicator: Signal<Bool, Never>
-  public var setPasswordButtonIsEnabled: Signal<Bool, Never>
-  public var contextLabelText: Signal<String, Never>
-  public var emailLabel: Signal<String, Never>
-  public var setPasswordFailure: Signal<String, Never>
-  public var setPasswordSuccess: Signal<String, Never>
-  public var textFieldAndSetPasswordButtonAreEnabled: Signal<Bool, Never>
+  internal func waitForReset() async { await self.resetTask?.value }
 }

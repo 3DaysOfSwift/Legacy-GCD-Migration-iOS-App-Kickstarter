@@ -155,20 +155,18 @@ final class AuthenticationFeatureTests: XCTestCase {
     XCTAssertEqual(fixture.logins, 1)
   }
 
-  func testPasswordResetSharesSendAndDisposedWaiterCannotCancelAnother() async throws {
+  func testPasswordResetSharesSendAndCancelledWaiterCannotCancelAnother() async throws {
     let fixture = AuthenticationFixture()
     defer { fixture.provider.resetGate.releaseAll() }
-    var successes = 0
-    let first = fixture.feature.passwordResetResult(email: "person@example.invalid")
-      .startWithResult { if case .success = $0 { successes += 1 } }
-    let second = fixture.feature.passwordResetResult(email: "person@example.invalid")
-      .startWithResult { if case .success = $0 { successes += 1 } }
-    defer { second.dispose() }
+    let first = Task { try await fixture.feature.resetPassword(email: "person@example.invalid") }
     await fixture.provider.resetGate.waitFor(1)
-    first.dispose()
+    let second = Task { try await fixture.feature.resetPassword(email: "person@example.invalid") }
+    await Task.yield()
+    first.cancel()
     try fixture.provider.resetGate.finish(0, .success(()))
-    await fixture.feature.waitForOperations()
-    XCTAssertEqual(successes, 1)
+    do { try await first.value; XCTFail("Cancelled waiter should not succeed") }
+    catch is CancellationError { }
+    try await second.value
     XCTAssertEqual(fixture.provider.resetEmails, ["person@example.invalid"])
     XCTAssertEqual(fixture.logins, 0)
     XCTAssertNil(fixture.user)
@@ -177,45 +175,32 @@ final class AuthenticationFeatureTests: XCTestCase {
   func testPasswordResetReplacesOldEmailAndSuppressesLateFailure() async throws {
     let fixture = AuthenticationFixture()
     defer { fixture.provider.resetGate.releaseAll() }
-    var errors = 0
-    var successes = 0
-    let old = fixture.feature.passwordResetResult(email: "old@example.invalid")
-      .startWithFailed { _ in errors += 1 }
+    let old = Task { try await fixture.feature.resetPassword(email: "old@example.invalid") }
     await fixture.provider.resetGate.waitFor(1)
-    let new = fixture.feature.passwordResetResult(email: "new@example.invalid")
-      .startWithResult { if case .success = $0 { successes += 1 } }
-    defer { old.dispose(); new.dispose() }
+    let new = Task { try await fixture.feature.resetPassword(email: "new@example.invalid") }
     await fixture.provider.resetGate.waitFor(2)
     try fixture.provider.resetGate.finish(1, .success(()))
     try fixture.provider.resetGate.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
-    await fixture.feature.waitForOperations()
-    XCTAssertEqual(successes, 1)
-    XCTAssertEqual(errors, 0)
+    try await new.value
+    do { try await old.value; XCTFail("Obsolete request should not succeed") }
+    catch is CancellationError { }
     XCTAssertEqual(fixture.logins, 0)
   }
 
   func testPasswordResetFailureThenExplicitRetryDoesNotSupersedeLogin() async throws {
     let fixture = AuthenticationFixture()
     defer { fixture.provider.resetGate.releaseAll(); fixture.provider.gate.releaseAll() }
-    var errors = 0
-    var successes = 0
     let login = Task { try await fixture.feature.authenticate(.facebook("fixture")) }
     await fixture.provider.gate.waitFor(1)
-    let failed = fixture.feature.passwordResetResult(email: "person@example.invalid")
-      .startWithFailed { _ in errors += 1 }
-    defer { failed.dispose() }
+    let failed = Task { try await fixture.feature.resetPassword(email: "person@example.invalid") }
     await fixture.provider.resetGate.waitFor(1)
     try fixture.provider.resetGate.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
-    await fixture.feature.waitForOperations()
-    XCTAssertEqual(errors, 1)
+    do { try await failed.value; XCTFail("Expected failure") } catch { }
     XCTAssertEqual(fixture.logins, 0)
-    let retry = fixture.feature.passwordResetResult(email: "person@example.invalid")
-      .startWithResult { if case .success = $0 { successes += 1 } }
-    defer { retry.dispose() }
+    let retry = Task { try await fixture.feature.resetPassword(email: "person@example.invalid") }
     await fixture.provider.resetGate.waitFor(2)
     try fixture.provider.resetGate.finish(1, .success(()))
-    await fixture.feature.waitForOperations()
-    XCTAssertEqual(successes, 1)
+    try await retry.value
     XCTAssertEqual(fixture.logins, 0)
     try fixture.provider.gate.finish(0, .success(fixture.envelope))
     _ = try await login.value

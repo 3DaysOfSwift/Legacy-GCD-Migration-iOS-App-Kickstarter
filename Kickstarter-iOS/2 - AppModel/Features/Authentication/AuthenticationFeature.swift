@@ -175,26 +175,6 @@ public final class AuthenticationFeature {
     }
   }
 
-  public func passwordResetResult(email: String) -> SignalProducer<Void, ErrorEnvelope> {
-    SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        let attempt = self.admitReset(email: email)
-        let id = UUID()
-        let task = Task { [self] in
-          defer { self.presentations[id] = nil }
-          do {
-            try await self.finishReset(attempt)
-            observer.send(value: ())
-            observer.sendCompleted()
-          } catch is CancellationError { observer.sendInterrupted() }
-          catch { observer.send(error: error as? ErrorEnvelope ?? .couldNotParseJSON) }
-        }
-        self.presentations[id] = task
-        lifetime.observeEnded { task.cancel() }
-      }
-    }
-  }
-
   private func admit(_ credentials: Credentials, code: String?, resend: Bool) -> Attempt {
     let operation: Operation = resend ? .resend : .login
     if let current = self.current[operation],
