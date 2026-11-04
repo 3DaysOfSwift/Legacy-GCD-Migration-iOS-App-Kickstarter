@@ -3,8 +3,6 @@ import Foundation
 
 import MessageUI
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 import UIKit
 
 internal final class FacebookConfirmationViewController: UIViewController,
