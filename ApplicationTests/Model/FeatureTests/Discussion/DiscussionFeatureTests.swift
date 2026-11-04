@@ -447,16 +447,14 @@ final class DiscussionFeatureTests: TestCase {
   func testContextAndUpdateRoutesAreIndependentAndFailuresStaySilent() async {
     let provider = ControlledDiscussionProvider()
     let feature = self.feature(provider)
-    var projects: [Project] = []
-    let p = feature.projectValues.observeValues { projects.append($0.1) }
-    defer { p?.dispose() }
     let route = UUID()
-    await feature.loadProject(route: route, param: .id(9))
+    let project = await feature.loadProject(route: route, param: .id(9))
     let update = await feature.loadUpdate(route: route, id: 7, project: .id(9))
     provider.fail = true
-    await feature.loadProject(route: route, param: .id(10))
+    let failedProject = await feature.loadProject(route: route, param: .id(10))
     let failedUpdate = await feature.loadUpdate(route: route, id: 8, project: .id(9))
-    XCTAssertEqual(projects.count, 1)
+    XCTAssertNotNil(project)
+    XCTAssertNil(failedProject)
     XCTAssertEqual(update?.id, 7)
     XCTAssertNil(failedUpdate)
   }

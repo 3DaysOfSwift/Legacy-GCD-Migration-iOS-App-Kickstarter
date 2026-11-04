@@ -93,7 +93,8 @@ public final class CommentsViewModel: CommentsViewModelType,
   private let route = UUID()
   private let disposables = ScopedDisposable(CompositeDisposable())
   private(set) var loadingTask: Task<Void, Never>?
-  private(set) var contextTask: Task<Project?, Never>?
+  private(set) var contextTask: Task<Void, Never>?
+  private var contextRevision = 0
 
   public init(feature: DiscussionFeature? = nil) {
     let feature = feature ?? AppModel.shared.discussionFeature
@@ -112,11 +113,12 @@ public final class CommentsViewModel: CommentsViewModelType,
     let currentUser = self.viewDidLoadProperty.signal
       .map { _ in AppEnvironment.current.currentUser }
 
+    let resolvedProject = Signal<Project, Never>.pipe()
     let initialProject = Signal.merge(
       projectOrUpdate.compactMap { value -> Project? in
         value.ifLeft({ $0 }, ifRight: { _ in nil })
       },
-      feature.projectValues.filter { $0.0 == route }.map { $0.1 }
+      resolvedProject.output
     )
 
     self.configureCommentComposerViewWithData = Signal
@@ -408,8 +410,16 @@ public final class CommentsViewModel: CommentsViewModelType,
           )
       }
     self.disposables += projectOrUpdate.observeValues { [weak self] value in
+      guard let self else { return }
+      self.contextRevision += 1
+      let revision = self.contextRevision
       value.ifLeft({ _ in feature.cancelProject(route: route) }, ifRight: { update in
-        self?.contextTask = feature.requestProject(route: route, param: .id(update.projectId))
+        let request = feature.requestProject(route: route, param: .id(update.projectId))
+        self.contextTask = Task { [weak self] in
+          guard let project = await request.value, !Task.isCancelled,
+                self?.contextRevision == revision else { return }
+          resolvedProject.input.send(value: project)
+        }
       })
     }
     self.disposables += requestFirstPageWith.observeValues { [weak self] value in
@@ -510,7 +520,7 @@ public final class CommentsViewModel: CommentsViewModelType,
   }
 
   func waitForLoads() async {
-    _ = await self.contextTask?.value
+    await self.contextTask?.value
     await self.loadingTask?.value
     await self.feature.waitForMutations()
   }

@@ -442,8 +442,6 @@ public final class DiscussionFeature {
 
   private var updates: [UUID: (identity: UpdateIdentity, id: UUID, task: Task<Update?, Never>)] = [:]
   private var projects: [UUID: (param: Param, userID: Int?, id: UUID, task: Task<Project?, Never>)] = [:]
-  private let projectPipe = Signal<(UUID, Project), Never>.pipe()
-  public var projectValues: Signal<(UUID, Project), Never> { self.projectPipe.output }
 
   public func loadUpdate(route: UUID, id: Int, project: Param) async -> Update? {
     guard !Task.isCancelled else { return nil }
@@ -476,9 +474,9 @@ public final class DiscussionFeature {
     return task
   }
 
-  public func loadProject(route: UUID, param: Param) async {
-    guard !Task.isCancelled else { return }
-    _ = await self.requestProject(route: route, param: param).value
+  public func loadProject(route: UUID, param: Param) async -> Project? {
+    guard !Task.isCancelled else { return nil }
+    return await self.requestProject(route: route, param: param).value
   }
 
   @discardableResult
@@ -499,7 +497,6 @@ public final class DiscussionFeature {
         try Task.checkCancellation()
         guard let self, self.projects[route]?.id == token,
               userID == AppEnvironment.current.currentUser?.id else { return nil }
-        self.projectPipe.input.send(value: (route, project))
         return project
       } catch {
         // Preserve the legacy context lookup's silent error delivery.
