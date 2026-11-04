@@ -16,13 +16,13 @@ internal final class MessagesViewController: UITableViewController, MessageBanne
 
   internal static func configuredWith(messageThread: MessageThread) -> MessagesViewController {
     let vc = self.instantiate()
-    vc.viewModel.inputs.configureWith(data: .left(messageThread))
+    vc.viewModel.configureWith(data: .left(messageThread))
     return vc
   }
 
   internal static func configuredWith(project: Project, backing: Backing) -> MessagesViewController {
     let vc = self.instantiate()
-    vc.viewModel.inputs.configureWith(data: .right((project: project, backing: backing)))
+    vc.viewModel.configureWith(data: .right((project: project, backing: backing)))
     return vc
   }
 
@@ -38,13 +38,13 @@ internal final class MessagesViewController: UITableViewController, MessageBanne
     self.tableView.rowHeight = UITableView.automaticDimension
     self.tableView.dataSource = self.dataSource
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
 
-    self.viewModel.inputs.viewWillAppear()
+    self.viewModel.viewWillAppear()
   }
 
   override func viewDidAppear(_ animated: Bool) {
@@ -65,44 +65,25 @@ internal final class MessagesViewController: UITableViewController, MessageBanne
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.replyBarButtonItem.rac.enabled = self.viewModel.outputs.replyButtonIsEnabled
-
-    self.viewModel.outputs.emptyStateIsVisibleAndMessageToUser
-      .observeForControllerAction()
-      .observeValues { [weak self] isVisible, message in
-        self?.dataSource.emptyState(isVisible: isVisible, messageToUser: message)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.project
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.dataSource.load(project: $0)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.backingAndProjectAndIsFromBacking
-      .observeForControllerAction()
-      .observeValues { [weak self] backing, project, isFromBacking in
-        self?.dataSource.load(backing: backing, project: project, isFromBacking: isFromBacking)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.messages
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.dataSource.load(messages: $0)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.participantPreviouslyBlocked
-      .observeForControllerAction()
-      .observeValues { [weak self] isBlocked in
-        guard let self, isBlocked == true else { return }
-
-        self.messageBannerViewController?
-          .showBanner(with: .error, message: Strings.This_user_has_been_blocked(), dismissType: .persist)
-      }
+    self.viewModel.onReplyEnabled = { [weak self] in self?.replyBarButtonItem.isEnabled = $0 }
+    self.viewModel.onEmptyState = { [weak self] visible, message in
+      self?.dataSource.emptyState(isVisible: visible, messageToUser: message)
+      self?.tableView.reloadData()
+    }
+    self.viewModel.onProject = { [weak self] project in
+      self?.dataSource.load(project: project); self?.tableView.reloadData()
+    }
+    self.viewModel.onBacking = { [weak self] backing, project, isFromBacking in
+      self?.dataSource.load(backing: backing, project: project, isFromBacking: isFromBacking)
+      self?.tableView.reloadData()
+    }
+    self.viewModel.onMessages = { [weak self] messages in
+      self?.dataSource.load(messages: messages); self?.tableView.reloadData()
+    }
+    self.viewModel.onParticipantBlocked = { [weak self] blocked in
+      guard blocked else { return }
+      self?.messageBannerViewController?.showBanner(with: .error, message: Strings.This_user_has_been_blocked(), dismissType: .persist)
+    }
 
     self.viewModel.onReply = { [weak self] thread, context in
       self?.presentMessageDialog(messageThread: thread, context: context)
@@ -129,9 +110,9 @@ internal final class MessagesViewController: UITableViewController, MessageBanne
 
   internal override func tableView(_: UITableView, didSelectRowAt indexPath: IndexPath) {
     if self.dataSource.isProjectBanner(indexPath: indexPath) {
-      self.viewModel.inputs.projectBannerTapped()
+      self.viewModel.projectBannerTapped()
     } else if self.dataSource.isBackingInfo(indexPath: indexPath) {
-      self.viewModel.inputs.backingInfoPressed()
+      self.viewModel.backingInfoPressed()
     }
   }
 
@@ -141,7 +122,7 @@ internal final class MessagesViewController: UITableViewController, MessageBanne
   }
 
   @IBAction fileprivate func replyButtonPressed() {
-    self.viewModel.inputs.replyButtonPressed()
+    self.viewModel.replyButtonPressed()
   }
 
   fileprivate func presentMessageDialog(
@@ -190,7 +171,7 @@ internal final class MessagesViewController: UITableViewController, MessageBanne
   private func presentBlockUserAlert(username: String, userId: Int) {
     let alert = UIAlertController
       .blockUserAlert(username: username, blockUserHandler: { _ in
-        self.viewModel.inputs.blockUser(id: "\(userId)")
+        self.viewModel.blockUser(id: "\(userId)")
       })
     self.present(alert, animated: true)
   }
@@ -202,7 +183,7 @@ extension MessagesViewController: MessageDialogViewControllerDelegate {
   }
 
   internal func messageDialog(_: MessageDialogViewController, postedMessage message: Message) {
-    self.viewModel.inputs.messageSent(message)
+    self.viewModel.messageSent(message)
   }
 }
 
@@ -210,7 +191,7 @@ extension MessagesViewController: MessageDialogViewControllerDelegate {
 
 extension MessagesViewController: BackingCellDelegate {
   func backingCellGoToBackingInfo() {
-    self.viewModel.inputs.backingInfoPressed()
+    self.viewModel.backingInfoPressed()
   }
 }
 

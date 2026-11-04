@@ -1,77 +1,26 @@
 import Foundation
-import Foundation
 import KsApi
 import Prelude
-import ReactiveSwift
 
 @MainActor
-public protocol MessagesViewModelInputs {
-  /// Call when the backing button is pressed.
-  func backingInfoPressed()
-
-  /// Call when block user is tapped
-  func blockUser(id: String)
-
-  /// Configures the view model with either a message thread or a project and a backing.
-  func configureWith(data: Either<MessageThread, (project: Project, backing: Backing)>)
-
-  /// Call when the message dialog has told us that a message was successfully posted.
-  func messageSent(_ message: Message)
-
-  /// Call when the project banner is tapped.
-  func projectBannerTapped()
-
-  /// Call when the reply button is pressed.
-  func replyButtonPressed()
-
-  /// Call when the view loads.
-  func viewDidLoad()
-
-  /// Call when the view will appear.
-  func viewWillAppear()
-}
-
-@MainActor
-public protocol MessagesViewModelOutputs {
-  /**
-   Emits a Backing and Project that can be used to populate the BackingCell.
-   The boolean tells if navigation to this screen occurred from the backing info screen.
-   */
-  var backingAndProjectAndIsFromBacking: Signal<(Backing, Project, Bool), Never> { get }
-
-  /// Emits a boolean that determines if the empty state is visible and a message to display.
-  var emptyStateIsVisibleAndMessageToUser: Signal<(Bool, String), Never> { get }
-
-  /// Emits a list of messages to be displayed.
-  var messages: Signal<[Message], Never> { get }
-
-  /// Emits a bool whether the message participant has previously been blocked on viewWillAppear
-  var participantPreviouslyBlocked: Signal<Bool, Never> { get }
-
-  /// Emits the project we are viewing the messages for.
-  var project: Signal<Project, Never> { get }
-
-  /// Emits a bool whether the reply button is enabled.
-  var replyButtonIsEnabled: Signal<Bool, Never> { get }
-
-}
-
-@MainActor
-public protocol MessagesViewModelType {
-  var inputs: MessagesViewModelInputs { get }
-  var outputs: MessagesViewModelOutputs { get }
-}
-
-@MainActor
-public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelInputs,
-  MessagesViewModelOutputs {
+public final class MessagesViewModel {
+  var onBacking: ((Backing, Project, Bool) -> Void)?
+  var onEmptyState: ((Bool, String) -> Void)?
+  var onMessages: (([Message]) -> Void)?
+  var onParticipantBlocked: ((Bool) -> Void)?
+  var onProject: ((Project) -> Void)?
+  var onReplyEnabled: ((Bool) -> Void)?
+  private var configuredData: Either<MessageThread, (project: Project, backing: Backing)>?
+  private var activeRoute: Either<Backing, MessageThread>?
+  private var activeBacking: Backing?
+  private var activeUser: User?
+  private var latestMessagesExist: Bool?
+  private var latestBlocked: Bool?
   private let feature: MessagingFeature
   private let discussion: DiscussionFeature
   private var blockTask: Task<Void, Never>?
   private var threadTask: Task<Void, Never>?
   private var threadVersion = UUID()
-  private let threadPipe = Signal<MessageThreadEnvelope?, Never>.pipe()
-  private let backingPipe = Signal<(Backing, Project, Bool), Never>.pipe()
   private var backingTask: Task<Void, Never>?
   private var backingVersion = UUID()
   private var markReadTask: Task<Void, Never>?
@@ -87,97 +36,33 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
   public init(feature: MessagingFeature, discussion: DiscussionFeature) {
     self.feature = feature
     self.discussion = discussion
-    let configData = self.configData.signal.skipNil()
-      .takeWhen(self.viewDidLoadProperty.signal)
+  }
 
-    let configBacking = configData.map { $0.right?.backing }
-
-    let configThread = configData.map { $0.left }
-      .skipNil()
-
-    let currentUser = self.viewDidLoadProperty.signal
-      .map { AppEnvironment.current.currentUser }
-      .skipNil()
-
-    self.project = configData
-      .map {
-        switch $0 {
-        case let .left(thread):
-          return thread.project
-        case let .right((project, _)):
-          return project
-        }
+  private func receivedThread(_ envelope: MessageThreadEnvelope?) {
+    guard let envelope else {
+      if let backing = self.activeBacking, let project = self.latestProject {
+        let creator = !project.memberData.permissions.isEmpty && backing.backer?.id != AppEnvironment.current.currentUser?.id
+        self.onEmptyState?(true, creator ? Strings.messages_empty_state_message_creator() : Strings.messages_empty_state_message_backer())
       }
-
-    let backingOrThread = Signal.merge(
-      configBacking.skipNil().map(Either.left),
-      configThread.map(Either.right)
-    )
-
-    let threadRequests = Signal.merge(
-      backingOrThread,
-      backingOrThread.takeWhen(self.messageSentProperty.signal)
-    )
-    let messageThreadEnvelopeEvent = self.threadPipe.output
-    let messageThreadEnvelope = messageThreadEnvelopeEvent.skipNil()
-
-    let participant = messageThreadEnvelope.map { $0.messageThread.participant }
-
-    let backingRequests = Signal.combineLatest(
-      configBacking, self.project, participant, currentUser, messageThreadEnvelope
-    )
-    self.backingAndProjectAndIsFromBacking = self.backingPipe.output
-
-    self.messages = messageThreadEnvelope
-      .map { $0.messages }
-      .sort { $0.id > $1.id }
-
-    self.emptyStateIsVisibleAndMessageToUser = Signal.merge(
-      self.viewDidLoadProperty.signal.mapConst((false, "")),
-      Signal.combineLatest(
-        messageThreadEnvelopeEvent.filter(isNil),
-        configBacking.skipNil(),
-        self.project
-      )
-      .map { _, backing, project in
-        let isCreatorOrCollaborator = !project.memberData.permissions.isEmpty
-          && backing.backer?.id != AppEnvironment.current.currentUser?.id
-        let message = isCreatorOrCollaborator
-          ? Strings.messages_empty_state_message_creator()
-          : Strings.messages_empty_state_message_backer()
-        return (true, message)
-      }
-    )
-
-    self.participantPreviouslyBlocked = self.project
-      .map { $0.creator.isBlocked }
-      .takeWhen(self.viewWillAppearProperty.signal)
-
-    self.replyButtonIsEnabled = Signal.combineLatest(
-      self.messages.map { !$0.isEmpty },
-      self.participantPreviouslyBlocked
-    )
-    .map { messages, isBlocked in
-      messages && !isBlocked
+      return
     }
-
-    self.backingAndProjectAndIsFromBacking.observeValues { [weak self] backing, project, _ in
-      self?.latestProjectBacking = (project, backing)
+    let messages = envelope.messages.sorted { $0.id > $1.id }
+    self.latestMessagesExist = !messages.isEmpty
+    self.onMessages?(messages)
+    self.publishReplyEnabled()
+    self.latestThread = envelope.messageThread
+    self.markRead(envelope.messageThread)
+    if let project = self.latestProject, let currentUser = self.activeUser {
+      self.loadBacking(self.activeBacking, project: project, participant: envelope.messageThread.participant,
+                       currentUser: currentUser, envelope: envelope)
     }
-    threadRequests.observeValues { [weak self] in self?.loadThread($0) }
-    backingRequests.observeValues { [weak self] backing, project, participant, currentUser, envelope in
-      self?.loadBacking(backing, project: project, participant: participant, currentUser: currentUser, envelope: envelope)
-    }
-    self.project.observeValues { [weak self] project in
-      guard let self else { return }
-      self.latestProject = project
-      if let id = self.latestBlockedID { self.trackBlockedUser(id: id, project: project, confirmed: false) }
-    }
-    messageThreadEnvelope.observeValues { [weak self] in
-      self?.latestThread = $0.messageThread
-      self?.markRead($0.messageThread)
-    }
-
+  }
+  private func publishReplyEnabled() {
+    if let messages = self.latestMessagesExist, let blocked = self.latestBlocked { self.onReplyEnabled?(messages && !blocked) }
+  }
+  private func receivedBacking(_ backing: Backing, project: Project, isFromBacking: Bool) {
+    self.latestProjectBacking = (project, backing)
+    self.onBacking?(backing, project, isFromBacking)
   }
 
   private func loadThread(_ route: Either<Backing, MessageThread>) {
@@ -202,7 +87,7 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
         try Task.checkCancellation()
         guard let self, self.threadVersion == version,
               session.isCurrent(userID: userID, generation: generation) else { return }
-        self.threadPipe.input.send(value: result)
+        self.receivedThread(result)
       } catch {
         // The existing screen leaves failed reads silent and permits a later reload.
       }
@@ -219,7 +104,7 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
     self.backingVersion = version
     if let existing {
       self.backingTask = nil
-      self.backingPipe.input.send(value: (existing, project, true))
+      self.receivedBacking(existing, project: project, isFromBacking: true)
       return
     }
     let feature = self.feature
@@ -234,7 +119,7 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
         try Task.checkCancellation()
         guard let self, self.backingVersion == version,
               session.isCurrent(userID: userID, generation: generation) else { return }
-        self.backingPipe.input.send(value: (backing, project, false))
+        self.receivedBacking(backing, project: project, isFromBacking: false)
       } catch {
         // Preserve the screen's existing silent backing-lookup failure.
       }
@@ -317,14 +202,11 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
   }
   func waitForBlock() async { await self.blockTask?.value }
 
-  private let configData = MutableProperty<Either<MessageThread, (project: Project, backing: Backing)>?>(nil)
   public func configureWith(data: Either<MessageThread, (project: Project, backing: Backing)>) {
-    self.configData.value = data
+    self.configuredData = data
   }
-
-  private let messageSentProperty = MutableProperty<Message?>(nil)
   public func messageSent(_ message: Message) {
-    self.messageSentProperty.value = message
+    if let route = self.activeRoute { self.loadThread(route) }
   }
 
   var onProjectNavigation: ((Project, RefTag) -> Void)?
@@ -338,23 +220,24 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
     if let thread = self.latestThread { self.onReply?(thread, .messages) }
   }
 
-  private let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    self.onEmptyState?(false, "")
+    guard let data = self.configuredData else { return }
+    let project: Project
+    switch data {
+    case let .left(thread): project = thread.project; self.activeBacking = nil; self.activeRoute = .right(thread)
+    case let .right(value): project = value.project; self.activeBacking = value.backing; self.activeRoute = .left(value.backing)
+    }
+    self.activeUser = AppEnvironment.current.currentUser
+    self.latestProject = project
+    self.onProject?(project)
+    if let id = self.latestBlockedID { self.trackBlockedUser(id: id, project: project, confirmed: false) }
+    if let route = self.activeRoute { self.loadThread(route) }
   }
-
-  private let viewWillAppearProperty = MutableProperty(())
   public func viewWillAppear() {
-    self.viewWillAppearProperty.value = ()
+    guard let project = self.latestProject else { return }
+    self.latestBlocked = project.creator.isBlocked
+    self.onParticipantBlocked?(project.creator.isBlocked)
+    self.publishReplyEnabled()
   }
-
-  public let backingAndProjectAndIsFromBacking: Signal<(Backing, Project, Bool), Never>
-  public let emptyStateIsVisibleAndMessageToUser: Signal<(Bool, String), Never>
-  public let messages: Signal<[Message], Never>
-  public let participantPreviouslyBlocked: Signal<Bool, Never>
-  public let project: Signal<Project, Never>
-  public let replyButtonIsEnabled: Signal<Bool, Never>
-
-  public var inputs: MessagesViewModelInputs { return self }
-  public var outputs: MessagesViewModelOutputs { return self }
 }

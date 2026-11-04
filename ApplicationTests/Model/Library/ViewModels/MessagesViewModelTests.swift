@@ -40,10 +40,11 @@ internal final class MessagesViewModelTests: TestCase {
     try await super.setUp()
 
     MainActor.assumeIsolated {
-      self.vm.outputs.backingAndProjectAndIsFromBacking.observe(self.backingAndProjectAndIsFromBacking.observer)
-      self.vm.outputs.emptyStateIsVisibleAndMessageToUser.map { $0.0 }
-        .observe(self.emptyStateIsVisible.observer)
-      self.vm.outputs.emptyStateIsVisibleAndMessageToUser.map { $0.1 }.observe(self.emptyStateMessage.observer)
+      self.vm.onBacking = { [weak self] in self?.backingAndProjectAndIsFromBacking.observer.send(value: ($0, $1, $2)) }
+      self.vm.onEmptyState = { [weak self] visible, message in
+        self?.emptyStateIsVisible.observer.send(value: visible)
+        self?.emptyStateMessage.observer.send(value: message)
+      }
       self.vm.onBackingNavigation = { [weak self] params in
         self?.goToBackingProjectParam.observer.send(value: params.projectParam)
         self?.goToBackingBackingParam.observer.send(value: params.backingParam)
@@ -53,11 +54,11 @@ internal final class MessagesViewModelTests: TestCase {
         self?.goToProject.observer.send(value: project)
         self?.goToRefTag.observer.send(value: refTag)
       }
-      self.vm.outputs.messages.observe(self.messages.observer)
-      self.vm.outputs.participantPreviouslyBlocked.observe(self.participantPreviouslyBlocked.observer)
+      self.vm.onMessages = { [weak self] in self?.messages.observer.send(value: $0) }
+      self.vm.onParticipantBlocked = { [weak self] in self?.participantPreviouslyBlocked.observer.send(value: $0) }
       self.vm.onReply = { [weak self] thread, _ in self?.presentMessageDialog.observer.send(value: thread) }
-      self.vm.outputs.project.observe(self.project.observer)
-      self.vm.outputs.replyButtonIsEnabled.observe(self.replyButtonIsEnabled.observer)
+      self.vm.onProject = { [weak self] in self?.project.observer.send(value: $0) }
+      self.vm.onReplyEnabled = { [weak self] in self?.replyButtonIsEnabled.observer.send(value: $0) }
       self.vm.onMarkedRead = { [weak self] in self?.successfullyMarkedAsRead.observer.send(value: ()) }
       self.vm.onBlockSuccess = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
       self.vm.onBlockError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }
@@ -69,8 +70,8 @@ internal final class MessagesViewModelTests: TestCase {
   func testOutputs_ConfiguredWithThread() async {
     let messageThread = MessageThread.template
 
-    self.vm.inputs.configureWith(data: .left(messageThread))
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(data: .left(messageThread))
+    self.vm.viewDidLoad()
 
     await self.settleMessaging()
 
@@ -82,8 +83,8 @@ internal final class MessagesViewModelTests: TestCase {
   func testOutputs_ConfiguredWithThread_AndBacking() async {
     let messageThread = MessageThread.template
 
-    self.vm.inputs.configureWith(data: .left(messageThread))
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(data: .left(messageThread))
+    self.vm.viewDidLoad()
 
     await self.settleMessaging()
 
@@ -103,8 +104,8 @@ internal final class MessagesViewModelTests: TestCase {
     let apiService = MockService(fetchMessageThreadResult: Result.success(messageThread))
 
     await withEnvironment(apiService: apiService, currentUser: .template) {
-      self.vm.inputs.configureWith(data: .right((project: project, backing: backing)))
-      self.vm.inputs.viewDidLoad()
+      self.vm.configureWith(data: .right((project: project, backing: backing)))
+      self.vm.viewDidLoad()
 
       await self.settleMessaging()
 
@@ -128,8 +129,8 @@ internal final class MessagesViewModelTests: TestCase {
     let apiService = MockService(fetchMessageThreadResult: Result.failure(errorUnknown))
 
     await withEnvironment(apiService: apiService, currentUser: .template) {
-      self.vm.inputs.configureWith(data: .right((project: project, backing: backing)))
-      self.vm.inputs.viewDidLoad()
+      self.vm.configureWith(data: .right((project: project, backing: backing)))
+      self.vm.viewDidLoad()
 
       await self.settleMessaging()
 
@@ -149,9 +150,9 @@ internal final class MessagesViewModelTests: TestCase {
     let apiService = MockService(fetchMessageThreadResult: Result.success(messageThread))
 
     await withEnvironment(apiService: apiService, currentUser: .template) {
-      self.vm.inputs.configureWith(data: .right((project: project, backing: backing)))
-      self.vm.inputs.viewWillAppear()
-      self.vm.inputs.viewDidLoad()
+      self.vm.configureWith(data: .right((project: project, backing: backing)))
+      self.vm.viewWillAppear()
+      self.vm.viewDidLoad()
 
       await self.settleMessaging()
 
@@ -165,12 +166,12 @@ internal final class MessagesViewModelTests: TestCase {
     let project = Project.template |> Project.lens.id .~ 42
     let backing = Backing.template
 
-    self.vm.inputs.configureWith(data: .right((project: project, backing: backing)))
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(data: .right((project: project, backing: backing)))
+    self.vm.viewDidLoad()
 
     await self.settleMessaging()
 
-    self.vm.inputs.projectBannerTapped()
+    self.vm.projectBannerTapped()
 
     self.goToProject.assertValues([project])
     self.goToRefTag.assertValues([.messageThread])
@@ -191,9 +192,9 @@ internal final class MessagesViewModelTests: TestCase {
     let apiService = MockService(fetchMessageThreadResult: Result.success(messageThread))
 
     await withEnvironment(apiService: apiService, currentUser: currentUser) {
-      self.vm.inputs.configureWith(data: .right((project: project, backing: backing)))
+      self.vm.configureWith(data: .right((project: project, backing: backing)))
 
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.settleMessaging()
 
@@ -201,7 +202,7 @@ internal final class MessagesViewModelTests: TestCase {
       self.goToBackingBackingParam.assertDidNotEmitValue()
       self.goToPledgeManagementViewPledge.assertDidNotEmitValue()
 
-      self.vm.inputs.backingInfoPressed()
+      self.vm.backingInfoPressed()
 
       self.goToBackingProjectParam.assertValues([.slug(project.slug)])
       self.goToBackingBackingParam.assertValues([.id(backing.id)])
@@ -223,9 +224,9 @@ internal final class MessagesViewModelTests: TestCase {
     let apiService = MockService(fetchMessageThreadResult: Result.success(messageThread))
 
     await withEnvironment(apiService: apiService, currentUser: currentUser) {
-      self.vm.inputs.configureWith(data: .right((project: project, backing: backing)))
+      self.vm.configureWith(data: .right((project: project, backing: backing)))
 
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.settleMessaging()
 
@@ -233,7 +234,7 @@ internal final class MessagesViewModelTests: TestCase {
       self.goToBackingBackingParam.assertDidNotEmitValue()
       self.goToPledgeManagementViewPledge.assertDidNotEmitValue()
 
-      self.vm.inputs.backingInfoPressed()
+      self.vm.backingInfoPressed()
 
       self.goToBackingProjectParam.assertValues([.slug(project.slug)])
       self.goToBackingBackingParam.assertValues([.id(backing.id)])
@@ -258,9 +259,9 @@ internal final class MessagesViewModelTests: TestCase {
     let backingDetailsPageURL = backing.backingDetailsPageRoute
 
     await withEnvironment(apiService: apiService, currentUser: currentUser) {
-      self.vm.inputs.configureWith(data: .right((project: project, backing: backing)))
+      self.vm.configureWith(data: .right((project: project, backing: backing)))
 
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.settleMessaging()
 
@@ -268,7 +269,7 @@ internal final class MessagesViewModelTests: TestCase {
       self.goToBackingBackingParam.assertDidNotEmitValue()
       self.goToPledgeManagementViewPledge.assertDidNotEmitValue()
 
-      self.vm.inputs.backingInfoPressed()
+      self.vm.backingInfoPressed()
 
       self.goToBackingProjectParam.assertDidNotEmitValue()
       self.goToBackingBackingParam.assertDidNotEmitValue()
@@ -288,13 +289,13 @@ internal final class MessagesViewModelTests: TestCase {
     let apiService = MockService(fetchMessageThreadResult: Result.success(messageThread))
 
     await withEnvironment(apiService: apiService, currentUser: .template) {
-      self.vm.inputs.configureWith(data: .right((project: project, backing: backing)))
+      self.vm.configureWith(data: .right((project: project, backing: backing)))
 
       self.replyButtonIsEnabled.assertValueCount(0)
       self.emptyStateIsVisible.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear()
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear()
 
       self.messages.assertValueCount(0)
       self.participantPreviouslyBlocked.assertValueCount(1)
@@ -307,11 +308,11 @@ internal final class MessagesViewModelTests: TestCase {
       self.replyButtonIsEnabled.assertValues([true])
       self.emptyStateIsVisible.assertValues([false], "Empty state does not emit again.")
 
-      self.vm.inputs.replyButtonPressed()
+      self.vm.replyButtonPressed()
 
       self.presentMessageDialog.assertValueCount(1)
 
-      self.vm.inputs.messageSent(Message.template)
+      self.vm.messageSent(Message.template)
 
       await self.settleMessaging()
 
@@ -331,13 +332,13 @@ internal final class MessagesViewModelTests: TestCase {
     let apiService = MockService(fetchMessageThreadResult: Result.success(messageThread))
 
     await withEnvironment(apiService: apiService, currentUser: .template) {
-      self.vm.inputs.configureWith(data: .right((project: project, backing: backing)))
+      self.vm.configureWith(data: .right((project: project, backing: backing)))
 
       self.replyButtonIsEnabled.assertValueCount(0)
       self.emptyStateIsVisible.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear()
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear()
 
       self.messages.assertValueCount(0)
       self.participantPreviouslyBlocked.assertValueCount(1)
@@ -361,12 +362,12 @@ internal final class MessagesViewModelTests: TestCase {
       |> Project.lens.creator .~ creator
 
     await withEnvironment(currentUser: .template) {
-      self.vm.inputs.configureWith(data: .right((project: project, backing: Backing.template)))
+      self.vm.configureWith(data: .right((project: project, backing: Backing.template)))
 
       self.participantPreviouslyBlocked.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear()
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear()
 
       await self.settleMessaging()
 
@@ -378,14 +379,14 @@ internal final class MessagesViewModelTests: TestCase {
     let envelope = EmptyResponseEnvelope()
 
     await withEnvironment(apiService: MockService(blockUserResult: .success(envelope)), currentUser: .template) {
-      self.vm.inputs.configureWith(data: .right((project: .template, backing: .template)))
+      self.vm.configureWith(data: .right((project: .template, backing: .template)))
 
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       self.didBlockUser.assertValueCount(0)
       self.didBlockUserError.assertValueCount(0)
 
-      self.vm.inputs.blockUser(id: "\(User.template.id)")
+      self.vm.blockUser(id: "\(User.template.id)")
 
       await self.settleMessaging()
 
@@ -403,14 +404,14 @@ internal final class MessagesViewModelTests: TestCase {
     )
 
     await withEnvironment(apiService: MockService(blockUserResult: .failure(error)), currentUser: .template) {
-      self.vm.inputs.configureWith(data: .right((project: .template, backing: .template)))
+      self.vm.configureWith(data: .right((project: .template, backing: .template)))
 
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       self.didBlockUser.assertValueCount(0)
       self.didBlockUserError.assertValueCount(0)
 
-      self.vm.inputs.blockUser(id: "\(User.template.id)")
+      self.vm.blockUser(id: "\(User.template.id)")
 
       await self.settleMessaging()
 
@@ -429,12 +430,12 @@ internal final class MessagesViewModelTests: TestCase {
       |> Project.lens.creator .~ creator
 
     await withEnvironment(currentUser: .template) {
-      self.vm.inputs.configureWith(data: .right((project: project, backing: Backing.template)))
+      self.vm.configureWith(data: .right((project: project, backing: Backing.template)))
 
       self.participantPreviouslyBlocked.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear()
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear()
 
       await self.settleMessaging()
 
@@ -456,11 +457,11 @@ internal final class MessagesViewModelTests: TestCase {
       currentUser: .template,
       ksrAnalytics: ksrAnalytics
     ) {
-      self.vm.inputs.configureWith(data: .right((project: .template, backing: .template)))
+      self.vm.configureWith(data: .right((project: .template, backing: .template)))
 
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
-      self.vm.inputs.blockUser(id: "111")
+      self.vm.blockUser(id: "111")
 
       await self.settleMessaging()
 
@@ -479,8 +480,8 @@ internal final class MessagesViewModelTests: TestCase {
   }
 
   func testMarkAsRead() async {
-    self.vm.inputs.configureWith(data: .left(MessageThread.template))
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(data: .left(MessageThread.template))
+    self.vm.viewDidLoad()
 
     await self.settleMessaging()
 
@@ -496,11 +497,11 @@ internal final class MessagesViewModelTests: TestCase {
     let backing = Backing.template
 
     await withEnvironment(currentUser: .template) {
-      self.vm.inputs.configureWith(data: .right((project: project, backing: backing)))
+      self.vm.configureWith(data: .right((project: project, backing: backing)))
 
       self.emptyStateIsVisible.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       self.emptyStateIsVisible.assertValues([false])
       self.emptyStateMessage.assertValues([""])
@@ -520,11 +521,11 @@ internal final class MessagesViewModelTests: TestCase {
       |> Project.lens.memberData.permissions .~ [.post, .viewPledges, .comment]
 
     await withEnvironment(currentUser: creator) {
-      self.vm.inputs.configureWith(data: .right((project: project, backing: .template)))
+      self.vm.configureWith(data: .right((project: project, backing: .template)))
 
       self.emptyStateIsVisible.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       self.emptyStateIsVisible.assertValues([false])
       self.emptyStateMessage.assertValues([""])
@@ -545,11 +546,11 @@ internal final class MessagesViewModelTests: TestCase {
       |> Backing.lens.backer .~ collaborator
 
     await withEnvironment(currentUser: collaborator) {
-      self.vm.inputs.configureWith(data: .right((project: project, backing: backing)))
+      self.vm.configureWith(data: .right((project: project, backing: backing)))
 
       self.emptyStateIsVisible.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       self.emptyStateIsVisible.assertValues([false])
       self.emptyStateMessage.assertValues([""])
