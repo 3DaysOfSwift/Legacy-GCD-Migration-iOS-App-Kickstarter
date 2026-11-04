@@ -395,10 +395,8 @@ public final class ProjectMediaFeature {
     let userID: Int?
   }
 
-  private var requests: [Event: (id: UUID, task: Task<Void, Never>)] = [:]
+  private var requests: [Event: (id: UUID, task: Task<VoidEnvelope?, Never>)] = [:]
   private let makeProvider: () -> any ProjectMediaProvider
-  private let completionPipe = Signal<(UUID, Bool, VoidEnvelope), Never>.pipe()
-  public var completions: Signal<(UUID, Bool, VoidEnvelope), Never> { self.completionPipe.output }
 
   public let sessionFeature: SessionFeature
   public init(
@@ -415,15 +413,16 @@ public final class ProjectMediaFeature {
     self.makeProvider = makeProvider
   }
 
-  public func report(route: UUID, project: any HasProjectWebURL, completed: Bool) async {
-    guard !Task.isCancelled else { return }
-    await self.requestReport(route: route, project: project, completed: completed).value
+  @discardableResult
+  public func report(route: UUID, project: any HasProjectWebURL, completed: Bool) async -> VoidEnvelope? {
+    guard !Task.isCancelled else { return nil }
+    return await self.requestReport(route: route, project: project, completed: completed).value
   }
 
   @discardableResult
   public func requestReport(
     route: UUID, project: any HasProjectWebURL, completed: Bool
-  ) -> Task<Void, Never> {
+  ) -> Task<VoidEnvelope?, Never> {
     let event = Event(
       route: route,
       url: project.projectWebURL,
@@ -433,19 +432,20 @@ public final class ProjectMediaFeature {
     if let request = self.requests[event] { return request.task }
     let token = UUID()
     let provider = self.makeProvider()
-    let task = Task { [weak self] in
+    let task: Task<VoidEnvelope?, Never> = Task { [weak self] in
       defer { if self?.requests[event]?.id == token { self?.requests[event] = nil } }
       do {
         try Task.checkCancellation()
-        guard event.userID == AppEnvironment.current.currentUser?.id else { return }
+        guard event.userID == AppEnvironment.current.currentUser?.id else { return nil }
         let value = try await provider.report(project: project, completed: completed)
         try Task.checkCancellation()
         guard let self, self.requests[event]?.id == token,
-              event.userID == AppEnvironment.current.currentUser?.id else { return }
-        self.completionPipe.input.send(value: (route, completed, value))
+              event.userID == AppEnvironment.current.currentUser?.id else { return nil }
+        return value
       } catch {
         // Counter errors have always been non-user-facing; do not retry a write
         // whose server-side outcome may be unknown.
+        return nil
       }
     }
     self.requests[event] = (token, task)

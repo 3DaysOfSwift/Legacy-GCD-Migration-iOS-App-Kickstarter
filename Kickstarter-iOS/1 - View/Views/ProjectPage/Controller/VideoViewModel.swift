@@ -161,10 +161,10 @@ public final class VideoViewModel: VideoViewModelInputs, VideoViewModelOutputs, 
 
     self.seekToBeginning = reachedEndOfVideo.ignoreValues()
 
-    self.incrementVideoCompletion = feature.completions
-      .filter { $0.0 == route && $0.1 }.map { $0.2 }
-    self.incrementVideoStart = feature.completions
-      .filter { $0.0 == route && !$0.1 }.map { $0.2 }
+    let completionOutput = Signal<VoidEnvelope, Never>.pipe()
+    let startOutput = Signal<VoidEnvelope, Never>.pipe()
+    self.incrementVideoCompletion = completionOutput.output
+    self.incrementVideoStart = startOutput.output
 
     self.videoViewHidden = self.projectImageHidden.map(negate)
 
@@ -199,11 +199,17 @@ public final class VideoViewModel: VideoViewModelInputs, VideoViewModelOutputs, 
     }
     self.disposables += Signal.combineLatest(project, videoCompleted).map(first)
       .observeValues { [weak self] project in
-        self?.completionTask = feature.requestReport(route: route, project: project, completed: true)
+        let report = feature.requestReport(route: route, project: project, completed: true)
+        self?.completionTask = Task {
+          if let value = await report.value, !Task.isCancelled { completionOutput.input.send(value: value) }
+        }
       }
     self.disposables += Signal.combineLatest(project, videoStarted).map(first)
       .observeValues { [weak self] project in
-        self?.startTask = feature.requestReport(route: route, project: project, completed: false)
+        let report = feature.requestReport(route: route, project: project, completed: false)
+        self?.startTask = Task {
+          if let value = await report.value, !Task.isCancelled { startOutput.input.send(value: value) }
+        }
       }
   }
 

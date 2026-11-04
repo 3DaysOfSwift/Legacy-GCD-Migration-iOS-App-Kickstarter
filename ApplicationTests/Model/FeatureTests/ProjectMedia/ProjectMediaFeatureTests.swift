@@ -504,9 +504,6 @@ final class ProjectMediaFeatureTests: TestCase {
     defer { provider.releaseAll() }
     let feature = ProjectMediaFeature(makeProvider: { provider })
     let route = UUID()
-    var received: [Bool] = []
-    let observation = feature.completions.observeValues { received.append($0.1) }
-    defer { observation?.dispose() }
     let start = feature.requestReport(route: route, project: Project.template, completed: false)
     let duplicate = feature.requestReport(route: route, project: Project.template, completed: false)
     await provider.waitForRequests(1)
@@ -515,11 +512,13 @@ final class ProjectMediaFeatureTests: TestCase {
     XCTAssertEqual(provider.events, [false, true])
     XCTAssertFalse(start.isCancelled)
     try provider.finish(1)
-    await completed.value
+    let completedValue = await completed.value
     try provider.finish(0)
-    await start.value
-    await duplicate.value
-    XCTAssertEqual(received, [true, false])
+    let startValue = await start.value
+    let duplicateValue = await duplicate.value
+    XCTAssertNotNil(completedValue)
+    XCTAssertNotNil(startValue)
+    XCTAssertNotNil(duplicateValue)
   }
 
   func testReleaseCancelsOnlyItsRouteAndDoesNotPublishLateSuccess() async throws {
@@ -527,9 +526,6 @@ final class ProjectMediaFeatureTests: TestCase {
     defer { provider.releaseAll() }
     let feature = ProjectMediaFeature(makeProvider: { provider })
     let route = UUID(), other = UUID()
-    var received: [UUID] = []
-    let observation = feature.completions.observeValues { received.append($0.0) }
-    defer { observation?.dispose() }
     let first = feature.requestReport(route: route, project: Project.template, completed: false)
     await provider.waitForRequests(1)
     let second = feature.requestReport(route: other, project: Project.template, completed: false)
@@ -539,40 +535,36 @@ final class ProjectMediaFeatureTests: TestCase {
     XCTAssertFalse(second.isCancelled)
     try provider.finish(0)
     try provider.finish(1)
-    await first.value
-    await second.value
-    XCTAssertEqual(received, [other])
+    let firstValue = await first.value
+    let secondValue = await second.value
+    XCTAssertNil(firstValue)
+    XCTAssertNotNil(secondValue)
   }
 
   func testAccountChangeSuppressesCompletionAndCancelledCallerDoesNotStart() async throws {
     let provider = ControlledMediaProvider()
     defer { provider.releaseAll() }
     let feature = ProjectMediaFeature(makeProvider: { provider })
-    var received = 0
-    let observation = feature.completions.observeValues { _ in received += 1 }
-    defer { observation?.dispose() }
     let pending = feature.requestReport(route: UUID(), project: Project.template, completed: true)
     await provider.waitForRequests(1)
     AppEnvironment.pushEnvironment(currentUser: .template)
     defer { AppEnvironment.popEnvironment() }
     try provider.finish(0)
-    await pending.value
+    let pendingValue = await pending.value
     let cancelled = Task { await feature.report(route: UUID(), project: Project.template, completed: false) }
     cancelled.cancel()
-    await cancelled.value
+    let cancelledValue = await cancelled.value
     XCTAssertEqual(provider.events, [true])
-    XCTAssertEqual(received, 0)
+    XCTAssertNil(pendingValue)
+    XCTAssertNil(cancelledValue)
   }
 
   func testFailedCounterDoesNotPublishSuccessOrRetry() async {
     let feature = ProjectMediaFeature(makeProvider: {
       AsyncProjectMediaProvider(service: MockService(incrementVideoStartError: .couldNotParseJSON))
     })
-    var successes = 0
-    let observation = feature.completions.observeValues { _ in successes += 1 }
-    defer { observation?.dispose() }
-    await feature.report(route: UUID(), project: Project.template, completed: false)
-    XCTAssertEqual(successes, 0)
+    let result = await feature.report(route: UUID(), project: Project.template, completed: false)
+    XCTAssertNil(result)
   }
 }
 
