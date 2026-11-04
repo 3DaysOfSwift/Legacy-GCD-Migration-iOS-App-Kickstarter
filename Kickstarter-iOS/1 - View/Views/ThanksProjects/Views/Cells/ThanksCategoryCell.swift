@@ -10,7 +10,7 @@ internal protocol ThanksCategoryCellDelegate: AnyObject {
 
 internal final class ThanksCategoryCell: UITableViewCell, ValueCell {
   internal weak var delegate: ThanksCategoryCellDelegate?
-  fileprivate let viewModel: ThanksCategoryCellViewModelType = ThanksCategoryCellViewModel()
+  fileprivate let viewModel = ThanksCategoryCellViewModel()
 
   @IBOutlet fileprivate var seeAllProjectsButton: UIButton!
 
@@ -24,7 +24,7 @@ internal final class ThanksCategoryCell: UITableViewCell, ValueCell {
   }
 
   func configureWith(value category: KsApi.Category) {
-    self.viewModel.inputs.configureWith(category: category)
+    self.seeAllProjectsButton.setTitle(self.viewModel.configureWith(category: category), for: .normal)
   }
 
   internal override func bindStyles() {
@@ -36,17 +36,13 @@ internal final class ThanksCategoryCell: UITableViewCell, ValueCell {
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.notifyDelegateToGoToDiscovery
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        guard let self = self else { return }
-        self.delegate?.thanksCategoryCell(self, didTapSeeAllProjectsWith: $0)
-      }
-
-    self.seeAllProjectsButton.rac.title = self.viewModel.outputs.seeAllProjectCategoryTitle
+    self.viewModel.onGoToDiscovery = { [weak self] category in
+      guard let self else { return }
+      self.delegate?.thanksCategoryCell(self, didTapSeeAllProjectsWith: category)
+    }
   }
 
   @objc fileprivate func seeAllProjectsButtonTapped() {
-    self.viewModel.inputs.seeAllProjectsButtonTapped()
+    self.viewModel.seeAllProjectsButtonTapped()
   }
 }

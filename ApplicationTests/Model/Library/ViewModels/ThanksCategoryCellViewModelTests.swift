@@ -3,36 +3,29 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
+@MainActor
 final class ThanksCategoryCellViewModelTests: TestCase {
-  private let notifyDelegateToGoToDiscovery = TestObserver<KsApi.Category, Never>()
-  private let seeAllProjectCategoryTitle = TestObserver<String, Never>()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private let vm = ThanksCategoryCellViewModel()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.notifyDelegateToGoToDiscovery.observe(self.notifyDelegateToGoToDiscovery.observer)
-    self.vm.seeAllProjectCategoryTitle.observe(self.seeAllProjectCategoryTitle.observer)
-  }
 
   func testNotifyDelegate() {
     let category = Category.template
 
-    self.vm.inputs.configureWith(category: category)
-    self.notifyDelegateToGoToDiscovery.assertDidNotEmitValue()
-    self.vm.inputs.seeAllProjectsButtonTapped()
-    self.notifyDelegateToGoToDiscovery.assertDidEmitValue()
+    var selected: KsApi.Category?
+    self.vm.onGoToDiscovery = { selected = $0 }
+    self.vm.seeAllProjectsButtonTapped()
+    XCTAssertNil(selected)
+    _ = self.vm.configureWith(category: category)
+    self.vm.seeAllProjectsButtonTapped()
+    XCTAssertEqual(selected?.id, category.id)
   }
 
   func testSeeAllProjectCategoryButtonTitle() {
     let category = Category.template
       |> Category.lens.name .~ "Art"
 
-    self.vm.inputs.configureWith(category: category)
-    self.seeAllProjectCategoryTitle.assertValues(["See all Art projects"])
+    XCTAssertEqual(self.vm.configureWith(category: category), "See all Art projects")
   }
 }

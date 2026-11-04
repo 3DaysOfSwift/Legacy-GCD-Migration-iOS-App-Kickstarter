@@ -1,41 +1,26 @@
 @testable import Kickstarter_iOS
-import Foundation
+import UIKit
+import XCTest
 @testable import KsApi
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 
+@MainActor
 final class RewardCellViewModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private let vm = RewardCellViewModel()
 
-  private let backerLabelHidden = TestObserver<Bool, Never>()
-  private let scrollScrollViewToTop = TestObserver<Void, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.backerLabelHidden.observe(self.backerLabelHidden.observer)
-    self.vm.outputs.scrollScrollViewToTop.observe(self.scrollScrollViewToTop.observer)
-  }
-
-  func testPrepareForReuse() {
-    self.scrollScrollViewToTop.assertDidNotEmitValue()
-
-    self.vm.inputs.prepareForReuse()
-
-    self.scrollScrollViewToTop.assertValueCount(1)
-
-    self.vm.inputs.prepareForReuse()
-
-    self.scrollScrollViewToTop.assertValueCount(2)
+  func testPrepareForReuseResetsScrollOffset() throws {
+    let cell = RewardCell(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
+    let scrollView = try XCTUnwrap(cell.contentView.subviews.compactMap { $0 as? UIScrollView }.first)
+    scrollView.contentInset.top = 12
+    scrollView.contentOffset = CGPoint(x: 0, y: 40)
+    cell.prepareForReuse()
+    XCTAssertEqual(scrollView.contentOffset.y, -12)
   }
 
   func testBackerLabelHidden_IsBacked() {
-    self.backerLabelHidden.assertDidNotEmitValue()
-
     let reward = Reward.template
 
     let project = Project.cosmicSurgery
@@ -49,19 +34,17 @@ final class RewardCellViewModelTests: TestCase {
           |> Backing.lens.amount .~ 700.0
       )
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    let hidden = self.vm.backerLabelHidden(for: RewardCardViewData(
       project: project,
       reward: reward,
       context: .manage,
       currentShippingLocation: nil
     ))
 
-    self.backerLabelHidden.assertValues([false])
+    XCTAssertFalse(hidden)
   }
 
   func testBackerLabelHidden_IsNotBacked() {
-    self.backerLabelHidden.assertDidNotEmitValue()
-
     let reward = Reward.template
 
     let project = Project.cosmicSurgery
@@ -75,13 +58,13 @@ final class RewardCellViewModelTests: TestCase {
           |> Backing.lens.amount .~ 700.0
       )
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    let hidden = self.vm.backerLabelHidden(for: RewardCardViewData(
       project: project,
       reward: reward,
       context: .manage,
       currentShippingLocation: nil
     ))
 
-    self.backerLabelHidden.assertValues([true])
+    XCTAssertTrue(hidden)
   }
 }
