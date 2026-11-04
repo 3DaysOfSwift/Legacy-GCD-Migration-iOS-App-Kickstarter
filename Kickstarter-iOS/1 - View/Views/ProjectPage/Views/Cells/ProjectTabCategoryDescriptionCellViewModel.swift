@@ -1,49 +1,17 @@
 import KsApi
-import Prelude
-import ReactiveSwift
+import Observation
 
-public protocol ProjectTabCategoryDescriptionCellViewModelInputs {
-  /// Call to configure with a `ProjectTabCategoryDescription`.
-  func configureWith(value: ProjectTabCategoryDescription)
-}
+@MainActor
+@Observable
+public final class ProjectTabCategoryDescriptionCellViewModel {
+  public init() {}
+  public private(set) var categoryLabelText = ""
+  public private(set) var descriptionLabelText = ""
 
-public protocol ProjectTabCategoryDescriptionCellViewModelOutputs {
-  /// Emits a `String` of the category from the `ProjectTabCategoryDescription` object
-  var categoryLabelText: Signal<String, Never> { get }
-
-  /// Emits a `String` of the description from the `ProjectTabCategoryDescription` object
-  var descriptionLabelText: Signal<String, Never> { get }
-}
-
-public protocol ProjectTabCategoryDescriptionCellViewModelType {
-  var inputs: ProjectTabCategoryDescriptionCellViewModelInputs { get }
-  var outputs: ProjectTabCategoryDescriptionCellViewModelOutputs { get }
-}
-
-public final class ProjectTabCategoryDescriptionCellViewModel:
-  ProjectTabCategoryDescriptionCellViewModelType, ProjectTabCategoryDescriptionCellViewModelInputs,
-  ProjectTabCategoryDescriptionCellViewModelOutputs {
-  public init() {
-    let categoryDescription = self.configureWithProperty.signal
-      .skipNil()
-
-    self.categoryLabelText = categoryDescription
-      .map(\.category)
-      .map(internationalizedString)
-
-    self.descriptionLabelText = categoryDescription.map(\.description)
-  }
-
-  fileprivate let configureWithProperty = MutableProperty<ProjectTabCategoryDescription?>(nil)
   public func configureWith(value: ProjectTabCategoryDescription) {
-    self.configureWithProperty.value = value
+    self.categoryLabelText = internationalizedString(for: value.category)
+    self.descriptionLabelText = value.description
   }
-
-  public let categoryLabelText: Signal<String, Never>
-  public let descriptionLabelText: Signal<String, Never>
-
-  public var inputs: ProjectTabCategoryDescriptionCellViewModelInputs { self }
-  public var outputs: ProjectTabCategoryDescriptionCellViewModelOutputs { self }
 }
 
 private func internationalizedString(for category: ProjectTabCategory) -> String {
