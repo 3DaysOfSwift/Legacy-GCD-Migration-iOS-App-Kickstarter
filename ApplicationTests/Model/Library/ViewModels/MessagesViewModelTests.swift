@@ -570,6 +570,7 @@ internal final class MessagesViewModelTests: TestCase {
     // Start debounced requests, await native work, then deliver the presentation delay.
     await self.scheduler.advance()
     await self.vm.waitForThread()
+    await self.vm.waitForBacking()
     await self.feature.waitForOperations()
     await self.discussion.waitForMutations()
     await self.vm.waitForBlock()

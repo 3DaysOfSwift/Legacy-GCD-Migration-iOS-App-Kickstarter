@@ -77,6 +77,9 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
   private var threadTask: Task<Void, Never>?
   private var threadVersion = UUID()
   private let threadPipe = Signal<MessageThreadEnvelope?, Never>.pipe()
+  private let backingPipe = Signal<(Backing, Project, Bool), Never>.pipe()
+  private var backingTask: Task<Void, Never>?
+  private var backingVersion = UUID()
   private var markReadTask: Task<Void, Never>?
   private var markReadVersion = UUID()
   var onMarkedRead: (() -> Void)?
@@ -90,7 +93,6 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
   public init(feature: MessagingFeature, discussion: DiscussionFeature) {
     self.feature = feature
     self.discussion = discussion
-    let backingRoute = self.backingRoute
     let configData = self.configData.signal.skipNil()
       .takeWhen(self.viewDidLoadProperty.signal)
 
@@ -127,26 +129,10 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
 
     let participant = messageThreadEnvelope.map { $0.messageThread.participant }
 
-    self.backingAndProjectAndIsFromBacking = Signal.combineLatest(
+    let backingRequests = Signal.combineLatest(
       configBacking, self.project, participant, currentUser, messageThreadEnvelope
     )
-    .switchMap { value -> SignalProducer<(Backing, Project, Bool), Never> in
-      let (backing, project, participant, currentUser, messageThreadEnvelope) = value
-
-      if let backing = backing {
-        return SignalProducer(value: (backing, project, true))
-      }
-
-      let isBacker = project.personalization.isBacking == .some(true)
-
-      let user = isBacker ? currentUser : participant
-      return feature.readResult(route: backingRoute) {
-        try await feature.backing(id: messageThreadEnvelope.messageThread.backing?.id,
-                                  project: project, user: user)
-      }
-      .map { ($0, project, false) }
-      .demoteErrors()
-    }
+    self.backingAndProjectAndIsFromBacking = self.backingPipe.output
 
     let projectAndBacking = self.backingAndProjectAndIsFromBacking.map { backing, project, _ -> (
       Project,
@@ -191,6 +177,9 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
     }
 
     threadRequests.observeValues { [weak self] in self?.loadThread($0) }
+    backingRequests.observeValues { [weak self] backing, project, participant, currentUser, envelope in
+      self?.loadBacking(backing, project: project, participant: participant, currentUser: currentUser, envelope: envelope)
+    }
     self.project.observeValues { [weak self] project in
       guard let self else { return }
       self.latestProject = project
@@ -233,6 +222,38 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
   }
   func waitForThread() async { await self.threadTask?.value }
 
+  private func loadBacking(
+    _ existing: Backing?, project: Project, participant: User, currentUser: User,
+    envelope: MessageThreadEnvelope
+  ) {
+    self.backingTask?.cancel()
+    let version = UUID()
+    self.backingVersion = version
+    if let existing {
+      self.backingTask = nil
+      self.backingPipe.input.send(value: (existing, project, true))
+      return
+    }
+    let feature = self.feature
+    let session = feature.sessionFeature
+    let userID = session.currentUser?.id
+    let generation = session.generation
+    let user = project.personalization.isBacking == .some(true) ? currentUser : participant
+    self.backingTask = Task { [weak self] in
+      defer { if let self, self.backingVersion == version { self.backingTask = nil } }
+      do {
+        let backing = try await feature.backing(id: envelope.messageThread.backing?.id, project: project, user: user)
+        try Task.checkCancellation()
+        guard let self, self.backingVersion == version,
+              session.isCurrent(userID: userID, generation: generation) else { return }
+        self.backingPipe.input.send(value: (backing, project, false))
+      } catch {
+        // Preserve the screen's existing silent backing-lookup failure.
+      }
+    }
+  }
+  func waitForBacking() async { await self.backingTask?.value }
+
   private func markRead(_ thread: MessageThread) {
     self.markReadTask?.cancel()
     let version = UUID()
@@ -251,13 +272,11 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
   }
   func waitForMarkRead() async { await self.markReadTask?.value }
 
-  private let backingRoute = UUID()
   deinit {
     self.blockTask?.cancel()
     self.markReadTask?.cancel()
     self.threadTask?.cancel()
-    let feature = self.feature, backing = self.backingRoute
-    Task { @MainActor in feature.release(route: backing) }
+    self.backingTask?.cancel()
   }
 
   public func backingInfoPressed() {
