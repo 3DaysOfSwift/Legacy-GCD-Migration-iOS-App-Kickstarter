@@ -102,6 +102,7 @@ public protocol BackerDashboardViewModelType {
 public final class BackerDashboardViewModel: BackerDashboardViewModelType, BackerDashboardViewModelInputs,
   BackerDashboardViewModelOutputs {
   private let profileFeature: ProfileFeature
+  private var headerObserver: PlatformObservation?
   internal private(set) var headerTask: Task<Void, Never>?
   public init(profileFeature: ProfileFeature? = nil) {
     let profileFeature = profileFeature ?? AppModel.shared.profileFeature
@@ -109,9 +110,13 @@ public final class BackerDashboardViewModel: BackerDashboardViewModelType, Backe
     self.configurePagesDataSource = self.viewDidLoadProperty.signal
       .map { .backed }
 
-    let user = profileFeature.userValues
-    let updatedUserWithSavedProjectsCount = profileFeature.graphUserValues
-    self.updateCurrentUserInEnvironment = profileFeature.combinedUserValues
+    let userPipe = Signal<User, Never>.pipe()
+    let graphUserPipe = Signal<User, Never>.pipe()
+    let combinedUserPipe = Signal<User, Never>.pipe()
+    let user = userPipe.output
+    let updatedUserWithSavedProjectsCount = graphUserPipe.output
+    self.updateCurrentUserInEnvironment = combinedUserPipe.output
+
 
     self.postNotification = self.currentUserUpdatedInEnvironmentProperty.signal
       .mapConst(Notification(name: .ksr_userUpdated, object: nil))
@@ -180,6 +185,13 @@ public final class BackerDashboardViewModel: BackerDashboardViewModelType, Backe
           params: params
         )
       }
+    self.headerObserver = profileFeature.observeHeader { event in
+      switch event {
+      case let .user(user): userPipe.input.send(value: user)
+      case let .graphUser(user): graphUserPipe.input.send(value: user)
+      case let .combinedUser(user): combinedUserPipe.input.send(value: user)
+      }
+    }
   }
 
   private let backedProjectsButtonTappedProperty = MutableProperty(())

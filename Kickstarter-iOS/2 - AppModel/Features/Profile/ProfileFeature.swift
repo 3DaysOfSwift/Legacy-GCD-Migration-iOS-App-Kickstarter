@@ -1,6 +1,5 @@
 import Foundation
 import KsApi
-import ReactiveSwift
 
 @MainActor
 public protocol ProfileProvider {
@@ -67,12 +66,6 @@ public final class ProfileFeature {
   )?
   public private(set) var userError: Error?
   public private(set) var graphUserError: Error?
-  private let userPipe = Signal<User, Never>.pipe()
-  private let graphUserPipe = Signal<User, Never>.pipe()
-  private let combinedUserPipe = Signal<User, Never>.pipe()
-  public var userValues: Signal<User, Never> { self.userPipe.output }
-  public var graphUserValues: Signal<User, Never> { self.graphUserPipe.output }
-  public var combinedUserValues: Signal<User, Never> { self.combinedUserPipe.output }
   enum HeaderEvent {
     case user(User)
     case graphUser(User)
@@ -205,7 +198,6 @@ public final class ProfileFeature {
     self.userError = nil
     self.graphUserError = nil
     if let user = self.sessionFeature.currentUser {
-      self.userPipe.input.send(value: user)
       self.publishHeaderEvent(.user(user))
     }
     let task = Task { [weak self] in
@@ -234,7 +226,6 @@ public final class ProfileFeature {
             var merged = restUser, let graphUser else { return }
       merged.stats.starredProjectsCount = graphUser.stats.starredProjectsCount
       self.sessionFeature.commitUser(merged, userID: userID, generation: generation)
-      self.combinedUserPipe.input.send(value: merged)
       self.publishHeaderEvent(.combinedUser(merged))
     }
     self.headerRequest = (userID, generation, readGeneration, token, task)
@@ -252,10 +243,8 @@ public final class ProfileFeature {
       guard self.sessionFeature.isCurrent(userID: userID, generation: generation),
             self.sessionFeature.readGeneration == readGeneration else { return nil }
       if graph {
-        self.graphUserPipe.input.send(value: user)
         self.publishHeaderEvent(.graphUser(user))
       } else {
-        self.userPipe.input.send(value: user)
         self.publishHeaderEvent(.user(user))
       }
       return user
