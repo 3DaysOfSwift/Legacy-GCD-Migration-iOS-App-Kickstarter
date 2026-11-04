@@ -7,7 +7,6 @@ import KsApi
 
 import MessageUI
 import Prelude
-import ReactiveSwift
 import UIKit
 
 public final class LoginToutViewController: UIViewController, @MainActor MFMailComposeViewControllerDelegate,
@@ -62,7 +61,7 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
     loginIntent intent: LoginIntent
   ) -> LoginToutViewController {
     let vc = LoginToutViewController.instantiate()
-    vc.viewModel.inputs.configureWith(intent)
+    vc.viewModel.configureWith(intent)
     vc.helpViewModel.configureWith(helpContext: .loginTout)
     vc.helpViewModel.canSendEmail(MFMailComposeViewController.canSendMail())
     return vc
@@ -80,7 +79,7 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
     self.fbLoginManager.logOut()
 
     self.sessionStartedObserver = MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
-      self?.viewModel.inputs.userSessionStarted()
+      self?.viewModel.userSessionStarted()
     }
 
     if self.presentingViewController != nil {
@@ -93,8 +92,8 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
 
   public override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
-    self.viewModel.inputs.view(isPresented: self.presentingViewController != nil)
-    self.viewModel.inputs.viewWillAppear()
+    self.viewModel.view(isPresented: self.presentingViewController != nil)
+    self.viewModel.viewWillAppear()
   }
 
   // MARK: - Styles
@@ -167,11 +166,11 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
     self.viewModel.onAppleLogin = { [weak self] in self?.attemptAppleLogin() }
     self.viewModel.onDismiss = { [weak self] in self?.dismiss(animated: true) }
 
-    self.viewModel.onAppleSuccess = { [weak self] _ in self?.viewModel.inputs.environmentLoggedIn() }
+    self.viewModel.onAppleSuccess = { [weak self] _ in self?.viewModel.environmentLoggedIn() }
     self.viewModel.onAppleError = { [weak self] in self?.present(UIAlertController.genericError($0), animated: true) }
     self.viewModel.onAppleLog = { Crashlytics.crashlytics().record(error: $0) }
 
-    self.viewModel.onFacebookSuccess = { [weak self] _ in self?.viewModel.inputs.environmentLoggedIn() }
+    self.viewModel.onFacebookSuccess = { [weak self] _ in self?.viewModel.environmentLoggedIn() }
     self.viewModel.onFacebookConfirmation = { [weak self] user, token in
       self?.pushFacebookConfirmationController(facebookUser: user, facebookToken: token)
     }
@@ -181,12 +180,10 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
       Crashlytics.crashlytics().record(error: error.nsError)
     }
 
-    self.viewModel.outputs.postNotification
-      .observeForUI()
-      .observeValues {
-        NotificationCenter.default.post($0.0)
-        NotificationCenter.default.post($0.1)
-      }
+    self.viewModel.onNotification = { first, second in
+      NotificationCenter.default.post(first)
+      NotificationCenter.default.post(second)
+    }
 
     self.helpViewModel.onHelpSheet = { [weak self] in
         self?.showHelpSheet(helpTypes: $0)
@@ -213,15 +210,9 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
       self?.contextLabel.font = isHidden ? UIFont.ksr_title2() : UIFont.ksr_subhead()
     }
 
-    self.viewModel.outputs.isLoading
-      .observeForUI()
-      .observeValues { [weak self] isLoading in
-        if isLoading {
-          self?.showProcessingView()
-        } else {
-          self?.hideProcessingView()
-        }
-      }
+    self.viewModel.onLoading = { [weak self] isLoading in
+      if isLoading { self?.showProcessingView() } else { self?.hideProcessingView() }
+    }
   }
 
   // MARK: - Functions
@@ -311,7 +302,7 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
     return self.oauth.createAuthorizationSession { [weak self] result in
       switch result {
       case .loggedIn:
-        self?.viewModel.inputs.environmentLoggedIn()
+        self?.viewModel.environmentLoggedIn()
       case let .failure(errorMessage):
         let alert = UIAlertController(
           title: Strings.login_errors_title(),
@@ -382,9 +373,9 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
       permissions: ["public_profile", "email", "user_friends"], from: nil
     ) { result, error in
       if let error = error {
-        self.viewModel.inputs.facebookLoginFail(error: error)
+        self.viewModel.facebookLoginFail(error: error)
       } else if let result = result, !result.isCancelled {
-        self.viewModel.inputs.facebookLoginSuccess(result: result)
+        self.viewModel.facebookLoginSuccess(result: result)
       }
     }
   }
@@ -401,7 +392,7 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
   }
 
   @objc private func appleLoginButtonPressed(_: UIButton) {
-    self.viewModel.inputs.appleLoginButtonPressed()
+    self.viewModel.appleLoginButtonPressed()
   }
 
   @objc private func closeButtonPressed() {
@@ -413,11 +404,11 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
   }
 
   @objc private func facebookLoginButtonPressed(_: UIButton) {
-    self.viewModel.inputs.facebookLoginButtonPressed()
+    self.viewModel.facebookLoginButtonPressed()
   }
 
   @objc private func signupOrLoginWithOAuthButtonPressed() {
-    self.viewModel.inputs.signupOrLoginWithOAuthButtonPressed()
+    self.viewModel.signupOrLoginWithOAuthButtonPressed()
   }
 }
 
@@ -498,7 +489,7 @@ extension LoginToutViewController: ASAuthorizationControllerDelegate {
       lastName: fullName?.familyName,
       token: token
     ) as? SignInWithAppleData
-    self.viewModel.inputs.appleAuthorizationDidSucceed(with: data)
+    self.viewModel.appleAuthorizationDidSucceed(with: data)
   }
 
   public func authorizationController(
@@ -513,7 +504,7 @@ extension LoginToutViewController: ASAuthorizationControllerDelegate {
       default:
         authError = .other(error)
       }
-      self.viewModel.inputs.appleAuthorizationDidFail(with: authError)
+      self.viewModel.appleAuthorizationDidFail(with: authError)
     }
   }
 }
