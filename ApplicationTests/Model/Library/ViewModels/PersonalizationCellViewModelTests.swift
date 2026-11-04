@@ -1,35 +1,26 @@
 @testable import Kickstarter_iOS
-@testable import KsApi
-
-
-import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
+@MainActor
+private final class PersonalizationDelegateProbe: PersonalizationCellDelegate {
+  var taps = 0
+  var dismissals = 0
+  func personalizationCellTapped(_ cell: PersonalizationCell) { self.taps += 1 }
+  func personalizationCellDidTapDismiss(_ cell: PersonalizationCell) { self.dismissals += 1 }
+}
+
+@MainActor
 final class PersonalizationCellViewModelTests: TestCase {
-  private let notifyDelegateDismissButtonTapped = TestObserver<Void, Never>()
-  private let notifyDelegateViewTapped = TestObserver<Void, Never>()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private let vm: PersonalizationCellViewModelType = PersonalizationCellViewModel()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.notifyDelegateDismissButtonTapped.observe(self.notifyDelegateDismissButtonTapped.observer)
-    self.vm.outputs.notifyDelegateViewTapped.observe(self.notifyDelegateViewTapped.observer)
-  }
-
-  func testNotifyDelegateDismissButtonTapped() {
-    self.notifyDelegateDismissButtonTapped.assertDidNotEmitValue()
-    self.vm.inputs.dismissButtonTapped()
-    self.notifyDelegateDismissButtonTapped.assertValueCount(1)
-  }
-
-  func testNotifyDelegateViewTapped() {
-    self.notifyDelegateViewTapped.assertDidNotEmitValue()
-    self.vm.inputs.cellTapped()
-    self.notifyDelegateViewTapped.assertValueCount(1)
+  func testActionsNotifyDelegateOnEveryTap() {
+    let cell = PersonalizationCell(style: .default, reuseIdentifier: nil)
+    let delegate = PersonalizationDelegateProbe()
+    cell.delegate = delegate
+    cell.perform(NSSelectorFromString("cellTapped"))
+    cell.perform(NSSelectorFromString("cellTapped"))
+    cell.perform(NSSelectorFromString("dismissButtonTapped"))
+    XCTAssertEqual(delegate.taps, 2)
+    XCTAssertEqual(delegate.dismissals, 1)
   }
 }

@@ -39,39 +39,16 @@ final class PersonalizationCell: UITableViewCell, ValueCell {
 
   private let rootStackView = { UIStackView(frame: .zero) }()
 
-  private let viewModel: PersonalizationCellViewModelType = PersonalizationCellViewModel()
-
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
     super.init(style: style, reuseIdentifier: reuseIdentifier)
 
     self.configureViews()
     self.setupConstraints()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
   required init?(coder _: NSCoder) {
     fatalError("init(coder:) has not been implemented")
-  }
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.viewModel.outputs.notifyDelegateViewTapped
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        guard let self = self else { return }
-
-        self.delegate?.personalizationCellTapped(self)
-      }
-
-    self.viewModel.outputs.notifyDelegateDismissButtonTapped
-      .observeForUI()
-      .observeValues { [weak self] in
-        guard let self = self else { return }
-
-        self.delegate?.personalizationCellDidTapDismiss(self)
-      }
   }
 
   override func bindStyles() {
@@ -164,11 +141,11 @@ final class PersonalizationCell: UITableViewCell, ValueCell {
   // MARK: - Accessors
 
   @objc private func cellTapped() {
-    self.viewModel.inputs.cellTapped()
+    self.delegate?.personalizationCellTapped(self)
   }
 
   @objc private func dismissButtonTapped() {
-    self.viewModel.inputs.dismissButtonTapped()
+    self.delegate?.personalizationCellDidTapDismiss(self)
   }
 }
 

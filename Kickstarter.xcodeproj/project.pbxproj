@@ -1112,7 +1112,6 @@
 				"0BB36570D833DB5A1EC50F3E",
 				"5D8386CB696EB44BBA684D82",
 				"8A3AE0AF2AF9EDF60DD71523",
-				"DBDD92134D53B3711E10618A",
 				"6DB51B6F6A4655C6F1ECAF8E",
 				"A6F42FD1B336315400EF291E",
 			);
@@ -7964,7 +7963,6 @@
 				"717B599EF2159DA2BAB62617",
 				"C7DFA5BF8ACA6F1EFDDA1601",
 				"75FD24FEB5141B58BBDB2D26",
-				"E369E0CC7243F4DF5CE4866B",
 				"A943DE897728D3C1FAFE15C0",
 				"EDD70B0F8F943789919B8998",
 				"5A36D2582C8DEDB25A184041",
@@ -12338,13 +12336,6 @@
 			"isa" = "XCSwiftPackageProductDependency";
 			"productName" = "Experimentation";
 			"package" = "B3188C0FA0FF6B6B0588EC4B";
-		};
-		"DBDD92134D53B3711E10618A" = {
-			"name" = "PersonalizationCellViewModel.swift";
-			"path" = "Kickstarter-iOS/1 - View/Views/Discovery/Views/Cells/PersonalizationCellViewModel.swift";
-			"isa" = "PBXFileReference";
-			"sourceTree" = "SOURCE_ROOT";
-			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"AAF547E42F2445C0001DB5AC" = {
 			"path" = "testLongBadge.long-badge.png";
@@ -19202,10 +19193,6 @@
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
-		};
-		"E369E0CC7243F4DF5CE4866B" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "DBDD92134D53B3711E10618A";
 		};
 		"15CB5751E7A4446365EDEAD8" = {
 			"name" = "DiscoveryProjectCategoryView.swift";
