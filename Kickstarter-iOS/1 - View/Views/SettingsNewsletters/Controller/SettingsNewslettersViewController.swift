@@ -6,7 +6,7 @@ import UIKit
 
 internal final class SettingsNewslettersViewController: UIViewController {
   fileprivate let dataSource = SettingsNewslettersDataSource()
-  fileprivate let viewModel: SettingsNewslettersViewModelType = SettingsNewslettersViewModel()
+  fileprivate let viewModel = SettingsNewslettersViewModel()
 
   @IBOutlet fileprivate var tableView: UITableView!
 
@@ -17,7 +17,7 @@ internal final class SettingsNewslettersViewController: UIViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
 
     self.tableView.register(nib: .SettingsNewslettersTopCell)
     self.tableView.register(nib: .SettingsNewslettersCell)
@@ -45,12 +45,10 @@ internal final class SettingsNewslettersViewController: UIViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.currentUser
-      .observeForUI()
-      .observeValues { [weak self] user in
-        self?.dataSource.load(newsletters: Newsletter.allCases, user: user)
-        self?.tableView.reloadData()
-      }
+    self.viewModel.onUser = { [weak self] user in
+      self?.dataSource.load(newsletters: Newsletter.allCases, user: user)
+      self?.tableView.reloadData()
+    }
   }
 }
 
@@ -71,7 +69,7 @@ extension SettingsNewslettersViewController: SettingsNewslettersCellDelegate {
   }
 
   func didUpdate(user: User) {
-    self.viewModel.inputs.didUpdate(user: user)
+    self.viewModel.didUpdate(user: user)
   }
 
   func shouldShowOptInAlert(_ newsletterName: String) {
@@ -82,7 +80,7 @@ extension SettingsNewslettersViewController: SettingsNewslettersCellDelegate {
 
 extension SettingsNewslettersViewController: SettingsNewslettersTopCellDelegate {
   func didUpdateAllNewsletters(user: User) {
-    self.viewModel.inputs.didUpdate(user: user)
+    self.viewModel.didUpdate(user: user)
   }
 
   func failedToUpdateAllNewsletters(_ message: String) {

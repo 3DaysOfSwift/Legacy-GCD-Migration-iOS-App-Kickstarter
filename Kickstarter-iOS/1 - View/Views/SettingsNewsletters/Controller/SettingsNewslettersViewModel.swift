@@ -1,53 +1,38 @@
+import Foundation
 import KsApi
-import Prelude
-import ReactiveSwift
+import Observation
 
 @MainActor
-public protocol SettingsNewslettersViewModelInputs {
-  func didUpdate(user: User)
-  func viewDidLoad()
-}
+@Observable
+public final class SettingsNewslettersViewModel {
+  public var onUser: ((User) -> Void)?
+  private let feature: SettingsFeature
+  private var lastLoadedUser: User?
+  private var reads: [UUID: Task<Void, Never>] = [:]
 
-@MainActor
-public protocol SettingsNewslettersViewModelOutputs {
-  var currentUser: Signal<User, Never> { get }
-}
-
-@MainActor
-public protocol SettingsNewslettersViewModelType {
-  var inputs: SettingsNewslettersViewModelInputs { get }
-  var outputs: SettingsNewslettersViewModelOutputs { get }
-}
-
-@MainActor
-public final class SettingsNewslettersViewModel: SettingsNewslettersViewModelType,
-  SettingsNewslettersViewModelInputs, SettingsNewslettersViewModelOutputs {
   public init(feature: SettingsFeature? = nil) {
-    let feature = feature ?? AppModel.shared.settingsFeature
-    let initialUser = self.viewDidLoadProperty.signal
-      .flatMap {
-        feature.userResult().wrapInOptional().demoteErrors()
-      }
-      .skipNil()
-      .skipRepeats()
-
-    let updatedUser = self.didUpdateUserProperty.signal.skipNil()
-
-    self.currentUser = Signal.merge(initialUser, updatedUser)
+    self.feature = feature ?? AppModel.shared.settingsFeature
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    if let user = self.feature.sessionFeature.currentUser { self.displayLoaded(user) }
+    let id = UUID()
+    self.reads[id] = Task { [weak self, feature] in
+      defer { self?.reads[id] = nil }
+      guard let user = try? await feature.refresh(), !Task.isCancelled else { return }
+      self?.displayLoaded(user)
+    }
   }
 
-  fileprivate let didUpdateUserProperty = MutableProperty<User?>(nil)
-  public func didUpdate(user: User) {
-    self.didUpdateUserProperty.value = user
+  private func displayLoaded(_ user: User) {
+    guard user != self.lastLoadedUser else { return }
+    self.lastLoadedUser = user
+    self.onUser?(user)
   }
 
-  public let currentUser: Signal<User, Never>
+  public func didUpdate(user: User) { self.onUser?(user) }
 
-  public var inputs: SettingsNewslettersViewModelInputs { return self }
-  public var outputs: SettingsNewslettersViewModelOutputs { return self }
+  internal func waitForLoads() async {
+    for task in Array(self.reads.values) { await task.value }
+  }
 }
