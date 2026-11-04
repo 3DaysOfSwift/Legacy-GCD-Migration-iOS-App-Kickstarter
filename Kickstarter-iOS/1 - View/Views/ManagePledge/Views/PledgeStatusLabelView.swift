@@ -12,14 +12,13 @@ final class PledgeStatusLabelView: UIView {
   private lazy var textView = { UITextView(frame: .zero) }()
   private lazy var badgeView = { BadgeView(frame: .zero) }()
 
-  private let viewModel: PledgeStatusLabelViewModelType = PledgeStatusLabelViewModel()
+  private let viewModel = PledgeStatusLabelViewModel()
 
   // MARK: - Lifecycle
 
   override init(frame: CGRect) {
     super.init(frame: frame)
 
-    self.bindViewModel()
     self.configureSubviews()
   }
 
@@ -52,24 +51,14 @@ final class PledgeStatusLabelView: UIView {
     self.rootStackView.addArrangedSubviews(self.badgeView, self.textView)
   }
 
-  // MARK: - View model
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.viewModel.outputs.labelText
-      .observeForUI()
-      .observeValues { attributedText in
-        self.textView.attributedText = attributedText
-      }
-
-    self.badgeView.rac.hidden = self.viewModel.outputs.badgeHidden
-  }
-
   // MARK: - Configuration
 
   internal func configure(with data: PledgeStatusLabelViewData) {
-    self.viewModel.inputs.configure(with: data)
+    self.viewModel.configure(with: data)
+    if let text = self.viewModel.labelText {
+      self.textView.attributedText = text
+    }
+    self.badgeView.isHidden = self.viewModel.badgeHidden
   }
 }
 

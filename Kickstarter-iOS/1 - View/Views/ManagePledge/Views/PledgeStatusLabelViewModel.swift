@@ -1,7 +1,7 @@
 import KDS
 import KsApi
 import Prelude
-import ReactiveSwift
+import Observation
 import UIKit
 
 public struct PledgeStatusLabelViewData {
@@ -25,52 +25,21 @@ extension PledgeStatusLabelViewData {
   }
 }
 
-@MainActor
-public protocol PledgeStatusLabelViewModelInputs {
-  func configure(with data: PledgeStatusLabelViewData)
-}
+@MainActor @Observable
+public final class PledgeStatusLabelViewModel {
+  public init() {}
 
-@MainActor
-public protocol PledgeStatusLabelViewModelOutputs {
-  var labelText: Signal<NSAttributedString, Never> { get }
-  var badgeHidden: Signal<Bool, Never> { get }
-}
+  public private(set) var labelText: NSAttributedString?
+  public private(set) var badgeHidden = true
 
-@MainActor
-public protocol PledgeStatusLabelViewModelType {
-  var inputs: PledgeStatusLabelViewModelInputs { get }
-  var outputs: PledgeStatusLabelViewModelOutputs { get }
-}
-
-@MainActor
-public class PledgeStatusLabelViewModel: PledgeStatusLabelViewModelType,
-  PledgeStatusLabelViewModelInputs, PledgeStatusLabelViewModelOutputs {
-  public init() {
-    self.labelText = self.configureWithDataProperty.signal
-      .skipNil()
-      .map { statusLabelText(with: $0) }
-      .skipNil()
-
-    self.badgeHidden = self.configureWithDataProperty.signal.skipNil()
-      .map {
-        let pledgeIsErrored = $0.backingState == .errored || $0.backingState == .authenticationRequired
-        let projectIsComplete = $0.projectState != .live
-
-        return projectIsComplete && $0.isPledgeOverTime && pledgeIsErrored
-      }
-      .negate()
-  }
-
-  private let configureWithDataProperty = MutableProperty<PledgeStatusLabelViewData?>(nil)
   public func configure(with data: PledgeStatusLabelViewData) {
-    self.configureWithDataProperty.value = data
+    if let text = statusLabelText(with: data) {
+      self.labelText = text
+    }
+    let pledgeIsErrored = data.backingState == .errored || data.backingState == .authenticationRequired
+    let projectIsComplete = data.projectState != .live
+    self.badgeHidden = !(projectIsComplete && data.isPledgeOverTime && pledgeIsErrored)
   }
-
-  public let labelText: Signal<NSAttributedString, Never>
-  public let badgeHidden: Signal<Bool, Never>
-
-  public var inputs: PledgeStatusLabelViewModelInputs { return self }
-  public var outputs: PledgeStatusLabelViewModelOutputs { return self }
 }
 
 // MARK: - Functions

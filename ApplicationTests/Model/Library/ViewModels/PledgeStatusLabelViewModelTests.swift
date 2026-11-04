@@ -5,21 +5,30 @@ import Foundation
 
 import Prelude
 import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class PledgeStatusLabelViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  private let vm: PledgeStatusLabelViewModelType = PledgeStatusLabelViewModel()
+  private let vm = PledgeStatusLabelViewModel()
 
-  private let labelTextString = TestObserver<String, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.labelText.map { $0.string }.observe(self.labelTextString.observer)
+  func testBadgeAndMissingTextPreserveExistingLabel() {
+    let first = PledgeStatusLabelViewData(
+      currentUserIsCreatorOfProject: false, needsConversion: false, pledgeAmount: 10,
+      currencyCode: Project.Country.hk.currencyCode, projectDeadline: 1_476_657_315,
+      projectState: .live, backingState: .canceled, paymentIncrements: nil, project: nil
+    )
+    let second = PledgeStatusLabelViewData(
+      currentUserIsCreatorOfProject: false, needsConversion: false, pledgeAmount: 10,
+      currencyCode: Project.Country.hk.currencyCode, projectDeadline: 1_476_657_315,
+      projectState: .live, backingState: .authenticationRequired, paymentIncrements: nil, project: nil
+    )
+    self.vm.configure(with: first)
+    let previous = self.vm.labelText?.string
+    XCTAssertTrue(self.vm.badgeHidden)
+    self.vm.configure(with: second)
+    XCTAssertEqual(self.vm.labelText?.string, previous)
+    XCTAssertTrue(self.vm.badgeHidden)
   }
 
   func testProjectStatusCanceled_Backer() {
@@ -35,9 +44,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "The creator canceled this project, so your payment method was never charged."
     ])
   }
@@ -55,9 +64,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "This project didn’t reach its funding goal, so your payment method was never charged."
     ])
   }
@@ -75,9 +84,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "You canceled your pledge for this project."
     ])
   }
@@ -95,9 +104,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "We collected your pledge for this project."
     ])
   }
@@ -115,9 +124,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "We collected your pledge for this project."
     ])
   }
@@ -135,9 +144,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "Your pledge was dropped because of payment errors."
     ])
   }
@@ -155,9 +164,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "We can’t process your pledge. Please update your payment method."
     ])
   }
@@ -175,10 +184,10 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
     // TODO: for now we expected a nil `labelTextString`, this will be addressed when we get to the native implementation in this ticket [MBL-2012](https://kickstarter.atlassian.net/browse/MBL-2012)
-    self.labelTextString.assertValues([])
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [])
   }
 
   func testBackingStatus_Preauth_Backer() {
@@ -194,9 +203,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "We're processing your pledge—pull to refresh."
     ])
   }
@@ -214,9 +223,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "If the project reaches its funding goal, you will be charged on October 16, 2016."
     ])
   }
@@ -235,9 +244,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
         project: nil
       )
 
-      self.vm.inputs.configure(with: data)
+      self.vm.configure(with: data)
 
-      self.labelTextString.assertValues([
+      XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
         "If the project reaches its funding goal, you will be charged HK$ 10 on October 16, 2016. You will receive a proof of pledge that will be redeemable if the project is funded and the creator is successful at completing the creative venture."
       ])
     }
@@ -263,10 +272,10 @@ final class PledgeStatusLabelViewModelTests: TestCase {
         project: nil
       )
 
-      self.vm.inputs.configure(with: data)
+      self.vm.configure(with: data)
     }
 
-    self.labelTextString.assertValues([])
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [])
   }
 
   func testProjectStatusCanceled_Creator() {
@@ -282,9 +291,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "You canceled this project, so the backer’s payment method was never charged."
     ])
   }
@@ -302,9 +311,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "Your project didn’t reach its funding goal, so the backer’s payment method was never charged."
     ])
   }
@@ -322,9 +331,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "The backer canceled their pledge for this project."
     ])
   }
@@ -342,9 +351,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "We collected the backer’s pledge for this project."
     ])
   }
@@ -362,9 +371,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "This pledge was dropped because of payment errors."
     ])
   }
@@ -382,9 +391,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "We can’t process this pledge because of a problem with the backer’s payment method."
     ])
   }
@@ -402,9 +411,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "If your project reaches its funding goal, the backer will be charged on October 16, 2016."
     ])
   }
@@ -423,9 +432,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
         project: nil
       )
 
-      self.vm.inputs.configure(with: data)
+      self.vm.configure(with: data)
 
-      self.labelTextString.assertValues([
+      XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
         "If your project reaches its funding goal, the backer will be charged HK$ 10 on October 16, 2016."
       ])
     }
@@ -444,9 +453,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "We're processing this pledge—pull to refresh."
     ])
   }
@@ -471,10 +480,10 @@ final class PledgeStatusLabelViewModelTests: TestCase {
         project: nil
       )
 
-      self.vm.inputs.configure(with: data)
+      self.vm.configure(with: data)
     }
 
-    self.labelTextString.assertValues([])
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [])
   }
 
   func testBackingStatus_Pledged_Backer_PledgeOverTime_LiveProject() {
@@ -490,9 +499,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: Project.template
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "You have selected Pledge Over Time. If the project reaches its funding goal, the first charge of $250.00 will be collected on March 28, 2019."
     ])
   }
@@ -510,9 +519,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: Project.template
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "We collected your pledge for this project."
     ])
   }
@@ -530,9 +539,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: Project.template
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "We can’t process your Pledge Over Time payment. Please view your pledge on a web browser and log in to fix your payment."
     ])
   }
@@ -550,9 +559,9 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       project: Project.template
     )
 
-    self.vm.inputs.configure(with: data)
+    self.vm.configure(with: data)
 
-    self.labelTextString.assertValues([
+    XCTAssertEqual(self.vm.labelText.map { [$0.string] } ?? [], [
       "We can’t process your Pledge Over Time payment. Please view your pledge on a web browser and log in to fix your payment."
     ])
   }
