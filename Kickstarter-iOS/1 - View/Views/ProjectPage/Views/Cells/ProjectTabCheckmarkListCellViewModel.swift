@@ -1,68 +1,21 @@
 import KsApi
-import Prelude
-import ReactiveSwift
+import Observation
 
-public protocol ProjectTabCheckmarkListCellViewModelInputs {
-  /// Call to configure with a `ProjectTabFundingOptions`.
-  func configureWith(value: ProjectTabFundingOptions)
-}
+@MainActor
+@Observable
+public final class ProjectTabCheckmarkListCellViewModel {
+  public init() {}
+  public private(set) var categoryLabelText = ""
+  public private(set) var descriptionOptionsText: [String] = []
 
-public protocol ProjectTabCheckmarkListCellViewModelOutputs {
-  /// Emits a `String` of the category
-  var categoryLabelText: Signal<String, Never> { get }
-
-  /// Emits an array of `String` descriptions of the funding options
-  var descriptionOptionsText: Signal<[String], Never> { get }
-}
-
-public protocol ProjectTabCheckmarkListCellViewModelType {
-  var inputs: ProjectTabCheckmarkListCellViewModelInputs { get }
-  var outputs: ProjectTabCheckmarkListCellViewModelOutputs { get }
-}
-
-public final class ProjectTabCheckmarkListCellViewModel:
-  ProjectTabCheckmarkListCellViewModelType, ProjectTabCheckmarkListCellViewModelInputs,
-  ProjectTabCheckmarkListCellViewModelOutputs {
-  public init() {
-    let fundingOptions = self.configureWithProperty.signal
-      .skipNil()
-
-    self.categoryLabelText = fundingOptions
-      .map { _ in Strings.My_project_seeks_funding_for_AI_technology() }
-
-    self.descriptionOptionsText = fundingOptions
-      .map { options in
-        var optionsTextValues = [String]()
-
-        if options.fundingForAiConsent {
-          let consentText = internationalizedString(for: .consent)
-          optionsTextValues.append(consentText)
-        }
-
-        if options.fundingForAiAttribution {
-          let attributionText = internationalizedString(for: .attribution)
-          optionsTextValues.append(attributionText)
-        }
-
-        if options.fundingForAiOption {
-          let ownerText = internationalizedString(for: .option)
-          optionsTextValues.append(ownerText)
-        }
-
-        return optionsTextValues
-      }
-  }
-
-  fileprivate let configureWithProperty = MutableProperty<ProjectTabFundingOptions?>(nil)
   public func configureWith(value: ProjectTabFundingOptions) {
-    self.configureWithProperty.value = value
+    self.categoryLabelText = Strings.My_project_seeks_funding_for_AI_technology()
+    var options: [String] = []
+    if value.fundingForAiConsent { options.append(internationalizedString(for: .consent)) }
+    if value.fundingForAiAttribution { options.append(internationalizedString(for: .attribution)) }
+    if value.fundingForAiOption { options.append(internationalizedString(for: .option)) }
+    self.descriptionOptionsText = options
   }
-
-  public let categoryLabelText: Signal<String, Never>
-  public let descriptionOptionsText: Signal<[String], Never>
-
-  public var inputs: ProjectTabCheckmarkListCellViewModelInputs { self }
-  public var outputs: ProjectTabCheckmarkListCellViewModelOutputs { self }
 }
 
 private func internationalizedString(for category: ProjectTabAIFundingCategory) -> String {

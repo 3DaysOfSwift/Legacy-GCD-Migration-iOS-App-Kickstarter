@@ -31,7 +31,6 @@ final class ProjectTabCheckmarkListCell: UITableViewCell, ValueCell {
 
     self.bindStyles()
     self.configureViews()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -41,43 +40,35 @@ final class ProjectTabCheckmarkListCell: UITableViewCell, ValueCell {
 
   // MARK: - Bindings
 
-  override func bindViewModel() {
-    super.bindViewModel()
+  private func renderOptions(_ options: [String]) {
+  self.fundingStackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
-    self.categoryLabel.rac.text = self.viewModel.outputs.categoryLabelText
+  _ = options.map { optionText in
+    let imageLabelView = UIView(frame: .zero)
 
-    self.viewModel.outputs.descriptionOptionsText
-      .observeForUI()
-      .observeValues { [weak self] options in
-        self?.fundingStackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
+    let label = UILabel(frame: .zero)
+      |> \.text .~ optionText
+      |> optionTextLabelStyle
 
-        _ = options.map { [weak self] optionText in
-          let imageLabelView = UIView(frame: .zero)
+    let icon = UIImageView(frame: .zero)
+      |> iconImageStyle
 
-          let label = UILabel(frame: .zero)
-            |> \.text .~ optionText
-            |> optionTextLabelStyle
+    imageLabelView.addSubview(icon)
+    imageLabelView.addSubview(label)
 
-          let icon = UIImageView(frame: .zero)
-            |> iconImageStyle
+    NSLayoutConstraint.activate([
+      icon.leadingAnchor.constraint(equalTo: imageLabelView.leadingAnchor),
+      icon.topAnchor.constraint(equalTo: imageLabelView.topAnchor, constant: Styles.grid(1)),
+      label.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: Styles.grid(2)),
+      label.topAnchor.constraint(equalTo: imageLabelView.topAnchor),
+      label.trailingAnchor.constraint(equalTo: imageLabelView.trailingAnchor),
+      label.bottomAnchor.constraint(equalTo: imageLabelView.bottomAnchor)
+    ])
 
-          imageLabelView.addSubview(icon)
-          imageLabelView.addSubview(label)
+    self.fundingStackView.addArrangedSubview(imageLabelView)
+  }
 
-          NSLayoutConstraint.activate([
-            icon.leadingAnchor.constraint(equalTo: imageLabelView.leadingAnchor),
-            icon.topAnchor.constraint(equalTo: imageLabelView.topAnchor, constant: Styles.grid(1)),
-            label.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: Styles.grid(2)),
-            label.topAnchor.constraint(equalTo: imageLabelView.topAnchor),
-            label.trailingAnchor.constraint(equalTo: imageLabelView.trailingAnchor),
-            label.bottomAnchor.constraint(equalTo: imageLabelView.bottomAnchor)
-          ])
-
-          self?.fundingStackView.addArrangedSubview(imageLabelView)
-        }
-
-        self?.fundingStackView.setNeedsDisplay()
-      }
+  self.fundingStackView.setNeedsDisplay()
   }
 
   override func bindStyles() {
@@ -107,7 +98,9 @@ final class ProjectTabCheckmarkListCell: UITableViewCell, ValueCell {
   // MARK: - Configuration
 
   func configureWith(value: ProjectTabFundingOptions) {
-    self.viewModel.inputs.configureWith(value: value)
+    self.viewModel.configureWith(value: value)
+    self.categoryLabel.text = self.viewModel.categoryLabelText
+    self.renderOptions(self.viewModel.descriptionOptionsText)
   }
 
   private func configureViews() {
