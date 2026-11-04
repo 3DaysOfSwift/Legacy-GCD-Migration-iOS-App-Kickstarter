@@ -1,42 +1,44 @@
 @testable import Kickstarter_iOS
-
-
-import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
+import UIKit
 import XCTest
 
+@MainActor
 final class PledgeExpandableHeaderRewardCellViewModelTests: TestCase {
-  // Value-output assertions do not compare reference images.
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  internal let vm: PledgeExpandableHeaderRewardCellViewModelType = PledgeExpandableHeaderRewardCellViewModel()
 
-  private let amountAttributedText = TestObserver<NSAttributedString, Never>()
-  private let labelText = TestObserver<String, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.amountAttributedText.observe(self.amountAttributedText.observer)
-    self.vm.outputs.labelText.observe(self.labelText.observer)
+  func testRewardSummaryCellsDisplayAndUpdateValues() {
+    let amount = NSAttributedString(string: "$20")
+    let data = PledgeSummaryRewardCellData(type: .reward, headerText: nil, showHeader: false, text: "Reward", amount: amount)
+    let cells: [UITableViewCell] = [
+      PledgeExpandableHeaderRewardCell(style: .default, reuseIdentifier: nil),
+      PostCampaignPledgeRewardsSummaryCell(style: .default, reuseIdentifier: nil),
+      PledgeExpandableHeaderRewardHeaderCell(style: .default, reuseIdentifier: nil)
+    ]
+    for cell in cells {
+      switch cell {
+      case let cell as PledgeExpandableHeaderRewardCell: cell.configureWith(value: data)
+      case let cell as PostCampaignPledgeRewardsSummaryCell: cell.configureWith(value: data)
+      case let cell as PledgeExpandableHeaderRewardHeaderCell: cell.configureWith(value: data)
+      default: XCTFail("Unexpected cell")
+      }
+      let labels = self.labels(in: cell)
+      XCTAssertTrue(labels.contains { $0.text == "Reward" })
+      XCTAssertTrue(labels.contains { $0.attributedText?.string == "$20" })
+    }
   }
 
-  func testOutputs() {
-    self.amountAttributedText.assertDidNotEmitValue()
-    self.labelText.assertDidNotEmitValue()
+  func testPostCampaignHeaderHidesEmptySubtitle() throws {
+    let cell = PostCampaignPledgeRewardsSummaryHeaderCell(style: .default, reuseIdentifier: nil)
+    let data = PledgeSummaryRewardCellData(type: .header, headerText: nil, showHeader: false, text: "Details", amount: NSAttributedString(string: ""))
+    cell.configureWith(value: data)
+    let subtitle = try XCTUnwrap(self.labels(in: cell).first { $0.text == "Details" })
+    XCTAssertFalse(subtitle.isHidden)
+    cell.configureWith(value: .init(type: .header, headerText: nil, showHeader: false, text: "", amount: NSAttributedString(string: "")))
+    XCTAssertTrue(subtitle.isHidden)
+  }
 
-    let text = "Text"
-    let amount = NSAttributedString(string: "Test string")
-
-    self.vm.inputs.configure(with: .init(
-      type: nil,
-      headerText: nil,
-      showHeader: false,
-      text: text,
-      amount: amount
-    ))
-
-    self.amountAttributedText.assertValues([amount])
-    self.labelText.assertValues([text])
+  private func labels(in view: UIView) -> [UILabel] {
+    let own = (view as? UILabel).map { [$0] } ?? []
+    return own + view.subviews.flatMap { self.labels(in: $0) }
   }
 }

@@ -10130,8 +10130,8 @@
 			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"31EA5A38FA8D3F8ED19BF0C7" = {
-			"name" = "PledgeExpandableHeaderRewardCellViewModel.swift";
-			"path" = "Kickstarter-iOS/1 - View/Views/PledgePaymentMethods/Views/Cells/PledgeExpandableHeaderRewardCellViewModel.swift";
+			"name" = "PledgeSummaryRewardCellData.swift";
+			"path" = "Kickstarter-iOS/1 - View/Views/PledgePaymentMethods/Views/Cells/PledgeSummaryRewardCellData.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";

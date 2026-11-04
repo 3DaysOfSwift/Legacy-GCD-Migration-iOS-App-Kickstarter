@@ -12,16 +12,12 @@ final class PledgeExpandableHeaderRewardHeaderCell: UITableViewCell, ValueCell {
   private lazy var subtitleLabel: UILabel = UILabel(frame: .zero)
   private lazy var titleLabel: UILabel = UILabel(frame: .zero)
 
-  private let viewModel: PledgeExpandableHeaderRewardCellViewModelType
-    = PledgeExpandableHeaderRewardCellViewModel()
-
   // MARK: - Lifecycle
 
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
     super.init(style: style, reuseIdentifier: reuseIdentifier)
 
     self.configureViews()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -55,24 +51,11 @@ final class PledgeExpandableHeaderRewardHeaderCell: UITableViewCell, ValueCell {
       |> \.spacing .~ Styles.grid(1)
   }
 
-  // MARK: - View model
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.amountLabel.rac.attributedText = self.viewModel.outputs.amountAttributedText
-
-    self.viewModel.outputs.labelText
-      .observeForUI()
-      .observeValues { [weak self] titleText in
-        self?.subtitleLabel.text = titleText
-      }
-  }
-
   // MARK: - Configuration
 
   func configureWith(value: PledgeSummaryRewardCellData) {
-    self.viewModel.inputs.configure(with: value)
+    self.amountLabel.attributedText = value.amount
+    self.subtitleLabel.text = value.text
   }
 
   private func configureViews() {

@@ -12,9 +12,6 @@ final class PostCampaignPledgeRewardsSummaryHeaderCell: UITableViewCell, ValueCe
   private lazy var titleLabel: UILabel = UILabel(frame: .zero)
   private lazy var separatorView: UIView = { UIView(frame: .zero) }()
 
-  private let viewModel: PledgeExpandableHeaderRewardCellViewModelType
-    = PledgeExpandableHeaderRewardCellViewModel()
-
   // MARK: - Lifecycle
 
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
@@ -22,7 +19,6 @@ final class PostCampaignPledgeRewardsSummaryHeaderCell: UITableViewCell, ValueCe
 
     self.configureViews()
     self.setupConstraints()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -58,23 +54,11 @@ final class PostCampaignPledgeRewardsSummaryHeaderCell: UITableViewCell, ValueCe
     self.applySeparatorViewStyle(self.separatorView)
   }
 
-  // MARK: - View model
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.viewModel.outputs.labelText
-      .observeForUI()
-      .observeValues { [weak self] titleText in
-        self?.subtitleLabel.text = titleText
-        self?.subtitleLabel.isHidden = titleText.isEmpty
-      }
-  }
-
   // MARK: - Configuration
 
   func configureWith(value: PledgeSummaryRewardCellData) {
-    self.viewModel.inputs.configure(with: value)
+    self.subtitleLabel.text = value.text
+    self.subtitleLabel.isHidden = value.text.isEmpty
   }
 
   private func configureViews() {
