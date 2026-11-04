@@ -90,7 +90,7 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
 
     let selectedRowWithCategories = Signal.combineLatest(
       initialSelectedRow,
-      self.categoriesUseCase.categories
+      self.categoryPipe.output
     )
 
     let favoriteRows = selectedRowWithCategories
@@ -137,6 +137,9 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
     )
 
     self.animateInView = self.viewDidAppearProperty.signal
+
+    self.categoriesUseCase.onCategories = { [categoryPipe = self.categoryPipe] in categoryPipe.input.send(value: $0) }
+    self.categoriesUseCase.onLoading = { [loadingPipe = self.loadingPipe] in loadingPipe.input.send(value: $0) }
 
     self.notifyDelegateOfSelectedRow
       .observeValues {
@@ -185,7 +188,7 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
 
   public let animateInView: Signal<(), Never>
   public var loadingIndicatorIsVisible: Signal<Bool, Never> {
-    self.categoriesUseCase.loadingIndicatorIsVisible
+    self.loadingPipe.output
   }
 
   public let loadCategoryRows: Signal<
@@ -196,6 +199,8 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
   public let loadTopRows: Signal<(rows: [SelectableRow], categoryId: Int?), Never>
   public let notifyDelegateOfSelectedRow: Signal<SelectableRow, Never>
 
+  private let categoryPipe = Signal<[KsApi.Category], Never>.pipe()
+  private let loadingPipe = Signal<Bool, Never>.pipe()
   private let categoriesUseCase: FetchCategoriesUseCase
 
   public var inputs: DiscoveryFiltersViewModelInputs { return self }

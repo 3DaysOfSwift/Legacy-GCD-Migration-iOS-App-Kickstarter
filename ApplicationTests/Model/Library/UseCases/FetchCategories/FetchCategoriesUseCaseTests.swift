@@ -2,8 +2,6 @@
 @testable import KsApi
 
 
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -11,15 +9,15 @@ final class FetchCategoriesUseCaseTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
   private var useCase: FetchCategoriesUseCase!
-  private let categories = TestObserver<[KsApi.Category], Never>()
-  private let loadingIndicatorIsVisible = TestObserver<Bool, Never>()
+  private let categories = CategoryRecorder<[KsApi.Category]>()
+  private let loadingIndicatorIsVisible = CategoryRecorder<Bool>()
 
   override func setUp() async throws {
     try await super.setUp()
 
     self.useCase = FetchCategoriesUseCase()
-    self.useCase.dataOutputs.categories.observe(self.categories.observer)
-    self.useCase.uiOutputs.loadingIndicatorIsVisible.observe(self.loadingIndicatorIsVisible.observer)
+    self.useCase.onCategories = { [weak self] in self?.categories.values.append($0) }
+    self.useCase.onLoading = { [weak self] in self?.loadingIndicatorIsVisible.values.append($0) }
   }
 
   override func tearDown() async throws {
@@ -49,8 +47,8 @@ final class FetchCategoriesUseCaseTests: TestCase {
 
   func testReplacementCacheRejectsObsoleteResponse() async {
     let loader = FetchCategoriesUseCase(fetch: { [.art] })
-    let observed = TestObserver<[KsApi.Category], Never>()
-    loader.categories.observe(observed.observer)
+    let observed = CategoryRecorder<[KsApi.Category]>()
+    loader.onCategories = { observed.values.append($0) }
     let pending = loader.start()
     await withEnvironment(cache: KSCache()) {
       await pending.value
@@ -140,4 +138,14 @@ final class FetchCategoriesUseCaseTests: TestCase {
       self.loadingIndicatorIsVisible.assertLastValue(false)
     }
   }
+}
+
+private final class CategoryRecorder<Value> {
+  var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) { XCTAssertTrue(self.values.isEmpty, message, file: file, line: line) }
+  func assertDidEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) { XCTAssertFalse(self.values.isEmpty, message, file: file, line: line) }
+}
+private extension CategoryRecorder where Value: Equatable {
+  func assertLastValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) { XCTAssertEqual(self.lastValue, expected, message, file: file, line: line) }
 }
