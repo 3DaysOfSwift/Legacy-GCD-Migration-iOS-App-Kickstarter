@@ -3,9 +3,6 @@ import Foundation
 @testable import KsApi
 
 
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -14,12 +11,12 @@ final class PledgePaymentPlansViewModelTests: TestCase {
 
   // MARK: Properties
 
-  private var vm: PledgePaymentPlansViewModelType = PledgePaymentPlansViewModel()
+  private var vm: PledgePaymentPlansViewModel = PledgePaymentPlansViewModel()
 
-  private var reloadPaymentPlansPlanType = TestObserver<PledgePaymentPlansType, Never>()
-  private var notifyDelegatePaymentPlanSelected = TestObserver<PledgePaymentPlansType, Never>()
-  private var notifyDelegateTermsOfUseTapped = TestObserver<HelpType, Never>()
-  private var isLoading = TestObserver<Bool, Never>()
+  private var reloadPaymentPlansPlanType = PlanRecorder<PledgePaymentPlansType>()
+  private var notifyDelegatePaymentPlanSelected = PlanRecorder<PledgePaymentPlansType>()
+  private var notifyDelegateTermsOfUseTapped = PlanRecorder<HelpType>()
+  private var isLoading = PlanRecorder<Bool>()
 
   private let selectionData = PledgePaymentPlansAndSelectionData(
     selectedPlan: .pledgeInFull,
@@ -31,22 +28,17 @@ final class PledgePaymentPlansViewModelTests: TestCase {
   override func setUp() async throws {
     try await super.setUp()
 
-    self.vm.outputs.notifyDelegatePaymentPlanSelected
-      .observe(self.notifyDelegatePaymentPlanSelected.observer)
-
-    self.vm.outputs.reloadPaymentPlans
-      .map { $0.selectedPlan }
-      .observe(self.reloadPaymentPlansPlanType.observer)
-
-    self.vm.outputs.notifyDelegateTermsOfUseTapped.observe(self.notifyDelegateTermsOfUseTapped.observer)
-    self.vm.outputs.isLoading.observe(self.isLoading.observer)
+    self.vm.onPlanSelected = { [weak self] in self?.notifyDelegatePaymentPlanSelected.record($0) }
+    self.vm.onReload = { [weak self] in self?.reloadPaymentPlansPlanType.record($0.selectedPlan) }
+    self.vm.onTerms = { [weak self] in self?.notifyDelegateTermsOfUseTapped.record($0) }
+    self.vm.onLoading = { [weak self] in self?.isLoading.record($0) }
   }
 
   // MARK: Test cases
 
   func testPaymenPlans_DefaultState() {
     withEnvironment {
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       self.reloadPaymentPlansPlanType.assertDidNotEmitValue()
       self.notifyDelegatePaymentPlanSelected.assertDidNotEmitValue()
@@ -55,9 +47,9 @@ final class PledgePaymentPlansViewModelTests: TestCase {
 
   func testPaymenPlans_WithConfigureData() {
     withEnvironment {
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
-      self.vm.inputs.configure(with: self.selectionData)
+      self.vm.configure(with: self.selectionData)
       self.reloadPaymentPlansPlanType.assertValues([.pledgeInFull])
       self.notifyDelegatePaymentPlanSelected.assertDidNotEmitValue()
     }
@@ -65,11 +57,11 @@ final class PledgePaymentPlansViewModelTests: TestCase {
 
   func testPaymenPlans_PledgeInFullSelected() {
     withEnvironment {
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
-      self.vm.inputs.configure(with: self.selectionData)
+      self.vm.configure(with: self.selectionData)
       self.reloadPaymentPlansPlanType.assertValues([.pledgeInFull])
-      self.vm.inputs.didSelectPlanType(.pledgeInFull)
+      self.vm.didSelectPlanType(.pledgeInFull)
       self.reloadPaymentPlansPlanType.assertValues([.pledgeInFull, .pledgeInFull])
       self.notifyDelegatePaymentPlanSelected.assertValues([.pledgeInFull])
     }
@@ -77,21 +69,21 @@ final class PledgePaymentPlansViewModelTests: TestCase {
 
   func testPaymenPlans_PledgeOverTimeSelected() {
     withEnvironment {
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
-      self.vm.inputs.configure(with: self.selectionData)
+      self.vm.configure(with: self.selectionData)
       self.reloadPaymentPlansPlanType.assertValues([.pledgeInFull])
-      self.vm.inputs.didSelectPlanType(.pledgeOverTime)
+      self.vm.didSelectPlanType(.pledgeOverTime)
       self.reloadPaymentPlansPlanType.assertValues([.pledgeInFull, .pledgeOverTime])
       self.notifyDelegatePaymentPlanSelected.assertValues([.pledgeOverTime])
     }
   }
 
   func testPaymenPlans_TermsOfUseTapped() {
-    self.vm.inputs.viewDidLoad()
+    self.vm.viewDidLoad()
 
-    self.vm.inputs.configure(with: self.selectionData)
-    self.vm.inputs.didTapTermsOfUse(with: .terms)
+    self.vm.configure(with: self.selectionData)
+    self.vm.didTapTermsOfUse(with: .terms)
 
     self.notifyDelegateTermsOfUseTapped.assertValues([HelpType.terms])
   }
@@ -99,21 +91,32 @@ final class PledgePaymentPlansViewModelTests: TestCase {
   func testIsLoading_startsOnViewDidLoad_stopsWhenConfigDataIsSet() {
     self.isLoading.assertDidNotEmitValue()
 
-    self.vm.inputs.viewDidLoad()
+    self.vm.viewDidLoad()
     self.isLoading.assertValues([true])
 
-    self.vm.inputs.configure(with: self.selectionData)
+    self.vm.configure(with: self.selectionData)
     self.isLoading.assertValues([true, false])
   }
 
   func testIsLoading_sendsFalse_ifDataIsSetBeforeViewDidLoad() {
     self.isLoading.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: self.selectionData)
+    self.vm.configure(with: self.selectionData)
     self.isLoading.assertValues([false])
 
-    self.vm.inputs.viewDidLoad()
+    self.vm.viewDidLoad()
 
     self.isLoading.assertValues([false])
+  }
+}
+
+private final class PlanRecorder<Value: Equatable> {
+  private var values: [Value] = []
+  func record(_ value: Value) { self.values.append(value) }
+  func assertDidNotEmitValue(file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, file: file, line: line)
+  }
+  func assertValues(_ expected: [Value], file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, file: file, line: line)
   }
 }

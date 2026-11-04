@@ -27,7 +27,7 @@ final class PledgePaymentPlansViewController: UIViewController {
 
   internal weak var delegate: PledgePaymentPlansViewControllerDelegate?
 
-  private let viewModel: PledgePaymentPlansViewModelType = PledgePaymentPlansViewModel()
+  private let viewModel = PledgePaymentPlansViewModel()
 
   // MARK: Lifecycle
 
@@ -37,7 +37,7 @@ final class PledgePaymentPlansViewController: UIViewController {
     self.configureSubviews()
     self.setupConstraints()
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   private func configureSubviews() {
@@ -84,55 +84,37 @@ final class PledgePaymentPlansViewController: UIViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    let isLoading = self.viewModel.outputs.isLoading
-    let notLoading = self.viewModel.outputs.isLoading.map { !$0 }
-
-    self.pledgeInFullOption.rac.hidden = isLoading
-    self.pledgeOverTimeOption.rac.hidden = isLoading
-    self.pledgeInFullLoadingOption.rac.hidden = notLoading
-    self.pledgeOverTimeLoadingOption.rac.hidden = notLoading
-
-    self.viewModel.outputs.reloadPaymentPlans
-      .observeForUI()
-      .observeValues { [weak self] data in
-        guard let self = self else { return }
-
-        self.pledgeInFullOption.configureWith(value: PledgePaymentPlanOptionData(
-          ineligible: data.ineligible,
-          type: .pledgeInFull,
-          selectedType: data.selectedPlan,
-          paymentIncrements: data.paymentIncrements,
-          project: data.project
-        ))
-        self.pledgeOverTimeOption.configureWith(value: PledgePaymentPlanOptionData(
-          ineligible: data.ineligible,
-          type: .pledgeOverTime,
-          selectedType: data.selectedPlan,
-          paymentIncrements: data.paymentIncrements,
-          project: data.project
-        ))
-      }
-
-    self.viewModel.outputs.notifyDelegatePaymentPlanSelected
-      .observeForUI()
-      .observeValues { [weak self] paymentPlan in
-        guard let self = self else { return }
-
-        self.delegate?.pledgePaymentPlansViewController(self, didSelectPaymentPlan: paymentPlan)
-      }
-    self.viewModel.outputs.notifyDelegateTermsOfUseTapped
-      .observeForUI()
-      .observeValues { [weak self] helpType in
-        guard let self = self else { return }
-
-        self.delegate?.pledgePaymentPlansViewController(self, didTapTermsOfUseWith: helpType)
-      }
+    self.viewModel.onLoading = { [weak self] loading in
+      self?.pledgeInFullOption.isHidden = loading
+      self?.pledgeOverTimeOption.isHidden = loading
+      self?.pledgeInFullLoadingOption.isHidden = !loading
+      self?.pledgeOverTimeLoadingOption.isHidden = !loading
+    }
+    self.viewModel.onReload = { [weak self] data in
+      guard let self else { return }
+      self.pledgeInFullOption.configureWith(value: PledgePaymentPlanOptionData(
+        ineligible: data.ineligible, type: .pledgeInFull, selectedType: data.selectedPlan,
+        paymentIncrements: data.paymentIncrements, project: data.project
+      ))
+      self.pledgeOverTimeOption.configureWith(value: PledgePaymentPlanOptionData(
+        ineligible: data.ineligible, type: .pledgeOverTime, selectedType: data.selectedPlan,
+        paymentIncrements: data.paymentIncrements, project: data.project
+      ))
+    }
+    self.viewModel.onPlanSelected = { [weak self] plan in
+      guard let self else { return }
+      self.delegate?.pledgePaymentPlansViewController(self, didSelectPaymentPlan: plan)
+    }
+    self.viewModel.onTerms = { [weak self] help in
+      guard let self else { return }
+      self.delegate?.pledgePaymentPlansViewController(self, didTapTermsOfUseWith: help)
+    }
   }
 
   // MARK: - Configuration
 
   func configure(with value: PledgePaymentPlansAndSelectionData) {
-    self.viewModel.inputs.configure(with: value)
+    self.viewModel.configure(with: value)
   }
 }
 
@@ -143,14 +125,14 @@ extension PledgePaymentPlansViewController: PledgePaymentPlanOptionViewDelegate 
     _: PledgePaymentPlanOptionView,
     didSelectPlanType paymentPlanType: PledgePaymentPlansType
   ) {
-    self.viewModel.inputs.didSelectPlanType(paymentPlanType)
+    self.viewModel.didSelectPlanType(paymentPlanType)
   }
 
   func pledgePaymentPlansViewController(
     _: PledgePaymentPlanOptionView,
     didTapTermsOfUseWith helpType: HelpType
   ) {
-    self.viewModel.inputs.didTapTermsOfUse(with: helpType)
+    self.viewModel.didTapTermsOfUse(with: helpType)
   }
 }
 

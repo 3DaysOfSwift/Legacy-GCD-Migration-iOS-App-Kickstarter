@@ -1,7 +1,6 @@
 import Foundation
 import KsApi
-import Prelude
-import ReactiveSwift
+import Observation
 
 public enum PledgePaymentPlansType: Equatable {
   case pledgeInFull
@@ -31,97 +30,42 @@ public struct PledgePaymentPlansAndSelectionData {
   }
 }
 
-public protocol PledgePaymentPlansViewModelInputs {
-  func viewDidLoad()
-  func configure(with value: PledgePaymentPlansAndSelectionData)
-  func didSelectPlanType(_ planType: PledgePaymentPlansType)
-  func didTapTermsOfUse(with helpType: HelpType)
-}
+@MainActor
+@Observable
+public final class PledgePaymentPlansViewModel {
+  public private(set) var isLoading = true
+  var onLoading: ((Bool) -> Void)?
+  var onReload: ((PledgePaymentPlansAndSelectionData) -> Void)?
+  var onPlanSelected: ((PledgePaymentPlansType) -> Void)?
+  var onTerms: ((HelpType) -> Void)?
+  private var configuration: PledgePaymentPlansAndSelectionData?
+  private var hasLoaded = false
+  private var previousSelection: PledgePaymentPlansType?
+  public init() {}
 
-public protocol PledgePaymentPlansViewModelOutputs {
-  var notifyDelegatePaymentPlanSelected: Signal<PledgePaymentPlansType, Never> { get }
-  var notifyDelegateTermsOfUseTapped: Signal<HelpType, Never> { get }
-  var reloadPaymentPlans: Signal<PledgePaymentPlansAndSelectionData, Never> { get }
-  /// `true` when no payment plan data has been set. A single `isLoading` event is sent after `viewDidLoad()` is called; more events are sent whenever `configure(with:)` is called.
-  var isLoading: Signal<Bool, Never> { get }
-}
-
-public protocol PledgePaymentPlansViewModelType {
-  var inputs: PledgePaymentPlansViewModelInputs { get }
-  var outputs: PledgePaymentPlansViewModelOutputs { get }
-}
-
-public final class PledgePaymentPlansViewModel: PledgePaymentPlansViewModelType,
-  PledgePaymentPlansViewModelInputs,
-  PledgePaymentPlansViewModelOutputs {
-  public var reloadPaymentPlans: Signal<PledgePaymentPlansAndSelectionData, Never>
-  public var notifyDelegatePaymentPlanSelected: Signal<PledgePaymentPlansType, Never>
-  public var notifyDelegateTermsOfUseTapped: Signal<HelpType, Never>
-
-  public var inputs: PledgePaymentPlansViewModelInputs { return self }
-  public var outputs: PledgePaymentPlansViewModelOutputs { return self }
-
-  private let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    self.hasLoaded = true
+    if let configuration = self.configuration { self.onReload?(configuration) }
+    else { self.isLoading = true; self.onLoading?(true) }
   }
 
-  public init() {
-    let configureWithValue = Signal.combineLatest(
-      self.viewDidLoadProperty.signal,
-      self.configureWithValueProperty.signal.skipNil()
-    )
-    .map(second)
-
-    let isLoadingAfterConfigData = self.configureWithValueProperty.signal.map { data in
-      data == nil
-    }
-
-    let isLoadingAfterViewDidLoad = self.viewDidLoadProperty.signal.mapConst(true)
-      .take(until: isLoadingAfterConfigData.mapConst(()))
-
-    self.isLoading = Signal.merge(
-      isLoadingAfterViewDidLoad,
-      isLoadingAfterConfigData
-    )
-
-    let planType = configureWithValue.map { $0.selectedPlan }
-
-    let selectedPlanType = self.didSelectPlanTypeProperty.signal
-      .skipNil()
-
-    self.reloadPaymentPlans = Signal.merge(
-      planType,
-      selectedPlanType
-    ).combineLatest(with: configureWithValue)
-      .map { selectedPlan, data in
-        PledgePaymentPlansAndSelectionData(
-          selectedPlan: selectedPlan,
-          increments: data.paymentIncrements,
-          ineligible: data.ineligible,
-          project: data.project
-        )
-      }
-
-    self.notifyDelegatePaymentPlanSelected = selectedPlanType.signal.skipRepeats()
-
-    self.notifyDelegateTermsOfUseTapped = self.didTermsOfUseTappedProperty.signal.skipNil()
-  }
-
-  private let configureWithValueProperty = MutableProperty<PledgePaymentPlansAndSelectionData?>(nil)
   public func configure(with value: PledgePaymentPlansAndSelectionData) {
-    self.configureWithValueProperty.value = value
+    self.configuration = value
+    self.isLoading = false
+    self.onLoading?(false)
+    if self.hasLoaded { self.onReload?(value) }
   }
 
-  private let didSelectPlanTypeProperty = MutableProperty<PledgePaymentPlansType?>(nil)
   public func didSelectPlanType(_ planType: PledgePaymentPlansType) {
-    self.didSelectPlanTypeProperty.value = planType
+    if self.hasLoaded, var configuration = self.configuration {
+      configuration.selectedPlan = planType
+      self.onReload?(configuration)
+    }
+    if self.previousSelection != planType {
+      self.previousSelection = planType
+      self.onPlanSelected?(planType)
+    }
   }
 
-  private let didTermsOfUseTappedProperty = MutableProperty<HelpType?>(nil)
-  public func didTapTermsOfUse(with helpType: HelpType) {
-    self.didTermsOfUseTappedProperty.value = helpType
-  }
-
-  public let isLoading: Signal<Bool, Never>
+  public func didTapTermsOfUse(with helpType: HelpType) { self.onTerms?(helpType) }
 }
