@@ -1,124 +1,74 @@
+import Foundation
 import KsApi
-import Prelude
-import ReactiveSwift
+import Observation
 
 @MainActor
-public protocol SettingsNewslettersCellViewModelInputs {
-  func allNewslettersSwitchTapped(on: Bool)
-  func configureWith(value: User)
-  func configureWith(value: (newsletter: Newsletter, user: User))
-  func newslettersSwitchTapped(on: Bool)
-}
+@Observable
+public final class SettingsNewsletterCellViewModel {
+  public private(set) var switchIsOn: Bool?
+  public private(set) var subscribeToAllSwitchIsOn: Bool?
+  public var onOptIn: ((String) -> Void)?
+  public var onError: ((String) -> Void)?
+  public var onUserUpdated: ((User) -> Void)?
+  private let feature: SettingsFeature
+  private let sleep: (TimeInterval) async throws -> Void
+  private var user: User?
+  private var newsletter: Newsletter?
+  private var revision = 0
+  private var saves: [UUID: Task<Void, Never>] = [:]
 
-@MainActor
-public protocol SettingsNewslettersCellViewModelOutputs {
-  var showOptInPrompt: Signal<String, Never> { get }
-  var subscribeToAllSwitchIsOn: Signal<Bool?, Never> { get }
-  var switchIsOn: Signal<Bool?, Never> { get }
-  var unableToSaveError: Signal<String, Never> { get }
-  var updateCurrentUser: Signal<User, Never> { get }
-}
-
-@MainActor
-public protocol SettingsNewslettersCellViewModelType {
-  var inputs: SettingsNewslettersCellViewModelInputs { get }
-  var outputs: SettingsNewslettersCellViewModelOutputs { get }
-}
-
-@MainActor
-public final class SettingsNewsletterCellViewModel: SettingsNewslettersCellViewModelType,
-  SettingsNewslettersCellViewModelInputs, SettingsNewslettersCellViewModelOutputs {
-  public init(feature: SettingsFeature? = nil) {
-    let feature = feature ?? AppModel.shared.settingsFeature
-    let newsletter = self.newsletterProperty.signal.skipNil()
-
-    let initialUser = self.initialUserProperty.signal.skipNil()
-
-    let newsletterOn: Signal<(Newsletter, Bool), Never> = newsletter
-      .takePairWhen(self.newslettersSwitchTappedProperty.signal.skipNil())
-      .map { newsletter, isOn in (newsletter, isOn) }
-
-    self.showOptInPrompt = newsletterOn
-      .filter { _, on in AppEnvironment.current.config?.countryCode == "DE" && on }
-      .map { newsletter, _ in newsletter.displayableName }
-
-    let userAttributeChanged = newsletter
-      .takePairWhen(self.newslettersSwitchTappedProperty.signal.skipNil())
-      .map { newsletter, isOn in
-        (UserAttribute.newsletter(newsletter), isOn)
-      }
-
-    let edits = Signal.merge(
-      initialUser.takePairWhen(userAttributeChanged)
-        .map { user, edit in (user, [SettingsFeature.Change(edit.0, edit.1)]) },
-      initialUser.takePairWhen(self.allNewslettersSwitchProperty.signal.skipNil())
-        .map { user, on in (user, SettingsFeature.Change.allNewsletters(on)) }
-    )
-    let updateEvent = edits
-      .switchMap { user, changes in
-        feature.saveResult(changes, from: user)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .materialize()
-      }
-
-    self.unableToSaveError = updateEvent.errors()
-      .map { env in
-        env.errorMessages.first ?? Strings.profile_settings_error()
-      }
-
-    self.updateCurrentUser = updateEvent.values()
-
-    self.subscribeToAllSwitchIsOn = initialUser
-      .map(userIsSubscribedToAll(user:))
-
-    self.switchIsOn = initialUser
-      .combineLatest(with: newsletter)
-      .map(userIsSubscribed(user:newsletter:))
+  public init(feature: SettingsFeature? = nil, sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
+    if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
+  }) {
+    self.feature = feature ?? AppModel.shared.settingsFeature
+    self.sleep = sleep
   }
 
-  fileprivate let initialUserProperty = MutableProperty<User?>(nil)
-  fileprivate let newsletterProperty = MutableProperty<Newsletter?>(nil)
   public func configureWith(value: (newsletter: Newsletter, user: User)) {
-    self.newsletterProperty.value = value.newsletter
-    self.initialUserProperty.value = value.user
+    self.newsletter = value.newsletter
+    self.configureWith(value: value.user)
   }
 
-  public func configureWith(value: User) {
-    self.initialUserProperty.value = value
+  public func configureWith(value user: User) {
+    self.user = user
+    self.subscribeToAllSwitchIsOn = user.newsletters.arts == true && user.newsletters.games == true
+      && user.newsletters.happening == true && user.newsletters.invent == true && user.newsletters.promo == true
+      && user.newsletters.weekly == true && user.newsletters.films == true && user.newsletters.publishing == true
+      && user.newsletters.alumni == true
+    if let newsletter = self.newsletter { self.switchIsOn = user[keyPath: UserAttribute.newsletter(newsletter).keyPath] }
   }
 
-  fileprivate let newslettersSwitchTappedProperty = MutableProperty<Bool?>(nil)
   public func newslettersSwitchTapped(on: Bool) {
-    self.newslettersSwitchTappedProperty.value = on
+    guard let newsletter = self.newsletter else { return }
+    if AppEnvironment.current.config?.countryCode == "DE", on { self.onOptIn?(newsletter.displayableName) }
+    self.save([.init(.newsletter(newsletter), on)])
   }
 
-  fileprivate let allNewslettersSwitchProperty = MutableProperty<Bool?>(nil)
-  public func allNewslettersSwitchTapped(on: Bool) {
-    self.allNewslettersSwitchProperty.value = on
+  public func allNewslettersSwitchTapped(on: Bool) { self.save(SettingsFeature.Change.allNewsletters(on)) }
+
+  private func save(_ changes: [SettingsFeature.Change]) {
+    guard let user = self.user else { return }
+    self.revision += 1
+    let revision = self.revision
+    let id = UUID()
+    let feature = self.feature
+    let sleep = self.sleep
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    self.saves[id] = Task { [weak self] in
+      defer { self?.saves[id] = nil }
+      let result: Result<User, Error>
+      do { result = .success(try await feature.save(changes, from: user)) }
+      catch { result = .failure(error) }
+      do { try await sleep(delay) } catch { return }
+      guard let self, self.revision == revision else { return }
+      switch result {
+      case let .success(user): self.onUserUpdated?(user)
+      case let .failure(error):
+        guard !(error is CancellationError) else { return }
+        self.onError?((error as? ErrorEnvelope)?.errorMessages.first ?? Strings.profile_settings_error())
+      }
+    }
   }
 
-  public let showOptInPrompt: Signal<String, Never>
-  public let subscribeToAllSwitchIsOn: Signal<Bool?, Never>
-  public let switchIsOn: Signal<Bool?, Never>
-  public let unableToSaveError: Signal<String, Never>
-  public let updateCurrentUser: Signal<User, Never>
-
-  public var inputs: SettingsNewslettersCellViewModelInputs { return self }
-  public var outputs: SettingsNewslettersCellViewModelOutputs { return self }
-}
-
-private func userIsSubscribedToAll(user: User) -> Bool? {
-  return user.newsletters.arts == true
-    && user.newsletters.games == true
-    && user.newsletters.happening == true
-    && user.newsletters.invent == true
-    && user.newsletters.promo == true
-    && user.newsletters.weekly == true
-    && user.newsletters.films == true
-    && user.newsletters.publishing == true
-    && user.newsletters.alumni == true
-}
-
-private func userIsSubscribed(user: User, newsletter: Newsletter) -> Bool? {
-  return user |> UserAttribute.newsletter(newsletter).keyPath.view
+  internal func waitForSaves() async { for task in Array(self.saves.values) { await task.value } }
 }

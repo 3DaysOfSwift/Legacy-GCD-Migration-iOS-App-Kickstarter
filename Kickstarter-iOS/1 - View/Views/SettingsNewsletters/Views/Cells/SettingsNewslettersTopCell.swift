@@ -11,7 +11,7 @@ protocol SettingsNewslettersTopCellDelegate: AnyObject {
 }
 
 internal final class SettingsNewslettersTopCell: UITableViewCell, ValueCell {
-  private let viewModel: SettingsNewslettersCellViewModelType = SettingsNewsletterCellViewModel()
+  private let viewModel = SettingsNewsletterCellViewModel()
 
   @IBOutlet fileprivate var descriptionLabel: UILabel!
   @IBOutlet fileprivate var newsletterSwitch: UISwitch!
@@ -41,7 +41,8 @@ internal final class SettingsNewslettersTopCell: UITableViewCell, ValueCell {
   }
 
   func configureWith(value: User) {
-    self.viewModel.inputs.configureWith(value: value)
+    self.viewModel.configureWith(value: value)
+    if let isOn = self.viewModel.subscribeToAllSwitchIsOn { self.newsletterSwitch.isOn = isOn }
   }
 
   override func bindStyles() {
@@ -66,22 +67,11 @@ internal final class SettingsNewslettersTopCell: UITableViewCell, ValueCell {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.updateCurrentUser
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.delegate?.didUpdateAllNewsletters(user: $0)
-      }
-
-    self.viewModel.outputs.unableToSaveError
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.delegate?.failedToUpdateAllNewsletters($0)
-      }
-
-    self.newsletterSwitch.rac.on = self.viewModel.outputs.subscribeToAllSwitchIsOn.skipNil()
+    self.viewModel.onUserUpdated = { [weak self] in self?.delegate?.didUpdateAllNewsletters(user: $0) }
+    self.viewModel.onError = { [weak self] in self?.delegate?.failedToUpdateAllNewsletters($0) }
   }
 
   @IBAction func newsletterSwitchTapped(_ sender: UISwitch) {
-    self.viewModel.inputs.allNewslettersSwitchTapped(on: sender.isOn)
+    self.viewModel.allNewslettersSwitchTapped(on: sender.isOn)
   }
 }
