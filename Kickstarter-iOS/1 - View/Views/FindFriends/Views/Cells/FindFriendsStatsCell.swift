@@ -2,7 +2,6 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveSwift
 import UIKit
 
 @MainActor
@@ -20,28 +19,14 @@ internal final class FindFriendsStatsCell: UITableViewCell, ValueCell {
 
   internal weak var delegate: FindFriendsStatsCellDelegate?
 
-  fileprivate let viewModel: FindFriendsStatsCellViewModelType = FindFriendsStatsCellViewModel()
+  fileprivate let viewModel = FindFriendsStatsCellViewModel()
 
   func configureWith(value: (stats: FriendStatsEnvelope, source: FriendsSource)) {
-    self.viewModel.inputs.configureWith(stats: value.stats, source: value.source)
-  }
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.friendsCountLabel.rac.text = self.viewModel.outputs.friendsCountText
-
-    self.backedProjectsCountLabel.rac.text = self.viewModel.outputs.backedProjectsCountText
-
-    self.followAllButton.rac.hidden = self.viewModel.outputs.hideFollowAllButton
-
-    self.followAllButton.rac.title = self.viewModel.outputs.followAllText
-
-    self.viewModel.outputs.notifyDelegateShowFollowAllFriendsAlert
-      .observeForUI()
-      .observeValues { [weak self] count in
-        self?.delegate?.findFriendsStatsCellShowFollowAllFriendsAlert(friendCount: count)
-      }
+    self.viewModel.configureWith(stats: value.stats, source: value.source)
+    self.friendsCountLabel.text = self.viewModel.friendsCountText
+    self.backedProjectsCountLabel.text = self.viewModel.backedProjectsCountText
+    if let hidden = self.viewModel.hideFollowAllButton { self.followAllButton.isHidden = hidden }
+    self.followAllButton.setTitle(self.viewModel.followAllText, for: .normal)
   }
 
   override func bindStyles() {
@@ -85,6 +70,7 @@ internal final class FindFriendsStatsCell: UITableViewCell, ValueCell {
   }
 
   @objc func followAllButtonTapped() {
-    self.viewModel.inputs.followAllButtonTapped()
+    guard let count = self.viewModel.countForFollowAllAction() else { return }
+    self.delegate?.findFriendsStatsCellShowFollowAllFriendsAlert(friendCount: count)
   }
 }
