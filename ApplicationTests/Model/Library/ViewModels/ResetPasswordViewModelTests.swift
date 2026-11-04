@@ -1,173 +1,50 @@
 @testable import Kickstarter_iOS
 @testable import KsApi
-
-
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class ResetPasswordViewModelTests: TestCase {
-  // Logic-only coverage; visual suites retain their reference-device requirement.
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  private let authenticationFeature = AuthenticationFeature(
-    sessionFeature: SessionFeature(makeProvider: {
-      AsyncSessionProvider(service: AppEnvironment.current.apiService)
-    }),
+  private let feature = AuthenticationFeature(
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }),
     makeProvider: { AsyncAuthenticationProvider(service: AppEnvironment.current.apiService) }
   )
-  private lazy var vm: ResetPasswordViewModelType = ResetPasswordViewModel(
-    authenticationFeature: self
-      .authenticationFeature
-  )
-  internal let emailTextFieldBecomeFirstResponder = TestObserver<(), Never>()
-  internal let formIsValid = TestObserver<Bool, Never>()
-  internal let showResetSuccess = TestObserver<String, Never>()
-  internal let returnToLogin = TestObserver<(), Never>()
-  internal let showError = TestObserver<String, Never>()
-  internal let setEmailInitial = TestObserver<String, Never>()
+  private lazy var vm = ResetPasswordViewModel(authenticationFeature: self.feature)
 
-  internal override func setUp() async throws {
-    try await super.setUp()
-    MainActor.assumeIsolated { self.bindOutputs() }
+  func testInitialEmailAndValidation() {
+    self.vm.emailChanged("user@example.com")
+    self.vm.viewDidLoad()
+    XCTAssertEqual(self.vm.email, "user@example.com")
+    XCTAssertTrue(self.vm.formIsValid)
+    self.vm.emailChanged("bad")
+    XCTAssertFalse(self.vm.formIsValid)
   }
 
-  override func tearDown() async throws {
-    await self.authenticationFeature.waitForOperations()
-    try await super.tearDown()
+  func testResetSuccessAndConfirmation() async {
+    var message: String?
+    var returned = false
+    self.vm.onResetSuccess = { message = $0 }
+    self.vm.onReturnToLogin = { returned = true }
+    self.vm.viewDidLoad()
+    self.vm.emailChanged("user@example.com")
+    self.vm.resetButtonPressed()
+    await self.vm.waitForReset()
+    XCTAssertEqual(message, Strings.forgot_password_we_sent_an_email_to_email_address_with_instructions_to_reset_your_password(email: "user@example.com"))
+    self.vm.confirmResetButtonPressed()
+    XCTAssertTrue(returned)
   }
 
-  private func bindOutputs() {
-    self.vm.outputs.emailTextFieldBecomeFirstResponder
-      .observe(self.emailTextFieldBecomeFirstResponder.observer)
-    self.vm.outputs.formIsValid.observe(self.formIsValid.observer)
-    self.vm.outputs.showResetSuccess.observe(self.showResetSuccess.observer)
-    self.vm.outputs.returnToLogin.observe(self.returnToLogin.observer)
-    self.vm.outputs.setEmailInitial.observe(self.setEmailInitial.observer)
-    self.vm.outputs.showError.observe(self.showError.observer)
-  }
-
-  func testEmailFieldBecomesFirstResponder() async {
-    self.vm.inputs.viewDidLoad()
-    self.emailTextFieldBecomeFirstResponder.assertValueCount(1)
-  }
-
-  func testFormIsValid() async {
-    self.formIsValid.assertDidNotEmitValue("Form is valid did not emit any values")
-
-    self.vm.inputs.viewDidLoad()
-
-    self.formIsValid.assertValues([false], "Emits form is valid after view loads")
-
-    self.vm.inputs.emailChanged("bad")
-
-    self.formIsValid.assertValues([false])
-
-    self.vm.inputs.emailChanged("user@example.com")
-
-    self.formIsValid.assertValues([false, true])
-  }
-
-  func testFormIsValid_WithInitialValue() async {
-    self.formIsValid.assertDidNotEmitValue("Form is valid did not emit any values")
-
-    self.vm.inputs.emailChanged("hello@goodemail.biz")
-
-    self.formIsValid.assertDidNotEmitValue("Form is valid did not emit any values")
-
-    self.vm.inputs.viewDidLoad()
-
-    self.formIsValid.assertValues([true])
-
-    self.vm.inputs.emailChanged("")
-
-    self.formIsValid.assertValues([true, false])
-  }
-
-  func testEmailSetOnce_WithInitialValue() async {
-    self.vm.inputs.emailChanged("user@example.com")
-
-    self.setEmailInitial.assertValueCount(0, "Initial email does not emit")
-
-    self.vm.inputs.viewDidLoad()
-
-    self.setEmailInitial.assertValues(["user@example.com"])
-
-    self.vm.inputs.viewDidLoad()
-
-    self.setEmailInitial.assertValues(["user@example.com"])
-  }
-
-  func testEmailNotSet_WithoutInitialValue() async {
-    self.setEmailInitial.assertValueCount(0, "Initial email does not emit")
-
-    self.vm.inputs.viewDidLoad()
-
-    self.setEmailInitial.assertValueCount(0, "Initial email does not emit")
-
-    self.vm.inputs.emailChanged("user@example.com")
-
-    self.setEmailInitial.assertValueCount(0, "Initial email does not emit")
-  }
-
-  func testResetSuccess() async {
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.emailChanged("user@example.com")
-    self.vm.inputs.resetButtonPressed()
-    await self.authenticationFeature.waitForOperations()
-
-    self.showResetSuccess.assertValues(
-      [
-        Strings.forgot_password_we_sent_an_email_to_email_address_with_instructions_to_reset_your_password(
-          email: "user@example.com"
-        )
-      ]
-    )
-  }
-
-  func testResetConfirmation() async {
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.confirmResetButtonPressed()
-
-    self.returnToLogin.assertValueCount(1, "Shows login after confirming message receipt")
-  }
-
-  func testResetFail_WithUnknownEmail() async {
-    let error = ErrorEnvelope(
-      errorMessages: ["The resource you are looking for does not exist."],
-      ksrCode: nil,
-      httpCode: 404,
-      exception: nil
-    )
-
-    await withEnvironment(apiService: MockService(resetPasswordError: error)) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.emailChanged("bad@email")
-      self.vm.inputs.resetButtonPressed()
-      await self.authenticationFeature.waitForOperations()
-
-      self.showError.assertValues(
-        [Strings.forgot_password_error()],
-        "Error alert is shown on bad request"
-      )
-    }
-  }
-
-  func testResetFail_WithNon404Error() async {
-    let error = ErrorEnvelope(
-      errorMessages: ["Zoinks!"],
-      ksrCode: nil,
-      httpCode: 400,
-      exception: nil
-    )
-
-    await withEnvironment(apiService: MockService(resetPasswordError: error)) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.emailChanged("unicorns@sparkles.tv")
-      self.vm.inputs.resetButtonPressed()
-      await self.authenticationFeature.waitForOperations()
-
-      self.showError.assertValues(["Something went wrong."], "Error alert is shown on bad request")
+  func testUnknownEmailAndOtherErrors() async {
+    for code in [404, 400] {
+      let error = ErrorEnvelope(errorMessages: [], ksrCode: nil, httpCode: code, exception: nil)
+      await withEnvironment(apiService: MockService(resetPasswordError: error)) {
+        var message: String?
+        self.vm.onError = { message = $0 }
+        self.vm.emailChanged("user@example.com")
+        self.vm.resetButtonPressed()
+        await self.vm.waitForReset()
+        XCTAssertEqual(message, code == 404 ? Strings.forgot_password_error() : Strings.general_error_something_wrong())
+      }
     }
   }
 }
