@@ -3,9 +3,6 @@
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -18,16 +15,16 @@ final class LoginViewModelTests: TestCase {
     makeProvider: { AsyncAuthenticationProvider(service: AppEnvironment.current.apiService) }
   )
   private lazy var vm: LoginViewModel = LoginViewModel(authenticationFeature: self.authenticationFeature)
-  fileprivate let emailTextFieldBecomeFirstResponder = TestObserver<(), Never>()
-  fileprivate let passwordTextFieldBecomeFirstResponder = TestObserver<(), Never>()
-  fileprivate let isFormValid = TestObserver<Bool, Never>()
-  fileprivate let dismissKeyboard = TestObserver<(), Never>()
-  fileprivate let postNotificationName = TestObserver<(Notification.Name, Notification.Name), Never>()
-  fileprivate let logIntoEnvironment = TestObserver<AccessTokenEnvelope, Never>()
-  fileprivate let showError = TestObserver<String, Never>()
-  fileprivate let tfaChallenge = TestObserver<String, Never>()
-  fileprivate let tfaChallengePasswordText = TestObserver<String, Never>()
-  fileprivate let showHidePassword = TestObserver<Bool, Never>()
+  fileprivate let emailTextFieldBecomeFirstResponder = LoginRecorder<Void>()
+  fileprivate let passwordTextFieldBecomeFirstResponder = LoginRecorder<Void>()
+  fileprivate let isFormValid = LoginRecorder<Bool>()
+  fileprivate let dismissKeyboard = LoginRecorder<Void>()
+  fileprivate let postNotificationName = LoginRecorder<(Notification.Name, Notification.Name)>()
+  fileprivate let logIntoEnvironment = LoginRecorder<AccessTokenEnvelope>()
+  fileprivate let showError = LoginRecorder<String>()
+  fileprivate let tfaChallenge = LoginRecorder<String>()
+  fileprivate let tfaChallengePasswordText = LoginRecorder<String>()
+  fileprivate let showHidePassword = LoginRecorder<Bool>()
 
   override func setUp() async throws {
     try await super.setUp()
@@ -40,18 +37,18 @@ final class LoginViewModelTests: TestCase {
   }
 
   private func bindOutputs() {
-    self.vm.onEmailFirstResponder = { [weak self] in self?.emailTextFieldBecomeFirstResponder.observer.send(value: ()) }
-    self.vm.onPasswordFirstResponder = { [weak self] in self?.passwordTextFieldBecomeFirstResponder.observer.send(value: ()) }
-    self.vm.onFormValid = { [weak self] in self?.isFormValid.observer.send(value: $0) }
-    self.vm.onDismissKeyboard = { [weak self] in self?.dismissKeyboard.observer.send(value: ()) }
-    self.vm.onNotification = { [weak self] in self?.postNotificationName.observer.send(value: ($0.name, $1.name)) }
-    self.vm.onLogin = { [weak self] in self?.logIntoEnvironment.observer.send(value: $0) }
-    self.vm.onError = { [weak self] in self?.showError.observer.send(value: $0) }
+    self.vm.onEmailFirstResponder = { [weak self] in self?.emailTextFieldBecomeFirstResponder.values.append(()) }
+    self.vm.onPasswordFirstResponder = { [weak self] in self?.passwordTextFieldBecomeFirstResponder.values.append(()) }
+    self.vm.onFormValid = { [weak self] in self?.isFormValid.values.append($0) }
+    self.vm.onDismissKeyboard = { [weak self] in self?.dismissKeyboard.values.append(()) }
+    self.vm.onNotification = { [weak self] in self?.postNotificationName.values.append(($0.name, $1.name)) }
+    self.vm.onLogin = { [weak self] in self?.logIntoEnvironment.values.append($0) }
+    self.vm.onError = { [weak self] in self?.showError.values.append($0) }
     self.vm.onTwoFactor = { [weak self] email, password in
-      self?.tfaChallenge.observer.send(value: email)
-      self?.tfaChallengePasswordText.observer.send(value: password)
+      self?.tfaChallenge.values.append(email)
+      self?.tfaChallengePasswordText.values.append(password)
     }
-    self.vm.onPasswordVisibility = { [weak self] in self?.showHidePassword.observer.send(value: $0) }
+    self.vm.onPasswordVisibility = { [weak self] in self?.showHidePassword.values.append($0) }
   }
 
   func testLoginFlow() async {
@@ -216,5 +213,26 @@ final class LoginViewModelTests: TestCase {
     self.vm.traitCollectionDidChange()
     self.showHidePassword.assertValueCount(2)
     self.showHidePassword.assertLastValue(true, "Password still shown")
+  }
+}
+
+private final class LoginRecorder<Value> {
+  var values: [Value] = []
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, message, file: file, line: line)
+  }
+}
+private extension LoginRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
+  }
+  func assertValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, [expected], message, file: file, line: line)
+  }
+  func assertLastValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.last, expected, message, file: file, line: line)
   }
 }
