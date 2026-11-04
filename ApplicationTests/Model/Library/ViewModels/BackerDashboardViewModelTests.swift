@@ -3,8 +3,7 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
+import ReactiveSwift // The legacy test environment owns the scheduler.
 import XCTest
 
 @MainActor
@@ -28,39 +27,40 @@ internal final class BackerDashboardViewModelTests: TestCase {
     try await super.tearDown()
   }
 
-  private let avatarURL = TestObserver<String, Never>()
-  private let backedButtonTitleText = TestObserver<String, Never>()
-  private let backerNameText = TestObserver<String, Never>()
-  private let configurePagesDataSourceTab = TestObserver<BackerDashboardTab, Never>()
-  private let goToMessages = TestObserver<(), Never>()
-  private let goToProject = TestObserver<Project, Never>()
-  private let goToSettings = TestObserver<(), Never>()
-  private let navigateToTab = TestObserver<BackerDashboardTab, Never>()
-  private let pinSelectedIndicatorToTab = TestObserver<BackerDashboardTab, Never>()
-  private let pinSelectedIndicatorToTabAnimated = TestObserver<Bool, Never>()
-  private let postNotification = TestObserver<Notification, Never>()
-  private let savedButtonTitleText = TestObserver<String, Never>()
-  private let setSelectedButton = TestObserver<BackerDashboardTab, Never>()
-  private let updateCurrentUserInEnvironment = TestObserver<User, Never>()
+  private let avatarURL = HeaderRecorder<String>()
+  private let backedButtonTitleText = HeaderRecorder<String>()
+  private let backerNameText = HeaderRecorder<String>()
+  private let configurePagesDataSourceTab = HeaderRecorder<BackerDashboardTab>()
+  private let goToMessages = HeaderRecorder<()>()
+  private let goToProject = HeaderRecorder<Project>()
+  private let goToSettings = HeaderRecorder<()>()
+  private let navigateToTab = HeaderRecorder<BackerDashboardTab>()
+  private let pinSelectedIndicatorToTab = HeaderRecorder<BackerDashboardTab>()
+  private let pinSelectedIndicatorToTabAnimated = HeaderRecorder<Bool>()
+  private let postNotification = HeaderRecorder<Notification>()
+  private let savedButtonTitleText = HeaderRecorder<String>()
+  private let setSelectedButton = HeaderRecorder<BackerDashboardTab>()
+  private let updateCurrentUserInEnvironment = HeaderRecorder<User>()
 
   override func setUp() async throws {
     try await super.setUp()
 
     MainActor.assumeIsolated {
-      self.vm.outputs.avatarURL.map { $0?.absoluteString ?? "" }.observe(self.avatarURL.observer)
-      self.vm.outputs.backedButtonTitleText.observe(self.backedButtonTitleText.observer)
-      self.vm.outputs.backerNameText.observe(self.backerNameText.observer)
-      self.vm.outputs.configurePagesDataSource.observe(self.configurePagesDataSourceTab.observer)
-      self.vm.outputs.goToMessages.observe(self.goToMessages.observer)
-      self.vm.outputs.goToSettings.observe(self.goToSettings.observer)
-      self.vm.outputs.navigateToTab.observe(self.navigateToTab.observer)
-      self.vm.outputs.pinSelectedIndicatorToTab.map(first).observe(self.pinSelectedIndicatorToTab.observer)
-      self.vm.outputs.pinSelectedIndicatorToTab.map(second)
-        .observe(self.pinSelectedIndicatorToTabAnimated.observer)
-      self.vm.outputs.savedButtonTitleText.observe(self.savedButtonTitleText.observer)
-      self.vm.outputs.setSelectedButton.observe(self.setSelectedButton.observer)
-      self.vm.outputs.updateCurrentUserInEnvironment.observe(self.updateCurrentUserInEnvironment.observer)
-      self.vm.outputs.postNotification.observe(self.postNotification.observer)
+      self.vm.onAvatarURL = { [weak self] in self?.avatarURL.values.append($0?.absoluteString ?? "") }
+      self.vm.onBackedTitle = { [weak self] in self?.backedButtonTitleText.values.append($0) }
+      self.vm.onName = { [weak self] in self?.backerNameText.values.append($0) }
+      self.vm.onConfigurePages = { [weak self] in self?.configurePagesDataSourceTab.values.append($0) }
+      self.vm.onMessages = { [weak self] in self?.goToMessages.values.append(()) }
+      self.vm.onSettings = { [weak self] in self?.goToSettings.values.append(()) }
+      self.vm.onNavigate = { [weak self] in self?.navigateToTab.values.append($0) }
+      self.vm.onPinIndicator = { [weak self] tab, animated in
+        self?.pinSelectedIndicatorToTab.values.append(tab)
+        self?.pinSelectedIndicatorToTabAnimated.values.append(animated)
+      }
+      self.vm.onSavedTitle = { [weak self] in self?.savedButtonTitleText.values.append($0) }
+      self.vm.onSelectedButton = { [weak self] in self?.setSelectedButton.values.append($0) }
+      self.vm.onCurrentUserUpdated = { [weak self] in self?.updateCurrentUserInEnvironment.values.append($0) }
+      self.vm.onNotification = { [weak self] in self?.postNotification.values.append($0) }
     }
   }
 
@@ -93,8 +93,8 @@ internal final class BackerDashboardViewModelTests: TestCase {
       self.postNotification.assertValueCount(0)
       self.updateCurrentUserInEnvironment.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(false)
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear(false)
 
       await self.advanceRequests()
 
@@ -107,7 +107,7 @@ internal final class BackerDashboardViewModelTests: TestCase {
       self.postNotification.assertValueCount(0)
       self.updateCurrentUserInEnvironment.assertValues([user])
 
-      self.vm.inputs.currentUserUpdatedInEnvironment()
+      self.vm.currentUserUpdatedInEnvironment()
 
       self.postNotification.assertValueCount(1)
 
@@ -120,7 +120,7 @@ internal final class BackerDashboardViewModelTests: TestCase {
   func testConfigurePagesData() async {
     self.configurePagesDataSourceTab.assertValueCount(0)
 
-    self.vm.inputs.viewDidLoad()
+    self.vm.viewDidLoad()
 
     self.configurePagesDataSourceTab.assertValues([.backed])
   }
@@ -133,13 +133,13 @@ internal final class BackerDashboardViewModelTests: TestCase {
     )) {
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
 
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(false)
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear(false)
 
       self.setSelectedButton.assertValueCount(0)
       self.pinSelectedIndicatorToTab.assertValueCount(0)
       self.pinSelectedIndicatorToTabAnimated.assertValueCount(0)
-      XCTAssertEqual(.backed, self.vm.outputs.currentSelectedTab)
+      XCTAssertEqual(.backed, self.vm.currentSelectedTab)
 
       await self.advanceRequests()
 
@@ -147,15 +147,15 @@ internal final class BackerDashboardViewModelTests: TestCase {
       self.setSelectedButton.assertValues([.backed])
       self.pinSelectedIndicatorToTab.assertValues([.backed])
       self.pinSelectedIndicatorToTabAnimated.assertValues([false])
-      XCTAssertEqual(.backed, self.vm.outputs.currentSelectedTab)
+      XCTAssertEqual(.backed, self.vm.currentSelectedTab)
 
-      self.vm.inputs.savedProjectsButtonTapped()
+      self.vm.savedProjectsButtonTapped()
 
       self.navigateToTab.assertValues([.saved])
       self.setSelectedButton.assertValues([.backed, .saved])
       self.pinSelectedIndicatorToTab.assertValues([.backed, .saved])
       self.pinSelectedIndicatorToTabAnimated.assertValues([false, true])
-      XCTAssertEqual(.saved, self.vm.outputs.currentSelectedTab)
+      XCTAssertEqual(.saved, self.vm.currentSelectedTab)
 
       XCTAssertEqual("discover", self.segmentTrackingClient.properties.last?["context_page"] as? String)
       XCTAssertEqual("watched", self.segmentTrackingClient.properties.last?["context_type"] as? String)
@@ -164,31 +164,31 @@ internal final class BackerDashboardViewModelTests: TestCase {
         self.segmentTrackingClient.properties.last?["context_location"] as? String
       )
 
-      self.vm.inputs.backedProjectsButtonTapped()
+      self.vm.backedProjectsButtonTapped()
 
       self.navigateToTab.assertValues([.saved, .backed])
       self.setSelectedButton.assertValues([.backed, .saved, .backed])
       self.pinSelectedIndicatorToTab.assertValues([.backed, .saved, .backed])
       self.pinSelectedIndicatorToTabAnimated.assertValues([false, true, true])
-      XCTAssertEqual(.backed, self.vm.outputs.currentSelectedTab)
+      XCTAssertEqual(.backed, self.vm.currentSelectedTab)
 
       // Swiping.
-      self.vm.inputs.willTransition(toPage: 1)
-      self.vm.inputs.pageTransition(completed: false)
+      self.vm.willTransition(toPage: 1)
+      self.vm.pageTransition(completed: false)
 
       self.navigateToTab.assertValues([.saved, .backed], "Tab switch does not complete.")
       self.setSelectedButton.assertValues([.backed, .saved, .backed], "Selection does not emit.")
       self.pinSelectedIndicatorToTab.assertValues([.backed, .saved, .backed], "Selection does not emit.")
-      XCTAssertEqual(.backed, self.vm.outputs.currentSelectedTab)
+      XCTAssertEqual(.backed, self.vm.currentSelectedTab)
 
-      self.vm.inputs.willTransition(toPage: 1)
-      self.vm.inputs.pageTransition(completed: true)
+      self.vm.willTransition(toPage: 1)
+      self.vm.pageTransition(completed: true)
 
       self.navigateToTab.assertValues([.saved, .backed, .saved])
       self.setSelectedButton.assertValues([.backed, .saved, .backed, .saved])
       self.pinSelectedIndicatorToTab.assertValues([.backed, .saved, .backed, .saved])
       self.pinSelectedIndicatorToTabAnimated.assertValues([false, true, true, true])
-      XCTAssertEqual(.saved, self.vm.outputs.currentSelectedTab)
+      XCTAssertEqual(.saved, self.vm.currentSelectedTab)
 
       XCTAssertEqual("discover", self.segmentTrackingClient.properties.last?["context_page"] as? String)
       XCTAssertEqual("watched", self.segmentTrackingClient.properties.last?["context_type"] as? String)
@@ -200,33 +200,46 @@ internal final class BackerDashboardViewModelTests: TestCase {
   }
 
   func testGoPlaces() async {
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewWillAppear(false)
+    self.vm.viewDidLoad()
+    self.vm.viewWillAppear(false)
 
     self.goToSettings.assertValueCount(0)
 
-    self.vm.inputs.settingsButtonTapped()
+    self.vm.settingsButtonTapped()
 
     self.goToSettings.assertValueCount(1)
     self.goToMessages.assertValueCount(0)
 
-    self.vm.inputs.messagesButtonTapped()
+    self.vm.messagesButtonTapped()
 
     self.goToMessages.assertValueCount(1)
   }
 
   func testHeaderPanning() async {
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewWillAppear(false)
+    self.vm.viewDidLoad()
+    self.vm.viewWillAppear(false)
 
     // Panning on the header view.
-    self.vm.inputs.beganPanGestureWith(headerTopConstant: -101.0, scrollViewYOffset: 0.0)
+    self.vm.beganPanGestureWith(headerTopConstant: -101.0, scrollViewYOffset: 0.0)
 
-    XCTAssertEqual(-101.0, self.vm.outputs.initialTopConstant)
+    XCTAssertEqual(-101.0, self.vm.initialTopConstant)
 
     // Panning on the projects table view.
-    self.vm.inputs.beganPanGestureWith(headerTopConstant: -101.0, scrollViewYOffset: 500.0)
+    self.vm.beganPanGestureWith(headerTopConstant: -101.0, scrollViewYOffset: 500.0)
 
-    XCTAssertEqual(-500, self.vm.outputs.initialTopConstant)
+    XCTAssertEqual(-500, self.vm.initialTopConstant)
+  }
+}
+
+private final class HeaderRecorder<Value> {
+  var values: [Value] = []
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+}
+
+private extension HeaderRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
   }
 }

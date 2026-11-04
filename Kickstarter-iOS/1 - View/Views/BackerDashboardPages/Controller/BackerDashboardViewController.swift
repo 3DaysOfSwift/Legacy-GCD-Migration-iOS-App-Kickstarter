@@ -28,7 +28,7 @@ internal final class BackerDashboardViewController: UIViewController {
 
   fileprivate weak var pageViewController: UIPageViewController?
 
-  fileprivate let viewModel: BackerDashboardViewModelType = BackerDashboardViewModel()
+  fileprivate let viewModel: BackerDashboardViewModel = BackerDashboardViewModel()
   fileprivate var pagesDataSource: BackerDashboardPagesDataSource!
 
   private var panGesture = UIPanGestureRecognizer()
@@ -72,10 +72,10 @@ internal final class BackerDashboardViewController: UIViewController {
     self.pageViewController?.view.addGestureRecognizer(tapRecognizer)
 
     self.projectSavedObserver = MainActorNotificationObservation(name: .ksr_projectSaved) { [weak self] _ in
-        self?.viewModel.inputs.projectSaved()
+        self?.viewModel.projectSaved()
       }
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   internal override func viewDidLayoutSubviews() {
@@ -101,84 +101,45 @@ internal final class BackerDashboardViewController: UIViewController {
   internal override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
 
-    self.viewModel.inputs.viewWillAppear(animated)
+    self.viewModel.viewWillAppear(animated)
   }
 
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.avatarImageView.rac.ksr_imageUrl = self.viewModel.outputs.avatarURL
-    self.backerNameLabel.rac.text = self.viewModel.outputs.backerNameText
-
-    self.viewModel.outputs.backedButtonTitleText
-      .observeForUI()
-      .observeValues { [weak self] string in
-        guard let _self = self else { return }
-        _self.setAttributedTitles(for: _self.backedMenuButton, with: string)
+    self.viewModel.onAvatarURL = { [weak self] url in
+      guard let imageView = self?.avatarImageView else { return }
+      imageView.af.cancelImageRequest()
+      imageView.image = nil
+      if let url { imageView.ksr_setImageWithURL(url) }
+    }
+    self.viewModel.onName = { [weak self] in self?.backerNameLabel.text = $0 }
+    self.viewModel.onBackedTitle = { [weak self] text in
+      guard let self else { return }
+      self.setAttributedTitles(for: self.backedMenuButton, with: text)
+    }
+    self.viewModel.onConfigurePages = { [weak self] in self?.configurePagesDataSource(tab: $0) }
+    self.viewModel.onSavedTitle = { [weak self] text in
+      guard let self else { return }
+      self.setAttributedTitles(for: self.savedMenuButton, with: text)
+    }
+    self.viewModel.onMessages = { [weak self] in
+      let vc = MessageThreadsViewController.configuredWith(project: nil, refTag: .profile)
+      self?.navigationController?.pushViewController(vc, animated: true)
+    }
+    self.viewModel.onSettings = { [weak self] in self?.goToSettings() }
+    self.viewModel.onNavigate = { [weak self] tab in
+      guard let self, let controller = self.pagesDataSource.controllerFor(tab: tab) else {
+        fatalError("Controller not found for tab \(tab)")
       }
-
-    self.viewModel.outputs.configurePagesDataSource
-      .observeForControllerAction()
-      .observeValues { [weak self] tab in
-        self?.configurePagesDataSource(tab: tab)
-      }
-
-    self.viewModel.outputs.savedButtonTitleText
-      .observeForUI()
-      .observeValues { [weak self] string in
-        guard let _self = self else { return }
-        _self.setAttributedTitles(for: _self.savedMenuButton, with: string)
-      }
-
-    self.viewModel.outputs.goToMessages
-      .observeForControllerAction()
-      .observeValues { [weak self] _ in
-        guard let _self = self else { return }
-        let vc = MessageThreadsViewController.configuredWith(project: nil, refTag: .profile)
-        _self.navigationController?.pushViewController(vc, animated: true)
-      }
-
-    self.viewModel.outputs.goToSettings
-      .observeForControllerAction()
-      .observeValues { [weak self] _ in
-        self?.goToSettings()
-      }
-
-    self.viewModel.outputs.navigateToTab
-      .observeForControllerAction()
-      .observeValues { [weak self] tab in
-        guard let _self = self, let controller = self?.pagesDataSource.controllerFor(tab: tab) else {
-          fatalError("Controller not found for tab \(tab)")
-        }
-        _self.pageViewController?.ksr_setViewControllers(
-          [controller],
-          direction: .forward,
-          animated: false,
-          completion: nil
-        )
-      }
-
-    self.viewModel.outputs.pinSelectedIndicatorToTab
-      .observeForUI()
-      .observeValues { [weak self] tab, animated in
-        self?.pinSelectedIndicator(to: tab, animated: animated)
-      }
-
-    self.viewModel.outputs.postNotification
-      .observeForUI()
-      .observeValues(NotificationCenter.default.post)
-
-    self.viewModel.outputs.setSelectedButton
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.selectButton(atTab: $0)
-      }
-
-    self.viewModel.outputs.updateCurrentUserInEnvironment
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        self?.viewModel.inputs.currentUserUpdatedInEnvironment()
-      }
+      self.pageViewController?.ksr_setViewControllers([controller], direction: .forward, animated: false, completion: nil)
+    }
+    self.viewModel.onPinIndicator = { [weak self] tab, animated in
+      self?.pinSelectedIndicator(to: tab, animated: animated)
+    }
+    self.viewModel.onNotification = { NotificationCenter.default.post($0) }
+    self.viewModel.onSelectedButton = { [weak self] in self?.selectButton(atTab: $0) }
+    self.viewModel.onCurrentUserUpdated = { [weak self] _ in self?.viewModel.currentUserUpdatedInEnvironment() }
   }
 
   internal override func bindStyles() {
@@ -297,23 +258,23 @@ internal final class BackerDashboardViewController: UIViewController {
   }
 
   @objc private func messagesButtonTapped() {
-    self.viewModel.inputs.messagesButtonTapped()
+    self.viewModel.messagesButtonTapped()
   }
 
   @objc private func settingsButtonTapped() {
-    self.viewModel.inputs.settingsButtonTapped()
+    self.viewModel.settingsButtonTapped()
   }
 
   @objc private func backedButtonTapped() {
-    self.viewModel.inputs.backedProjectsButtonTapped()
+    self.viewModel.backedProjectsButtonTapped()
   }
 
   @objc private func savedButtonTapped() {
-    self.viewModel.inputs.savedProjectsButtonTapped()
+    self.viewModel.savedProjectsButtonTapped()
   }
 
   @objc private func handlePan(gesture: UIPanGestureRecognizer) {
-    let selectedTab = self.viewModel.outputs.currentSelectedTab
+    let selectedTab = self.viewModel.currentSelectedTab
     guard let controller = self.pagesDataSource.controllerFor(tab: selectedTab) as?
       BackerDashboardProjectsViewController else { return }
 
@@ -322,13 +283,13 @@ internal final class BackerDashboardViewController: UIViewController {
 
     switch gesture.state {
     case .began:
-      self.viewModel.inputs.beganPanGestureWith(
+      self.viewModel.beganPanGestureWith(
         headerTopConstant: self.headerViewTopConstraint.constant,
         scrollViewYOffset: controller.tableView.contentOffset.y
       )
     case .changed:
       let translation = gesture.translation(in: self.view)
-      let newConstant = min(0.0, self.viewModel.outputs.initialTopConstant + translation.y)
+      let newConstant = min(0.0, self.viewModel.initialTopConstant + translation.y)
 
       if newConstant >= -minHeaderHeight {
         self.headerViewTopConstraint.constant = newConstant
@@ -372,7 +333,7 @@ extension BackerDashboardViewController: UIPageViewControllerDelegate {
     previousViewControllers _: [UIViewController],
     transitionCompleted completed: Bool
   ) {
-    self.viewModel.inputs.pageTransition(completed: completed)
+    self.viewModel.pageTransition(completed: completed)
   }
 
   internal func pageViewController(
@@ -383,7 +344,7 @@ extension BackerDashboardViewController: UIPageViewControllerDelegate {
       return
     }
 
-    self.viewModel.inputs.willTransition(toPage: idx)
+    self.viewModel.willTransition(toPage: idx)
   }
 }
 
