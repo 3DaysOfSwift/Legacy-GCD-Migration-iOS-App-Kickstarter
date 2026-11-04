@@ -1,46 +1,33 @@
 import Foundation
-import ReactiveSwift
 import UIKit
 
 @MainActor
-public final class Keyboard {
+public enum Keyboard {
   public typealias Change = (
     frame: CGRect, duration: TimeInterval, options: UIView.AnimationOptions,
     notificationName: Notification.Name
   )
 
-  public static let shared = Keyboard()
-  private let (changeSignal, changeObserver) = Signal<Change, Never>.pipe()
+  @MainActor public final class Observation {
+    private var observations: [MainActorNotificationObservation] = []
 
-  public static var change: Signal<Change, Never> {
-    return self.shared.changeSignal
-  }
-
-  private init() {
-    NotificationCenter.default.addObserver(
-      self, selector: #selector(self.change(_:)), name: UIResponder.keyboardWillShowNotification, object: nil
-    )
-
-    NotificationCenter.default.addObserver(
-      self, selector: #selector(self.change(_:)), name: UIResponder.keyboardWillHideNotification, object: nil
-    )
-  }
-
-  @objc private func change(_ notification: Notification) {
-    guard let userInfo = notification.userInfo,
-          let frame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue,
-          let duration = userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber,
-          let curveNumber = userInfo[UIResponder.keyboardAnimationCurveUserInfoKey] as? NSNumber,
-          let curve = UIView.AnimationCurve(rawValue: curveNumber.intValue)
-    else {
-      return
+    fileprivate init(handler: @escaping @MainActor (Change) -> Void) {
+      for name in [UIResponder.keyboardWillShowNotification, UIResponder.keyboardWillHideNotification] {
+        self.observations.append(MainActorNotificationObservation(name: name) { notification in
+          guard let userInfo = notification.userInfo,
+                let frame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue,
+                let duration = userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber,
+                let curveNumber = userInfo[UIResponder.keyboardAnimationCurveUserInfoKey] as? NSNumber,
+                let curve = UIView.AnimationCurve(rawValue: curveNumber.intValue) else { return }
+          handler((frame.cgRectValue, duration.doubleValue,
+                   UIView.AnimationOptions(rawValue: UInt(curve.rawValue)), notification.name))
+        })
+      }
     }
+    public func cancel() { self.observations.forEach { $0.cancel() }; self.observations.removeAll() }
+  }
 
-    self.changeObserver.send(value: (
-      frame.cgRectValue,
-      duration.doubleValue,
-      UIView.AnimationOptions(rawValue: UInt(curve.rawValue)),
-      notificationName: notification.name
-    ))
+  public static func observe(_ handler: @escaping @MainActor (Change) -> Void) -> Observation {
+    Observation(handler: handler)
   }
 }

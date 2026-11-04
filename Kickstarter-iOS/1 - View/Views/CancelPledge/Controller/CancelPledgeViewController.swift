@@ -14,6 +14,7 @@ protocol CancelPledgeViewControllerDelegate: AnyObject {
 }
 
 final class CancelPledgeViewController: UIViewController, MessageBannerViewControllerPresenting {
+  private var keyboardObservation: Keyboard.Observation?
   weak var delegate: CancelPledgeViewControllerDelegate?
   private let viewModel: CancelPledgeViewModelType = CancelPledgeViewModel()
 
@@ -184,9 +185,7 @@ final class CancelPledgeViewController: UIViewController, MessageBannerViewContr
       .cancellationDetailsAttributedText
     self.cancelPledgeButton.rac.enabled = self.viewModel.outputs.cancelPledgeButtonEnabled
 
-    Keyboard.change
-      .observeForUI()
-      .observeValues { [weak self] change in
+    self.keyboardObservation = Keyboard.observe { [weak self] change in
         guard let self = self else { return }
 
         self.scrollView

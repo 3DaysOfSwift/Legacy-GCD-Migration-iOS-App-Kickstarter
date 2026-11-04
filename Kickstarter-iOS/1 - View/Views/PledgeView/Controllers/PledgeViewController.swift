@@ -29,6 +29,7 @@ protocol PledgeViewControllerDelegate: AnyObject {
 
 final class PledgeViewController: UIViewController,
   MessageBannerViewControllerPresenting, ProcessingViewPresenting {
+  private var keyboardObservation: Keyboard.Observation?
   // MARK: - Properties
 
   private lazy var confirmationSectionViews = {
@@ -383,9 +384,7 @@ final class PledgeViewController: UIViewController,
         self?.navigationController?.popToRootViewController(animated: true)
       }
 
-    Keyboard.change
-      .observeForUI()
-      .observeValues { [weak self] change in
+    self.keyboardObservation = Keyboard.observe { [weak self] change in
         self?.rootScrollView.handleKeyboardVisibilityDidChange(change)
       }
 

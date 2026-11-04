@@ -3,10 +3,10 @@ import Foundation
 import KDS
 
 import Prelude
-import ReactiveSwift
 import UIKit
 
 public final class FacebookResetPasswordViewController: UIViewController {
+  private var keyboardObservation: Keyboard.Observation?
   // MARK: - Properties
 
   private lazy var contextLabel = { UILabel(frame: .zero) }()
@@ -109,8 +109,7 @@ public final class FacebookResetPasswordViewController: UIViewController {
       self?.present(UIAlertController.alert(message: message), animated: true)
     }
 
-    Keyboard.change.observeForUI()
-      .observeValues { [weak self] in self?.animateTextViewConstraint($0) }
+    self.keyboardObservation = Keyboard.observe { [weak self] in self?.animateTextViewConstraint($0) }
   }
 
   private func observeState() {

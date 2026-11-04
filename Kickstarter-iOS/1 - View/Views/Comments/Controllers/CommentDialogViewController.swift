@@ -12,6 +12,7 @@ internal protocol CommentDialogDelegate: AnyObject {
 }
 
 internal final class CommentDialogViewController: UIViewController {
+  private var keyboardObservation: Keyboard.Observation?
   fileprivate let viewModel: CommentDialogViewModelType = CommentDialogViewModel()
   internal weak var delegate: CommentDialogDelegate?
 
@@ -93,8 +94,7 @@ internal final class CommentDialogViewController: UIViewController {
       .observeForControllerAction()
       .observeValues { [weak self] in self?.presentError($0) }
 
-    Keyboard.change.observeForUI()
-      .observeValues { [weak self] in self?.animateTextViewConstraint($0) }
+    self.keyboardObservation = Keyboard.observe { [weak self] in self?.animateTextViewConstraint($0) }
   }
 
   @IBAction internal func cancelButtonPressed() {

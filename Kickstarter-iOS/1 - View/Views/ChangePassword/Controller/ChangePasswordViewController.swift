@@ -5,6 +5,7 @@ import Prelude
 import UIKit
 
 final class ChangePasswordViewController: UIViewController, MessageBannerViewControllerPresenting {
+  private var keyboardObservation: Keyboard.Observation?
   @IBOutlet fileprivate var changePasswordLabel: UILabel!
   @IBOutlet fileprivate var confirmNewPasswordLabel: UILabel!
   @IBOutlet fileprivate var confirmNewPasswordTextField: UITextField!
@@ -168,9 +169,7 @@ final class ChangePasswordViewController: UIViewController, MessageBannerViewCon
         UIAccessibility.post(notification: .layoutChanged, argument: self?.validationErrorMessageLabel)
       }
 
-    Keyboard.change
-      .observeForUI()
-      .observeValues { [weak self] change in
+    self.keyboardObservation = Keyboard.observe { [weak self] change in
         self?.scrollView.handleKeyboardVisibilityDidChange(change)
       }
   }

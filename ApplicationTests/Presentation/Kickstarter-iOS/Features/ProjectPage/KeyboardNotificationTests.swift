@@ -1,4 +1,3 @@
-import ReactiveSwift
 @testable import Kickstarter_iOS
 import UIKit
 import XCTest
@@ -7,8 +6,8 @@ import XCTest
 final class KeyboardNotificationTests: XCTestCase {
   func testKeyboardChangeIsDeliveredSynchronouslyWithExistingPayload() {
     var received: Keyboard.Change?
-    let observation = Keyboard.change.observeValues { received = $0 }
-    defer { observation?.dispose() }
+    let observation = Keyboard.observe { received = $0 }
+    defer { observation.cancel() }
     let frame = CGRect(x: 0, y: 400, width: 320, height: 216)
     NotificationCenter.default.post(name: UIResponder.keyboardWillShowNotification, object: nil, userInfo: [
       UIResponder.keyboardFrameEndUserInfoKey: NSValue(cgRect: frame),
@@ -22,8 +21,8 @@ final class KeyboardNotificationTests: XCTestCase {
 
   func testMalformedKeyboardNotificationDoesNotEmit() {
     var count = 0
-    let observation = Keyboard.change.observeValues { _ in count += 1 }
-    defer { observation?.dispose() }
+    let observation = Keyboard.observe { _ in count += 1 }
+    defer { observation.cancel() }
     NotificationCenter.default.post(name: UIResponder.keyboardWillHideNotification, object: nil)
     XCTAssertEqual(count, 0)
   }

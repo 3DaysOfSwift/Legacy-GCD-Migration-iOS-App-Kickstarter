@@ -12,6 +12,7 @@ internal protocol MessageDialogViewControllerDelegate: AnyObject {
 }
 
 internal final class MessageDialogViewController: UIViewController {
+  private var keyboardObservation: Keyboard.Observation?
   fileprivate let viewModel: MessageDialogViewModelType = MessageDialogViewModel()
   internal weak var delegate: MessageDialogViewControllerDelegate?
 
@@ -44,8 +45,10 @@ internal final class MessageDialogViewController: UIViewController {
     self.loadingView.rac.hidden = self.viewModel.outputs.loadingViewIsHidden
     self.bodyTextView.rac.isFirstResponder = self.viewModel.outputs.keyboardIsVisible
 
-    self.bottomConstraint.rac.constant = Keyboard.change
-      .map { [weak self] in (self?.view.frame.height ?? 0.0) - $0.frame.minY }
+    self.keyboardObservation = Keyboard.observe { [weak self] change in
+      guard let self else { return }
+      self.bottomConstraint.constant = self.view.frame.height - change.frame.minY
+    }
 
     self.viewModel.outputs.notifyPresenterDialogWantsDismissal
       .observeValues { [weak self] in
