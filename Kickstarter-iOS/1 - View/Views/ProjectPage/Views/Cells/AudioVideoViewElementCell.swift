@@ -14,7 +14,7 @@ internal protocol AudioVideoViewElementCellPlaybackDelegate: AnyObject {
 class AudioVideoViewElementCell: UITableViewCell, ValueCell {
   // MARK: Properties
 
-  private let viewModel: AudioVideoViewElementCellViewModelType = AudioVideoViewElementCellViewModel()
+  private let viewModel = AudioVideoViewElementCellViewModel()
   private var playbackObservation: NSKeyValueObservation?
   private var playbackObservationTask: Task<Void, Never>?
   private lazy var playerController: AVPlayerViewController = { AVPlayerViewController() }()
@@ -39,7 +39,7 @@ class AudioVideoViewElementCell: UITableViewCell, ValueCell {
   }
 
   func configureWith(value: (element: AudioVideoViewElement, player: AVPlayer?, thumbnailImage: UIImage?)) {
-    self.viewModel.inputs.configureWith(
+    self.viewModel.configureWith(
       element: value.element,
       player: value.player,
       thumbnailImage: value.thumbnailImage
@@ -49,58 +49,28 @@ class AudioVideoViewElementCell: UITableViewCell, ValueCell {
   // MARK: View Model
 
   internal override func bindViewModel() {
-    self.viewModel.outputs.audioVideoItem
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.resetPlayer()
-      })
-      .observeValues { [weak self] player in
-        guard let strongSelf = self else { return }
-
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
-
-        strongSelf.playerController.player = player
+    self.viewModel.onPlayer = { [weak self] player in
+      guard let self else { return }
+      self.resetPlayer()
+      try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
+      self.playerController.player = player
+    }
+    self.viewModel.onThumbnail = { [weak self] image in
+      guard let self else { return }
+      self.playerController.contentOverlayView?.subviews.forEach { $0.removeFromSuperview() }
+      self.observePlaybackStart()
+      if let contentOverlayView = self.playerController.contentOverlayView {
+        let imageView = UIImageView()
+        imageView.image = image
+        _ = imageView |> thumbnailImageViewStyle |> \.isUserInteractionEnabled .~ false
+        _ = (imageView, contentOverlayView) |> ksr_addSubviewToParent() |> ksr_constrainViewToMarginsInParent()
       }
-
-    self.viewModel.outputs.thumbnailImage
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.playerController.contentOverlayView?.subviews.forEach { $0.removeFromSuperview() }
-      })
-      .observeValues { [weak self] image in
-        guard let strongSelf = self else { return }
-
-        strongSelf.observePlaybackStart()
-
-        if let contentOverlayView = strongSelf.playerController.contentOverlayView {
-          let imageView = UIImageView()
-          imageView.image = image
-
-          _ = imageView
-            |> thumbnailImageViewStyle
-            |> \.isUserInteractionEnabled .~ false
-
-          _ = (imageView, contentOverlayView)
-            |> ksr_addSubviewToParent()
-            |> ksr_constrainViewToMarginsInParent()
-        }
-      }
-
-    self.viewModel.outputs.pauseAudioVideo
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        self?.playerController.player?.pause()
-
-        guard let player = self?.playerController.player else {
-          self?.viewModel.inputs.recordSeektime(.zero)
-
-          return
-        }
-
-        let currentSeekTime = player.currentTime()
-
-        self?.viewModel.inputs.recordSeektime(currentSeekTime)
-      }
+    }
+    self.viewModel.onPause = { [weak self] in
+      guard let self else { return }
+      self.playerController.player?.pause()
+      self.viewModel.recordSeektime(self.playerController.player?.currentTime() ?? .zero)
+    }
   }
 
   // MARK: View Styles
@@ -180,7 +150,7 @@ class AudioVideoViewElementCell: UITableViewCell, ValueCell {
 
 extension AudioVideoViewElementCell: AudioVideoViewElementCellPlaybackDelegate {
   func pausePlayback() -> CMTime {
-    self.viewModel.inputs.pausePlayback()
+    self.viewModel.pausePlayback()
   }
 
   func isPlaying() -> Bool {
