@@ -22,7 +22,7 @@ final class PledgePaymentMethodCell: UITableViewCell, ValueCell {
 
   private lazy var unavailableCardTypeLabel: UILabel = { UILabel(frame: .zero) }()
 
-  private let viewModel: PledgePaymentMethodCellViewModelType = PledgePaymentMethodCellViewModel()
+  private let viewModel = PledgePaymentMethodCellViewModel()
 
   // MARK: - Lifecycle
 
@@ -31,7 +31,6 @@ final class PledgePaymentMethodCell: UITableViewCell, ValueCell {
 
     self.configureSubviews()
     self.setupConstraints()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -117,59 +116,27 @@ final class PledgePaymentMethodCell: UITableViewCell, ValueCell {
       |> expirationDateLabelStyle
   }
 
-  // MARK: - View model
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.lastFourLabel.rac.accessibilityLabel = self.viewModel.outputs.cardNumberAccessibilityLabel
-    self.lastFourLabel.rac.textColor = self.viewModel.outputs.lastFourLabelTextColor
-    self.expirationDateLabel.rac.text = self.viewModel.outputs.expirationDateText
-    self.lastFourLabel.rac.text = self.viewModel.outputs.cardNumberTextShortStyle
-    self.unavailableCardTypeLabel.rac.hidden = self.viewModel.outputs.unavailableCardLabelHidden
-    self.unavailableCardTypeLabel.rac.text = self.viewModel.outputs.unavailableCardText
-
-    self.viewModel.outputs.cardImageAlpha
-      .observeForUI()
-      .observeValues { [weak self] opacity in
-        self?.cardImageView.alpha = opacity
-      }
-
-    self.viewModel.outputs.checkmarkImageHidden
-      .observeForUI()
-      .observeValues { [weak self] hidden in
-        self?.checkmarkImageView.alpha = hidden ? 0 : 1
-      }
-
-    self.viewModel.outputs.cardImageName
-      .observeForUI()
-      .observeValues { [weak self] imageName in
-        _ = self?.cardImageView
-          ?|> \.image .~ Kickstarter_iOS.image(named: imageName)
-      }
-
-    self.viewModel.outputs.checkmarkImageName
-      .observeForUI()
-      .observeValues { [weak self] imageName in
-        _ = self?.checkmarkImageView
-          ?|> \.image .~ Kickstarter_iOS.image(named: imageName)
-      }
-
-    self.viewModel.outputs.selectionStyle
-      .observeForUI()
-      .observeValues { [weak self] style in
-        self?.selectionStyle = style
-      }
-  }
-
   func configureWith(value: PledgePaymentMethodCellData) {
-    self.viewModel.inputs.configureWith(value: value)
+    let display = self.viewModel.configureWith(value: value)
+    self.lastFourLabel.accessibilityLabel = display.cardNumberAccessibilityLabel
+    self.lastFourLabel.textColor = display.lastFourLabelTextColor
+    self.lastFourLabel.text = display.cardNumberTextShortStyle
+    self.expirationDateLabel.text = display.expirationDateText
+    self.unavailableCardTypeLabel.isHidden = display.unavailableCardLabelHidden
+    if let text = display.unavailableCardText { self.unavailableCardTypeLabel.text = text }
+    self.cardImageView.alpha = display.cardImageAlpha
+    self.checkmarkImageView.alpha = display.checkmarkImageHidden ? 0 : 1
+    self.cardImageView.image = Kickstarter_iOS.image(named: display.cardImageName)
+    self.checkmarkImageView.image = Kickstarter_iOS.image(named: display.checkmarkImageName)
+    self.selectionStyle = display.selectionStyle
   }
 
   // MARK: - Accessors
 
   func setSelectedCardId(_ id: String) {
-    self.viewModel.inputs.setSelectedCardId(id)
+    if let name = self.viewModel.setSelectedCardId(id) {
+      self.checkmarkImageView.image = Kickstarter_iOS.image(named: name)
+    }
   }
 }
 

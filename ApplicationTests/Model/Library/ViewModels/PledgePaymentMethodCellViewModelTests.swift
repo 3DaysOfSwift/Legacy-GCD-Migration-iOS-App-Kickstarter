@@ -4,41 +4,48 @@ import KDS
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 internal final class PledgePaymentMethodCellViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  internal let vm: PledgePaymentMethodCellViewModelType = PledgePaymentMethodCellViewModel()
+  internal let vm = PledgePaymentMethodCellViewModel()
 
-  private let cardImageAlpha = TestObserver<CGFloat, Never>()
-  private let cardImageName = TestObserver<String, Never>()
-  private let cardNumberAccessibilityLabel = TestObserver<String, Never>()
-  private let cardNumberTextShortStyle = TestObserver<String, Never>()
-  private let checkmarkImageHidden = TestObserver<Bool, Never>()
-  private let checkmarkImageName = TestObserver<String, Never>()
-  private let expirationDateText = TestObserver<String, Never>()
-  private let lastFourLabelTextColor = TestObserver<UIColor, Never>()
-  private let selectionStyle = TestObserver<UITableViewCell.SelectionStyle, Never>()
-  private let unavailableCardLabelHidden = TestObserver<Bool, Never>()
-  private let unavailableCardText = TestObserver<String, Never>()
+  private let cardImageAlpha = PaymentRecorder<CGFloat>()
+  private let cardImageName = PaymentRecorder<String>()
+  private let cardNumberAccessibilityLabel = PaymentRecorder<String>()
+  private let cardNumberTextShortStyle = PaymentRecorder<String>()
+  private let checkmarkImageHidden = PaymentRecorder<Bool>()
+  private let checkmarkImageName = PaymentRecorder<String>()
+  private let expirationDateText = PaymentRecorder<String>()
+  private let lastFourLabelTextColor = PaymentRecorder<UIColor>()
+  private let selectionStyle = PaymentRecorder<UITableViewCell.SelectionStyle>()
+  private let unavailableCardLabelHidden = PaymentRecorder<Bool>()
+  private let unavailableCardText = PaymentRecorder<String>()
 
-  internal override func setUp() async throws {
-    try await super.setUp()
+  private func configureWith(value: PledgePaymentMethodCellData) {
+    let display = self.vm.configureWith(value: value)
+    self.cardImageName.record(display.cardImageName)
+    self.cardImageAlpha.record(display.cardImageAlpha)
+    self.cardNumberAccessibilityLabel.record(display.cardNumberAccessibilityLabel)
+    self.cardNumberTextShortStyle.record(display.cardNumberTextShortStyle)
+    self.expirationDateText.record(display.expirationDateText)
+    self.checkmarkImageName.record(display.checkmarkImageName)
+    self.checkmarkImageHidden.record(display.checkmarkImageHidden)
+    self.lastFourLabelTextColor.record(display.lastFourLabelTextColor)
+    self.selectionStyle.record(display.selectionStyle)
+    self.unavailableCardLabelHidden.record(display.unavailableCardLabelHidden)
+    if let text = display.unavailableCardText { self.unavailableCardText.record(text) }
+  }
 
-    self.vm.outputs.cardImageName.observe(self.cardImageName.observer)
-    self.vm.outputs.cardImageAlpha.observe(self.cardImageAlpha.observer)
-    self.vm.outputs.cardNumberAccessibilityLabel.observe(self.cardNumberAccessibilityLabel.observer)
-    self.vm.outputs.cardNumberTextShortStyle.observe(self.cardNumberTextShortStyle.observer)
-    self.vm.outputs.expirationDateText.observe(self.expirationDateText.observer)
-    self.vm.outputs.checkmarkImageName.observe(self.checkmarkImageName.observer)
-    self.vm.outputs.checkmarkImageHidden.observe(self.checkmarkImageHidden.observer)
-    self.vm.outputs.lastFourLabelTextColor.observe(self.lastFourLabelTextColor.observer)
-    self.vm.outputs.selectionStyle.observe(self.selectionStyle.observer)
-    self.vm.outputs.unavailableCardLabelHidden.observe(self.unavailableCardLabelHidden.observer)
-    self.vm.outputs.unavailableCardText.observe(self.unavailableCardText.observer)
+  private func setSelectedCardId(_ id: String) {
+    if let name = self.vm.setSelectedCardId(id) { self.checkmarkImageName.record(name) }
+  }
+
+  func testSelectionSetBeforeConfiguration() {
+    XCTAssertNil(self.vm.setSelectedCardId(UserCreditCards.generic.id))
+    let display = self.vm.configureWith(value: (UserCreditCards.generic, true, false, "US", false))
+    XCTAssertEqual(display.checkmarkImageName, "icon-payment-method-selected")
   }
 
   func testCardInfoForSupportedCards() {
@@ -54,7 +61,7 @@ internal final class PledgePaymentMethodCellViewModelTests: TestCase {
     self.unavailableCardLabelHidden.assertDidNotEmitValue()
     self.unavailableCardText.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(value: (UserCreditCards.amex, true, false, "Brooklyn, NY", false))
+    self.configureWith(value: (UserCreditCards.amex, true, false, "Brooklyn, NY", false))
 
     self.cardImageName.assertLastValue("icon--amex")
     self.cardNumberAccessibilityLabel.assertLastValue("Amex, Card ending in 8882")
@@ -68,7 +75,7 @@ internal final class PledgePaymentMethodCellViewModelTests: TestCase {
     self.unavailableCardLabelHidden.assertLastValue(true)
     self.unavailableCardText.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(value: (UserCreditCards.discover, true, false, "Brooklyn, NY", false))
+    self.configureWith(value: (UserCreditCards.discover, true, false, "Brooklyn, NY", false))
 
     self.cardImageName.assertLastValue("icon--discover")
     self.cardNumberAccessibilityLabel.assertLastValue("Discover, Card ending in 4242")
@@ -82,7 +89,7 @@ internal final class PledgePaymentMethodCellViewModelTests: TestCase {
     self.unavailableCardLabelHidden.assertLastValue(true)
     self.unavailableCardText.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(value: (UserCreditCards.jcb, true, false, "Brooklyn, NY", false))
+    self.configureWith(value: (UserCreditCards.jcb, true, false, "Brooklyn, NY", false))
 
     self.cardImageName.assertLastValue("icon--jcb")
     self.cardNumberAccessibilityLabel.assertLastValue("Jcb, Card ending in 2222")
@@ -96,7 +103,7 @@ internal final class PledgePaymentMethodCellViewModelTests: TestCase {
     self.unavailableCardLabelHidden.assertLastValue(true)
     self.unavailableCardText.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(value: (UserCreditCards.masterCard, true, false, "Brooklyn, NY", false))
+    self.configureWith(value: (UserCreditCards.masterCard, true, false, "Brooklyn, NY", false))
 
     self.cardImageName.assertLastValue("icon--mastercard")
     self.cardNumberAccessibilityLabel.assertLastValue("Mastercard, Card ending in 0000")
@@ -110,7 +117,7 @@ internal final class PledgePaymentMethodCellViewModelTests: TestCase {
     self.unavailableCardLabelHidden.assertLastValue(true)
     self.unavailableCardText.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(value: (UserCreditCards.visa, true, false, "Brooklyn, NY", false))
+    self.configureWith(value: (UserCreditCards.visa, true, false, "Brooklyn, NY", false))
 
     self.cardImageName.assertLastValue("icon--visa")
     self.cardNumberAccessibilityLabel.assertLastValue("Visa, Card ending in 1111")
@@ -124,7 +131,7 @@ internal final class PledgePaymentMethodCellViewModelTests: TestCase {
     self.unavailableCardLabelHidden.assertLastValue(true)
     self.unavailableCardText.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(value: (UserCreditCards.diners, true, false, "Brooklyn, NY", false))
+    self.configureWith(value: (UserCreditCards.diners, true, false, "Brooklyn, NY", false))
 
     self.cardImageName.assertLastValue("icon--diners")
     self.cardNumberAccessibilityLabel.assertLastValue("Diners, Card ending in 1212")
@@ -152,8 +159,8 @@ internal final class PledgePaymentMethodCellViewModelTests: TestCase {
     self.unavailableCardLabelHidden.assertDidNotEmitValue()
     self.unavailableCardText.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(value: (UserCreditCards.generic, true, true, "Brooklyn, NY", false))
-    self.vm.inputs.setSelectedCardId(UserCreditCards.diners.id)
+    self.configureWith(value: (UserCreditCards.generic, true, true, "Brooklyn, NY", false))
+    self.setSelectedCardId(UserCreditCards.diners.id)
 
     self.cardImageName.assertValues(["icon--generic"])
     self.cardImageAlpha.assertValues([1.0])
@@ -181,8 +188,8 @@ internal final class PledgePaymentMethodCellViewModelTests: TestCase {
     self.unavailableCardLabelHidden.assertDidNotEmitValue()
     self.unavailableCardText.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(value: (UserCreditCards.generic, true, false, "Brooklyn, NY", false))
-    self.vm.inputs.setSelectedCardId(UserCreditCards.generic.id)
+    self.configureWith(value: (UserCreditCards.generic, true, false, "Brooklyn, NY", false))
+    self.setSelectedCardId(UserCreditCards.generic.id)
 
     self.cardImageName.assertValues(["icon--generic"])
     self.cardImageAlpha.assertValues([1.0])
@@ -210,8 +217,8 @@ internal final class PledgePaymentMethodCellViewModelTests: TestCase {
     self.unavailableCardLabelHidden.assertDidNotEmitValue()
     self.unavailableCardText.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(value: (UserCreditCards.generic, false, true, "Brooklyn, NY", false))
-    self.vm.inputs.setSelectedCardId(UserCreditCards.generic.id)
+    self.configureWith(value: (UserCreditCards.generic, false, true, "Brooklyn, NY", false))
+    self.setSelectedCardId(UserCreditCards.generic.id)
 
     self.cardImageName.assertValues(["icon--generic"])
     self.cardImageAlpha.assertValues([0.5])
@@ -243,7 +250,7 @@ internal final class PledgePaymentMethodCellViewModelTests: TestCase {
 
     let unknownCard = UserCreditCards.generic |> \.type .~ nil
 
-    self.vm.inputs.configureWith(value: (unknownCard, true, false, "Brooklyn, NY", false))
+    self.configureWith(value: (unknownCard, true, false, "Brooklyn, NY", false))
 
     self.cardImageName.assertValues(["icon--generic"])
     self.cardImageAlpha.assertValues([1.0])
@@ -279,7 +286,7 @@ internal final class PledgePaymentMethodCellViewModelTests: TestCase {
       isErroredPaymentMethod: true
     )
 
-    self.vm.inputs.configureWith(value: data)
+    self.configureWith(value: data)
 
     self.cardImageName.assertValues(["icon--visa"])
     self.cardImageAlpha.assertValues([1.0])
@@ -292,5 +299,19 @@ internal final class PledgePaymentMethodCellViewModelTests: TestCase {
     self.selectionStyle.assertValues([.default])
     self.unavailableCardLabelHidden.assertValues([false])
     self.unavailableCardText.assertValues(["Retry or select another method."])
+  }
+}
+
+private final class PaymentRecorder<Value: Equatable> {
+  private var values: [Value] = []
+  func record(_ value: Value) { self.values.append(value) }
+  func assertDidNotEmitValue(file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, file: file, line: line)
+  }
+  func assertLastValue(_ expected: Value, file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.last, expected, file: file, line: line)
+  }
+  func assertValues(_ expected: [Value], file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, file: file, line: line)
   }
 }
