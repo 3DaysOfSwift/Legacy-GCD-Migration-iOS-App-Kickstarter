@@ -1,83 +1,35 @@
 @testable import Kickstarter_iOS
-
-
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
+import UIKit
 import XCTest
 
+@MainActor
 final class RewardTrackingDetailsViewModelTest: TestCase {
-  private let vm: RewardTrackingDetailsViewModelType = RewardTrackingDetailsViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private var rewardTrackingStatus = TestObserver<String, Never>()
-  private var rewardTrackingNumber = TestObserver<String, Never>()
-  private var trackingButtonHidden = TestObserver<Bool, Never>()
-  private var trackShipping = TestObserver<URL?, Never>()
-
-  private let testTrackingNumber = "1234567890"
-  private let testURL = URL(string: "http://ksr.com")!
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.rewardTrackingStatus.observe(self.rewardTrackingStatus.observer)
-    self.vm.outputs.rewardTrackingNumber.observe(self.rewardTrackingNumber.observer)
-    self.vm.outputs.trackingButtonHidden.observe(self.trackingButtonHidden.observer)
-    self.vm.outputs.trackShipping.observe(self.trackShipping.observer)
+  func testTrackingPresentationAndAction() throws {
+    let view = RewardTrackingDetailsView(style: .activity)
+    let delegate = TrackingDelegate()
+    view.delegate = delegate
+    let url = try XCTUnwrap(URL(string: "https://example.com/tracking"))
+    view.configure(with: .init(trackingNumber: "1234567890", trackingURL: url))
+    let labels = descendants(view).compactMap { $0 as? UILabel }.compactMap(\.text)
+    XCTAssertTrue(labels.contains(Strings.Tracking_number(number: "1234567890")))
+    XCTAssertTrue(labels.contains(Strings.Your_reward_has_shipped()))
+    let button = try XCTUnwrap(descendants(view).compactMap { $0 as? UIButton }.first)
+    XCTAssertFalse(button.isHidden)
+    button.sendActions(for: .touchUpInside)
+    XCTAssertEqual(delegate.url, url)
+    view.configure(with: .init(trackingNumber: "456", trackingURL: nil))
+    XCTAssertTrue(button.isHidden)
   }
 
-  func testView_BackingDetails_Style() {
-    let data = RewardTrackingDetailsViewData(
-      trackingNumber: self.testTrackingNumber,
-      trackingURL: self.testURL
-    )
-
-    self.vm.inputs.configure(with: data)
-    self.trackShipping.assertDidNotEmitValue()
-
-    self.rewardTrackingNumber.assertLastValue(Strings.Tracking_number(number: "1234567890"))
-    self.rewardTrackingStatus.assertLastValue(Strings.Your_reward_has_shipped())
-    self.trackingButtonHidden.assertValues([false])
+  private func descendants(_ view: UIView) -> [UIView] {
+    view.subviews.flatMap { [$0] + self.descendants($0) }
   }
+}
 
-  func testView_Activity_Style() {
-    let data = RewardTrackingDetailsViewData(
-      trackingNumber: self.testTrackingNumber,
-      trackingURL: self.testURL
-    )
-
-    self.vm.inputs.configure(with: data)
-    self.trackShipping.assertDidNotEmitValue()
-
-    self.rewardTrackingNumber.assertLastValue(Strings.Tracking_number(number: "1234567890"))
-    self.rewardTrackingStatus.assertLastValue(Strings.Your_reward_has_shipped())
-    self.trackingButtonHidden.assertValues([false])
-  }
-
-  func testTrackingButtonHidden() {
-    let data = RewardTrackingDetailsViewData(
-      trackingNumber: self.testTrackingNumber,
-      trackingURL: URL(string: "")
-    )
-
-    self.vm.inputs.configure(with: data)
-    self.vm.inputs.trackingButtonTapped()
-
-    self.trackingButtonHidden.assertValues([true])
-  }
-
-  func testTrackingButtonTapped() {
-    let data = RewardTrackingDetailsViewData(
-      trackingNumber: self.testTrackingNumber,
-      trackingURL: self.testURL
-    )
-
-    self.vm.inputs.configure(with: data)
-
-    self.trackingButtonHidden.assertValues([false])
-
-    self.vm.inputs.trackingButtonTapped()
-
-    self.trackShipping.assertValues([self.testURL])
-  }
+@MainActor
+private final class TrackingDelegate: RewardTrackingDetailsViewDelegate {
+  var url: URL?
+  func didTapTrackingButton(with trackingURL: URL) { self.url = trackingURL }
 }

@@ -25,7 +25,7 @@ final class RewardTrackingDetailsView: UIView {
   // MARK: Properties
 
   public weak var delegate: RewardTrackingDetailsViewDelegate?
-  private let viewModel: RewardTrackingDetailsViewModelType = RewardTrackingDetailsViewModel()
+  private var trackingURL: URL?
   private var style: RewardTrackingDetailsViewStyle
 
   private let rootStackView: UIStackView = UIStackView(frame: .zero)
@@ -42,7 +42,6 @@ final class RewardTrackingDetailsView: UIView {
     super.init(frame: frame)
     self.configureViews()
     self.setupConstraints()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -60,22 +59,6 @@ final class RewardTrackingDetailsView: UIView {
     applyTrackingTitleStackViewStyle(self.trackingTitleStackView)
     applyTrackingStatusLabelStyle(self.trackingStatusLabel)
     applyTrackingNumberLabelStyle(self.trackingNumberLabel)
-  }
-
-  public override func bindViewModel() {
-    super.bindViewModel()
-
-    self.trackingStatusLabel.rac.text = self.viewModel.outputs.rewardTrackingStatus
-    self.trackingNumberLabel.rac.text = self.viewModel.outputs.rewardTrackingNumber
-    self.trackingButton.rac.hidden = self.viewModel.outputs.trackingButtonHidden
-
-    self.viewModel.outputs.trackShipping
-      .observeForUI()
-      .observeValues { [weak self] trackingURL in
-        guard let url = trackingURL else { return }
-
-        self?.delegate?.didTapTrackingButton(with: url)
-      }
   }
 
   private func configureViews() {
@@ -106,13 +89,17 @@ final class RewardTrackingDetailsView: UIView {
   }
 
   public func configure(with data: RewardTrackingDetailsViewData) {
-    self.viewModel.inputs.configure(with: data)
+    self.trackingURL = data.trackingURL
+    self.trackingStatusLabel.text = Strings.Your_reward_has_shipped()
+    self.trackingNumberLabel.text = Strings.Tracking_number(number: data.trackingNumber)
+    self.trackingButton.isHidden = data.trackingURL == nil
   }
 
   // MARK: - Actions
 
   @objc private func onTrackingButtonTapped() {
-    self.viewModel.inputs.trackingButtonTapped()
+    guard let trackingURL = self.trackingURL else { return }
+    self.delegate?.didTapTrackingButton(with: trackingURL)
   }
 }
 

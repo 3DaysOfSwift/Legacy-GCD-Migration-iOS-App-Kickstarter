@@ -1,39 +1,22 @@
 @testable import Kickstarter_iOS
 @testable import KsApi
-
-
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
+import UIKit
 import XCTest
 
+@MainActor
 final class RewardTrackingActivitiesCellViewModelTest: TestCase {
-  private let vm: RewardTrackingActivitiesCellViewModelType = RewardTrackingActivitiesCellViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private var projectName = TestObserver<String, Never>()
-  private var projectImageURL = TestObserver<URL, Never>()
-
-  private let testTrackingNumber = "1234567890"
-  private let testURL = URL(string: "http://ksr.com")!
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.projectName.observe(self.projectName.observer)
-    self.vm.outputs.projectImageURL.observe(self.projectImageURL.observer)
+  func testCellDisplaysProjectAndTrackingNumber() {
+    let cell = RewardTrackingActivitiesCell(style: .default, reuseIdentifier: nil)
+    let project = Project.template
+    cell.configureWith(value: .init(trackingData: .init(trackingNumber: "ABC", trackingURL: nil), project: project))
+    let labels = self.descendants(cell).compactMap { $0 as? UILabel }.compactMap(\.text)
+    XCTAssertTrue(labels.contains(project.name))
+    XCTAssertTrue(labels.contains(Strings.Tracking_number(number: "ABC")))
   }
 
-  func testViewModel() throws {
-    let project = Project.template
-
-    let projectImageURL = try XCTUnwrap(
-      URL(string: project.photo.full),
-      "projectImageURL could not be unwrapped"
-    )
-
-    self.vm.inputs.configure(with: project)
-
-    self.projectName.assertLastValue(project.name)
-    self.projectImageURL.assertLastValue(projectImageURL)
+  private func descendants(_ view: UIView) -> [UIView] {
+    view.subviews.flatMap { [$0] + self.descendants($0) }
   }
 }

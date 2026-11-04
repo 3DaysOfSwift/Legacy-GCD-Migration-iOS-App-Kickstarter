@@ -17,7 +17,6 @@ private enum Constants {
 final class RewardTrackingActivitiesCell: UITableViewCell, ValueCell {
   // MARK: - Properties
 
-  private let viewModel: RewardTrackingActivitiesCellViewModelType = RewardTrackingActivitiesCellViewModel()
   public weak var delegate: RewardTrackingDetailsViewDelegate? {
     get { self.rewardTrackingDetailsView.delegate }
     set { self.rewardTrackingDetailsView.delegate = newValue }
@@ -40,7 +39,6 @@ final class RewardTrackingActivitiesCell: UITableViewCell, ValueCell {
 
     self.configureViews()
     self.setupConstraints()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -101,25 +99,14 @@ final class RewardTrackingActivitiesCell: UITableViewCell, ValueCell {
     applySeperatorViewStyle(self.separatorView)
   }
 
-  public override func bindViewModel() {
-    super.bindViewModel()
-
-    self.projectNameLabel.rac.text = self.viewModel.outputs.projectName
-
-    self.viewModel.outputs.projectImageURL
-      .observeForUI()
-      .on(event: { [weak projectImageView] _ in
-        projectImageView?.af.cancelImageRequest()
-        projectImageView?.image = nil
-      })
-      .observeValues { [weak projectImageView] url in
-        projectImageView?.ksr_setImageWithURL(url)
-      }
-  }
-
   internal func configureWith(value data: RewardTrackingActivitiesCellData) {
     self.rewardTrackingDetailsView.configure(with: data.trackingData)
-    self.viewModel.inputs.configure(with: data.project)
+    self.projectNameLabel.text = data.project.name
+    if let url = URL(string: data.project.photo.full) {
+      self.projectImageView.af.cancelImageRequest()
+      self.projectImageView.image = nil
+      self.projectImageView.ksr_setImageWithURL(url)
+    }
   }
 }
 
