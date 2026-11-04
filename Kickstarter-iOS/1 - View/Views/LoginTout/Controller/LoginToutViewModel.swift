@@ -51,20 +51,11 @@ public protocol LoginToutViewModelOutputs {
   /// Emits whether a request is loading or not
   var isLoading: Signal<Bool, Never> { get }
 
-  /// Emits an access token envelope that can be used to update the environment via Apple.
-  var logIntoEnvironmentWithApple: Signal<AccessTokenEnvelope, Never> { get }
-
   /// Emits an access token envelope that can be used to update the environment via Facebook.
   var logIntoEnvironmentWithFacebook: Signal<AccessTokenEnvelope, Never> { get }
 
   /// Emits when a login success notification should be posted.
   var postNotification: Signal<(Notification, Notification), Never> { get }
-
-  /// Emits when should show Apple error alert with error message
-  var showAppleErrorAlert: Signal<String, Never> { get }
-
-  /// Emits when we should log a non-fatal Apple error
-  var logAppleError: Signal<NSError, Never> { get }
 
   /// Emits when should show Facebook error alert with AlertError
   var showFacebookErrorAlert: Signal<AlertError, Never> { get }
@@ -85,10 +76,18 @@ public protocol LoginToutViewModelType {
 @MainActor
 public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewModelInputs,
   LoginToutViewModelOutputs {
+  private let authenticationFeature: AuthenticationFeature
+  private let loadingProperty = MutableProperty(false)
+  private var appleTask: Task<Void, Never>?
+  private var appleVersion = UUID()
+  var onAppleSuccess: ((AccessTokenEnvelope) -> Void)?
+  var onAppleError: ((String) -> Void)?
+  var onAppleLog: ((NSError) -> Void)?
+
   public init(authenticationFeature: AuthenticationFeature? = nil) {
     let authenticationFeature = authenticationFeature ?? AppModel.shared.authenticationFeature
-    let isLoading: MutableProperty<Bool> = MutableProperty(false)
-
+    self.authenticationFeature = authenticationFeature
+    let isLoading = self.loadingProperty
     self.isLoading = isLoading.signal.skipRepeats()
 
     let tokenString: Signal<String, Never> = self.facebookLoginSuccessProperty.signal.skipNil()
@@ -158,36 +157,6 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
 
     let logIntoEnvironmentWithFacebook = facebookLogin.values()
 
-    // MARK: - Sign-in with Apple
-
-    let appleSignInEvent = self.appleAuthorizationDidSucceedWithDataProperty.signal
-      .skipNil()
-      .switchMap { data in
-        authenticationFeature.result(.apple(
-          appID: data.appId, firstName: data.firstName, lastName: data.lastName, token: data.token
-        ))
-        .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-        .on(starting: { isLoading.value = true }, terminated: { isLoading.value = false })
-        .materialize()
-      }
-
-    let logIntoEnvironmentWithApple = appleSignInEvent.values()
-    let appleSignInEventError = appleSignInEvent.errors().map { $0.localizedDescription }
-
-    let appleAuthorizationError = self.appleAuthorizationDidFailWithErrorProperty.signal
-      .skipNil()
-      .map(errorMessage(from:))
-      .skipNil()
-
-    self.showAppleErrorAlert = Signal
-      .merge(appleAuthorizationError, appleSignInEventError)
-
-    self.logAppleError = self.appleAuthorizationDidFailWithErrorProperty.signal
-      .skipNil()
-      .map { $0.nsError }
-      .skipNil()
-
-    self.logIntoEnvironmentWithApple = logIntoEnvironmentWithApple.signal
     self.logIntoEnvironmentWithFacebook = logIntoEnvironmentWithFacebook.signal
 
     self.viewWillAppearProperty.signal
@@ -195,6 +164,8 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
       .observeValues { AppEnvironment.current.ksrAnalytics.trackLoginTOutPageViewed() }
 
   }
+
+  deinit { self.appleTask?.cancel() }
 
   public var inputs: LoginToutViewModelInputs { return self }
   public var outputs: LoginToutViewModelOutputs { return self }
@@ -206,15 +177,37 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
   private var isPresented: Bool?
   public func appleLoginButtonPressed() { self.onAppleLogin?() }
 
-  fileprivate let appleAuthorizationDidSucceedWithDataProperty = MutableProperty<SignInWithAppleData?>(nil)
   public func appleAuthorizationDidSucceed(with data: SignInWithAppleData?) {
-    self.appleAuthorizationDidSucceedWithDataProperty.value = data
+    guard let data else { return }
+    if self.appleTask != nil { self.appleTask?.cancel(); self.loadingProperty.value = false }
+    let version = UUID()
+    self.appleVersion = version
+    let feature = self.authenticationFeature
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    self.loadingProperty.value = true
+    self.appleTask = Task { [weak self] in
+      let outcome: Result<AccessTokenEnvelope, Error>
+      do {
+        outcome = .success(try await feature.authenticate(.apple(
+          appID: data.appId, firstName: data.firstName, lastName: data.lastName, token: data.token
+        )))
+      } catch { outcome = .failure(error) }
+      do { if delay > 0 { try await Task.sleep(for: .seconds(delay)) }; try Task.checkCancellation() }
+      catch { return }
+      guard let self, self.appleVersion == version else { return }
+      switch outcome {
+      case let .success(value): self.onAppleSuccess?(value)
+      case let .failure(error): self.onAppleError?((error as? ErrorEnvelope ?? .couldNotParseJSON).localizedDescription)
+      }
+      self.appleTask = nil
+      self.loadingProperty.value = false
+    }
   }
-
-  fileprivate let appleAuthorizationDidFailWithErrorProperty = MutableProperty<AppleAuthServicesError?>(nil)
   public func appleAuthorizationDidFail(with error: AppleAuthServicesError) {
-    self.appleAuthorizationDidFailWithErrorProperty.value = error
+    if let message = errorMessage(from: error) { self.onAppleError?(message) }
+    if let error = error.nsError { self.onAppleLog?(error) }
   }
+  func waitForApple() async { await self.appleTask?.value }
 
   var onContext: ((String, Bool) -> Void)?
   private var configuredIntent: LoginIntent?
@@ -256,14 +249,11 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
   }
 
   public let isLoading: Signal<Bool, Never>
-  public let logIntoEnvironmentWithApple: Signal<AccessTokenEnvelope, Never>
   public let logIntoEnvironmentWithFacebook: Signal<AccessTokenEnvelope, Never>
   public let postNotification: Signal<(Notification, Notification), Never>
   public let startFacebookConfirmation: Signal<(ErrorEnvelope.FacebookUser?, String), Never>
   public let startTwoFactorChallenge: Signal<String, Never>
-  public let showAppleErrorAlert: Signal<String, Never>
   public let showFacebookErrorAlert: Signal<AlertError, Never>
-  public let logAppleError: Signal<NSError, Never>
 }
 
 private func statusString(_ forStatus: LoginIntent) -> String {

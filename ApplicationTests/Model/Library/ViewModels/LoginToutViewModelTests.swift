@@ -60,10 +60,10 @@ final class LoginToutViewModelTests: TestCase {
       self?.headlineLabelHidden.observer.send(value: hidden)
     }
     self.vm.outputs.isLoading.observe(self.isLoading.observer)
-    self.vm.outputs.logIntoEnvironmentWithApple.observe(self.logIntoEnvironmentWithApple.observer)
+    self.vm.onAppleSuccess = { [weak self] in self?.logIntoEnvironmentWithApple.observer.send(value: $0) }
     self.vm.outputs.logIntoEnvironmentWithFacebook.observe(self.logIntoEnvironmentWithFacebook.observer)
     self.vm.outputs.postNotification.map { ($0.0.name, $0.1.name) }.observe(self.postNotification.observer)
-    self.vm.outputs.showAppleErrorAlert.observe(self.showAppleErrorAlert.observer)
+    self.vm.onAppleError = { [weak self] in self?.showAppleErrorAlert.observer.send(value: $0) }
     self.vm.outputs.showFacebookErrorAlert.observe(self.showFacebookErrorAlert.observer)
     self.vm.outputs.startFacebookConfirmation.map { _, token in token }
       .observe(self.startFacebookConfirmation.observer)
@@ -553,7 +553,7 @@ final class LoginToutViewModelTests: TestCase {
       self.vm.inputs.appleAuthorizationDidSucceed(with: data)
 
       self.isLoading.assertValues([true])
-      await self.authenticationFeature.waitForOperations()
+      await self.vm.waitForApple()
       await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
@@ -585,7 +585,7 @@ final class LoginToutViewModelTests: TestCase {
       self.vm.inputs.appleAuthorizationDidSucceed(with: data)
 
       self.isLoading.assertValues([true])
-      await self.authenticationFeature.waitForOperations()
+      await self.vm.waitForApple()
       await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
@@ -620,7 +620,7 @@ final class LoginToutViewModelTests: TestCase {
       self.vm.inputs.appleAuthorizationDidSucceed(with: data)
 
       self.isLoading.assertValues([true])
-      await self.authenticationFeature.waitForOperations()
+      await self.vm.waitForApple()
       await self.scheduler.run()
 
       self.isLoading.assertValues([true, false])

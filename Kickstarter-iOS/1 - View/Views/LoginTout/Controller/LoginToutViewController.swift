@@ -167,10 +167,9 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
     self.viewModel.onAppleLogin = { [weak self] in self?.attemptAppleLogin() }
     self.viewModel.onDismiss = { [weak self] in self?.dismiss(animated: true) }
 
-    self.viewModel.outputs.logIntoEnvironmentWithApple
-      .observeValues { [weak self] _ in
-        self?.viewModel.inputs.environmentLoggedIn()
-      }
+    self.viewModel.onAppleSuccess = { [weak self] _ in self?.viewModel.inputs.environmentLoggedIn() }
+    self.viewModel.onAppleError = { [weak self] in self?.present(UIAlertController.genericError($0), animated: true) }
+    self.viewModel.onAppleLog = { Crashlytics.crashlytics().record(error: $0) }
 
     self.viewModel.outputs.logIntoEnvironmentWithFacebook
       .observeValues { [weak self] _ in
@@ -236,18 +235,6 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
       self?.bringCreativeProjectsToLifeLabel.isHidden = isHidden
       self?.contextLabel.font = isHidden ? UIFont.ksr_title2() : UIFont.ksr_subhead()
     }
-
-    self.viewModel.outputs.showAppleErrorAlert
-      .observeForControllerAction()
-      .observeValues { [weak self] message in
-        self?.present(UIAlertController.genericError(message), animated: true)
-      }
-
-    self.viewModel.outputs.logAppleError
-      .observeForUI()
-      .observeValues { error in
-        Crashlytics.crashlytics().record(error: error)
-      }
 
     self.viewModel.outputs.isLoading
       .observeForUI()
