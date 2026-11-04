@@ -11,7 +11,7 @@ internal protocol ActivitySurveyResponseCellDelegate: AnyObject {
 }
 
 internal final class ActivitySurveyResponseCell: UITableViewCell, ValueCell {
-  fileprivate let viewModel: ActivitySurveyResponseCellViewModelType = ActivitySurveyResponseCellViewModel()
+  fileprivate let viewModel = ActivitySurveyResponseCellViewModel()
   internal weak var delegate: ActivitySurveyResponseCellDelegate?
 
   @IBOutlet fileprivate var cardView: UIView!
@@ -36,10 +36,19 @@ internal final class ActivitySurveyResponseCell: UITableViewCell, ValueCell {
   }
 
   internal func configureWith(value: (surveyResponse: SurveyResponse, count: Int, position: Int)) {
-    self.viewModel.inputs.configureWith(
+    self.viewModel.configureWith(
       surveyResponse: value.surveyResponse, count: value.count,
       position: value.position
     )
+    self.rewardSurveysCountLabel.text = self.viewModel.rewardSurveysCountText
+    self.rewardSurveysCountLabel.isHidden = self.viewModel.rewardSurveysCountIsHidden
+    if value.surveyResponse.project != nil {
+      self.creatorNameLabel.text = self.viewModel.creatorNameText
+      self.surveyLabel.attributedText = self.viewModel.surveyLabelText
+      self.creatorImageView.af.cancelImageRequest()
+      self.creatorImageView.image = nil
+      if let url = self.viewModel.creatorImageURL { self.creatorImageView.ksr_setImageWithURL(url) }
+    }
   }
 
   internal override func bindStyles() {
@@ -85,33 +94,9 @@ internal final class ActivitySurveyResponseCell: UITableViewCell, ValueCell {
       |> UIView.lens.backgroundColor .~ LegacyColors.ksr_create_700.uiColor()
   }
 
-  internal override func bindViewModel() {
-    super.bindViewModel()
-
-    self.creatorNameLabel.rac.text = self.viewModel.outputs.creatorNameText
-    self.rewardSurveysCountLabel.rac.text = self.viewModel.outputs.rewardSurveysCountText
-    self.rewardSurveysCountLabel.rac.hidden = self.viewModel.outputs.rewardSurveysCountIsHidden
-    self.surveyLabel.rac.attributedText = self.viewModel.outputs.surveyLabelText
-
-    self.viewModel.outputs.creatorImageURL
-      .observeForUI()
-      .on(event: { [weak creatorImageView] _ in
-        creatorImageView?.af.cancelImageRequest()
-        creatorImageView?.image = nil
-      })
-      .skipNil()
-      .observeValues { [weak creatorImageView] url in
-        creatorImageView?.ksr_setImageWithURL(url)
-      }
-
-    self.viewModel.outputs.notifyDelegateToRespondToSurvey
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.delegate?.activityTappedRespondNow(forSurveyResponse: $0)
-      }
-  }
-
   @objc fileprivate func respondNowTapped() {
-    self.viewModel.inputs.respondNowButtonTapped()
+    if let response = self.viewModel.surveyResponse {
+      self.delegate?.activityTappedRespondNow(forSurveyResponse: response)
+    }
   }
 }

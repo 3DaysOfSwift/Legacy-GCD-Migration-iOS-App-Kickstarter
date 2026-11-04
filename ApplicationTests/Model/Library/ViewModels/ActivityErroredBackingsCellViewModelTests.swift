@@ -23,3 +23,21 @@ final class ActivityErroredBackingsCellViewModelTests: TestCase {
     XCTAssertEqual(backingViews(in: cell).count, 0)
   }
 }
+
+@MainActor
+final class ActivitySurveyResponseNativeStateTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
+  func testCountAndPositionUpdateForReusedCell() {
+    let vm = ActivitySurveyResponseCellViewModel()
+    let response = SurveyResponse.template
+    vm.configureWith(surveyResponse: response, count: 2, position: 1)
+    XCTAssertTrue(vm.rewardSurveysCountIsHidden)
+    XCTAssertEqual(vm.rewardSurveysCountText, Strings.Reward_Surveys(reward_survey_count: 2))
+    XCTAssertNotNil(vm.surveyResponse)
+    vm.configureWith(surveyResponse: response, count: 2, position: 0)
+    XCTAssertFalse(vm.rewardSurveysCountIsHidden)
+    vm.configureWith(surveyResponse: response, count: 1, position: 1)
+    XCTAssertFalse(vm.rewardSurveysCountIsHidden)
+  }
+}
