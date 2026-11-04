@@ -106,7 +106,8 @@ final class ProfileFeatureTests: TestCase {
       sleep: { _ in try await delay.request() }
     )
     var combined = 0
-    feature.combinedUserValues.observeValues { _ in combined += 1 }
+    let observer = feature.observeHeader { if case .combinedUser = $0 { combined += 1 } }
+    defer { observer.dispose() }
     let request = feature.requestHeader()
     await provider.users.waitFor(1)
     await provider.graphs.waitFor(1)
@@ -207,8 +208,14 @@ final class ProfileFeatureTests: TestCase {
     )
     var combined: [User] = []
     var displayed: [User] = []
-    feature.combinedUserValues.observeValues { combined.append($0) }
-    feature.userValues.observeValues { displayed.append($0) }
+    let observer = feature.observeHeader { event in
+      switch event {
+      case let .combinedUser(user): combined.append(user)
+      case let .user(user): displayed.append(user)
+      case .graphUser: break
+      }
+    }
+    defer { observer.dispose() }
     let first = feature.requestHeader(), duplicate = feature.requestHeader()
     await provider.users.waitFor(1); await provider.graphs.waitFor(1)
     var graph = User.template
@@ -233,8 +240,14 @@ final class ProfileFeatureTests: TestCase {
       sleep: { _ in }
     )
     var graphValues = 0, combined = 0
-    feature.graphUserValues.observeValues { _ in graphValues += 1 }
-    feature.combinedUserValues.observeValues { _ in combined += 1 }
+    let observer = feature.observeHeader { event in
+      switch event {
+      case .graphUser: graphValues += 1
+      case .combinedUser: combined += 1
+      case .user: break
+      }
+    }
+    defer { observer.dispose() }
     let request = feature.requestHeader()
     await provider.users.waitFor(1); await provider.graphs.waitFor(1)
     try provider.users.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
@@ -289,7 +302,8 @@ final class ProfileFeatureTests: TestCase {
       sessionFeature: session, makeProvider: { ControlledProfileProvider() }, sleep: { _ in }
     )
     var combined: [User] = []
-    feature.combinedUserValues.observeValues { combined.append($0) }
+    let observer = feature.observeHeader { if case let .combinedUser(user) = $0 { combined.append(user) } }
+    defer { observer.dispose() }
     let old = feature.requestHeader()
     await provider.users.waitFor(1)
     await provider.graphs.waitFor(1)

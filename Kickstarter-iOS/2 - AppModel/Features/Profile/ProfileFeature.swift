@@ -73,6 +73,25 @@ public final class ProfileFeature {
   public var userValues: Signal<User, Never> { self.userPipe.output }
   public var graphUserValues: Signal<User, Never> { self.graphUserPipe.output }
   public var combinedUserValues: Signal<User, Never> { self.combinedUserPipe.output }
+  enum HeaderEvent {
+    case user(User)
+    case graphUser(User)
+    case combinedUser(User)
+  }
+  private var headerSubscribers: [UUID: @MainActor (HeaderEvent) -> Void] = [:]
+
+  func observeHeader(_ receive: @escaping @MainActor (HeaderEvent) -> Void) -> PlatformObservation {
+    let id = UUID()
+    self.headerSubscribers[id] = receive
+    return PlatformObservation { [weak self] in
+      Task { @MainActor in self?.headerSubscribers[id] = nil }
+    }
+  }
+
+  private func publishHeaderEvent(_ event: HeaderEvent) {
+    for receive in Array(self.headerSubscribers.values) { receive(event) }
+  }
+
   public enum PageEvent {
     case projects(ProfileProjectsType, [ProjectCardProperties])
     case loading(ProfileProjectsType, Bool)
@@ -185,7 +204,10 @@ public final class ProfileFeature {
     let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
     self.userError = nil
     self.graphUserError = nil
-    if let user = self.sessionFeature.currentUser { self.userPipe.input.send(value: user) }
+    if let user = self.sessionFeature.currentUser {
+      self.userPipe.input.send(value: user)
+      self.publishHeaderEvent(.user(user))
+    }
     let task = Task { [weak self] in
       guard let self else { return }
       defer { if self.headerRequest?.token == token { self.headerRequest = nil } }
@@ -213,6 +235,7 @@ public final class ProfileFeature {
       merged.stats.starredProjectsCount = graphUser.stats.starredProjectsCount
       self.sessionFeature.commitUser(merged, userID: userID, generation: generation)
       self.combinedUserPipe.input.send(value: merged)
+      self.publishHeaderEvent(.combinedUser(merged))
     }
     self.headerRequest = (userID, generation, readGeneration, token, task)
     return task
@@ -228,8 +251,13 @@ public final class ProfileFeature {
       try Task.checkCancellation()
       guard self.sessionFeature.isCurrent(userID: userID, generation: generation),
             self.sessionFeature.readGeneration == readGeneration else { return nil }
-      if graph { self.graphUserPipe.input.send(value: user) }
-      else { self.userPipe.input.send(value: user) }
+      if graph {
+        self.graphUserPipe.input.send(value: user)
+        self.publishHeaderEvent(.graphUser(user))
+      } else {
+        self.userPipe.input.send(value: user)
+        self.publishHeaderEvent(.user(user))
+      }
       return user
     } catch {
       guard !Task.isCancelled, !(error is CancellationError), self.sessionFeature.isCurrent(
