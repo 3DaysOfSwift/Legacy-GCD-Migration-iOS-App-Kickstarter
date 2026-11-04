@@ -8,7 +8,7 @@ import UIKit
 internal final class MessagesViewController: UITableViewController, MessageBannerViewControllerPresenting {
   @IBOutlet fileprivate var replyBarButtonItem: UIBarButtonItem!
 
-  fileprivate let viewModel: MessagesViewModelType = MessagesViewModel()
+  fileprivate let viewModel: MessagesViewModel = MessagesViewModel()
   fileprivate let dataSource = MessagesDataSource()
 
   public var messageBannerViewController: MessageBannerViewController?
@@ -104,15 +104,12 @@ internal final class MessagesViewController: UITableViewController, MessageBanne
           .showBanner(with: .error, message: Strings.This_user_has_been_blocked(), dismissType: .persist)
       }
 
-    self.viewModel.outputs.presentMessageDialog
-      .observeForControllerAction()
-      .observeValues { [weak self] messageThread, context in
-        self?.presentMessageDialog(messageThread: messageThread, context: context)
-      }
-
-    self.viewModel.outputs.goToProject
-      .observeForControllerAction()
-      .observeValues { [weak self] project, refTag in self?.goTo(project: project, refTag: refTag) }
+    self.viewModel.onReply = { [weak self] thread, context in
+      self?.presentMessageDialog(messageThread: thread, context: context)
+    }
+    self.viewModel.onProjectNavigation = { [weak self] project, refTag in
+      self?.goTo(project: project, refTag: refTag)
+    }
 
     self.viewModel.outputs.goToBacking
       .observeForControllerAction()

@@ -17,7 +17,7 @@ internal final class MessagesViewModelTests: TestCase {
   private let discussion = DiscussionFeature(sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }), makeProvider: {
     AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
   })
-  private lazy var vm: MessagesViewModelType = MessagesViewModel(feature: self.feature, discussion: self.discussion)
+  private lazy var vm: MessagesViewModel = MessagesViewModel(feature: self.feature, discussion: self.discussion)
 
   private let backingAndProjectAndIsFromBacking = TestObserver<(Backing, Project, Bool), Never>()
   private let emptyStateIsVisible = TestObserver<Bool, Never>()
@@ -47,11 +47,13 @@ internal final class MessagesViewModelTests: TestCase {
       self.vm.outputs.goToBacking.map(first).observe(self.goToBackingProjectParam.observer)
       self.vm.outputs.goToBacking.map(second).observe(self.goToBackingBackingParam.observer)
       self.vm.outputs.goToPledgeManagementViewPledge.observe(self.goToPledgeManagementViewPledge.observer)
-      self.vm.outputs.goToProject.map { $0.0 }.observe(self.goToProject.observer)
-      self.vm.outputs.goToProject.map { $0.1 }.observe(self.goToRefTag.observer)
+      self.vm.onProjectNavigation = { [weak self] project, refTag in
+        self?.goToProject.observer.send(value: project)
+        self?.goToRefTag.observer.send(value: refTag)
+      }
       self.vm.outputs.messages.observe(self.messages.observer)
       self.vm.outputs.participantPreviouslyBlocked.observe(self.participantPreviouslyBlocked.observer)
-      self.vm.outputs.presentMessageDialog.map { $0.0 }.observe(self.presentMessageDialog.observer)
+      self.vm.onReply = { [weak self] thread, _ in self?.presentMessageDialog.observer.send(value: thread) }
       self.vm.outputs.project.observe(self.project.observer)
       self.vm.outputs.replyButtonIsEnabled.observe(self.replyButtonIsEnabled.observer)
       self.vm.outputs.successfullyMarkedAsRead.observe(self.successfullyMarkedAsRead.observer)

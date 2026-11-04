@@ -48,17 +48,11 @@ public protocol MessagesViewModelOutputs {
   /// Emits when we should go to the Pledge Management View Pledge webview.
   var goToPledgeManagementViewPledge: Signal<String, Never> { get }
 
-  /// Emits when we should go to the projet.
-  var goToProject: Signal<(Project, RefTag), Never> { get }
-
   /// Emits a list of messages to be displayed.
   var messages: Signal<[Message], Never> { get }
 
   /// Emits a bool whether the message participant has previously been blocked on viewWillAppear
   var participantPreviouslyBlocked: Signal<Bool, Never> { get }
-
-  /// Emits when we should show the message dialog.
-  var presentMessageDialog: Signal<(MessageThread, KSRAnalytics.MessageDialogContext), Never> { get }
 
   /// Emits the project we are viewing the messages for.
   var project: Signal<Project, Never> { get }
@@ -203,13 +197,6 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
       messages && !isBlocked
     }
 
-    self.presentMessageDialog = messageThreadEnvelope
-      .map { ($0.messageThread, .messages) }
-      .takeWhen(self.replyButtonPressedProperty.signal)
-
-    self.goToProject = self.project.takeWhen(self.projectBannerTappedProperty.signal)
-      .map { ($0, .messageThread) }
-
     self.successfullyMarkedAsRead = messageThreadEnvelope
       .switchMap {
         feature.markReadResult($0.messageThread)
@@ -228,6 +215,9 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
 
     // TODO: Display proper error messaging from the backend
     self.didBlockUserError = blockUserEvent.errors().ignoreValues()
+
+    self.project.observeValues { [weak self] in self?.latestProject = $0 }
+    messageThreadEnvelope.observeValues { [weak self] in self?.latestThread = $0.messageThread }
 
     // MARK: User Blocking Analytics
 
@@ -281,14 +271,15 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
     self.messageSentProperty.value = message
   }
 
-  private let projectBannerTappedProperty = MutableProperty(())
+  var onProjectNavigation: ((Project, RefTag) -> Void)?
+  var onReply: ((MessageThread, KSRAnalytics.MessageDialogContext) -> Void)?
+  private var latestProject: Project?
+  private var latestThread: MessageThread?
   public func projectBannerTapped() {
-    self.projectBannerTappedProperty.value = ()
+    if let project = self.latestProject { self.onProjectNavigation?(project, .messageThread) }
   }
-
-  private let replyButtonPressedProperty = MutableProperty(())
   public func replyButtonPressed() {
-    self.replyButtonPressedProperty.value = ()
+    if let thread = self.latestThread { self.onReply?(thread, .messages) }
   }
 
   private let viewDidLoadProperty = MutableProperty(())
@@ -305,10 +296,8 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
 
   public let backingAndProjectAndIsFromBacking: Signal<(Backing, Project, Bool), Never>
   public let emptyStateIsVisibleAndMessageToUser: Signal<(Bool, String), Never>
-  public let goToProject: Signal<(Project, RefTag), Never>
   public let messages: Signal<[Message], Never>
   public let participantPreviouslyBlocked: Signal<Bool, Never>
-  public let presentMessageDialog: Signal<(MessageThread, KSRAnalytics.MessageDialogContext), Never>
   public let project: Signal<Project, Never>
   public let replyButtonIsEnabled: Signal<Bool, Never>
   public let successfullyMarkedAsRead: Signal<(), Never>
