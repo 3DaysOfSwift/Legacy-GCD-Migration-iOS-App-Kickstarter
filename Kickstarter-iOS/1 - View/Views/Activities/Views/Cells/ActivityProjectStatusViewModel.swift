@@ -1,91 +1,36 @@
 import KDS
 import KsApi
 import Prelude
-import ReactiveSwift
+import Observation
 import UIKit
 
-@MainActor
-public protocol ActivityProjectStatusViewModelInputs {
-  /// Call to configure with an Activity.
-  func configureWith(activity: Activity)
-}
+@MainActor @Observable
+public final class ActivityProjectStatusViewModel {
+  public init() {}
+  public private(set) var fundingBarColor = UIColor.clear
+  public private(set) var fundingProgressPercentage: Float?
+  public private(set) var metadataBackgroundColor = UIColor.clear
+  public private(set) var metadataText = ""
+  public private(set) var percentFundedText = NSAttributedString(string: "")
+  public private(set) var projectImageURL: URL?
+  public private(set) var projectName: String?
 
-@MainActor
-public protocol ActivityProjectStatusViewModelOutputs {
-  /// Emits a color for the funding progress bar.
-  var fundingBarColor: Signal<UIColor, Never> { get }
-
-  /// Emits a percentage between 0.0 and 1.0 that can be used to render the funding progress bar.
-  var fundingProgressPercentage: Signal<Float, Never> { get }
-
-  /// Emits a color for metadata view background.
-  var metadataBackgroundColor: Signal<UIColor, Never> { get }
-
-  /// Emits text for the metadata label.
-  var metadataText: Signal<String, Never> { get }
-
-  /// Emits an attributed string for percent funded label.
-  var percentFundedText: Signal<NSAttributedString, Never> { get }
-
-  /// Emits a url to the project image.
-  var projectImageURL: Signal<URL?, Never> { get }
-
-  /// Emits text for the project name label.
-  var projectName: Signal<String, Never> { get }
-}
-
-@MainActor
-public protocol ActivityProjectStatusViewModelType {
-  var inputs: ActivityProjectStatusViewModelInputs { get }
-  var outputs: ActivityProjectStatusViewModelOutputs { get }
-}
-
-@MainActor
-public final class ActivityProjectStatusViewModel: ActivityProjectStatusViewModelType,
-  ActivityProjectStatusViewModelInputs, ActivityProjectStatusViewModelOutputs {
-  public init() {
-    let activity = self.activityProperty.signal.skipNil()
-    let project = activity.map { $0.project }.skipNil()
-
-    self.fundingBarColor = activity.map { progressBarColor(forActivityCategory: $0.category) }
-
-    self.fundingProgressPercentage = project
-      .map(Project.lens.stats.fundingProgress.view)
-      .map(clamp(0, 1))
-
-    self.metadataBackgroundColor = activity.map { metadataColor(forActivityCategory: $0.category) }
-
-    self.metadataText = activity.map {
-      let creator = $0.project?.creator
-      return activityProjectStatusViewModelMetadataString(
-        forActivityCategory: $0.category,
-        isCreatorUser: AppEnvironment.current.currentUser == creator,
-        friendName: creator?.name ?? ""
-      )
-    }
-
-    self.percentFundedText = activity.map { activityProjectStatusViewModelPercentFundedString(forActivity: $0) }
-
-    self.projectImageURL = project.map { $0.photo.full }.map(URL.init(string:))
-
-    self.projectName = project.map { $0.name }
-  }
-
-  fileprivate let activityProperty = MutableProperty<Activity?>(nil)
   public func configureWith(activity: Activity) {
-    self.activityProperty.value = activity
+    self.fundingBarColor = progressBarColor(forActivityCategory: activity.category)
+    self.metadataBackgroundColor = metadataColor(forActivityCategory: activity.category)
+    let creator = activity.project?.creator
+    self.metadataText = activityProjectStatusViewModelMetadataString(
+      forActivityCategory: activity.category,
+      isCreatorUser: AppEnvironment.current.currentUser == creator,
+      friendName: creator?.name ?? ""
+    )
+    self.percentFundedText = activityProjectStatusViewModelPercentFundedString(forActivity: activity)
+    if let project = activity.project {
+      self.fundingProgressPercentage = clamp(0, 1)(project.stats.fundingProgress)
+      self.projectImageURL = URL(string: project.photo.full)
+      self.projectName = project.name
+    }
   }
-
-  public let fundingBarColor: Signal<UIColor, Never>
-  public let fundingProgressPercentage: Signal<Float, Never>
-  public let metadataBackgroundColor: Signal<UIColor, Never>
-  public let metadataText: Signal<String, Never>
-  public let percentFundedText: Signal<NSAttributedString, Never>
-  public let projectImageURL: Signal<URL?, Never>
-  public let projectName: Signal<String, Never>
-
-  public var inputs: ActivityProjectStatusViewModelInputs { return self }
-  public var outputs: ActivityProjectStatusViewModelOutputs { return self }
 }
 
 private func progressBarColor(forActivityCategory category: Activity.Category) -> UIColor {

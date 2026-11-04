@@ -4,11 +4,10 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveSwift
 import UIKit
 
 internal final class ActivityProjectStatusCell: UITableViewCell, ValueCell {
-  fileprivate let viewModel: ActivityProjectStatusViewModelType = ActivityProjectStatusViewModel()
+  fileprivate let viewModel = ActivityProjectStatusViewModel()
 
   @IBOutlet fileprivate var cardView: UIView!
   @IBOutlet fileprivate var containerView: UIView!
@@ -22,36 +21,23 @@ internal final class ActivityProjectStatusCell: UITableViewCell, ValueCell {
   @IBOutlet fileprivate var textBackgroundView: UIView!
 
   internal func configureWith(value: Activity) {
-    self.viewModel.inputs.configureWith(activity: value)
-  }
-
-  internal override func bindViewModel() {
-    super.bindViewModel()
-
-    self.projectNameLabel.rac.text = self.viewModel.outputs.projectName
-    self.metadataBackgroundView.rac.backgroundColor = self.viewModel.outputs.metadataBackgroundColor
-    self.metadataLabel.rac.text = self.viewModel.outputs.metadataText
-    self.fundingProgressBarView.rac.backgroundColor = self.viewModel.outputs.fundingBarColor
-    self.fundingProgressLabel.rac.attributedText = self.viewModel.outputs.percentFundedText
-
-    self.viewModel.outputs.projectImageURL
-      .observeForUI()
-      .on(event: { [weak projectImageView] _ in
-        projectImageView?.af.cancelImageRequest()
-        projectImageView?.image = nil
-      })
-      .skipNil()
-      .observeValues { [weak projectImageView] url in
-        projectImageView?.ksr_setImageWithURL(url)
-      }
-
-    self.viewModel.outputs.fundingProgressPercentage
-      .observeForUI()
-      .observeValues { [weak self] progress in
-        let anchorX = progress == 0 ? 0 : 0.5 / progress
-        self?.fundingProgressBarView.layer.anchorPoint = CGPoint(x: CGFloat(anchorX), y: 0.5)
-        self?.fundingProgressBarView.transform = CGAffineTransform(scaleX: CGFloat(progress), y: 1.0)
-      }
+    self.viewModel.configureWith(activity: value)
+    let model = self.viewModel
+    if let name = model.projectName { self.projectNameLabel.text = name }
+    self.metadataBackgroundView.backgroundColor = model.metadataBackgroundColor
+    self.metadataLabel.text = model.metadataText
+    self.fundingProgressBarView.backgroundColor = model.fundingBarColor
+    self.fundingProgressLabel.attributedText = model.percentFundedText
+    if value.project != nil {
+      self.projectImageView.af.cancelImageRequest()
+      self.projectImageView.image = nil
+      if let url = model.projectImageURL { self.projectImageView.ksr_setImageWithURL(url) }
+    }
+    if let progress = model.fundingProgressPercentage {
+      let anchorX = progress == 0 ? 0 : 0.5 / progress
+      self.fundingProgressBarView.layer.anchorPoint = CGPoint(x: CGFloat(anchorX), y: 0.5)
+      self.fundingProgressBarView.transform = CGAffineTransform(scaleX: CGFloat(progress), y: 1)
+    }
   }
 
   internal override func bindStyles() {

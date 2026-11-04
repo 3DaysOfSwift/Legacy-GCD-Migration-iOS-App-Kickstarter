@@ -3,27 +3,12 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 internal final class ActivityProjectStatusViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  fileprivate let vm: ActivityProjectStatusViewModelType = ActivityProjectStatusViewModel()
-  fileprivate let metadataText = TestObserver<String, Never>()
-  fileprivate let percentFundedText = TestObserver<String, Never>()
-  fileprivate let projectImageURL = TestObserver<String?, Never>()
-  fileprivate let projectName = TestObserver<String, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-    self.vm.outputs.metadataText.observe(self.metadataText.observer)
-    self.vm.outputs.percentFundedText.map { $0.string }.observe(self.percentFundedText.observer)
-    self.vm.outputs.projectImageURL.map { $0?.absoluteString }.observe(self.projectImageURL.observer)
-    self.vm.outputs.projectName.observe(self.projectName.observer)
-  }
-
+  fileprivate let vm = ActivityProjectStatusViewModel()
   func testProject_Launched() {
     let project = .cosmicSurgery
       |> Project.lens.name .~ "A Very Important Project About Kittens and Puppies"
@@ -34,14 +19,12 @@ internal final class ActivityProjectStatusViewModelTests: TestCase {
       |> Activity.lens.project .~ project
       |> Activity.lens.category .~ .launch
 
-    self.vm.inputs.configureWith(activity: activity)
+    self.vm.configureWith(activity: activity)
 
-    self.metadataText.assertValues(
-      [Strings.Friend_name_launched_a_project(friend_name: project.creator.name)]
-    )
-    self.percentFundedText.assertValues(["0%"])
-    self.projectImageURL.assertValues([project.photo.full])
-    self.projectName.assertValues([project.name])
+    XCTAssertEqual(self.vm.metadataText, Strings.Friend_name_launched_a_project(friend_name: project.creator.name))
+    XCTAssertEqual(self.vm.percentFundedText.string, "0%")
+    XCTAssertEqual(self.vm.projectImageURL?.absoluteString, project.photo.full)
+    XCTAssertEqual(self.vm.projectName, project.name)
   }
 
   func testProject_You_Launched() {
@@ -60,12 +43,12 @@ internal final class ActivityProjectStatusViewModelTests: TestCase {
       |> Activity.lens.category .~ .launch
 
     withEnvironment(currentUser: you) {
-      self.vm.inputs.configureWith(activity: activity)
+      self.vm.configureWith(activity: activity)
 
-      self.metadataText.assertValues([Strings.You_Launched()])
-      self.percentFundedText.assertValues(["1%"])
-      self.projectImageURL.assertValues([project.photo.full])
-      self.projectName.assertValues([project.name])
+      XCTAssertEqual(self.vm.metadataText, Strings.You_Launched())
+      XCTAssertEqual(self.vm.percentFundedText.string, "1%")
+      XCTAssertEqual(self.vm.projectImageURL?.absoluteString, project.photo.full)
+      XCTAssertEqual(self.vm.projectName, project.name)
     }
   }
 
@@ -84,12 +67,12 @@ internal final class ActivityProjectStatusViewModelTests: TestCase {
       |> Activity.lens.project .~ project
       |> Activity.lens.category .~ .success
 
-    self.vm.inputs.configureWith(activity: activity)
+    self.vm.configureWith(activity: activity)
 
-    self.metadataText.assertValues([Strings.activity_successfully_funded()])
-    self.percentFundedText.assertValues(["129%"])
-    self.projectImageURL.assertValues([project.photo.full])
-    self.projectName.assertValues([project.name])
+    XCTAssertEqual(self.vm.metadataText, Strings.activity_successfully_funded())
+    XCTAssertEqual(self.vm.percentFundedText.string, "129%")
+    XCTAssertEqual(self.vm.projectImageURL?.absoluteString, project.photo.full)
+    XCTAssertEqual(self.vm.projectName, project.name)
   }
 
   func testProject_Failure() {
@@ -102,12 +85,12 @@ internal final class ActivityProjectStatusViewModelTests: TestCase {
       |> Activity.lens.project .~ project
       |> Activity.lens.category .~ .failure
 
-    self.vm.inputs.configureWith(activity: activity)
+    self.vm.configureWith(activity: activity)
 
-    self.metadataText.assertValues([Strings.Unsuccessfully_Funded()])
-    self.percentFundedText.assertValues(["60%"])
-    self.projectImageURL.assertValues([project.photo.full])
-    self.projectName.assertValues([project.name])
+    XCTAssertEqual(self.vm.metadataText, Strings.Unsuccessfully_Funded())
+    XCTAssertEqual(self.vm.percentFundedText.string, "60%")
+    XCTAssertEqual(self.vm.projectImageURL?.absoluteString, project.photo.full)
+    XCTAssertEqual(self.vm.projectName, project.name)
   }
 
   func testProject_Canceled() {
@@ -120,12 +103,12 @@ internal final class ActivityProjectStatusViewModelTests: TestCase {
       |> Activity.lens.project .~ project
       |> Activity.lens.category .~ .cancellation
 
-    self.vm.inputs.configureWith(activity: activity)
+    self.vm.configureWith(activity: activity)
 
-    self.metadataText.assertValues([Strings.Project_Cancelled()])
-    self.percentFundedText.assertValues(["1%"])
-    self.projectImageURL.assertValues([project.photo.full])
-    self.projectName.assertValues([project.name])
+    XCTAssertEqual(self.vm.metadataText, Strings.Project_Cancelled())
+    XCTAssertEqual(self.vm.percentFundedText.string, "1%")
+    XCTAssertEqual(self.vm.projectImageURL?.absoluteString, project.photo.full)
+    XCTAssertEqual(self.vm.projectName, project.name)
   }
 
   func testProject_Suspended() {
@@ -138,11 +121,20 @@ internal final class ActivityProjectStatusViewModelTests: TestCase {
       |> Activity.lens.project .~ project
       |> Activity.lens.category .~ .suspension
 
-    self.vm.inputs.configureWith(activity: activity)
+    self.vm.configureWith(activity: activity)
 
-    self.metadataText.assertValues([Strings.Project_Suspended()])
-    self.percentFundedText.assertValues(["4%"])
-    self.projectImageURL.assertValues([project.photo.full])
-    self.projectName.assertValues([project.name])
+    XCTAssertEqual(self.vm.metadataText, Strings.Project_Suspended())
+    XCTAssertEqual(self.vm.percentFundedText.string, "4%")
+    XCTAssertEqual(self.vm.projectImageURL?.absoluteString, project.photo.full)
+    XCTAssertEqual(self.vm.projectName, project.name)
   }
+  func testProgressClampsAndMissingProjectKeepsProjectFields() {
+    let project = Project.template |> Project.lens.stats.fundingProgress .~ 2.5
+    self.vm.configureWith(activity: Activity.template |> Activity.lens.project .~ project)
+    XCTAssertEqual(self.vm.fundingProgressPercentage, 1)
+    self.vm.configureWith(activity: Activity.template |> Activity.lens.project .~ nil)
+    XCTAssertEqual(self.vm.fundingProgressPercentage, 1)
+    XCTAssertEqual(self.vm.projectName, project.name)
+  }
+
 }
