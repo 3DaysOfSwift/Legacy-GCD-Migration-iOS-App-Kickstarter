@@ -1,6 +1,5 @@
 import Foundation
 import KsApi
-import ReactiveSwift
 
 @MainActor
 public protocol AuthenticationProvider {
@@ -97,7 +96,6 @@ public final class AuthenticationFeature {
   // must not supersede a submitted code; replacements are scoped per operation.
   private var current: [Operation: Attempt] = [:]
   private var attempts: [UUID: Attempt] = [:]
-  private var presentations: [UUID: Task<Void, Never>] = [:]
   private final class ResetAttempt {
     let email: String
     let task: Task<Void, Error>
@@ -240,33 +238,5 @@ public final class AuthenticationFeature {
     }
   }
 
-  /// UIKit output adapter. Disposal cancels that caller, not another observer's
-  /// shared request. A transport response alone never commits a cancelled login.
-  /// Resending a code never establishes a session, even if the endpoint returns a token.
-  public func result(_ credentials: Credentials, code: String? = nil, resend: Bool = false)
-    -> SignalProducer<AccessTokenEnvelope, ErrorEnvelope> {
-    SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        let attempt = self.admit(credentials, code: code, resend: resend)
-        let id = UUID()
-        let task = Task { [self] in
-          defer { self.presentations[id] = nil }
-          do {
-            let envelope = try await self.finish(attempt)
-            observer.send(value: envelope)
-            observer.sendCompleted()
-          } catch is CancellationError { observer.sendInterrupted() }
-          catch { observer.send(error: error as? ErrorEnvelope ?? .couldNotParseJSON) }
-        }
-        self.presentations[id] = task
-        lifetime.observeEnded { task.cancel() }
-      }
-    }
-  }
 
-  func waitForOperations() async {
-    while !self.presentations.isEmpty {
-      for task in Array(self.presentations.values) { await task.value }
-    }
-  }
 }

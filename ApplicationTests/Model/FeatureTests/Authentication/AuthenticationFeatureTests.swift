@@ -1,7 +1,6 @@
 @testable import Kickstarter_iOS
 @testable import KsApi
 
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -215,21 +214,19 @@ final class AuthenticationFeatureTests: XCTestCase {
     XCTAssertEqual(fixture.logins, 0)
   }
 
-  func testEquivalentAttemptsShareAndDisposedCallerCannotCancelAnotherLogin() async throws {
+  func testEquivalentAttemptsShareAndCancelledCallerCannotCancelAnotherLogin() async throws {
     let fixture = AuthenticationFixture()
     defer { fixture.provider.gate.releaseAll() }
-    var outcomes = 0
-    let first = fixture.feature.result(.email("person@example.invalid", password: "fixture"))
-      .startWithResult { if case .success = $0 { outcomes += 1 } }
+    let credentials = AuthenticationFeature.Credentials.email("person@example.invalid", password: "fixture")
+    let first = Task { try await fixture.feature.authenticate(credentials) }
     await fixture.provider.gate.waitFor(1)
-    let second = fixture.feature.result(.email("person@example.invalid", password: "fixture"))
-      .startWithResult { if case .success = $0 { outcomes += 1 } }
-    defer { second.dispose() }
-    first.dispose()
+    let second = Task { try await fixture.feature.authenticate(credentials) }
+    await Task.yield()
+    first.cancel()
     try fixture.provider.gate.finish(0, .success(fixture.envelope))
-    await fixture.feature.waitForOperations()
+    do { _ = try await first.value; XCTFail("Cancelled caller succeeded") } catch is CancellationError {} catch { XCTFail("\(error)") }
+    _ = try await second.value
     XCTAssertEqual(fixture.provider.gate.count, 1)
-    XCTAssertEqual(outcomes, 1)
     XCTAssertEqual(fixture.logins, 1)
     XCTAssertEqual(fixture.user?.id, fixture.envelope.user.id)
   }
@@ -237,19 +234,15 @@ final class AuthenticationFeatureTests: XCTestCase {
   func testChangedCodeReplacesOldAttemptEvenIfOldTransportIgnoresCancellation() async throws {
     let fixture = AuthenticationFixture()
     defer { fixture.provider.gate.releaseAll() }
-    var outcomes = 0
-    let old = fixture.feature.result(.facebook("fixture-token"), code: "111111")
-      .startWithResult { if case .success = $0 { outcomes += 1 } }
+    let old = Task { try await fixture.feature.authenticate(.facebook("fixture-token"), code: "111111") }
     await fixture.provider.gate.waitFor(1)
-    let new = fixture.feature.result(.facebook("fixture-token"), code: "222222")
-      .startWithResult { if case .success = $0 { outcomes += 1 } }
-    defer { old.dispose(); new.dispose() }
+    let new = Task { try await fixture.feature.authenticate(.facebook("fixture-token"), code: "222222") }
     await fixture.provider.gate.waitFor(2)
     try fixture.provider.gate.finish(1, .success(fixture.envelope))
     try fixture.provider.gate.finish(0, .success(fixture.envelope))
-    await fixture.feature.waitForOperations()
+    _ = try await new.value
+    do { _ = try await old.value; XCTFail("Obsolete code succeeded") } catch is CancellationError {} catch { XCTFail("\(error)") }
     XCTAssertEqual(fixture.provider.codes, ["111111", "222222"])
-    XCTAssertEqual(outcomes, 1)
     XCTAssertEqual(fixture.logins, 1)
     XCTAssertNil(fixture.feature.lastError)
   }
@@ -258,27 +251,23 @@ final class AuthenticationFeatureTests: XCTestCase {
     let fixture = AuthenticationFixture()
     defer { fixture.provider.gate.releaseAll() }
     fixture.user = .template
-    var outcomes = 0
-    let pending = fixture.feature.result(.facebook("fixture-token"))
-      .startWithResult { if case .success = $0 { outcomes += 1 } }
-    defer { pending.dispose() }
+    let pending = Task { try await fixture.feature.authenticate(.facebook("fixture-token")) }
     await fixture.provider.gate.waitFor(1)
     fixture.session.sessionChanged()
     try fixture.provider.gate.finish(0, .success(fixture.envelope))
-    await fixture.feature.waitForOperations()
-    XCTAssertEqual(outcomes, 0)
+    do { _ = try await pending.value; XCTFail("Old session succeeded") } catch is CancellationError {} catch { XCTFail("\(error)") }
     XCTAssertEqual(fixture.logins, 0)
     XCTAssertNil(fixture.feature.lastError)
   }
 
-  func testDisposedOnlyObserverDoesNotEstablishSession() async throws {
+  func testCancelledOnlyCallerDoesNotEstablishSession() async throws {
     let fixture = AuthenticationFixture()
     defer { fixture.provider.gate.releaseAll() }
-    let pending = fixture.feature.result(.facebook("fixture-token")).start()
+    let pending = Task { try await fixture.feature.authenticate(.facebook("fixture-token")) }
     await fixture.provider.gate.waitFor(1)
-    pending.dispose()
+    pending.cancel()
     try fixture.provider.gate.finish(0, .success(fixture.envelope))
-    await fixture.feature.waitForOperations()
+    do { _ = try await pending.value; XCTFail("Cancelled caller succeeded") } catch is CancellationError {} catch { XCTFail("\(error)") }
     XCTAssertEqual(fixture.logins, 0)
     XCTAssertNil(fixture.user)
   }
@@ -303,26 +292,18 @@ final class AuthenticationFeatureTests: XCTestCase {
   func testFailurePreservesSessionAndRetryCommitsExactlyOnceForSharedCallers() async throws {
     let fixture = AuthenticationFixture()
     defer { fixture.provider.gate.releaseAll() }
-    var failures = 0
-    let first = fixture.feature.result(.facebook("fixture-token"))
-      .startWithFailed { _ in failures += 1 }
-    defer { first.dispose() }
+    let first = Task { try await fixture.feature.authenticate(.facebook("fixture-token")) }
     await fixture.provider.gate.waitFor(1)
     try fixture.provider.gate.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
-    await fixture.feature.waitForOperations()
-    XCTAssertEqual(failures, 1)
+    do { _ = try await first.value; XCTFail("Failed request succeeded") } catch is ErrorEnvelope {} catch { XCTFail("\(error)") }
     XCTAssertEqual(fixture.logins, 0)
     XCTAssertNotNil(fixture.feature.lastError)
-    var successes = 0
-    let second = fixture.feature.result(.facebook("fixture-token"))
-      .startWithResult { if case .success = $0 { successes += 1 } }
-    let duplicate = fixture.feature.result(.facebook("fixture-token"))
-      .startWithResult { if case .success = $0 { successes += 1 } }
-    defer { second.dispose(); duplicate.dispose() }
+    let second = Task { try await fixture.feature.authenticate(.facebook("fixture-token")) }
+    let duplicate = Task { try await fixture.feature.authenticate(.facebook("fixture-token")) }
     await fixture.provider.gate.waitFor(2)
     try fixture.provider.gate.finish(1, .success(fixture.envelope))
-    await fixture.feature.waitForOperations()
-    XCTAssertEqual(successes, 2)
+    _ = try await second.value
+    _ = try await duplicate.value
     XCTAssertEqual(fixture.logins, 1)
     XCTAssertNil(fixture.feature.lastError)
   }
@@ -342,18 +323,15 @@ final class AuthenticationFeatureTests: XCTestCase {
   func testObsoleteFailureCannotOverwriteNewSuccessfulAttempt() async throws {
     let fixture = AuthenticationFixture()
     defer { fixture.provider.gate.releaseAll() }
-    var errors = 0
-    let old = fixture.feature.result(.email("old@example.invalid", password: "fixture"))
-      .startWithFailed { _ in errors += 1 }
+    let old = Task { try await fixture.feature.authenticate(.email("old@example.invalid", password: "fixture")) }
     await fixture.provider.gate.waitFor(1)
-    let new = fixture.feature.result(.email("new@example.invalid", password: "fixture")).start()
-    defer { old.dispose(); new.dispose() }
+    let new = Task { try await fixture.feature.authenticate(.email("new@example.invalid", password: "fixture")) }
     await fixture.provider.gate.waitFor(2)
     try fixture.provider.gate.finish(1, .success(fixture.envelope))
     try fixture.provider.gate.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
-    await fixture.feature.waitForOperations()
+    _ = try await new.value
+    do { _ = try await old.value; XCTFail("Obsolete request succeeded") } catch is CancellationError {} catch { XCTFail("\(error)") }
     XCTAssertEqual(fixture.logins, 1)
-    XCTAssertEqual(errors, 0)
     XCTAssertNil(fixture.feature.lastError)
   }
 
@@ -376,30 +354,18 @@ final class AuthenticationFeatureTests: XCTestCase {
   func testResendDoesNotCancelPendingVerification() async throws {
     let fixture = AuthenticationFixture()
     defer { fixture.provider.gate.releaseAll() }
-    var successes = 0
-    var resendErrors: [ErrorEnvelope.KsrCode?] = []
-    let resendFinished = expectation(description: "Resend publishes independently")
-    let login = fixture.feature.result(.facebook("fixture-token"), code: "123456")
-      .startWithResult { if case .success = $0 { successes += 1 } }
+    let login = Task { try await fixture.feature.authenticate(.facebook("fixture-token"), code: "123456") }
     await fixture.provider.gate.waitFor(1)
-    let resend = fixture.feature.result(.facebook("fixture-token"), resend: true)
-      .startWithFailed {
-        resendErrors.append($0.ksrCode)
-        resendFinished.fulfill()
-      }
-    defer { login.dispose(); resend.dispose() }
+    let resend = Task { try await fixture.feature.resendCode(.facebook("fixture-token")) }
     await fixture.provider.gate.waitFor(2)
-    let challenge = ErrorEnvelope(
-      errorMessages: ["Verification required"], ksrCode: .TfaRequired, httpCode: 403, exception: nil
-    )
+    let challenge = ErrorEnvelope(errorMessages: ["Verification required"], ksrCode: .TfaRequired, httpCode: 403, exception: nil)
     try fixture.provider.gate.finish(1, .failure(challenge))
-    // Let resend publish before completing the independently pending login.
-    await fulfillment(of: [resendFinished], timeout: 2)
-    XCTAssertEqual(resendErrors, [.TfaRequired])
+    do { try await resend.value; XCTFail("Expected challenge") } catch let error as ErrorEnvelope {
+      XCTAssertEqual(error.ksrCode, .TfaRequired)
+    }
     try fixture.provider.gate.finish(0, .success(fixture.envelope))
-    await fixture.feature.waitForOperations()
+    _ = try await login.value
     XCTAssertEqual(fixture.provider.codes, ["123456", nil])
-    XCTAssertEqual(successes, 1)
     XCTAssertEqual(fixture.logins, 1)
   }
 }
