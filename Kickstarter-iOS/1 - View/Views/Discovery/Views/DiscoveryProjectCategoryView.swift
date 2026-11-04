@@ -5,7 +5,7 @@ import Prelude
 import UIKit
 
 internal final class DiscoveryProjectCategoryView: UIView, NibLoading {
-  private let viewModel: DiscoveryProjectCategoryViewModelType = DiscoveryProjectCategoryViewModel()
+  private let viewModel = DiscoveryProjectCategoryViewModel()
 
   @IBOutlet private var blurView: UIImageView!
   @IBOutlet private var categoryStackView: UIStackView!
@@ -17,7 +17,9 @@ internal final class DiscoveryProjectCategoryView: UIView, NibLoading {
   }
 
   internal func configureWith(name: String, imageNameString: String) {
-    self.viewModel.inputs.configureWith(name: name, imageNameString: imageNameString)
+    self.viewModel.configureWith(name: name, imageNameString: imageNameString)
+    self.categoryViewLabel.text = self.viewModel.categoryNameText
+    if let name = self.viewModel.categoryImageName { self.categoryViewImageView.image = image(named: name) }
   }
 
   override func bindStyles() {
@@ -36,17 +38,4 @@ internal final class DiscoveryProjectCategoryView: UIView, NibLoading {
       |> \.tintColor .~ LegacyColors.ksr_support_300.uiColor()
   }
 
-  internal override func bindViewModel() {
-    super.bindViewModel()
-
-    self.categoryViewLabel.rac.text = self.viewModel.outputs.categoryNameText
-
-    self.viewModel.outputs.categoryImageName.signal
-      .observeForUI()
-      .observeValues { [weak self] imageName in
-        guard let strongSelf = self else { return }
-        _ = strongSelf.categoryViewImageView
-          |> UIImageView.lens.image .~ image(named: imageName)
-      }
-  }
 }

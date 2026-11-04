@@ -1,27 +1,15 @@
 @testable import Kickstarter_iOS
-@testable import KsApi
-
-import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
-class DiscoveryProjectCategoryViewModelTests: XCTestCase {
-  internal let vm = DiscoveryProjectCategoryViewModel()
-  internal let categoryViewLabelText = TestObserver<String, Never>()
-  internal let categoryImageName = TestObserver<String, Never>()
-
-  override func setUp() {
-    super.setUp()
-
-    self.vm.outputs.categoryNameText.observe(self.categoryViewLabelText.observer)
-    self.vm.outputs.categoryImageName.observe(self.categoryImageName.observer)
-  }
-
-  func testCategoryView() {
-    self.vm.inputs.configureWith(name: "Art", imageNameString: "icon--compass")
-
-    self.categoryImageName.assertValues(["icon--compass"])
-    self.categoryViewLabelText.assertValue("Art")
+@MainActor
+final class DiscoveryProjectCategoryViewModelTests: XCTestCase {
+  func testCategoryViewAndReuse() {
+    let vm = DiscoveryProjectCategoryViewModel()
+    vm.configureWith(name: "Art", imageNameString: "icon--compass")
+    XCTAssertEqual(vm.categoryNameText, "Art")
+    XCTAssertEqual(vm.categoryImageName, "icon--compass")
+    vm.configureWith(name: "Music", imageNameString: "icon--music")
+    XCTAssertEqual(vm.categoryNameText, "Music")
+    XCTAssertEqual(vm.categoryImageName, "icon--music")
   }
 }
