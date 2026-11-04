@@ -9,10 +9,11 @@ final class SettingsNotificationPickerCell: UITableViewCell, NibLoading, ValueCe
   @IBOutlet fileprivate var currentEmailFrequencyLabel: UILabel!
   @IBOutlet fileprivate var separatorView: UIView!
 
-  private let viewModel: SettingsNotificationPickerViewModelType = SettingsNotificationPickerViewModel()
+  private let viewModel = SettingsNotificationPickerViewModel()
 
   func configureWith(value: SettingsNotificationCellValue) {
-    self.viewModel.inputs.configure(with: value)
+    self.viewModel.configure(with: value)
+    if let text = self.viewModel.frequencyValueText { self.currentEmailFrequencyLabel.text = text }
 
     _ = self
       |> \.accessibilityTraits .~ value.cellType.accessibilityTraits
@@ -35,9 +36,4 @@ final class SettingsNotificationPickerCell: UITableViewCell, NibLoading, ValueCe
       |> separatorStyle
   }
 
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.currentEmailFrequencyLabel.rac.text = self.viewModel.outputs.frequencyValueText
-  }
 }
