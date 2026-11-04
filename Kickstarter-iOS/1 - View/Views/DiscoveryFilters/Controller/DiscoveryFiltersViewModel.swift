@@ -1,210 +1,90 @@
 import KsApi
 import Prelude
-import ReactiveSwift
 
 @MainActor
-public protocol DiscoveryFiltersViewModelInputs {
-  /// Call with the row that is selected when the filters appear and array of loaded categories.
-  func configureWith(selectedRow: SelectableRow)
+public final class DiscoveryFiltersViewModel {
+  var onAnimateIn: (() -> Void)?
+  var onLoading: ((Bool) -> Void)?
+  var onCategoryRows: (([ExpandableRow], Int?, Int?) -> Void)?
+  var onFavoriteRows: (([SelectableRow], Int?) -> Void)?
+  var onTopRows: (([SelectableRow], Int?) -> Void)?
+  var onSelectedRow: ((SelectableRow) -> Void)?
+  private let categoriesUseCase = FetchCategoriesUseCase()
+  private var configuredRow: SelectableRow?
+  private var initialRow: SelectableRow?
+  private var initialTopFilters: [DiscoveryParams]?
+  private var initialRows: [ExpandableRow]?
+  private var latestCategories: [KsApi.Category]?
+  private var lastTappedRow: ExpandableRow?
+  private var currentTopRows: [SelectableRow]?
+  private var currentFavoriteRows: [SelectableRow]?
+  private var categoryId: Int?
+  private var selectedRowId: Int?
+  private var loaded = false
+  private(set) var shouldAnimateSelectableCell = false
 
-  /// Call when an expandable row is tapped.
-  func tapped(expandableRow: ExpandableRow)
-
-  /// Call when a selectable row is tapped.
-  func tapped(selectableRow: SelectableRow)
-
-  /// Call when the view loads.
-  func viewDidLoad()
-
-  /// Call when the view did appear.
-  func viewDidAppear()
-}
-
-@MainActor
-public protocol DiscoveryFiltersViewModelOutputs {
-  /// Emits when to animate in the view.
-  var animateInView: Signal<(), Never> { get }
-
-  /// Emits whether the categories are loading for the activity indicator view.
-  var loadingIndicatorIsVisible: Signal<Bool, Never> { get }
-
-  /**
-   Emits an array of expandable rows to put into the categories section of filters,
-   a category id to set row styles, and an optional category id for setting scrollTo position.
-   **/
-  var loadCategoryRows: Signal<
-    (rows: [ExpandableRow], categoryId: Int?, selectedRowId: Int?),
-    Never
-  > { get }
-
-  /// Emits an array of selectable rows for the favorites section and category id to set row styles.
-  var loadFavoriteRows: Signal<(rows: [SelectableRow], categoryId: Int?), Never> { get }
-
-  /// Emits an array of selectable rows to put into the top filters section and category id to set row styles.
-  var loadTopRows: Signal<(rows: [SelectableRow], categoryId: Int?), Never> { get }
-
-  /// Emits a selectable row when the delegate should be notified of the selection.
-  var notifyDelegateOfSelectedRow: Signal<SelectableRow, Never> { get }
-
-  /// A bool that determines whether a cell should be animated when it is displayed.
-  var shouldAnimateSelectableCell: Bool { get }
-}
-
-@MainActor
-public protocol DiscoveryFiltersViewModelType {
-  func loadCategories() async
-  var inputs: DiscoveryFiltersViewModelInputs { get }
-  var outputs: DiscoveryFiltersViewModelOutputs { get }
-}
-
-@MainActor
-public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
-  DiscoveryFiltersViewModelInputs, DiscoveryFiltersViewModelOutputs {
   public init() {
-    let initialTopFilters = self.viewDidLoadProperty.signal
-      .take(first: 1)
-      .map { _ in topFilters(forUser: AppEnvironment.current.currentUser) }
+    self.categoriesUseCase.onCategories = { [weak self] in self?.receivedCategories($0) }
+    self.categoriesUseCase.onLoading = { [weak self] in self?.onLoading?($0) }
+  }
 
-    let initialSelectedRow = Signal.combineLatest(
-      self.initialSelectedRowProperty.signal.skipNil(),
-      self.viewDidLoadProperty.signal
-    )
-    .take(first: 1)
-    .map(first)
-
-    let topRows = Signal.combineLatest(
-      initialTopFilters,
-      initialSelectedRow
-    )
-    .map { params, selectedRow -> [SelectableRow] in
-      params.map { p in SelectableRow(isSelected: p == selectedRow.params, params: p) }
+  func configureWith(selectedRow: SelectableRow) {
+    self.configuredRow = selectedRow
+    self.categoryId = selectedRow.params.category?.rootId
+    self.selectedRowId = self.categoryId
+    self.prepareInitialRowIfReady()
+    if let rows = self.currentTopRows { self.onTopRows?(rows, self.categoryId) }
+    if let rows = self.currentFavoriteRows { self.onFavoriteRows?(rows, self.categoryId) }
+  }
+  func viewDidLoad() {
+    if !self.loaded {
+      self.loaded = true
+      self.initialTopFilters = topFilters(forUser: AppEnvironment.current.currentUser)
+      self.prepareInitialRowIfReady()
+      if let rows = self.currentTopRows { self.onTopRows?(rows, self.categoryId) }
     }
-
-    self.categoriesUseCase = FetchCategoriesUseCase()
-
-    let categoryId = self.initialSelectedRowProperty.signal.skipNil()
-      .map { $0.params.category?.rootId }
-
-    self.loadTopRows = Signal.combineLatest(topRows, categoryId)
-      .map { (rows: $0, categoryId: $1) }
-
-    let selectedRowWithCategories = Signal.combineLatest(
-      initialSelectedRow,
-      self.categoryPipe.output
-    )
-
-    let favoriteRows = selectedRowWithCategories
-      .map { favorites(selectedRow: $0, categories: $1) }
-      .skipNil()
-
-    self.loadFavoriteRows = Signal.combineLatest(favoriteRows, categoryId)
-      .map { (rows: $0, categoryId: $1) }
-
-    let selectedRowId = Signal.merge(
-      categoryId,
-      self.tappedExpandableRowProperty.signal.skipNil().map { $0.params.category?.rootId }
-    )
-
-    let initialRows = selectedRowWithCategories
-      .map(expandableRows(selectedRow:categories:))
-
-    let expandingRows = Signal.combineLatest(
-      self.tappedExpandableRowProperty.signal.skipNil(),
-      initialRows
-    )
-    .map(toggleExpansion(row:in:))
-
-    let initialCatRowsAndIdAndSelectedRowId = Signal.combineLatest(categoryId, selectedRowId)
-      .takePairWhen(initialRows)
-
-    let expandedCatRowsAndIdAndSelectedRowId = Signal.combineLatest(categoryId, selectedRowId)
-      .takePairWhen(expandingRows)
-
-    self.loadCategoryRows = Signal.merge(
-      initialCatRowsAndIdAndSelectedRowId,
-      expandedCatRowsAndIdAndSelectedRowId
-    )
-    .map { (rows: $1, categoryId: $0.0, selectedRowId: $0.1) }
-
-    self.notifyDelegateOfSelectedRow = self.tappedSelectableRowProperty.signal.skipNil()
-
-    self.shouldAnimateSelectableCellProperty <~ Signal.merge(
-      self.tappedExpandableRowProperty.signal.mapConst(true),
-
-      self.tappedExpandableRowProperty.signal
-        .ksr_delay(.milliseconds(300), on: AppEnvironment.current.scheduler)
-        .mapConst(false)
-    )
-
-    self.animateInView = self.viewDidAppearProperty.signal
-
-    self.categoriesUseCase.onCategories = { [categoryPipe = self.categoryPipe] in categoryPipe.input.send(value: $0) }
-    self.categoriesUseCase.onLoading = { [loadingPipe = self.loadingPipe] in loadingPipe.input.send(value: $0) }
-
-    self.notifyDelegateOfSelectedRow
-      .observeValues {
-        AppEnvironment.current.ksrAnalytics.trackDiscoveryModalSelectedFilter(
-          params: $0.params,
-          typeContext: typeContext(from: $0.params),
-          locationContext: .discoverOverlay
-        )
-      }
-  }
-
-  fileprivate let initialSelectedRowProperty = MutableProperty<SelectableRow?>(nil)
-  public func configureWith(selectedRow: SelectableRow) {
-    self.initialSelectedRowProperty.value = selectedRow
-  }
-
-  fileprivate let tappedExpandableRowProperty = MutableProperty<ExpandableRow?>(nil)
-  public func tapped(expandableRow: ExpandableRow) {
-    self.tappedExpandableRowProperty.value = expandableRow
-  }
-
-  fileprivate let tappedSelectableRowProperty = MutableProperty<SelectableRow?>(nil)
-  public func tapped(selectableRow: SelectableRow) {
-    self.tappedSelectableRowProperty.value = selectableRow
-  }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
     self.categoriesUseCase.start()
   }
-
-  public func loadCategories() async {
-    await self.categoriesUseCase.load()
+  private func prepareInitialRowIfReady() {
+    guard self.initialRow == nil, let row = self.configuredRow, let filters = self.initialTopFilters else { return }
+    self.initialRow = row
+    self.currentTopRows = filters.map { SelectableRow(isSelected: $0 == row.params, params: $0) }
+    if let categories = self.latestCategories { self.receivedCategories(categories) }
   }
-
-  fileprivate let viewDidAppearProperty = MutableProperty(())
-  public func viewDidAppear() {
-    self.viewDidAppearProperty.value = ()
+  private func receivedCategories(_ categories: [KsApi.Category]) {
+    self.latestCategories = categories
+    guard let row = self.initialRow else { return }
+    if let favorites = favorites(selectedRow: row, categories: categories) {
+      self.currentFavoriteRows = favorites
+      self.onFavoriteRows?(favorites, self.categoryId)
+    }
+    let rows = expandableRows(selectedRow: row, categories: categories)
+    self.initialRows = rows
+    self.onCategoryRows?(rows, self.categoryId, self.selectedRowId)
+    if let tapped = self.lastTappedRow {
+      self.onCategoryRows?(toggleExpansion(row: tapped, in: rows), self.categoryId, self.selectedRowId)
+    }
   }
-
-  fileprivate let shouldAnimateSelectableCellProperty = MutableProperty(false)
-  public var shouldAnimateSelectableCell: Bool {
-    return self.shouldAnimateSelectableCellProperty.value
+  func tapped(expandableRow: ExpandableRow) {
+    self.lastTappedRow = expandableRow
+    self.selectedRowId = expandableRow.params.category?.rootId
+    if let rows = self.initialRows {
+      self.onCategoryRows?(toggleExpansion(row: expandableRow, in: rows), self.categoryId, self.selectedRowId)
+    }
+    self.shouldAnimateSelectableCell = true
+    Task { [weak self] in
+      do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
+      self?.shouldAnimateSelectableCell = false
+    }
   }
-
-  public let animateInView: Signal<(), Never>
-  public var loadingIndicatorIsVisible: Signal<Bool, Never> {
-    self.loadingPipe.output
+  func tapped(selectableRow: SelectableRow) {
+    self.onSelectedRow?(selectableRow)
+    AppEnvironment.current.ksrAnalytics.trackDiscoveryModalSelectedFilter(
+      params: selectableRow.params, typeContext: typeContext(from: selectableRow.params), locationContext: .discoverOverlay
+    )
   }
-
-  public let loadCategoryRows: Signal<
-    (rows: [ExpandableRow], categoryId: Int?, selectedRowId: Int?),
-    Never
-  >
-  public let loadFavoriteRows: Signal<(rows: [SelectableRow], categoryId: Int?), Never>
-  public let loadTopRows: Signal<(rows: [SelectableRow], categoryId: Int?), Never>
-  public let notifyDelegateOfSelectedRow: Signal<SelectableRow, Never>
-
-  private let categoryPipe = Signal<[KsApi.Category], Never>.pipe()
-  private let loadingPipe = Signal<Bool, Never>.pipe()
-  private let categoriesUseCase: FetchCategoriesUseCase
-
-  public var inputs: DiscoveryFiltersViewModelInputs { return self }
-  public var outputs: DiscoveryFiltersViewModelOutputs { return self }
+  func loadCategories() async { await self.categoriesUseCase.load() }
+  func viewDidAppear() { self.onAnimateIn?() }
 }
 
 /**

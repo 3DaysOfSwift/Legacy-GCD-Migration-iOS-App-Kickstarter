@@ -16,14 +16,14 @@ internal final class DiscoveryFiltersViewController: UIViewController, UITableVi
   @IBOutlet private var filtersTableView: UITableView!
 
   private let dataSource = DiscoveryFiltersDataSource()
-  private let viewModel: DiscoveryFiltersViewModelType = DiscoveryFiltersViewModel()
+  private let viewModel: DiscoveryFiltersViewModel = DiscoveryFiltersViewModel()
 
   internal weak var delegate: DiscoveryFiltersViewControllerDelegate?
 
   internal static func configuredWith(selectedRow: SelectableRow)
     -> DiscoveryFiltersViewController {
     let vc = Storyboard.Discovery.instantiate(DiscoveryFiltersViewController.self)
-    vc.viewModel.inputs.configureWith(selectedRow: selectedRow)
+    vc.viewModel.configureWith(selectedRow: selectedRow)
     return vc
   }
 
@@ -35,64 +35,37 @@ internal final class DiscoveryFiltersViewController: UIViewController, UITableVi
 
     self.closeButton.addTarget(self, action: #selector(self.closeButtonTapped), for: .touchUpInside)
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
 
-    self.viewModel.inputs.viewDidAppear()
+    self.viewModel.viewDidAppear()
   }
 
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.animateInView
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.animateIn()
-      }
-
-    self.viewModel.outputs.loadingIndicatorIsVisible
-      .observeForUI()
-      .observeValues { [weak self] isVisible in
-        guard let _self = self else { return }
-        if isVisible {
-          _self.dataSource.loadCategoriesLoaderRow()
-          _self.filtersTableView.reloadData()
-        } else {
-          _self.deleteCategoriesLoaderRow(_self.filtersTableView)
-        }
-      }
-
-    self.viewModel.outputs.loadTopRows
-      .observeForUI()
-      .observeValues { [weak self] rows, id in
-        self?.dataSource.load(topRows: rows, categoryId: id)
-        self?.filtersTableView.reloadData()
-      }
-
-    self.viewModel.outputs.loadFavoriteRows
-      .observeForUI()
-      .observeValues { [weak self] rows, id in
-        self?.dataSource.load(favoriteRows: rows, categoryId: id)
-        self?.filtersTableView.reloadData()
-      }
-
-    self.viewModel.outputs.loadCategoryRows
-      .observeForUI()
-      .observeValues { [weak self] rows, id, selectedRowId in
-        self?.dataSource.load(categoryRows: rows, categoryId: id)
-        self?.reloadCategories(selectedRowId: selectedRowId)
-      }
-
-    self.viewModel.outputs.notifyDelegateOfSelectedRow
-      .observeForControllerAction()
-      .observeValues { [weak self] selectedRow in
-        guard let _self = self else { return }
-        _self.animateOut()
-        _self.delegate?.discoveryFilters(_self, selectedRow: selectedRow)
-      }
+    self.viewModel.onAnimateIn = { [weak self] in self?.animateIn() }
+    self.viewModel.onLoading = { [weak self] visible in
+      guard let self else { return }
+      if visible { self.dataSource.loadCategoriesLoaderRow(); self.filtersTableView.reloadData() }
+      else { self.deleteCategoriesLoaderRow(self.filtersTableView) }
+    }
+    self.viewModel.onTopRows = { [weak self] rows, id in
+      self?.dataSource.load(topRows: rows, categoryId: id); self?.filtersTableView.reloadData()
+    }
+    self.viewModel.onFavoriteRows = { [weak self] rows, id in
+      self?.dataSource.load(favoriteRows: rows, categoryId: id); self?.filtersTableView.reloadData()
+    }
+    self.viewModel.onCategoryRows = { [weak self] rows, id, selected in
+      self?.dataSource.load(categoryRows: rows, categoryId: id); self?.reloadCategories(selectedRowId: selected)
+    }
+    self.viewModel.onSelectedRow = { [weak self] row in
+      guard let self else { return }
+      self.animateOut(); self.delegate?.discoveryFilters(self, selectedRow: row)
+    }
   }
 
   internal override func bindStyles() {
@@ -112,9 +85,9 @@ internal final class DiscoveryFiltersViewController: UIViewController, UITableVi
 
   internal func tableView(_: UITableView, didSelectRowAt indexPath: IndexPath) {
     if let expandableRow = self.dataSource.expandableRow(indexPath: indexPath) {
-      self.viewModel.inputs.tapped(expandableRow: expandableRow)
+      self.viewModel.tapped(expandableRow: expandableRow)
     } else if let selectableRow = self.dataSource.selectableRow(indexPath: indexPath) {
-      self.viewModel.inputs.tapped(selectableRow: selectableRow)
+      self.viewModel.tapped(selectableRow: selectableRow)
     }
   }
 
@@ -126,7 +99,7 @@ internal final class DiscoveryFiltersViewController: UIViewController, UITableVi
     } else if let cell = cell as? DiscoveryExpandedSelectableRowCell {
       cell.willDisplay()
 
-      if self.viewModel.outputs.shouldAnimateSelectableCell {
+      if self.viewModel.shouldAnimateSelectableCell {
         let delay = indexPath.row - (self.dataSource.expandedRow() ?? 0)
         cell.animateIn(delayOffset: delay)
       }

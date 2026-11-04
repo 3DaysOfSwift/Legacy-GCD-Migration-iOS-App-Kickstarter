@@ -53,18 +53,22 @@ private let categories =
 @MainActor
 internal final class DiscoveryFiltersViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  private lazy var vm: DiscoveryFiltersViewModelType = {
+  private lazy var vm: DiscoveryFiltersViewModel = {
     let vm = DiscoveryFiltersViewModel()
-    vm.outputs.animateInView.observe(self.animateInView.observer)
-    vm.outputs.loadingIndicatorIsVisible.observe(self.loadingIndicatorisVisible.observer)
-    vm.outputs.loadCategoryRows.map(first).observe(self.loadCategoryRows.observer)
-    vm.outputs.loadCategoryRows.map(second).observe(self.loadCategoryRowsInitialId.observer)
-    vm.outputs.loadCategoryRows.map { $0.2 }.observe(self.loadCategoryRowsSelectedId.observer)
-    vm.outputs.loadTopRows.map(first).observe(self.loadTopRows.observer)
-    vm.outputs.loadTopRows.map(second).observe(self.loadTopRowsInitialId.observer)
-    vm.outputs.notifyDelegateOfSelectedRow.observe(self.notifyDelegateOfSelectedRow.observer)
-    vm.outputs.loadFavoriteRows.map(first).observe(self.loadFavoriteRows.observer)
-    vm.outputs.loadFavoriteRows.map(second).observe(self.loadFavoriteRowsId.observer)
+    vm.onAnimateIn = { [weak self] in self?.animateInView.observer.send(value: ()) }
+    vm.onLoading = { [weak self] in self?.loadingIndicatorisVisible.observer.send(value: $0) }
+    vm.onCategoryRows = { [weak self] rows, initial, selected in
+      self?.loadCategoryRows.observer.send(value: rows)
+      self?.loadCategoryRowsInitialId.observer.send(value: initial)
+      self?.loadCategoryRowsSelectedId.observer.send(value: selected)
+    }
+    vm.onTopRows = { [weak self] rows, id in
+      self?.loadTopRows.observer.send(value: rows); self?.loadTopRowsInitialId.observer.send(value: id)
+    }
+    vm.onFavoriteRows = { [weak self] rows, id in
+      self?.loadFavoriteRows.observer.send(value: rows); self?.loadFavoriteRowsId.observer.send(value: id)
+    }
+    vm.onSelectedRow = { [weak self] in self?.notifyDelegateOfSelectedRow.observer.send(value: $0) }
     return vm
   }()
 
@@ -94,23 +98,33 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
 
 
 
+  func testCachedCategoriesArrivingBeforeConfigurationAreDisplayed() async {
+    AppEnvironment.current.cache[KSCache.ksr_discoveryFiltersCategories] = categories
+    defer { AppEnvironment.current.cache.removeAllObjects() }
+    self.vm.viewDidLoad()
+    self.loadCategoryRows.assertValueCount(0)
+    self.vm.configureWith(selectedRow: allProjectsRow)
+    self.loadCategoryRows.assertValueCount(1)
+    XCTAssertEqual(self.loadCategoryRows.values.first?.count, 2)
+  }
+
   func testAnimateIn() async {
-    self.vm.inputs.configureWith(selectedRow: allProjectsRow)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(selectedRow: allProjectsRow)
+    self.vm.viewDidLoad()
 
     await self.vm.loadCategories()
 
     self.animateInView.assertValueCount(0)
 
-    self.vm.inputs.viewDidAppear()
+    self.vm.viewDidAppear()
 
     self.animateInView.assertValueCount(1)
   }
 
   func testKSRAnalyticsEventsTrack() async {
-    self.vm.inputs.configureWith(selectedRow: allProjectsRow)
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewDidAppear()
+    self.vm.configureWith(selectedRow: allProjectsRow)
+    self.vm.viewDidLoad()
+    self.vm.viewDidAppear()
 
     await self.vm.loadCategories()
 
@@ -118,14 +132,14 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
       [],
       self.segmentTrackingClient.events
     )
-    self.vm.inputs.tapped(expandableRow: filmExpandableRow)
+    self.vm.tapped(expandableRow: filmExpandableRow)
 
     XCTAssertEqual(
       [],
       self.segmentTrackingClient.events
     )
 
-    self.vm.inputs.tapped(selectableRow: documentarySelectableRow)
+    self.vm.tapped(selectableRow: documentarySelectableRow)
 
     XCTAssertEqual(["CTA Clicked"], self.segmentTrackingClient.events)
     XCTAssertEqual(
@@ -147,7 +161,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     XCTAssertEqual(11, segmentTrackingClient.properties.last?["discover_category_id"] as? Int)
     XCTAssertEqual(30, segmentTrackingClient.properties.last?["discover_subcategory_id"] as? Int)
 
-    self.vm.inputs.tapped(selectableRow: socialRow)
+    self.vm.tapped(selectableRow: socialRow)
 
     XCTAssertEqual(["CTA Clicked", "CTA Clicked"], self.segmentTrackingClient.events)
     XCTAssertEqual("discover", segmentTrackingClient.properties.last?["context_page"] as? String)
@@ -155,7 +169,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     XCTAssertEqual("discover_overlay", segmentTrackingClient.properties.last?["context_location"] as? String)
     XCTAssertEqual("social_home", segmentTrackingClient.properties.last?["discover_ref_tag"] as? String)
 
-    self.vm.inputs.tapped(selectableRow: staffPicksRow)
+    self.vm.tapped(selectableRow: staffPicksRow)
 
     XCTAssertEqual(
       ["CTA Clicked", "CTA Clicked", "CTA Clicked"],
@@ -172,7 +186,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
       self.segmentTrackingClient.properties.last?["discover_ref_tag"] as? String
     )
 
-    self.vm.inputs.tapped(selectableRow: starredRow)
+    self.vm.tapped(selectableRow: starredRow)
 
     XCTAssertEqual(
       ["CTA Clicked", "CTA Clicked", "CTA Clicked", "CTA Clicked"],
@@ -186,7 +200,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     )
     XCTAssertEqual("starred_home", self.segmentTrackingClient.properties.last?["discover_ref_tag"] as? String)
 
-    self.vm.inputs.tapped(selectableRow: recommendedRow)
+    self.vm.tapped(selectableRow: recommendedRow)
 
     XCTAssertEqual(
       ["CTA Clicked", "CTA Clicked", "CTA Clicked", "CTA Clicked", "CTA Clicked"],
@@ -202,12 +216,12 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   }
 
   func testTopFilters_Logged_Out() async {
-    self.vm.inputs.configureWith(selectedRow: allProjectsRow)
+    self.vm.configureWith(selectedRow: allProjectsRow)
 
     self.loadTopRows.assertValueCount(0)
 
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewDidAppear()
+    self.vm.viewDidLoad()
+    self.vm.viewDidAppear()
 
     await self.vm.loadCategories()
 
@@ -228,9 +242,9 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   func testTopFilters_Logged_In() async {
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
 
-    self.vm.inputs.configureWith(selectedRow: allProjectsRow)
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewDidAppear()
+    self.vm.configureWith(selectedRow: allProjectsRow)
+    self.vm.viewDidLoad()
+    self.vm.viewDidAppear()
 
     await self.vm.loadCategories()
 
@@ -255,9 +269,9 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
       AccessTokenEnvelope(accessToken: "deadbeef", user: .template |> \.social .~ true)
     )
 
-    self.vm.inputs.configureWith(selectedRow: allProjectsRow)
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewDidAppear()
+    self.vm.configureWith(selectedRow: allProjectsRow)
+    self.vm.viewDidLoad()
+    self.vm.viewDidAppear()
 
     await self.vm.loadCategories()
 
@@ -285,9 +299,9 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
       )
     )
 
-    self.vm.inputs.configureWith(selectedRow: allProjectsRow)
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewDidAppear()
+    self.vm.configureWith(selectedRow: allProjectsRow)
+    self.vm.viewDidLoad()
+    self.vm.viewDidAppear()
 
     await self.vm.loadCategories()
 
@@ -307,9 +321,9 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   }
 
   func testTopFilters_Category_Selected() async {
-    self.vm.inputs.configureWith(selectedRow: artSelectableRow)
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewDidAppear()
+    self.vm.configureWith(selectedRow: artSelectableRow)
+    self.vm.viewDidLoad()
+    self.vm.viewDidAppear()
 
     await self.vm.loadCategories()
 
@@ -329,13 +343,13 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
       self
         .defaultRootCategoriesTemplate
     ))) {
-      self.vm.inputs.configureWith(selectedRow: allProjectsRow)
+      self.vm.configureWith(selectedRow: allProjectsRow)
 
       self.loadCategoryRows.assertValueCount(0)
       self.loadingIndicatorisVisible.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewDidAppear()
+      self.vm.viewDidLoad()
+      self.vm.viewDidAppear()
 
       self.loadingIndicatorisVisible.assertValues([true])
 
@@ -351,7 +365,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
       self.loadCategoryRowsSelectedId.assertValues([nil])
 
       // Expand art
-      self.vm.inputs.tapped(expandableRow: artExpandableRow)
+      self.vm.tapped(expandableRow: artExpandableRow)
 
       self.loadCategoryRows.assertValues(
         [
@@ -364,7 +378,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
       self.loadCategoryRowsSelectedId.assertValues([nil, 1])
 
       // Expand film
-      self.vm.inputs.tapped(expandableRow: filmExpandableRow)
+      self.vm.tapped(expandableRow: filmExpandableRow)
 
       self.loadCategoryRows.assertValues(
         [
@@ -378,7 +392,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
       self.loadCategoryRowsSelectedId.assertValues([nil, 1, 11])
 
       // Collapse the expanded film row
-      self.vm.inputs.tapped(expandableRow: filmExpandableRow |> ExpandableRow.lens.isExpanded .~ true)
+      self.vm.tapped(expandableRow: filmExpandableRow |> ExpandableRow.lens.isExpanded .~ true)
 
       self.loadCategoryRows.assertValues(
         [
@@ -407,12 +421,12 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
       self
         .defaultRootCategoriesTemplate
     ))) {
-      self.vm.inputs.configureWith(selectedRow: artSelectableRow)
+      self.vm.configureWith(selectedRow: artSelectableRow)
 
       self.loadCategoryRows.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewDidAppear()
+      self.vm.viewDidLoad()
+      self.vm.viewDidAppear()
 
       self.loadingIndicatorisVisible.assertValues([true])
 
@@ -432,13 +446,13 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   }
 
   func testTappingSelectableRow() async {
-    self.vm.inputs.configureWith(selectedRow: allProjectsRow)
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewDidAppear()
+    self.vm.configureWith(selectedRow: allProjectsRow)
+    self.vm.viewDidLoad()
+    self.vm.viewDidAppear()
 
     await self.vm.loadCategories()
 
-    self.vm.inputs.tapped(selectableRow: allProjectsRow)
+    self.vm.tapped(selectableRow: allProjectsRow)
 
     self.notifyDelegateOfSelectedRow.assertValues(
       [allProjectsRow],
@@ -460,9 +474,9 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   }
 
   func testFavoriteRows_Without_Favorites() async {
-    self.vm.inputs.configureWith(selectedRow: allProjectsRow)
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewDidAppear()
+    self.vm.configureWith(selectedRow: allProjectsRow)
+    self.vm.viewDidLoad()
+    self.vm.viewDidAppear()
 
     await self.vm.loadCategories()
 
@@ -473,12 +487,12 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     await withEnvironment(apiService: MockService(fetchGraphCategoriesResult: .success(self.categoriesResponse))) {
       self.ubiquitousStore.favoriteCategoryIds = [1, 30]
 
-      self.vm.inputs.configureWith(selectedRow: allProjectsRow)
+      self.vm.configureWith(selectedRow: allProjectsRow)
 
       self.loadFavoriteRows.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewDidAppear()
+      self.vm.viewDidLoad()
+      self.vm.viewDidAppear()
 
       await self.vm.loadCategories()
 
@@ -494,12 +508,12 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     ))) {
       self.ubiquitousStore.favoriteCategoryIds = [1, 30]
 
-      self.vm.inputs.configureWith(selectedRow: artSelectableRow)
+      self.vm.configureWith(selectedRow: artSelectableRow)
 
       self.loadFavoriteRows.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewDidAppear()
+      self.vm.viewDidLoad()
+      self.vm.viewDidAppear()
 
       await self.vm.loadCategories()
 
@@ -516,9 +530,9 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   func testCategoriesFromCache() async {
     self.cache[KSCache.ksr_discoveryFiltersCategories] = categories
 
-    self.vm.inputs.configureWith(selectedRow: allProjectsRow)
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewDidAppear()
+    self.vm.configureWith(selectedRow: allProjectsRow)
+    self.vm.viewDidLoad()
+    self.vm.viewDidAppear()
 
     self.loadingIndicatorisVisible.assertValueCount(0)
 
