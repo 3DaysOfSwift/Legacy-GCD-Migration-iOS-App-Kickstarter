@@ -81,11 +81,13 @@ public protocol ThanksViewModelType {
 public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, ThanksViewModelOutputs {
   private let feature: RecommendationsFeature
   private let route = UUID()
+  private let recommendationPipe = Signal<([Project], KsApi.Category), Never>.pipe()
+  private var recommendationTask: Task<Void, Never>?
+  private var recommendationRevision = UUID()
   public init(recommendationsFeature: RecommendationsFeature? = nil) {
     let feature = recommendationsFeature ?? AppModel.shared.recommendationsFeature
     self.feature = feature
     let settingsFeature = feature.settingsFeature
-    let route = self.route
     let project = self.configureWithDataProperty.signal
       .skipNil()
       .map { $0.project }
@@ -147,12 +149,7 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
         DiscoveryParams.defaults |> DiscoveryParams.lens.category .~ $0
       }
 
-    self.showRecommendations = feature.selections
-      .filter { $0.0 == route }
-      .compactMap { _, selection in
-        selection.category.map { (selection.projects, $0) }
-      }
-    project.observeValues { feature.request(.afterBacking($0), route: route) }
+    self.showRecommendations = self.recommendationPipe.output
 
     self.goToProject = self.showRecommendations
       .map(first)
@@ -276,7 +273,25 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
   fileprivate let configureWithDataProperty = MutableProperty<ThanksPageData?>(nil)
   public func configure(with data: ThanksPageData) {
     self.configureWithDataProperty.value = data
+    self.recommendationTask?.cancel()
+    let revision = UUID()
+    self.recommendationRevision = revision
+    let feature = self.feature
+    let route = self.route
+    let session = feature.sessionFeature
+    let userID = session.currentUser?.id
+    let generation = session.generation
+    let command = feature.request(.afterBacking(data.project), route: route)
+    self.recommendationTask = Task { [weak self] in
+      await command.value
+      guard !Task.isCancelled, let self, self.recommendationRevision == revision,
+            session.isCurrent(userID: userID, generation: generation),
+            let selection = feature.selection(route: route), let category = selection.category else { return }
+      self.recommendationPipe.input.send(value: (selection.projects, category))
+    }
   }
+
+  func waitForRecommendations() async { await self.recommendationTask?.value }
 
   fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
@@ -285,6 +300,8 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
 
   fileprivate let closeButtonTappedProperty = MutableProperty(())
   public func closeButtonTapped() {
+    self.recommendationRevision = UUID()
+    self.recommendationTask?.cancel()
     self.feature.release(route: self.route)
     self.closeButtonTappedProperty.value = ()
   }

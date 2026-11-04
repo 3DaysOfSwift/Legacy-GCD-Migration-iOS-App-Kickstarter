@@ -1,7 +1,6 @@
 import Foundation
 import KsApi
 import Prelude
-import ReactiveSwift
 
 @MainActor
 public protocol RecommendationsProvider: Sendable {
@@ -51,8 +50,6 @@ public final class RecommendationsFeature {
   private var latestSelections: [UUID: Selection] = [:]
   public func selection(route: UUID) -> Selection? { self.latestSelections[route] }
   private var operations: [UUID: Task<Void, Never>] = [:]
-  private let selectionPipe = Signal<(UUID, Selection), Never>.pipe()
-  public var selections: Signal<(UUID, Selection), Never> { self.selectionPipe.output }
 
   public init(
     settingsFeature: SettingsFeature,
@@ -80,6 +77,7 @@ public final class RecommendationsFeature {
   }
   public func reset() {
     for route in Array(self.pending.keys) { self.release(route: route) }
+    self.latestSelections.removeAll()
   }
   public func load(_ request: Request, route: UUID) async {
     await self.request(request, route: route).value
@@ -115,7 +113,6 @@ public final class RecommendationsFeature {
         try Task.checkCancellation()
         guard self.session == session, self.pending[route]?.id == id, let selection else { return }
         self.latestSelections[route] = selection
-        self.selectionPipe.input.send(value: (route, selection))
       } catch {
         // These screens historically suppress category lookup errors. Individual
         // discovery failures are handled below so successful fallbacks survive.

@@ -23,7 +23,7 @@ final class ThanksViewModelTests: TestCase {
   )
   private lazy var feature = RecommendationsFeature(settingsFeature: self.settingsFeature,
     makeProvider: { AsyncRecommendationsProvider(service: AppEnvironment.current.apiService) })
-  private lazy var vm: ThanksViewModelType = ThanksViewModel(recommendationsFeature: self.feature)
+  private lazy var vm: ThanksViewModel = ThanksViewModel(recommendationsFeature: self.feature)
   private let categoryEnvelope = CategoryEnvelope(node: .template)
 
   private let backedProjectText = TestObserver<String, Never>()
@@ -50,6 +50,7 @@ final class ThanksViewModelTests: TestCase {
   override func tearDown() async throws {
     self.feature.reset()
     await self.feature.waitForOperations()
+      await self.vm.waitForRecommendations()
     await self.settingsFeature.waitForOperations()
     try await super.tearDown()
   }
@@ -128,6 +129,7 @@ final class ThanksViewModelTests: TestCase {
       self.vm.inputs.viewDidLoad()
 
       await self.feature.waitForOperations()
+      await self.vm.waitForRecommendations()
       await scheduler.advance()
 
       self.showRecommendationsProjects.assertValueCount(1)
@@ -345,6 +347,7 @@ final class ThanksViewModelTests: TestCase {
       self.vm.inputs.viewDidLoad()
 
       await self.feature.waitForOperations()
+      await self.vm.waitForRecommendations()
       await scheduler.advance()
 
       self.showRecommendationsProjects.assertValueCount(1)
@@ -387,6 +390,7 @@ final class ThanksViewModelTests: TestCase {
       self.vm.inputs.viewDidLoad()
 
       await self.feature.waitForOperations()
+      await self.vm.waitForRecommendations()
       await scheduler.advance()
 
       self.showRecommendationsProjects.assertValueCount(1, "Recommended projects emit, shuffled.")
@@ -403,6 +407,7 @@ final class ThanksViewModelTests: TestCase {
       self.vm.inputs.viewDidLoad()
 
       await self.feature.waitForOperations()
+      await self.vm.waitForRecommendations()
       await scheduler.advance()
 
       self.showRecommendationsProjects.assertValueCount(0, "Recommended projects did not emit")
