@@ -1,200 +1,92 @@
 import Foundation
 import KsApi
-import Prelude
-import ReactiveSwift
+import Observation
 
 @MainActor
-public protocol ChangePasswordViewModelInputs {
-  func currentPasswordFieldTextChanged(text: String)
-  func currentPasswordFieldDidReturn(currentPassword: String)
-  func newPasswordFieldTextChanged(text: String)
-  func newPasswordFieldDidReturn(newPassword: String)
-  func newPasswordConfirmationFieldTextChanged(text: String)
-  func newPasswordConfirmationFieldDidReturn(newPasswordConfirmed: String)
-  func saveButtonTapped()
-  func viewDidAppear()
-}
+@Observable
+public final class ChangePasswordViewModel {
+  public private(set) var isLoading = false
+  public private(set) var saveButtonIsEnabled = false
+  public private(set) var validationMessage = ""
+  public var onAccessibilityFocus: (() -> Void)?
+  public var onFocusCurrent: (() -> Void)?
+  public var onFocusNew: (() -> Void)?
+  public var onFocusConfirmation: (() -> Void)?
+  public var onDismissKeyboard: (() -> Void)?
+  public var onSuccess: (() -> Void)?
+  public var onFailure: ((String) -> Void)?
 
-@MainActor
-public protocol ChangePasswordViewModelOutputs {
-  var accessibilityFocusValidationErrorLabel: Signal<Void, Never> { get }
-  var activityIndicatorShouldShow: Signal<Bool, Never> { get }
-  var changePasswordFailure: Signal<String, Never> { get }
-  var changePasswordSuccess: Signal<Void, Never> { get }
-  var confirmNewPasswordBecomeFirstResponder: Signal<Void, Never> { get }
-  var currentPasswordBecomeFirstResponder: Signal<Void, Never> { get }
-  var dismissKeyboard: Signal<Void, Never> { get }
-  var newPasswordBecomeFirstResponder: Signal<Void, Never> { get }
-  var saveButtonIsEnabled: Signal<Bool, Never> { get }
-  var validationErrorLabelIsHidden: Signal<Bool, Never> { get }
-  var validationErrorLabelMessage: Signal<String, Never> { get }
-}
+  private let settingsFeature: SettingsFeature
+  private let sleep: (TimeInterval) async throws -> Void
+  private var currentPassword = ""
+  private var newPassword = ""
+  private var confirmation = ""
+  private var hasConfirmation = false
+  private var saveTasks: [UUID: Task<Void, Never>] = [:]
 
-@MainActor
-public protocol ChangePasswordViewModelType {
-  var inputs: ChangePasswordViewModelInputs { get }
-  var outputs: ChangePasswordViewModelOutputs { get }
-}
-
-@MainActor
-public class ChangePasswordViewModel: ChangePasswordViewModelType,
-  ChangePasswordViewModelInputs, ChangePasswordViewModelOutputs {
-  public init(settingsFeature: SettingsFeature? = nil) {
-    let settingsFeature = settingsFeature ?? AppModel.shared.settingsFeature
-    let currentPasswordSignal = self.currentPasswordProperty.signal
-
-    let combinedPasswords = Signal.combineLatest(
-      self.newPasswordProperty.signal,
-      self.confirmNewPasswordProperty.signal
-    )
-
-    let fieldsMatch = combinedPasswords.map(==)
-    let fieldLengthIsValid = self.newPasswordProperty.signal.map(passwordLengthValid)
-    let fieldsNotEmpty = Signal.combineLatest(
-      currentPasswordSignal,
-      self.newPasswordProperty.signal,
-      self.confirmNewPasswordProperty.signal
-    )
-    .map(formFieldsNotEmpty)
-
-    let formIsValid = Signal.combineLatest(fieldsNotEmpty, fieldsMatch, fieldLengthIsValid)
-      .map(passwordFormValid)
-      .skipRepeats()
-
-    self.saveButtonIsEnabled = formIsValid
-
-    let autoSaveSignal = self.saveButtonIsEnabled
-      .takeWhen(self.confirmNewPasswordDoneEditingProperty.signal)
-      .filter(isTrue)
-      .ignoreValues()
-
-    let triggerSaveAction = Signal.merge(autoSaveSignal, self.saveButtonTappedProperty.signal)
-
-    let combinedInput = Signal.combineLatest(currentPasswordSignal, combinedPasswords)
-
-    let passwordUpdateEvent = combinedInput
-      .takeWhen(triggerSaveAction)
-      .map(unpack)
-      .map { ChangePasswordInput(currentPassword: $0.0, newPassword: $0.1, newPasswordConfirmation: $0.2) }
-      .flatMap {
-        settingsFeature.accountResult(.password($0))
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .materialize()
-      }
-
-    self.changePasswordSuccess = passwordUpdateEvent.values().ignoreValues()
-    self.changePasswordFailure = passwordUpdateEvent.errors().map { $0.localizedDescription }
-
-    self.activityIndicatorShouldShow = Signal.merge(
-      triggerSaveAction.signal.mapConst(true),
-      self.changePasswordSuccess.mapConst(false),
-      self.changePasswordFailure.mapConst(false)
-    )
-
-    self.dismissKeyboard = Signal.merge(
-      self.saveButtonTappedProperty.signal,
-      self.confirmNewPasswordDoneEditingProperty.signal
-    )
-
-    self.currentPasswordBecomeFirstResponder = self.viewDidAppearProperty.signal
-    self.newPasswordBecomeFirstResponder = self.currentPasswordDoneEditingProperty.signal
-    self.confirmNewPasswordBecomeFirstResponder = self.newPasswordDoneEditingProperty.signal
-
-    let newPasswordValidationText = fieldLengthIsValid
-      .map(passwordValidationText)
-      .skipRepeats()
-
-    let newPasswordAndConfirmationValidationText = Signal.combineLatest(fieldLengthIsValid, fieldsMatch)
-      .map(passwordValidationText)
-      .skipRepeats()
-
-    let validationLabelText = Signal.merge(
-      self.viewDidAppearProperty.signal.mapConst(String()),
-      newPasswordValidationText,
-      newPasswordAndConfirmationValidationText
-    )
-
-    self.validationErrorLabelMessage = validationLabelText
-      .map { $0 ?? String() }
-
-    let validationLabelTextIsEmpty = self.validationErrorLabelMessage
-      .map { $0.isEmpty }
-
-    self.validationErrorLabelIsHidden = validationLabelTextIsEmpty
-
-    let inputsChanged = Signal.merge(
-      self.newPasswordProperty.signal, self.confirmNewPasswordProperty.signal
-    )
-
-    self.accessibilityFocusValidationErrorLabel = validationLabelTextIsEmpty
-      .takeWhen(inputsChanged)
-      .filter { _ in AppEnvironment.current.isVoiceOverRunning() }
-      .filter(isFalse)
-      .ignoreValues()
+  public init(settingsFeature: SettingsFeature? = nil, sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
+    if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
+  }) {
+    self.settingsFeature = settingsFeature ?? AppModel.shared.settingsFeature
+    self.sleep = sleep
   }
-
-  private var currentPasswordDoneEditingProperty = MutableProperty(())
+  public func viewDidAppear() { self.validationMessage = ""; self.onFocusCurrent?() }
+  public func currentPasswordFieldTextChanged(text: String) { self.currentPassword = text; self.updateValidation(showMessage: false) }
   public func currentPasswordFieldDidReturn(currentPassword: String) {
-    self.currentPasswordProperty.value = currentPassword
-    self.currentPasswordDoneEditingProperty.value = ()
+    self.currentPasswordFieldTextChanged(text: currentPassword)
+    self.onFocusNew?()
   }
-
-  private var currentPasswordProperty = MutableProperty<String>("")
-  public func currentPasswordFieldTextChanged(text: String) {
-    self.currentPasswordProperty.value = text
-  }
-
-  private var newPasswordDoneEditingProperty = MutableProperty(())
+  public func newPasswordFieldTextChanged(text: String) { self.newPassword = text; self.updateValidation(showMessage: true) }
   public func newPasswordFieldDidReturn(newPassword: String) {
-    self.newPasswordProperty.value = newPassword
-    self.newPasswordDoneEditingProperty.value = ()
+    self.newPasswordFieldTextChanged(text: newPassword)
+    self.onFocusConfirmation?()
   }
-
-  private var newPasswordProperty = MutableProperty<String>("")
-  public func newPasswordFieldTextChanged(text: String) {
-    self.newPasswordProperty.value = text
-  }
-
-  private var confirmNewPasswordDoneEditingProperty = MutableProperty(())
+  public func newPasswordConfirmationFieldTextChanged(text: String) { self.confirmation = text; self.hasConfirmation = true; self.updateValidation(showMessage: true) }
   public func newPasswordConfirmationFieldDidReturn(newPasswordConfirmed: String) {
-    self.confirmNewPasswordProperty.value = newPasswordConfirmed
-    self.confirmNewPasswordDoneEditingProperty.value = ()
+    self.newPasswordConfirmationFieldTextChanged(text: newPasswordConfirmed)
+    self.onDismissKeyboard?()
+    if self.saveButtonIsEnabled { self.submit() }
   }
-
-  private var confirmNewPasswordProperty = MutableProperty<String>("")
-  public func newPasswordConfirmationFieldTextChanged(text: String) {
-    self.confirmNewPasswordProperty.value = text
+  public func saveButtonTapped() { self.onDismissKeyboard?(); self.submit() }
+  private func updateValidation(showMessage: Bool) {
+    let length = passwordLengthValid(self.newPassword)
+    let match = self.newPassword == self.confirmation
+    self.saveButtonIsEnabled = passwordFormValid((
+      notEmpty: !self.currentPassword.isEmpty && !self.newPassword.isEmpty && !self.confirmation.isEmpty,
+      match: match, length: length
+    ))
+    if showMessage {
+      self.validationMessage = (self.hasConfirmation
+        ? passwordValidationText((length: length, match: match))
+        : passwordValidationText(length)) ?? ""
+      if !self.validationMessage.isEmpty && AppEnvironment.current.isVoiceOverRunning() { self.onAccessibilityFocus?() }
+    }
   }
-
-  private var saveButtonTappedProperty = MutableProperty(())
-  public func saveButtonTapped() {
-    self.saveButtonTappedProperty.value = ()
+  private func submit() {
+    let input = ChangePasswordInput(currentPassword: self.currentPassword, newPassword: self.newPassword,
+                                    newPasswordConfirmation: self.confirmation)
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    let id = UUID()
+    self.isLoading = true
+    self.saveTasks[id] = Task { [weak self, settingsFeature, sleep] in
+      do {
+        _ = try await settingsFeature.updateAccount(.password(input))
+        try await sleep(delay)
+        try Task.checkCancellation()
+        guard let self else { return }
+        self.saveTasks[id] = nil
+        self.isLoading = !self.saveTasks.isEmpty
+        self.onSuccess?()
+      } catch {
+        guard let self else { return }
+        self.saveTasks[id] = nil
+        self.isLoading = !self.saveTasks.isEmpty
+        guard !Task.isCancelled, !(error is CancellationError) else { return }
+        self.onFailure?(error.localizedDescription)
+      }
+    }
   }
-
-  private var viewDidAppearProperty = MutableProperty(())
-  public func viewDidAppear() {
-    self.viewDidAppearProperty.value = ()
+  internal func waitForSaves() async {
+    while let task = self.saveTasks.values.first { await task.value }
   }
-
-  public let accessibilityFocusValidationErrorLabel: Signal<Void, Never>
-  public let activityIndicatorShouldShow: Signal<Bool, Never>
-  public let changePasswordFailure: Signal<String, Never>
-  public let changePasswordSuccess: Signal<Void, Never>
-  public let confirmNewPasswordBecomeFirstResponder: Signal<Void, Never>
-  public let currentPasswordBecomeFirstResponder: Signal<Void, Never>
-  public let dismissKeyboard: Signal<Void, Never>
-  public let validationErrorLabelIsHidden: Signal<Bool, Never>
-  public let validationErrorLabelMessage: Signal<String, Never>
-  public let newPasswordBecomeFirstResponder: Signal<Void, Never>
-  public let saveButtonIsEnabled: Signal<Bool, Never>
-
-  public var inputs: ChangePasswordViewModelInputs { return self }
-
-  public var outputs: ChangePasswordViewModelOutputs { return self }
-}
-
-// MARK: - Functions
-
-private func formFieldsNotEmpty(_ pwds: (first: String, second: String, third: String)) -> Bool {
-  return !pwds.first.isEmpty && !pwds.second.isEmpty && !pwds.third.isEmpty
 }

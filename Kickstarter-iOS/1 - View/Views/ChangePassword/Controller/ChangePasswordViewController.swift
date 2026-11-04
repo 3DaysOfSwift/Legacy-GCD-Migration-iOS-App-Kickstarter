@@ -1,3 +1,4 @@
+import Observation
 import KDS
 import KsApi
 
@@ -20,7 +21,7 @@ final class ChangePasswordViewController: UIViewController, MessageBannerViewCon
   private var saveButtonView: LoadingBarButtonItemView!
   internal var messageBannerViewController: MessageBannerViewController?
 
-  private let viewModel: ChangePasswordViewModelType = ChangePasswordViewModel()
+  private let viewModel = ChangePasswordViewModel()
 
   internal static func instantiate() -> ChangePasswordViewController {
     return Storyboard.Settings.instantiate(ChangePasswordViewController.self)
@@ -37,12 +38,13 @@ final class ChangePasswordViewController: UIViewController, MessageBannerViewCon
 
     let navigationBarButton = LoadingBarButtonItemView.uiBarButtonItem(for: self.saveButtonView)
     self.navigationItem.setRightBarButton(navigationBarButton, animated: false)
+    self.observeSaveState()
   }
 
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
 
-    self.viewModel.inputs.viewDidAppear()
+    self.viewModel.viewDidAppear()
   }
 
   override func bindStyles() {
@@ -108,70 +110,39 @@ final class ChangePasswordViewController: UIViewController, MessageBannerViewCon
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.validationErrorMessageLabel.rac.hidden = self.viewModel.outputs.validationErrorLabelIsHidden
-    self.validationErrorMessageLabel.rac.text = self.viewModel.outputs.validationErrorLabelMessage
-
-    self.viewModel.outputs.activityIndicatorShouldShow
-      .observeForUI()
-      .observeValues { [weak self] shouldShow in
-        if shouldShow {
-          self?.saveButtonView.startAnimating()
-        } else {
-          self?.saveButtonView.stopAnimating()
-        }
-      }
-
-    self.viewModel.outputs.saveButtonIsEnabled
-      .observeForUI()
-      .observeValues { [weak self] isEnabled in
-        self?.saveButtonView.setIsEnabled(isEnabled: isEnabled)
-      }
-
-    self.viewModel.outputs.currentPasswordBecomeFirstResponder
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.currentPasswordTextField.becomeFirstResponder()
-      }
-
-    self.viewModel.outputs.newPasswordBecomeFirstResponder
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.newPasswordTextField.becomeFirstResponder()
-      }
-
-    self.viewModel.outputs.confirmNewPasswordBecomeFirstResponder
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.confirmNewPasswordTextField.becomeFirstResponder()
-      }
-
-    self.viewModel.outputs.dismissKeyboard
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.dismissKeyboard()
-      }
-
-    self.viewModel.outputs.changePasswordFailure
-      .observeForControllerAction()
-      .observeValues { [weak self] errorMessage in
-        self?.messageBannerViewController?.showBanner(with: .error, message: errorMessage)
-      }
-
-    self.viewModel.outputs.changePasswordSuccess
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.logoutAndDismiss()
-      }
-
-    self.viewModel.outputs.accessibilityFocusValidationErrorLabel
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        UIAccessibility.post(notification: .layoutChanged, argument: self?.validationErrorMessageLabel)
-      }
+    self.observeValidation()
+    self.viewModel.onFocusCurrent = { [weak self] in self?.currentPasswordTextField.becomeFirstResponder() }
+    self.viewModel.onFocusNew = { [weak self] in self?.newPasswordTextField.becomeFirstResponder() }
+    self.viewModel.onFocusConfirmation = { [weak self] in self?.confirmNewPasswordTextField.becomeFirstResponder() }
+    self.viewModel.onDismissKeyboard = { [weak self] in self?.dismissKeyboard() }
+    self.viewModel.onFailure = { [weak self] in self?.messageBannerViewController?.showBanner(with: .error, message: $0) }
+    self.viewModel.onSuccess = { [weak self] in self?.logoutAndDismiss() }
+    self.viewModel.onAccessibilityFocus = { [weak self] in
+      UIAccessibility.post(notification: .layoutChanged, argument: self?.validationErrorMessageLabel)
+    }
 
     self.keyboardObservation = Keyboard.observe { [weak self] change in
         self?.scrollView.handleKeyboardVisibilityDidChange(change)
       }
+  }
+
+  private func observeValidation() {
+    withObservationTracking {
+      self.validationErrorMessageLabel.text = self.viewModel.validationMessage
+      self.validationErrorMessageLabel.isHidden = self.viewModel.validationMessage.isEmpty
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeValidation() }
+    }
+  }
+
+  private func observeSaveState() {
+    withObservationTracking {
+      if self.viewModel.isLoading { self.saveButtonView.startAnimating() }
+      else { self.saveButtonView.stopAnimating() }
+      self.saveButtonView.setIsEnabled(isEnabled: self.viewModel.saveButtonIsEnabled)
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeSaveState() }
+    }
   }
 
   // MARK: - Functions
@@ -197,7 +168,7 @@ final class ChangePasswordViewController: UIViewController, MessageBannerViewCon
       return
     }
 
-    self.viewModel.inputs.currentPasswordFieldTextChanged(text: text)
+    self.viewModel.currentPasswordFieldTextChanged(text: text)
   }
 
   @IBAction func currentPasswordDidEndEditing(_ sender: UITextField) {
@@ -205,7 +176,7 @@ final class ChangePasswordViewController: UIViewController, MessageBannerViewCon
       return
     }
 
-    self.viewModel.inputs.currentPasswordFieldTextChanged(text: currentPassword)
+    self.viewModel.currentPasswordFieldTextChanged(text: currentPassword)
   }
 
   @IBAction func currentPasswordDidReturn(_ sender: UITextField) {
@@ -213,7 +184,7 @@ final class ChangePasswordViewController: UIViewController, MessageBannerViewCon
       return
     }
 
-    self.viewModel.inputs.currentPasswordFieldDidReturn(currentPassword: currentPassword)
+    self.viewModel.currentPasswordFieldDidReturn(currentPassword: currentPassword)
   }
 
   @IBAction func newPasswordTextDidChange(_ sender: UITextField) {
@@ -221,7 +192,7 @@ final class ChangePasswordViewController: UIViewController, MessageBannerViewCon
       return
     }
 
-    self.viewModel.inputs.newPasswordFieldTextChanged(text: text)
+    self.viewModel.newPasswordFieldTextChanged(text: text)
   }
 
   @IBAction func newPasswordDidEndEditing(_ sender: UITextField) {
@@ -229,7 +200,7 @@ final class ChangePasswordViewController: UIViewController, MessageBannerViewCon
       return
     }
 
-    self.viewModel.inputs.newPasswordFieldTextChanged(text: newPassword)
+    self.viewModel.newPasswordFieldTextChanged(text: newPassword)
   }
 
   @IBAction func newPasswordDidReturn(_ sender: UITextField) {
@@ -237,7 +208,7 @@ final class ChangePasswordViewController: UIViewController, MessageBannerViewCon
       return
     }
 
-    self.viewModel.inputs.newPasswordFieldDidReturn(newPassword: newPassword)
+    self.viewModel.newPasswordFieldDidReturn(newPassword: newPassword)
   }
 
   @IBAction func confirmNewPasswordTextDidChange(_ sender: UITextField) {
@@ -245,7 +216,7 @@ final class ChangePasswordViewController: UIViewController, MessageBannerViewCon
       return
     }
 
-    self.viewModel.inputs.newPasswordConfirmationFieldTextChanged(text: text)
+    self.viewModel.newPasswordConfirmationFieldTextChanged(text: text)
   }
 
   @IBAction func confirmNewPasswordDidEndEditing(_ sender: UITextField) {
@@ -253,7 +224,7 @@ final class ChangePasswordViewController: UIViewController, MessageBannerViewCon
       return
     }
 
-    self.viewModel.inputs
+    self.viewModel
       .newPasswordConfirmationFieldTextChanged(text: newPasswordConfirmed)
   }
 
@@ -262,11 +233,11 @@ final class ChangePasswordViewController: UIViewController, MessageBannerViewCon
       return
     }
 
-    self.viewModel.inputs
+    self.viewModel
       .newPasswordConfirmationFieldDidReturn(newPasswordConfirmed: newPasswordConfirmed)
   }
 
   @IBAction func saveButtonTapped(_: Any) {
-    self.viewModel.inputs.saveButtonTapped()
+    self.viewModel.saveButtonTapped()
   }
 }
