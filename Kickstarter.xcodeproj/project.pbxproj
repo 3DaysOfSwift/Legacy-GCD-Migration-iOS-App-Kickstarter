@@ -5,6 +5,34 @@
 	"objectVersion" = "60";
 	"archiveVersion" = "1";
 	"objects" = {
+		"21328D6589981ECB86CA07E2" = {
+			"isa" = "PBXGroup";
+			"name" = "Onboarding";
+			"sourceTree" = "<group>";
+			"children" = (
+				"9DAC95CE397FAD6E6D9D3B1E",
+				"957A914AD518156E00A784C0",
+				"DB9D1BF6B3C934E1D2D59421",
+				"4F24B988D58C9E4536359C13",
+				"E1C2F2B03B51800F46583604",
+				"B7B5BFE66D8E06F8FC9E0583",
+				"63850AFAE62B868FD618E2DF",
+				"5A96105AF2EEE3239B7D1BEE",
+				"8834131BDFA2A17161FFB1D7",
+				"855328AD0F8CD2E3329B0424",
+				"E6A6AB3B0AF3300E87FA1FA2",
+				"9283EC3A02E12A9391AF0FD3",
+				"EC62C0BD9AC2D87E150078DB",
+				"2D67D8971651F20589A0E8D3",
+				"02FE0F0B0A12DEB178364C7C",
+				"5C3126DCB5D3008DF607683E",
+				"70FDE59CCF7360D9EDA160B5",
+				"DB37D297BA6238BC61A72CD8",
+				"70E7C7890F26E8B3975CCCA6",
+				"D48B4CDA6E5E6FCA50EC9452",
+				"1EC400B0646C6934D425ACDC",
+			);
+		};
 		"C8D87D4A1689251A2109C866" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "F3BF73651A2E26849BE71A6A";
@@ -2028,7 +2056,7 @@
 		};
 		"70FDE59CCF7360D9EDA160B5" = {
 			"name" = "onboarding-flow-welcome-de.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-welcome-de.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-welcome-de.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -3401,7 +3429,7 @@
 		};
 		"DB9D1BF6B3C934E1D2D59421" = {
 			"name" = "onboarding-flow-enable-notifications-en.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-enable-notifications-en.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-enable-notifications-en.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -5452,7 +5480,7 @@
 		};
 		"E6A6AB3B0AF3300E87FA1FA2" = {
 			"name" = "onboarding-flow-login-signup-ja.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-login-signup-ja.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-login-signup-ja.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -6282,7 +6310,7 @@
 		};
 		"5C3126DCB5D3008DF607683E" = {
 			"name" = "onboarding-flow-save-projects-ja.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-save-projects-ja.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-save-projects-ja.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -7185,7 +7213,7 @@
 		};
 		"8834131BDFA2A17161FFB1D7" = {
 			"name" = "onboarding-flow-login-signup-es.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-login-signup-es.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-login-signup-es.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -7389,7 +7417,7 @@
 		};
 		"EC62C0BD9AC2D87E150078DB" = {
 			"name" = "onboarding-flow-save-projects-en.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-save-projects-en.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-save-projects-en.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -7493,6 +7521,7 @@
 			"name" = "Locales";
 			"sourceTree" = "<group>";
 			"children" = (
+				"21328D6589981ECB86CA07E2",
 				"A3E7F9A5DA03554EAB75031F",
 			);
 		};
@@ -8613,7 +8642,7 @@
 		};
 		"9DAC95CE397FAD6E6D9D3B1E" = {
 			"name" = "onboarding-flow-activity-tracking-en.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-activity-tracking-en.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-activity-tracking-en.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -8774,7 +8803,7 @@
 		};
 		"1EC400B0646C6934D425ACDC" = {
 			"name" = "onboarding-flow-welcome-ja.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-welcome-ja.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-welcome-ja.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -9436,27 +9465,6 @@
 				"53311950082FBE7AAFAC018A",
 				"6345D2CC0B896BB2F720490B",
 				"E3B667E618B58B65FF32C7E3",
-				"9DAC95CE397FAD6E6D9D3B1E",
-				"957A914AD518156E00A784C0",
-				"DB9D1BF6B3C934E1D2D59421",
-				"4F24B988D58C9E4536359C13",
-				"E1C2F2B03B51800F46583604",
-				"B7B5BFE66D8E06F8FC9E0583",
-				"63850AFAE62B868FD618E2DF",
-				"5A96105AF2EEE3239B7D1BEE",
-				"8834131BDFA2A17161FFB1D7",
-				"855328AD0F8CD2E3329B0424",
-				"E6A6AB3B0AF3300E87FA1FA2",
-				"9283EC3A02E12A9391AF0FD3",
-				"EC62C0BD9AC2D87E150078DB",
-				"2D67D8971651F20589A0E8D3",
-				"02FE0F0B0A12DEB178364C7C",
-				"5C3126DCB5D3008DF607683E",
-				"70FDE59CCF7360D9EDA160B5",
-				"DB37D297BA6238BC61A72CD8",
-				"70E7C7890F26E8B3975CCCA6",
-				"D48B4CDA6E5E6FCA50EC9452",
-				"1EC400B0646C6934D425ACDC",
 			);
 		};
 		"EAE130829CAB7EABA75BCEDF" = {
@@ -10377,7 +10385,7 @@
 		};
 		"70E7C7890F26E8B3975CCCA6" = {
 			"name" = "onboarding-flow-welcome-es.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-welcome-es.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-welcome-es.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -11734,7 +11742,7 @@
 		};
 		"9283EC3A02E12A9391AF0FD3" = {
 			"name" = "onboarding-flow-save-projects-de.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-save-projects-de.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-save-projects-de.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -13305,7 +13313,7 @@
 		};
 		"63850AFAE62B868FD618E2DF" = {
 			"name" = "onboarding-flow-login-signup-de.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-login-signup-de.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-login-signup-de.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -14439,7 +14447,7 @@
 		};
 		"957A914AD518156E00A784C0" = {
 			"name" = "onboarding-flow-enable-notifications-de.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-enable-notifications-de.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-enable-notifications-de.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -15072,7 +15080,7 @@
 		};
 		"DB37D297BA6238BC61A72CD8" = {
 			"name" = "onboarding-flow-welcome-en.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-welcome-en.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-welcome-en.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -15936,7 +15944,7 @@
 		};
 		"4F24B988D58C9E4536359C13" = {
 			"name" = "onboarding-flow-enable-notifications-es.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-enable-notifications-es.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-enable-notifications-es.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -16200,7 +16208,7 @@
 		};
 		"02FE0F0B0A12DEB178364C7C" = {
 			"name" = "onboarding-flow-save-projects-fr.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-save-projects-fr.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-save-projects-fr.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -17403,7 +17411,7 @@
 		};
 		"5A96105AF2EEE3239B7D1BEE" = {
 			"name" = "onboarding-flow-login-signup-en.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-login-signup-en.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-login-signup-en.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -18542,7 +18550,7 @@
 		};
 		"E1C2F2B03B51800F46583604" = {
 			"name" = "onboarding-flow-enable-notifications-fr.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-enable-notifications-fr.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-enable-notifications-fr.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -19160,7 +19168,7 @@
 		};
 		"855328AD0F8CD2E3329B0424" = {
 			"name" = "onboarding-flow-login-signup-fr.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-login-signup-fr.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-login-signup-fr.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -22260,7 +22268,7 @@
 		};
 		"D48B4CDA6E5E6FCA50EC9452" = {
 			"name" = "onboarding-flow-welcome-fr.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-welcome-fr.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-welcome-fr.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -22466,7 +22474,7 @@
 		};
 		"2D67D8971651F20589A0E8D3" = {
 			"name" = "onboarding-flow-save-projects-es.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-save-projects-es.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-save-projects-es.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
@@ -24599,7 +24607,7 @@
 		};
 		"B7B5BFE66D8E06F8FC9E0583" = {
 			"name" = "onboarding-flow-enable-notifications-ja.json";
-			"path" = "Kickstarter-iOS/3 - App Resources/onboarding-flow-enable-notifications-ja.json";
+			"path" = "Kickstarter-iOS/3 - App Resources/Locales/Onboarding/onboarding-flow-enable-notifications-ja.json";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "text";
