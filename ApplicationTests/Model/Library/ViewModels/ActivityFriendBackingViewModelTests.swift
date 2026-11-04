@@ -3,39 +3,26 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 internal final class ActivityFriendBackingViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  fileprivate let vm: ActivityFriendBackingViewModelType = ActivityFriendBackingViewModel()
-
-  fileprivate let cellAccessibilityLabel = TestObserver<String, Never>()
-  fileprivate let friendTitleLabel = TestObserver<String, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-    MainActor.assumeIsolated {
-      self.vm.outputs.friendTitle.map { $0.string }.observe(self.friendTitleLabel.observer)
-      self.vm.outputs.cellAccessibilityLabel.observe(self.cellAccessibilityLabel.observer)
-    }
-  }
+  fileprivate let vm = ActivityFriendBackingViewModel()
 
   func testFrientTitle_ParentCategory() {
     let games = Project.Category.template
       |> \.id .~ 12
       |> \.name .~ "Games"
 
-    self.vm.inputs.configureWith(
+    self.vm.configureWith(
       activity:
       .template
         |> Activity.lens.category .~ .backing
         |> Activity.lens.project .~ (.template |> \.category .~ games)
     )
 
-    self.friendTitleLabel.assertValues(["Blob backed a Games project."])
+    XCTAssertEqual(self.vm.friendTitle.string, "Blob backed a Games project.")
   }
 
   func testFrientTitle_SubCategory() {
@@ -45,14 +32,14 @@ internal final class ActivityFriendBackingViewModelTests: TestCase {
       |> \.parentId .~ 1
       |> \.parentName .~ "Art"
 
-    self.vm.inputs.configureWith(
+    self.vm.configureWith(
       activity:
       .template
         |> Activity.lens.category .~ .backing
         |> Activity.lens.project .~ (.template |> \.category .~ illustration)
     )
 
-    self.friendTitleLabel.assertValues(["Blob backed an Art project."])
+    XCTAssertEqual(self.vm.friendTitle.string, "Blob backed an Art project.")
   }
 
   func testAccessibility() {
@@ -60,13 +47,22 @@ internal final class ActivityFriendBackingViewModelTests: TestCase {
       |> \.id .~ 12
       |> \.name .~ "Games"
 
-    self.vm.inputs.configureWith(
+    self.vm.configureWith(
       activity:
       .template
         |> Activity.lens.category .~ .backing
         |> Activity.lens.project .~ (.template |> \.category .~ games)
     )
 
-    self.cellAccessibilityLabel.assertValues(["Blob backed a Games project., The Project"])
+    XCTAssertEqual(self.vm.cellAccessibilityLabel, "Blob backed a Games project., The Project")
   }
+  func testProgressIsClampedAndRetainedWhenReusedWithoutProject() {
+    let project = Project.template |> Project.lens.stats.fundingProgress .~ 2.5
+    self.vm.configureWith(activity: Activity.template |> Activity.lens.project .~ project)
+    XCTAssertEqual(self.vm.fundingProgressPercentage, 1)
+    self.vm.configureWith(activity: Activity.template |> Activity.lens.project .~ nil)
+    XCTAssertEqual(self.vm.fundingProgressPercentage, 1)
+    XCTAssertEqual(self.vm.projectName, "")
+  }
+
 }

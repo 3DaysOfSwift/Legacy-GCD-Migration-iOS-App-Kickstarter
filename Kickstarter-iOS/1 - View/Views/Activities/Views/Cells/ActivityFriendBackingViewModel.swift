@@ -1,119 +1,41 @@
 import KDS
 import KsApi
 import Prelude
-import ReactiveSwift
+import Observation
 import UIKit
 
-@MainActor
-public protocol ActivityFriendBackingViewModelInputs {
-  /// Call to configure with an Activity.
-  func configureWith(activity: Activity)
-}
+@MainActor @Observable
+public final class ActivityFriendBackingViewModel {
+  public init() {}
+  public private(set) var friendImageURL: URL?
+  public private(set) var friendTitle = NSAttributedString(string: "")
+  public private(set) var fundingBarColor = UIColor.clear
+  public private(set) var fundingProgressPercentage: Float?
+  public private(set) var percentFundedText = NSAttributedString(string: "")
+  public private(set) var projectName = ""
+  public private(set) var projectImageURL: URL?
+  public private(set) var cellAccessibilityLabel = ""
 
-@MainActor
-public protocol ActivityFriendBackingViewModelOutputs {
-  /// Emits an a11y label for the cell.
-  var cellAccessibilityLabel: Signal<String, Never> { get }
-
-  /// Emits an URL for the friend avatar image view.
-  var friendImageURL: Signal<URL?, Never> { get }
-
-  /// Emits an attributed string for the "friend backed" label.
-  var friendTitle: Signal<NSAttributedString, Never> { get }
-
-  /// Emits a color for the funding progress bar.
-  var fundingBarColor: Signal<UIColor, Never> { get }
-
-  /// Emits a percentage between 0.0 and 1.0 that can be used to render the funding progress bar.
-  var fundingProgressPercentage: Signal<Float, Never> { get }
-
-  /// Emits an attributed string for percent funded label.
-  var percentFundedText: Signal<NSAttributedString, Never> { get }
-
-  /// Emits a url to the project image.
-  var projectImageURL: Signal<URL?, Never> { get }
-
-  /// Emits text for the project name label.
-  var projectName: Signal<String, Never> { get }
-}
-
-@MainActor
-public protocol ActivityFriendBackingViewModelType {
-  var inputs: ActivityFriendBackingViewModelInputs { get }
-  var outputs: ActivityFriendBackingViewModelOutputs { get }
-}
-
-@MainActor
-public final class ActivityFriendBackingViewModel: ActivityFriendBackingViewModelType,
-  ActivityFriendBackingViewModelInputs, ActivityFriendBackingViewModelOutputs {
-  public init() {
-    let activity = self.activityProperty.signal.skipNil()
-    let project = activity.map { $0.project }.skipNil()
-
-    self.friendImageURL = activity
-      .map { ($0.user?.avatar.small).flatMap(URL.init) }
-
-    self.friendTitle = activity
-      .map { activity in
-        let stringCategoryId = (
-          activity.project?.category?.parentId ?? activity.project?.category?.id
-        )
-        .map(String.init)
-
-        guard let categoryId = stringCategoryId else {
-          return NSAttributedString(string: "")
-        }
-
-        let title = string(forCategoryId: categoryId, friendName: activity.user?.name ?? "")
-        return title.simpleHtmlAttributedString(
-          base: [
-            NSAttributedString.Key.font: UIFont.ksr_subhead(size: 12),
-            NSAttributedString.Key.foregroundColor: LegacyColors.ksr_support_400.uiColor()
-          ],
-          bold: [
-            NSAttributedString.Key.font: UIFont.ksr_subhead(size: 12),
-            NSAttributedString.Key.foregroundColor: LegacyColors.ksr_support_700.uiColor()
-          ],
-          italic: [
-            NSAttributedString.Key.font: UIFont.ksr_subhead(size: 12),
-            NSAttributedString.Key.foregroundColor: LegacyColors.ksr_support_700.uiColor()
-          ]
-        )
-          ?? .init()
-      }
-
-    self.fundingBarColor = activity.map { progressBarColor(forActivityCategory: $0.category) }
-
-    self.fundingProgressPercentage = project
-      .map(Project.lens.stats.fundingProgress.view)
-      .map(clamp(0, 1))
-
-    self.percentFundedText = activity.map { activityFriendBackingViewModelPercentFundedString(forActivity: $0) }
-
-    self.projectName = activity.map { $0.project?.name ?? "" }
-
-    self.projectImageURL = activity.map { ($0.project?.photo.full).flatMap(URL.init) }
-
-    self.cellAccessibilityLabel = Signal.combineLatest(self.friendTitle, self.projectName)
-      .map { "\($0.string), \($1)" }
-  }
-
-  fileprivate let activityProperty = MutableProperty<Activity?>(nil)
   public func configureWith(activity: Activity) {
-    self.activityProperty.value = activity
+    self.friendImageURL = (activity.user?.avatar.small).flatMap(URL.init(string:))
+    let categoryID = activity.project?.category?.parentId ?? activity.project?.category?.id
+    if let categoryID {
+      let title = string(forCategoryId: String(categoryID), friendName: activity.user?.name ?? "")
+      self.friendTitle = title.simpleHtmlAttributedString(
+        base: [.font: UIFont.ksr_subhead(size: 12), .foregroundColor: LegacyColors.ksr_support_400.uiColor()],
+        bold: [.font: UIFont.ksr_subhead(size: 12), .foregroundColor: LegacyColors.ksr_support_700.uiColor()],
+        italic: [.font: UIFont.ksr_subhead(size: 12), .foregroundColor: LegacyColors.ksr_support_700.uiColor()]
+      ) ?? NSAttributedString(string: "")
+    } else { self.friendTitle = NSAttributedString(string: "") }
+    self.fundingBarColor = progressBarColor(forActivityCategory: activity.category)
+    if let project = activity.project {
+      self.fundingProgressPercentage = clamp(0, 1)(project.stats.fundingProgress)
+    }
+    self.percentFundedText = activityFriendBackingViewModelPercentFundedString(forActivity: activity)
+    self.projectName = activity.project?.name ?? ""
+    self.projectImageURL = (activity.project?.photo.full).flatMap(URL.init(string:))
+    self.cellAccessibilityLabel = "\(self.friendTitle.string), \(self.projectName)"
   }
-
-  public let friendImageURL: Signal<URL?, Never>
-  public let friendTitle: Signal<NSAttributedString, Never>
-  public let fundingBarColor: Signal<UIColor, Never>
-  public let fundingProgressPercentage: Signal<Float, Never>
-  public let percentFundedText: Signal<NSAttributedString, Never>
-  public let projectName: Signal<String, Never>
-  public let projectImageURL: Signal<URL?, Never>
-  public let cellAccessibilityLabel: Signal<String, Never>
-
-  public var inputs: ActivityFriendBackingViewModelInputs { return self }
-  public var outputs: ActivityFriendBackingViewModelOutputs { return self }
 }
 
 private func progressBarColor(forActivityCategory category: Activity.Category) -> UIColor {

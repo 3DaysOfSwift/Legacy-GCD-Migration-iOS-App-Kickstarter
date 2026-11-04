@@ -2,7 +2,6 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveSwift
 import UIKit
 
 internal final class ActivityFriendBackingCell: UITableViewCell, ValueCell {
@@ -20,45 +19,24 @@ internal final class ActivityFriendBackingCell: UITableViewCell, ValueCell {
   @IBOutlet fileprivate var projectTextContainerView: UIView!
 
   func configureWith(value: Activity) {
-    self.viewModel.inputs.configureWith(activity: value)
-  }
-
-  override func bindViewModel() {
-    self.rac.accessibilityLabel = self.viewModel.outputs.cellAccessibilityLabel
-    self.friendTitleLabel.rac.attributedText = self.viewModel.outputs.friendTitle
-    self.fundingProgressBarView.rac.backgroundColor = self.viewModel.outputs.fundingBarColor
-    self.fundingProgressLabel.rac.attributedText = self.viewModel.outputs.percentFundedText
-    self.projectNameLabel.rac.text = self.viewModel.outputs.projectName
-
-    self.viewModel.outputs.friendImageURL
-      .observeForUI()
-      .on(event: { [weak friendImageView] _ in
-        friendImageView?.af.cancelImageRequest()
-        friendImageView?.image = nil
-      })
-      .skipNil()
-      .observeValues { [weak friendImageView] url in
-        friendImageView?.ksr_setImageWithURL(url)
-      }
-
-    self.viewModel.outputs.fundingProgressPercentage
-      .observeForUI()
-      .observeValues { [weak self] progress in
-        let anchorX = progress == 0 ? 0 : 0.5 / progress
-        self?.fundingProgressBarView.layer.anchorPoint = CGPoint(x: CGFloat(anchorX), y: 0.5)
-        self?.fundingProgressBarView.transform = CGAffineTransform(scaleX: CGFloat(progress), y: 1.0)
-      }
-
-    self.viewModel.outputs.projectImageURL
-      .observeForUI()
-      .on(event: { [weak projectImageView] _ in
-        projectImageView?.af.cancelImageRequest()
-        projectImageView?.image = nil
-      })
-      .skipNil()
-      .observeValues { [weak projectImageView] url in
-        projectImageView?.ksr_setImageWithURL(url)
-      }
+    self.viewModel.configureWith(activity: value)
+    let model = self.viewModel
+    self.accessibilityLabel = model.cellAccessibilityLabel
+    self.friendTitleLabel.attributedText = model.friendTitle
+    self.fundingProgressBarView.backgroundColor = model.fundingBarColor
+    self.fundingProgressLabel.attributedText = model.percentFundedText
+    self.projectNameLabel.text = model.projectName
+    self.friendImageView.af.cancelImageRequest()
+    self.friendImageView.image = nil
+    if let url = model.friendImageURL { self.friendImageView.ksr_setImageWithURL(url) }
+    if let progress = model.fundingProgressPercentage {
+      let anchorX = progress == 0 ? 0 : 0.5 / progress
+      self.fundingProgressBarView.layer.anchorPoint = CGPoint(x: CGFloat(anchorX), y: 0.5)
+      self.fundingProgressBarView.transform = CGAffineTransform(scaleX: CGFloat(progress), y: 1)
+    }
+    self.projectImageView.af.cancelImageRequest()
+    self.projectImageView.image = nil
+    if let url = model.projectImageURL { self.projectImageView.ksr_setImageWithURL(url) }
   }
 
   override func bindStyles() {
