@@ -101,6 +101,31 @@ final class MessagingFeatureTests: TestCase {
     XCTAssertEqual(self.feature.snapshot(route: secondRoute).threads.map(\.id), [2])
   }
 
+  func testMailboxPresentationPagesAndRejectsLateResultAfterSwitch() async throws {
+    let vm = MessageThreadsViewModel(feature: self.feature)
+    vm.configureWith(project: .template, refTag: nil)
+    vm.viewDidLoad()
+    await self.provider.pages.waitFor(1)
+    try self.provider.pages.finish(0, .success(self.page([1, 2])))
+    await vm.waitForPresentation()
+    XCTAssertEqual(vm.messageThreads.map(\.id), [1, 2])
+    XCTAssertTrue(vm.loadingFooterIsHidden)
+
+    vm.willDisplayRow(1, outOf: 2)
+    await self.provider.pages.waitFor(2)
+    XCTAssertFalse(vm.loadingFooterIsHidden)
+    vm.switchTo(mailbox: .sent)
+    XCTAssertTrue(vm.messageThreads.isEmpty)
+    await self.provider.pages.waitFor(3)
+    try self.provider.pages.finish(2, .success(self.page([4])))
+    await vm.waitForPresentation()
+    try self.provider.pages.finish(1, .success(self.page([99])))
+    await Task.yield()
+    XCTAssertEqual(vm.messageThreads.map(\.id), [4])
+    XCTAssertTrue(vm.loadingFooterIsHidden)
+    XCTAssertFalse(vm.emptyStateIsVisible)
+  }
+
   func testClearedSearchRejectsTransportThatIgnoresCancellation() async throws {
     let vm = MessagesSearchViewModel(feature: self.feature, sleep: { _ in })
     vm.configureWith(project: nil); vm.viewDidLoad()
