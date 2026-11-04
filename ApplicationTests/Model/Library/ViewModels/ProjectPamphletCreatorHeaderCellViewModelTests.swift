@@ -1,26 +1,16 @@
 @testable import Kickstarter_iOS
 import Foundation
+import XCTest
 @testable import KsApi
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 
 @MainActor
 final class ProjectPamphletCreatorHeaderCellViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private let vm: ProjectPamphletCreatorHeaderCellViewModelType = ProjectPamphletCreatorHeaderCellViewModel()
-
-  private let launchDateLabelAttributedText = TestObserver<String, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.launchDateLabelAttributedText.map { $0.string }
-      .observe(self.launchDateLabelAttributedText.observer)
-  }
+  private let vm = ProjectPamphletCreatorHeaderCellViewModel()
 
   func testLaunchDateLabelAttributedText() {
     let dateComponents = DateComponents()
@@ -38,12 +28,12 @@ final class ProjectPamphletCreatorHeaderCellViewModelTests: TestCase {
       let project = Project.template
         |> \.dates.launchedAt .~ date!.timeIntervalSince1970
 
-      self.launchDateLabelAttributedText.assertDidNotEmitValue()
+      XCTAssertNil(self.vm.launchDateLabelAttributedText)
 
-      self.vm.inputs.configure(with: project)
+      self.vm.configure(with: project)
 
-      self.launchDateLabelAttributedText
-        .assertValue("You launched this project on November 7, 2019. For creator tools, head to our website!")
+      XCTAssertEqual(self.vm.launchDateLabelAttributedText?.string,
+                     "You launched this project on November 7, 2019. For creator tools, head to our website!")
     }
   }
 }

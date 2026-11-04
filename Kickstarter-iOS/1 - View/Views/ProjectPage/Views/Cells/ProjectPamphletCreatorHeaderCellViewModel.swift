@@ -1,43 +1,17 @@
 import Foundation
 import KDS
 import KsApi
-import ReactiveSwift
+import Observation
 import UIKit
 
 @MainActor
-public protocol ProjectPamphletCreatorHeaderCellViewModelInputs {
-  func configure(with project: Project)
-}
-
-@MainActor
-public protocol ProjectPamphletCreatorHeaderCellViewModelOutputs {
-  var launchDateLabelAttributedText: Signal<NSAttributedString, Never> { get }
-}
-
-@MainActor
-public protocol ProjectPamphletCreatorHeaderCellViewModelType {
-  var inputs: ProjectPamphletCreatorHeaderCellViewModelInputs { get }
-  var outputs: ProjectPamphletCreatorHeaderCellViewModelOutputs { get }
-}
-
-@MainActor
-public final class ProjectPamphletCreatorHeaderCellViewModel: ProjectPamphletCreatorHeaderCellViewModelType,
-  ProjectPamphletCreatorHeaderCellViewModelInputs, ProjectPamphletCreatorHeaderCellViewModelOutputs {
-  public init() {
-    self.launchDateLabelAttributedText = self.projectSignal
-      .map { attributedLaunchDateString(with: $0) }
-      .skipNil()
-  }
-
-  private let (projectSignal, projectObserver) = Signal<Project, Never>.pipe()
+@Observable
+public final class ProjectPamphletCreatorHeaderCellViewModel {
+  public init() {}
+  public private(set) var launchDateLabelAttributedText: NSAttributedString?
   public func configure(with project: Project) {
-    self.projectObserver.send(value: project)
+    self.launchDateLabelAttributedText = attributedLaunchDateString(with: project)
   }
-
-  public let launchDateLabelAttributedText: Signal<NSAttributedString, Never>
-
-  public var inputs: ProjectPamphletCreatorHeaderCellViewModelInputs { return self }
-  public var outputs: ProjectPamphletCreatorHeaderCellViewModelOutputs { return self }
 }
 
 @MainActor

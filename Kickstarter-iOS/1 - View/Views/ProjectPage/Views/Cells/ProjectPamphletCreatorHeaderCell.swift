@@ -8,15 +8,13 @@ final class ProjectPamphletCreatorHeaderCell: UITableViewCell, ValueCell {
   // MARK: Properties
 
   private let launchDateLabel: UILabel = { UILabel(frame: .zero) }()
-  private let viewModel: ProjectPamphletCreatorHeaderCellViewModelType =
-    ProjectPamphletCreatorHeaderCellViewModel()
+  private let viewModel = ProjectPamphletCreatorHeaderCellViewModel()
 
   // MARK: Lifecycle
 
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
     super.init(style: style, reuseIdentifier: reuseIdentifier)
     self.configureViews()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -27,7 +25,8 @@ final class ProjectPamphletCreatorHeaderCell: UITableViewCell, ValueCell {
   // MARK: Configuration
 
   internal func configureWith(value project: Project) {
-    self.viewModel.inputs.configure(with: project)
+    self.viewModel.configure(with: project)
+    self.launchDateLabel.attributedText = self.viewModel.launchDateLabelAttributedText
   }
 
   private func configureViews() {
@@ -37,11 +36,6 @@ final class ProjectPamphletCreatorHeaderCell: UITableViewCell, ValueCell {
   }
 
   // MARK: - View model
-
-  override func bindViewModel() {
-    super.bindViewModel()
-    self.launchDateLabel.rac.attributedText = self.viewModel.outputs.launchDateLabelAttributedText
-  }
 
   // MARK: - Styles
 
