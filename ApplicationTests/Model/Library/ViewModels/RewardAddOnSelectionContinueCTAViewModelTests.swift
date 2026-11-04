@@ -1,83 +1,31 @@
 @testable import Kickstarter_iOS
-import Foundation
-@testable import KsApi
-
-
-import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
+@MainActor
 final class RewardAddOnSelectionContinueCTAViewModelTests: TestCase {
-  private let vm: RewardAddOnSelectionContinueCTAViewModelType = RewardAddOnSelectionContinueCTAViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private let buttonEnabled = TestObserver<Bool, Never>()
-  private let buttonTitle = TestObserver<String, Never>()
-  private let isLoading = TestObserver<Bool, Never>()
+  func testButtonStatesAndTitlesUpdateWhenReconfigured() {
+    let view = RewardAddOnSelectionContinueCTAView(frame: .zero)
+    view.configure(with: (0, false, false, nil))
+    XCTAssertFalse(view.continueButton.isEnabled)
+    XCTAssertEqual(view.continueButton.title(for: .normal), "Continue")
 
-  override func setUp() async throws {
-    try await super.setUp()
+    view.configure(with: (2, true, true, NSAttributedString(string: "$20")))
+    XCTAssertTrue(view.continueButton.isEnabled)
+    XCTAssertTrue(view.continueButton.isLoading)
+    view.configure(with: (2, true, false, NSAttributedString(string: "$20")))
+    XCTAssertEqual(view.continueButton.title(for: .disabled), "Continue with 2 add-ons")
 
-    self.vm.outputs.buttonEnabled.observe(self.buttonEnabled.observer)
-    self.vm.outputs.buttonTitle.observe(self.buttonTitle.observer)
-    self.vm.outputs.isLoading.observe(self.isLoading.observer)
+    view.configure(with: (1, true, false, nil))
+    XCTAssertFalse(view.continueButton.isLoading)
+    XCTAssertEqual(view.continueButton.title(for: .normal), "Continue with 1 add-on")
   }
 
-  func testButtonEnabled_Valid() {
-    self.buttonEnabled.assertDidNotEmitValue()
-
-    self.vm.inputs.configure(with: (0, true, false, nil))
-
-    self.buttonEnabled.assertValues([true])
-  }
-
-  func testButtonEnabled_Invalid() {
-    self.buttonEnabled.assertDidNotEmitValue()
-
-    self.vm.inputs.configure(with: (0, false, false, nil))
-
-    self.buttonEnabled.assertValues([false])
-  }
-
-  func testButtonIsLoading_IsLoading() {
-    self.isLoading.assertDidNotEmitValue()
-
-    self.vm.inputs.configure(with: (0, true, true, nil))
-
-    self.isLoading.assertValues([true])
-  }
-
-  func testButtonIsLoading_IsNotLoading() {
-    self.isLoading.assertDidNotEmitValue()
-
-    self.vm.inputs.configure(with: (0, false, false, nil))
-
-    self.isLoading.assertValues([false])
-  }
-
-  func testButtonTitle() {
-    self.buttonTitle.assertDidNotEmitValue()
-
-    self.vm.inputs.configure(with: (0, true, false, nil))
-
-    self.buttonTitle.assertValues(["Continue"])
-
-    self.vm.inputs.configure(with: (2, true, false, nil))
-
-    self.buttonTitle.assertValues(["Continue", "Continue with 2 add-ons"])
-
-    self.vm.inputs.configure(with: (0, true, false, nil))
-
-    self.buttonTitle.assertValues(["Continue", "Continue with 2 add-ons", "Continue"])
-
-    self.vm.inputs.configure(with: (1, true, false, nil))
-
-    self.buttonTitle.assertValues([
-      "Continue",
-      "Continue with 2 add-ons",
-      "Continue",
-      "Continue with 1 add-on"
-    ])
+  func testPledgeAmountIsPreservedInPresentationState() {
+    let amount = NSAttributedString(string: "$20")
+    let state = RewardAddOnSelectionContinueCTAState(data: (2, true, false, amount))
+    XCTAssertEqual(state.pledgeAmount, amount)
+    XCTAssertEqual(state.buttonTitle, "Continue with 2 add-ons")
   }
 }

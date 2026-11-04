@@ -32,9 +32,6 @@ final class RewardAddOnSelectionContinueCTAView: UIView {
       |> \.translatesAutoresizingMaskIntoConstraints .~ false
   }()
 
-  private let viewModel: RewardAddOnSelectionContinueCTAViewModelType
-    = RewardAddOnSelectionContinueCTAViewModel()
-
   // MARK: - Lifecycle
 
   override init(frame: CGRect) {
@@ -42,7 +39,6 @@ final class RewardAddOnSelectionContinueCTAView: UIView {
 
     self.configureSubviews()
     self.setupConstraints()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -83,42 +79,20 @@ final class RewardAddOnSelectionContinueCTAView: UIView {
     self.continueButton.titleLabel?.font = buttonFont.monospaced
   }
 
-  // MARK: - View Model
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.continueButton.rac.enabled = self.viewModel.outputs.buttonEnabled
-    self.pledgeAmountStackView.rac.hidden = self.viewModel.outputs.pledgeAmountHidden
-
-    self.viewModel.outputs.buttonTitle
-      .observeForUI()
-      .observeValues { [weak self] text in
-        guard let self = self else { return }
-
-        /// Required to work around a quirk with titles in `LoadingButton`.
-        [UIControl.State.normal, .highlighted, .disabled, .selected]
-          .map { state in (text, state) }
-          .forEach(self.continueButton.setTitle)
-      }
-
-    self.viewModel.outputs.isLoading
-      .observeForUI()
-      .observeValues { [weak self] isLoading in
-        self?.continueButton.isLoading = isLoading
-      }
-
-    self.viewModel.outputs.pledgeAmountText
-      .observeForUI()
-      .observeValues { [weak self] text in
-        self?.pledgeAmount.attributedText = text
-      }
-  }
-
   // MARK: - Configuration
 
   func configure(with data: RewardAddOnSelectionContinueCTAViewData) {
-    self.viewModel.inputs.configure(with: data)
+    let state = RewardAddOnSelectionContinueCTAState(data: data)
+    self.continueButton.isEnabled = state.buttonEnabled
+    self.pledgeAmountStackView.isHidden = state.pledgeAmount == nil
+    // LoadingButton needs its title set for every control state before loading changes.
+    for controlState: UIControl.State in [.normal, .highlighted, .disabled, .selected] {
+      self.continueButton.setTitle(state.buttonTitle, for: controlState)
+    }
+    self.continueButton.isLoading = state.isLoading
+    if let pledgeAmount = state.pledgeAmount {
+      self.pledgeAmount.attributedText = pledgeAmount
+    }
   }
 
   // MARK: Functions
