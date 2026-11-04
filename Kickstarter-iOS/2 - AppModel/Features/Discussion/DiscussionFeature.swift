@@ -440,7 +440,7 @@ public final class DiscussionFeature {
     let userID: Int?
   }
 
-  private var updates: [UUID: (identity: UpdateIdentity, id: UUID, task: Task<Void, Never>)] = [:]
+  private var updates: [UUID: (identity: UpdateIdentity, id: UUID, task: Task<Update?, Never>)] = [:]
   private var projects: [UUID: (param: Param, userID: Int?, id: UUID, task: Task<Void, Never>)] = [:]
   private let updatePipe = Signal<(UUID, Update), Never>.pipe()
   private let projectPipe = Signal<(UUID, Project), Never>.pipe()
@@ -449,28 +449,30 @@ public final class DiscussionFeature {
 
   public func loadUpdate(route: UUID, id: Int, project: Param) async {
     guard !Task.isCancelled else { return }
-    await self.requestUpdate(route: route, id: id, project: project).value
+    _ = await self.requestUpdate(route: route, id: id, project: project).value
   }
 
   @discardableResult
-  public func requestUpdate(route: UUID, id: Int, project: Param) -> Task<Void, Never> {
+  public func requestUpdate(route: UUID, id: Int, project: Param) -> Task<Update?, Never> {
     let identity = UpdateIdentity(project: project, id: id, userID: AppEnvironment.current.currentUser?.id)
     if let existing = self.updates[route], existing.identity == identity { return existing.task }
     self.updates[route]?.task.cancel()
     let provider = self.makeProvider()
     let token = UUID()
-    let task = Task { [weak self] in
+    let task: Task<Update?, Never> = Task { [weak self] in
       defer { if self?.updates[route]?.id == token { self?.updates[route] = nil } }
       do {
         try Task.checkCancellation()
-        guard identity.userID == AppEnvironment.current.currentUser?.id else { return }
+        guard identity.userID == AppEnvironment.current.currentUser?.id else { return nil }
         let update = try await provider.update(id: id, project: project)
         try Task.checkCancellation()
         guard let self, self.updates[route]?.id == token,
-              identity.userID == AppEnvironment.current.currentUser?.id else { return }
+              identity.userID == AppEnvironment.current.currentUser?.id else { return nil }
         self.updatePipe.input.send(value: (route, update))
+        return update
       } catch {
         // Existing navigation silently demotes lookup errors.
+        return nil
       }
     }
     self.updates[route] = (identity, token, task)

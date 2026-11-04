@@ -52,7 +52,7 @@ internal final class UpdateViewModel: UpdateViewModelType, UpdateViewModelInputs
   private let feature: DiscussionFeature
   private let route = UUID()
   private let disposables = ScopedDisposable(CompositeDisposable())
-  private var updateTask: Task<Void, Never>?
+  private var updateTask: Task<Update?, Never>?
   private var projectTask: Task<Void, Never>?
   private let projectNavigation = Signal<(WKNavigationActionData, Project, RefTag), Never>.pipe()
   private var pendingProjectNavigation: (WKNavigationActionData, RefTag)?
@@ -190,7 +190,7 @@ internal final class UpdateViewModel: UpdateViewModelType, UpdateViewModelInputs
   }
 
   func waitForLoads() async {
-    await self.updateTask?.value
+    _ = await self.updateTask?.value
     await self.projectTask?.value
   }
 

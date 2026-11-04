@@ -1,268 +1,112 @@
 import KsApi
 import MessageUI
-import Prelude
-import ReactiveSwift
 import WebKit
 
 @MainActor
-public protocol ProjectUpdatesViewModelInputs {
-  /// Call to set whether Mail can be composed.
-  func canSendEmail(_ canSend: Bool)
-
-  /// Call with the project given to the view.
-  func configureWith(project: Project)
-
-  /// Call with the navigation action given to the webview's delegate method. Returns the policy that can
-  /// be returned from the delegate method.
-  func decidePolicy(forNavigationAction action: WKNavigationActionData) -> WKNavigationActionPolicy
-
-  /// Call when mail compose view controller has closed with a result.
-  func mailComposeCompletion(result: MFMailComposeResult)
-
-  /// Call when the view loads.
-  func viewDidLoad()
-
-  /// Call when webview did finish navigation.
-  func webViewDidFinishNavigation()
-
-  /// Call when webview did start navigation.
-  func webViewDidStartProvisionalNavigation()
-}
-
-@MainActor
-public protocol ProjectUpdatesViewModelOutputs {
-  /// Emits when we should open a safari browser with the URL.
-  var goToSafariBrowser: Signal<URL, Never> { get }
-
-  /// Emits with the project and update when we should go to the update.
-  var goToUpdate: Signal<(Project, Update), Never> { get }
-
-  /// Emits with the project when we should go to the update comments.
-  var goToUpdateComments: Signal<Update, Never> { get }
-
-  /// Emits when the webview content is loading.
-  var isActivityIndicatorHidden: Signal<Bool, Never> { get }
-
-  /// Emits when app should make phone call.
-  var makePhoneCall: Signal<URL, Never> { get }
-
-  /// Emits to show a MFMailComposeViewController.
-  var showMailCompose: Signal<String, Never> { get }
-
-  /// Emits to show an alert when device can not send emails.
-  var showNoEmailError: Signal<UIAlertController, Never> { get }
-
-  /// Emits a request that should be loaded into the web view.
-  var webViewLoadRequest: Signal<URLRequest, Never> { get }
-}
-
-@MainActor
-public protocol ProjectUpdatesViewModelType {
-  var inputs: ProjectUpdatesViewModelInputs { get }
-  var outputs: ProjectUpdatesViewModelOutputs { get }
-}
-
-@MainActor
-public final class ProjectUpdatesViewModel: ProjectUpdatesViewModelType, ProjectUpdatesViewModelInputs,
-  ProjectUpdatesViewModelOutputs {
+public final class ProjectUpdatesViewModel {
+  public var onSafari: ((URL) -> Void)?
+  public var onUpdate: ((Project, Update) -> Void)?
+  public var onComments: ((Update) -> Void)?
+  public var onActivityHidden: ((Bool) -> Void)?
+  public var onPhone: ((URL) -> Void)?
+  public var onMail: ((String) -> Void)?
+  public var onNoEmail: ((UIAlertController) -> Void)?
+  public var onLoadRequest: ((URLRequest) -> Void)?
   private let feature: DiscussionFeature
   private let route = UUID()
   private let commentsRoute = UUID()
-  private let disposables = ScopedDisposable(CompositeDisposable())
+  private var project: Project?
+  private var loaded = false
+  private var canSend = false
+  private var hasMailCapability = false
+  private var hasPhoneCapability = false
+  private var updateRevision = 0
+  private var commentsRevision = 0
   private(set) var loadingTask: Task<Void, Never>?
   private(set) var contextTask: Task<Void, Never>?
 
   public init(feature: DiscussionFeature? = nil) {
-    let feature = feature ?? AppModel.shared.discussionFeature
-    self.feature = feature
-    let route = self.route
-    let commentsRoute = self.commentsRoute
-    let navigationAction = self.navigationAction.signal.skipNil()
-
-    let canMakePhoneCall = self.canMakePhoneCallProperty.signal.skipNil()
-
-    let canSendEmail = self.canSendEmailProperty.signal.skipNil()
-
-    let project = Signal.combineLatest(self.projectProperty.signal.skipNil(), self.viewDidLoadProperty.signal)
-      .map(first)
-
-    let initialUpdatesIndexLoadRequest = project.map { URL(string: $0.urls.web.updates ?? "") }.skipNil()
-
-    let anotherIndexRequest = navigationAction
-      .filter { $0.navigationType == .linkActivated && isUpdatesRequest(request: $0.request) }
-      .map { $0.request.url }
-      .skipNil()
-
-    let goToCommentsRequest = navigationAction
-      .filter { isGoToCommentsRequest(request: $0.request) }
-      .map { projectUpdateParams(fromRequest: $0.request) }
-      .skipNil()
-
-    let goToUpdateRequest = navigationAction
-      .filter { isGoToUpdateRequest(request: $0.request) }
-      .map { projectUpdateParams(fromRequest: $0.request) }
-      .skipNil()
-
-    self.decidedPolicy <~ navigationAction
-      .map { action in
-        action.navigationType == .other || action.targetFrame?.mainFrame == .some(false)
-          ? .allow
-          : .cancel
-      }
-
-    self.goToSafariBrowser = navigationAction
-      .filter {
-        $0.navigationType == .linkActivated &&
-          !isGoToCommentsRequest(request: $0.request) &&
-          !isGoToUpdateRequest(request: $0.request) &&
-          !isUpdatesRequest(request: $0.request) &&
-          !isPhoneLink(action: $0) &&
-          !isEmailLink(action: $0)
-      }
-      .map { $0.request.url }
-      .skipNil()
-
-    let emailLink = navigationAction
-      .filter { (action: WKNavigationActionData) in
-        action.navigationType == .linkActivated &&
-          !isGoToCommentsRequest(request: action.request) &&
-          !isGoToUpdateRequest(request: action.request) &&
-          !isUpdatesRequest(request: action.request) &&
-          isEmailLink(action: action)
-      }
-      .map(formattedEmailAddress)
-
-    let phoneNumberLink = navigationAction
-      .filter { (action: WKNavigationActionData) in
-        action.navigationType == .linkActivated &&
-          !isGoToCommentsRequest(request: action.request) &&
-          !isGoToUpdateRequest(request: action.request) &&
-          !isUpdatesRequest(request: action.request) &&
-          isPhoneLink(action: action)
-      }
-      .map { $0.request.url }
-      .skipNil()
-
-    self.makePhoneCall = canMakePhoneCall
-      .takePairWhen(phoneNumberLink)
-      .map { $0.1 }
-
-    self.showMailCompose = canSendEmail
-      .takePairWhen(emailLink)
-      .filter { canSend, _ in canSend == true }
-      .map { $0.1 }
-
-    self.showNoEmailError = canSendEmail
-      .takePairWhen(emailLink)
-      .filter { canSend, _ in !canSend }
-      .map { _ in noEmailError() }
-
-    self.goToUpdate = project.takePairWhen(feature.updateValues.filter { $0.0 == route }.map { $0.1 })
-
-    self.goToUpdateComments = feature.updateValues.filter { $0.0 == commentsRoute }.map { $0.1 }
-
-    self.isActivityIndicatorHidden = Signal.merge(
-      self.webViewDidFinishNavigationProperty.signal.mapConst(true),
-      self.webViewDidStartProvisionalNavigationProperty.signal.mapConst(false)
-    )
-
-    self.webViewLoadRequest = Signal.merge(initialUpdatesIndexLoadRequest, anotherIndexRequest)
-      .map { AppEnvironment.current.apiService.preparedRequest(forURL: $0) }
-
-    // Tracking
-
-    project
-      .observeValues { project in
-        AppEnvironment.current.ksrAnalytics.trackProjectViewed(
-          project,
-          sectionContext: .updates
-        )
-      }
-    self.disposables += goToUpdateRequest.observeValues { [weak self] project, id in
-      self?.loadingTask = feature.requestUpdate(route: route, id: id, project: project)
-    }
-    self.disposables += goToCommentsRequest.observeValues { [weak self] project, id in
-      self?.contextTask = feature.requestUpdate(route: commentsRoute, id: id, project: project)
-    }
+    self.feature = feature ?? AppModel.shared.discussionFeature
   }
 
-  fileprivate let canSendEmailProperty = MutableProperty<Bool?>(nil)
-  public func canSendEmail(_ canSend: Bool) {
-    self.canSendEmailProperty.value = canSend
-  }
-
-  fileprivate let mailComposeCompletionProperty = MutableProperty<MFMailComposeResult?>(nil)
-  public func mailComposeCompletion(result: MFMailComposeResult) {
-    self.mailComposeCompletionProperty.value = result
-  }
-
-  fileprivate let navigationAction = MutableProperty<WKNavigationActionData?>(nil)
-  fileprivate let decidedPolicy = MutableProperty(WKNavigationActionPolicy.cancel)
-  public func decidePolicy(forNavigationAction action: WKNavigationActionData)
-    -> WKNavigationActionPolicy {
-    self.navigationAction.value = action
-    return self.decidedPolicy.value
-  }
-
-  fileprivate let projectProperty = MutableProperty<Project?>(nil)
   public func configureWith(project: Project) {
-    self.projectProperty.value = project
+    self.project = project
+    if self.loaded { self.presentProject(project) }
   }
 
-  fileprivate let canMakePhoneCallProperty = MutableProperty<Bool?>(nil)
-  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
-    self.canMakePhoneCallProperty.value = canMakePhoneCall()
+    self.loaded = true
+    self.hasPhoneCapability = true
+    if let project = self.project { self.presentProject(project) }
   }
 
-  fileprivate let webViewDidFinishNavigationProperty = MutableProperty(())
-  public func webViewDidFinishNavigation() {
-    self.webViewDidFinishNavigationProperty.value = ()
+  private func presentProject(_ project: Project) {
+    if let url = URL(string: project.urls.web.updates ?? "") {
+      self.onLoadRequest?(AppEnvironment.current.apiService.preparedRequest(forURL: url))
+    }
+    AppEnvironment.current.ksrAnalytics.trackProjectViewed(project, sectionContext: .updates)
   }
 
-  fileprivate let webViewDidStartProvisionalNavigationProperty = MutableProperty(())
-  public func webViewDidStartProvisionalNavigation() {
-    self.webViewDidStartProvisionalNavigationProperty.value = ()
+  public func canSendEmail(_ canSend: Bool) { self.canSend = canSend; self.hasMailCapability = true }
+  public func mailComposeCompletion(result: MFMailComposeResult) {}
+  public func webViewDidFinishNavigation() { self.onActivityHidden?(true) }
+  public func webViewDidStartProvisionalNavigation() { self.onActivityHidden?(false) }
+
+  public func decidePolicy(forNavigationAction action: WKNavigationActionData) -> WKNavigationActionPolicy {
+    let request = action.request
+    let comments = isGoToCommentsRequest(request: request)
+    let update = isGoToUpdateRequest(request: request)
+    let updates = isUpdatesRequest(request: request)
+    if comments, let params = projectUpdateParams(fromRequest: request) {
+      self.load(params, comments: true)
+    }
+    if update, let params = projectUpdateParams(fromRequest: request) {
+      self.load(params, comments: false)
+    }
+    if action.navigationType == .linkActivated {
+      if updates, let url = request.url {
+        self.onLoadRequest?(AppEnvironment.current.apiService.preparedRequest(forURL: url))
+      } else if !comments && !update && !updates {
+        if isPhoneLink(action: action), self.hasPhoneCapability, let url = request.url {
+          self.onPhone?(url)
+        } else if isEmailLink(action: action), self.hasMailCapability {
+          if self.canSend { self.onMail?(formattedEmailAddress(action)) } else { self.onNoEmail?(noEmailError()) }
+        } else if !isPhoneLink(action: action), !isEmailLink(action: action), let url = request.url {
+          self.onSafari?(url)
+        }
+      }
+    }
+    return action.navigationType == .other || action.targetFrame?.mainFrame == .some(false) ? .allow : .cancel
   }
 
-  public let goToSafariBrowser: Signal<URL, Never>
-  public let goToUpdate: Signal<(Project, Update), Never>
-  public let goToUpdateComments: Signal<Update, Never>
-  public let isActivityIndicatorHidden: Signal<Bool, Never>
-  public let makePhoneCall: Signal<URL, Never>
-  public let showMailCompose: Signal<String, Never>
-  public let showNoEmailError: Signal<UIAlertController, Never>
-  public let webViewLoadRequest: Signal<URLRequest, Never>
+  private func load(_ params: (projectParam: Param, updateId: Int), comments: Bool) {
+    let route = comments ? self.commentsRoute : self.route
+    let request = self.feature.requestUpdate(route: route, id: params.updateId, project: params.projectParam)
+    if comments { self.commentsRevision += 1 } else { self.updateRevision += 1 }
+    let revision = comments ? self.commentsRevision : self.updateRevision
+    let task = Task { [weak self] in
+      guard let update = await request.value, !Task.isCancelled, let self else { return }
+      if comments {
+        guard self.commentsRevision == revision else { return }
+        self.onComments?(update)
+      } else {
+        guard self.updateRevision == revision, self.loaded, let project = self.project else { return }
+        self.onUpdate?(project, update)
+      }
+    }
+    if comments { self.contextTask = task } else { self.loadingTask = task }
+  }
 
   deinit {
     self.loadingTask?.cancel()
     self.contextTask?.cancel()
-
     let feature = self.feature
     let route = self.route
     let commentsRoute = self.commentsRoute
-    Task { @MainActor in
-      feature.release(route: route)
-      feature.release(route: commentsRoute)
-    }
+    Task { @MainActor in feature.release(route: route); feature.release(route: commentsRoute) }
   }
 
-  func waitForLoads() async {
-    await self.contextTask?.value
-    await self.loadingTask?.value
-  }
-
-  public var inputs: ProjectUpdatesViewModelInputs { return self }
-  public var outputs: ProjectUpdatesViewModelOutputs { return self }
-}
-
-@MainActor
-private func canMakePhoneCall() -> Bool {
-  guard let url = URL(string: "tel://") else {
-    return false
-  }
-  return UIApplication.shared.canOpenURL(url)
+  func waitForLoads() async { await self.contextTask?.value; await self.loadingTask?.value }
 }
 
 // Returns project and update params for update and comments requests.

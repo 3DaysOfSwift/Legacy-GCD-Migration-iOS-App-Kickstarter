@@ -7,24 +7,24 @@ import SafariServices
 import WebKit
 
 internal final class ProjectUpdatesViewController: WebViewController {
-  fileprivate let viewModel: ProjectUpdatesViewModelType = ProjectUpdatesViewModel()
+  fileprivate let viewModel = ProjectUpdatesViewModel()
   fileprivate let activityIndicator = UIActivityIndicatorView()
   internal static func configuredWith(project: Project) -> ProjectUpdatesViewController {
     let vc = ProjectUpdatesViewController()
-    vc.viewModel.inputs.configureWith(project: project)
+    vc.viewModel.configureWith(project: project)
     return vc
   }
 
   internal override func viewDidLoad() {
     super.viewDidLoad()
-    self.viewModel.inputs.canSendEmail(MFMailComposeViewController.canSendMail())
+    self.viewModel.canSendEmail(MFMailComposeViewController.canSendMail())
     self.activityIndicator.translatesAutoresizingMaskIntoConstraints = false
     self.view.addSubview(self.activityIndicator)
     NSLayoutConstraint.activate([
       self.activityIndicator.centerXAnchor.constraint(equalTo: self.view.centerXAnchor),
       self.activityIndicator.centerYAnchor.constraint(equalTo: self.view.centerYAnchor)
     ])
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   internal override func viewWillAppear(_ animated: Bool) {
@@ -46,43 +46,14 @@ internal final class ProjectUpdatesViewController: WebViewController {
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.goToSafariBrowser
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.goTo(url: $0)
-      }
-
-    self.viewModel.outputs.makePhoneCall
-      .observeForUI()
-      .observeValues { [weak self] number in
-        self?.call(number: number)
-      }
-
-    self.viewModel.outputs.showMailCompose
-      .observeForUI()
-      .observeValues { [weak self] recipient in
-        self?.openMailComposer(recipient: recipient)
-      }
-
-    self.viewModel.outputs.showNoEmailError
-      .observeForUI()
-      .observeValues { [weak self] alertController in
-        self?.present(alertController, animated: true)
-      }
-
-    self.viewModel.outputs.goToUpdate
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.goToUpdate(forProject: $0, update: $1) }
-
-    self.viewModel.outputs.goToUpdateComments
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.goToComments(forUpdate: $0) }
-
-    self.viewModel.outputs.webViewLoadRequest
-      .observeForControllerAction()
-      .observeValues { [weak self] in _ = self?.webView.load($0) }
-
-    self.activityIndicator.rac.hidden = self.viewModel.outputs.isActivityIndicatorHidden
+    self.viewModel.onSafari = { [weak self] in self?.goTo(url: $0) }
+    self.viewModel.onPhone = { [weak self] in self?.call(number: $0) }
+    self.viewModel.onMail = { [weak self] in self?.openMailComposer(recipient: $0) }
+    self.viewModel.onNoEmail = { [weak self] in self?.present($0, animated: true) }
+    self.viewModel.onUpdate = { [weak self] in self?.goToUpdate(forProject: $0, update: $1) }
+    self.viewModel.onComments = { [weak self] in self?.goToComments(forUpdate: $0) }
+    self.viewModel.onLoadRequest = { [weak self] in _ = self?.webView.load($0) }
+    self.viewModel.onActivityHidden = { [weak self] in self?.activityIndicator.isHidden = $0 }
   }
 
   fileprivate func goToComments(forUpdate update: Update) {
@@ -120,18 +91,18 @@ internal final class ProjectUpdatesViewController: WebViewController {
     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
   ) {
     decisionHandler(
-      self.viewModel.inputs.decidePolicy(
+      self.viewModel.decidePolicy(
         forNavigationAction: .init(navigationAction: navigationAction)
       )
     )
   }
 
   func webView(_: WKWebView, didStartProvisionalNavigation _: WKNavigation!) {
-    self.viewModel.inputs.webViewDidStartProvisionalNavigation()
+    self.viewModel.webViewDidStartProvisionalNavigation()
   }
 
   func webView(_: WKWebView, didFinish _: WKNavigation!) {
-    self.viewModel.inputs.webViewDidFinishNavigation()
+    self.viewModel.webViewDidFinishNavigation()
   }
 }
 
@@ -141,7 +112,7 @@ extension ProjectUpdatesViewController: @MainActor MFMailComposeViewControllerDe
     didFinishWith result: MFMailComposeResult,
     error _: Error?
   ) {
-    self.viewModel.inputs.mailComposeCompletion(result: result)
+    self.viewModel.mailComposeCompletion(result: result)
     controller.dismiss(animated: true, completion: nil)
   }
 }

@@ -3,8 +3,6 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import WebKit
 import XCTest
 
@@ -15,33 +13,31 @@ final class ProjectUpdatesViewModelTests: TestCase {
     AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
   }, sleep: { _ in try Task.checkCancellation() }))
 
-  fileprivate let goToSafariBrowser = TestObserver<URL, Never>()
-  fileprivate let goToUpdateId = TestObserver<Int, Never>()
-  fileprivate let goToUpdateCommentId = TestObserver<Int, Never>()
-  fileprivate let isActivityIndicatorHidden = TestObserver<Bool, Never>()
-  fileprivate let makePhoneCall = TestObserver<URL, Never>()
-  fileprivate let showMailCompose = TestObserver<String, Never>()
-  fileprivate let showNoEmailError = TestObserver<UIAlertController, Never>()
-  fileprivate let webViewLoadRequest = TestObserver<URLRequest, Never>()
+  fileprivate let goToSafariBrowser = UpdatesRecorder<URL>()
+  fileprivate let goToUpdateId = UpdatesRecorder<Int>()
+  fileprivate let goToUpdateCommentId = UpdatesRecorder<Int>()
+  fileprivate let isActivityIndicatorHidden = UpdatesRecorder<Bool>()
+  fileprivate let makePhoneCall = UpdatesRecorder<URL>()
+  fileprivate let showMailCompose = UpdatesRecorder<String>()
+  fileprivate let showNoEmailError = UpdatesRecorder<UIAlertController>()
+  fileprivate let webViewLoadRequest = UpdatesRecorder<URLRequest>()
 
   internal override func setUp() async throws {
     try await super.setUp()
-    MainActor.assumeIsolated {
-      self.vm.outputs.goToSafariBrowser.observe(self.goToSafariBrowser.observer)
-      self.vm.outputs.goToUpdate.map { _, update in update.id }.observe(self.goToUpdateId.observer)
-      self.vm.outputs.goToUpdateComments.map { $0.id }.observe(self.goToUpdateCommentId.observer)
-      self.vm.outputs.isActivityIndicatorHidden.observe(self.isActivityIndicatorHidden.observer)
-      self.vm.outputs.makePhoneCall.observe(self.makePhoneCall.observer)
-      self.vm.outputs.showMailCompose.observe(self.showMailCompose.observer)
-      self.vm.outputs.showNoEmailError.observe(self.showNoEmailError.observer)
-      self.vm.outputs.webViewLoadRequest.observe(self.webViewLoadRequest.observer)
-    }
+    self.vm.onSafari = { self.goToSafariBrowser.values.append($0) }
+    self.vm.onUpdate = { _, update in self.goToUpdateId.values.append(update.id) }
+    self.vm.onComments = { self.goToUpdateCommentId.values.append($0.id) }
+    self.vm.onActivityHidden = { self.isActivityIndicatorHidden.values.append($0) }
+    self.vm.onPhone = { self.makePhoneCall.values.append($0) }
+    self.vm.onMail = { self.showMailCompose.values.append($0) }
+    self.vm.onNoEmail = { self.showNoEmailError.values.append($0) }
+    self.vm.onLoadRequest = { self.webViewLoadRequest.values.append($0) }
   }
 
   func testGoToSafariBrowser() async {
     let project = Project.template
-    self.vm.inputs.configureWith(project: project)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(project: project)
+    self.vm.viewDidLoad()
 
     let googleURL = URL(string: "http://www.google.com")!
 
@@ -51,7 +47,7 @@ final class ProjectUpdatesViewModelTests: TestCase {
 
     XCTAssertEqual(
       WKNavigationActionPolicy.cancel.rawValue,
-      self.vm.inputs.decidePolicy(forNavigationAction: navigationAction).rawValue
+      self.vm.decidePolicy(forNavigationAction: navigationAction).rawValue
     )
 
     self.goToSafariBrowser.assertValues([googleURL])
@@ -64,8 +60,8 @@ final class ProjectUpdatesViewModelTests: TestCase {
 
     let updateId = 11_235
 
-    self.vm.inputs.configureWith(project: project)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(project: project)
+    self.vm.viewDidLoad()
 
     let navigationAction = self.navigationAction(
       with:
@@ -74,7 +70,7 @@ final class ProjectUpdatesViewModelTests: TestCase {
 
     XCTAssertEqual(
       WKNavigationActionPolicy.cancel.rawValue,
-      self.vm.inputs.decidePolicy(forNavigationAction: navigationAction).rawValue
+      self.vm.decidePolicy(forNavigationAction: navigationAction).rawValue
     )
 
     await self.vm.waitForLoads()
@@ -82,9 +78,9 @@ final class ProjectUpdatesViewModelTests: TestCase {
     self.goToUpdateId.assertValues([updateId])
 
     self.isActivityIndicatorHidden.assertValues([])
-    self.vm.inputs.webViewDidStartProvisionalNavigation()
+    self.vm.webViewDidStartProvisionalNavigation()
     self.isActivityIndicatorHidden.assertValues([false])
-    self.vm.inputs.webViewDidFinishNavigation()
+    self.vm.webViewDidFinishNavigation()
     self.isActivityIndicatorHidden.assertValues([false, true])
   }
 
@@ -95,8 +91,8 @@ final class ProjectUpdatesViewModelTests: TestCase {
 
     let updateId = 123_456
 
-    self.vm.inputs.configureWith(project: project)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(project: project)
+    self.vm.viewDidLoad()
 
     let navigationAction = self.navigationAction(
       with:
@@ -105,7 +101,7 @@ final class ProjectUpdatesViewModelTests: TestCase {
 
     XCTAssertEqual(
       WKNavigationActionPolicy.cancel.rawValue,
-      self.vm.inputs.decidePolicy(forNavigationAction: navigationAction).rawValue
+      self.vm.decidePolicy(forNavigationAction: navigationAction).rawValue
     )
 
     await self.vm.waitForLoads()
@@ -116,18 +112,18 @@ final class ProjectUpdatesViewModelTests: TestCase {
   func testShowMailComposeEmits_WhenEmailLinkIsTapped() async {
     let navigationAction = self.navigationAction(with: URL(string: "mailto:dead@beef.com")!)
 
-    self.vm.inputs.canSendEmail(true)
+    self.vm.canSendEmail(true)
 
-    _ = self.vm.inputs.decidePolicy(forNavigationAction: navigationAction)
+    _ = self.vm.decidePolicy(forNavigationAction: navigationAction)
     self.showMailCompose.assertValues(["dead@beef.com"])
   }
 
   func testShowEmailErrorEmits_WhenEmailLinkIsTapped_AndCantSendEmail() async {
     let navigationAction = self.navigationAction(with: URL(string: "mailto:dead@beef.com")!)
 
-    self.vm.inputs.canSendEmail(false)
+    self.vm.canSendEmail(false)
 
-    _ = self.vm.inputs.decidePolicy(forNavigationAction: navigationAction)
+    _ = self.vm.decidePolicy(forNavigationAction: navigationAction)
     self.showNoEmailError.assertDidEmitValue()
   }
 
@@ -135,8 +131,8 @@ final class ProjectUpdatesViewModelTests: TestCase {
     let phoneUrl = URL(string: "tel://5551234567")!
     let navigationAction = self.navigationAction(with: phoneUrl)
 
-    self.vm.inputs.viewDidLoad()
-    _ = self.vm.inputs.decidePolicy(forNavigationAction: navigationAction)
+    self.vm.viewDidLoad()
+    _ = self.vm.decidePolicy(forNavigationAction: navigationAction)
     self.makePhoneCall.assertValues([phoneUrl])
   }
 
@@ -149,8 +145,8 @@ final class ProjectUpdatesViewModelTests: TestCase {
       forURL: URL(string: project.urls.web.updates!)!
     )
 
-    self.vm.inputs.configureWith(project: project)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(project: project)
+    self.vm.viewDidLoad()
 
     self.webViewLoadRequest.assertValues([updatesIndexRequest])
   }
@@ -164,8 +160,8 @@ final class ProjectUpdatesViewModelTests: TestCase {
       forURL: URL(string: project.urls.web.updates!)!
     )
 
-    self.vm.inputs.configureWith(project: project)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(project: project)
+    self.vm.viewDidLoad()
 
     self.webViewLoadRequest.assertValues([updatesIndexRequest])
 
@@ -179,7 +175,7 @@ final class ProjectUpdatesViewModelTests: TestCase {
 
     XCTAssertEqual(
       WKNavigationActionPolicy.allow.rawValue,
-      self.vm.inputs.decidePolicy(forNavigationAction: navigationAction).rawValue
+      self.vm.decidePolicy(forNavigationAction: navigationAction).rawValue
     )
 
     self.webViewLoadRequest.assertValues([updatesIndexRequest], "Update loaded in VC, not web view.")
@@ -193,5 +189,17 @@ final class ProjectUpdatesViewModelTests: TestCase {
       sourceFrame: WKFrameInfoData.init(mainFrame: true, request: request),
       targetFrame: WKFrameInfoData.init(mainFrame: true, request: request)
     )
+  }
+}
+
+private final class UpdatesRecorder<Value> {
+  var values: [Value] = []
+  func assertDidEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertFalse(self.values.isEmpty, message, file: file, line: line)
+  }
+}
+private extension UpdatesRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
   }
 }
