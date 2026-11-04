@@ -26,8 +26,7 @@ final class PledgeOverTimePaymentScheduleViewController: UIViewController {
   private lazy var paymentsScheduleStackView: UIStackView = { UIStackView(frame: .zero) }()
   private lazy var termsOfUseButton: UIButton = { UIButton(frame: .zero) }()
 
-  private let viewModel: PledgeOverTimePaymentScheduleViewModelType =
-    PledgeOverTimePaymentScheduleViewModel()
+  private let viewModel = PledgeOverTimePaymentScheduleViewModel()
 
   public weak var delegate: PledgeOverTimePaymentScheduleDelegate?
 
@@ -39,7 +38,8 @@ final class PledgeOverTimePaymentScheduleViewController: UIViewController {
     self.configureViews()
     self.setupConstraints()
     self.setupGestureRecognizers()
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
+    if let items = self.viewModel.paymentScheduleItems { self.configurePaymentScheduleItems(items) }
   }
 
   // MARK: - Configuration
@@ -74,7 +74,8 @@ final class PledgeOverTimePaymentScheduleViewController: UIViewController {
   }
 
   public func configure(with increments: [PledgePaymentIncrement]) {
-    self.viewModel.inputs.configure(with: increments)
+    self.viewModel.configure(with: increments)
+    if self.isViewLoaded, let items = self.viewModel.paymentScheduleItems { self.configurePaymentScheduleItems(items) }
   }
 
   private func setupGestureRecognizers() {
@@ -105,24 +106,6 @@ final class PledgeOverTimePaymentScheduleViewController: UIViewController {
     self.paymentsScheduleStackView.addArrangedSubview(self.termsOfUseButton)
   }
 
-  // MARK: - View model
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.viewModel.outputs.collapsed
-      .observeForUI()
-      .observeValues { [weak self] isCollapsed in
-        self?.updateCollapseState(isCollapsed: isCollapsed, animated: true)
-      }
-
-    self.viewModel.outputs.paymentScheduleItems
-      .observeForUI()
-      .observeValues { [weak self] items in
-        self?.configurePaymentScheduleItems(items)
-      }
-  }
-
   // MARK: - Styles
 
   override func bindStyles() {
@@ -139,7 +122,8 @@ final class PledgeOverTimePaymentScheduleViewController: UIViewController {
   // MARK: - Actions
 
   @objc public func collapseToggle() {
-    self.viewModel.inputs.collapseToggle()
+    self.viewModel.collapseToggle()
+    self.updateCollapseState(isCollapsed: self.viewModel.collapsed, animated: true)
   }
 
   @objc private func onTermsOfUseButtonTapped() {

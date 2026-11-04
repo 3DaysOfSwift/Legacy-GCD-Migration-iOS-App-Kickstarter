@@ -2,73 +2,32 @@ import Foundation
 import KDS
 import KsApi
 import Prelude
-import ReactiveSwift
+import Observation
 import UIKit
 
-@MainActor
-public protocol PledgeOverTimePaymentScheduleViewModelInputs {
-  func configure(with increments: [PledgePaymentIncrement])
-  func collapseToggle()
-  func viewDidLoad()
-}
+@MainActor @Observable
+public final class PledgeOverTimePaymentScheduleViewModel {
+  public init() {}
+  public private(set) var collapsed = true
+  public private(set) var paymentScheduleItems: [PLOTPaymentScheduleItem]?
+  private var increments: [PledgePaymentIncrement]?
+  private var loaded = false
 
-@MainActor
-public protocol PledgeOverTimePaymentScheduleViewModelOutputs {
-  var collapsed: Signal<Bool, Never> { get }
-  var paymentScheduleItems: Signal<[PLOTPaymentScheduleItem], Never> { get }
-}
-
-@MainActor
-public protocol PledgeOverTimePaymentScheduleViewModelType {
-  var inputs: PledgeOverTimePaymentScheduleViewModelInputs { get }
-  var outputs: PledgeOverTimePaymentScheduleViewModelOutputs { get }
-}
-
-public struct PledgeOverTimePaymentScheduleViewModel: PledgeOverTimePaymentScheduleViewModelType,
-  PledgeOverTimePaymentScheduleViewModelInputs, PledgeOverTimePaymentScheduleViewModelOutputs {
-  public init() {
-    let configureWith = Signal.combineLatest(
-      self.configureWithProperty.signal,
-      self.viewDidLoadProperty.signal
-    )
-    .map(first)
-
-    let initialCollapsed = Signal.combineLatest(
-      self.collapsedProperty.signal,
-      self.viewDidLoadProperty.signal
-    )
-    .map(first)
-
-    self.collapsed = initialCollapsed
-
-    self.paymentScheduleItems = configureWith
-      .map { increments in
-        increments.map { increment in
-          PLOTPaymentScheduleItem(with: increment)
-        }
-      }
-  }
-
-  private let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    self.loaded = true
+    if let increments = self.increments {
+      self.paymentScheduleItems = increments.map { PLOTPaymentScheduleItem(with: $0) }
+    }
   }
 
-  private let configureWithProperty = MutableProperty<[PledgePaymentIncrement]>([])
   public func configure(with increments: [PledgePaymentIncrement]) {
-    self.configureWithProperty.value = increments
+    self.increments = increments
+    if self.loaded { self.paymentScheduleItems = increments.map { PLOTPaymentScheduleItem(with: $0) } }
   }
 
-  private let collapsedProperty = MutableProperty<Bool>(true)
   public func collapseToggle() {
-    self.collapsedProperty.value = !self.collapsedProperty.value
+    self.collapsed.toggle()
   }
-
-  public var collapsed: Signal<Bool, Never>
-  public var paymentScheduleItems: Signal<[PLOTPaymentScheduleItem], Never>
-
-  public var inputs: PledgeOverTimePaymentScheduleViewModelInputs { self }
-  public var outputs: PledgeOverTimePaymentScheduleViewModelOutputs { self }
 }
 
 // MARK: - PLOTPaymentScheduleItem
