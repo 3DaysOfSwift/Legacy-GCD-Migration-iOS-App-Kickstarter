@@ -38,21 +38,14 @@ import ReactiveSwift
 
   private let projectDetailsFeature: ProjectDetailsFeature
   private let route = UUID()
-  private let observation = ScopedDisposable(SerialDisposable())
+  private var revision = UUID()
   internal private(set) var loadingTask: Task<Void, Never>?
 
   init(projectDetailsFeature: ProjectDetailsFeature? = nil) {
     let feature = projectDetailsFeature ?? AppModel.shared.projectDetailsFeature
     self.projectDetailsFeature = feature
     self.navigateToProject = self.projectTappedSignal
-    self.observation.inner.inner = feature.relatedCompletions.observeValues { [weak self] route, result in
-      guard let self, self.route == route else { return }
-      self.loadingTask = nil
-      switch result {
-      case let .success(projects): self.similarProjectsProperty.value = .loaded(projects: projects)
-      case let .failure(error): self.similarProjectsProperty.value = .error(error: error)
-      }
-    }
+
   }
 
   deinit {
@@ -71,7 +64,21 @@ import ReactiveSwift
   }
 
   public func projectIDLoaded(projectID: String) {
-    self.loadingTask = self.projectDetailsFeature.requestRelated(route: self.route, projectID: projectID)
+    self.loadingTask?.cancel()
+    let revision = UUID()
+    self.revision = revision
+    let feature = self.projectDetailsFeature
+    let route = self.route
+    let userID = AppEnvironment.current.currentUser?.id
+    let command = feature.requestRelated(route: route, projectID: projectID)
+    self.loadingTask = Task { [weak self] in
+      await command.value
+      guard !Task.isCancelled, let self, self.revision == revision,
+            userID == AppEnvironment.current.currentUser?.id else { return }
+      let snapshot = feature.relatedSnapshot(for: route)
+      if let error = snapshot.error { self.similarProjectsProperty.value = .error(error: error) }
+      else { self.similarProjectsProperty.value = .loaded(projects: snapshot.projects) }
+    }
   }
 
   // MARK: - Outputs

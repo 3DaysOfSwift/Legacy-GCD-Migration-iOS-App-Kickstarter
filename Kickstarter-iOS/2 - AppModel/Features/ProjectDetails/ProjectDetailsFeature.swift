@@ -112,10 +112,6 @@ public final class ProjectDetailsFeature {
   }
 
   private var relatedPages: [UUID: RelatedPage] = [:]
-  private let relatedPipe = Signal<(UUID, Result<[ProjectCardProperties], ErrorEnvelope>), Never>.pipe()
-  public var relatedCompletions: Signal<(UUID, Result<[ProjectCardProperties], ErrorEnvelope>), Never> {
-    self.relatedPipe.output
-  }
 
   public func relatedSnapshot(for route: UUID) -> RelatedSnapshot {
     self.relatedPages[route]?.snapshot ?? RelatedSnapshot()
@@ -154,7 +150,6 @@ public final class ProjectDetailsFeature {
         try Self.checkSession(userID)
         guard let self, self.relatedPages[route]?.request?.id == requestID else { return }
         page.snapshot.projects = projects
-        self.relatedPipe.input.send(value: (route, .success(projects)))
       } catch is CancellationError {
         // Keep cancellation distinct from the existing visible error state.
       } catch {
@@ -162,7 +157,6 @@ public final class ProjectDetailsFeature {
               let self, self.relatedPages[route]?.request?.id == requestID else { return }
         let failure = (error as? ErrorEnvelope) ?? ErrorEnvelope.couldNotParseJSON
         page.snapshot.error = failure
-        self.relatedPipe.input.send(value: (route, .failure(failure)))
       }
     }
     page.request = (requestID, projectID, userID, task)
