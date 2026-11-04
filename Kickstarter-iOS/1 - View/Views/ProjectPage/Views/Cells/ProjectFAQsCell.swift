@@ -75,7 +75,6 @@ final class ProjectFAQsCell: UITableViewCell, ValueCell {
     self.bindStyles()
     self.configureViews()
     self.configureConstraints()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -84,24 +83,6 @@ final class ProjectFAQsCell: UITableViewCell, ValueCell {
   }
 
   // MARK: - Bindings
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.answerLabel.rac.text = self.viewModel.outputs.answerLabelText
-    self.answerStackView.rac.hidden = self.viewModel.outputs.answerStackViewIsHidden
-    self.questionLabel.rac.text = self.viewModel.outputs.questionLabelText
-    self.updatedLabel.rac.text = self.viewModel.outputs.updatedLabelText
-
-    self.viewModel.outputs.configureChevronImageView
-      .observeForUI()
-      .observeValues { [weak self] isExpanded in
-        guard let self = self else { return }
-
-        _ = self.chevronImageView |> isExpanded ?
-          chevronUpImageViewStyle : chevronDownImageViewStyle
-      }
-  }
 
   override func bindStyles() {
     super.bindStyles()
@@ -145,7 +126,12 @@ final class ProjectFAQsCell: UITableViewCell, ValueCell {
   // MARK: - Configuration
 
   func configureWith(value: (ProjectFAQ, Bool)) {
-    self.viewModel.inputs.configureWith(value: value)
+    self.viewModel.configureWith(value: value)
+    self.answerLabel.text = self.viewModel.answer
+    self.questionLabel.text = self.viewModel.question
+    self.answerStackView.isHidden = !self.viewModel.isExpanded
+    if let updatedText = self.viewModel.updatedText { self.updatedLabel.text = updatedText }
+    _ = self.chevronImageView |> self.viewModel.isExpanded ? chevronUpImageViewStyle : chevronDownImageViewStyle
   }
 
   private func configureViews() {
