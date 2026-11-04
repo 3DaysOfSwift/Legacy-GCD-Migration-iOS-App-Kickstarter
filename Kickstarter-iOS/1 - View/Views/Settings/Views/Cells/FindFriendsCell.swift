@@ -8,23 +8,16 @@ final class FindFriendsCell: UITableViewCell, ValueCell, NibLoading {
   @IBOutlet fileprivate var arrowImageView: UIImageView!
   @IBOutlet fileprivate var titleLabel: UILabel!
 
-  private let viewModel: FindFriendsCellViewModelType = FindFriendsCellViewModel()
+  private let viewModel = FindFriendsCellViewModel()
 
   func configureWith(value: SettingsCellValue) {
     _ = self
       |> \.accessibilityTraits .~ value.cellType.accessibilityTraits
 
-    self.viewModel.inputs.configure(with: value.user)
-  }
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.viewModel.outputs.isDisabled
-      .observeForUI()
-      .observeValues { [weak self] isDisabled in
-        self?.updateStyles(isDisabled: isDisabled)
-      }
+    self.viewModel.configure(with: value.user)
+    if value.user?.social != nil, let isDisabled = self.viewModel.isDisabled {
+      self.updateStyles(isDisabled: isDisabled)
+    }
   }
 
   override func bindStyles() {

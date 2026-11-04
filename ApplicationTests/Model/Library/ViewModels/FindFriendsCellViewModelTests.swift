@@ -1,38 +1,22 @@
 @testable import Kickstarter_iOS
 @testable import KsApi
 
-
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
-import Foundation
+@MainActor
+final class FindFriendsCellViewModelTests: XCTestCase {
+  func testFollowingAvailabilityAndMissingUser() {
+    let viewModel = FindFriendsCellViewModel()
+    XCTAssertNil(viewModel.isDisabled)
 
-internal final class FindFriendsCellViewModelTests: TestCase {
-  private let vm = FindFriendsCellViewModel()
+    viewModel.configure(with: User.template |> \.social .~ true)
+    XCTAssertEqual(viewModel.isDisabled, false)
 
-  private let isDisabled = TestObserver<Bool, Never>()
+    viewModel.configure(with: nil)
+    XCTAssertEqual(viewModel.isDisabled, false)
 
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.isDisabled.observe(self.isDisabled.observer)
-  }
-
-  func testCell_userFollowingEnabled() {
-    let user = User.template |> \.social .~ true
-
-    self.vm.configure(with: user)
-
-    self.isDisabled.assertValue(false)
-  }
-
-  func testCell_userFollowingDisabled() {
-    let user = User.template |> \.social .~ false
-
-    self.vm.configure(with: user)
-
-    self.isDisabled.assertValue(true)
+    viewModel.configure(with: User.template |> \.social .~ false)
+    XCTAssertEqual(viewModel.isDisabled, true)
   }
 }
