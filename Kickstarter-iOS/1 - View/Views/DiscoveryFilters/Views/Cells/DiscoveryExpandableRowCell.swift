@@ -4,13 +4,13 @@ import Prelude
 import UIKit
 
 internal final class DiscoveryExpandableRowCell: UITableViewCell, ValueCell {
-  fileprivate let viewModel: DiscoveryExpandableRowCellViewModelType = DiscoveryExpandableRowCellViewModel()
+  fileprivate let viewModel = DiscoveryExpandableRowCellViewModel()
 
   @IBOutlet fileprivate var filterTitleLabel: UILabel!
   @IBOutlet fileprivate var projectsCountLabel: UILabel!
 
   internal func configureWith(value: (row: ExpandableRow, categoryId: Int?)) {
-    self.viewModel.inputs.configureWith(row: value.0, categoryId: value.1)
+    self.viewModel.configureWith(row: value.0, categoryId: value.1)
   }
 
   internal override func bindStyles() {
@@ -30,33 +30,16 @@ internal final class DiscoveryExpandableRowCell: UITableViewCell, ValueCell {
       }
   }
 
-  internal override func bindViewModel() {
-    super.bindViewModel()
-
-    self.rac.accessibilityLabel = self.viewModel.outputs.cellAccessibilityLabel
-    self.rac.accessibilityHint = self.viewModel.outputs.cellAccessibilityHint
-    self.filterTitleLabel.rac.text = self.viewModel.outputs.filterTitleLabelText
-    self.projectsCountLabel.rac.text = self.viewModel.outputs.projectsCountLabelText
-    self.projectsCountLabel.rac.hidden = self.viewModel.outputs.projectsCountLabelHidden
-    self.projectsCountLabel.rac.alpha = self.viewModel.outputs.projectsCountLabelAlpha
-
-    self.viewModel.outputs.expandCategoryStyle
-      .observeForUI()
-      .observeValues { [weak filterTitleLabel] expandableRow, categoryId in
-        guard let filterTitleLabel = filterTitleLabel else { return }
-        _ = filterTitleLabel
-          |> discoveryFilterLabelStyle(categoryId: categoryId, isSelected: expandableRow.isExpanded)
-      }
-
-    self.viewModel.outputs.filterIsExpanded
-      .observeForUI()
-      .observeValues { [weak filterTitleLabel] filterIsExpanded in
-        guard let filterTitleLabel = filterTitleLabel else { return }
-        _ = filterTitleLabel |> discoveryFilterLabelFontStyle(isSelected: filterIsExpanded)
-      }
-  }
-
   internal func willDisplay() {
-    self.viewModel.inputs.willDisplay()
+    guard let display = self.viewModel.willDisplay() else { return }
+    self.accessibilityLabel = display.accessibilityLabel
+    self.accessibilityHint = display.accessibilityHint
+    self.filterTitleLabel.text = display.title
+    self.projectsCountLabel.text = display.count
+    self.projectsCountLabel.isHidden = display.countHidden
+    self.projectsCountLabel.alpha = display.countAlpha
+    _ = self.filterTitleLabel
+      |> discoveryFilterLabelStyle(categoryId: display.categoryId, isSelected: display.row.isExpanded)
+      |> discoveryFilterLabelFontStyle(isSelected: display.row.isExpanded)
   }
 }

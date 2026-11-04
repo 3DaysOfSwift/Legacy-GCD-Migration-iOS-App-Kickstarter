@@ -3,40 +3,13 @@
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class DiscoveryExpandableRowCellViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  fileprivate let vm: DiscoveryExpandableRowCellViewModelType = DiscoveryExpandableRowCellViewModel()
-
-  fileprivate let cellAccessibilityHint = TestObserver<String, Never>()
-  fileprivate let cellAccessibilityLabel = TestObserver<String, Never>()
-  fileprivate let expandCategoryStyleExpandableRow = TestObserver<ExpandableRow, Never>()
-  fileprivate let expandCategoryStyleCategoryId = TestObserver<Int?, Never>()
-  fileprivate let filterIsExpanded = TestObserver<Bool, Never>()
-  fileprivate let filterTitleLabelText = TestObserver<String, Never>()
-  fileprivate let projectsCountLabelAlpha = TestObserver<CGFloat, Never>()
-  fileprivate let projectsCountLabelHidden = TestObserver<Bool, Never>()
-  fileprivate let projectsCountLabelText = TestObserver<String, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.cellAccessibilityHint.observe(self.cellAccessibilityHint.observer)
-    self.vm.outputs.cellAccessibilityLabel.observe(self.cellAccessibilityLabel.observer)
-    self.vm.outputs.expandCategoryStyle.map(first).observe(self.expandCategoryStyleExpandableRow.observer)
-    self.vm.outputs.expandCategoryStyle.map(second).observe(self.expandCategoryStyleCategoryId.observer)
-    self.vm.outputs.filterIsExpanded.observe(self.filterIsExpanded.observer)
-    self.vm.outputs.filterTitleLabelText.observe(self.filterTitleLabelText.observer)
-    self.vm.outputs.projectsCountLabelAlpha.observe(self.projectsCountLabelAlpha.observer)
-    self.vm.outputs.projectsCountLabelHidden.observe(self.projectsCountLabelHidden.observer)
-    self.vm.outputs.projectsCountLabelText.observe(self.projectsCountLabelText.observer)
-  }
+  fileprivate let vm = DiscoveryExpandableRowCellViewModel()
 
   func testCellAccessibilityHint_WhenCollapsed() {
     let expandableRowNotExpanded = ExpandableRow(
@@ -47,10 +20,10 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
 
     let categoryId = expandableRowNotExpanded.params.category?.intID
 
-    self.vm.inputs.configureWith(row: expandableRowNotExpanded, categoryId: categoryId)
-    self.vm.inputs.willDisplay()
+    self.vm.configureWith(row: expandableRowNotExpanded, categoryId: categoryId)
+    let display = self.vm.willDisplay()
 
-    self.cellAccessibilityHint.assertValues([Strings.Expands_subcategories()])
+    XCTAssertEqual(display?.accessibilityHint, Strings.Expands_subcategories())
   }
 
   func testCellAccessibilityHint_WhenExpanded() {
@@ -61,10 +34,10 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
     )
     let categoryId = expandableRowExpanded.params.category?.intID
 
-    self.vm.inputs.configureWith(row: expandableRowExpanded, categoryId: categoryId)
-    self.vm.inputs.willDisplay()
+    self.vm.configureWith(row: expandableRowExpanded, categoryId: categoryId)
+    let display = self.vm.willDisplay()
 
-    self.cellAccessibilityHint.assertValues([Strings.Collapses_subcategories()])
+    XCTAssertEqual(display?.accessibilityHint, Strings.Collapses_subcategories())
   }
 
   func testCellAccessibilityLabel() {
@@ -75,15 +48,15 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
     )
     let categoryId = expandableRow.params.category?.intID
 
-    self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
-    self.vm.inputs.willDisplay()
+    self.vm.configureWith(row: expandableRow, categoryId: categoryId)
+    let display = self.vm.willDisplay()
 
-    self.cellAccessibilityLabel.assertValues([
+    XCTAssertEqual(display?.accessibilityLabel,
       Strings.Filter_name_project_count_live_projects(
         filter_name: expandableRow.params.category?.name ?? "",
         project_count: expandableRow.params.category?.totalProjectCount ?? 0
       )
-    ])
+    )
   }
 
   func testExpandCategoryStyle() {
@@ -94,11 +67,11 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
     )
     let categoryId = expandableRow.params.category?.intID
 
-    self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
-    self.vm.inputs.willDisplay()
+    self.vm.configureWith(row: expandableRow, categoryId: categoryId)
+    let display = self.vm.willDisplay()
 
-    self.expandCategoryStyleExpandableRow.assertValues([expandableRow])
-    self.expandCategoryStyleCategoryId.assertValues([categoryId])
+    XCTAssertEqual(display?.row, expandableRow)
+    XCTAssertEqual(display?.categoryId, categoryId)
   }
 
   func testFilterIsExpanded_Expanded() {
@@ -109,10 +82,10 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
     )
     let categoryId = expandableRow.params.category?.intID
 
-    self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
-    self.vm.inputs.willDisplay()
+    self.vm.configureWith(row: expandableRow, categoryId: categoryId)
+    let display = self.vm.willDisplay()
 
-    self.filterIsExpanded.assertValues([true])
+    XCTAssertEqual(display?.row.isExpanded, true)
   }
 
   func testFilterIsExpanded_NotExpanded() {
@@ -123,10 +96,10 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
     )
     let categoryId = expandableRow.params.category?.intID
 
-    self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
-    self.vm.inputs.willDisplay()
+    self.vm.configureWith(row: expandableRow, categoryId: categoryId)
+    let display = self.vm.willDisplay()
 
-    self.filterIsExpanded.assertValues([false])
+    XCTAssertEqual(display?.row.isExpanded, false)
   }
 
   func testFilterTitleLabelText() {
@@ -137,10 +110,10 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
     )
     let categoryId = expandableRow.params.category?.intID
 
-    self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
-    self.vm.inputs.willDisplay()
+    self.vm.configureWith(row: expandableRow, categoryId: categoryId)
+    let display = self.vm.willDisplay()
 
-    self.filterTitleLabelText.assertValues([expandableRow.params.category?.name ?? ""])
+    XCTAssertEqual(display?.title, expandableRow.params.category?.name ?? "")
   }
 
   func testProjectsCountLabelAlpha() {
@@ -151,10 +124,10 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
     )
     let categoryId = expandableRow.params.category?.intID
 
-    self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
-    self.vm.inputs.willDisplay()
+    self.vm.configureWith(row: expandableRow, categoryId: categoryId)
+    let display = self.vm.willDisplay()
 
-    self.projectsCountLabelAlpha.assertValues([0.4])
+    XCTAssertEqual(display?.countAlpha, 0.4)
   }
 
   func testProjectsCountLabelHidden() {
@@ -166,10 +139,10 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
     )
     let categoryId = expandableRow.params.category?.intID
 
-    self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
-    self.vm.inputs.willDisplay()
+    self.vm.configureWith(row: expandableRow, categoryId: categoryId)
+    let display = self.vm.willDisplay()
 
-    self.projectsCountLabelHidden.assertValues([false])
+    XCTAssertEqual(display?.countHidden, false)
   }
 
   func testProjectsCountLabelHidden_NoProjects() {
@@ -181,10 +154,10 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
     )
     let categoryId = expandableRow.params.category?.intID
 
-    self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
-    self.vm.inputs.willDisplay()
+    self.vm.configureWith(row: expandableRow, categoryId: categoryId)
+    let display = self.vm.willDisplay()
 
-    self.projectsCountLabelHidden.assertValues([true])
+    XCTAssertEqual(display?.countHidden, true)
   }
 
   func testProjectsCountLabelText() {
@@ -196,9 +169,9 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
     )
     let categoryId = expandableRow.params.category?.intID
 
-    self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
-    self.vm.inputs.willDisplay()
+    self.vm.configureWith(row: expandableRow, categoryId: categoryId)
+    let display = self.vm.willDisplay()
 
-    self.projectsCountLabelText.assertValues([Format.wholeNumber(10)])
+    XCTAssertEqual(display?.count, Format.wholeNumber(10))
   }
 }

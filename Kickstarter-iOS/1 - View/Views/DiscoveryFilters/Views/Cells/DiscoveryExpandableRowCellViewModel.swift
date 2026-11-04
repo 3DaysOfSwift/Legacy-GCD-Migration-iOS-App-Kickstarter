@@ -1,89 +1,39 @@
 import KsApi
-import Prelude
-import ReactiveSwift
 import UIKit
 
 @MainActor
-public protocol DiscoveryExpandableRowCellInputs {
-  func configureWith(row: ExpandableRow, categoryId: Int?)
-  func willDisplay()
-}
-
-@MainActor
-public protocol DiscoveryExpandableRowCellOutputs {
-  var cellAccessibilityHint: Signal<String, Never> { get }
-  var cellAccessibilityLabel: Signal<String, Never> { get }
-  var expandCategoryStyle: Signal<(ExpandableRow, Int?), Never> { get }
-  var filterIsExpanded: Signal<Bool, Never> { get }
-  var filterTitleLabelText: Signal<String, Never> { get }
-  var projectsCountLabelAlpha: Signal<CGFloat, Never> { get }
-  var projectsCountLabelHidden: Signal<Bool, Never> { get }
-  var projectsCountLabelText: Signal<String, Never> { get }
-}
-
-@MainActor
-public protocol DiscoveryExpandableRowCellViewModelType {
-  var inputs: DiscoveryExpandableRowCellInputs { get }
-  var outputs: DiscoveryExpandableRowCellOutputs { get }
-}
-
-@MainActor
-public final class DiscoveryExpandableRowCellViewModel: DiscoveryExpandableRowCellViewModelType,
-  DiscoveryExpandableRowCellInputs, DiscoveryExpandableRowCellOutputs {
-  public init() {
-    let expandableRowAndCategoryId = self.expandableRowAndCategoryIdProperty.signal.skipNil()
-      .takeWhen(self.willDisplayProperty.signal)
-
-    let expandableRow = expandableRowAndCategoryId.map(first)
-
-    self.expandCategoryStyle = expandableRowAndCategoryId
-
-    self.filterTitleLabelText = expandableRow
-      .map { $0.params.category?.name ?? "" }
-
-    self.filterIsExpanded = expandableRow
-      .map { $0.isExpanded }
-
-    self.cellAccessibilityHint = expandableRow
-      .map { $0.isExpanded ? Strings.Collapses_subcategories() : Strings.Expands_subcategories() }
-
-    self.cellAccessibilityLabel = expandableRow
-      .map {
-        Strings.Filter_name_project_count_live_projects(
-          filter_name: $0.params.category?.name ?? "",
-          project_count: $0.params.category?.totalProjectCount ?? 0
-        )
-      }
-
-    self.projectsCountLabelText = expandableRow
-      .map { Format.wholeNumber($0.params.category?.totalProjectCount ?? 0) }
-
-    self.projectsCountLabelHidden = expandableRow
-      .map { $0.params.category?.totalProjectCount == .some(0) }
-
-    self.projectsCountLabelAlpha = expandableRowAndCategoryId
-      .map { expandableRow, categoryId in categoryId == nil || expandableRow.isExpanded ? 1.0 : 0.4 }
+public final class DiscoveryExpandableRowCellViewModel {
+  public struct Display {
+    let row: ExpandableRow
+    let categoryId: Int?
+    let accessibilityHint: String
+    let accessibilityLabel: String
+    let title: String
+    let count: String
+    let countHidden: Bool
+    let countAlpha: CGFloat
   }
 
-  fileprivate let expandableRowAndCategoryIdProperty = MutableProperty<(ExpandableRow, Int?)?>(nil)
+  private var configuration: (row: ExpandableRow, categoryId: Int?)?
+  public init() {}
+
   public func configureWith(row: ExpandableRow, categoryId: Int?) {
-    self.expandableRowAndCategoryIdProperty.value = (row, categoryId)
+    self.configuration = (row, categoryId)
   }
 
-  fileprivate let willDisplayProperty = MutableProperty(())
-  public func willDisplay() {
-    self.willDisplayProperty.value = ()
+  public func willDisplay() -> Display? {
+    guard let (row, categoryId) = self.configuration else { return nil }
+    let name = row.params.category?.name ?? ""
+    let count = row.params.category?.totalProjectCount ?? 0
+    return Display(
+      row: row,
+      categoryId: categoryId,
+      accessibilityHint: row.isExpanded ? Strings.Collapses_subcategories() : Strings.Expands_subcategories(),
+      accessibilityLabel: Strings.Filter_name_project_count_live_projects(filter_name: name, project_count: count),
+      title: name,
+      count: Format.wholeNumber(count),
+      countHidden: row.params.category?.totalProjectCount == .some(0),
+      countAlpha: categoryId == nil || row.isExpanded ? 1.0 : 0.4
+    )
   }
-
-  public let cellAccessibilityHint: Signal<String, Never>
-  public let cellAccessibilityLabel: Signal<String, Never>
-  public let expandCategoryStyle: Signal<(ExpandableRow, Int?), Never>
-  public let filterIsExpanded: Signal<Bool, Never>
-  public let filterTitleLabelText: Signal<String, Never>
-  public let projectsCountLabelAlpha: Signal<CGFloat, Never>
-  public let projectsCountLabelHidden: Signal<Bool, Never>
-  public let projectsCountLabelText: Signal<String, Never>
-
-  public var inputs: DiscoveryExpandableRowCellInputs { return self }
-  public var outputs: DiscoveryExpandableRowCellOutputs { return self }
 }
