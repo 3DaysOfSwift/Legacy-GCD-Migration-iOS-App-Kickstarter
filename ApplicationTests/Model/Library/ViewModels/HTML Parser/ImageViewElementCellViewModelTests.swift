@@ -4,15 +4,13 @@ import KDS
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class ImageViewElementCellViewModelTests: TestCase {
-  private let vm: ImageViewElementCellViewModelType = ImageViewElementCellViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let vm = ImageViewElementCellViewModel()
 
-  private let captionText = TestObserver<NSAttributedString?, Never>()
-  private let image = TestObserver<UIImage?, Never>()
 
   private let expectedImage = UIImage(systemName: "camera")!
   private let expectedSampleString = "sample attributed string"
@@ -32,8 +30,6 @@ internal final class ImageViewElementCellViewModelTests: TestCase {
       NSAttributedString.Key.paragraphStyle: self.expectedParagraphStyle
     ]
 
-    self.vm.outputs.attributedText.observe(self.captionText.observer)
-    self.vm.outputs.image.observe(self.image.observer)
   }
 
   func testPlainAttributedTextElement_Success() {
@@ -47,8 +43,8 @@ internal final class ImageViewElementCellViewModelTests: TestCase {
       attributes: expectedFontAttributes
     )
 
-    self.vm.inputs.configureWith(imageElement: nonLinkCaptionImageViewElement, image: nil)
-    self.captionText.assertValue(expectedNonLinkAttributedText)
+    self.vm.configureWith(imageElement: nonLinkCaptionImageViewElement, image: nil)
+    XCTAssertEqual(self.vm.attributedText, expectedNonLinkAttributedText)
   }
 
   func testLinkTextElement_Success() {
@@ -68,8 +64,8 @@ internal final class ImageViewElementCellViewModelTests: TestCase {
       attributes: expectedFontAttributes
     )
 
-    self.vm.inputs.configureWith(imageElement: linkCaptionImageViewElement, image: nil)
-    self.captionText.assertValue(expectedLinkAttributedText)
+    self.vm.configureWith(imageElement: linkCaptionImageViewElement, image: nil)
+    XCTAssertEqual(self.vm.attributedText, expectedLinkAttributedText)
   }
 
   func testImageViewElementData_Success() {
@@ -79,12 +75,12 @@ internal final class ImageViewElementCellViewModelTests: TestCase {
       caption: expectedSampleString
     )
 
-    self.vm.inputs.configureWith(imageElement: dataImageViewElement, image: nil)
+    self.vm.configureWith(imageElement: dataImageViewElement, image: nil)
 
-    self.image.assertLastValue(nil)
+    XCTAssertNil(self.vm.image)
 
-    self.vm.inputs.configureWith(imageElement: dataImageViewElement, image: self.expectedImage)
+    self.vm.configureWith(imageElement: dataImageViewElement, image: self.expectedImage)
 
-    self.image.assertLastValue(self.expectedImage)
+    XCTAssertEqual(self.vm.image, self.expectedImage)
   }
 }

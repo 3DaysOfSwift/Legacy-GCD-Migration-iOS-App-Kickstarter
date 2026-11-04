@@ -36,7 +36,6 @@ class ImageViewElementCell: UITableViewCell, ValueCell {
     self.configureViews()
     self.setupConstraints()
     self.bindStyles()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -51,48 +50,21 @@ class ImageViewElementCell: UITableViewCell, ValueCell {
   }
 
   func configureWith(value imageData: (element: ImageViewElement, image: UIImage?)) {
-    self.viewModel.inputs.configureWith(imageElement: imageData.element, image: imageData.image)
-  }
-
-  // MARK: View Model
-
-  internal override func bindViewModel() {
-    self.viewModel.outputs.attributedText
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.resetTextView()
-      })
-      .observeValues { [weak self] attributedText in
-        guard let viewableAttributedText = attributedText else { return }
-
-        if viewableAttributedText.length > 0 {
-          self?.textViewHeightConstraint?.isActive = false
-        }
-
-        self?.textView.attributedText = viewableAttributedText
-      }
-
-    self.viewModel.outputs.image
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.resetImageView()
-      })
-      .observeValues { [weak self] image in
-        guard let strongSelf = self,
-              let viewableImage = image else { return }
-
-        strongSelf.imageAspectRatio = viewableImage.size.width / viewableImage.size.height
-        strongSelf.imageViewAspectConstraint = NSLayoutConstraint(
-          item: strongSelf.storyImageView,
-          attribute: .width,
-          relatedBy: .equal,
-          toItem: strongSelf.storyImageView,
-          attribute: .height,
-          multiplier: strongSelf.imageAspectRatio,
-          constant: 0.0
-        )
-        strongSelf.storyImageView.image = viewableImage
-      }
+    self.viewModel.configureWith(imageElement: imageData.element, image: imageData.image)
+    self.resetTextView()
+    if let caption = self.viewModel.attributedText {
+      if caption.length > 0 { self.textViewHeightConstraint?.isActive = false }
+      self.textView.attributedText = caption
+    }
+    self.resetImageView()
+    if let image = self.viewModel.image {
+      self.imageAspectRatio = image.size.width / image.size.height
+      self.imageViewAspectConstraint = NSLayoutConstraint(
+        item: self.storyImageView, attribute: .width, relatedBy: .equal,
+        toItem: self.storyImageView, attribute: .height, multiplier: self.imageAspectRatio, constant: 0
+      )
+      self.storyImageView.image = image
+    }
   }
 
   // MARK: View Styles
