@@ -419,3 +419,56 @@ final class ChangeEmailViewModelTests: TestCase {
     self.textFieldsAreEnabled.assertValues([false, true])
   }
 }
+
+@MainActor
+final class ChangeEmailScreenModelTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  private let feature = SettingsFeature(
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }),
+    makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
+  )
+  private lazy var model = ChangeEmailScreenModel(feature: self.feature, sleep: { _ in })
+
+  override func setUp() async throws {
+    try await super.setUp()
+    AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture", user: .template))
+  }
+
+  func testLoadsEmailAndSavesChange() async throws {
+    let envelope = try XCTUnwrap(UserEnvelope<GraphUser>.userEnvelope(from: GraphUserEnvelopeTemplates.fetchUser))
+    let service = MockService(changeEmailResult: .success(EmptyResponseEnvelope()), fetchGraphUserResult: .success(envelope))
+    await withEnvironment(apiService: service, currentUser: .template) {
+      self.model.viewDidLoad()
+      await self.model.waitForLoad()
+      XCTAssertEqual(self.model.currentEmail, envelope.me.email ?? "")
+      self.model.newEmail = "new@example.com"
+      self.model.password = "password"
+      XCTAssertTrue(self.model.saveEnabled)
+      self.model.save()
+      XCTAssertTrue(self.model.isLoading)
+      await self.model.waitForSave()
+      XCTAssertFalse(self.model.isLoading)
+      XCTAssertEqual(self.model.currentEmail, "new@example.com")
+      XCTAssertTrue(self.model.newEmail.isEmpty)
+      XCTAssertTrue(self.model.password.isEmpty)
+      XCTAssertEqual(self.model.banner?.bannerMessage, Strings.Got_it_your_changes_have_been_saved())
+    }
+  }
+
+  func testInvalidEmailAndFailedSave() async {
+    let error = ErrorEnvelope(errorMessages: ["Failed"], ksrCode: nil, httpCode: 400, exception: nil)
+    await withEnvironment(apiService: MockService(changeEmailResult: .failure(error)), currentUser: .template) {
+      self.model.currentEmail = "old@example.com"
+      self.model.newEmail = "invalid"
+      self.model.password = "password"
+      XCTAssertFalse(self.model.saveEnabled)
+      self.model.newEmail = "new@example.com"
+      XCTAssertTrue(self.model.saveEnabled)
+      self.model.save()
+      await self.model.waitForSave()
+      XCTAssertEqual(self.model.currentEmail, "old@example.com")
+      XCTAssertNotNil(self.model.banner)
+      XCTAssertFalse(self.model.isLoading)
+    }
+  }
+}

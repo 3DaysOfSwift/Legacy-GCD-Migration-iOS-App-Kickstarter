@@ -1,4 +1,3 @@
-import Combine
 import KDS
 
 import SwiftUI
@@ -12,7 +11,7 @@ struct ChangeEmailView: View {
   @SwiftUI.Environment(\.defaultMinListRowHeight) var minListRow
   @FocusState private var focusField: FocusField?
   private let contentPadding = Spacing.unit_03
-  @ObservedObject private var reactiveViewModel = ChangeEmailViewModelSwiftUIIntegrationTest()
+  @State private var viewModel = ChangeEmailScreenModel()
   @State private var retrievedEmailText = ""
   @State private var newEmailText = ""
   @State private var newPasswordText = ""
@@ -38,7 +37,7 @@ struct ChangeEmailView: View {
             valueText: self.$retrievedEmailText
           )
           .currentEmail()
-          .onReceive(self.reactiveViewModel.retrievedEmailText) { newValue in
+          .onChange(of: self.viewModel.currentEmail) { newValue in
             self.retrievedEmailText = newValue
           }
 
@@ -47,10 +46,10 @@ struct ChangeEmailView: View {
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets())
 
-        if !self.reactiveViewModel.hideMessageLabel {
+        if !self.viewModel.hideMessageLabel {
           self.warningLabel(
-            text: self.reactiveViewModel.warningMessageWithAlert.0,
-            self.reactiveViewModel.warningMessageWithAlert.1
+            text: self.viewModel.warningMessageWithAlert.0,
+            self.viewModel.warningMessageWithAlert.1
           )
           .frame(maxWidth: .infinity, maxHeight: self.minListRow, alignment: .leading)
           .background(LegacyColors.ksr_support_100.swiftUIColor())
@@ -58,10 +57,10 @@ struct ChangeEmailView: View {
           .listRowInsets(EdgeInsets())
         }
 
-        if !self.reactiveViewModel.hideVerifyView {
+        if !self.viewModel.hideVerifyView {
           VStack(alignment: .leading, spacing: 0) {
-            Button(self.reactiveViewModel.verifyEmailButtonTitle) {
-              self.reactiveViewModel.inputs.resendVerificationEmailButtonTapped()
+            Button(self.viewModel.verifyEmailButtonTitle) {
+              self.viewModel.resendVerificationEmail()
             }
             .font(Font(UIFont.ksr_body()))
             .foregroundColor(LegacyColors.ksr_create_700.swiftUIColor())
@@ -87,13 +86,11 @@ struct ChangeEmailView: View {
             contentPadding: self.contentPadding,
             valueText: self.$newEmailText
           )
-          .onReceive(self.reactiveViewModel.resetEditableText) { newValue in
-            if newValue {
-              self.newEmailText = ""
-            }
+          .onChange(of: self.viewModel.newEmail) { newValue in
+            self.newEmailText = newValue
           }
           .onChange(of: self.newEmailText) { newValue in
-            self.reactiveViewModel.newEmailText.send(newValue)
+            self.viewModel.newEmail = newValue
           }
           .newEmail(editable: !self.showLoading)
           .focused(self.$focusField, equals: .newEmail)
@@ -109,14 +106,12 @@ struct ChangeEmailView: View {
             valueText: self.$newPasswordText
           )
           .onChange(of: self.newPasswordText) { newValue in
-            self.reactiveViewModel.currentPasswordText.send(newValue)
+            self.viewModel.password = newValue
           }
           .currentPassword(editable: !self.showLoading)
           .focused(self.$focusField, equals: .currentPassword)
-          .onReceive(self.reactiveViewModel.resetEditableText) { resetFlag in
-            if resetFlag {
-              self.newPasswordText = ""
-            }
+          .onChange(of: self.viewModel.password) { newValue in
+            self.newPasswordText = newValue
           }
           // FIXME: So "Done" on keyboard doesn't trigger Save --> in the future we might want to add this (was in the old `ChangeEmailViewController`)
 
@@ -141,11 +136,11 @@ struct ChangeEmailView: View {
           )
           .animation(.easeInOut)
       }
-      .onReceive(self.reactiveViewModel.bannerMessage) { newValue in
-        self.bannerMessage = newValue
+      .onChange(of: self.viewModel.bannerRevision) { _ in
+        self.bannerMessage = self.viewModel.banner
       }
       .onAppear {
-        self.reactiveViewModel.inputs.viewDidLoad()
+        self.viewModel.viewDidLoad()
       }
     }
   }
@@ -159,13 +154,13 @@ struct ChangeEmailView: View {
         titleText: Strings.Save()
       ) {
         self.focusField = nil
-        self.reactiveViewModel.didTapSaveButton()
+        self.viewModel.save()
       }
-      .onReceive(self.reactiveViewModel.saveButtonEnabled) { newValue in
+      .onChange(of: self.viewModel.saveEnabled) { newValue in
         self.saveEnabled = newValue
       }
-      .onReceive(self.reactiveViewModel.resetEditableText) { newValue in
-        self.showLoading = !newValue
+      .onChange(of: self.viewModel.isLoading) { newValue in
+        self.showLoading = newValue
       }
     }
     if #available(iOS 26, *) {

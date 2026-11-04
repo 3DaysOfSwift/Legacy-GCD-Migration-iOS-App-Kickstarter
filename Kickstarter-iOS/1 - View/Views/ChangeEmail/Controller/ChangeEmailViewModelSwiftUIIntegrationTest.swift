@@ -1,286 +1,125 @@
-import Combine
+import Foundation
 import KsApi
-
-import Prelude
-import ReactiveSwift
-import UIKit
+import Observation
 
 @MainActor
-public protocol ChangeEmailViewModelInputsSwiftUIIntegrationTest {
-  func resendVerificationEmailButtonTapped()
-  func viewDidLoad()
-  func updateEmail(newEmail: String, currentPassword: String)
-  func didTapSaveButton()
-}
+@Observable
+final class ChangeEmailScreenModel {
+  var currentEmail = ""
+  var newEmail = ""
+  var password = ""
+  var hideVerifyView = true
+  var verifyEmailButtonTitle = ""
+  var hideMessageLabel = true
+  var warningMessageWithAlert = ("", false)
+  var isLoading = false
+  var banner: MessageBannerViewViewModel?
+  private(set) var bannerRevision = 0
 
-@MainActor
-public protocol ChangeEmailViewModelOutputsSwiftUIIntegrationTest {
-  var didFailToSendVerificationEmail: Signal<String, Never> { get }
-  var didSendVerificationEmail: Signal<Void, Never> { get }
-  var emailText: Signal<String, Never> { get }
-  var messageLabelViewHidden: Signal<Bool, Never> { get }
-  var resendVerificationEmailViewIsHidden: Signal<Bool, Never> { get }
-  var unverifiedEmailLabelHidden: Signal<Bool, Never> { get }
-  var warningMessageLabelHidden: Signal<Bool, Never> { get }
-  var verificationEmailButtonTitle: Signal<String, Never> { get }
-}
+  var saveEnabled: Bool {
+    isValidEmail(self.newEmail) && self.newEmail != self.currentEmail &&
+      !self.newEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+      !self.password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
 
-@MainActor
-public protocol ChangeEmailViewModelTypeSwiftUIIntegrationTest {
-  var inputs: ChangeEmailViewModelInputsSwiftUIIntegrationTest { get }
-  var outputs: ChangeEmailViewModelOutputsSwiftUIIntegrationTest { get }
-}
+  private let feature: SettingsFeature
+  private let sleep: (TimeInterval) async throws -> Void
+  private var loadTask: Task<Void, Never>?
+  private var saveTask: Task<Void, Never>?
+  private var verifyTask: Task<Void, Never>?
+  private var loadRevision = 0
+  private var saveRevision = 0
+  private var verifyRevision = 0
 
-@MainActor
-public final class ChangeEmailViewModelSwiftUIIntegrationTest: ChangeEmailViewModelTypeSwiftUIIntegrationTest,
-  ChangeEmailViewModelInputsSwiftUIIntegrationTest,
-  ChangeEmailViewModelOutputsSwiftUIIntegrationTest, ObservableObject {
-  private var cancellables = Set<AnyCancellable>()
-  @Published public var hideVerifyView = false
-  @Published public var verifyEmailButtonTitle = ""
-  @Published public var hideMessageLabel = true
-  @Published public var warningMessageWithAlert = ("", false)
-  public var saveButtonEnabled: AnyPublisher<Bool, Never>
-  public var bannerMessage: PassthroughSubject<MessageBannerViewViewModel, Never> = .init()
-  public var retrievedEmailText: PassthroughSubject<String, Never> = .init()
-  public var newEmailText: PassthroughSubject<String, Never> = .init()
-  public var currentPasswordText: PassthroughSubject<String, Never> = .init()
-  public var saveTriggered: PassthroughSubject<Bool, Never> = .init()
-  public var resetEditableText: PassthroughSubject<Bool, Never> = .init()
+  init(feature: SettingsFeature? = nil, sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
+    if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
+  }) {
+    self.feature = feature ?? AppModel.shared.settingsFeature
+    self.sleep = sleep
+  }
 
-  public init(settingsFeature: SettingsFeature? = nil) {
-    let settingsFeature = settingsFeature ?? AppModel.shared.settingsFeature
-    let changeEmailEvent = self.updateEmailAndPasswordProperty.signal.skipNil()
-      .map(ChangeEmailInput.init(email:currentPassword:))
-      .switchMap { input in
-        settingsFeature.accountResult(.email(input))
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .map { _ in input.email }
-          .materialize()
-      }
-
-    let userEmailEvent = self.viewDidLoadProperty.signal
-      .switchMap { _ in
-        settingsFeature.emailUserResult()
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .materialize()
-      }
-
-    let resendEmailVerificationEvent = self.resendVerificationEmailButtonProperty.signal
-      .switchMap { _ in
-        settingsFeature.accountResult(.sendVerification)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .materialize()
-      }
-
-    self.didSendVerificationEmail = resendEmailVerificationEvent.values().ignoreValues()
-
-    self.didFailToSendVerificationEmail = resendEmailVerificationEvent.errors()
-      .map { $0.localizedDescription }
-
-    self.emailText = Signal.merge(
-      changeEmailEvent.values(),
-      userEmailEvent.values().map { $0.email ?? "" }
-    )
-
-    let isEmailVerified = userEmailEvent.values().map { $0.isEmailVerified }.skipNil()
-    let isEmailDeliverable = userEmailEvent.values().map { $0.isDeliverable }.skipNil()
-    let emailVerifiedAndDeliverable: Signal<Bool, Never> = Signal
-      .combineLatest(isEmailVerified, isEmailDeliverable)
-      .map { isEmailVerified, isEmailDeliverable -> Bool in
-        let r = isEmailVerified && isEmailDeliverable
-        return r
-      }
-
-    self.resendVerificationEmailViewIsHidden = Signal.merge(
-      self.viewDidLoadProperty.signal.mapConst(true),
-      emailVerifiedAndDeliverable
-    ).skipRepeats()
-
-    self.unverifiedEmailLabelHidden = Signal
-      .combineLatest(isEmailVerified, isEmailDeliverable)
-      .map { isEmailVerified, isEmailDeliverable -> Bool in
-        guard isEmailVerified else { return !isEmailDeliverable }
-
-        return true
-      }
-
-    self.warningMessageLabelHidden = isEmailDeliverable
-
-    self.messageLabelViewHidden = Signal
-      .merge(self.unverifiedEmailLabelHidden, self.warningMessageLabelHidden)
-      .filter(isFalse)
-
-    self.verificationEmailButtonTitle = self.viewDidLoadProperty.signal.map { _ in
-      guard let user = AppEnvironment.current.currentUser else { return "" }
-      return user.isCreator ? Strings.Resend_verification_email() : Strings.Send_verfication_email()
+  func viewDidLoad() {
+    self.verifyEmailButtonTitle = AppEnvironment.current.currentUser.map {
+      $0.isCreator ? Strings.Resend_verification_email() : Strings.Send_verfication_email()
+    } ?? ""
+    self.hideVerifyView = true
+    self.loadTask?.cancel()
+    self.loadRevision += 1
+    let revision = self.loadRevision
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    self.loadTask = Task { [weak self, feature, sleep] in
+      do {
+        let user = try await feature.emailUser()
+        try await sleep(delay)
+        try Task.checkCancellation()
+        guard let self, self.loadRevision == revision else { return }
+        self.currentEmail = user.email ?? ""
+        if let verified = user.isEmailVerified, let deliverable = user.isDeliverable {
+          self.hideVerifyView = verified && deliverable
+          self.hideMessageLabel = verified && deliverable
+          if !deliverable { self.warningMessageWithAlert = (Strings.We_ve_been_unable_to_send_email(), true) }
+          else if !verified { self.warningMessageWithAlert = (Strings.Email_unverified(), false) }
+        }
+      } catch { }
     }
-
-    // MARK: Reactive Subscribers to Combine Publishers
-
-    self.saveButtonEnabled = Publishers
-      .CombineLatest3(self.retrievedEmailText, self.newEmailText, self.currentPasswordText)
-      .removeDuplicates(by: ==)
-      .map(shouldEnableSaveButton(email:newEmail:password:))
-      .eraseToAnyPublisher()
-
-    _ = changeEmailEvent.errors()
-      .observeForUI()
-      .observeValues { [weak self] errorValue in
-        let messageBannerViewViewModel = MessageBannerViewViewModel((
-          type: .error,
-          message: errorValue.localizedDescription
-        ))
-
-        self?.saveTriggered.send(false)
-        self?.resetEditableText.send(true)
-        self?.bannerMessage.send(messageBannerViewViewModel)
-      }
-
-    _ = changeEmailEvent.values().ignoreValues()
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        let messageBannerViewViewModel = MessageBannerViewViewModel((
-          type: .success,
-          message: Strings.Got_it_your_changes_have_been_saved()
-        ))
-
-        self?.saveTriggered.send(false)
-        self?.resetEditableText.send(true)
-        self?.bannerMessage.send(messageBannerViewViewModel)
-      }
-
-    Publishers
-      .CombineLatest4(self.saveButtonEnabled, self.saveTriggered, self.newEmailText, self.currentPasswordText)
-      .filter { enabledValue, triggeredValue, _, _ in
-        enabledValue && triggeredValue
-      }
-      .sink(receiveValue: { [weak self] _, _, newEmailTextValue, newPasswordTextValue in
-        self?.updateEmail(newEmail: newEmailTextValue, currentPassword: newPasswordTextValue)
-      })
-      .store(in: &self.cancellables)
-
-    _ = self.resendVerificationEmailViewIsHidden
-      .observeForUI()
-      .observeValues { [weak self] isHidden in
-        self?.hideVerifyView = isHidden
-      }
-
-    _ = self.didSendVerificationEmail
-      .observeForUI()
-      .observeValues { [weak self] in
-        let messageBannerViewViewModel = MessageBannerViewViewModel((
-          type: .success,
-          message: Strings.Verification_email_sent()
-        ))
-
-        self?.bannerMessage.send(messageBannerViewViewModel)
-      }
-
-    _ = self.didFailToSendVerificationEmail
-      .observeForUI()
-      .observeValues { [weak self] message in
-        let messageBannerViewViewModel = MessageBannerViewViewModel((
-          type: .error,
-          message: message
-        ))
-
-        self?.bannerMessage.send(messageBannerViewViewModel)
-      }
-
-    _ = self.emailText
-      .observeForUI()
-      .observeValues { [weak self] emailText in
-        self?.retrievedEmailText.send(emailText)
-      }
-
-    _ = self.verificationEmailButtonTitle
-      .observeForUI()
-      .observeValues { [weak self] titleText in
-        self?.verifyEmailButtonTitle = titleText
-      }
-
-    _ = self.messageLabelViewHidden
-      .observeForUI()
-      .observeValues { [weak self] isHidden in
-        self?.hideMessageLabel = isHidden
-      }
-
-    _ = self.unverifiedEmailLabelHidden
-      .observeForUI()
-      .observeValues { [weak self] isHidden in
-        guard !isHidden else { return }
-
-        self?.warningMessageWithAlert = (Strings.Email_unverified(), false)
-      }
-
-    _ = self.warningMessageLabelHidden
-      .observeForUI()
-      .observeValues { [weak self] isHidden in
-        guard !isHidden else { return }
-
-        self?.warningMessageWithAlert = (Strings.We_ve_been_unable_to_send_email(), true)
-      }
   }
 
-  private let updateEmailAndPasswordProperty = MutableProperty<(String, String)?>(nil)
-  public func updateEmail(newEmail: String, currentPassword: String) {
-    self.updateEmailAndPasswordProperty.value = (newEmail, currentPassword)
+  func save() {
+    guard self.saveEnabled else { return }
+    let input = ChangeEmailInput(email: self.newEmail, currentPassword: self.password)
+    self.saveTask?.cancel()
+    self.saveRevision += 1
+    let revision = self.saveRevision
+    self.isLoading = true
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    self.saveTask = Task { [weak self, feature, sleep] in
+      do {
+        _ = try await feature.updateAccount(.email(input))
+        try await sleep(delay)
+        try Task.checkCancellation()
+        guard let self, self.saveRevision == revision else { return }
+        self.currentEmail = input.email
+        self.newEmail = ""
+        self.password = ""
+        self.isLoading = false
+        self.banner = MessageBannerViewViewModel((type: .success, message: Strings.Got_it_your_changes_have_been_saved()))
+        self.bannerRevision += 1
+      } catch {
+        guard let self, !Task.isCancelled, !(error is CancellationError), self.saveRevision == revision else { return }
+        do { try await sleep(delay); try Task.checkCancellation() } catch { return }
+        guard self.saveRevision == revision else { return }
+        self.newEmail = ""
+        self.password = ""
+        self.isLoading = false
+        self.banner = MessageBannerViewViewModel((type: .error, message: error.localizedDescription))
+        self.bannerRevision += 1
+      }
+    }
   }
 
-  private let newEmailProperty = MutableProperty<String?>(nil)
-  public func emailFieldTextDidChange(text: String?) {
-    self.newEmailProperty.value = text
+  func resendVerificationEmail() {
+    self.verifyTask?.cancel()
+    self.verifyRevision += 1
+    let revision = self.verifyRevision
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    self.verifyTask = Task { [weak self, feature, sleep] in
+      do {
+        _ = try await feature.updateAccount(.sendVerification)
+        try await sleep(delay)
+        try Task.checkCancellation()
+        guard let self, self.verifyRevision == revision else { return }
+        self.banner = MessageBannerViewViewModel((type: .success, message: Strings.Verification_email_sent()))
+        self.bannerRevision += 1
+      } catch {
+        guard let self, !Task.isCancelled, !(error is CancellationError), self.verifyRevision == revision else { return }
+        do { try await sleep(delay); try Task.checkCancellation() } catch { return }
+        guard self.verifyRevision == revision else { return }
+        self.banner = MessageBannerViewViewModel((type: .error, message: error.localizedDescription))
+        self.bannerRevision += 1
+      }
+    }
   }
-
-  private let passwordProperty = MutableProperty<String?>(nil)
-  public func passwordFieldTextDidChange(text: String?) {
-    self.passwordProperty.value = text
-  }
-
-  private let resendVerificationEmailButtonProperty = MutableProperty(())
-  public func resendVerificationEmailButtonTapped() {
-    self.resendVerificationEmailButtonProperty.value = ()
-  }
-
-  private let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
-  }
-
-  public func didTapSaveButton() {
-    self.saveTriggered.send(true)
-  }
-
-  public let didFailToSendVerificationEmail: Signal<String, Never>
-  public let didSendVerificationEmail: Signal<Void, Never>
-  public let emailText: Signal<String, Never>
-  public let messageLabelViewHidden: Signal<Bool, Never>
-  public let resendVerificationEmailViewIsHidden: Signal<Bool, Never>
-  public let unverifiedEmailLabelHidden: Signal<Bool, Never>
-  public let verificationEmailButtonTitle: Signal<String, Never>
-  public let warningMessageLabelHidden: Signal<Bool, Never>
-
-  public var inputs: ChangeEmailViewModelInputsSwiftUIIntegrationTest {
-    return self
-  }
-
-  public var outputs: ChangeEmailViewModelOutputsSwiftUIIntegrationTest {
-    return self
-  }
-}
-
-private func shouldEnableSaveButton(email: String?, newEmail: String?, password: String?) -> Bool {
-  guard
-    let newEmail = newEmail,
-    isValidEmail(newEmail),
-    email != newEmail,
-    password != nil
-
-  else { return false }
-
-  return ![newEmail, password]
-    .compact()
-    .map { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-    .contains(false)
+  func waitForLoad() async { await self.loadTask?.value }
+  func waitForSave() async { await self.saveTask?.value }
+  func waitForVerification() async { await self.verifyTask?.value }
 }
