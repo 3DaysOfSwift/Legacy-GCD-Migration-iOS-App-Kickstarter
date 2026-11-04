@@ -2,7 +2,7 @@ import Foundation
 import KsApi
 import Prelude
 import ReactiveExtensions
-import ReactiveSwift
+import Observation
 
 public struct ManagePledgePaymentMethodViewData: Equatable {
   public let showFixPaymentButton: Bool
@@ -12,104 +12,33 @@ public struct ManagePledgePaymentMethodViewData: Equatable {
   public let paymentType: PaymentType?
 }
 
-@MainActor
-public protocol ManagePledgePaymentMethodViewModelInputs {
-  /// Call to configure payment method section the values from a backing
-  func configureWith(data: ManagePledgePaymentMethodViewData)
+@MainActor @Observable
+public final class ManagePledgePaymentMethodViewModel {
+  public init() {}
 
-  /// Call when the "Fix" button is tapped
-  func fixButtonTapped()
-}
+  public private(set) var cardImageName: String?
+  public private(set) var cardNumberAccessibilityLabel: String?
+  public private(set) var cardNumberTextShortStyle: String?
+  public private(set) var expirationDateText: String?
+  public private(set) var fixButtonHidden: Bool?
 
-@MainActor
-public protocol ManagePledgePaymentMethodViewModelOutputs {
-  /// Emits the card's image.
-  var cardImageName: Signal<String, Never> { get }
-
-  /// Emits a formatted accessibility string containing the card type, number and last four digits
-  var cardNumberAccessibilityLabel: Signal<String, Never> { get }
-
-  /// Emits a formatted string containing the card's last four digits with the format: Ending in 8844.
-  var cardNumberTextShortStyle: Signal<String, Never> { get }
-
-  /// Emits the formatted card's expirationdate.
-  var expirationDateText: Signal<String, Never> { get }
-
-  /// Emits whether the Fix button is hidden
-  var fixButtonHidden: Signal<Bool, Never> { get }
-
-  /// Emits when the fix button was tapped
-  var notifyDelegateFixButtonTapped: Signal<Void, Never> { get }
-}
-
-@MainActor
-public protocol ManagePledgePaymentMethodViewModelType {
-  var inputs: ManagePledgePaymentMethodViewModelInputs { get }
-  var outputs: ManagePledgePaymentMethodViewModelOutputs { get }
-}
-
-@MainActor
-public final class ManagePledgePaymentMethodViewModel: ManagePledgePaymentMethodViewModelInputs,
-  ManagePledgePaymentMethodViewModelOutputs, ManagePledgePaymentMethodViewModelType {
-  public init() {
-    self.cardImageName = self.configureWithDataSignal
-      .map { ($0.paymentType, $0.creditCardType) }
-      .map(imageName(for:creditCardType:))
-      .skipNil()
-
-    let paymentType = self.configureWithDataSignal
-      .map(\.paymentType)
-
-    let cardType = self.configureWithDataSignal
-      .map(\.creditCardType)
-
-    let lastFour = self.configureWithDataSignal
-      .map(\.lastFour)
-
-    self.cardNumberAccessibilityLabel = Signal.combineLatest(
-      paymentType,
-      cardType,
-      lastFour
-    )
-    .map(paymentMethodAccessibilityLabel)
-
-    self.cardNumberTextShortStyle = lastFour
-      .skipNil()
-      .map { Strings.Ending_in_last_four(last_four: $0) }
-
-    self.expirationDateText = self.configureWithDataSignal
-      .map(\.expirationDate)
-      .skipNil()
-      .map { String($0.dropLast(3)) }
-      .map(formatted(dateString:))
-      .map { Strings.Credit_card_expiration(expiration_date: $0) }
-
-    self.fixButtonHidden = self.configureWithDataSignal
-      .map { !$0.showFixPaymentButton }
-
-    self.notifyDelegateFixButtonTapped = self.fixButtonTappedSignal
-  }
-
-  fileprivate let (configureWithDataSignal, configureWithDataObserver)
-    = Signal<ManagePledgePaymentMethodViewData, Never>.pipe()
   public func configureWith(data: ManagePledgePaymentMethodViewData) {
-    self.configureWithDataObserver.send(value: data)
+    if let name = imageName(for: data.paymentType, creditCardType: data.creditCardType) {
+      self.cardImageName = name
+    }
+    self.cardNumberAccessibilityLabel = paymentMethodAccessibilityLabel(
+      for: data.paymentType, cardType: data.creditCardType, lastFour: data.lastFour
+    )
+    if let lastFour = data.lastFour {
+      self.cardNumberTextShortStyle = Strings.Ending_in_last_four(last_four: lastFour)
+    }
+    if let expirationDate = data.expirationDate {
+      self.expirationDateText = Strings.Credit_card_expiration(
+        expiration_date: formatted(dateString: String(expirationDate.dropLast(3)))
+      )
+    }
+    self.fixButtonHidden = !data.showFixPaymentButton
   }
-
-  fileprivate let (fixButtonTappedSignal, fixButtonTappedObserver) = Signal<Void, Never>.pipe()
-  public func fixButtonTapped() {
-    self.fixButtonTappedObserver.send(value: ())
-  }
-
-  public let cardImageName: Signal<String, Never>
-  public let cardNumberAccessibilityLabel: Signal<String, Never>
-  public let cardNumberTextShortStyle: Signal<String, Never>
-  public let expirationDateText: Signal<String, Never>
-  public let fixButtonHidden: Signal<Bool, Never>
-  public let notifyDelegateFixButtonTapped: Signal<Void, Never>
-
-  public var inputs: ManagePledgePaymentMethodViewModelInputs { return self }
-  public var outputs: ManagePledgePaymentMethodViewModelOutputs { return self }
 }
 
 private func imageName(for paymentType: PaymentType?, creditCardType: CreditCardType?) -> String? {

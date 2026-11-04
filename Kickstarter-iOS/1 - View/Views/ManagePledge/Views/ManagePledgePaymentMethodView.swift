@@ -29,7 +29,7 @@ final class ManagePledgePaymentMethodView: UIView {
   private lazy var rootStackView: UIStackView = { UIStackView(frame: .zero) }()
   private lazy var titleLabel: UILabel = { UILabel(frame: .zero) }()
 
-  private let viewModel: ManagePledgePaymentMethodViewModelType = ManagePledgePaymentMethodViewModel()
+  private let viewModel = ManagePledgePaymentMethodViewModel()
 
   // MARK: - Lifecycle
 
@@ -38,7 +38,6 @@ final class ManagePledgePaymentMethodView: UIView {
 
     self.configureViews()
     self.setupConstraints()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -49,7 +48,12 @@ final class ManagePledgePaymentMethodView: UIView {
   // MARK: - Configuration
 
   public func configure(with data: ManagePledgePaymentMethodViewData) {
-    self.viewModel.inputs.configureWith(data: data)
+    self.viewModel.configureWith(data: data)
+    if let text = self.viewModel.expirationDateText { self.expirationDateLabel.text = text }
+    if let text = self.viewModel.cardNumberTextShortStyle { self.cardNumberLabel.text = text }
+    self.cardNumberLabel.accessibilityLabel = self.viewModel.cardNumberAccessibilityLabel
+    if let hidden = self.viewModel.fixButtonHidden { self.fixButton.isHidden = hidden }
+    if let name = self.viewModel.cardImageName { self.paymentMethodImageView.image = image(named: name) }
   }
 
   private func configureViews() {
@@ -109,32 +113,6 @@ final class ManagePledgePaymentMethodView: UIView {
       |> \.text %~ { _ in Strings.Payment_method() }
   }
 
-  // MARK: - View model
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.expirationDateLabel.rac.text = self.viewModel.outputs.expirationDateText
-    self.cardNumberLabel.rac.text = self.viewModel.outputs.cardNumberTextShortStyle
-    self.cardNumberLabel.rac.accessibilityLabel = self.viewModel.outputs.cardNumberAccessibilityLabel
-    self.fixButton.rac.hidden = self.viewModel.outputs.fixButtonHidden
-
-    self.viewModel.outputs.cardImageName
-      .observeForUI()
-      .observeValues { [weak self] imageName in
-        _ = self?.paymentMethodImageView
-          ?|> \.image .~ image(named: imageName)
-      }
-
-    self.viewModel.outputs.notifyDelegateFixButtonTapped
-      .observeForUI()
-      .observeValues { [weak self] in
-        guard let self = self else { return }
-
-        self.delegate?.managePledgePaymentMethodViewDidTapFixButton(self)
-      }
-  }
-
   // MARK: - Functions
 
   private func setupConstraints() {
@@ -148,7 +126,7 @@ final class ManagePledgePaymentMethodView: UIView {
   }
 
   @objc private func fixButtonTapped() {
-    self.viewModel.inputs.fixButtonTapped()
+    self.delegate?.managePledgePaymentMethodViewDidTapFixButton(self)
   }
 }
 

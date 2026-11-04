@@ -3,41 +3,21 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class ManagePledgePaymentMethodViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  internal let vm: ManagePledgePaymentMethodViewModelType = ManagePledgePaymentMethodViewModel()
-
-  private let cardImageName = TestObserver<String, Never>()
-  private let cardNumberAccessibilityLabel = TestObserver<String, Never>()
-  private let cardNumberTextShortStyle = TestObserver<String, Never>()
-  private let expirationDateText = TestObserver<String, Never>()
-  private let fixButtonHidden = TestObserver<Bool, Never>()
-  private let notifyDelegateFixButtonTapped = TestObserver<Void, Never>()
-
-  internal override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.cardImageName.observe(self.cardImageName.observer)
-    self.vm.outputs.cardNumberAccessibilityLabel.observe(self.cardNumberAccessibilityLabel.observer)
-    self.vm.outputs.cardNumberTextShortStyle.observe(self.cardNumberTextShortStyle.observer)
-    self.vm.outputs.expirationDateText.observe(self.expirationDateText.observer)
-    self.vm.outputs.fixButtonHidden.observe(self.fixButtonHidden.observer)
-    self.vm.outputs.notifyDelegateFixButtonTapped.observe(self.notifyDelegateFixButtonTapped.observer)
-  }
+  internal let vm = ManagePledgePaymentMethodViewModel()
 
   func testPaymentSourceInfo() {
-    self.cardImageName.assertDidNotEmitValue()
-    self.cardNumberAccessibilityLabel.assertDidNotEmitValue()
-    self.cardNumberTextShortStyle.assertDidNotEmitValue()
-    self.expirationDateText.assertDidNotEmitValue()
-    self.fixButtonHidden.assertDidNotEmitValue()
-    self.notifyDelegateFixButtonTapped.assertDidNotEmitValue()
+    XCTAssertNil(self.vm.cardImageName)
+    XCTAssertNil(self.vm.cardNumberAccessibilityLabel)
+    XCTAssertNil(self.vm.cardNumberTextShortStyle)
+    XCTAssertNil(self.vm.expirationDateText)
+    XCTAssertNil(self.vm.fixButtonHidden)
+
 
     let data = ManagePledgePaymentMethodViewData(
       showFixPaymentButton: false,
@@ -47,23 +27,23 @@ final class ManagePledgePaymentMethodViewModelTests: TestCase {
       paymentType: .creditCard
     )
 
-    self.vm.inputs.configureWith(data: data)
+    self.vm.configureWith(data: data)
 
-    self.cardImageName.assertValues(["icon--visa"])
-    self.cardNumberAccessibilityLabel.assertValues(["Visa, Card ending in 1111"])
-    self.cardNumberTextShortStyle.assertValues(["Ending in 1111"])
-    self.expirationDateText.assertValues(["Expires 09/2019"])
-    self.fixButtonHidden.assertValues([true])
-    self.notifyDelegateFixButtonTapped.assertDidNotEmitValue()
+    XCTAssertEqual(self.vm.cardImageName, "icon--visa")
+    XCTAssertEqual(self.vm.cardNumberAccessibilityLabel, "Visa, Card ending in 1111")
+    XCTAssertEqual(self.vm.cardNumberTextShortStyle, "Ending in 1111")
+    XCTAssertEqual(self.vm.expirationDateText, "Expires 09/2019")
+    XCTAssertEqual(self.vm.fixButtonHidden, true)
+
   }
 
   func testApplePay() {
-    self.cardImageName.assertDidNotEmitValue()
-    self.cardNumberAccessibilityLabel.assertDidNotEmitValue()
-    self.cardNumberTextShortStyle.assertDidNotEmitValue()
-    self.expirationDateText.assertDidNotEmitValue()
-    self.fixButtonHidden.assertDidNotEmitValue()
-    self.notifyDelegateFixButtonTapped.assertDidNotEmitValue()
+    XCTAssertNil(self.vm.cardImageName)
+    XCTAssertNil(self.vm.cardNumberAccessibilityLabel)
+    XCTAssertNil(self.vm.cardNumberTextShortStyle)
+    XCTAssertNil(self.vm.expirationDateText)
+    XCTAssertNil(self.vm.fixButtonHidden)
+
 
     let data = ManagePledgePaymentMethodViewData(
       showFixPaymentButton: false,
@@ -73,23 +53,23 @@ final class ManagePledgePaymentMethodViewModelTests: TestCase {
       paymentType: .applePay
     )
 
-    self.vm.inputs.configureWith(data: data)
+    self.vm.configureWith(data: data)
 
-    self.cardImageName.assertValues(["icon--apple-pay"])
-    self.cardNumberAccessibilityLabel.assertValues(["Apple Pay, Visa, Card ending in 1111"])
-    self.cardNumberTextShortStyle.assertValues(["Ending in 1111"])
-    self.expirationDateText.assertValues(["Expires 10/2019"])
-    self.fixButtonHidden.assertValues([true])
-    self.notifyDelegateFixButtonTapped.assertDidNotEmitValue()
+    XCTAssertEqual(self.vm.cardImageName, "icon--apple-pay")
+    XCTAssertEqual(self.vm.cardNumberAccessibilityLabel, "Apple Pay, Visa, Card ending in 1111")
+    XCTAssertEqual(self.vm.cardNumberTextShortStyle, "Ending in 1111")
+    XCTAssertEqual(self.vm.expirationDateText, "Expires 10/2019")
+    XCTAssertEqual(self.vm.fixButtonHidden, true)
+
   }
 
   func testGooglePay() {
-    self.cardImageName.assertDidNotEmitValue()
-    self.cardNumberAccessibilityLabel.assertDidNotEmitValue()
-    self.cardNumberTextShortStyle.assertDidNotEmitValue()
-    self.expirationDateText.assertDidNotEmitValue()
-    self.fixButtonHidden.assertDidNotEmitValue()
-    self.notifyDelegateFixButtonTapped.assertDidNotEmitValue()
+    XCTAssertNil(self.vm.cardImageName)
+    XCTAssertNil(self.vm.cardNumberAccessibilityLabel)
+    XCTAssertNil(self.vm.cardNumberTextShortStyle)
+    XCTAssertNil(self.vm.expirationDateText)
+    XCTAssertNil(self.vm.fixButtonHidden)
+
 
     let data = ManagePledgePaymentMethodViewData(
       showFixPaymentButton: false,
@@ -99,23 +79,23 @@ final class ManagePledgePaymentMethodViewModelTests: TestCase {
       paymentType: .googlePay
     )
 
-    self.vm.inputs.configureWith(data: data)
+    self.vm.configureWith(data: data)
 
-    self.cardImageName.assertValues(["icon--google-pay"])
-    self.cardNumberAccessibilityLabel.assertValues(["Google Pay, Visa, Card ending in 4111"])
-    self.cardNumberTextShortStyle.assertValues(["Ending in 4111"])
-    self.expirationDateText.assertValues(["Expires 10/2019"])
-    self.fixButtonHidden.assertValues([true])
-    self.notifyDelegateFixButtonTapped.assertDidNotEmitValue()
+    XCTAssertEqual(self.vm.cardImageName, "icon--google-pay")
+    XCTAssertEqual(self.vm.cardNumberAccessibilityLabel, "Google Pay, Visa, Card ending in 4111")
+    XCTAssertEqual(self.vm.cardNumberTextShortStyle, "Ending in 4111")
+    XCTAssertEqual(self.vm.expirationDateText, "Expires 10/2019")
+    XCTAssertEqual(self.vm.fixButtonHidden, true)
+
   }
 
   func testFixButton_IsNotHidden() {
-    self.cardImageName.assertDidNotEmitValue()
-    self.cardNumberAccessibilityLabel.assertDidNotEmitValue()
-    self.cardNumberTextShortStyle.assertDidNotEmitValue()
-    self.expirationDateText.assertDidNotEmitValue()
-    self.fixButtonHidden.assertDidNotEmitValue()
-    self.notifyDelegateFixButtonTapped.assertDidNotEmitValue()
+    XCTAssertNil(self.vm.cardImageName)
+    XCTAssertNil(self.vm.cardNumberAccessibilityLabel)
+    XCTAssertNil(self.vm.cardNumberTextShortStyle)
+    XCTAssertNil(self.vm.expirationDateText)
+    XCTAssertNil(self.vm.fixButtonHidden)
+
 
     let data = ManagePledgePaymentMethodViewData(
       showFixPaymentButton: true,
@@ -125,22 +105,42 @@ final class ManagePledgePaymentMethodViewModelTests: TestCase {
       paymentType: .creditCard
     )
 
-    self.vm.inputs.configureWith(data: data)
+    self.vm.configureWith(data: data)
 
-    self.cardImageName.assertValues(["icon--visa"])
-    self.cardNumberAccessibilityLabel.assertValues(["Visa, Card ending in 1111"])
-    self.cardNumberTextShortStyle.assertValues(["Ending in 1111"])
-    self.expirationDateText.assertValues(["Expires 09/2019"])
-    self.fixButtonHidden.assertValues([false])
-    self.notifyDelegateFixButtonTapped.assertDidNotEmitValue()
+    XCTAssertEqual(self.vm.cardImageName, "icon--visa")
+    XCTAssertEqual(self.vm.cardNumberAccessibilityLabel, "Visa, Card ending in 1111")
+    XCTAssertEqual(self.vm.cardNumberTextShortStyle, "Ending in 1111")
+    XCTAssertEqual(self.vm.expirationDateText, "Expires 09/2019")
+    XCTAssertEqual(self.vm.fixButtonHidden, false)
 
-    self.vm.inputs.fixButtonTapped()
 
-    self.cardImageName.assertValues(["icon--visa"])
-    self.cardNumberAccessibilityLabel.assertValues(["Visa, Card ending in 1111"])
-    self.cardNumberTextShortStyle.assertValues(["Ending in 1111"])
-    self.expirationDateText.assertValues(["Expires 09/2019"])
-    self.fixButtonHidden.assertValues([false])
-    self.notifyDelegateFixButtonTapped.assertValueCount(1)
+    XCTAssertEqual(self.vm.cardImageName, "icon--visa")
+    XCTAssertEqual(self.vm.cardNumberAccessibilityLabel, "Visa, Card ending in 1111")
+    XCTAssertEqual(self.vm.cardNumberTextShortStyle, "Ending in 1111")
+    XCTAssertEqual(self.vm.expirationDateText, "Expires 09/2019")
+    XCTAssertEqual(self.vm.fixButtonHidden, false)
+
+  }
+}
+
+@MainActor
+private final class PaymentMethodDelegateProbe: ManagePledgePaymentMethodViewDelegate {
+  var calls = 0
+  func managePledgePaymentMethodViewDidTapFixButton(_ view: ManagePledgePaymentMethodView) {
+    self.calls += 1
+  }
+}
+
+@MainActor
+final class ManagePledgePaymentMethodActionTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+
+  func testFixActionNotifiesDelegateForEachTap() {
+    let view = ManagePledgePaymentMethodView(frame: .zero)
+    let delegate = PaymentMethodDelegateProbe()
+    view.delegate = delegate
+    view.perform(NSSelectorFromString("fixButtonTapped"))
+    view.perform(NSSelectorFromString("fixButtonTapped"))
+    XCTAssertEqual(delegate.calls, 2)
   }
 }
