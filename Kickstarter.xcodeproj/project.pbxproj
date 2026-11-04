@@ -4108,13 +4108,6 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "AAF5489A2F2445C0001DB5AC";
 		};
-		"5D0E5DCFD61B2999B0C2A634" = {
-			"name" = "ProjectRisksDisclaimerCellViewModel.swift";
-			"path" = "Kickstarter-iOS/1 - View/Views/ProjectPage/Views/Cells/ProjectRisksDisclaimerCellViewModel.swift";
-			"isa" = "PBXFileReference";
-			"sourceTree" = "SOURCE_ROOT";
-			"lastKnownFileType" = "sourcecode.swift";
-		};
 		"AB7571FF8ADC2A1076ECC83F" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "9511355CB070A24E8BCE1E18";
@@ -5513,7 +5506,6 @@
 				"6918325F235624920FE1D2E5",
 				"D792E115BA37FE66F8BA670A",
 				"1EE421927BAEEEB14BC03076",
-				"5D0E5DCFD61B2999B0C2A634",
 				"0190EE551A1011EEDD1C9D14",
 				"5E7F316F857A871327FA31A4",
 				"599C30A4E604119608BC348B",
@@ -8155,7 +8147,6 @@
 				"B336CCDC38F6AA73D999CF86",
 				"98CE7DD45A76C67F849E27F5",
 				"C884D10F9EA20CD0CFB3F6E6",
-				"FB9E0798A16D741FF01246F6",
 				"2CD307E984DB19A5C780EA26",
 				"98E52E12F4E9C2F91AF667A9",
 				"8A94F29565EC1EC9B8DF8B8A",
@@ -13655,10 +13646,6 @@
 		"02F0D077E8C1EA2EF53F921E" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "E0E603BBFBC616E7106FE94F";
-		};
-		"FB9E0798A16D741FF01246F6" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "5D0E5DCFD61B2999B0C2A634";
 		};
 		"AAF548432F2445C0001DB5AC" = {
 			"path" = "ManageViewPledgeRewardReceivedViewModelTests.swift";

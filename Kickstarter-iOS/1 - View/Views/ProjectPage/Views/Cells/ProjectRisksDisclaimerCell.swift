@@ -13,7 +13,6 @@ final class ProjectRisksDisclaimerCell: UITableViewCell, ValueCell {
   // MARK: - Properties
 
   weak var delegate: ProjectRisksDisclaimerCellDelegate?
-  private let viewModel = ProjectRisksDisclaimerCellViewModel()
 
   private lazy var descriptionLabel: UILabel = { UILabel(frame: .zero) }()
 
@@ -29,7 +28,6 @@ final class ProjectRisksDisclaimerCell: UITableViewCell, ValueCell {
 
     self.bindStyles()
     self.configureViews()
-    self.bindViewModel()
 
     let descriptionLabelTapGesture = UITapGestureRecognizer(
       target: self,
@@ -44,17 +42,6 @@ final class ProjectRisksDisclaimerCell: UITableViewCell, ValueCell {
   }
 
   // MARK: - Bindings
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.viewModel.outputs.notifyDelegateDescriptionLabelTapped
-      .observeForControllerAction()
-      .observeValues { [weak self] url in
-        guard let self = self else { return }
-        self.delegate?.projectRisksDisclaimerCell(self, didTapURL: url)
-      }
-  }
 
   override func bindStyles() {
     super.bindStyles()
@@ -107,7 +94,7 @@ final class ProjectRisksDisclaimerCell: UITableViewCell, ValueCell {
   @objc private func descriptionLabelTapped() {
     guard let url = HelpType.trust
       .url(withBaseUrl: AppEnvironment.current.apiService.serverConfig.webBaseUrl) else { return }
-    self.viewModel.inputs.descriptionLabelTapped(url: url)
+    self.delegate?.projectRisksDisclaimerCell(self, didTapURL: url)
   }
 }
 
