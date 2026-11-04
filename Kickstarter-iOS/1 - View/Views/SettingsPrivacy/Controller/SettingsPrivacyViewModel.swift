@@ -1,132 +1,104 @@
 import Foundation
 import KsApi
-import Prelude
-import ReactiveExtensions
-import ReactiveSwift
+import Observation
 
 @MainActor
-public protocol SettingsPrivacyViewModelInputs {
-  func didCancelSocialOptOut()
-  func didConfirmSocialOptOut()
-  func didUpdate(user: User)
-  func privateProfileToggled(on: Bool)
-  func viewDidLoad()
-}
+@Observable
+public final class SettingsPrivacyViewModel {
+  public var onReload: ((User) -> Void)?
+  public var onUserUpdated: ((User) -> Void)?
+  public var onError: ((String) -> Void)?
+  public var onResetFollowing: (() -> Void)?
+  public var onFocusFollowing: (() -> Void)?
+  private let feature: SettingsFeature
+  private let sleep: (TimeInterval) async throws -> Void
+  private var initialUser: User?
+  private var currentUser: User?
+  private var rollbackUser: User?
+  private var loadTask: Task<Void, Never>?
+  private var saves: [UUID: Task<Void, Never>] = [:]
+  private var revision = 0
 
-@MainActor
-public protocol SettingsPrivacyViewModelOutputs {
-  var focusScreenReaderOnFollowingCell: Signal<Void, Never> { get }
-  var reloadData: Signal<User, Never> { get }
-  var resetFollowingSection: Signal<Void, Never> { get }
-  var unableToSaveError: Signal<String, Never> { get }
-  var updateCurrentUser: Signal<User, Never> { get }
-}
-
-@MainActor
-public protocol SettingsPrivacyViewModelType {
-  var inputs: SettingsPrivacyViewModelInputs { get }
-  var outputs: SettingsPrivacyViewModelOutputs { get }
-}
-
-@MainActor
-public final class SettingsPrivacyViewModel: SettingsPrivacyViewModelType,
-  SettingsPrivacyViewModelInputs, SettingsPrivacyViewModelOutputs {
-  public init(feature: SettingsFeature? = nil) {
-    let feature = feature ?? AppModel.shared.settingsFeature
-    let initialUser = self.viewDidLoadProperty.signal
-      .flatMap { _ in
-        feature.userResult().wrapInOptional().demoteErrors()
-      }
-      .skipNil()
-
-    self.reloadData = initialUser
-
-    let privateProfileAttributeChanged: Signal<(UserAttribute, Bool), Never> =
-      self.privateProfileProperty.signal.negate()
-        .map { (UserAttribute.privacy(UserAttribute.Privacy.showPublicProfile), $0) }
-
-    let followingAttributeChanged = self.didConfirmSocialOptOutProperty.signal
-      .map { _ in
-        (UserAttribute.privacy(UserAttribute.Privacy.following), false)
-      }
-
-    let userAttributeChanged = Signal.merge(privateProfileAttributeChanged, followingAttributeChanged)
-
-    let updatedUser = initialUser
-      .switchMap { user in
-        userAttributeChanged.scan(user) { user, attributeAndOn in
-          let (attribute, on) = attributeAndOn
-          return user |> attribute.keyPath .~ on
-        }
-      }
-
-    let edits = Signal.merge(
-      initialUser.takePairWhen(userAttributeChanged)
-        .map { user, edit in (user, [SettingsFeature.Change(edit.0, edit.1)]) },
-      self.updateUserProperty.signal.skipNil()
-        .map { ($0, [SettingsFeature.Change(.privacy(.following), $0.social)]) }
-    )
-    let updateEvent = edits
-      .switchMap { user, changes in
-        feature.saveResult(changes, from: user)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .materialize()
-      }
-
-    let updatedFetchedUser = updateEvent.values()
-
-    self.unableToSaveError = updateEvent.errors()
-      .map { env in
-        env.errorMessages.first ?? Strings.profile_settings_error()
-      }
-
-    let previousUserOnError = Signal.merge(initialUser, updatedUser)
-      .combinePrevious()
-      .takeWhen(self.unableToSaveError)
-      .map { previous, _ in previous }
-
-    self.updateCurrentUser = Signal.merge(updatedFetchedUser, previousUserOnError)
-
-    self.resetFollowingSection = self.didCancelSocialOptOutProperty.signal
-
-    self.focusScreenReaderOnFollowingCell = Signal.merge(
-      self.didCancelSocialOptOutProperty.signal,
-      self.didConfirmSocialOptOutProperty.signal
-    )
-    .filter { _ in AppEnvironment.current.isVoiceOverRunning() }
+  public init(feature: SettingsFeature? = nil, sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
+    if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
+  }) {
+    self.feature = feature ?? AppModel.shared.settingsFeature
+    self.sleep = sleep
   }
 
-  fileprivate let didCancelSocialOptOutProperty = MutableProperty(())
-  public func didCancelSocialOptOut() {
-    self.didCancelSocialOptOutProperty.value = ()
-  }
-
-  fileprivate let didConfirmSocialOptOutProperty = MutableProperty(())
-  public func didConfirmSocialOptOut() {
-    self.didConfirmSocialOptOutProperty.value = ()
-  }
-
-  fileprivate let privateProfileProperty = MutableProperty<Bool>(true)
-  public func privateProfileToggled(on: Bool) {
-    self.privateProfileProperty.value = on
-  }
-
-  fileprivate let updateUserProperty = MutableProperty<User?>(nil)
-  public func didUpdate(user: User) {
-    self.updateUserProperty.value = user
-  }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    if let user = self.feature.sessionFeature.currentUser { self.display(user) }
+    self.loadTask?.cancel()
+    self.loadTask = Task { [weak self, feature] in
+      guard let user = try? await feature.refresh(), !Task.isCancelled else { return }
+      self?.display(user)
+    }
   }
 
-  public let focusScreenReaderOnFollowingCell: Signal<Void, Never>
-  public let reloadData: Signal<User, Never>
-  public let resetFollowingSection: Signal<Void, Never>
-  public let unableToSaveError: Signal<String, Never>
-  public let updateCurrentUser: Signal<User, Never>
+  private func display(_ user: User) {
+    self.initialUser = user
+    self.currentUser = user
+    self.rollbackUser = nil
+    self.onReload?(user)
+  }
 
-  public var inputs: SettingsPrivacyViewModelInputs { return self }
-  public var outputs: SettingsPrivacyViewModelOutputs { return self }
+  public func didCancelSocialOptOut() {
+    self.onResetFollowing?()
+    self.focusFollowingIfNeeded()
+  }
+
+  public func didConfirmSocialOptOut() {
+    self.edit(.privacy(.following), value: false)
+    self.focusFollowingIfNeeded()
+  }
+
+  public func privateProfileToggled(on: Bool) {
+    self.edit(.privacy(.showPublicProfile), value: !on)
+  }
+
+  public func didUpdate(user: User) {
+    self.save([.init(.privacy(.following), user.social)], source: user, previous: self.rollbackUser)
+  }
+
+  private func focusFollowingIfNeeded() {
+    if AppEnvironment.current.isVoiceOverRunning() { self.onFocusFollowing?() }
+  }
+
+  private func edit(_ attribute: UserAttribute, value: Bool) {
+    guard let source = self.initialUser, var current = self.currentUser else { return }
+    let previous = current
+    self.rollbackUser = previous
+    current[keyPath: attribute.keyPath] = value
+    self.currentUser = current
+    self.save([.init(attribute, value)], source: source, previous: previous)
+  }
+
+  private func save(_ changes: [SettingsFeature.Change], source: User, previous: User?) {
+    self.revision += 1
+    let revision = self.revision
+    let id = UUID()
+    let feature = self.feature
+    let sleep = self.sleep
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    self.saves[id] = Task { [weak self] in
+      defer { self?.saves[id] = nil }
+      let result: Result<User, Error>
+      do { result = .success(try await feature.save(changes, from: source)) }
+      catch { result = .failure(error) }
+      do { try await sleep(delay) } catch { return }
+      guard let self, self.revision == revision else { return }
+      switch result {
+      case let .success(user): self.onUserUpdated?(user)
+      case let .failure(error):
+        guard !(error is CancellationError) else { return }
+        self.onError?((error as? ErrorEnvelope)?.errorMessages.first ?? Strings.profile_settings_error())
+        if let previous { self.onUserUpdated?(previous) }
+      }
+    }
+  }
+
+  internal func waitForLoad() async { await self.loadTask?.value }
+  internal func waitForSaves() async {
+    for task in Array(self.saves.values) { await task.value }
+  }
 }

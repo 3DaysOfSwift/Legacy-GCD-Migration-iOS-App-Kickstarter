@@ -7,7 +7,7 @@ import SafariServices
 import UIKit
 
 internal final class SettingsPrivacyViewController: UITableViewController {
-  internal let viewModel: SettingsPrivacyViewModelType = SettingsPrivacyViewModel()
+  internal let viewModel = SettingsPrivacyViewModel()
   fileprivate let dataSource = SettingsPrivacyDataSource()
 
   internal static func instantiate() -> SettingsPrivacyViewController {
@@ -24,7 +24,7 @@ internal final class SettingsPrivacyViewController: UITableViewController {
     self.tableView.tableHeaderView = UIView(frame: CGRect(x: 0, y: 0, width: 0, height: Styles.grid(4)))
     self.tableView.tableHeaderView?.backgroundColor = LegacyColors.ksr_support_100.uiColor()
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   internal override func bindStyles() {
@@ -38,39 +38,22 @@ internal final class SettingsPrivacyViewController: UITableViewController {
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.reloadData
-      .observeForUI()
-      .observeValues { [weak self] user in
-        self?.dataSource.load(user: user)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.updateCurrentUser
-      .observeForUI()
-      .observeValues { [weak self] user in
-        NotificationCenter.default.post(Notification(name: .ksr_userUpdated))
-        self?.dataSource.load(user: user)
-      }
-
-    self.viewModel.outputs.unableToSaveError
-      .observeForControllerAction()
-      .observeValues { [weak self] message in
-        self?.present(UIAlertController.genericError(message), animated: true, completion: nil)
-      }
-
-    self.viewModel.outputs.resetFollowingSection
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        let indexPath = IndexPath(row: 0, section: Section.following.rawValue)
-        let cell = self?.tableView.cellForRow(at: indexPath) as? SettingsFollowCell
-        cell?.toggleOn()
-      }
-
-    self.viewModel.outputs.focusScreenReaderOnFollowingCell
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        self?.accessibilityFocusOnFollowingCell()
-      }
+    self.viewModel.onReload = { [weak self] user in
+      self?.dataSource.load(user: user)
+      self?.tableView.reloadData()
+    }
+    self.viewModel.onUserUpdated = { [weak self] user in
+      NotificationCenter.default.post(name: .ksr_userUpdated, object: nil)
+      self?.dataSource.load(user: user)
+    }
+    self.viewModel.onError = { [weak self] message in
+      self?.present(UIAlertController.genericError(message), animated: true, completion: nil)
+    }
+    self.viewModel.onResetFollowing = { [weak self] in
+      let indexPath = IndexPath(row: 0, section: Section.following.rawValue)
+      (self?.tableView.cellForRow(at: indexPath) as? SettingsFollowCell)?.toggleOn()
+    }
+    self.viewModel.onFocusFollowing = { [weak self] in self?.accessibilityFocusOnFollowingCell() }
   }
 
   internal override func tableView(_: UITableView, willDisplay cell: UITableViewCell, forRowAt _: IndexPath) {
@@ -93,7 +76,7 @@ internal final class SettingsPrivacyViewController: UITableViewController {
 
 extension SettingsPrivacyViewController: SettingsPrivacySwitchCellDelegate {
   func privacySettingsSwitchCell(_: SettingsPrivacySwitchCell, didTogglePrivacySwitch on: Bool) {
-    self.viewModel.inputs.privateProfileToggled(on: on)
+    self.viewModel.privateProfileToggled(on: on)
   }
 }
 
@@ -101,17 +84,17 @@ extension SettingsPrivacyViewController: SettingsFollowCellDelegate {
   internal func settingsFollowCellDidDisableFollowing(_: SettingsFollowCell) {
     let followingAlert = UIAlertController.turnOffPrivacyFollowing(
       cancelHandler: { [weak self] _ in
-        self?.viewModel.inputs.didCancelSocialOptOut()
+        self?.viewModel.didCancelSocialOptOut()
       },
       turnOffHandler: { [weak self] _ in
-        self?.viewModel.inputs.didConfirmSocialOptOut()
+        self?.viewModel.didConfirmSocialOptOut()
       }
     )
     self.present(followingAlert, animated: true, completion: nil)
   }
 
   internal func settingsFollowCellDidUpdate(user: User) {
-    self.viewModel.inputs.didUpdate(user: user)
+    self.viewModel.didUpdate(user: user)
   }
 }
 

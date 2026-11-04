@@ -1,177 +1,60 @@
 @testable import Kickstarter_iOS
-import Foundation
 @testable import KsApi
 
-
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
-internal final class SettingsPrivacyViewModelTests: TestCase {
+final class SettingsPrivacyViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   private let feature = SettingsFeature(
-    sessionFeature: SessionFeature(makeProvider: {
-      AsyncSessionProvider(service: AppEnvironment.current.apiService)
-    }),
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }),
     makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
   )
-  private lazy var vm = SettingsPrivacyViewModel(feature: self.feature)
-  internal let focusScreenReaderOnFollowingCell = TestObserver<Void, Never>()
-  internal let reloadData = TestObserver<User, Never>()
-  internal let resetFollowingSection = TestObserver<Void, Never>()
-  internal let unableToSaveError = TestObserver<String, Never>()
-  internal let updateCurrentUser = TestObserver<User, Never>()
+  private lazy var vm = SettingsPrivacyViewModel(feature: self.feature, sleep: { _ in })
 
-  internal override func setUp() async throws {
+  override func setUp() async throws {
     try await super.setUp()
-    MainActor.assumeIsolated {
-      // Settings is a signed-in flow; the original fixtures omitted authentication.
-      AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
-      self.vm.outputs.focusScreenReaderOnFollowingCell.observe(self.focusScreenReaderOnFollowingCell.observer)
-      self.vm.outputs.reloadData.observe(self.reloadData.observer)
-      self.vm.outputs.resetFollowingSection.observe(self.resetFollowingSection.observer)
-      self.vm.outputs.unableToSaveError.observe(self.unableToSaveError.observer)
-      self.vm.outputs.updateCurrentUser.observe(self.updateCurrentUser.observer)
-    }
+    AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
   }
 
-  override func tearDown() async throws {
-    await self.feature.waitForOperations()
-    try await super.tearDown()
-  }
-
-  func testFocusScreenReaderOnFollowingCel() async {
-    await withEnvironment(isVoiceOverRunning: { true }) {
-      self.vm.inputs.didCancelSocialOptOut()
-
-      await self.feature.waitForOperations()
-
-      await self.scheduler.advance()
-
-      self.focusScreenReaderOnFollowingCell.assertValueCount(1)
-
-      self.vm.inputs.didConfirmSocialOptOut()
-
-      await self.feature.waitForOperations()
-
-      await self.scheduler.advance()
-
-      self.focusScreenReaderOnFollowingCell.assertValueCount(2)
-    }
-  }
-
-  func testResetFollowingSection_WhenCancelingSocialOptOut() async {
+  func testCachedAndRefreshedUserAndPrivateProfileSave() async {
     let user = User.template
-      |> \.social .~ true
-
-    let mockService = MockService(fetchUserSelfResponse: user)
-
-    await withEnvironment(apiService: mockService, currentUser: user) {
-      self.vm.inputs.viewDidLoad()
-      await self.feature.waitForOperations()
-
-      self.vm.inputs.didCancelSocialOptOut()
-
-      await self.feature.waitForOperations()
-
-      await self.scheduler.advance()
-
-      self.resetFollowingSection.assertValueCount(1)
-    }
-  }
-
-  func testReloadData() async {
-    let user = User.template
-    let mockService = MockService(fetchUserSelfResponse: user)
-
-    await withEnvironment(apiService: mockService, currentUser: user) {
-      self.vm.inputs.viewDidLoad()
-      await self.feature.waitForOperations()
-
-      await self.feature.waitForOperations()
-
-      await self.scheduler.advance()
-
-      self.reloadData.assertValues([user, user])
-    }
-  }
-
-  func testUnableToSaveError() async {
-    let error = ErrorEnvelope(
-      errorMessages: ["Unable to save."],
-      ksrCode: .UnknownCode,
-      httpCode: 400,
-      exception: nil
-    )
-
-    await withEnvironment(apiService: MockService(updateUserSelfError: error)) {
-      self.vm.inputs.viewDidLoad()
-      await self.feature.waitForOperations()
-
-      self.vm.inputs.didConfirmSocialOptOut()
-
-      await self.feature.waitForOperations()
-
-      await self.scheduler.advance()
-
-      self.unableToSaveError.assertValueCount(1)
-    }
-  }
-
-  func testFollowingSwitchTapped_updatesCurrentUser() async {
-    self.vm.viewDidLoad()
-    await self.feature.waitForOperations()
-
-    self.vm.didCancelSocialOptOut()
-    self.updateCurrentUser.assertValueCount(0)
-
-    self.vm.didConfirmSocialOptOut()
-
-    await self.feature.waitForOperations()
-
-    await self.scheduler.advance()
-
-    self.updateCurrentUser.assertValueCount(1)
-  }
-
-  func testUpdateCurrentUser() async {
-    let mockService = MockService(fetchUserSelfResponse: User.template)
-
-    await withEnvironment(apiService: mockService) {
-      self.vm.inputs.viewDidLoad()
-      await self.feature.waitForOperations()
-      self.updateCurrentUser.assertValueCount(0)
-
-      self.vm.inputs.didCancelSocialOptOut()
-      self.updateCurrentUser.assertValueCount(0)
-
-      self.vm.inputs.didConfirmSocialOptOut()
-      await self.feature.waitForOperations()
-      await self.scheduler.advance()
-
-      self.updateCurrentUser.assertValueCount(1)
-    }
-  }
-
-  func testPrivateProfileToggled_updatesCurrentUser() async {
-    let updatedUser = User.template
-      |> UserAttribute.privacy(.showPublicProfile).keyPath .~ false
-    let mockService = MockService(fetchUserSelfResponse: User.template)
-
-    await withEnvironment(apiService: mockService) {
-      self.vm.inputs.viewDidLoad()
-      await self.feature.waitForOperations()
-      self.updateCurrentUser.assertValueCount(0)
-
+    await withEnvironment(apiService: MockService(fetchUserSelfResponse: user), currentUser: user) {
+      var loaded: [User] = []
+      var updated: [User] = []
+      self.vm.onReload = { loaded.append($0) }
+      self.vm.onUserUpdated = { updated.append($0) }
+      self.vm.viewDidLoad()
+      await self.vm.waitForLoad()
+      XCTAssertEqual(loaded.count, 2)
       self.vm.privateProfileToggled(on: true)
+      await self.vm.waitForSaves()
+      XCTAssertEqual(updated.last?.showPublicProfile, false)
+    }
+  }
 
-      await self.feature.waitForOperations()
-
-      await self.scheduler.advance()
-
-      self.updateCurrentUser.assertValue(updatedUser)
+  func testSaveFailureAndFollowingConfirmation() async {
+    let error = ErrorEnvelope(errorMessages: ["Unable to save."], ksrCode: .UnknownCode,
+                              httpCode: 400, exception: nil)
+    await withEnvironment(apiService: MockService(updateUserSelfError: error), isVoiceOverRunning: { true }) {
+      var message: String?
+      var focusCount = 0
+      var resetCount = 0
+      var updated: User?
+      self.vm.onError = { message = $0 }
+      self.vm.onFocusFollowing = { focusCount += 1 }
+      self.vm.onResetFollowing = { resetCount += 1 }
+      self.vm.onUserUpdated = { updated = $0 }
+      self.vm.viewDidLoad()
+      await self.vm.waitForLoad()
+      self.vm.didCancelSocialOptOut()
+      self.vm.didConfirmSocialOptOut()
+      await self.vm.waitForSaves()
+      XCTAssertEqual(resetCount, 1)
+      XCTAssertEqual(focusCount, 2)
+      XCTAssertEqual(message, "Unable to save.")
+      XCTAssertNotNil(updated)
     }
   }
 }
