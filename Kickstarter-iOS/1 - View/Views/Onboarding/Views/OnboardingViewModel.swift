@@ -96,7 +96,7 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
     self.lifecycleFeature = lifecycleFeature
     self.useCase = OnboardingUseCase(for: bundle)
 
-    self.onboardingItems = self.useCase.uiOutputs.onboardingItems
+    self.onboardingItems = SignalProducer(value: self.useCase.uiOutputs.onboardingItems)
 
     self.didCompletePushNotificationSystemDialog = self.useCase.outputs
       .didCompletePushNotificationSystemDialog

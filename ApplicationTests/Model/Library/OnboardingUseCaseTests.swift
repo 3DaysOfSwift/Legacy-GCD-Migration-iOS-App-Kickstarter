@@ -12,7 +12,6 @@ final class OnboardingUseCaseTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   var useCase: OnboardingUseCase!
 
-  let onboardingItems = TestObserver<[OnboardingItem], Never>()
   let triggerAppTrackingTransparencyDialog = TestObserver<Void, Never>()
   let didCompletePushNotificationSystemDialog = TestObserver<Void, Never>()
 
@@ -21,7 +20,6 @@ final class OnboardingUseCaseTests: TestCase {
 
     self.useCase = OnboardingUseCase(for: Bundle.main)
 
-    self.useCase.uiOutputs.onboardingItems.start(self.onboardingItems.observer)
     self.useCase.outputs.triggerAppTrackingTransparencyDialog
       .observe(self.triggerAppTrackingTransparencyDialog.observer)
     self.useCase.outputs.didCompletePushNotificationSystemDialog
@@ -29,9 +27,7 @@ final class OnboardingUseCaseTests: TestCase {
   }
 
   func testUseCase_onboardingItems_EmitsAListOfAll5OboardingItemTypes_Once() {
-    self.onboardingItems.assertValueCount(1)
-
-    XCTAssertEqual(self.onboardingItems.lastValue?.count, 5)
+    XCTAssertEqual(self.useCase.uiOutputs.onboardingItems.count, 5)
   }
 
   func testUseCase_didCompletePushNotificationSystemDialog_Emits_WhenNotAuthorized() {

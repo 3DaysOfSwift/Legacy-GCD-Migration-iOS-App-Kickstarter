@@ -68,13 +68,11 @@ public protocol OnboardingUseCaseUIInputs {
   /// Triggers the Push notifications  system dialog.
   func getNotifiedTapped()
 
-  /// Call when a user taps on the "Next", "Not right now", or "Explore the app" buttons.
-  func goToNextItemTapped(item: OnboardingItemType)
 }
 
 @MainActor
 public protocol OnboardingUseCaseUIOutputs {
-  var onboardingItems: SignalProducer<[OnboardingItem], Never> { get }
+  var onboardingItems: [OnboardingItem] { get }
 }
 
 @MainActor
@@ -95,7 +93,6 @@ public protocol OnboardingUseCaseOutputs {
  UI Inputs:
   * `getNotifiedTapped()` - Presents the push notifications permissions system dialog.
   * `allowTrackingTapped()` - Presents the AppTrackingTransparency permissions system dialog.
-  * `goToNextItemTapped(item: OnboardingItemType)` -  Moves to the next onboarding flow item.
 
  UI Outputs:
   * `onboardingItems` - Returns a list of `OnboardingItem` used to populate the views for each section of the flow.
@@ -113,7 +110,7 @@ public final class OnboardingUseCase: OnboardingUseCaseType, OnboardingUseCaseUI
   init(for bundle: Bundle = .main) {
     let onboardingItems = allOnboardingItems(in: bundle)
 
-    self.onboardingItems = SignalProducer(value: onboardingItems)
+    self.onboardingItems = onboardingItems
 
     self.triggerAppTrackingTransparencyDialog = self.allowTrackingTappedSignal.signal
       .filter {
@@ -149,7 +146,6 @@ public final class OnboardingUseCase: OnboardingUseCaseType, OnboardingUseCaseUI
       /// Map any output to Void, since we only care about triggering the dialog
       .mapConst(())
 
-    _ = self.goToNextItemTappedSignal.signal
   }
 
   // MARK: - Inputs
@@ -164,12 +160,6 @@ public final class OnboardingUseCase: OnboardingUseCaseType, OnboardingUseCaseUI
     self.allowTrackingTappedObserver.send(value: ())
   }
 
-  private let (goToNextItemTappedSignal, goToNextItemTappedObserver) = Signal<OnboardingItemType, Never>
-    .pipe()
-  public func goToNextItemTapped(item: OnboardingItemType) {
-    self.goToNextItemTappedObserver.send(value: item)
-  }
-
   // MARK: - UI Outputs
 
   public let triggerAppTrackingTransparencyDialog: Signal<Void, Never>
@@ -177,7 +167,7 @@ public final class OnboardingUseCase: OnboardingUseCaseType, OnboardingUseCaseUI
 
   // MARK: - Data Outputs
 
-  public let onboardingItems: SignalProducer<[OnboardingItem], Never>
+  public let onboardingItems: [OnboardingItem]
 
   // MARK: - Type
 
