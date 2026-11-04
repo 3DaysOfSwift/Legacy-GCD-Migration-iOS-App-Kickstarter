@@ -1,3 +1,4 @@
+import Observation
 import KDS
 import KsApi
 
@@ -12,7 +13,7 @@ internal protocol SortPagerViewControllerDelegate: AnyObject {
 
 internal final class SortPagerViewController: UIViewController {
   internal weak var delegate: SortPagerViewControllerDelegate?
-  fileprivate let viewModel: SortPagerViewModelType = SortPagerViewModel()
+  fileprivate let viewModel: SortPagerViewModel = SortPagerViewModel()
 
   @IBOutlet fileprivate var borderLineView: UIView!
   @IBOutlet fileprivate var indicatorView: UIView!
@@ -29,15 +30,15 @@ internal final class SortPagerViewController: UIViewController {
   }
 
   internal func configureWith(sorts: [DiscoveryParams.Sort]) {
-    self.viewModel.inputs.configureWith(sorts: sorts)
+    self.viewModel.configureWith(sorts: sorts)
   }
 
   internal func select(sort: DiscoveryParams.Sort) {
-    self.viewModel.inputs.select(sort: sort)
+    self.viewModel.select(sort: sort)
   }
 
   internal func updateStyle(categoryId: Int?) {
-    self.viewModel.inputs.updateStyle(categoryId: categoryId)
+    self.viewModel.updateStyle(categoryId: categoryId)
   }
 
   internal override func viewDidLoad() {
@@ -50,48 +51,37 @@ internal final class SortPagerViewController: UIViewController {
   internal override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
 
-    self.viewModel.inputs.viewWillAppear()
+    self.viewModel.viewWillAppear()
   }
 
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
 
-    self.viewModel.inputs.viewDidAppear()
+    self.viewModel.viewDidAppear()
   }
 
   internal override func bindViewModel() {
-    self.indicatorView.rac.hidden = self.viewModel.outputs.indicatorViewIsHidden
+    self.viewModel.createSortButtons = { [weak self] in self?.createSortButtons($0) }
+    self.viewModel.setSelectedButton = { [weak self] in self?.selectButton(atIndex: $0) }
+    self.viewModel.pinSelectedIndicatorToPage = { [weak self] in
+      self?.pinSelectedIndicator(toPage: $0, animated: $1)
+    }
+    self.viewModel.updateSortStyle = { [weak self] in
+      self?.updateSortStyle(forCategoryId: $0, sorts: $1, animated: $2)
+    }
+    self.viewModel.notifyDelegateOfSelectedSort = { [weak self] sort in
+      guard let self else { return }
+      self.delegate?.sortPager(self, selectedSort: sort)
+    }
+    self.observeIndicatorVisibility()
+  }
 
-    self.viewModel.outputs.createSortButtons
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.createSortButtons($0)
-      }
-
-    self.viewModel.outputs.setSelectedButton
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.selectButton(atIndex: $0)
-      }
-
-    self.viewModel.outputs.pinSelectedIndicatorToPage
-      .observeForUI()
-      .observeValues { [weak self] page, animated in
-        self?.pinSelectedIndicator(toPage: page, animated: animated)
-      }
-
-    self.viewModel.outputs.updateSortStyle
-      .observeForUI()
-      .observeValues { [weak self] id, sorts, animated in
-        self?.updateSortStyle(forCategoryId: id, sorts: sorts, animated: animated)
-      }
-
-    self.viewModel.outputs.notifyDelegateOfSelectedSort
-      .observeForUI()
-      .observeValues { [weak self] sort in
-        guard let _self = self else { return }
-        _self.delegate?.sortPager(_self, selectedSort: sort)
-      }
+  private func observeIndicatorVisibility() {
+    withObservationTracking {
+      self.indicatorView.isHidden = self.viewModel.indicatorViewIsHidden
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeIndicatorVisibility() }
+    }
   }
 
   internal override func bindStyles() {
@@ -121,11 +111,11 @@ internal final class SortPagerViewController: UIViewController {
     to _: UIInterfaceOrientation,
     duration _: TimeInterval
   ) {
-    self.viewModel.inputs.willRotateToInterfaceOrientation()
+    self.viewModel.willRotateToInterfaceOrientation()
   }
 
   internal override func didRotate(from _: UIInterfaceOrientation) {
-    self.viewModel.inputs.didRotateFromInterfaceOrientation()
+    self.viewModel.didRotateFromInterfaceOrientation()
   }
 
   internal func setSortPagerEnabled(_ isEnabled: Bool) {
@@ -217,6 +207,6 @@ internal final class SortPagerViewController: UIViewController {
   }
 
   @objc fileprivate func sortButtonTapped(_ button: UIButton) {
-    self.viewModel.inputs.sortButtonTapped(index: button.tag)
+    self.viewModel.sortButtonTapped(index: button.tag)
   }
 }
