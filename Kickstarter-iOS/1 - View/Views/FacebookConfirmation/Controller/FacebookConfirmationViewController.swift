@@ -1,3 +1,4 @@
+import Observation
 import Foundation
 
 import MessageUI
@@ -19,13 +20,13 @@ internal final class FacebookConfirmationViewController: UIViewController,
   @IBOutlet private var rootStackView: UIStackView!
 
   private let helpViewModel = HelpViewModel()
-  fileprivate let viewModel: FacebookConfirmationViewModelType = FacebookConfirmationViewModel()
+  fileprivate let viewModel = FacebookConfirmationViewModel()
 
   internal static func configuredWith(facebookUserEmail email: String, facebookAccessToken token: String)
     -> FacebookConfirmationViewController {
     let vc = Storyboard.Login.instantiate(FacebookConfirmationViewController.self)
-    vc.viewModel.inputs.email(email)
-    vc.viewModel.inputs.facebookToken(token)
+    vc.viewModel.email(email)
+    vc.viewModel.facebookToken(token)
     vc.helpViewModel.configureWith(helpContext: .facebookConfirmation)
     vc.helpViewModel.canSendEmail(MFMailComposeViewController.canSendMail())
     return vc
@@ -53,7 +54,7 @@ internal final class FacebookConfirmationViewController: UIViewController,
 
     self.disclaimerTextView.delegate = self
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   internal override func bindStyles() {
@@ -76,36 +77,15 @@ internal final class FacebookConfirmationViewController: UIViewController,
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.displayEmail
-      .observeForUI()
-      .observeValues { [weak self] email in
-        self?.emailLabel.text = email
-      }
-
-    self.viewModel.outputs.sendNewsletters
-      .observeForUI()
-      .observeValues { [weak self] send in self?.newsletterSwitch.setOn(send, animated: false)
-      }
-
-    self.viewModel.outputs.showLogin
-      .observeForControllerAction()
-      .observeValues { [weak self] _ in self?.goToLoginViewController()
-      }
-
-    self.viewModel.outputs.logIntoEnvironment
-      .observeValues { [weak self] _ in
-        self?.viewModel.inputs.environmentLoggedIn()
-      }
-
-    self.viewModel.outputs.postNotification
-      .observeForUI()
-      .observeValues(NotificationCenter.default.post)
-
-    self.viewModel.errors.showSignupError
-      .observeForControllerAction()
-      .observeValues { [weak self] message in
-        self?.present(UIAlertController.genericError(message), animated: true, completion: nil)
-      }
+    self.observeConfirmationState()
+    self.viewModel.onLogin = { [weak self] in self?.goToLoginViewController() }
+    self.viewModel.onSignupSuccess = {
+      NotificationCenter.default.post(name: .ksr_sessionStarted, object: nil)
+    }
+    self.viewModel.onSignupError = { [weak self] message in
+      self?.present(UIAlertController.genericError(message), animated: true, completion: nil)
+    }
+    self.viewModel.onHelp = { [weak self] in self?.goToHelpType($0) }
 
     self.helpViewModel.onHelpSheet = { [weak self] in
         self?.showHelpSheet(helpTypes: $0)
@@ -126,11 +106,15 @@ internal final class FacebookConfirmationViewController: UIViewController,
         self?.goToHelpType(helpType)
       }
 
-    self.viewModel.outputs.notifyDelegateOpenHelpType
-      .observeForUI()
-      .observeValues { [weak self] helpType in
-        self?.goToHelpType(helpType)
-      }
+  }
+
+  private func observeConfirmationState() {
+    withObservationTracking {
+      self.emailLabel.text = self.viewModel.displayEmail
+      self.newsletterSwitch.setOn(self.viewModel.sendNewsletters, animated: false)
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeConfirmationState() }
+    }
   }
 
   fileprivate func goToHelpType(_ helpType: HelpType) {
@@ -168,15 +152,15 @@ internal final class FacebookConfirmationViewController: UIViewController,
   }
 
   @objc private func newsletterSwitchChanged(_ sender: UISwitch) {
-    self.viewModel.inputs.sendNewslettersToggled(sender.isOn)
+    self.viewModel.sendNewslettersToggled(sender.isOn)
   }
 
   @objc private func createAccountButtonPressed() {
-    self.viewModel.inputs.createAccountButtonPressed()
+    self.viewModel.createAccountButtonPressed()
   }
 
   @objc private func loginButtonPressed() {
-    self.viewModel.inputs.loginButtonPressed()
+    self.viewModel.loginButtonPressed()
   }
 
   @objc fileprivate func newsletterLabelTapped() {
@@ -208,7 +192,7 @@ extension FacebookConfirmationViewController: UITextViewDelegate {
     in _: NSRange,
     interaction _: UITextItemInteraction
   ) -> Bool {
-    self.viewModel.inputs.tapped(url)
+    self.viewModel.tapped(url)
     return false
   }
 }
