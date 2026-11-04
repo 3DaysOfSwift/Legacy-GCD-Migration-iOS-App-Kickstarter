@@ -5,7 +5,7 @@ import Prelude
 import UIKit
 
 internal final class ProjectNotificationsViewController: UITableViewController {
-  fileprivate let viewModel: ProjectNotificationsViewModelType = ProjectNotificationsViewModel()
+  fileprivate let viewModel = ProjectNotificationsViewModel()
   fileprivate let dataSource = ProjectNotificationsDataSource()
 
   internal static func instantiate() -> ProjectNotificationsViewController {
@@ -21,7 +21,7 @@ internal final class ProjectNotificationsViewController: UITableViewController {
     self.tableView.tableHeaderView = UIView(frame: CGRect(x: 0, y: 0, width: 0, height: Styles.grid(6)))
     self.tableView.rowHeight = 44.0
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   override func bindStyles() {
@@ -39,12 +39,10 @@ internal final class ProjectNotificationsViewController: UITableViewController {
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.projectNotifications
-      .observeForUI()
-      .observeValues { [weak self] notifications in
-        self?.dataSource.load(notifications: notifications)
-        self?.tableView.reloadData()
-      }
+    self.viewModel.onNotifications = { [weak self] notifications in
+      self?.dataSource.load(notifications: notifications)
+      self?.tableView.reloadData()
+    }
   }
 
   internal override func tableView(_: UITableView, willDisplay cell: UITableViewCell, forRowAt _: IndexPath) {
