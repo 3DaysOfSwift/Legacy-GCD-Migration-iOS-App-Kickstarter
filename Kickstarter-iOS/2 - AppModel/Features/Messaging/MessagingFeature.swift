@@ -330,9 +330,6 @@ public final class MessagingFeature {
   func sendResult(body: String, subject: MessageSubject) -> SignalProducer<Message, ErrorEnvelope> {
     self.mutationResult { self.requestSend(body: body, subject: subject) }
   }
-  func markReadResult(_ thread: MessageThread) -> SignalProducer<MessageThread, ErrorEnvelope> {
-    self.mutationResult { self.requestMarkRead(thread) }
-  }
   private func mutationResult<Value>(
     admit: @escaping @MainActor () -> Task<Value, Error>
   ) -> SignalProducer<Value, ErrorEnvelope> {

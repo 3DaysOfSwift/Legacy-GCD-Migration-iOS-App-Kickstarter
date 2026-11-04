@@ -60,9 +60,6 @@ public protocol MessagesViewModelOutputs {
   /// Emits a bool whether the reply button is enabled.
   var replyButtonIsEnabled: Signal<Bool, Never> { get }
 
-  /// Emits when the thread has been marked as read.
-  var successfullyMarkedAsRead: Signal<(), Never> { get }
-
 }
 
 @MainActor
@@ -77,6 +74,9 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
   private let feature: MessagingFeature
   private let discussion: DiscussionFeature
   private var blockTask: Task<Void, Never>?
+  private var markReadTask: Task<Void, Never>?
+  private var markReadVersion = UUID()
+  var onMarkedRead: (() -> Void)?
   private var blockVersion = UUID()
   private var latestBlockedID: String?
   var onBlockSuccess: (() -> Void)?
@@ -199,26 +199,41 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
       messages && !isBlocked
     }
 
-    self.successfullyMarkedAsRead = messageThreadEnvelope
-      .switchMap {
-        feature.markReadResult($0.messageThread)
-          .demoteErrors()
-      }
-      .ignoreValues()
-
     self.project.observeValues { [weak self] project in
       guard let self else { return }
       self.latestProject = project
       if let id = self.latestBlockedID { self.trackBlockedUser(id: id, project: project, confirmed: false) }
     }
-    messageThreadEnvelope.observeValues { [weak self] in self?.latestThread = $0.messageThread }
+    messageThreadEnvelope.observeValues { [weak self] in
+      self?.latestThread = $0.messageThread
+      self?.markRead($0.messageThread)
+    }
 
   }
+
+  private func markRead(_ thread: MessageThread) {
+    self.markReadTask?.cancel()
+    let version = UUID()
+    self.markReadVersion = version
+    let session = self.feature.sessionFeature
+    let userID = session.currentUser?.id
+    let generation = session.generation
+    let command = self.feature.requestMarkRead(thread)
+    self.markReadTask = Task { [weak self] in
+      guard case .success = await command.result, !Task.isCancelled,
+            let self, self.markReadVersion == version,
+            session.isCurrent(userID: userID, generation: generation) else { return }
+      self.onMarkedRead?()
+      self.markReadTask = nil
+    }
+  }
+  func waitForMarkRead() async { await self.markReadTask?.value }
 
   private let threadRoute = UUID()
   private let backingRoute = UUID()
   deinit {
     self.blockTask?.cancel()
+    self.markReadTask?.cancel()
     let feature = self.feature, thread = self.threadRoute, backing = self.backingRoute
     Task { @MainActor in
       feature.release(route: thread)
@@ -308,7 +323,6 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
   public let participantPreviouslyBlocked: Signal<Bool, Never>
   public let project: Signal<Project, Never>
   public let replyButtonIsEnabled: Signal<Bool, Never>
-  public let successfullyMarkedAsRead: Signal<(), Never>
 
   public var goToBacking: Signal<ManagePledgeViewParamConfigData, Never> {
     self.viewPledgeUseCase.goToNativePledgeView

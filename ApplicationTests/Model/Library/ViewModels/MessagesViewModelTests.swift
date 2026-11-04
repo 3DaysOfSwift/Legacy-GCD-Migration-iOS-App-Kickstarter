@@ -56,7 +56,7 @@ internal final class MessagesViewModelTests: TestCase {
       self.vm.onReply = { [weak self] thread, _ in self?.presentMessageDialog.observer.send(value: thread) }
       self.vm.outputs.project.observe(self.project.observer)
       self.vm.outputs.replyButtonIsEnabled.observe(self.replyButtonIsEnabled.observer)
-      self.vm.outputs.successfullyMarkedAsRead.observe(self.successfullyMarkedAsRead.observer)
+      self.vm.onMarkedRead = { [weak self] in self?.successfullyMarkedAsRead.observer.send(value: ()) }
       self.vm.onBlockSuccess = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
       self.vm.onBlockError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }
 
@@ -575,6 +575,7 @@ internal final class MessagesViewModelTests: TestCase {
     await self.scheduler.advance()
     // Thread delivery starts backing lookup and read-status commands.
     await self.feature.waitForOperations()
+    await self.vm.waitForMarkRead()
     await self.scheduler.advance()
   }
 }
