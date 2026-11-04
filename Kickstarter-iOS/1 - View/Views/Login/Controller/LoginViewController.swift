@@ -2,7 +2,6 @@ import KDS
 
 import Prelude
 import Prelude_UIKit
-import ReactiveSwift
 import UIKit
 
 internal final class LoginViewController: UIViewController {
