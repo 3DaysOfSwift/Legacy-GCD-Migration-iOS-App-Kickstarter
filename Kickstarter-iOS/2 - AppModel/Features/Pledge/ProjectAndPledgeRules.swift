@@ -1,7 +1,6 @@
 import KDS
 import KsApi
 import Prelude
-import ReactiveSwift
 import UIKit
 import UserNotifications
 
@@ -208,16 +207,6 @@ public func projectCountry(
 ) -> Project.Country? {
   guard let currencyCode = code else { return nil }
   return launchedCountries.countries.first { $0.currencyCode == currencyCode }
-}
-
-@MainActor
-public func updatedUserWithClearedActivityCountProducer() -> SignalProducer<User, Never> {
-  return AppEnvironment.current.apiService.clearUserUnseenActivity(input: .init())
-    .filter { _ in AppEnvironment.current.currentUser != nil }
-    .map { $0.activityIndicatorCount }
-    .map { count in AppEnvironment.current.currentUser ?|> User.lens.unseenActivityCount .~ count }
-    .skipNil()
-    .demoteErrors()
 }
 
 @MainActor
