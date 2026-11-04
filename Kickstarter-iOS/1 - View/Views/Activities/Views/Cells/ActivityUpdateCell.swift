@@ -2,8 +2,6 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 import UIKit
 
 @MainActor
@@ -13,7 +11,7 @@ internal protocol ActivityUpdateCellDelegate: AnyObject {
 }
 
 internal final class ActivityUpdateCell: UITableViewCell, ValueCell {
-  fileprivate var viewModel: ActivityUpdateViewModelType = ActivityUpdateViewModel()
+  fileprivate let viewModel = ActivityUpdateViewModel()
   internal weak var delegate: ActivityUpdateCellDelegate?
 
   @IBOutlet fileprivate var bodyLabel: UILabel!
@@ -26,36 +24,21 @@ internal final class ActivityUpdateCell: UITableViewCell, ValueCell {
   @IBOutlet fileprivate var updateSequenceLabel: UILabel!
 
   internal func configureWith(value: Activity) {
-    self.viewModel.inputs.configureWith(activity: value)
-  }
-
-  internal override func bindViewModel() {
-    super.bindViewModel()
-
-    self.rac.accessibilityLabel = self.viewModel.outputs.cellAccessibilityLabel
-    self.projectNameLabel.rac.text = self.viewModel.outputs.projectName
-    self.updateSequenceLabel.rac.attributedText = self.viewModel.outputs.sequenceTitle
-    self.titleLabel.rac.text = self.viewModel.outputs.title
-    self.bodyLabel.rac.text = self.viewModel.outputs.body
+    self.viewModel.configureWith(activity: value)
+    if let text = self.viewModel.cellAccessibilityLabel { self.accessibilityLabel = text }
+    if let name = self.viewModel.projectName {
+      self.projectNameLabel.text = name
+      self.projectImageButton.accessibilityLabel = name
+    }
     self.projectImageButton.accessibilityHint = Strings.dashboard_tout_accessibility_hint_opens_project()
-    self.projectImageButton.rac.accessibilityLabel = self.viewModel.outputs.projectButtonAccessibilityLabel
-
-    self.viewModel.outputs.projectImageURL
-      .observeForUI()
-      .on(event: { [weak projectImageView] _ in
-        projectImageView?.af.cancelImageRequest()
-        projectImageView?.image = nil
-      })
-      .skipNil()
-      .observeValues { [weak projectImageView] url in
-        projectImageView?.af.setImage(withURL: url)
-      }
-
-    self.viewModel.outputs.notifyDelegateTappedProjectImage
-      .observeForUI()
-      .observeValues { [weak self] activity in
-        self?.delegate?.activityUpdateCellTappedProjectImage(activity: activity)
-      }
+    self.updateSequenceLabel.attributedText = self.viewModel.sequenceTitle
+    if let title = self.viewModel.title { self.titleLabel.text = title }
+    if let body = self.viewModel.body { self.bodyLabel.text = body }
+    if value.project != nil {
+      self.projectImageView.af.cancelImageRequest()
+      self.projectImageView.image = nil
+      if let url = self.viewModel.projectImageURL { self.projectImageView.af.setImage(withURL: url) }
+    }
   }
 
   internal override func bindStyles() {
@@ -90,6 +73,8 @@ internal final class ActivityUpdateCell: UITableViewCell, ValueCell {
   }
 
   @IBAction internal func tappedProjectImage() {
-    self.viewModel.inputs.tappedProjectImage()
+    if let activity = self.viewModel.activity {
+      self.delegate?.activityUpdateCellTappedProjectImage(activity: activity)
+    }
   }
 }

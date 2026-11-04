@@ -1,99 +1,35 @@
 import KDS
 import KsApi
 import Prelude
-import ReactiveSwift
+import Observation
 import UIKit
 
-@MainActor
-public protocol ActivityUpdateViewModelInputs {
-  /// Call to configure with the activity.
-  func configureWith(activity: Activity)
+@MainActor @Observable
+public final class ActivityUpdateViewModel {
+  public init() {}
+  public private(set) var activity: Activity?
+  public private(set) var body: String?
+  public private(set) var cellAccessibilityLabel: String?
+  public private(set) var projectImageURL: URL?
+  public private(set) var projectName: String?
+  public private(set) var sequenceTitle: NSAttributedString?
+  public private(set) var title: String?
 
-  /// Call when the project image is tapped.
-  func tappedProjectImage()
-}
-
-@MainActor
-public protocol ActivityUpdateViewModelOutputs {
-  /// Emits the update's body to be displayed.
-  var body: Signal<String, Never> { get }
-
-  /// Emits the cell's accessibility label to be read by VoiceOver.
-  var cellAccessibilityLabel: Signal<String, Never> { get }
-
-  /// Emits when we should notify the delegate that the project image button was tapped.
-  var notifyDelegateTappedProjectImage: Signal<Activity, Never> { get }
-
-  /// Emits the project button's accessibility label to be read by VoiceOver.
-  var projectButtonAccessibilityLabel: Signal<String, Never> { get }
-
-  /// Emits the project image URL to be displayed.
-  var projectImageURL: Signal<URL?, Never> { get }
-
-  /// Emits the project name to be displayed.
-  var projectName: Signal<String, Never> { get }
-
-  /// Emits an attributed string for the update sequence title.
-  var sequenceTitle: Signal<NSAttributedString, Never> { get }
-
-  /// Emits the update title to be displayed.
-  var title: Signal<String, Never> { get }
-}
-
-@MainActor
-public protocol ActivityUpdateViewModelType {
-  var inputs: ActivityUpdateViewModelInputs { get }
-  var outputs: ActivityUpdateViewModelOutputs { get }
-}
-
-@MainActor
-public final class ActivityUpdateViewModel: ActivityUpdateViewModelType, ActivityUpdateViewModelInputs,
-  ActivityUpdateViewModelOutputs {
-  public init() {
-    let activity = self.activityProperty.signal.skipNil()
-    let project = activity.map { $0.project }.skipNil()
-    let update = activity.map { $0.update }.skipNil()
-
-    self.body = update
-      .map { $0.body?.htmlStripped()?.truncated(maxLength: 300) ?? "" }
-
-    self.projectImageURL = project.map { $0.photo.med }.map(URL.init(string:))
-
-    self.projectName = project.map { $0.name }
-    self.projectButtonAccessibilityLabel = self.projectName
-
-    self.title = update.map { $0.title }
-
-    self.sequenceTitle = activity.map { updatePostedString(forActivity: $0) }
-
-    self.notifyDelegateTappedProjectImage = activity
-      .takeWhen(self.tappedProjectImageProperty.signal)
-
-    self.cellAccessibilityLabel = Signal.combineLatest(project, self.sequenceTitle)
-      .map { project, postedText in "\(project.name) \(postedText.string)" }
-  }
-
-  fileprivate let activityProperty = MutableProperty<Activity?>(nil)
   public func configureWith(activity: Activity) {
-    self.activityProperty.value = activity
+    self.activity = activity
+    if let project = activity.project {
+      self.projectImageURL = URL(string: project.photo.med)
+      self.projectName = project.name
+    }
+    if let update = activity.update {
+      self.body = update.body?.htmlStripped()?.truncated(maxLength: 300) ?? ""
+      self.title = update.title
+    }
+    self.sequenceTitle = updatePostedString(forActivity: activity)
+    if let projectName = self.projectName, let sequence = self.sequenceTitle {
+      self.cellAccessibilityLabel = "\(projectName) \(sequence.string)"
+    }
   }
-
-  fileprivate let tappedProjectImageProperty = MutableProperty(())
-  public func tappedProjectImage() {
-    self.tappedProjectImageProperty.value = ()
-  }
-
-  public let body: Signal<String, Never>
-  public let cellAccessibilityLabel: Signal<String, Never>
-  public let notifyDelegateTappedProjectImage: Signal<Activity, Never>
-  public let projectButtonAccessibilityLabel: Signal<String, Never>
-  public let projectImageURL: Signal<URL?, Never>
-  public let projectName: Signal<String, Never>
-  public let sequenceTitle: Signal<NSAttributedString, Never>
-  public let title: Signal<String, Never>
-
-  public var inputs: ActivityUpdateViewModelInputs { return self }
-  public var outputs: ActivityUpdateViewModelOutputs { return self }
 }
 
 private let decimalCharacterSet = NSCharacterSet.decimalDigits.inverted
