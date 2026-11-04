@@ -2,8 +2,6 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 import UIKit
 
 @MainActor
@@ -12,7 +10,7 @@ internal protocol SettingsPrivacyDeleteOrRequestCellDelegate: AnyObject {
 }
 
 internal final class SettingsPrivacyDeleteOrRequestCell: UITableViewCell, ValueCell {
-  fileprivate let viewModel: SettingsDeleteOrRequestCellViewModelType = SettingsDeleteOrRequestCellViewModel()
+  fileprivate let viewModel = SettingsDeleteOrRequestCellViewModel()
   internal weak var delegate: SettingsPrivacyDeleteOrRequestCellDelegate?
 
   internal enum CellType {
@@ -36,8 +34,6 @@ internal final class SettingsPrivacyDeleteOrRequestCell: UITableViewCell, ValueC
   }
 
   internal func configureWith(value: (user: User, cellType: CellType)) {
-    self.viewModel.inputs.configureWith(user: value.user)
-
     switch value.cellType {
     case .request:
       self.deleteAccountLabel.textColor = LegacyColors.ksr_support_700.uiColor()
@@ -69,18 +65,8 @@ internal final class SettingsPrivacyDeleteOrRequestCell: UITableViewCell, ValueC
       |> UILabel.lens.numberOfLines .~ 2
   }
 
-  internal override func bindViewModel() {
-    super.bindViewModel()
-
-    self.viewModel.outputs.notifyDeleteAccountTapped
-      .observeForUI()
-      .observeValues { [weak self] url in
-        guard let _self = self else { return }
-        self?.delegate?.settingsPrivacyDeleteOrRequestCellTapped(_self, with: url)
-      }
-  }
-
   @objc fileprivate func deleteAccountTapped() {
-    self.viewModel.inputs.deleteAccountTapped()
+    guard let url = self.viewModel.policyURL() else { return }
+    self.delegate?.settingsPrivacyDeleteOrRequestCellTapped(self, with: url)
   }
 }
