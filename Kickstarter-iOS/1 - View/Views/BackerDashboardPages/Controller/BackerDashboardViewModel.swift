@@ -26,7 +26,7 @@ public final class BackerDashboardViewModel {
 
   private let profileFeature: ProfileFeature
   private var headerObserver: PlatformObservation?
-  private var savedTask: Task<Void, Never>?
+  internal private(set) var savedTask: Task<Void, Never>?
   private let sleep: @MainActor () async throws -> Void
   private var pendingPage: Int?
   private var backedTitleCount = 0

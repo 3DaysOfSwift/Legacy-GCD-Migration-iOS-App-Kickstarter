@@ -199,6 +199,28 @@ internal final class BackerDashboardViewModelTests: TestCase {
     }
   }
 
+  func testSavedProjectRefreshCancelsSupersededDelay() async throws {
+    let delay = AccountRequestGate<Void>()
+    defer { delay.releaseAll() }
+    let viewModel = BackerDashboardViewModel(profileFeature: self.feature, sleep: { try await delay.request() })
+
+    viewModel.projectSaved()
+    let first = try XCTUnwrap(viewModel.savedTask)
+    await delay.waitFor(1)
+    viewModel.projectSaved()
+    let second = try XCTUnwrap(viewModel.savedTask)
+    await delay.waitFor(2)
+
+    try delay.finish(0, .success(()))
+    await first.value
+    XCTAssertNil(viewModel.headerTask, "A superseded refresh must not start a header request.")
+
+    try delay.finish(1, .success(()))
+    await second.value
+    XCTAssertNotNil(viewModel.headerTask, "The latest refresh starts after the debounce delay.")
+    await viewModel.headerTask?.value
+  }
+
   func testGoPlaces() async {
     self.vm.viewDidLoad()
     self.vm.viewWillAppear(false)
