@@ -1,6 +1,5 @@
 import Foundation
 import KsApi
-import ReactiveSwift
 
 public struct PledgePaymentPlanOptionData: Equatable {
   public var ineligible: Bool = false
@@ -31,126 +30,55 @@ public enum SelectionIndicatorImageName: String {
 }
 
 @MainActor
-public protocol PledgePaymentPlansOptionViewModelInputs {
-  func configureWith(data: PledgePaymentPlanOptionData)
-  func optionTapped()
-  func termsOfUseTapped()
-  func refreshSelectedType(_ selectedType: PledgePaymentPlansType)
-}
+public final class PledgePaymentPlansOptionViewModel {
+  struct Display {
+    let title: String
+    let subtitle: String
+    let subtitleHidden: Bool
+    let selectionImage: String
+    let ineligibleHidden: Bool
+    let ineligibleText: String?
+    let enabled: Bool
+    let increments: [PledgePaymentIncrementFormatted]?
+    let plotHidden: Bool
+  }
+  private var data: PledgePaymentPlanOptionData?
+  private var didProvideIncrements = false
+  var onSelected: ((PledgePaymentPlansType) -> Void)?
+  var onTerms: ((HelpType) -> Void)?
+  public init() {}
 
-@MainActor
-public protocol PledgePaymentPlansOptionViewModelOutputs {
-  var titleText: Signal<String, Never> { get }
-  var subtitleText: Signal<String, Never> { get }
-  var subtitleLabelHidden: Signal<Bool, Never> { get }
-  var selectionIndicatorImageName: Signal<String, Never> { get }
-  var ineligibleBadgeHidden: Signal<Bool, Never> { get }
-  var ineligibleBadgeText: Signal<String, Never> { get }
-  var notifyDelegatePaymentPlanOptionSelected: Signal<PledgePaymentPlansType, Never> { get }
-  var notifyDelegateTermsOfUseTapped: Signal<HelpType, Never> { get }
-  var optionViewEnabled: Signal<Bool, Never> { get }
-  var paymentIncrements: Signal<[PledgePaymentIncrementFormatted], Never> { get }
-  var plotSelectedStackViewHidden: Signal<Bool, Never> { get }
-}
+  func configureWith(data: PledgePaymentPlanOptionData) -> Display {
+    self.data = data
+    return self.display(data)
+  }
 
-@MainActor
-public protocol PledgePaymentPlansOptionViewModelType {
-  var inputs: PledgePaymentPlansOptionViewModelInputs { get }
-  var outputs: PledgePaymentPlansOptionViewModelOutputs { get }
-}
+  func refreshSelectedType(_ type: PledgePaymentPlansType) -> Display? {
+    guard var data = self.data else { return nil }
+    data.selectedType = type
+    self.data = data
+    return self.display(data)
+  }
 
-@MainActor
-public final class PledgePaymentPlansOptionViewModel:
-  PledgePaymentPlansOptionViewModelType,
-  PledgePaymentPlansOptionViewModelInputs,
-  PledgePaymentPlansOptionViewModelOutputs {
-  public init() {
-    let configData = self.configData.signal.skipNil()
+  func optionTapped() { if let data = self.data { self.onSelected?(data.type) } }
+  func termsOfUseTapped() { self.onTerms?(.terms) }
 
-    let ineligible: Signal<Bool, Never> = configData.map { $0.type == .pledgeOverTime && $0.ineligible }
-
-    self.selectionIndicatorImageName = configData
-      .map {
-        $0.selectedType == $0.type ?
-          SelectionIndicatorImageName.selected.rawValue : SelectionIndicatorImageName.unselected.rawValue
-      }
-
-    self.titleText = configData.map { getTitleText(by: $0.type) }
-    self.subtitleText = configData
-      .map { getSubtitleText(by: $0.type, isSelected: $0.selectedType == $0.type, project: $0.project) }
-    self.subtitleLabelHidden = self.subtitleText
-      .combineLatest(with: ineligible)
-      .map { subtitle, ineligible in
-        ineligible || subtitle.isEmpty
-      }
-
-    self.notifyDelegatePaymentPlanOptionSelected = self.optionTappedProperty
-      .signal
-      .withLatest(from: configData)
-      .map { $1.type }
-
-    let isPledgeOverTimeAndSelected: Signal<Bool, Never> = configData.map {
-      $0.type == .pledgeOverTime && $0.type == $0.selectedType
+  private func display(_ data: PledgePaymentPlanOptionData) -> Display {
+    let ineligible = data.type == .pledgeOverTime && data.ineligible
+    let selected = data.selectedType == data.type
+    let subtitle = getSubtitleText(by: data.type, isSelected: selected, project: data.project)
+    var increments: [PledgePaymentIncrementFormatted]?
+    if !self.didProvideIncrements, !data.ineligible, data.type == .pledgeOverTime, selected {
+      let values = data.paymentIncrements.enumerated().map { PledgePaymentIncrementFormatted(from: $1, index: $0) }
+      if !values.isEmpty { increments = values; self.didProvideIncrements = true }
     }
-
-    self.plotSelectedStackViewHidden = isPledgeOverTimeAndSelected.negate()
-
-    self.paymentIncrements = configData
-      .filter { !$0.ineligible && $0.type == .pledgeOverTime && $0.selectedType == $0.type }
-      .map { data in
-        data.paymentIncrements
-          .enumerated()
-          .map { index, increment in
-            PledgePaymentIncrementFormatted(from: increment, index: index)
-          }
-      }
-      .filter { !$0.isEmpty }
-      .take(first: 1)
-
-    self.ineligibleBadgeHidden = ineligible.negate()
-
-    self.optionViewEnabled = self.ineligibleBadgeHidden
-
-    self.notifyDelegateTermsOfUseTapped = self.termsOfUseTappedProperty.signal.skipNil()
-
-    self.ineligibleBadgeText = configData
-      .filterWhenLatestFrom(ineligible, satisfies: { $0 == true })
-      .compactMap { $0.project.pledgeOverTimeMinimumExplanation }
+    return Display(
+      title: getTitleText(by: data.type), subtitle: subtitle, subtitleHidden: ineligible || subtitle.isEmpty,
+      selectionImage: selected ? SelectionIndicatorImageName.selected.rawValue : SelectionIndicatorImageName.unselected.rawValue,
+      ineligibleHidden: !ineligible, ineligibleText: ineligible ? data.project.pledgeOverTimeMinimumExplanation : nil,
+      enabled: !ineligible, increments: increments, plotHidden: !(data.type == .pledgeOverTime && selected)
+    )
   }
-
-  fileprivate let configData = MutableProperty<PledgePaymentPlanOptionData?>(nil)
-  public func configureWith(data: PledgePaymentPlanOptionData) {
-    self.configData.value = data
-  }
-
-  public func refreshSelectedType(_ selectedType: PledgePaymentPlansType) {
-    self.configData.value?.selectedType = selectedType
-  }
-
-  private let optionTappedProperty = MutableProperty<Void>(())
-  public func optionTapped() {
-    self.optionTappedProperty.value = ()
-  }
-
-  private let termsOfUseTappedProperty = MutableProperty<HelpType?>(nil)
-  public func termsOfUseTapped() {
-    self.termsOfUseTappedProperty.value = .terms
-  }
-
-  public let selectionIndicatorImageName: Signal<String, Never>
-  public var titleText: ReactiveSwift.Signal<String, Never>
-  public var subtitleText: ReactiveSwift.Signal<String, Never>
-  public var subtitleLabelHidden: Signal<Bool, Never>
-  public var ineligibleBadgeHidden: Signal<Bool, Never>
-  public var ineligibleBadgeText: Signal<String, Never>
-  public var notifyDelegatePaymentPlanOptionSelected: Signal<PledgePaymentPlansType, Never>
-  public var notifyDelegateTermsOfUseTapped: Signal<HelpType, Never>
-  public var optionViewEnabled: Signal<Bool, Never>
-  public var paymentIncrements: Signal<[PledgePaymentIncrementFormatted], Never>
-  public var plotSelectedStackViewHidden: Signal<Bool, Never>
-
-  public var inputs: PledgePaymentPlansOptionViewModelInputs { return self }
-  public var outputs: PledgePaymentPlansOptionViewModelOutputs { return self }
 }
 
 private func getTitleText(by type: PledgePaymentPlansType) -> String {

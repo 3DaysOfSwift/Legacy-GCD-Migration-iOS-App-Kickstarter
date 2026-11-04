@@ -3,9 +3,6 @@ import Foundation
 @testable import KsApi
 
 
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -14,17 +11,17 @@ final class PledgePaymentPlansOptionViewModelTest: TestCase {
 
   // MARK: Properties
 
-  private var vm: PledgePaymentPlansOptionViewModelType = PledgePaymentPlansOptionViewModel()
+  private var vm: PledgePaymentPlansOptionViewModel = PledgePaymentPlansOptionViewModel()
 
-  private var selectionIndicatorImageName = TestObserver<String, Never>()
-  private var titleText = TestObserver<String, Never>()
-  private var subtitleText = TestObserver<String, Never>()
-  private var subtitleLabelHidden = TestObserver<Bool, Never>()
-  private var notifyDelegatePaymentPlanOptionSelected = TestObserver<PledgePaymentPlansType, Never>()
-  private var plotSelectedStackViewHidden = TestObserver<Bool, Never>()
-  private var paymentIncrements = TestObserver<[PledgePaymentIncrementFormatted], Never>()
-  private var ineligibleBadgeHidden = TestObserver<Bool, Never>()
-  private var ineligibleBadgeText = TestObserver<String, Never>()
+  private var selectionIndicatorImageName = OptionRecorder<String>()
+  private var titleText = OptionRecorder<String>()
+  private var subtitleText = OptionRecorder<String>()
+  private var subtitleLabelHidden = OptionRecorder<Bool>()
+  private var notifyDelegatePaymentPlanOptionSelected = OptionRecorder<PledgePaymentPlansType>()
+  private var plotSelectedStackViewHidden = OptionRecorder<Bool>()
+  private var paymentIncrements = OptionRecorder<[PledgePaymentIncrementFormatted]>()
+  private var ineligibleBadgeHidden = OptionRecorder<Bool>()
+  private var ineligibleBadgeText = OptionRecorder<String>()
 
   // MARK: Const
 
@@ -48,17 +45,19 @@ final class PledgePaymentPlansOptionViewModelTest: TestCase {
 
   override func setUp() async throws {
     try await super.setUp()
+    self.vm.onSelected = { [weak self] in self?.notifyDelegatePaymentPlanOptionSelected.record($0) }
+  }
 
-    self.vm.outputs.selectionIndicatorImageName.observe(self.selectionIndicatorImageName.observer)
-    self.vm.outputs.titleText.observe(self.titleText.observer)
-    self.vm.outputs.subtitleText.observe(self.subtitleText.observer)
-    self.vm.outputs.subtitleLabelHidden.observe(self.subtitleLabelHidden.observer)
-    self.vm.outputs.notifyDelegatePaymentPlanOptionSelected
-      .observe(self.notifyDelegatePaymentPlanOptionSelected.observer)
-    self.vm.outputs.plotSelectedStackViewHidden.observe(self.plotSelectedStackViewHidden.observer)
-    self.vm.outputs.paymentIncrements.observe(self.paymentIncrements.observer)
-    self.vm.outputs.ineligibleBadgeHidden.observe(self.ineligibleBadgeHidden.observer)
-    self.vm.outputs.ineligibleBadgeText.observe(self.ineligibleBadgeText.observer)
+  private func configureWith(data: PledgePaymentPlanOptionData) {
+    let display = self.vm.configureWith(data: data)
+    self.selectionIndicatorImageName.record(display.selectionImage)
+    self.titleText.record(display.title)
+    self.subtitleText.record(display.subtitle)
+    self.subtitleLabelHidden.record(display.subtitleHidden)
+    self.plotSelectedStackViewHidden.record(display.plotHidden)
+    if let increments = display.increments { self.paymentIncrements.record(increments) }
+    self.ineligibleBadgeHidden.record(display.ineligibleHidden)
+    if let text = display.ineligibleText { self.ineligibleBadgeText.record(text) }
   }
 
   // MARK: Test cases
@@ -71,7 +70,7 @@ final class PledgePaymentPlansOptionViewModelTest: TestCase {
       paymentIncrements: mockPaymentIncrements(),
       project: Project.template
     )
-    self.vm.inputs.configureWith(data: data)
+    self.configureWith(data: data)
 
     self.titleText.assertValue(self.pledgeInFullTitle)
     self.subtitleText.assertValue("")
@@ -91,7 +90,7 @@ final class PledgePaymentPlansOptionViewModelTest: TestCase {
       paymentIncrements: mockPaymentIncrements(),
       project: Project.template
     )
-    self.vm.inputs.configureWith(data: data)
+    self.configureWith(data: data)
 
     self.titleText.assertValue(self.pledgeInFullTitle)
     self.subtitleText.assertValue("")
@@ -115,7 +114,7 @@ final class PledgePaymentPlansOptionViewModelTest: TestCase {
       project: project
     )
 
-    self.vm.inputs.configureWith(data: data)
+    self.configureWith(data: data)
 
     self.titleText.assertValue(self.pledgeOverTimeTitle)
     self.subtitleText.assertValue(self.pledgeOverTimeFullSubtitle)
@@ -136,7 +135,7 @@ final class PledgePaymentPlansOptionViewModelTest: TestCase {
       paymentIncrements: mockPaymentIncrements(),
       project: Project.template
     )
-    self.vm.inputs.configureWith(data: data)
+    self.configureWith(data: data)
 
     self.titleText.assertValue(self.pledgeOverTimeTitle)
     self.subtitleText.assertValue(self.pledgeOverTimeSubtitle)
@@ -148,6 +147,18 @@ final class PledgePaymentPlansOptionViewModelTest: TestCase {
     self.ineligibleBadgeText.assertDidNotEmitValue()
   }
 
+  func testSelectingLaterProvidesInstallmentsOnlyOnce() throws {
+    let data = PledgePaymentPlanOptionData(
+      ineligible: false, type: .pledgeOverTime, selectedType: .pledgeInFull,
+      paymentIncrements: mockPaymentIncrements(), project: Project.template
+    )
+    XCTAssertNil(self.vm.configureWith(data: data).increments)
+    let selected = try XCTUnwrap(self.vm.refreshSelectedType(.pledgeOverTime))
+    XCTAssertEqual(selected.increments?.count, data.paymentIncrements.count)
+    XCTAssertNil(self.vm.refreshSelectedType(.pledgeOverTime)?.increments)
+    XCTAssertTrue(try XCTUnwrap(self.vm.refreshSelectedType(.pledgeInFull)).plotHidden)
+  }
+
   func testPaymentPlanOption_OptionTapped() {
     let data = PledgePaymentPlanOptionData(
       ineligible: false,
@@ -156,8 +167,8 @@ final class PledgePaymentPlansOptionViewModelTest: TestCase {
       paymentIncrements: mockPaymentIncrements(),
       project: Project.template
     )
-    self.vm.inputs.configureWith(data: data)
-    self.vm.inputs.optionTapped()
+    self.configureWith(data: data)
+    self.vm.optionTapped()
     self.notifyDelegatePaymentPlanOptionSelected.assertValue(.pledgeOverTime)
   }
 
@@ -174,7 +185,7 @@ final class PledgePaymentPlansOptionViewModelTest: TestCase {
       project: project
     )
 
-    self.vm.inputs.configureWith(data: data)
+    self.configureWith(data: data)
 
     self.titleText.assertValue(self.pledgeOverTimeTitle)
     self.ineligibleBadgeHidden.assertValue(false)
@@ -187,5 +198,19 @@ private func paymentIncrementsFormatted(from increments: [PledgePaymentIncrement
   -> [PledgePaymentIncrementFormatted] {
   increments.enumerated().map {
     PledgePaymentIncrementFormatted(from: $1, index: $0)
+  }
+}
+
+private final class OptionRecorder<Value: Equatable> {
+  private var values: [Value] = []
+  func record(_ value: Value) { self.values.append(value) }
+  func assertDidNotEmitValue(file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, file: file, line: line)
+  }
+  func assertValue(_ expected: Value, file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, [expected], file: file, line: line)
+  }
+  func assertValues(_ expected: [Value], file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, file: file, line: line)
   }
 }

@@ -37,7 +37,7 @@ final class PledgePaymentPlanOptionView: UIView {
   private lazy var plotSelectedStackView: UIStackView = { UIStackView(frame: .zero) }()
   private lazy var ineligibleBadgeView: BadgeView = { BadgeView(frame: .zero) }()
 
-  private let viewModel: PledgePaymentPlansOptionViewModelType = PledgePaymentPlansOptionViewModel()
+  private let viewModel = PledgePaymentPlansOptionViewModel()
 
   public weak var delegate: PledgePaymentPlanOptionViewDelegate?
 
@@ -169,77 +169,45 @@ final class PledgePaymentPlanOptionView: UIView {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.selectionIndicatorImageName
-      .observeForUI()
-      .observeValues { [weak self] imageName in
-        self?.selectionIndicatorImageView.image = Kickstarter_iOS.image(named: imageName)
-      }
+    self.viewModel.onSelected = { [weak self] plan in
+      guard let self else { return }
+      self.delegate?.pledgePaymentPlanOptionView(self, didSelectPlanType: plan)
+    }
+    self.viewModel.onTerms = { [weak self] help in
+      guard let self else { return }
+      self.delegate?.pledgePaymentPlansViewController(self, didTapTermsOfUseWith: help)
+    }
+  }
 
-    self.titleLabel.rac.text = self.viewModel.outputs.titleText
-
-    self.subtitleLabel.rac.text = self.viewModel.outputs.subtitleText
-    self.subtitleLabel.rac.hidden = self.viewModel.outputs.subtitleLabelHidden
-
-    self.viewModel.outputs.notifyDelegatePaymentPlanOptionSelected
-      .observeForUI()
-      .observeValues { [weak self] paymentPlan in
-        guard let self = self else { return }
-
-        self.delegate?.pledgePaymentPlanOptionView(self, didSelectPlanType: paymentPlan)
-      }
-
-    self.viewModel.outputs.notifyDelegateTermsOfUseTapped
-      .observeForUI()
-      .observeValues { [weak self] helpType in
-        guard let self = self else { return }
-
-        self.delegate?.pledgePaymentPlansViewController(self, didTapTermsOfUseWith: helpType)
-      }
-
-    self.ineligibleBadgeView.rac.hidden = self.viewModel.outputs.ineligibleBadgeHidden
-
-    self.viewModel.outputs.ineligibleBadgeText
-      .observeForUI()
-      .observeValues { [weak self] badgeText in
-        self?.ineligibleBadgeView.configure(with: badgeText, style: .neutral)
-      }
-
-    self.plotSelectedStackView.rac.hidden = self.viewModel.outputs.plotSelectedStackViewHidden
-
-    self.viewModel.outputs.optionViewEnabled
-      .observeForUI()
-      .observeValues { [weak self] isOptionViewEnabled in
-        guard let self = self else { return }
-
-        self.isUserInteractionEnabled = isOptionViewEnabled
-        applyTextColorByState(self.titleLabel, isEnabled: isOptionViewEnabled)
-      }
-
-    self.viewModel.outputs.paymentIncrements
-      .observeForUI()
-      .observeValues { [weak self] increments in
-        guard let self = self else { return }
-
-        self.setupIncrementsStackView(with: increments)
-      }
+  private func render(_ display: PledgePaymentPlansOptionViewModel.Display) {
+    self.selectionIndicatorImageView.image = Kickstarter_iOS.image(named: display.selectionImage)
+    self.titleLabel.text = display.title
+    self.subtitleLabel.text = display.subtitle
+    self.subtitleLabel.isHidden = display.subtitleHidden
+    self.ineligibleBadgeView.isHidden = display.ineligibleHidden
+    if let text = display.ineligibleText { self.ineligibleBadgeView.configure(with: text, style: .neutral) }
+    self.plotSelectedStackView.isHidden = display.plotHidden
+    self.isUserInteractionEnabled = display.enabled
+    applyTextColorByState(self.titleLabel, isEnabled: display.enabled)
+    if let increments = display.increments { self.setupIncrementsStackView(with: increments) }
   }
 
   func configureWith(value: PledgePaymentPlanOptionData) {
-    self.viewModel.inputs.configureWith(data: value)
+    self.render(self.viewModel.configureWith(data: value))
   }
 
   func refreshSelectedOption(_ selectedType: PledgePaymentPlansType) {
-    self.viewModel.inputs.refreshSelectedType(selectedType)
+    if let display = self.viewModel.refreshSelectedType(selectedType) { self.render(display) }
   }
 
   // MARK: - Actions
 
   @objc private func onOptionTapped() {
-    self.viewModel.inputs.optionTapped()
+    self.viewModel.optionTapped()
   }
 
   @objc private func onTermsOfUseButtonTapped() {
-    self.viewModel.inputs.termsOfUseTapped()
+    self.viewModel.termsOfUseTapped()
   }
 
   // MARK: - Functions
