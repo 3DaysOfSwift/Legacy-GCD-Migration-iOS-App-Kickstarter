@@ -20,7 +20,7 @@ final class SettingsNotificationCell: UITableViewCell, NibLoading, ValueCell {
 
   weak var delegate: SettingsNotificationCellDelegate?
 
-  private let viewModel: SettingsNotificationCellViewModelType = SettingsNotificationCellViewModel()
+  private let viewModel = SettingsNotificationCellViewModel()
   private lazy var tapGesture: UITapGestureRecognizer = {
     UITapGestureRecognizer(target: self, action: #selector(self.cellBackgroundTapped))
   }()
@@ -34,7 +34,7 @@ final class SettingsNotificationCell: UITableViewCell, NibLoading, ValueCell {
   func configureWith(value cellValue: SettingsNotificationCellValue) {
     self.notificationType = cellValue.cellType
 
-    self.viewModel.inputs.configure(with: cellValue)
+    self.viewModel.configure(with: cellValue)
 
     let accessibilityElementsHidden = cellValue.cellType.accessibilityElementsHidden
 
@@ -113,48 +113,47 @@ final class SettingsNotificationCell: UITableViewCell, NibLoading, ValueCell {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.emailNotificationsButton.rac.selected = self.viewModel.outputs.emailNotificationsEnabled
-    self.emailNotificationsButton.rac.hidden = self.viewModel.outputs.emailNotificationButtonIsHidden
-    self.emailNotificationsButton.rac.accessibilityLabel =
-      self.viewModel.outputs.emailNotificationsButtonAccessibilityLabel
-    self.projectCountLabel.rac.text = self.viewModel.outputs.projectCountText
-    self.pushNotificationsButton.rac.selected = self.viewModel.outputs.pushNotificationsEnabled
-    self.pushNotificationsButton.rac.hidden = self.viewModel.outputs.pushNotificationButtonIsHidden
-    self.pushNotificationsButton.rac.accessibilityLabel =
-      self.viewModel.outputs.pushNotificationsButtonAccessibilityLabel
+    self.viewModel.onChange = { [weak self] in self?.renderNotificationState() }
+    self.viewModel.onUserUpdated = { [weak self] user in
+      guard let self else { return }
+      self.delegate?.settingsNotificationCell(self, didUpdateUser: user)
+    }
+    self.viewModel.onError = { [weak self] error in
+      guard let self else { return }
+      self.delegate?.settingsNotificationCell(self, didFailToUpdateUser: error)
+    }
+  }
 
-    self.viewModel.outputs.enableButtonAnimation
-      .observeForUI()
-      .observeValues { [weak self] enableAnimation in
-        guard let _self = self else { return }
-        if enableAnimation {
-          _self.addGestureRecognizer(_self.tapGesture)
-        } else {
-          _self.removeGestureRecognizer(_self.tapGesture)
-        }
-      }
-
-    self.viewModel.outputs.updateCurrentUser
-      .observeForControllerAction()
-      .observeValues { [weak self] user in
-        guard let _self = self else { return }
-        _self.delegate?.settingsNotificationCell(_self, didUpdateUser: user)
-      }
-
-    self.viewModel.outputs.unableToSaveError
-      .observeForControllerAction()
-      .observeValues { [weak self] errorString in
-        guard let _self = self else { return }
-        _self.delegate?.settingsNotificationCell(_self, didFailToUpdateUser: errorString)
-      }
+  private func renderNotificationState() {
+    guard let type = self.viewModel.cellType else { return }
+    if let enabled = self.viewModel.emailEnabled {
+      self.emailNotificationsButton.isSelected = enabled
+      self.emailNotificationsButton.accessibilityLabel = enabled
+        ? Strings.Notification_email_notification_on(notification: type.title)
+        : Strings.Notification_email_notification_off(notification: type.title)
+    }
+    if let enabled = self.viewModel.pushEnabled {
+      self.pushNotificationsButton.isSelected = enabled
+      self.pushNotificationsButton.accessibilityLabel = enabled
+        ? Strings.Notification_push_notification_on(notification: type.title)
+        : Strings.Notification_push_notification_off(notification: type.title)
+    }
+    self.emailNotificationsButton.isHidden = !type.shouldShowEmailNotificationButton
+    self.pushNotificationsButton.isHidden = !type.shouldShowPushNotificationButton
+    self.projectCountLabel.text = self.viewModel.projectCountText
+    if type.shouldShowEmailNotificationButton || type.shouldShowPushNotificationButton {
+      self.addGestureRecognizer(self.tapGesture)
+    } else {
+      self.removeGestureRecognizer(self.tapGesture)
+    }
   }
 
   @IBAction func emailNotificationsButtonTapped(_ sender: UIButton) {
-    self.viewModel.inputs.didTapEmailNotificationsButton(selected: sender.isSelected)
+    self.viewModel.didTapEmailNotificationsButton(selected: sender.isSelected)
   }
 
   @IBAction func pushNotificationsButtonTapped(_ sender: UIButton) {
-    self.viewModel.inputs.didTapPushNotificationsButton(selected: sender.isSelected)
+    self.viewModel.didTapPushNotificationsButton(selected: sender.isSelected)
   }
 
   @IBAction func cellBackgroundTapped(_: Any) {

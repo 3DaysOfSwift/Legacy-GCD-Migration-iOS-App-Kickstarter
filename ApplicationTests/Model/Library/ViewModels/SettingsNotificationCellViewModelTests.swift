@@ -1,402 +1,61 @@
 @testable import Kickstarter_iOS
 @testable import KsApi
-
-
-import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class SettingsNotificationCellViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   private let feature = SettingsFeature(
-    sessionFeature: SessionFeature(makeProvider: {
-      AsyncSessionProvider(service: AppEnvironment.current.apiService)
-    }),
+    sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }),
     makeProvider: { AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService) }
   )
-  private lazy var vm = SettingsNotificationCellViewModel(feature: self.feature)
-
-  private let enableButtonAnimation = TestObserver<Bool, Never>()
-  private let emailNotificationsButtonAccessibilityLabel = TestObserver<String, Never>()
-  private let emailNotificationsEnabled = TestObserver<Bool, Never>()
-  private let emailNotificationButtonIsHidden = TestObserver<Bool, Never>()
-  private let pushNotificationButtonIsHidden = TestObserver<Bool, Never>()
-  private let manageProjectNotificationsButtonAccessibilityHint = TestObserver<String, Never>()
-  private let projectCountText = TestObserver<String, Never>()
-  private let pushNotificationsButtonAccessibilityLabel = TestObserver<String, Never>()
-  private let pushNotificationsEnabled = TestObserver<Bool, Never>()
-  private let unableToSaveError = TestObserver<String, Never>()
-  private let updateCurrentUser = TestObserver<User, Never>()
+  private lazy var vm = SettingsNotificationCellViewModel(feature: self.feature, sleep: { _ in })
 
   override func setUp() async throws {
     try await super.setUp()
-    MainActor.assumeIsolated {
-      // Settings is a signed-in flow; the original fixtures omitted authentication.
-      AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
-      self.vm.outputs.enableButtonAnimation.observe(self.enableButtonAnimation.observer)
-      self.vm.outputs.emailNotificationsButtonAccessibilityLabel
-        .observe(self.emailNotificationsButtonAccessibilityLabel.observer)
-      self.vm.outputs.emailNotificationsEnabled.observe(self.emailNotificationsEnabled.observer)
-      self.vm.outputs.emailNotificationButtonIsHidden.observe(self.emailNotificationButtonIsHidden.observer)
-      self.vm.outputs.pushNotificationsButtonAccessibilityLabel
-        .observe(self.pushNotificationsButtonAccessibilityLabel.observer)
-      self.vm.outputs.pushNotificationButtonIsHidden.observe(self.pushNotificationButtonIsHidden.observer)
-      self.vm.outputs.projectCountText.observe(self.projectCountText.observer)
-      self.vm.pushNotificationsEnabled.observe(self.pushNotificationsEnabled.observer)
-      self.vm.unableToSaveError.observe(self.unableToSaveError.observer)
-      self.vm.updateCurrentUser.observe(self.updateCurrentUser.observer)
+    AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
+  }
+
+  func testInitialValuesAndUnsupportedNotifications() {
+    var user = User.template
+    user[keyPath: UserAttribute.notification(.updates).keyPath] = true
+    user[keyPath: UserAttribute.notification(.mobileUpdates).keyPath] = false
+    user.stats.backedProjectsCount = 5
+    self.vm.configure(with: .init(cellType: .projectUpdates, user: user))
+    XCTAssertEqual(self.vm.emailEnabled, true)
+    XCTAssertEqual(self.vm.pushEnabled, false)
+    XCTAssertEqual(self.vm.projectCountText, "5")
+    XCTAssertNil(SettingsNotificationCellViewModel.notificationFor(cellType: .creatorTips, notificationType: .push))
+    XCTAssertNil(SettingsNotificationCellViewModel.notificationFor(cellType: .marketingUpdate, notificationType: .email))
+  }
+
+  func testSuccessfulToggle() async {
+    let user = User.template
+    await withEnvironment(apiService: MockService(fetchUserSelfResponse: user), currentUser: user) {
+      var saved: User?
+      self.vm.onUserUpdated = { saved = $0 }
+      self.vm.configure(with: .init(cellType: .projectUpdates, user: user))
+      self.vm.didTapEmailNotificationsButton(selected: false)
+      XCTAssertEqual(self.vm.emailEnabled, true)
+      await self.vm.waitForSaves()
+      XCTAssertEqual(saved?[keyPath: UserAttribute.notification(.updates).keyPath], true)
     }
   }
 
-  override func tearDown() async throws {
-    await self.feature.waitForOperations()
-    try await super.tearDown()
-  }
-
-  func testEnableButtonAnimation_turnedOn() async {
-    let user = User.template
-    let value = SettingsNotificationCellValue(cellType: .projectUpdates, user: user)
-
-    self.vm.inputs.configure(with: value)
-
-    self.enableButtonAnimation.assertValue(true)
-  }
-
-  func testEnableButtonAnimation_turnedOff() async {
-    let user = User.template
-    let value = SettingsNotificationCellValue(cellType: .emailFrequency, user: user)
-
-    self.vm.inputs.configure(with: value)
-
-    self.enableButtonAnimation.assertValue(false)
-  }
-
-  func testEmailNotificationButtonAccessibilityLabel_disabled() async {
-    let notificationType = SettingsNotificationCellViewModel.notificationFor(
-      cellType: .projectUpdates,
-      notificationType: .email
-    )
-
-    guard let notification = notificationType else {
-      XCTFail("Notification cannot be nil")
-      return
-    }
-
-    let user = User.template
-      |> UserAttribute.notification(notification).keyPath .~ false
-
-    let value = SettingsNotificationCellValue(cellType: .projectUpdates, user: user)
-
-    self.vm.inputs.configure(with: value)
-
-    self.emailNotificationsEnabled.assertValues([false], "Email notifications are disabled")
-    self.emailNotificationsButtonAccessibilityLabel.assertValues(
-      [Strings.Notification_email_notification_off(notification: value.cellType.title)]
-    )
-  }
-
-  func testEmailNotificationButtonAccessibilityLabel_enabled() async {
-    let notificationType = SettingsNotificationCellViewModel.notificationFor(
-      cellType: .projectUpdates,
-      notificationType: .email
-    )
-
-    guard let notification = notificationType else {
-      XCTFail("Notification cannot be nil")
-      return
-    }
-
-    let user = User.template
-      |> UserAttribute.notification(notification).keyPath .~ true
-
-    let value = SettingsNotificationCellValue(cellType: .projectUpdates, user: user)
-
-    self.vm.inputs.configure(with: value)
-
-    self.emailNotificationsEnabled.assertValues([true], "Email notifications are enabled")
-    self.emailNotificationsButtonAccessibilityLabel.assertValues(
-      [Strings.Notification_email_notification_on(notification: value.cellType.title)]
-    )
-  }
-
-  func testPushNotificationButtonAccessibilityLabel_disabled() async {
-    let notificationType = SettingsNotificationCellViewModel.notificationFor(
-      cellType: .projectUpdates,
-      notificationType: .push
-    )
-
-    guard let notification = notificationType else {
-      XCTFail("Notification cannot be nil")
-      return
-    }
-
-    let user = User.template
-      |> UserAttribute.notification(notification).keyPath .~ false
-
-    let value = SettingsNotificationCellValue(cellType: .projectUpdates, user: user)
-
-    self.vm.inputs.configure(with: value)
-
-    self.pushNotificationsEnabled.assertValues([false], "Push notifications are disabled")
-    self.pushNotificationsButtonAccessibilityLabel.assertValues(
-      [Strings.Notification_push_notification_off(notification: value.cellType.title)]
-    )
-  }
-
-  func testPushNotificationButtonAccessibilityLabel_enabled() async {
-    let notificationType = SettingsNotificationCellViewModel.notificationFor(
-      cellType: .projectUpdates,
-      notificationType: .push
-    )
-
-    guard let notification = notificationType else {
-      XCTFail("Notification cannot be nil")
-      return
-    }
-
-    let user = User.template
-      |> UserAttribute.notification(notification).keyPath .~ true
-
-    let value = SettingsNotificationCellValue(cellType: .projectUpdates, user: user)
-
-    self.vm.inputs.configure(with: value)
-
-    self.pushNotificationsEnabled.assertValues([true], "Push notifications are enabled")
-    self.pushNotificationsButtonAccessibilityLabel.assertValues(
-      [Strings.Notification_push_notification_on(notification: value.cellType.title)]
-    )
-  }
-
-  func testEmailNotificationsEnabled() async {
-    let notificationType = SettingsNotificationCellViewModel.notificationFor(
-      cellType: .projectUpdates,
-      notificationType: .email
-    )
-
-    guard let notification = notificationType else {
-      XCTFail("Notification cannot be nil")
-      return
-    }
-
-    let user = User.template
-      |> UserAttribute.notification(notification).keyPath .~ true
-
-    let value = SettingsNotificationCellValue(cellType: .projectUpdates, user: user)
-
-    self.vm.inputs.configure(with: value)
-
-    self.emailNotificationsEnabled.assertValues([true], "Email notifications are enabled")
-  }
-
-  func testEmailNotificationsDisabled() async {
-    let notificationType = SettingsNotificationCellViewModel.notificationFor(
-      cellType: .projectUpdates,
-      notificationType: .email
-    )
-
-    guard let notification = notificationType else {
-      XCTFail("Notification cannot be nil")
-      return
-    }
-
-    let user = User.template
-      |> UserAttribute.notification(notification).keyPath .~ false
-
-    let value = SettingsNotificationCellValue(cellType: .projectUpdates, user: user)
-
-    self.vm.inputs.configure(with: value)
-
-    self.emailNotificationsEnabled.assertValues([false], "Email notifications are disabled")
-  }
-
-  func testPushNotificationsEnabled() async {
-    let notificationType = SettingsNotificationCellViewModel.notificationFor(
-      cellType: .projectUpdates,
-      notificationType: .push
-    )
-
-    guard let notification = notificationType else {
-      XCTFail("Notification cannot be nil")
-      return
-    }
-
-    let user = User.template
-      |> UserAttribute.notification(notification).keyPath .~ true
-
-    let value = SettingsNotificationCellValue(cellType: .projectUpdates, user: user)
-
-    self.vm.inputs.configure(with: value)
-
-    self.pushNotificationsEnabled.assertValues([true], "Push notifications are enabled")
-  }
-
-  func testPushNotificationsDisabled() async {
-    let notificationType = SettingsNotificationCellViewModel.notificationFor(
-      cellType: .projectUpdates,
-      notificationType: .push
-    )
-
-    guard let notification = notificationType else {
-      XCTFail("Notification cannot be nil")
-      return
-    }
-
-    let user = User.template
-      |> UserAttribute.notification(notification).keyPath .~ false
-
-    let value = SettingsNotificationCellValue(cellType: .projectUpdates, user: user)
-
-    self.vm.inputs.configure(with: value)
-
-    self.pushNotificationsEnabled.assertValues([false], "Push notifications are disabled")
-  }
-
-  func testEmailNotificationEnabled_NoValue() async {
-    let user = User.template
-    // Should have no Notification value
-    let value = SettingsNotificationCellValue(cellType: .emailFrequency, user: user)
-
-    self.vm.inputs.configure(with: value)
-
-    self.emailNotificationsEnabled.assertValueCount(0)
-  }
-
-  func testPushNotificationsEnabled_NoValue() async {
-    let user = User.template
-    // Should have no Notification value
-    let value = SettingsNotificationCellValue(cellType: .emailFrequency, user: user)
-
-    self.vm.inputs.configure(with: value)
-
-    self.pushNotificationsEnabled.assertValueCount(0, "pushNotificationsEnabled should not fire")
-
-    // Should have no Notification
-    let value1 = SettingsNotificationCellValue(cellType: .creatorTips, user: user)
-
-    self.vm.inputs.configure(with: value1)
-
-    self.pushNotificationsEnabled.assertValueCount(0, "pushNotificationsEnabled should not fire")
-  }
-
-  func testHideEmailNotificationsButton() async {
-    let user = User.template
-
-    // Should have no Notification
-    let value = SettingsNotificationCellValue(cellType: .projectNotifications, user: user)
-
-    self.vm.inputs.configure(with: value)
-
-    self.emailNotificationButtonIsHidden.assertValues([true], "Should hide email notifications button")
-
-    let value1 = SettingsNotificationCellValue(cellType: .projectUpdates, user: user)
-
-    self.vm.inputs.configure(with: value1)
-
-    self.emailNotificationButtonIsHidden
-      .assertValues([true, false], "Should show email notifications button")
-  }
-
-  func testHidePushNotificationButton() async {
-    let user = User.template
-
-    // Should have no Notification
-    let value = SettingsNotificationCellValue(cellType: .projectNotifications, user: user)
-
-    self.vm.inputs.configure(with: value)
-
-    self.pushNotificationButtonIsHidden.assertValues([true], "Should hide email notifications button")
-
-    let value1 = SettingsNotificationCellValue(cellType: .projectUpdates, user: user)
-
-    self.vm.inputs.configure(with: value1)
-
-    self.pushNotificationButtonIsHidden
-      .assertValues([true, false], "Should show email notifications button")
-  }
-
-  func testManageProjectNotificationsButtonAccesibilityHint() async {
-    let user = User.template |> \.stats.backedProjectsCount .~ 5
-    let value = SettingsNotificationCellValue(cellType: .projectNotifications, user: user)
-
-    self.vm.inputs.configure(with: value)
-  }
-
-  func testProjectTextCount() async {
-    let user = User.template |> \.stats.backedProjectsCount .~ 5
-    let value = SettingsNotificationCellValue(cellType: .projectNotifications, user: user)
-
-    self.vm.inputs.configure(with: value)
-
-    self.projectCountText.assertValue("5")
-  }
-
-  func testUnabletoSaveError() async {
-    let error = ErrorEnvelope(
-      errorMessages: ["Something bad happened"],
-      ksrCode: nil,
-      httpCode: 500,
-      exception: nil,
-      facebookUser: nil
-    )
-    let mockService = MockService(updateUserSelfError: error)
-
-    let user = User.template |> UserAttribute.notification(.updates).keyPath .~ true
-    let value = SettingsNotificationCellValue(cellType: .projectUpdates, user: user)
-
-    await withEnvironment(apiService: mockService, currentUser: user) {
-      self.vm.configure(with: value)
-
-      self.emailNotificationsEnabled.assertValue(true)
-
-      self.vm.inputs.didTapEmailNotificationsButton(selected: true)
-
-      self.emailNotificationsEnabled
-        .assertValues([true, false], "Selected value changes to reflect update")
-
-      await self.feature.waitForOperations()
-      await self.scheduler.advance()
-
-      self.unableToSaveError.assertValue("Something bad happened")
-      self.updateCurrentUser.assertDidNotEmitValue()
-      self.emailNotificationsEnabled
-        .assertValues([true, false, true], "Selected value is reset to original value")
-    }
-  }
-
-  func testUpdateCurrentUser_Success() async {
-    let mockService = MockService()
-    let user = User.template
-      |> UserAttribute.notification(.updates).keyPath .~ true
-      |> UserAttribute.notification(.mobileUpdates).keyPath .~ true
-
-    let value = SettingsNotificationCellValue(cellType: .projectUpdates, user: user)
-
-    await withEnvironment(apiService: mockService, currentUser: user) {
-      self.vm.configure(with: value)
-      self.emailNotificationsEnabled.assertValue(true)
-      self.pushNotificationsEnabled.assertValue(true)
-
-      self.vm.inputs.didTapEmailNotificationsButton(selected: true)
-
-      await self.feature.waitForOperations()
-      await self.scheduler.advance()
-
-      self.updateCurrentUser.assertValueCount(1, "User was updated")
-
-      self.emailNotificationsEnabled
-        .assertValues([true, false], "Email notification button was toggled")
-
-      self.vm.inputs.didTapPushNotificationsButton(selected: true)
-
-      await self.feature.waitForOperations()
-      await self.scheduler.advance()
-
-      self.updateCurrentUser.assertValueCount(2, "User was updated")
-
-      self.pushNotificationsEnabled
-        .assertValues([true, false], "Push notification button was toggled")
+  func testFailedToggleRestoresInitialValues() async {
+    let error = ErrorEnvelope(errorMessages: ["Unable to save."], ksrCode: .UnknownCode,
+                              httpCode: 400, exception: nil)
+    var user = User.template
+    user[keyPath: UserAttribute.notification(.updates).keyPath] = false
+    await withEnvironment(apiService: MockService(updateUserSelfError: error), currentUser: user) {
+      var message: String?
+      self.vm.onError = { message = $0 }
+      self.vm.configure(with: .init(cellType: .projectUpdates, user: user))
+      self.vm.didTapEmailNotificationsButton(selected: false)
+      XCTAssertEqual(self.vm.emailEnabled, true)
+      await self.vm.waitForSaves()
+      XCTAssertEqual(self.vm.emailEnabled, false)
+      XCTAssertEqual(message, "Unable to save.")
     }
   }
 }
