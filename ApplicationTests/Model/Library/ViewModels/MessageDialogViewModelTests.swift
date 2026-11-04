@@ -3,8 +3,6 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -14,74 +12,70 @@ internal final class MessageDialogViewModelTests: TestCase {
     sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }),
     makeProvider: { AsyncMessagingProvider(service: AppEnvironment.current.apiService) }
   )
-  private lazy var vm: MessageDialogViewModelType = MessageDialogViewModel(feature: self.feature)
+  private lazy var vm: MessageDialogViewModel = MessageDialogViewModel(feature: self.feature)
 
-  fileprivate let loadingViewIsHidden = TestObserver<Bool, Never>()
-  fileprivate let postButtonEnabled = TestObserver<Bool, Never>()
-  fileprivate let notifyPresenterCommentWasPostedSuccesfully = TestObserver<Message, Never>()
-  fileprivate let notifyPresenterDialogWantsDismissal = TestObserver<(), Never>()
-  fileprivate let recipientName = TestObserver<String, Never>()
-  fileprivate let keyboardIsVisible = TestObserver<Bool, Never>()
-  fileprivate let showAlertMessage = TestObserver<String, Never>()
+  fileprivate let loadingViewIsHidden = Recorder<Bool>()
+  fileprivate let postButtonEnabled = Recorder<Bool>()
+  fileprivate let notifyPresenterCommentWasPostedSuccesfully = Recorder<Message>()
+  fileprivate let notifyPresenterDialogWantsDismissal = Recorder<Void>()
+  fileprivate let recipientName = Recorder<String>()
+  fileprivate let keyboardIsVisible = Recorder<Bool>()
+  fileprivate let showAlertMessage = Recorder<String>()
 
   override func setUp() async throws {
     try await super.setUp()
 
-    MainActor.assumeIsolated {
-      self.vm.outputs.loadingViewIsHidden.observe(self.loadingViewIsHidden.observer)
-      self.vm.outputs.postButtonEnabled.observe(self.postButtonEnabled.observer)
-      self.vm.outputs.notifyPresenterCommentWasPostedSuccesfully
-        .observe(self.notifyPresenterCommentWasPostedSuccesfully.observer)
-      self.vm.outputs.notifyPresenterDialogWantsDismissal
-        .observe(self.notifyPresenterDialogWantsDismissal.observer)
-      self.vm.outputs.recipientName.observe(self.recipientName.observer)
-      self.vm.outputs.keyboardIsVisible.observe(self.keyboardIsVisible.observer)
-      self.vm.outputs.showAlertMessage.observe(self.showAlertMessage.observer)
-    }
+    self.vm.onLoadingHidden = { [weak self] in self?.loadingViewIsHidden.record($0) }
+    self.vm.onPostEnabled = { [weak self] in self?.postButtonEnabled.record($0) }
+    self.vm.onPosted = { [weak self] in self?.notifyPresenterCommentWasPostedSuccesfully.record($0) }
+    self.vm.onDismiss = { [weak self] in self?.notifyPresenterDialogWantsDismissal.record(()) }
+    self.vm.onRecipient = { [weak self] in self?.recipientName.record($0) }
+    self.vm.onKeyboardVisibility = { [weak self] in self?.keyboardIsVisible.record($0) }
+    self.vm.onError = { [weak self] in self?.showAlertMessage.record($0) }
   }
 
   func testRecipientName() async {
     let thread = MessageThread.template
-    self.vm.inputs.configureWith(messageSubject: .messageThread(thread), context: .messages)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(messageSubject: .messageThread(thread), context: .messages)
+    self.vm.viewDidLoad()
 
     self.recipientName.assertValues([thread.participant.name])
   }
 
   func testButtonEnabled() async {
-    self.vm.inputs.configureWith(messageSubject: .messageThread(.template), context: .messages)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(messageSubject: .messageThread(.template), context: .messages)
+    self.vm.viewDidLoad()
     self.postButtonEnabled.assertValues([false])
 
-    self.vm.inputs.bodyTextChanged("hello")
+    self.vm.bodyTextChanged("hello")
     self.postButtonEnabled.assertValues([false, true])
 
-    self.vm.inputs.bodyTextChanged("hello world")
+    self.vm.bodyTextChanged("hello world")
     self.postButtonEnabled.assertValues([false, true])
 
-    self.vm.inputs.bodyTextChanged("")
+    self.vm.bodyTextChanged("")
     self.postButtonEnabled.assertValues([false, true, false])
 
-    self.vm.inputs.bodyTextChanged("  ")
+    self.vm.bodyTextChanged("  ")
     self.postButtonEnabled.assertValues([false, true, false])
 
-    self.vm.inputs.bodyTextChanged("hello world")
+    self.vm.bodyTextChanged("hello world")
     self.postButtonEnabled.assertValues([false, true, false, true])
   }
 
   func testKeyboardIsVisible() async {
-    self.vm.inputs.configureWith(messageSubject: .messageThread(.template), context: .messages)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(messageSubject: .messageThread(.template), context: .messages)
+    self.vm.viewDidLoad()
     self.keyboardIsVisible.assertValues([true])
 
-    self.vm.inputs.cancelButtonPressed()
+    self.vm.cancelButtonPressed()
     self.keyboardIsVisible.assertValues([true, false])
 
-    self.vm.inputs.viewDidLoad()
+    self.vm.viewDidLoad()
     self.keyboardIsVisible.assertValues([true, false, true])
 
-    self.vm.inputs.bodyTextChanged("HELLO")
-    self.vm.inputs.postButtonPressed()
+    self.vm.bodyTextChanged("HELLO")
+    self.vm.postButtonPressed()
     await self.settleMessaging()
 
     self.keyboardIsVisible.assertValues([true, false, true, false])
@@ -90,16 +84,16 @@ internal final class MessageDialogViewModelTests: TestCase {
   func testPostingMessageToThread() async {
     XCTAssertEqual([], self.segmentTrackingClient.events)
 
-    self.vm.inputs.configureWith(messageSubject: .messageThread(.template), context: .messages)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(messageSubject: .messageThread(.template), context: .messages)
+    self.vm.viewDidLoad()
 
-    self.vm.inputs.bodyTextChanged("HELLO")
+    self.vm.bodyTextChanged("HELLO")
 
     self.loadingViewIsHidden.assertValues([true])
     self.notifyPresenterCommentWasPostedSuccesfully.assertValueCount(0)
     self.notifyPresenterDialogWantsDismissal.assertValueCount(0)
 
-    self.vm.inputs.postButtonPressed()
+    self.vm.postButtonPressed()
 
     self.loadingViewIsHidden.assertValues([true, false])
     self.notifyPresenterCommentWasPostedSuccesfully.assertValueCount(0)
@@ -114,19 +108,19 @@ internal final class MessageDialogViewModelTests: TestCase {
 
   func testPostingMessageToCreator() async {
     let project = Project.template
-    self.vm.inputs.configureWith(
+    self.vm.configureWith(
       messageSubject: .project(id: project.id, name: project.name),
       context: .messages
     )
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.bodyTextChanged("HELLO")
+    self.vm.viewDidLoad()
+    self.vm.bodyTextChanged("HELLO")
 
     self.loadingViewIsHidden.assertValues([true])
     self.notifyPresenterCommentWasPostedSuccesfully.assertValueCount(0)
     self.notifyPresenterDialogWantsDismissal.assertValueCount(0)
     self.recipientName.assertValues(["The Project"])
 
-    self.vm.inputs.postButtonPressed()
+    self.vm.postButtonPressed()
 
     self.loadingViewIsHidden.assertValues([true, false])
     self.notifyPresenterCommentWasPostedSuccesfully.assertValueCount(0)
@@ -147,13 +141,17 @@ internal final class MessageDialogViewModelTests: TestCase {
   }
 
   private func settleMessaging() async {
-    // Start debounced requests, await native work, then deliver the presentation delay.
-    await self.scheduler.advance()
-    await self.feature.waitForOperations()
+    await self.vm.waitForSend()
+  }
+}
 
-    await self.scheduler.advance()
-    // Thread delivery starts backing lookup and read-status commands.
-    await self.feature.waitForOperations()
-    await self.scheduler.advance()
+private final class Recorder<Value> {
+  private var values: [Value] = []
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValueCount(_ count: Int, file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, file: file, line: line)
+  }
+  func assertValues(_ expected: [Value], file: StaticString = #filePath, line: UInt = #line) where Value: Equatable {
+    XCTAssertEqual(self.values, expected, file: file, line: line)
   }
 }

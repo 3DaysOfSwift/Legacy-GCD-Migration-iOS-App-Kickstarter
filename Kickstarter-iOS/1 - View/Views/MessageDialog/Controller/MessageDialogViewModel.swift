@@ -1,157 +1,95 @@
+import Foundation
 import KsApi
 import Prelude
-import ReactiveSwift
 
 @MainActor
-public protocol MessageDialogViewModelInputs {
-  /// Call when the message text changes.
-  func bodyTextChanged(_ body: String)
+public final class MessageDialogViewModel {
+  var onKeyboardVisibility: ((Bool) -> Void)?
+  var onLoadingHidden: ((Bool) -> Void)?
+  var onPosted: ((Message) -> Void)?
+  var onDismiss: (() -> Void)?
+  var onPostEnabled: ((Bool) -> Void)?
+  var onRecipient: ((String) -> Void)?
+  var onError: ((String) -> Void)?
 
-  /// Call when the cancel button is pressed.
-  func cancelButtonPressed()
-
-  /// Call with the backing/message-thread/project that was given to the view.
-  func configureWith(messageSubject: MessageSubject, context: KSRAnalytics.MessageDialogContext)
-
-  /// Call when the post button is pressed.
-  func postButtonPressed()
-
-  /// Call when the view loads.
-  func viewDidLoad()
-}
-
-@MainActor
-public protocol MessageDialogViewModelOutputs {
-  /// Emits a boolean that determines if the keyboard is shown or not.
-  var keyboardIsVisible: Signal<Bool, Never> { get }
-
-  /// Emits a boolean that determines if the loading view is hidden or not.
-  var loadingViewIsHidden: Signal<Bool, Never> { get }
-
-  /// Emits the message just successfully posted.
-  var notifyPresenterCommentWasPostedSuccesfully: Signal<Message, Never> { get }
-
-  /// Emits when the dialog should be dismissed.
-  var notifyPresenterDialogWantsDismissal: Signal<(), Never> { get }
-
-  /// Emits a boolean that determines if the post button is enabled.
-  var postButtonEnabled: Signal<Bool, Never> { get }
-
-  /// Emits the recipient's name.
-  var recipientName: Signal<String, Never> { get }
-
-  /// Emits a string that should be alerted to the user.
-  var showAlertMessage: Signal<String, Never> { get }
-}
-
-@MainActor
-public protocol MessageDialogViewModelType {
-  var inputs: MessageDialogViewModelInputs { get }
-  var outputs: MessageDialogViewModelOutputs { get }
-}
-
-@MainActor
-public final class MessageDialogViewModel: MessageDialogViewModelType, MessageDialogViewModelInputs,
-  MessageDialogViewModelOutputs {
   private let feature: MessagingFeature
+  private var subject: MessageSubject?
+  private var body: String?
+  private var enabled = false
+  private var sendTask: Task<Void, Never>?
+  private var sendVersion = UUID()
+
   public convenience init() { self.init(feature: AppModel.shared.messagingFeature) }
-  public init(feature: MessagingFeature) {
-    self.feature = feature
-    let messageSubject = self.messageSubjectProperty.signal.skipNil()
-      .takeWhen(self.viewDidLoadProperty.signal)
+  public init(feature: MessagingFeature) { self.feature = feature }
 
-    let body = self.bodyTextChangedProperty.signal.skipNil()
-
-    let bodyIsPresent = body
-      .map { !$0.trimmed().isEmpty }
-      .skipRepeats()
-
-    self.postButtonEnabled = Signal.merge(
-      self.viewDidLoadProperty.signal.take(first: 1).mapConst(false),
-      bodyIsPresent
-    )
-
-    let sendMessageResult = Signal.combineLatest(
-      body,
-      messageSubject
-    )
-    .takeWhen(self.postButtonPressedProperty.signal)
-    .switchMap { [cancel = self.cancelButtonPressedProperty.signal] body, messageSubject in
-      feature.delayedResult(feature.sendResult(body: body, subject: messageSubject))
-        .take(until: cancel)
-        .materialize()
-    }
-
-    self.notifyPresenterCommentWasPostedSuccesfully = sendMessageResult.values()
-
-    self.showAlertMessage = sendMessageResult.errors()
-      .map { $0.errorMessages.first ?? Strings.messages_dialog_generic_error() }
-
-    self.notifyPresenterDialogWantsDismissal = Signal.merge(
-      self.cancelButtonPressedProperty.signal,
-      self.notifyPresenterCommentWasPostedSuccesfully.ignoreValues()
-    )
-
-    self.loadingViewIsHidden = Signal.merge(
-      self.postButtonPressedProperty.signal.mapConst(false),
-      sendMessageResult.filter { $0.isTerminating }.mapConst(true),
-      self.viewDidLoadProperty.signal.take(first: 1).mapConst(true)
-    )
-
-    self.recipientName = messageSubject
-      .take(first: 1)
-      .flatMap { messageSubject -> SignalProducer<String, Never> in
-        switch messageSubject {
-        case let .messageThread(messageThread):
-          return .init(value: messageThread.participant.name)
-        case let .project(_, name):
-          return .init(value: name)
-        }
-      }
-
-    self.keyboardIsVisible = Signal.merge(
-      self.viewDidLoadProperty.signal.mapConst(true),
-      self.notifyPresenterDialogWantsDismissal.mapConst(false)
-    )
+  public func configureWith(messageSubject: MessageSubject, context _: KSRAnalytics.MessageDialogContext) {
+    self.subject = messageSubject
   }
 
-  fileprivate let bodyTextChangedProperty = MutableProperty<String?>(nil)
-  public func bodyTextChanged(_ body: String) {
-    self.bodyTextChangedProperty.value = body
-  }
-
-  fileprivate let cancelButtonPressedProperty = MutableProperty(())
-  public func cancelButtonPressed() {
-    self.cancelButtonPressedProperty.value = ()
-  }
-
-  fileprivate let messageSubjectProperty = MutableProperty<MessageSubject?>(nil)
-  fileprivate let contextProperty = MutableProperty<KSRAnalytics.MessageDialogContext?>(nil)
-  public func configureWith(
-    messageSubject: MessageSubject,
-    context _: KSRAnalytics.MessageDialogContext
-  ) {
-    self.messageSubjectProperty.value = messageSubject
-  }
-
-  fileprivate let postButtonPressedProperty = MutableProperty(())
-  public func postButtonPressed() {
-    self.postButtonPressedProperty.value = ()
-  }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    self.enabled = false
+    self.onPostEnabled?(false)
+    self.onLoadingHidden?(true)
+    if let subject = self.subject {
+      switch subject {
+      case let .messageThread(thread): self.onRecipient?(thread.participant.name)
+      case let .project(_, name): self.onRecipient?(name)
+      }
+    }
+    self.onKeyboardVisibility?(true)
   }
 
-  public let loadingViewIsHidden: Signal<Bool, Never>
-  public let postButtonEnabled: Signal<Bool, Never>
-  public let notifyPresenterDialogWantsDismissal: Signal<(), Never>
-  public let notifyPresenterCommentWasPostedSuccesfully: Signal<Message, Never>
-  public let recipientName: Signal<String, Never>
-  public let keyboardIsVisible: Signal<Bool, Never>
-  public let showAlertMessage: Signal<String, Never>
+  public func bodyTextChanged(_ body: String) {
+    self.body = body
+    let enabled = !body.trimmed().isEmpty
+    guard enabled != self.enabled else { return }
+    self.enabled = enabled
+    self.onPostEnabled?(enabled)
+  }
 
-  public var inputs: MessageDialogViewModelInputs { return self }
-  public var outputs: MessageDialogViewModelOutputs { return self }
+  public func cancelButtonPressed() {
+    self.sendVersion = UUID()
+    self.sendTask?.cancel()
+    self.sendTask = nil
+    self.onKeyboardVisibility?(false)
+    self.onDismiss?()
+  }
+
+  public func postButtonPressed() {
+    self.onLoadingHidden?(false)
+    guard let body = self.body, let subject = self.subject else { return }
+    self.sendTask?.cancel()
+    let version = UUID()
+    self.sendVersion = version
+    let session = self.feature.sessionFeature
+    let userID = session.currentUser?.id
+    let generation = session.generation
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    // Admit the write immediately; canceling presentation must not cancel a sent message.
+    let command = self.feature.requestSend(body: body, subject: subject)
+    self.sendTask = Task { [weak self] in
+      let result = await command.result
+      do {
+        if delay.isInfinite { try await Task.sleep(nanoseconds: UInt64.max) }
+        else if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
+        try Task.checkCancellation()
+      } catch { return }
+      guard let self, self.sendVersion == version,
+            session.isCurrent(userID: userID, generation: generation) else { return }
+      self.sendTask = nil
+      switch result {
+      case let .success(message):
+        self.onPosted?(message)
+        self.onKeyboardVisibility?(false)
+        self.onDismiss?()
+        self.onLoadingHidden?(true)
+      case let .failure(error):
+        guard !(error is CancellationError) else { return }
+        self.onError?((error as? ErrorEnvelope)?.errorMessages.first ?? Strings.messages_dialog_generic_error())
+        self.onLoadingHidden?(true)
+      }
+    }
+  }
+
+  func waitForSend() async { await self.sendTask?.value }
 }

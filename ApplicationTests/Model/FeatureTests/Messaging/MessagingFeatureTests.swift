@@ -239,8 +239,7 @@ final class MessagingFeatureTests: TestCase {
   func testCancelDialogKeepsSendButSuppressesLateSuccess() async throws {
     let vm = MessageDialogViewModel(feature: self.feature)
     var posted = 0
-    let observation = vm.outputs.notifyPresenterCommentWasPostedSuccesfully.observeValues { _ in posted += 1 }
-    defer { observation?.dispose() }
+    vm.onPosted = { _ in posted += 1 }
     vm.configureWith(messageSubject: .project(id: 1, name: "Fixture"), context: .messages)
     vm.viewDidLoad(); vm.bodyTextChanged("Hello"); vm.postButtonPressed()
     await self.provider.sends.waitFor(1)

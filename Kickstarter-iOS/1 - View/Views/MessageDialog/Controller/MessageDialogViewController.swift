@@ -2,7 +2,6 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveExtensions
 import UIKit
 
 @MainActor
@@ -13,7 +12,7 @@ internal protocol MessageDialogViewControllerDelegate: AnyObject {
 
 internal final class MessageDialogViewController: UIViewController {
   private var keyboardObservation: Keyboard.Observation?
-  fileprivate let viewModel: MessageDialogViewModelType = MessageDialogViewModel()
+  fileprivate let viewModel = MessageDialogViewModel()
   internal weak var delegate: MessageDialogViewControllerDelegate?
 
   @IBOutlet private var bodyTextView: UITextView!
@@ -28,7 +27,7 @@ internal final class MessageDialogViewController: UIViewController {
     context: KSRAnalytics.MessageDialogContext
   ) -> MessageDialogViewController {
     let vc = Storyboard.Messages.instantiate(MessageDialogViewController.self)
-    vc.viewModel.inputs.configureWith(messageSubject: messageSubject, context: context)
+    vc.viewModel.configureWith(messageSubject: messageSubject, context: context)
     vc.modalPresentationStyle = .formSheet
     return vc
   }
@@ -36,36 +35,31 @@ internal final class MessageDialogViewController: UIViewController {
   internal override func viewDidLoad() {
     super.viewDidLoad()
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   internal override func bindViewModel() {
-    self.nameLabel.rac.text = self.viewModel.outputs.recipientName
-    self.postButton.rac.enabled = self.viewModel.outputs.postButtonEnabled
-    self.loadingView.rac.hidden = self.viewModel.outputs.loadingViewIsHidden
-    self.bodyTextView.rac.isFirstResponder = self.viewModel.outputs.keyboardIsVisible
-
+    self.viewModel.onRecipient = { [weak self] in self?.nameLabel.text = $0 }
+    self.viewModel.onPostEnabled = { [weak self] in self?.postButton.isEnabled = $0 }
+    self.viewModel.onLoadingHidden = { [weak self] in self?.loadingView.isHidden = $0 }
+    self.viewModel.onKeyboardVisibility = { [weak self] visible in
+      guard let textView = self?.bodyTextView else { return }
+      if visible { textView.becomeFirstResponder() } else { textView.resignFirstResponder() }
+    }
     self.keyboardObservation = Keyboard.observe { [weak self] change in
       guard let self else { return }
       self.bottomConstraint.constant = self.view.frame.height - change.frame.minY
     }
-
-    self.viewModel.outputs.notifyPresenterDialogWantsDismissal
-      .observeValues { [weak self] in
-        guard let _self = self else { return }
-        _self.delegate?.messageDialogWantsDismissal(_self)
-      }
-
-    self.viewModel.outputs.notifyPresenterCommentWasPostedSuccesfully
-      .observeValues { [weak self] message in
-        guard let _self = self else { return }
-        _self.postNotification()
-        _self.delegate?.messageDialog(_self, postedMessage: message)
-      }
-
-    self.viewModel.outputs.showAlertMessage
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.presentError($0) }
+    self.viewModel.onDismiss = { [weak self] in
+      guard let self else { return }
+      self.delegate?.messageDialogWantsDismissal(self)
+    }
+    self.viewModel.onPosted = { [weak self] message in
+      guard let self else { return }
+      self.postNotification()
+      self.delegate?.messageDialog(self, postedMessage: message)
+    }
+    self.viewModel.onError = { [weak self] in self?.presentError($0) }
   }
 
   internal override func bindStyles() {
@@ -88,11 +82,11 @@ internal final class MessageDialogViewController: UIViewController {
   }
 
   @IBAction fileprivate func cancelButtonPressed() {
-    self.viewModel.inputs.cancelButtonPressed()
+    self.viewModel.cancelButtonPressed()
   }
 
   @IBAction fileprivate func postButtonPressed() {
-    self.viewModel.inputs.postButtonPressed()
+    self.viewModel.postButtonPressed()
   }
 
   fileprivate func presentError(_ message: String) {
@@ -114,7 +108,7 @@ internal final class MessageDialogViewController: UIViewController {
 
 extension MessageDialogViewController: UITextViewDelegate {
   internal func textViewDidChange(_ textView: UITextView) {
-    self.viewModel.inputs.bodyTextChanged(textView.text)
+    self.viewModel.bodyTextChanged(textView.text)
   }
 }
 
