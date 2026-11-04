@@ -15,7 +15,7 @@ internal final class LoginViewController: UIViewController {
   @IBOutlet fileprivate var rootStackView: UIStackView!
   @IBOutlet fileprivate var showHidePasswordButton: UIButton!
 
-  internal let viewModel: LoginViewModelType = LoginViewModel()
+  internal let viewModel: LoginViewModel = LoginViewModel()
 
   internal static func instantiate() -> LoginViewController {
     return Storyboard.Login.instantiate(LoginViewController.self)
@@ -57,17 +57,17 @@ internal final class LoginViewController: UIViewController {
       for: .touchUpInside
     )
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
-    self.viewModel.inputs.viewWillAppear()
+    self.viewModel.viewWillAppear()
   }
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
-    self.viewModel.inputs.traitCollectionDidChange()
+    self.viewModel.traitCollectionDidChange()
   }
 
   override func bindStyles() {
@@ -106,53 +106,19 @@ internal final class LoginViewController: UIViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.emailTextField.rac.becomeFirstResponder = self.viewModel.outputs.emailTextFieldBecomeFirstResponder
-    self.loginButton.rac.enabled = self.viewModel.outputs.isFormValid
-    self.passwordTextField.rac.becomeFirstResponder =
-      self.viewModel.outputs.passwordTextFieldBecomeFirstResponder
-
-    self.viewModel.outputs.showHidePasswordButtonToggled
-      .observeForUI()
-      .observeValues { [weak self] shouldShow in
-        self?.updateShowHidePassword(shouldShow)
-      }
-
-    self.viewModel.outputs.dismissKeyboard
-      .observeForControllerAction()
-      .observeValues { [weak self] _ in
-        self?.dismissKeyboard()
-      }
-
-    self.viewModel.outputs.postNotification
-      .observeForUI()
-      .observeValues {
-        NotificationCenter.default.post($0.0)
-        NotificationCenter.default.post($0.1)
-      }
-
-    self.viewModel.outputs.logIntoEnvironment
-      .observeValues { [weak self] _ in
-        // AuthenticationFeature has already committed the verified session.
-        self?.viewModel.inputs.environmentLoggedIn()
-      }
-
-    self.viewModel.outputs.showResetPassword
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.startResetPasswordViewController()
-      }
-
-    self.viewModel.outputs.showError
-      .observeForControllerAction()
-      .observeValues { [weak self] message in
-        self?.present(UIAlertController.genericError(message), animated: true, completion: nil)
-      }
-
-    self.viewModel.outputs.tfaChallenge
-      .observeForControllerAction()
-      .observeValues { [weak self] email, password in
-        self?.startTwoFactorViewController(email, password: password)
-      }
+    self.viewModel.onEmailFirstResponder = { [weak self] in self?.emailTextField.becomeFirstResponder() }
+    self.viewModel.onFormValid = { [weak self] in self?.loginButton.isEnabled = $0 }
+    self.viewModel.onPasswordFirstResponder = { [weak self] in self?.passwordTextField.becomeFirstResponder() }
+    self.viewModel.onPasswordVisibility = { [weak self] in self?.updateShowHidePassword($0) }
+    self.viewModel.onDismissKeyboard = { [weak self] in self?.dismissKeyboard() }
+    self.viewModel.onNotification = { first, second in
+      NotificationCenter.default.post(first)
+      NotificationCenter.default.post(second)
+    }
+    self.viewModel.onLogin = { [weak self] _ in self?.viewModel.environmentLoggedIn() }
+    self.viewModel.onResetPassword = { [weak self] in self?.startResetPasswordViewController() }
+    self.viewModel.onError = { [weak self] in self?.present(UIAlertController.genericError($0), animated: true, completion: nil) }
+    self.viewModel.onTwoFactor = { [weak self] email, password in self?.startTwoFactorViewController(email, password: password) }
   }
 
   fileprivate func startTwoFactorViewController(_ email: String, password: String) {
@@ -185,28 +151,28 @@ internal final class LoginViewController: UIViewController {
 
   @IBAction
   internal func loginButtonPressed(_: UIButton) {
-    self.viewModel.inputs.loginButtonPressed()
+    self.viewModel.loginButtonPressed()
   }
 
   @objc internal func emailTextFieldChanged(_ textField: UITextField) {
-    self.viewModel.inputs.emailChanged(textField.text)
+    self.viewModel.emailChanged(textField.text)
   }
 
   @objc internal func emailTextFieldDoneEditing() {
-    self.viewModel.inputs.emailTextFieldDoneEditing()
+    self.viewModel.emailTextFieldDoneEditing()
   }
 
   @objc internal func passwordTextFieldChanged(_ textField: UITextField) {
-    self.viewModel.inputs.passwordChanged(textField.text)
+    self.viewModel.passwordChanged(textField.text)
   }
 
   @objc internal func passwordTextFieldDoneEditing() {
-    self.viewModel.inputs.passwordTextFieldDoneEditing()
+    self.viewModel.passwordTextFieldDoneEditing()
   }
 
   @IBAction
   internal func resetPasswordButtonPressed(_: UIButton) {
-    self.viewModel.inputs.resetPasswordButtonPressed()
+    self.viewModel.resetPasswordButtonPressed()
   }
 
   @objc internal func dismissKeyboard() {
@@ -214,6 +180,6 @@ internal final class LoginViewController: UIViewController {
   }
 
   @objc func showHidePasswordButtonTapped() {
-    self.viewModel.inputs.showHidePasswordButtonTapped()
+    self.viewModel.showHidePasswordButtonTapped()
   }
 }
