@@ -3,8 +3,6 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 // A whole bunch of data to play around with in tests.
@@ -55,20 +53,20 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   private lazy var vm: DiscoveryFiltersViewModel = {
     let vm = DiscoveryFiltersViewModel()
-    vm.onAnimateIn = { [weak self] in self?.animateInView.observer.send(value: ()) }
-    vm.onLoading = { [weak self] in self?.loadingIndicatorisVisible.observer.send(value: $0) }
+    vm.onAnimateIn = { [weak self] in self?.animateInView.values.append(()) }
+    vm.onLoading = { [weak self] in self?.loadingIndicatorisVisible.values.append($0) }
     vm.onCategoryRows = { [weak self] rows, initial, selected in
-      self?.loadCategoryRows.observer.send(value: rows)
-      self?.loadCategoryRowsInitialId.observer.send(value: initial)
-      self?.loadCategoryRowsSelectedId.observer.send(value: selected)
+      self?.loadCategoryRows.values.append(rows)
+      self?.loadCategoryRowsInitialId.values.append(initial)
+      self?.loadCategoryRowsSelectedId.values.append(selected)
     }
     vm.onTopRows = { [weak self] rows, id in
-      self?.loadTopRows.observer.send(value: rows); self?.loadTopRowsInitialId.observer.send(value: id)
+      self?.loadTopRows.values.append(rows); self?.loadTopRowsInitialId.values.append(id)
     }
     vm.onFavoriteRows = { [weak self] rows, id in
-      self?.loadFavoriteRows.observer.send(value: rows); self?.loadFavoriteRowsId.observer.send(value: id)
+      self?.loadFavoriteRows.values.append(rows); self?.loadFavoriteRowsId.values.append(id)
     }
-    vm.onSelectedRow = { [weak self] in self?.notifyDelegateOfSelectedRow.observer.send(value: $0) }
+    vm.onSelectedRow = { [weak self] in self?.notifyDelegateOfSelectedRow.values.append($0) }
     return vm
   }()
 
@@ -82,16 +80,16 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
       ]
   }
 
-  private let animateInView = TestObserver<(), Never>()
-  private let loadCategoryRows = TestObserver<[ExpandableRow], Never>()
-  private let loadCategoryRowsInitialId = TestObserver<Int?, Never>()
-  private let loadCategoryRowsSelectedId = TestObserver<Int?, Never>()
-  private let loadingIndicatorisVisible = TestObserver<Bool, Never>()
-  private let loadTopRows = TestObserver<[SelectableRow], Never>()
-  private let loadTopRowsInitialId = TestObserver<Int?, Never>()
-  private let notifyDelegateOfSelectedRow = TestObserver<SelectableRow, Never>()
-  private let loadFavoriteRows = TestObserver<[SelectableRow], Never>()
-  private let loadFavoriteRowsId = TestObserver<Int?, Never>()
+  private let animateInView = DiscoveryRecorder<Void>()
+  private let loadCategoryRows = DiscoveryRecorder<[ExpandableRow]>()
+  private let loadCategoryRowsInitialId = DiscoveryRecorder<Int?>()
+  private let loadCategoryRowsSelectedId = DiscoveryRecorder<Int?>()
+  private let loadingIndicatorisVisible = DiscoveryRecorder<Bool>()
+  private let loadTopRows = DiscoveryRecorder<[SelectableRow]>()
+  private let loadTopRowsInitialId = DiscoveryRecorder<Int?>()
+  private let notifyDelegateOfSelectedRow = DiscoveryRecorder<SelectableRow>()
+  private let loadFavoriteRows = DiscoveryRecorder<[SelectableRow]>()
+  private let loadFavoriteRowsId = DiscoveryRecorder<Int?>()
 
   private let categoriesResponse = RootCategoriesEnvelope.template
     |> RootCategoriesEnvelope.lens.categories .~ categories
@@ -540,5 +538,17 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
       [[artExpandableRow, filmExpandableRow]],
       "Server did not advance, categories loaded from cache."
     )
+  }
+}
+
+private final class DiscoveryRecorder<Value> {
+  var values: [Value] = []
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+}
+private extension DiscoveryRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
   }
 }
