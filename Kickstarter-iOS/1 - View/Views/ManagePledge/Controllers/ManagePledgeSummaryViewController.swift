@@ -41,12 +41,13 @@ final class ManagePledgeSummaryViewController: UIViewController {
   private lazy var totalAmountStackView: UIStackView = { UIStackView(frame: .zero) }()
   private lazy var totalLabel: UILabel = { UILabel(frame: .zero) }()
 
-  private let viewModel: ManagePledgeSummaryViewModelType = ManagePledgeSummaryViewModel()
+  private let viewModel = ManagePledgeSummaryViewModel()
 
   // MARK: - Lifecycle
 
   public func configureWith(_ data: ManagePledgeSummaryViewData) {
-    self.viewModel.inputs.configureWith(data)
+    self.viewModel.configureWith(data)
+    if self.isViewLoaded { self.renderSummary() }
   }
 
   override func viewDidLoad() {
@@ -55,7 +56,8 @@ final class ManagePledgeSummaryViewController: UIViewController {
     self.configureViews()
     self.setupConstraints()
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
+    self.renderSummary()
   }
 
   // MARK: - Styles
@@ -101,46 +103,26 @@ final class ManagePledgeSummaryViewController: UIViewController {
 
   // MARK: - View model
 
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.viewModel.outputs.configurePledgeAmountSummaryViewWithData
-      .observeForUI()
-      .observeValues { [weak self] data in
-        self?.pledgeAmountSummaryViewController.configureWith(data)
-      }
-
-    self.viewModel.outputs.configurePledgeStatusLabelViewWithProject
-      .observeForUI()
-      .observeValues { [weak self] project in
-        self?.pledgeStatusLabelView.configure(with: project)
-      }
-
-    self.viewModel.outputs.backerImageURLAndPlaceholderImageName
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.circleAvatarImageView.af.cancelImageRequest()
-        self?.circleAvatarImageView.image = nil
-      })
-      .observeValues { [weak self] url, placeholderImageName in
-        self?.circleAvatarImageView
-          .ksr_setImageWithURL(url, placeholderImage: image(named: placeholderImageName))
-      }
-
-    self.viewModel.outputs.configureRewardReceivedWithData
-      .observeForControllerAction()
-      .observeValues { [weak self] data in
-        self?.rewardReceivedViewController.configureWith(data: data)
-      }
-
-    self.backerNameLabel.rac.hidden = self.viewModel.outputs.backerNameLabelHidden
-    self.backerNameLabel.rac.text = self.viewModel.outputs.backerNameText
-    self.backerNumberLabel.rac.text = self.viewModel.outputs.backerNumberText
-    self.backingDateLabel.rac.text = self.viewModel.outputs.backingDateText
-    self.circleAvatarImageView.rac.hidden = self.viewModel.outputs.circleAvatarViewHidden
-    self.rewardReceivedViewController.view.rac.hidden = self.viewModel.outputs
-      .rewardReceivedViewControllerViewIsHidden
-    self.totalAmountLabel.rac.attributedText = self.viewModel.outputs.totalAmountText
+  private func renderSummary() {
+    let model = self.viewModel
+    guard let data = model.data else { return }
+    if let summary = model.configurePledgeAmountSummaryViewWithData { self.pledgeAmountSummaryViewController.configureWith(summary) }
+    if let status = model.configurePledgeStatusLabelViewWithProject { self.pledgeStatusLabelView.configure(with: status) }
+    if let (url, placeholder) = model.backerImageURLAndPlaceholderImageName {
+      self.circleAvatarImageView.af.cancelImageRequest()
+      self.circleAvatarImageView.image = nil
+      self.circleAvatarImageView.ksr_setImageWithURL(url, placeholderImage: image(named: placeholder))
+    }
+    self.rewardReceivedViewController.configureWith(data: data.rewardReceivedWithData)
+    if let hidden = model.backerNameLabelHidden {
+      self.backerNameLabel.isHidden = hidden
+      self.circleAvatarImageView.isHidden = hidden
+    }
+    if let name = model.backerNameText { self.backerNameLabel.text = name }
+    self.backerNumberLabel.text = model.backerNumberText
+    self.backingDateLabel.text = model.backingDateText
+    self.rewardReceivedViewController.view.isHidden = data.rewardReceivedViewControllerViewIsHidden
+    if let amount = model.totalAmountText { self.totalAmountLabel.attributedText = amount }
   }
 
   // MARK: - Functions

@@ -4,8 +4,6 @@ import Foundation
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -13,32 +11,6 @@ final class ManagePledgeSummaryViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
   private let vm = ManagePledgeSummaryViewModel()
-
-  private let backerImagePlaceholderImageName = TestObserver<String, Never>()
-  private let backerImageURL = TestObserver<URL, Never>()
-  private let backerNameLabelHidden = TestObserver<Bool, Never>()
-  private let backerNameText = TestObserver<String, Never>()
-  private let backerNumberText = TestObserver<String, Never>()
-  private let backingDateText = TestObserver<String, Never>()
-  private let circleAvatarViewHidden = TestObserver<Bool, Never>()
-  private let configurePledgeAmountSummary = TestObserver<PledgeAmountSummaryViewData, Never>()
-  private let totalAmountText = TestObserver<String, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-    self.vm.outputs.backerImageURLAndPlaceholderImageName.map(second)
-      .observe(self.backerImagePlaceholderImageName.observer)
-    self.vm.outputs.backerImageURLAndPlaceholderImageName.map(first).observe(self.backerImageURL.observer)
-    self.vm.outputs.backerNameLabelHidden.observe(self.backerNameLabelHidden.observer)
-    self.vm.outputs.backerNameText.observe(self.backerNameText.observer)
-    self.vm.outputs.backerNumberText.observe(self.backerNumberText.observer)
-    self.vm.outputs.backingDateText.observe(self.backingDateText.observer)
-    self.vm.outputs.configurePledgeAmountSummaryViewWithData
-      .observe(self.configurePledgeAmountSummary.observer)
-    self.vm.outputs.circleAvatarViewHidden.observe(self.circleAvatarViewHidden.observer)
-    self.vm.outputs.totalAmountText.map { $0.string }
-      .observe(self.totalAmountText.observer)
-  }
 
   func testTextOutputsEmitTheCorrectValue_US_ProjectCountryCurrency() {
     let data = ManagePledgeSummaryViewData(
@@ -74,12 +46,13 @@ final class ManagePledgeSummaryViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configureWith(data)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(data)
+    XCTAssertNil(self.vm.data)
+    self.vm.viewDidLoad()
 
-    self.backerNumberText.assertValue("Backer #999")
-    self.backingDateText.assertValue("As of September 16, 2019")
-    self.totalAmountText.assertValue("$30.00")
+    XCTAssertEqual(self.vm.backerNumberText, "Backer #999")
+    XCTAssertEqual(self.vm.backingDateText, "As of September 16, 2019")
+    XCTAssertEqual(self.vm.totalAmountText?.string, "$30.00")
   }
 
   func testTextOutputsEmitTheCorrectValue_NonUS_ProjectCountryCurrency() {
@@ -116,12 +89,12 @@ final class ManagePledgeSummaryViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configureWith(data)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(data)
+    self.vm.viewDidLoad()
 
-    self.backerNumberText.assertValue("Backer #999")
-    self.backingDateText.assertValue("As of September 16, 2019")
-    self.totalAmountText.assertValue(" MX$ 30.00")
+    XCTAssertEqual(self.vm.backerNumberText, "Backer #999")
+    XCTAssertEqual(self.vm.backingDateText, "As of September 16, 2019")
+    XCTAssertEqual(self.vm.totalAmountText?.string, " MX$ 30.00")
   }
 
   func testBackerUserInfo_UserIsBacker() {
@@ -163,14 +136,14 @@ final class ManagePledgeSummaryViewModelTests: TestCase {
     )
 
     withEnvironment(currentUser: user) {
-      self.vm.inputs.configureWith(data)
-      self.vm.inputs.viewDidLoad()
+      self.vm.configureWith(data)
+      self.vm.viewDidLoad()
 
-      self.backerNameText.assertValues(["Blob"])
-      self.backerNameLabelHidden.assertValues([false])
-      self.backerImageURL.assertValues([URL(string: "http://www.kickstarter.com/small.jpg")!])
-      self.backerImagePlaceholderImageName.assertValues(["avatar--placeholder"])
-      self.circleAvatarViewHidden.assertValues([false])
+      XCTAssertEqual(self.vm.backerNameText, "Blob")
+      XCTAssertEqual(self.vm.backerNameLabelHidden, false)
+      XCTAssertEqual(self.vm.backerImageURLAndPlaceholderImageName?.0, URL(string: "http://www.kickstarter.com/small.jpg")!)
+      XCTAssertEqual(self.vm.backerImageURLAndPlaceholderImageName?.1, "avatar--placeholder")
+      XCTAssertEqual(self.vm.backerNameLabelHidden, false)
     }
   }
 
@@ -212,14 +185,14 @@ final class ManagePledgeSummaryViewModelTests: TestCase {
     )
 
     withEnvironment(currentUser: user) {
-      self.vm.inputs.configureWith(data)
-      self.vm.inputs.viewDidLoad()
+      self.vm.configureWith(data)
+      self.vm.viewDidLoad()
 
-      self.backerNameText.assertDidNotEmitValue()
-      self.backerNameLabelHidden.assertValues([true])
-      self.backerImageURL.assertDidNotEmitValue()
-      self.backerImagePlaceholderImageName.assertDidNotEmitValue()
-      self.circleAvatarViewHidden.assertValues([true])
+      XCTAssertNil(self.vm.backerNameText)
+      XCTAssertEqual(self.vm.backerNameLabelHidden, true)
+      XCTAssertNil(self.vm.backerImageURLAndPlaceholderImageName?.0)
+      XCTAssertNil(self.vm.backerImageURLAndPlaceholderImageName?.1)
+      XCTAssertEqual(self.vm.backerNameLabelHidden, true)
     }
   }
 
@@ -257,10 +230,10 @@ final class ManagePledgeSummaryViewModelTests: TestCase {
       project: nil
     )
 
-    self.vm.inputs.configureWith(data)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(data)
+    self.vm.viewDidLoad()
 
-    guard let pledgeAmountSummaryValue = self.configurePledgeAmountSummary.lastValue else {
+    guard let pledgeAmountSummaryValue = self.vm.configurePledgeAmountSummaryViewWithData else {
       XCTFail("pledge amount summary view data should exist")
       return
     }

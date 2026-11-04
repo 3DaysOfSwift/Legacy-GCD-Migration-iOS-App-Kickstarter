@@ -1,7 +1,7 @@
 import KDS
 import KsApi
 import Prelude
-import ReactiveSwift
+import Observation
 import UIKit
 
 public struct ManagePledgeSummaryViewData: Equatable {
@@ -31,116 +31,49 @@ public struct ManagePledgeSummaryViewData: Equatable {
   public let project: Project?
 }
 
-@MainActor
-public protocol ManagePledgeSummaryViewModelInputs {
-  func configureWith(_ data: ManagePledgeSummaryViewData)
-  func viewDidLoad()
-}
+@MainActor @Observable
+public final class ManagePledgeSummaryViewModel {
+  public init() {}
+  public private(set) var data: ManagePledgeSummaryViewData?
+  public private(set) var backerNameLabelHidden: Bool?
+  public private(set) var backerNameText: String?
+  public private(set) var backerImageURLAndPlaceholderImageName: (URL, String)?
+  public private(set) var backerNumberText: String?
+  public private(set) var backingDateText: String?
+  public private(set) var totalAmountText: NSAttributedString?
+  public private(set) var configurePledgeAmountSummaryViewWithData: PledgeAmountSummaryViewData?
+  public private(set) var configurePledgeStatusLabelViewWithProject: PledgeStatusLabelViewData?
+  private var pending: ManagePledgeSummaryViewData?
+  private var loaded = false
 
-@MainActor
-public protocol ManagePledgeSummaryViewModelOutputs {
-  var backerImageURLAndPlaceholderImageName: Signal<(URL, String), Never> { get }
-  var backerNameLabelHidden: Signal<Bool, Never> { get }
-  var backerNameText: Signal<String, Never> { get }
-  var backerNumberText: Signal<String, Never> { get }
-  var backingDateText: Signal<String, Never> { get }
-  var circleAvatarViewHidden: Signal<Bool, Never> { get }
-  var configurePledgeAmountSummaryViewWithData: Signal<PledgeAmountSummaryViewData, Never> { get }
-  var configurePledgeStatusLabelViewWithProject: Signal<PledgeStatusLabelViewData, Never> { get }
-  var configureRewardReceivedWithData: Signal<ManageViewPledgeRewardReceivedViewData, Never> { get }
-  var rewardReceivedViewControllerViewIsHidden: Signal<Bool, Never> { get }
-  var totalAmountText: Signal<NSAttributedString, Never> { get }
-}
-
-@MainActor
-public protocol ManagePledgeSummaryViewModelType {
-  var inputs: ManagePledgeSummaryViewModelInputs { get }
-  var outputs: ManagePledgeSummaryViewModelOutputs { get }
-}
-
-@MainActor
-public class ManagePledgeSummaryViewModel: ManagePledgeSummaryViewModelType,
-  ManagePledgeSummaryViewModelInputs, ManagePledgeSummaryViewModelOutputs {
-  public init() {
-    let data = Signal.combineLatest(
-      self.dataSignal,
-      self.viewDidLoadSignal
-    )
-    .map(first)
-
-    self.configurePledgeStatusLabelViewWithProject = data.map(pledgeStatusLabelViewData)
-
-    self.configurePledgeAmountSummaryViewWithData = data.map(pledgeAmountSummaryViewData)
-
-    let userAndIsBackingProject = data.map(\.backerId)
-      .compactMap { backerId -> (User, Bool)? in
-        guard let user = AppEnvironment.current.currentUser else {
-          return nil
-        }
-
-        return (user, backerId == user.id)
-      }
-
-    self.backerNameLabelHidden = userAndIsBackingProject.map(second).negate()
-    self.circleAvatarViewHidden = userAndIsBackingProject.map(second).negate()
-
-    self.configureRewardReceivedWithData = data.map(\.rewardReceivedWithData)
-    self.rewardReceivedViewControllerViewIsHidden = data.map(\.rewardReceivedViewControllerViewIsHidden)
-
-    let userBackingProject = userAndIsBackingProject
-      .filter(second >>> isTrue)
-      .map(first)
-
-    self.backerNameText = userBackingProject
-      .map(\.name)
-
-    self.backerImageURLAndPlaceholderImageName = userBackingProject
-      .map(\.avatar.small)
-      .map(URL.init)
-      .skipNil()
-      .map { ($0, "avatar--placeholder") }
-
-    self.backerNumberText = data.map(\.backerSequence)
-      .map { Strings.backer_modal_backer_number(backer_number: Format.wholeNumber($0)) }
-
-    self.backingDateText = data.map(\.pledgedOn)
-      .map { formattedPledgeDate($0) }
-
-    self.totalAmountText = data.map { ($0.currencyCode, $0.pledgeAmount, $0.omitUSCurrencyCode) }
-      .map { currencyCode, pledgeAmount, omitUSCurrencyCode in
-        managePledgeSummaryViewModelAttributedCurrency(
-          with: currencyCode,
-          amount: pledgeAmount,
-          omitUSCurrencyCode: omitUSCurrencyCode
-        )
-      }
-      .skipNil()
-  }
-
-  private let (dataSignal, dataObserver) = Signal<ManagePledgeSummaryViewData, Never>.pipe()
   public func configureWith(_ data: ManagePledgeSummaryViewData) {
-    self.dataObserver.send(value: data)
+    self.pending = data
+    if self.loaded { self.apply(data) }
   }
 
-  private let (viewDidLoadSignal, viewDidLoadObserver) = Signal<(), Never>.pipe()
   public func viewDidLoad() {
-    self.viewDidLoadObserver.send(value: ())
+    self.loaded = true
+    if let pending = self.pending { self.apply(pending) }
   }
 
-  public let backerImageURLAndPlaceholderImageName: Signal<(URL, String), Never>
-  public let backerNameLabelHidden: Signal<Bool, Never>
-  public let backerNameText: Signal<String, Never>
-  public let backerNumberText: Signal<String, Never>
-  public let backingDateText: Signal<String, Never>
-  public let circleAvatarViewHidden: Signal<Bool, Never>
-  public let configurePledgeStatusLabelViewWithProject: Signal<PledgeStatusLabelViewData, Never>
-  public let configurePledgeAmountSummaryViewWithData: Signal<PledgeAmountSummaryViewData, Never>
-  public let configureRewardReceivedWithData: Signal<ManageViewPledgeRewardReceivedViewData, Never>
-  public let rewardReceivedViewControllerViewIsHidden: Signal<Bool, Never>
-  public let totalAmountText: Signal<NSAttributedString, Never>
-
-  public var inputs: ManagePledgeSummaryViewModelInputs { return self }
-  public var outputs: ManagePledgeSummaryViewModelOutputs { return self }
+  private func apply(_ data: ManagePledgeSummaryViewData) {
+    self.data = data
+    self.configurePledgeStatusLabelViewWithProject = pledgeStatusLabelViewData(with: data)
+    self.configurePledgeAmountSummaryViewWithData = pledgeAmountSummaryViewData(with: data)
+    if let user = AppEnvironment.current.currentUser {
+      let isBacker = data.backerId == user.id
+      self.backerNameLabelHidden = !isBacker
+      if isBacker {
+        self.backerNameText = user.name
+        if let url = URL(string: user.avatar.small) { self.backerImageURLAndPlaceholderImageName = (url, "avatar--placeholder") }
+      }
+    }
+    self.backerNumberText = Strings.backer_modal_backer_number(backer_number: Format.wholeNumber(data.backerSequence))
+    self.backingDateText = formattedPledgeDate(data.pledgedOn)
+    if let amount = managePledgeSummaryViewModelAttributedCurrency(with: data.currencyCode, amount: data.pledgeAmount, omitUSCurrencyCode: data.omitUSCurrencyCode) {
+      self.totalAmountText = amount
+    }
+  }
 }
 
 @MainActor
