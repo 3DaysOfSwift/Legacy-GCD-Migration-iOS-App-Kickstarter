@@ -22,8 +22,6 @@ final class PledgePaymentMethodAddCell: UITableViewCell, ValueCell {
     return indicator
   }()
 
-  private let viewModel: PledgePaymentMethodAddCellViewModelType = PledgePaymentMethodAddCellViewModel()
-
   // MARK: - Lifecycle
 
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
@@ -31,19 +29,11 @@ final class PledgePaymentMethodAddCell: UITableViewCell, ValueCell {
 
     self.configureSubviews()
     self.setupConstraints()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
   required init?(coder _: NSCoder) {
     fatalError("init(coder:) has not been implemented")
-  }
-
-  // MARK: - View model
-
-  override func bindViewModel() {
-    self.activityIndicator.rac.animating = self.viewModel.outputs.showLoading
-    self.addButton.rac.hidden = self.viewModel.outputs.showLoading
   }
 
   // MARK: - Configuration
@@ -97,7 +87,8 @@ final class PledgePaymentMethodAddCell: UITableViewCell, ValueCell {
   }
 
   func configureWith(value flag: Bool) {
-    self.viewModel.inputs.configureWith(value: flag)
+    if flag { self.activityIndicator.startAnimating() } else { self.activityIndicator.stopAnimating() }
+    self.addButton.isHidden = flag
   }
 }
 

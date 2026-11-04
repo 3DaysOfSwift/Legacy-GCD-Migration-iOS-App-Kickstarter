@@ -1,11 +1,10 @@
 import KsApi
 
 import Prelude
-import ReactiveSwift
 import UIKit
 
 internal final class CreditCardCell: UITableViewCell, ValueCell {
-  private let viewModel: CreditCardCellViewModelType = CreditCardCellViewModel()
+  private let viewModel = CreditCardCellViewModel()
 
   @IBOutlet fileprivate var stackView: UIStackView!
   @IBOutlet fileprivate var cardImageView: UIImageView!
@@ -13,7 +12,11 @@ internal final class CreditCardCell: UITableViewCell, ValueCell {
   @IBOutlet fileprivate var expirationDateLabel: UILabel!
 
   public func configureWith(value card: UserCreditCards.CreditCard) {
-    self.viewModel.inputs.configureWith(creditCard: card)
+    let display = self.viewModel.configureWith(creditCard: card)
+    self.cardNumberLabel.accessibilityLabel = display.accessibilityLabel
+    self.cardNumberLabel.text = display.number
+    self.expirationDateLabel.text = display.expiration
+    self.cardImageView.image = display.image
   }
 
   override func bindStyles() {
@@ -34,19 +37,4 @@ internal final class CreditCardCell: UITableViewCell, ValueCell {
       |> settingsDescriptionLabelStyle
   }
 
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.cardNumberLabel.rac.accessibilityLabel = self.viewModel.outputs.cardNumberAccessibilityLabel
-    self.cardNumberLabel.rac.text = self.viewModel.outputs.cardNumberTextLongStyle
-    self.expirationDateLabel.rac.text = self.viewModel.outputs.expirationDateText
-
-    self.viewModel.outputs.cardImage
-      .observeForUI()
-      .observeValues { [weak self] image in
-        guard let _self = self else { return }
-        _ = _self.cardImageView
-          ?|> \.image .~ image
-      }
-  }
 }

@@ -3055,13 +3055,6 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "12500AF4522F41D0F53E8F47";
 		};
-		"2E20378308DCF28DDCC564B1" = {
-			"name" = "PledgePaymentMethodAddCellViewModel.swift";
-			"path" = "Kickstarter-iOS/1 - View/Views/PledgePaymentMethods/Views/Cells/PledgePaymentMethodAddCellViewModel.swift";
-			"isa" = "PBXFileReference";
-			"sourceTree" = "SOURCE_ROOT";
-			"lastKnownFileType" = "sourcecode.swift";
-		};
 		"AE1B821F0CE857AFA7B925AD" = {
 			"name" = "MessageThreadCellViewModel.swift";
 			"path" = "Kickstarter-iOS/1 - View/Views/MessageThreads/Views/Cells/MessageThreadCellViewModel.swift";
@@ -6424,7 +6417,6 @@
 				"31EA5A38FA8D3F8ED19BF0C7",
 				"7EA5478F55CD58B20C9A5EA4",
 				"EDAA85E5866FC336F6033AE5",
-				"2E20378308DCF28DDCC564B1",
 				"93A8F0495C24645055299876",
 				"57086C7BEEAA58BF5A45D899",
 				"8A4A46D4D95FE681BD1E5A47",
@@ -8065,7 +8057,6 @@
 				"4D96C72C4A8AC786CED52BB6",
 				"4BAE4EDF78B9BAEADB5037C8",
 				"56CA214C5606972B4909F38D",
-				"45E9AF0C9C4BEBE6F3A0FCD4",
 				"D5C1A6FB1A650C4CCC817C16",
 				"C363F44B9464B6790988DD1A",
 				"42CEFCD25B0FFEFF8AA5BC41",
@@ -17535,10 +17526,6 @@
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "sourcecode.swift";
 			"sourceTree" = "SOURCE_ROOT";
-		};
-		"45E9AF0C9C4BEBE6F3A0FCD4" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "2E20378308DCF28DDCC564B1";
 		};
 		"D1C251657B4A58E7149E138D" = {
 			"isa" = "PBXBuildFile";

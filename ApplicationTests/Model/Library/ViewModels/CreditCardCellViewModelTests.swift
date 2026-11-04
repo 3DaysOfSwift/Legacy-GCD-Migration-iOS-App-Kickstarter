@@ -3,97 +3,101 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 internal final class CreditCardCellViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  internal let vm: CreditCardCellViewModelType = CreditCardCellViewModel()
-
-  private let cardImage = TestObserver<UIImage?, Never>()
-  private let cardNumberAccessibilityLabel = TestObserver<String, Never>()
-  private let cardNumberTextLongStyle = TestObserver<String, Never>()
-  private let expirationDateText = TestObserver<String, Never>()
-
-  internal override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.cardImage.observe(self.cardImage.observer)
-    self.vm.outputs.cardNumberAccessibilityLabel.observe(self.cardNumberAccessibilityLabel.observer)
-    self.vm.outputs.cardNumberTextLongStyle.observe(self.cardNumberTextLongStyle.observer)
-    self.vm.outputs.expirationDateText.observe(self.expirationDateText.observer)
-  }
+  internal let vm = CreditCardCellViewModel()
 
   func testCardInfoForSupportedCards() {
-    self.vm.inputs.configureWith(creditCard: UserCreditCards.amex)
+    var display: CreditCardCellViewModel.Display
+    display = self.vm.configureWith(creditCard: UserCreditCards.amex)
 
-    self.cardImage.assertLastValue(image(named: "icon--amex"))
-    self.cardNumberAccessibilityLabel.assertLastValue("Amex, Card ending in 8882")
-    self.cardNumberTextLongStyle.assertLastValue("Card ending in 8882")
-    self.expirationDateText.assertLastValue("Expires 01/2024")
+    XCTAssertEqual(display.image, image(named: "icon--amex"))
+    XCTAssertEqual(display.accessibilityLabel, "Amex, Card ending in 8882")
+    XCTAssertEqual(display.number, "Card ending in 8882")
+    XCTAssertEqual(display.expiration, "Expires 01/2024")
 
-    self.vm.inputs.configureWith(creditCard: UserCreditCards.discover)
+    display = self.vm.configureWith(creditCard: UserCreditCards.discover)
 
-    self.cardImage.assertLastValue(image(named: "icon--discover"))
-    self.cardNumberAccessibilityLabel.assertLastValue("Discover, Card ending in 4242")
-    self.cardNumberTextLongStyle.assertLastValue("Card ending in 4242")
-    self.expirationDateText.assertLastValue("Expires 03/2022")
+    XCTAssertEqual(display.image, image(named: "icon--discover"))
+    XCTAssertEqual(display.accessibilityLabel, "Discover, Card ending in 4242")
+    XCTAssertEqual(display.number, "Card ending in 4242")
+    XCTAssertEqual(display.expiration, "Expires 03/2022")
 
-    self.vm.inputs.configureWith(creditCard: UserCreditCards.jcb)
+    display = self.vm.configureWith(creditCard: UserCreditCards.jcb)
 
-    self.cardImage.assertLastValue(image(named: "icon--jcb"))
-    self.cardNumberAccessibilityLabel.assertLastValue("Jcb, Card ending in 2222")
-    self.cardNumberTextLongStyle.assertLastValue("Card ending in 2222")
-    self.expirationDateText.assertLastValue("Expires 01/2022")
+    XCTAssertEqual(display.image, image(named: "icon--jcb"))
+    XCTAssertEqual(display.accessibilityLabel, "Jcb, Card ending in 2222")
+    XCTAssertEqual(display.number, "Card ending in 2222")
+    XCTAssertEqual(display.expiration, "Expires 01/2022")
 
-    self.vm.inputs.configureWith(creditCard: UserCreditCards.masterCard)
+    display = self.vm.configureWith(creditCard: UserCreditCards.masterCard)
 
-    self.cardImage.assertLastValue(image(named: "icon--mastercard"))
-    self.cardNumberAccessibilityLabel.assertLastValue("Mastercard, Card ending in 0000")
-    self.cardNumberTextLongStyle.assertLastValue("Card ending in 0000")
-    self.expirationDateText.assertLastValue("Expires 10/2018")
+    XCTAssertEqual(display.image, image(named: "icon--mastercard"))
+    XCTAssertEqual(display.accessibilityLabel, "Mastercard, Card ending in 0000")
+    XCTAssertEqual(display.number, "Card ending in 0000")
+    XCTAssertEqual(display.expiration, "Expires 10/2018")
 
-    self.vm.inputs.configureWith(creditCard: UserCreditCards.visa)
+    display = self.vm.configureWith(creditCard: UserCreditCards.visa)
 
-    self.cardImage.assertLastValue(image(named: "icon--visa"))
-    self.cardNumberAccessibilityLabel.assertLastValue("Visa, Card ending in 1111")
-    self.cardNumberTextLongStyle.assertLastValue("Card ending in 1111")
-    self.expirationDateText.assertLastValue("Expires 09/2019")
+    XCTAssertEqual(display.image, image(named: "icon--visa"))
+    XCTAssertEqual(display.accessibilityLabel, "Visa, Card ending in 1111")
+    XCTAssertEqual(display.number, "Card ending in 1111")
+    XCTAssertEqual(display.expiration, "Expires 09/2019")
 
-    self.vm.inputs.configureWith(creditCard: UserCreditCards.diners)
+    display = self.vm.configureWith(creditCard: UserCreditCards.diners)
 
-    self.cardImage.assertLastValue(image(named: "icon--diners"))
-    self.cardNumberAccessibilityLabel.assertLastValue("Diners, Card ending in 1212")
-    self.cardNumberTextLongStyle.assertLastValue("Card ending in 1212")
-    self.expirationDateText.assertLastValue("Expires 09/2022")
+    XCTAssertEqual(display.image, image(named: "icon--diners"))
+    XCTAssertEqual(display.accessibilityLabel, "Diners, Card ending in 1212")
+    XCTAssertEqual(display.number, "Card ending in 1212")
+    XCTAssertEqual(display.expiration, "Expires 09/2022")
   }
 
   func testSelectedCard() {
-    self.vm.inputs.configureWith(creditCard: UserCreditCards.generic)
+    let display: CreditCardCellViewModel.Display
+    display = self.vm.configureWith(creditCard: UserCreditCards.generic)
 
-    self.cardImage.assertValue(image(named: "icon--generic"))
-    self.cardNumberTextLongStyle.assertLastValue("Card ending in 1882")
-    self.expirationDateText.assertValue("Expires 01/2024")
+    XCTAssertEqual(display.image, image(named: "icon--generic"))
+    XCTAssertEqual(display.number, "Card ending in 1882")
+    XCTAssertEqual(display.expiration, "Expires 01/2024")
   }
 
   func testCardInfoForUnsupportedCards() {
-    self.vm.inputs.configureWith(creditCard: UserCreditCards.generic)
+    let display: CreditCardCellViewModel.Display
+    display = self.vm.configureWith(creditCard: UserCreditCards.generic)
 
-    self.cardImage.assertValue(image(named: "icon--generic"))
-    self.cardNumberTextLongStyle.assertLastValue("Card ending in 1882")
-    self.expirationDateText.assertValue("Expires 01/2024")
+    XCTAssertEqual(display.image, image(named: "icon--generic"))
+    XCTAssertEqual(display.number, "Card ending in 1882")
+    XCTAssertEqual(display.expiration, "Expires 01/2024")
   }
 
   func testCardInfoForUnknownCardType() {
+    let display: CreditCardCellViewModel.Display
     let unknownCard = UserCreditCards.generic |> \.type .~ nil
 
-    self.vm.inputs.configureWith(creditCard: unknownCard)
+    display = self.vm.configureWith(creditCard: unknownCard)
 
-    self.cardImage.assertValue(image(named: "icon--generic"))
-    self.cardNumberAccessibilityLabel.assertLastValue("Card ending in 1882")
-    self.cardNumberTextLongStyle.assertLastValue("Card ending in 1882")
-    self.expirationDateText.assertValue("Expires 01/2024")
+    XCTAssertEqual(display.image, image(named: "icon--generic"))
+    XCTAssertEqual(display.accessibilityLabel, "Card ending in 1882")
+    XCTAssertEqual(display.number, "Card ending in 1882")
+    XCTAssertEqual(display.expiration, "Expires 01/2024")
   }
+  func testAddPaymentCellUpdatesLoadingOnReuse() throws {
+    let cell = PledgePaymentMethodAddCell(style: .default, reuseIdentifier: nil)
+    let indicator = try XCTUnwrap(self.descendants(of: cell).compactMap { $0 as? UIActivityIndicatorView }.first)
+    let button = try XCTUnwrap(self.descendants(of: cell).compactMap { $0 as? UIButton }.first)
+    cell.configureWith(value: true)
+    XCTAssertTrue(indicator.isAnimating)
+    XCTAssertTrue(button.isHidden)
+    cell.configureWith(value: false)
+    XCTAssertFalse(indicator.isAnimating)
+    XCTAssertFalse(button.isHidden)
+  }
+
+  private func descendants(of view: UIView) -> [UIView] {
+    view.subviews.flatMap { [$0] + self.descendants(of: $0) }
+  }
+
 }
