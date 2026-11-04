@@ -298,7 +298,7 @@ final class FriendsFeatureTests: TestCase {
   }
 
   func testActivityAndFindFriendsShareFollowingStateWithoutSharingCellLifetime() async throws {
-    let vm = ActivityFriendFollowCellViewModel(feature: self.feature)
+    let vm = ActivityFriendFollowCellViewModel(feature: self.feature, delay: {})
     var activity = Activity.template
     activity = activity |> Activity.lens.user .~ Self.user(1)
     vm.configureWith(activity: activity)
@@ -307,11 +307,10 @@ final class FriendsFeatureTests: TestCase {
     activity = activity |> Activity.lens.user .~ Self.user(2)
     vm.configureWith(activity: activity)
     var hidden: [Bool] = []
-    let subscription = vm.hideFollowButton.observeValues { hidden.append($0) }
-    defer { subscription?.dispose() }
+    vm.onChange = { [weak vm] in if let value = vm?.hideFollowButton { hidden.append(value) } }
     try self.provider.writes.finish(0, .success(()))
     await self.feature.waitForOperations()
-    await self.scheduler.advance()
+    await vm.waitForObservation()
     XCTAssertTrue(hidden.isEmpty)
     let other = FindFriendsFriendFollowCellViewModel(feature: self.feature)
     var otherHidden: [Bool] = []

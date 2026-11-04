@@ -271,6 +271,17 @@ public final class FriendsFeature {
     }
   }
 
+  /// Admit a follow write synchronously; the returned task only observes it.
+  func startFollowing(user: User, following: Bool) -> Task<User, Error> {
+    let command = self.request(.follow(user.id, following))
+    return Task {
+      try await command.value
+      var value = user
+      value.isFriend = following
+      return value
+    }
+  }
+
   public func setFollowing(user: User, following: Bool) async throws -> User {
     try await self.execute(.follow(user.id, following))
     var value = user

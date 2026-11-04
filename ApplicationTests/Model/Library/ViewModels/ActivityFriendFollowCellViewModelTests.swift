@@ -4,8 +4,6 @@
 
 import Prelude
 import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import UIKit.UIActivity
 import XCTest
 
@@ -18,21 +16,7 @@ final class ActivityFriendFollowCellViewModelTests: TestCase {
       precondition(AppEnvironment.current.apiService is MockService)
       return AsyncFriendsProvider(service: AppEnvironment.current.apiService)
     }, sleep: { _ in })
-  private lazy var vm: ActivityFriendFollowCellViewModel = ActivityFriendFollowCellViewModel(feature: self.feature)
-  let hideFollowButton = TestObserver<Bool, Never>()
-  let friendImageURL = TestObserver<String?, Never>()
-  let title = TestObserver<String, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    MainActor.assumeIsolated {
-      self.vm.outputs.hideFollowButton.observe(self.hideFollowButton.observer)
-      self.vm.outputs.friendImageURL.map { $0?.absoluteString }.observe(self.friendImageURL.observer)
-      self.vm.outputs.title.map { $0.string }.observe(self.title.observer)
-    }
-  }
-
+  private lazy var vm: ActivityFriendFollowCellViewModel = ActivityFriendFollowCellViewModel(feature: self.feature, delay: {})
   override func tearDown() async throws {
     self.feature.reset()
     await self.feature.waitForOperations()
@@ -40,10 +24,8 @@ final class ActivityFriendFollowCellViewModelTests: TestCase {
   }
 
   private func advanceFriends(by interval: DispatchTimeInterval = .seconds(0)) async {
+    await self.vm.waitForObservation()
     await self.feature.waitForOperations()
-    await self.scheduler.advance(by: interval)
-    await self.feature.waitForOperations()
-    await self.scheduler.advance()
   }
 
   func testFriendDetails_Complete() async {
@@ -54,13 +36,13 @@ final class ActivityFriendFollowCellViewModelTests: TestCase {
     let activity = Activity.template
       |> Activity.lens.user .~ user
 
-    self.friendImageURL.assertValueCount(0)
-    self.title.assertValueCount(0)
+    XCTAssertNil(self.vm.friendImageURL)
+    XCTAssertNil(self.vm.title)
 
-    self.vm.inputs.configureWith(activity: activity)
+    self.vm.configureWith(activity: activity)
 
-    self.friendImageURL.assertValues(["http://coolpic.com/cool.jpg"])
-    self.title.assertValues(["Squiggles McTwiddle is now following you!"])
+    XCTAssertEqual(self.vm.friendImageURL?.absoluteString, "http://coolpic.com/cool.jpg")
+    XCTAssertEqual(self.vm.title?.string, "Squiggles McTwiddle is now following you!")
   }
 
   func testFriendDetails_Incomplete() async {
@@ -70,13 +52,13 @@ final class ActivityFriendFollowCellViewModelTests: TestCase {
     let activity = Activity.template
       |> Activity.lens.user .~ user
 
-    self.friendImageURL.assertValueCount(0)
-    self.title.assertValueCount(0)
+    XCTAssertNil(self.vm.friendImageURL)
+    XCTAssertNil(self.vm.title)
 
-    self.vm.inputs.configureWith(activity: activity)
+    self.vm.configureWith(activity: activity)
 
-    self.friendImageURL.assertValueCount(1)
-    self.title.assertValues(["Squiggles McTwiddle is now following you!"])
+    XCTAssertNotNil(self.vm.title)
+    XCTAssertEqual(self.vm.title?.string, "Squiggles McTwiddle is now following you!")
   }
 
   func testFriendFollowing_Friend() async {
@@ -88,12 +70,12 @@ final class ActivityFriendFollowCellViewModelTests: TestCase {
     let activity = Activity.template
       |> Activity.lens.user .~ user
 
-    self.hideFollowButton.assertValueCount(0)
+    XCTAssertNil(self.vm.hideFollowButton)
     XCTAssertEqual([], self.segmentTrackingClient.events)
 
-    self.vm.inputs.configureWith(activity: activity)
+    self.vm.configureWith(activity: activity)
 
-    self.hideFollowButton.assertValues([true], "Hide Follow Button")
+    XCTAssertEqual(self.vm.hideFollowButton, true)
     XCTAssertEqual([], self.segmentTrackingClient.events)
   }
 
@@ -106,17 +88,17 @@ final class ActivityFriendFollowCellViewModelTests: TestCase {
     let activity = Activity.template
       |> Activity.lens.user .~ user
 
-    self.hideFollowButton.assertValueCount(0)
+    XCTAssertNil(self.vm.hideFollowButton)
     XCTAssertEqual([], self.segmentTrackingClient.events)
 
-    self.vm.inputs.configureWith(activity: activity)
+    self.vm.configureWith(activity: activity)
 
-    self.hideFollowButton.assertValues([false], "Show Follow Button")
+    XCTAssertEqual(self.vm.hideFollowButton, false)
 
-    self.vm.inputs.followButtonTapped()
-    await self.feature.waitForOperations()
-
-    self.hideFollowButton.assertValues([false], "Follow Button does not change")
+    self.vm.followButtonTapped()
+    XCTAssertEqual(self.vm.hideFollowButton, false)
+    await self.vm.waitForObservation()
+    XCTAssertEqual(self.vm.hideFollowButton, true)
   }
 
   func testRetainFriendStatusOnReuse_After_Following() async {
@@ -128,13 +110,13 @@ final class ActivityFriendFollowCellViewModelTests: TestCase {
     let activity = Activity.template
       |> Activity.lens.user .~ user
 
-    self.hideFollowButton.assertValueCount(0)
+    XCTAssertNil(self.vm.hideFollowButton)
 
-    self.vm.inputs.configureWith(activity: activity)
+    self.vm.configureWith(activity: activity)
 
-    self.hideFollowButton.assertValues([false], "Show Follow Button")
+    XCTAssertEqual(self.vm.hideFollowButton, false)
 
-    self.vm.inputs.followButtonTapped()
+    self.vm.followButtonTapped()
     await self.feature.waitForOperations()
     await self.advanceFriends()
   }

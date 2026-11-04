@@ -2,7 +2,6 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveSwift
 import UIKit
 
 internal final class ActivityFriendFollowCell: UITableViewCell, ValueCell {
@@ -15,23 +14,21 @@ internal final class ActivityFriendFollowCell: UITableViewCell, ValueCell {
   @IBOutlet fileprivate var followButton: UIButton!
 
   func configureWith(value: Activity) {
-    self.viewModel.inputs.configureWith(activity: value)
+    self.viewModel.configureWith(activity: value)
+    guard value.user != nil else { return }
+    self.followButton.isHidden = self.viewModel.hideFollowButton ?? false
+    self.friendLabel.attributedText = self.viewModel.title
+    self.friendImageView.af.cancelImageRequest()
+    self.friendImageView.image = nil
+    if let url = self.viewModel.friendImageURL { self.friendImageView.ksr_setImageWithURL(url) }
   }
 
   override func bindViewModel() {
-    self.followButton.rac.hidden = self.viewModel.outputs.hideFollowButton
-    self.friendLabel.rac.attributedText = self.viewModel.outputs.title
-
-    self.viewModel.outputs.friendImageURL
-      .observeForUI()
-      .on(event: { [weak friendImageView] _ in
-        friendImageView?.af.cancelImageRequest()
-        friendImageView?.image = nil
-      })
-      .skipNil()
-      .observeValues { [weak friendImageView] url in
-        friendImageView?.ksr_setImageWithURL(url)
-      }
+    super.bindViewModel()
+    self.viewModel.onChange = { [weak self] in
+      guard let self, let hidden = self.viewModel.hideFollowButton else { return }
+      self.followButton.isHidden = hidden
+    }
   }
 
   override func bindStyles() {
@@ -62,6 +59,6 @@ internal final class ActivityFriendFollowCell: UITableViewCell, ValueCell {
   }
 
   @objc fileprivate func followButtonTapped() {
-    self.viewModel.inputs.followButtonTapped()
+    self.viewModel.followButtonTapped()
   }
 }

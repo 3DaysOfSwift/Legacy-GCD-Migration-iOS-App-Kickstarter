@@ -1,85 +1,60 @@
 import KDS
 import KsApi
-import Prelude
-import ReactiveSwift
+import Observation
 import UIKit
 
-@MainActor
-public protocol ActivityFriendFollowCellViewModelInputs {
-  /// Call to configure activity with Activity.
-  func configureWith(activity: Activity)
+@MainActor @Observable
+public final class ActivityFriendFollowCellViewModel {
+  public private(set) var friendImageURL: URL?
+  public private(set) var hideFollowButton: Bool?
+  public private(set) var title: NSAttributedString?
+  @ObservationIgnored var onChange: (@MainActor () -> Void)?
+  @ObservationIgnored private let feature: FriendsFeature
+  @ObservationIgnored private let delay: @MainActor () async throws -> Void
+  @ObservationIgnored private var observation: Task<Void, Never>?
+  private var friend: User?
 
-  /// Call when follow button is tapped.
-  func followButtonTapped()
-}
-
-@MainActor
-public protocol ActivityFriendFollowCellViewModelOutputs {
-  /// Emits a URL to the friend image.
-  var friendImageURL: Signal<URL?, Never> { get }
-
-  /// Emits whether to hide the follow button.
-  var hideFollowButton: Signal<Bool, Never> { get }
-
-  /// Emits text for title label.
-  var title: Signal<NSAttributedString, Never> { get }
-}
-
-@MainActor
-public final class ActivityFriendFollowCellViewModel: ActivityFriendFollowCellViewModelInputs,
-  ActivityFriendFollowCellViewModelOutputs {
-  public init(feature: FriendsFeature? = nil) {
-    let feature = feature ?? AppModel.shared.friendsFeature
-    let configuredActivity = self.activityProperty
-    let friend = self.activityProperty.signal.skipNil()
-      .map(Activity.lens.user.view)
-      .skipNil()
-      .map { feature.cached($0) }
-
-    self.friendImageURL = friend.map { URL.init(string: $0.avatar.small) }
-
-    self.title = friend.map {
-      let string = Strings.activity_user_name_is_now_following_you(user_name: "<b>\($0.name)</b>")
-      return string.simpleHtmlAttributedString(
-        base: [
-          NSAttributedString.Key.font: UIFont.ksr_subhead(size: 14.0),
-          NSAttributedString.Key.foregroundColor: LegacyColors.ksr_support_700.uiColor()
-        ],
-        bold: [
-          NSAttributedString.Key.font: UIFont.ksr_headline(size: 14.0),
-          NSAttributedString.Key.foregroundColor: LegacyColors.ksr_support_700.uiColor()
-        ]
-      ) ?? NSAttributedString(string: "")
+  public init(feature: FriendsFeature? = nil, delay: (@MainActor () async throws -> Void)? = nil) {
+    self.feature = feature ?? AppModel.shared.friendsFeature
+    self.delay = delay ?? {
+      let seconds = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+      if seconds.isInfinite { try await Task.sleep(nanoseconds: UInt64.max) }
+      else if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
     }
-
-    let followFriendEvent = friend.takeWhen(self.followButtonTappedProperty.signal)
-      .switchMap { user in
-        feature.delayed(feature.setFollowingResult(user: user, following: true))
-          .materialize()
-      }
-
-    let followFriendSuccess = followFriendEvent.values()
-      .filter { $0.id == configuredActivity.value?.user?.id }
-
-    self.hideFollowButton = Signal.merge(friend, followFriendSuccess)
-      .map { $0.isFriend ?? false }
-      .skipRepeats()
   }
 
-  fileprivate let activityProperty = MutableProperty<Activity?>(nil)
   public func configureWith(activity: Activity) {
-    self.activityProperty.value = activity
+    self.friend = activity.user.map { self.feature.cached($0) }
+    guard let friend = self.friend else { return }
+    self.friendImageURL = URL(string: friend.avatar.small)
+    let string = Strings.activity_user_name_is_now_following_you(user_name: "<b>\(friend.name)</b>")
+    self.title = string.simpleHtmlAttributedString(
+      base: [.font: UIFont.ksr_subhead(size: 14), .foregroundColor: LegacyColors.ksr_support_700.uiColor()],
+      bold: [.font: UIFont.ksr_headline(size: 14), .foregroundColor: LegacyColors.ksr_support_700.uiColor()]
+    ) ?? NSAttributedString(string: "")
+    self.hideFollowButton = friend.isFriend ?? false
   }
 
-  fileprivate let followButtonTappedProperty = MutableProperty(())
   public func followButtonTapped() {
-    self.followButtonTappedProperty.value = ()
+    guard let friend = self.friend else { return }
+    let generation = self.feature.sessionFeature.generation
+    let userID = self.feature.sessionFeature.currentUser?.id
+    let task = self.feature.startFollowing(user: friend, following: true)
+    self.observation?.cancel()
+    self.observation = Task { [weak self] in
+      do {
+        let result = try await task.value
+        guard let self else { return }
+        try await self.delay()
+        try Task.checkCancellation()
+        guard self.friend?.id == result.id, self.feature.sessionFeature.generation == generation,
+              self.feature.sessionFeature.currentUser?.id == userID else { return }
+        self.hideFollowButton = result.isFriend ?? false
+        self.onChange?()
+      } catch { }
+    }
   }
 
-  public let friendImageURL: Signal<URL?, Never>
-  public let hideFollowButton: Signal<Bool, Never>
-  public let title: Signal<NSAttributedString, Never>
-
-  public var inputs: ActivityFriendFollowCellViewModelInputs { return self }
-  public var outputs: ActivityFriendFollowCellViewModelOutputs { return self }
+  func waitForObservation() async { await self.observation?.value }
+  deinit { self.observation?.cancel() }
 }
