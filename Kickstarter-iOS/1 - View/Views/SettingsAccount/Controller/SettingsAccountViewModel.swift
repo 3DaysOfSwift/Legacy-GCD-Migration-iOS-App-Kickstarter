@@ -1,7 +1,6 @@
 import KsApi
 
-import Prelude
-import ReactiveSwift
+import Observation
 import UIKit
 
 public typealias SettingsAccountData = (
@@ -13,115 +12,55 @@ public typealias SettingsAccountData = (
 )
 
 @MainActor
-public protocol SettingsAccountViewModelInputs {
-  func didSelectRow(cellType: SettingsAccountCellType)
-  func viewWillAppear()
-  func viewDidLoad()
-}
+@Observable
+public final class SettingsAccountViewModel {
+  public private(set) var data: SettingsAccountData?
+  public private(set) var createPasswordFooter: (Bool, String?)?
+  public var onFetchError: (() -> Void)?
+  public var onSelect: ((SettingsAccountCellType, Currency) -> Void)?
+  private let feature: SettingsFeature
+  private let sleep: (TimeInterval) async throws -> Void
+  private var task: Task<Void, Never>?
+  private var revision = 0
+  private var appeared = false
 
-@MainActor
-public protocol SettingsAccountViewModelOutputs {
-  var fetchAccountFieldsError: Signal<Void, Never> { get }
-  var reloadData: Signal<SettingsAccountData, Never> { get }
-  var transitionToViewController: Signal<(SettingsAccountCellType, Currency), Never> { get }
-
-  func shouldShowCreatePasswordFooter() -> (Bool, String?)?
-}
-
-@MainActor
-public protocol SettingsAccountViewModelType {
-  var inputs: SettingsAccountViewModelInputs { get }
-  var outputs: SettingsAccountViewModelOutputs { get }
-}
-
-@MainActor
-public final class SettingsAccountViewModel: SettingsAccountViewModelInputs,
-  SettingsAccountViewModelOutputs, SettingsAccountViewModelType {
-  public init(feature: SettingsFeature? = nil) {
-    let feature = feature ?? AppModel.shared.settingsFeature
-    let userAccountFields = Signal.merge(
-      self.viewDidLoadProperty.signal,
-      self.viewWillAppearProperty.signal.skip(first: 1)
-    )
-    .switchMap { _ in
-      feature.accountFieldsResult().materialize()
-    }
-
-    self.fetchAccountFieldsError = userAccountFields.errors().ignoreValues()
-
-    let user = userAccountFields.values()
-
-    let shouldHideEmailWarning = user
-      .map { user -> Bool in
-        if user.isAppleConnected == .some(true) {
-          return true
-        }
-
-        guard let isEmailVerified = user.isEmailVerified,
-              let isDeliverable = user.isDeliverable else {
-          return true
-        }
-
-        return isEmailVerified && isDeliverable
-      }
-
-    let shouldHideEmailPasswordSection = user
-      .map { $0.hasPassword == .some(false) || $0.isAppleConnected == .some(true) }
-
-    let shouldShowCreatePasswordFooter = user
-      .map { user -> (Bool, String?) in
-        let isAppleConnected = user.isAppleConnected == .some(true)
-        let userHasPassword = user.hasPassword == .some(true)
-        let shouldShow = !userHasPassword && !isAppleConnected
-
-        return (shouldShow, user.email)
-      }
-
-    let isAppleConnectedAccount = user.map { $0.isAppleConnected == .some(true) }
-
-    self.shouldShowCreatePasswordFooterAndEmailProperty <~ shouldShowCreatePasswordFooter
-
-    let chosenCurrency = user
-      .map { Currency(rawValue: $0.chosenCurrency ?? Currency.USD.rawValue) ?? Currency.USD }
-
-    self.reloadData = Signal.zip(
-      chosenCurrency,
-      user.map(\.email),
-      shouldHideEmailWarning,
-      shouldHideEmailPasswordSection,
-      isAppleConnectedAccount
-    ).map { $0 as SettingsAccountData }
-
-    self.transitionToViewController = chosenCurrency
-      .takePairWhen(self.selectedCellTypeProperty.signal.skipNil())
-      .map { ($1, $0) }
-
+  public init(feature: SettingsFeature? = nil, sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
+    if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
+  }) {
+    self.feature = feature ?? AppModel.shared.settingsFeature
+    self.sleep = sleep
   }
-
-  private let selectedCellTypeProperty = MutableProperty<SettingsAccountCellType?>(nil)
-  public func didSelectRow(cellType: SettingsAccountCellType) {
-    self.selectedCellTypeProperty.value = cellType
-  }
-
-  fileprivate let viewWillAppearProperty = MutableProperty(())
+  public func viewDidLoad() { self.load() }
   public func viewWillAppear() {
-    self.viewWillAppearProperty.value = ()
+    if self.appeared { self.load() }
+    self.appeared = true
   }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+  public func didSelectRow(cellType: SettingsAccountCellType) {
+    guard let currency = self.data?.currency else { return }
+    self.onSelect?(cellType, currency)
   }
-
-  fileprivate let shouldShowCreatePasswordFooterAndEmailProperty = MutableProperty<(Bool, String?)?>(nil)
-  public func shouldShowCreatePasswordFooter() -> (Bool, String?)? {
-    return self.shouldShowCreatePasswordFooterAndEmailProperty.value
+  private func load() {
+    self.task?.cancel()
+    self.revision += 1
+    let revision = self.revision
+    self.task = Task { [weak self, feature, sleep] in
+      do {
+        let user = try await feature.accountFields(sleep: sleep)
+        try Task.checkCancellation()
+        guard let self, self.revision == revision else { return }
+        let apple = user.isAppleConnected == .some(true)
+        let hideWarning = apple || (user.isEmailVerified == nil || user.isDeliverable == nil)
+          || (user.isEmailVerified == true && user.isDeliverable == true)
+        self.createPasswordFooter = (user.hasPassword != .some(true) && !apple, user.email)
+        self.data = (currency: Currency(rawValue: user.chosenCurrency ?? Currency.USD.rawValue) ?? .USD,
+                     email: user.email, shouldHideEmailWarning: hideWarning,
+                     shouldHideEmailPasswordSection: user.hasPassword == .some(false) || apple,
+                     isAppleConnectedAccount: apple)
+      } catch {
+        guard let self, !Task.isCancelled, !(error is CancellationError), self.revision == revision else { return }
+        self.onFetchError?()
+      }
+    }
   }
-
-  public let fetchAccountFieldsError: Signal<Void, Never>
-  public let reloadData: Signal<SettingsAccountData, Never>
-  public let transitionToViewController: Signal<(SettingsAccountCellType, Currency), Never>
-
-  public var inputs: SettingsAccountViewModelInputs { return self }
-  public var outputs: SettingsAccountViewModelOutputs { return self }
+  internal func waitForLoad() async { await self.task?.value }
 }

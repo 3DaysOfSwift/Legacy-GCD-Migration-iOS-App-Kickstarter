@@ -344,13 +344,16 @@ extension SettingsFeatureTests {
   func testDisposedAccountFieldsReadCannotPublishLateValue() async throws {
     let fixture = AccountWritesFixture()
     defer { fixture.provider.emails.releaseAll() }
-    var received = false
-    let observation = fixture.feature.accountFieldsResult().startWithResult { _ in received = true }
+    let read = Task { try await fixture.feature.accountFields(sleep: { _ in }) }
     await fixture.provider.emails.waitFor(1)
-    observation.dispose()
+    read.cancel()
     try fixture.provider.emails.finish(0, .success(.template))
-    await fixture.feature.waitForOperations()
-    XCTAssertFalse(received)
+    do {
+      _ = try await read.value
+      XCTFail("A cancelled read must not publish its late value")
+    } catch is CancellationError {
+      // Expected.
+    }
   }
 
   func testEmailLookupSharesAndAccountEditRejectsLateResult() async throws {

@@ -1,7 +1,7 @@
+import Observation
 import KsApi
 
 import Prelude
-import ReactiveSwift
 import SwiftUI
 import UIKit
 
@@ -11,7 +11,7 @@ final class SettingsAccountViewController: UIViewController, MessageBannerViewCo
   private let dataSource = SettingsAccountDataSource()
   internal var messageBannerViewController: MessageBannerViewController?
 
-  fileprivate let viewModel: SettingsAccountViewModelType = SettingsAccountViewModel()
+  fileprivate let viewModel = SettingsAccountViewModel()
 
   internal static func instantiate() -> SettingsAccountViewController {
     return Storyboard.Settings.instantiate(SettingsAccountViewController.self)
@@ -31,13 +31,13 @@ final class SettingsAccountViewController: UIViewController, MessageBannerViewCo
     self.tableView.registerHeaderFooter(nib: .SettingsHeaderView)
     self.tableView.registerHeaderFooterClass(SettingsGroupedFooterView.self)
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
 
-    self.viewModel.inputs.viewWillAppear()
+    self.viewModel.viewWillAppear()
   }
 
   override func viewDidLayoutSubviews() {
@@ -47,45 +47,31 @@ final class SettingsAccountViewController: UIViewController, MessageBannerViewCo
   }
 
   override func bindViewModel() {
-    self.viewModel.outputs.reloadData
-      .observeForUI()
-      .observeValues { [weak self] currency, email,
-        shouldHideEmailWarning, shouldHideEmailPasswordSection, isAppleConnectedAccount in
-        self?.dataSource.configureRows(
-          currency: currency,
-          shouldHideEmailWarning: shouldHideEmailWarning,
-          shouldHideEmailPasswordSection: shouldHideEmailPasswordSection,
-          isAppleConnected: isAppleConnectedAccount
-        )
+    self.observeAccountData()
+    self.viewModel.onFetchError = { [weak self] in
+      self?.dataSource.configureRows(currency: nil, shouldHideEmailWarning: true,
+                                    shouldHideEmailPasswordSection: false, isAppleConnected: false)
+      self?.tableView.reloadData()
+      self?.showGeneralError()
+    }
+    self.viewModel.onSelect = { [weak self] cellType, currency in
+      guard let viewController = Self.viewController(for: cellType, currency: currency) else { return }
+      self?.navigationController?.pushViewController(viewController, animated: true)
+    }
+  }
 
-        if let email = email, isAppleConnectedAccount {
-          self?.showAppleHeader(with: email)
-        }
-
-        self?.tableView.reloadData()
+  private func observeAccountData() {
+    withObservationTracking {
+      if let data = self.viewModel.data {
+        self.dataSource.configureRows(currency: data.currency, shouldHideEmailWarning: data.shouldHideEmailWarning,
+                                      shouldHideEmailPasswordSection: data.shouldHideEmailPasswordSection,
+                                      isAppleConnected: data.isAppleConnectedAccount)
+        if let email = data.email, data.isAppleConnectedAccount { self.showAppleHeader(with: email) }
+        self.tableView.reloadData()
       }
-
-    self.viewModel.outputs.fetchAccountFieldsError
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.dataSource.configureRows(
-          currency: nil,
-          shouldHideEmailWarning: true,
-          shouldHideEmailPasswordSection: false,
-          isAppleConnected: false
-        )
-
-        self?.tableView.reloadData()
-
-        self?.showGeneralError()
-      }
-
-    self.viewModel.outputs.transitionToViewController
-      .observeForControllerAction()
-      .observeValues { [weak self] cellType, currency in
-        guard let viewController = Self.viewController(for: cellType, currency: currency) else { return }
-        self?.navigationController?.pushViewController(viewController, animated: true)
-      }
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeAccountData() }
+    }
   }
 
   override func bindStyles() {
@@ -134,7 +120,7 @@ extension SettingsAccountViewController: UITableViewDelegate {
     guard let cellType = dataSource.cellTypeForIndexPath(indexPath: indexPath) else {
       return
     }
-    self.viewModel.inputs.didSelectRow(cellType: cellType)
+    self.viewModel.didSelectRow(cellType: cellType)
   }
 
   func tableView(_: UITableView, heightForHeaderInSection _: Int) -> CGFloat {
@@ -142,7 +128,7 @@ extension SettingsAccountViewController: UITableViewDelegate {
   }
 
   func tableView(_: UITableView, heightForFooterInSection section: Int) -> CGFloat {
-    guard let data = self.viewModel.outputs.shouldShowCreatePasswordFooter() else {
+    guard let data = self.viewModel.createPasswordFooter else {
       return 0.1
     }
 
@@ -160,7 +146,7 @@ extension SettingsAccountViewController: UITableViewDelegate {
   }
 
   func tableView(_ tableView: UITableView, viewForFooterInSection section: Int) -> UIView? {
-    guard let data = self.viewModel.outputs.shouldShowCreatePasswordFooter() else {
+    guard let data = self.viewModel.createPasswordFooter else {
       return nil
     }
 
