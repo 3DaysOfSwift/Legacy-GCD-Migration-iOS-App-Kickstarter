@@ -4,9 +4,6 @@
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -24,21 +21,21 @@ final class LoginToutViewModelTests: TestCase {
       .authenticationFeature
   )
 
-  fileprivate let attemptAppleLogin = TestObserver<(), Never>()
-  fileprivate let attemptFacebookLogin = TestObserver<(), Never>()
-  fileprivate let didSignInWithApple = TestObserver<SignInWithAppleEnvelope, Never>()
-  fileprivate let dismissViewController = TestObserver<(), Never>()
-  fileprivate let headlineLabelHidden = TestObserver<Bool, Never>()
-  fileprivate let isLoading = TestObserver<Bool, Never>()
-  fileprivate let logInContextText = TestObserver<String, Never>()
-  fileprivate let logIntoEnvironmentWithApple = TestObserver<AccessTokenEnvelope, Never>()
-  fileprivate let logIntoEnvironmentWithFacebook = TestObserver<AccessTokenEnvelope, Never>()
-  fileprivate let postNotification = TestObserver<(Notification.Name, Notification.Name), Never>()
-  fileprivate let showAppleErrorAlert = TestObserver<String, Never>()
-  fileprivate let showFacebookErrorAlert = TestObserver<AlertError, Never>()
-  fileprivate let startFacebookConfirmation = TestObserver<String, Never>()
-  fileprivate let startOAuthSignupOrLogin = TestObserver<(), Never>()
-  fileprivate let startTwoFactorChallenge = TestObserver<String, Never>()
+  fileprivate let attemptAppleLogin = SocialLoginRecorder<Void>()
+  fileprivate let attemptFacebookLogin = SocialLoginRecorder<Void>()
+  fileprivate let didSignInWithApple = SocialLoginRecorder<SignInWithAppleEnvelope>()
+  fileprivate let dismissViewController = SocialLoginRecorder<Void>()
+  fileprivate let headlineLabelHidden = SocialLoginRecorder<Bool>()
+  fileprivate let isLoading = SocialLoginRecorder<Bool>()
+  fileprivate let logInContextText = SocialLoginRecorder<String>()
+  fileprivate let logIntoEnvironmentWithApple = SocialLoginRecorder<AccessTokenEnvelope>()
+  fileprivate let logIntoEnvironmentWithFacebook = SocialLoginRecorder<AccessTokenEnvelope>()
+  fileprivate let postNotification = SocialLoginRecorder<(Notification.Name, Notification.Name)>()
+  fileprivate let showAppleErrorAlert = SocialLoginRecorder<String>()
+  fileprivate let showFacebookErrorAlert = SocialLoginRecorder<AlertError>()
+  fileprivate let startFacebookConfirmation = SocialLoginRecorder<String>()
+  fileprivate let startOAuthSignupOrLogin = SocialLoginRecorder<Void>()
+  fileprivate let startTwoFactorChallenge = SocialLoginRecorder<String>()
 
   override func setUp() async throws {
     try await super.setUp()
@@ -51,22 +48,22 @@ final class LoginToutViewModelTests: TestCase {
   }
 
   private func bindOutputs() {
-    self.vm.onAppleLogin = { [weak self] in self?.attemptAppleLogin.observer.send(value: ()) }
-    self.vm.onFacebookLogin = { [weak self] in self?.attemptFacebookLogin.observer.send(value: ()) }
-    self.vm.onDismiss = { [weak self] in self?.dismissViewController.observer.send(value: ()) }
-    self.vm.onOAuth = { [weak self] in self?.startOAuthSignupOrLogin.observer.send(value: ()) }
+    self.vm.onAppleLogin = { [weak self] in self?.attemptAppleLogin.values.append(()) }
+    self.vm.onFacebookLogin = { [weak self] in self?.attemptFacebookLogin.values.append(()) }
+    self.vm.onDismiss = { [weak self] in self?.dismissViewController.values.append(()) }
+    self.vm.onOAuth = { [weak self] in self?.startOAuthSignupOrLogin.values.append(()) }
     self.vm.onContext = { [weak self] text, hidden in
-      self?.logInContextText.observer.send(value: text)
-      self?.headlineLabelHidden.observer.send(value: hidden)
+      self?.logInContextText.values.append(text)
+      self?.headlineLabelHidden.values.append(hidden)
     }
-    self.vm.onLoading = { [weak self] in self?.isLoading.observer.send(value: $0) }
-    self.vm.onAppleSuccess = { [weak self] in self?.logIntoEnvironmentWithApple.observer.send(value: $0) }
-    self.vm.onFacebookSuccess = { [weak self] in self?.logIntoEnvironmentWithFacebook.observer.send(value: $0) }
-    self.vm.onNotification = { [weak self] in self?.postNotification.observer.send(value: ($0.name, $1.name)) }
-    self.vm.onAppleError = { [weak self] in self?.showAppleErrorAlert.observer.send(value: $0) }
-    self.vm.onFacebookError = { [weak self] in self?.showFacebookErrorAlert.observer.send(value: $0) }
-    self.vm.onFacebookConfirmation = { [weak self] _, token in self?.startFacebookConfirmation.observer.send(value: token) }
-    self.vm.onFacebookTwoFactor = { [weak self] in self?.startTwoFactorChallenge.observer.send(value: $0) }
+    self.vm.onLoading = { [weak self] in self?.isLoading.values.append($0) }
+    self.vm.onAppleSuccess = { [weak self] in self?.logIntoEnvironmentWithApple.values.append($0) }
+    self.vm.onFacebookSuccess = { [weak self] in self?.logIntoEnvironmentWithFacebook.values.append($0) }
+    self.vm.onNotification = { [weak self] in self?.postNotification.values.append(($0.name, $1.name)) }
+    self.vm.onAppleError = { [weak self] in self?.showAppleErrorAlert.values.append($0) }
+    self.vm.onFacebookError = { [weak self] in self?.showFacebookErrorAlert.values.append($0) }
+    self.vm.onFacebookConfirmation = { [weak self] _, token in self?.startFacebookConfirmation.values.append(token) }
+    self.vm.onFacebookTwoFactor = { [weak self] in self?.startTwoFactorChallenge.values.append($0) }
   }
 
   func testLoginIntent_Pledge() async {
@@ -146,7 +143,6 @@ final class LoginToutViewModelTests: TestCase {
 
       // Wait enough time for API request to be made.
       await self.vm.waitForFacebook()
-      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
       self.logIntoEnvironmentWithFacebook.assertValueCount(1, "Log into environment.")
@@ -268,7 +264,6 @@ final class LoginToutViewModelTests: TestCase {
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
       await self.vm.waitForFacebook()
-      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
       self.showFacebookErrorAlert.assertValues(
@@ -316,7 +311,6 @@ final class LoginToutViewModelTests: TestCase {
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
       await self.vm.waitForFacebook()
-      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
       self.showFacebookErrorAlert.assertValues(
@@ -364,7 +358,6 @@ final class LoginToutViewModelTests: TestCase {
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
       await self.vm.waitForFacebook()
-      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
       self.showFacebookErrorAlert.assertValues(
@@ -414,7 +407,6 @@ final class LoginToutViewModelTests: TestCase {
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
       await self.vm.waitForFacebook()
-      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
       self.startTwoFactorChallenge.assertValues(["12344566"], "TFA challenge emitted with token")
@@ -463,7 +455,6 @@ final class LoginToutViewModelTests: TestCase {
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
       await self.vm.waitForFacebook()
-      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
       self.startFacebookConfirmation.assertValues(
@@ -482,7 +473,6 @@ final class LoginToutViewModelTests: TestCase {
 
       self.isLoading.assertValues([true, false, true])
       await self.vm.waitForFacebook()
-      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false, true, false])
       self.startFacebookConfirmation.assertValues(
@@ -551,7 +541,6 @@ final class LoginToutViewModelTests: TestCase {
 
       self.isLoading.assertValues([true])
       await self.vm.waitForApple()
-      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
       self.showAppleErrorAlert.assertValue("Something went wrong.")
@@ -583,7 +572,6 @@ final class LoginToutViewModelTests: TestCase {
 
       self.isLoading.assertValues([true])
       await self.vm.waitForApple()
-      await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
       self.showAppleErrorAlert.assertValue(
@@ -618,7 +606,6 @@ final class LoginToutViewModelTests: TestCase {
 
       self.isLoading.assertValues([true])
       await self.vm.waitForApple()
-      await self.scheduler.run()
 
       self.isLoading.assertValues([true, false])
       self.logIntoEnvironmentWithApple.assertValueCount(1)
@@ -639,5 +626,23 @@ final class LoginToutViewModelTests: TestCase {
     self.vm.appleLoginButtonPressed()
 
     self.attemptAppleLogin.assertValueCount(1)
+  }
+}
+
+private final class SocialLoginRecorder<Value> {
+  var values: [Value] = []
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, message, file: file, line: line)
+  }
+}
+private extension SocialLoginRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
+  }
+  func assertValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, [expected], message, file: file, line: line)
   }
 }
