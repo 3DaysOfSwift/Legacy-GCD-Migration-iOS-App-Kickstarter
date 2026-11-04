@@ -3,56 +3,55 @@
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class DiscoveryProjectCardViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private let backerCountLabelBoldedString = TestObserver<String, Never>()
-  private let facepileAvatarURLStrings = TestObserver<[String], Never>()
-  private let facepileDescriptionText = TestObserver<String, Never>()
-  private let facepileViewHidden = TestObserver<Bool, Never>()
-  private let backerCountLabelFullString = TestObserver<String, Never>()
-  private let goalMetIconHidden = TestObserver<Bool, Never>()
-  private let loadProjectTags = TestObserver<[DiscoveryPillData], Never>()
-  private let percentFundedLabelBoldedString = TestObserver<String, Never>()
-  private let percentFundedLabelFullString = TestObserver<String, Never>()
-  private let projectBlurbLabelText = TestObserver<String, Never>()
-  private let projectImageUrlString = TestObserver<String, Never>()
-  private let projectNameLabelText = TestObserver<String, Never>()
-  private let projectStatusIconName = TestObserver<String, Never>()
-  private let projectStatusLabelBoldedString = TestObserver<String, Never>()
-  private let projectStatusLabelFullString = TestObserver<String, Never>()
-  private let tagsCollectionViewHidden = TestObserver<Bool, Never>()
-  private let youreABackerViewHidden = TestObserver<Bool, Never>()
+  private let backerCountLabelBoldedString = CardRecorder<String>()
+  private let facepileAvatarURLStrings = CardRecorder<[String]>()
+  private let facepileDescriptionText = CardRecorder<String>()
+  private let facepileViewHidden = CardRecorder<Bool>()
+  private let backerCountLabelFullString = CardRecorder<String>()
+  private let goalMetIconHidden = CardRecorder<Bool>()
+  private let loadProjectTags = CardRecorder<[DiscoveryPillData]>()
+  private let percentFundedLabelBoldedString = CardRecorder<String>()
+  private let percentFundedLabelFullString = CardRecorder<String>()
+  private let projectBlurbLabelText = CardRecorder<String>()
+  private let projectImageUrlString = CardRecorder<String>()
+  private let projectNameLabelText = CardRecorder<String>()
+  private let projectStatusIconName = CardRecorder<String>()
+  private let projectStatusLabelBoldedString = CardRecorder<String>()
+  private let projectStatusLabelFullString = CardRecorder<String>()
+  private let tagsCollectionViewHidden = CardRecorder<Bool>()
+  private let youreABackerViewHidden = CardRecorder<Bool>()
 
-  private let vm: DiscoveryProjectCardViewModelType = DiscoveryProjectCardViewModel()
+  private let vm = DiscoveryProjectCardViewModel()
 
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.backerCountLabelData.map(first).observe(self.backerCountLabelBoldedString.observer)
-    self.vm.outputs.backerCountLabelData.map(second).observe(self.backerCountLabelFullString.observer)
-    self.vm.outputs.facepileViewData.map(first).map { $0.map(\.absoluteString) }
-      .observe(self.facepileAvatarURLStrings.observer)
-    self.vm.outputs.facepileViewData.map(second).observe(self.facepileDescriptionText.observer)
-    self.vm.outputs.facepileViewHidden.observe(self.facepileViewHidden.observer)
-    self.vm.outputs.goalMetIconHidden.observe(self.goalMetIconHidden.observer)
-    self.vm.outputs.loadProjectTags.observe(self.loadProjectTags.observer)
-    self.vm.outputs.percentFundedLabelData.map(first).observe(self.percentFundedLabelBoldedString.observer)
-    self.vm.outputs.percentFundedLabelData.map(second).observe(self.percentFundedLabelFullString.observer)
-    self.vm.outputs.projectBlurbLabelText.observe(self.projectBlurbLabelText.observer)
-    self.vm.outputs.projectImageURL.map(\.absoluteString).observe(self.projectImageUrlString.observer)
-    self.vm.outputs.projectNameLabelText.observe(self.projectNameLabelText.observer)
-    self.vm.outputs.projectStatusIconImageName.observe(self.projectStatusIconName.observer)
-    self.vm.outputs.projectStatusLabelData.map(first).observe(self.projectStatusLabelBoldedString.observer)
-    self.vm.outputs.projectStatusLabelData.map(second).observe(self.projectStatusLabelFullString.observer)
-    self.vm.outputs.tagsCollectionViewHidden.observe(self.tagsCollectionViewHidden.observer)
-    self.vm.outputs.youreABackerViewHidden.observe(self.youreABackerViewHidden.observer)
+  private func configure(with value: DiscoveryProjectCellRowValue) {
+    let display = self.vm.configure(with: value)
+    self.backerCountLabelBoldedString.record(display.backerCount.boldedString)
+    self.backerCountLabelFullString.record(display.backerCount.inString)
+    if let facepile = display.facepile {
+      self.facepileAvatarURLStrings.record(facepile.avatars.map(\.absoluteString))
+      self.facepileDescriptionText.record(facepile.description)
+    }
+    self.facepileViewHidden.record(display.facepileHidden)
+    self.goalMetIconHidden.record(display.goalMetIconHidden)
+    if !display.tags.isEmpty { self.loadProjectTags.record(display.tags) }
+    self.percentFundedLabelBoldedString.record(display.percentFunded.boldedString)
+    self.percentFundedLabelFullString.record(display.percentFunded.inString)
+    self.projectBlurbLabelText.record(display.blurb)
+    if let url = display.imageURL { self.projectImageUrlString.record(url.absoluteString) }
+    self.projectNameLabelText.record(display.name)
+    if let icon = display.statusIcon { self.projectStatusIconName.record(icon) }
+    if let status = display.status {
+      self.projectStatusLabelBoldedString.record(status.boldedString)
+      self.projectStatusLabelFullString.record(status.inString)
+    }
+    self.tagsCollectionViewHidden.record(display.tagsHidden)
+    self.youreABackerViewHidden.record(display.backerHidden)
   }
 
   func testBackerCountLabelData() {
@@ -62,7 +61,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.backerCountLabelBoldedString.assertDidNotEmitValue()
     self.backerCountLabelFullString.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.backerCountLabelBoldedString.assertValues(["315"])
     self.backerCountLabelFullString.assertValues(["315 backers"])
@@ -75,7 +74,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.backerCountLabelBoldedString.assertDidNotEmitValue()
     self.backerCountLabelFullString.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.backerCountLabelBoldedString.assertValues(["31,666"])
     self.backerCountLabelFullString.assertValues(["31,666 backers"])
@@ -89,7 +88,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.percentFundedLabelFullString.assertDidNotEmitValue()
     self.percentFundedLabelBoldedString.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.percentFundedLabelBoldedString.assertValues(["50%"])
     self.percentFundedLabelFullString.assertValues(["50% funded"])
@@ -103,7 +102,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.percentFundedLabelFullString.assertDidNotEmitValue()
     self.percentFundedLabelBoldedString.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.percentFundedLabelBoldedString.assertValues(["Goal met"])
     self.percentFundedLabelFullString.assertValues(["Goal met"])
@@ -116,7 +115,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
 
     self.goalMetIconHidden.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.goalMetIconHidden.assertValues([true])
   }
@@ -128,7 +127,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
 
     self.goalMetIconHidden.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.goalMetIconHidden.assertValues([false])
   }
@@ -136,7 +135,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
   func testProjectBlurbLabelText() {
     self.projectBlurbLabelText.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (Project.template, nil, nil))
+    self.configure(with: (Project.template, nil, nil))
 
     self.projectBlurbLabelText.assertValues(["A fun project."])
   }
@@ -144,7 +143,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
   func testProjectNameLabelText() {
     self.projectNameLabelText.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (Project.template, nil, nil))
+    self.configure(with: (Project.template, nil, nil))
 
     self.projectNameLabelText.assertValues(["The Project"])
   }
@@ -152,7 +151,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
   func testProjectImageURL() {
     self.projectImageUrlString.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (Project.template, nil, nil))
+    self.configure(with: (Project.template, nil, nil))
 
     self.projectImageUrlString.assertValues(["http://www.kickstarter.com/full.jpg"])
   }
@@ -165,7 +164,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.tagsCollectionViewHidden.assertDidNotEmitValue()
     self.loadProjectTags.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.tagsCollectionViewHidden.assertValues([false])
     self.loadProjectTags.assertValues([
@@ -185,7 +184,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.tagsCollectionViewHidden.assertDidNotEmitValue()
     self.loadProjectTags.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, .art, nil))
+    self.configure(with: (project, .art, nil))
 
     self.tagsCollectionViewHidden.assertValues([false])
     self.loadProjectTags.assertValues([
@@ -205,7 +204,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.tagsCollectionViewHidden.assertDidNotEmitValue()
     self.loadProjectTags.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, .art, nil))
+    self.configure(with: (project, .art, nil))
 
     self.tagsCollectionViewHidden.assertValues([false])
     self.loadProjectTags.assertValues([
@@ -232,7 +231,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.tagsCollectionViewHidden.assertDidNotEmitValue()
     self.loadProjectTags.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, .illustration, nil))
+    self.configure(with: (project, .illustration, nil))
 
     self.tagsCollectionViewHidden.assertValues([false])
     self.loadProjectTags.assertValues([
@@ -254,7 +253,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.tagsCollectionViewHidden.assertDidNotEmitValue()
     self.loadProjectTags.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, .illustration, nil))
+    self.configure(with: (project, .illustration, nil))
 
     self.tagsCollectionViewHidden.assertValues([true])
     self.loadProjectTags.assertDidNotEmitValue()
@@ -268,7 +267,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.projectStatusLabelBoldedString.assertDidNotEmitValue()
     self.projectStatusIconName.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.projectStatusIconName.assertValues(["icon--clock"])
     self.projectStatusLabelBoldedString.assertValues(["15"])
@@ -283,7 +282,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.projectStatusLabelBoldedString.assertDidNotEmitValue()
     self.projectStatusIconName.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.projectStatusIconName.assertValues(["icon--check"])
     self.projectStatusLabelBoldedString.assertValues([""])
@@ -298,7 +297,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.projectStatusLabelBoldedString.assertDidNotEmitValue()
     self.projectStatusIconName.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.projectStatusIconName.assertValues(["icon--prohibit"])
     self.projectStatusLabelBoldedString.assertValues([""])
@@ -313,7 +312,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.projectStatusLabelBoldedString.assertDidNotEmitValue()
     self.projectStatusIconName.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.projectStatusIconName.assertValues(["icon--prohibit"])
     self.projectStatusLabelBoldedString.assertValues([""])
@@ -328,7 +327,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.projectStatusLabelBoldedString.assertDidNotEmitValue()
     self.projectStatusIconName.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.projectStatusIconName.assertDidNotEmitValue()
     self.projectStatusLabelBoldedString.assertDidNotEmitValue()
@@ -343,7 +342,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.projectStatusLabelBoldedString.assertDidNotEmitValue()
     self.projectStatusIconName.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.projectStatusIconName.assertDidNotEmitValue()
     self.projectStatusLabelBoldedString.assertDidNotEmitValue()
@@ -353,7 +352,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
   func testYoureABackerView_HidesWhenNotBacked() {
     self.youreABackerViewHidden.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (Project.template, nil, nil))
+    self.configure(with: (Project.template, nil, nil))
 
     self.youreABackerViewHidden.assertValues([true])
   }
@@ -362,7 +361,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     let project = Project.template
       |> \.personalization.backing .~ Backing.template
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.youreABackerViewHidden.assertValues([false])
   }
@@ -372,7 +371,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.facepileDescriptionText.assertDidNotEmitValue()
     self.facepileViewHidden.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (Project.template, nil, nil))
+    self.configure(with: (Project.template, nil, nil))
 
     self.facepileViewHidden.assertValues([true])
     self.facepileAvatarURLStrings.assertDidNotEmitValue()
@@ -387,7 +386,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.facepileDescriptionText.assertDidNotEmitValue()
     self.facepileViewHidden.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.facepileViewHidden.assertValues([false])
     self.facepileDescriptionText.assertValues(["Brandon Williams is a backer"])
@@ -402,7 +401,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.facepileDescriptionText.assertDidNotEmitValue()
     self.facepileViewHidden.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.facepileViewHidden.assertValues([false])
     self.facepileDescriptionText.assertValues(["Brandon Williams and 1 other"])
@@ -422,7 +421,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.facepileDescriptionText.assertDidNotEmitValue()
     self.facepileViewHidden.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.facepileViewHidden.assertValues([false])
     self.facepileDescriptionText.assertValues(["Brandon Williams and 2 others"])
@@ -449,7 +448,7 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
     self.facepileDescriptionText.assertDidNotEmitValue()
     self.facepileViewHidden.assertDidNotEmitValue()
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.configure(with: (project, nil, nil))
 
     self.facepileViewHidden.assertValues([false])
     self.facepileDescriptionText.assertValues(["Brandon Williams and 3 others"])
@@ -458,5 +457,16 @@ final class DiscoveryProjectCardViewModelTests: TestCase {
       User.template.avatar.small,
       otherFriend.avatar.small
     ]])
+  }
+}
+
+private final class CardRecorder<Value: Equatable> {
+  private var values: [Value] = []
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValues(_ expected: [Value], file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, file: file, line: line)
+  }
+  func assertDidNotEmitValue(file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, file: file, line: line)
   }
 }

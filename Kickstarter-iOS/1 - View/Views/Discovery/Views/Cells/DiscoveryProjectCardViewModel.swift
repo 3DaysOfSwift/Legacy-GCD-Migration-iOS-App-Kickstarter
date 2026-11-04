@@ -1,7 +1,6 @@
 import KDS
 import KsApi
 import Prelude
-import ReactiveSwift
 import UIKit
 
 public struct DiscoveryPillData: Equatable {
@@ -33,133 +32,68 @@ public typealias BoldedAttributedLabelData = (boldedString: String, inString: St
 public typealias FacepileViewData = (avatars: [URL], description: String)
 
 @MainActor
-public protocol DiscoveryProjectCardViewModelInputs {
-  func configure(with value: DiscoveryProjectCellRowValue)
-}
-
-@MainActor
-public protocol DiscoveryProjectCardViewModelOutputs {
-  var backerCountLabelData: Signal<BoldedAttributedLabelData, Never> { get }
-  var facepileViewData: Signal<FacepileViewData, Never> { get }
-  var facepileViewHidden: Signal<Bool, Never> { get }
-  var goalMetIconHidden: Signal<Bool, Never> { get }
-  var loadProjectTags: Signal<[DiscoveryPillData], Never> { get }
-  var percentFundedLabelData: Signal<BoldedAttributedLabelData, Never> { get }
-  var projectBlurbLabelText: Signal<String, Never> { get }
-  var projectImageURL: Signal<URL, Never> { get }
-  var projectNameLabelText: Signal<String, Never> { get }
-  var projectStatusIconImageName: Signal<String, Never> { get }
-  var projectStatusLabelData: Signal<BoldedAttributedLabelData, Never> { get }
-  var tagsCollectionViewHidden: Signal<Bool, Never> { get }
-  var youreABackerViewHidden: Signal<Bool, Never> { get }
-}
-
-@MainActor
-public protocol DiscoveryProjectCardViewModelType {
-  var inputs: DiscoveryProjectCardViewModelInputs { get }
-  var outputs: DiscoveryProjectCardViewModelOutputs { get }
-}
-
-@MainActor
-public final class DiscoveryProjectCardViewModel: DiscoveryProjectCardViewModelType,
-  DiscoveryProjectCardViewModelInputs, DiscoveryProjectCardViewModelOutputs {
-  public init() {
-    let project = self.configureWithValueProperty.signal.skipNil().map(first)
-
-    self.projectNameLabelText = project.map(\.name)
-    self.projectBlurbLabelText = project.map(\.blurb)
-    self.backerCountLabelData = project.map(\.stats.backersCount).map { count in
-      (Format.wholeNumber(count), Strings.general_backer_count_backers(backer_count: count))
-    }
-
-    self.percentFundedLabelData = project.map { project in
-      if project.stats.goalMet {
-        return (
-          Strings.Goal_met(),
-          Strings.Goal_met()
-        )
-      }
-
-      let percentage = "\(project.stats.percentFunded)%"
-
-      return (percentage, Strings.percentage_funded(percentage: percentage))
-    }
-
-    self.goalMetIconHidden = project.map(\.stats.goalMet).negate()
-    self.projectImageURL = project.map(\.photo.full).map(URL.init(string:)).skipNil()
-    self.facepileViewHidden = project.map(\.personalization.friends).map { friends in
-      guard let friends = friends else {
-        return true
-      }
-
-      return friends.isEmpty
-    }
-    self.facepileViewData = project.compactMap(\.personalization.friends).compactMap(facepileData(for:))
-
-    self.tagsCollectionViewHidden = self.configureWithValueProperty.signal.skipNil()
-      .map { ($0.project, $0.category) }
-      .map(projectTagsViewShouldHide(project:category:))
-
-    self.loadProjectTags = self.configureWithValueProperty.signal.skipNil()
-      .map { ($0.project, $0.category) }
-      .map(projectTags(project:category:))
-      .filter { !$0.isEmpty }
-
-    self.projectStatusIconImageName = project.compactMap { project in
-      switch project.state {
-      case .canceled, .failed: return "icon--prohibit"
-      case .successful: return "icon--check"
-      case .live: return "icon--clock"
-      case .started, .submitted, .suspended, .purged: return nil // there should be no projects in this state
-      }
-    }
-
-    self.projectStatusLabelData = project.compactMap { project in
-      switch project.state {
-      case .canceled: return ("", Strings.profile_projects_status_canceled())
-      case .failed: return ("", Strings.profile_projects_status_unsuccessful())
-      case .successful: return ("", Strings.profile_projects_status_successful())
-      case .live:
-        guard let projectDeadline = project.dates.deadline else {
-          return ("", "")
-        }
-
-        let (duration, unit) = Format.duration(
-          secondsInUTC: projectDeadline,
-          abbreviate: false,
-          useToGo: true,
-          env: AppEnvironment.current
-        )
-
-        return (duration, "\(duration) \(unit)")
-      case .started, .submitted, .suspended, .purged: return nil // there should be no projects in this state
-      }
-    }
-
-    self.youreABackerViewHidden = project.map(userIsBackingProject).negate()
+public final class DiscoveryProjectCardViewModel {
+  struct Display {
+    let backerCount: BoldedAttributedLabelData
+    let facepile: FacepileViewData?
+    let facepileHidden: Bool
+    let goalMetIconHidden: Bool
+    let tags: [DiscoveryPillData]
+    let percentFunded: BoldedAttributedLabelData
+    let blurb: String
+    let imageURL: URL?
+    let name: String
+    let statusIcon: String?
+    let status: BoldedAttributedLabelData?
+    let tagsHidden: Bool
+    let backerHidden: Bool
   }
 
-  private let configureWithValueProperty = MutableProperty<DiscoveryProjectCellRowValue?>(nil)
-  public func configure(with value: DiscoveryProjectCellRowValue) {
-    self.configureWithValueProperty.value = value
+  public init() {}
+
+  func configure(with value: DiscoveryProjectCellRowValue) -> Display {
+    let project = value.project
+    let count = project.stats.backersCount
+    let percentage = "\(project.stats.percentFunded)%"
+    let funded: BoldedAttributedLabelData = project.stats.goalMet
+      ? (Strings.Goal_met(), Strings.Goal_met())
+      : (percentage, Strings.percentage_funded(percentage: percentage))
+    let icon: String?
+    let status: BoldedAttributedLabelData?
+    switch project.state {
+    case .canceled:
+      icon = "icon--prohibit"; status = ("", Strings.profile_projects_status_canceled())
+    case .failed:
+      icon = "icon--prohibit"; status = ("", Strings.profile_projects_status_unsuccessful())
+    case .successful:
+      icon = "icon--check"; status = ("", Strings.profile_projects_status_successful())
+    case .live:
+      icon = "icon--clock"
+      if let deadline = project.dates.deadline {
+        let (duration, unit) = Format.duration(secondsInUTC: deadline, abbreviate: false, useToGo: true,
+                                               env: AppEnvironment.current)
+        status = (duration, "\(duration) \(unit)")
+      } else { status = ("", "") }
+    case .started, .submitted, .suspended, .purged:
+      icon = nil; status = nil
+    }
+    let friends = project.personalization.friends
+    return Display(
+      backerCount: (Format.wholeNumber(count), Strings.general_backer_count_backers(backer_count: count)),
+      facepile: friends.flatMap(facepileData(for:)),
+      facepileHidden: friends?.isEmpty ?? true,
+      goalMetIconHidden: !project.stats.goalMet,
+      tags: projectTags(project: project, category: value.category),
+      percentFunded: funded,
+      blurb: project.blurb,
+      imageURL: URL(string: project.photo.full),
+      name: project.name,
+      statusIcon: icon,
+      status: status,
+      tagsHidden: projectTagsViewShouldHide(project: project, category: value.category),
+      backerHidden: !userIsBackingProject(project)
+    )
   }
-
-  public let backerCountLabelData: Signal<BoldedAttributedLabelData, Never>
-  public let facepileViewHidden: Signal<Bool, Never>
-  public let facepileViewData: Signal<FacepileViewData, Never>
-  public let goalMetIconHidden: Signal<Bool, Never>
-  public let loadProjectTags: Signal<[DiscoveryPillData], Never>
-  public let percentFundedLabelData: Signal<BoldedAttributedLabelData, Never>
-  public let projectBlurbLabelText: Signal<String, Never>
-  public let projectImageURL: Signal<URL, Never>
-  public let projectNameLabelText: Signal<String, Never>
-  public let projectStatusIconImageName: Signal<String, Never>
-  public let projectStatusLabelData: Signal<BoldedAttributedLabelData, Never>
-  public let tagsCollectionViewHidden: Signal<Bool, Never>
-  public let youreABackerViewHidden: Signal<Bool, Never>
-
-  public var inputs: DiscoveryProjectCardViewModelInputs { return self }
-  public var outputs: DiscoveryProjectCardViewModelOutputs { return self }
 }
 
 private func projectTagsViewShouldHide(project: Project, category: KsApi.Category?) -> Bool {

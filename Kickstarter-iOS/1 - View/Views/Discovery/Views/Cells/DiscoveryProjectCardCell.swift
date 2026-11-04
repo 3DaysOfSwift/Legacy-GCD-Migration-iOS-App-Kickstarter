@@ -45,7 +45,7 @@ final class DiscoveryProjectCardCell: UITableViewCell, ValueCell {
   private lazy var youreABackerLabel = { UILabel(frame: .zero) }()
   private lazy var youreABackerView = { UIView(frame: .zero) }()
 
-  private let viewModel: DiscoveryProjectCardViewModelType = DiscoveryProjectCardViewModel()
+  private let viewModel = DiscoveryProjectCardViewModel()
   private let watchProjectViewModel: WatchProjectViewModelType = WatchProjectViewModel()
 
   // MARK: - Notification Observers
@@ -78,7 +78,7 @@ final class DiscoveryProjectCardCell: UITableViewCell, ValueCell {
   }
 
   func configureWith(value: DiscoveryProjectCellRowValue) {
-    self.viewModel.inputs.configure(with: value)
+    self.render(self.viewModel.configure(with: value))
 
     self.watchProjectViewModel.inputs.configure(with: (
       value.project,
@@ -193,79 +193,7 @@ final class DiscoveryProjectCardCell: UITableViewCell, ValueCell {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.goalMetIconImageView.rac.hidden = self.viewModel.outputs.goalMetIconHidden
-    self.projectNameLabel.rac.text = self.viewModel.outputs.projectNameLabelText
-    self.projectBlurbLabel.rac.text = self.viewModel.outputs.projectBlurbLabelText
-    self.pillsViewContainer.rac.hidden = self.viewModel.outputs.tagsCollectionViewHidden
-    self.facepileDescriptionLabel.rac.text = self.viewModel.outputs.facepileViewData.map(second)
-    self.facepileStackView.rac.hidden = self.viewModel.outputs.facepileViewHidden
-    self.youreABackerView.rac.hidden = self.viewModel.outputs.youreABackerViewHidden
     self.saveButton.rac.selected = self.watchProjectViewModel.outputs.saveButtonSelected
-
-    self.viewModel.outputs.projectImageURL
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.projectImageView.af.cancelImageRequest()
-        self?.projectImageView.image = nil
-      })
-      .observeValues { [weak self] url in
-        self?.projectImageView.ksr_setImageWithURL(url)
-      }
-
-    self.viewModel.outputs.facepileViewData.map(first)
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.clearFacepileImageViews()
-      })
-      .observeValues { [weak self] avatars in
-        self?.configureFacepileImageViews(with: avatars)
-      }
-
-    self.viewModel.outputs.percentFundedLabelData
-      .observeForUI()
-      .observeValues { [weak self] boldedString, fullString in
-        guard let self = self else { return }
-
-        let attributedString = self.attributedString(bolding: boldedString, in: fullString)
-
-        _ = self.percentFundedLabel
-          |> \.attributedText .~ attributedString
-      }
-
-    self.viewModel.outputs.backerCountLabelData
-      .observeForUI()
-      .observeValues { [weak self] boldedString, fullString in
-        guard let self = self else { return }
-
-        let attributedString = self.attributedString(bolding: boldedString, in: fullString)
-
-        _ = self.backersCountLabel
-          |> \.attributedText .~ attributedString
-      }
-
-    self.viewModel.outputs.projectStatusLabelData
-      .observeForUI()
-      .observeValues { [weak self] boldedString, fullString in
-        guard let self = self else { return }
-
-        let attributedString = self.attributedString(bolding: boldedString, in: fullString)
-
-        _ = self.projectStatusLabel
-          |> \.attributedText .~ attributedString
-      }
-
-    self.viewModel.outputs.projectStatusIconImageName
-      .observeForUI()
-      .observeValues { [weak self] imageName in
-        _ = self?.projectStatusIconImageView
-          ?|> \.image .~ Kickstarter_iOS.image(named: imageName)
-      }
-
-    self.viewModel.outputs.loadProjectTags
-      .observeForUI()
-      .observeValues { [weak self] values in
-        self?.configurePillsView(values)
-      }
 
     // Watch Project View Model
 
@@ -300,6 +228,36 @@ final class DiscoveryProjectCardCell: UITableViewCell, ValueCell {
     self.watchProjectViewModel.outputs.generateSelectionFeedback
       .observeForUI()
       .observeValues { generateSelectionFeedback() }
+  }
+
+  private func render(_ display: DiscoveryProjectCardViewModel.Display) {
+    self.goalMetIconImageView.isHidden = display.goalMetIconHidden
+    self.projectNameLabel.text = display.name
+    self.projectBlurbLabel.text = display.blurb
+    self.pillsViewContainer.isHidden = display.tagsHidden
+    self.facepileStackView.isHidden = display.facepileHidden
+    self.youreABackerView.isHidden = display.backerHidden
+    if let url = display.imageURL {
+      self.projectImageView.af.cancelImageRequest()
+      self.projectImageView.image = nil
+      self.projectImageView.ksr_setImageWithURL(url)
+    }
+    if let facepile = display.facepile {
+      self.facepileDescriptionLabel.text = facepile.description
+      self.clearFacepileImageViews()
+      self.configureFacepileImageViews(with: facepile.avatars)
+    }
+    self.percentFundedLabel.attributedText = self.attributedString(
+      bolding: display.percentFunded.boldedString, in: display.percentFunded.inString
+    )
+    self.backersCountLabel.attributedText = self.attributedString(
+      bolding: display.backerCount.boldedString, in: display.backerCount.inString
+    )
+    if let status = display.status {
+      self.projectStatusLabel.attributedText = self.attributedString(bolding: status.boldedString, in: status.inString)
+    }
+    if let icon = display.statusIcon { self.projectStatusIconImageView.image = Kickstarter_iOS.image(named: icon) }
+    if !display.tags.isEmpty { self.configurePillsView(display.tags) }
   }
 
   // MARK: - Functions
