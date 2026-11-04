@@ -8233,7 +8233,6 @@
 				"9462DB68C874CEA7F1BC3A8C",
 				"7A6CBD739F88B243A41AFDB8",
 				"5E1541EFEE03935253EB36EB",
-				"C47B9FACC628BCF4F310B6C9",
 				"1AEB7C39910068375A79A813",
 				"6C45B49CFF4DD444CEBE8306",
 				"D945575AA82BFC6D11BCC533",
@@ -8670,13 +8669,6 @@
 		"5211C6B2C30B93B3B9F2A278" = {
 			"isa" = "PBXBuildFile";
 			"productRef" = "44FB70F71AB8F28FB65D44BE";
-		};
-		"DF0895528927E34986E35FE5" = {
-			"name" = "SettingsAccountPickerCellViewModel.swift";
-			"path" = "Kickstarter-iOS/1 - View/Views/SettingsAccountPickerCell/SettingsAccountPickerCellViewModel.swift";
-			"isa" = "PBXFileReference";
-			"sourceTree" = "SOURCE_ROOT";
-			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"33CD1CD4EF53BCF5FE7A1E0F" = {
 			"name" = "String+Attributed.swift";
@@ -12947,14 +12939,6 @@
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
 		};
-		"600782EA3A92095B9BFC7E16" = {
-			"isa" = "PBXGroup";
-			"name" = "SettingsAccountPickerCell";
-			"sourceTree" = "<group>";
-			"children" = (
-				"DF0895528927E34986E35FE5",
-			);
-		};
 		"5804206B7C3AFAFAE5286CEB" = {
 			"isa" = "PBXGroup";
 			"name" = "FacebookResetPasswordViewController";
@@ -16813,10 +16797,6 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "E62F8157B4FE35D0D8542A18";
 		};
-		"C47B9FACC628BCF4F310B6C9" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "DF0895528927E34986E35FE5";
-		};
 		"F86AA1987FD3D02C4021E99B" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "B70588579FCAB1AE435001FF";
@@ -18708,7 +18688,6 @@
 				"E2C75AEC59C471845F11F368",
 				"93FD4037457E48C8D54B56D7",
 				"CF489D50325825BDE77855C6",
-				"600782EA3A92095B9BFC7E16",
 				"22B7C2A4207A9181F6FAD8D6",
 				"495953A0744CE6C5FA4A0821",
 				"AB3B4215566107A0873AE999",
