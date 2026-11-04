@@ -77,24 +77,13 @@ final class OnboardingViewModelTest: TestCase {
   }
 
   func testOnboardingItems_AreReturned_OnInit() {
-    let expectation = expectation(description: "onboardingItems loaded")
-
-    self.viewModel.outputs.onboardingItems.startWithResult { result in
-      switch result {
-      case let .success(items):
-        XCTAssertEqual(items.count, 5)
-        XCTAssertTrue(items.contains(where: { $0.type == .welcome }))
-        XCTAssertTrue(items.contains(where: { $0.type == .saveProjects }))
-        XCTAssertTrue(items.contains(where: { $0.type == .enableNotifications }))
-        XCTAssertTrue(items.contains(where: { $0.type == .allowTracking }))
-        XCTAssertTrue(items.contains(where: { $0.type == .loginSignUp }))
-        expectation.fulfill()
-      case .failure:
-        XCTFail("Expected onboardingItems list to load.")
-      }
-    }
-
-    waitForExpectations(timeout: 1.0)
+    let items = self.viewModel.outputs.onboardingItems
+    XCTAssertEqual(items.count, 5)
+    XCTAssertTrue(items.contains(where: { $0.type == .welcome }))
+    XCTAssertTrue(items.contains(where: { $0.type == .saveProjects }))
+    XCTAssertTrue(items.contains(where: { $0.type == .enableNotifications }))
+    XCTAssertTrue(items.contains(where: { $0.type == .allowTracking }))
+    XCTAssertTrue(items.contains(where: { $0.type == .loginSignUp }))
   }
 
   func testTriggerPushNotificationPopup_IsCalled_OnGetNotifiedTapped() {

@@ -18,7 +18,7 @@ public protocol OnboardingViewModelInputs {
 
 @MainActor
 public protocol OnboardingViewModelOutputs {
-  var onboardingItems: SignalProducer<[OnboardingItem], Never> { get }
+  var onboardingItems: [OnboardingItem] { get }
   var didCompletePushNotificationSystemDialog: Signal<Void, Never> { get }
   var triggerAppTrackingTransparencyPopup: Signal<Void, Never> { get }
 }
@@ -43,7 +43,7 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
   ) {
     self.stopObserving()
     self.bindings = CompositeDisposable()
-    self.bindings += self.onboardingItems.startWithValues(items)
+    items(self.onboardingItems)
     self.bindings += self.didCompletePushNotificationSystemDialog.observeForUI().observeValues { [weak self] in
       self?.completePermission(tracking: false, advance: advance)
     }
@@ -86,7 +86,7 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
 
   // MARK: - Outputs
 
-  public let onboardingItems: SignalProducer<[OnboardingItem], Never>
+  public let onboardingItems: [OnboardingItem]
   public let didCompletePushNotificationSystemDialog: Signal<Void, Never>
   public let triggerAppTrackingTransparencyPopup: Signal<Void, Never>
 
@@ -96,7 +96,7 @@ public final class OnboardingViewModel: OnboardingViewModelType, Equatable & Ide
     self.lifecycleFeature = lifecycleFeature
     self.useCase = OnboardingUseCase(for: bundle)
 
-    self.onboardingItems = SignalProducer(value: self.useCase.uiOutputs.onboardingItems)
+    self.onboardingItems = self.useCase.uiOutputs.onboardingItems
 
     self.didCompletePushNotificationSystemDialog = self.useCase.outputs
       .didCompletePushNotificationSystemDialog
