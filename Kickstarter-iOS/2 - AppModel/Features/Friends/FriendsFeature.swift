@@ -320,16 +320,6 @@ public final class FriendsFeature {
     }
   }
 
-  /// Retains the established UI delay without allowing a previous account's delayed output through.
-  public func delayed<Value>(_ producer: SignalProducer<Value, ErrorEnvelope>)
-    -> SignalProducer<Value, ErrorEnvelope> {
-    let session = self.session
-    return producer.ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-      .materialize()
-      .filter { _ in MainActor.assumeIsolated { self.session == session } }
-      .dematerialize()
-  }
-
   public func waitForOperations() async {
     while !self.commands.isEmpty || !self.observations.isEmpty || !self.reads.isEmpty {
       for task in Array(self.commands.values) { _ = await task.result }
