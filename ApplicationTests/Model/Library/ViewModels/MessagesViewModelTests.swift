@@ -57,8 +57,8 @@ internal final class MessagesViewModelTests: TestCase {
       self.vm.outputs.project.observe(self.project.observer)
       self.vm.outputs.replyButtonIsEnabled.observe(self.replyButtonIsEnabled.observer)
       self.vm.outputs.successfullyMarkedAsRead.observe(self.successfullyMarkedAsRead.observer)
-      self.vm.outputs.didBlockUser.observe(self.didBlockUser.observer)
-      self.vm.outputs.didBlockUserError.observe(self.didBlockUserError.observer)
+      self.vm.onBlockSuccess = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
+      self.vm.onBlockError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }
 
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
     }
@@ -571,6 +571,7 @@ internal final class MessagesViewModelTests: TestCase {
     await self.scheduler.advance()
     await self.feature.waitForOperations()
     await self.discussion.waitForMutations()
+    await self.vm.waitForBlock()
     await self.scheduler.advance()
     // Thread delivery starts backing lookup and read-status commands.
     await self.feature.waitForOperations()

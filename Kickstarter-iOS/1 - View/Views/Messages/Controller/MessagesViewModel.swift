@@ -63,11 +63,6 @@ public protocol MessagesViewModelOutputs {
   /// Emits when the thread has been marked as read.
   var successfullyMarkedAsRead: Signal<(), Never> { get }
 
-  /// Emits when a block user request is successful.
-  var didBlockUser: Signal<(), Never> { get }
-
-  /// Emits when a block user request fails.
-  var didBlockUserError: Signal<(), Never> { get }
 }
 
 @MainActor
@@ -80,11 +75,18 @@ public protocol MessagesViewModelType {
 public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelInputs,
   MessagesViewModelOutputs {
   private let feature: MessagingFeature
+  private let discussion: DiscussionFeature
+  private var blockTask: Task<Void, Never>?
+  private var blockVersion = UUID()
+  private var latestBlockedID: String?
+  var onBlockSuccess: (() -> Void)?
+  var onBlockError: (() -> Void)?
   public convenience init() {
     self.init(feature: AppModel.shared.messagingFeature, discussion: AppModel.shared.discussionFeature)
   }
   public init(feature: MessagingFeature, discussion: DiscussionFeature) {
     self.feature = feature
+    self.discussion = discussion
     let threadRoute = self.threadRoute
     let backingRoute = self.backingRoute
     let configData = self.configData.signal.skipNil()
@@ -204,47 +206,19 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
       }
       .ignoreValues()
 
-    let blockUserEvent = self.blockUserProperty.signal
-      .switchMap { id in
-        feature.delayedResult(discussion.blockUserResult(id: id))
-          .materialize()
-      }
-
-    self.didBlockUser = blockUserEvent.values().ignoreValues()
-      .map { _ in NotificationCenter.default.post(.init(name: .ksr_blockedUser)) }
-
-    // TODO: Display proper error messaging from the backend
-    self.didBlockUserError = blockUserEvent.errors().ignoreValues()
-
-    self.project.observeValues { [weak self] in self?.latestProject = $0 }
+    self.project.observeValues { [weak self] project in
+      guard let self else { return }
+      self.latestProject = project
+      if let id = self.latestBlockedID { self.trackBlockedUser(id: id, project: project, confirmed: false) }
+    }
     messageThreadEnvelope.observeValues { [weak self] in self?.latestThread = $0.messageThread }
 
-    // MARK: User Blocking Analytics
-
-    _ = self.blockUserProperty.signal
-      .combineLatest(with: self.project)
-      .observeValues { blockedUserId, project in
-        AppEnvironment.current.ksrAnalytics
-          .trackBlockedUser(
-            project,
-            page: .messages,
-            typeContext: .initiate,
-            targetUserId: "\(blockedUserId)"
-          )
-      }
-
-    _ = self.blockUserProperty.signal
-      .combineLatest(with: self.project)
-      .takeWhen(blockUserEvent.values().ignoreValues())
-      .observeValues { blockedUserId, project in
-        AppEnvironment.current.ksrAnalytics
-          .trackBlockedUser(project, page: .messages, typeContext: .confirm, targetUserId: "\(blockedUserId)")
-      }
   }
 
   private let threadRoute = UUID()
   private let backingRoute = UUID()
   deinit {
+    self.blockTask?.cancel()
     let feature = self.feature, thread = self.threadRoute, backing = self.backingRoute
     Task { @MainActor in
       feature.release(route: thread)
@@ -256,10 +230,44 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
     self.viewPledgeUseCase.goToPledgeViewTapped()
   }
 
-  private let blockUserProperty = MutableProperty<String>("")
   public func blockUser(id: String) {
-    self.blockUserProperty.value = id
+    self.latestBlockedID = id
+    if let project = self.latestProject { self.trackBlockedUser(id: id, project: project, confirmed: false) }
+    self.blockTask?.cancel()
+    let version = UUID()
+    self.blockVersion = version
+    let session = self.feature.sessionFeature
+    let userID = session.currentUser?.id
+    let generation = session.generation
+    let request = self.discussion.requestBlockUser(id: id)
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    self.blockTask = Task { [weak self] in
+      let outcome = await request.result
+      do {
+        if delay.isInfinite { try await Task.sleep(nanoseconds: UInt64.max) }
+        else if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
+        try Task.checkCancellation()
+      } catch { return }
+      guard let self, self.blockVersion == version, session.isCurrent(userID: userID, generation: generation) else { return }
+      switch outcome {
+      case .success:
+        NotificationCenter.default.post(.init(name: .ksr_blockedUser))
+        self.onBlockSuccess?()
+        if let project = self.latestProject, let currentID = self.latestBlockedID {
+          self.trackBlockedUser(id: currentID, project: project, confirmed: true)
+        }
+      case .failure(let error):
+        if !(error is CancellationError) { self.onBlockError?() }
+      }
+      self.blockTask = nil
+    }
   }
+  private func trackBlockedUser(id: String, project: Project, confirmed: Bool) {
+    AppEnvironment.current.ksrAnalytics.trackBlockedUser(
+      project, page: .messages, typeContext: confirmed ? .confirm : .initiate, targetUserId: id
+    )
+  }
+  func waitForBlock() async { await self.blockTask?.value }
 
   private let configData = MutableProperty<Either<MessageThread, (project: Project, backing: Backing)>?>(nil)
   public func configureWith(data: Either<MessageThread, (project: Project, backing: Backing)>) {
@@ -301,8 +309,6 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
   public let project: Signal<Project, Never>
   public let replyButtonIsEnabled: Signal<Bool, Never>
   public let successfullyMarkedAsRead: Signal<(), Never>
-  public let didBlockUser: Signal<(), Never>
-  public let didBlockUserError: Signal<(), Never>
 
   public var goToBacking: Signal<ManagePledgeViewParamConfigData, Never> {
     self.viewPledgeUseCase.goToNativePledgeView

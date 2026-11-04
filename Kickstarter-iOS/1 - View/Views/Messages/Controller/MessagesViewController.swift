@@ -119,21 +119,12 @@ internal final class MessagesViewController: UITableViewController, MessageBanne
       .observeForControllerAction()
       .observeValues { [weak self] url in self?.goToPMPledeView(with: url) }
 
-    self.viewModel.outputs.didBlockUser
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        guard let self, let messageBanner = self.messageBannerViewController else { return }
-
-        messageBanner.showBanner(with: .success, message: Strings.Block_user_success())
-      }
-
-    self.viewModel.outputs.didBlockUserError
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        guard let self, let messageBanner = self.messageBannerViewController else { return }
-
-        messageBanner.showBanner(with: .error, message: Strings.Block_user_fail())
-      }
+    self.viewModel.onBlockSuccess = { [weak self] in
+      self?.messageBannerViewController?.showBanner(with: .success, message: Strings.Block_user_success())
+    }
+    self.viewModel.onBlockError = { [weak self] in
+      self?.messageBannerViewController?.showBanner(with: .error, message: Strings.Block_user_fail())
+    }
   }
 
   internal override func tableView(_: UITableView, estimatedHeightForRowAt _: IndexPath)
