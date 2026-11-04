@@ -40,13 +40,10 @@ final class EmptyStateView: UIView {
   private let rootVerticalStackView = UIStackView(frame: .zero)
   private let titleLabel = UILabel(frame: .zero)
 
-  private let viewModel: EmptyStateViewModelType = EmptyStateViewModel()
-
   override init(frame _: CGRect) {
     super.init(frame: .zero)
 
     self.configureSubviews()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -85,7 +82,13 @@ final class EmptyStateView: UIView {
   // MARK: - Configuration
 
   func configure(with type: EmptyStateViewType) {
-    self.viewModel.inputs.configure(with: type)
+    self.bodyLabel.text = type.bodyLabelText
+    self.bodyLabel.isHidden = type.bodyLabelHidden
+    self.bodyLabel.textColor = type.bodyLabelTextColor
+    self.titleLabel.text = type.titleLabelText
+    self.titleLabel.isHidden = type.titleLabelHidden
+    self.rootVerticalStackView.layoutMargins = .init(leftRight: type.leftRightMargins)
+    self.imageView.image = type.imageName.flatMap { Kickstarter_iOS.image(named: $0) }
   }
 
   // MARK: - Views
@@ -104,31 +107,4 @@ final class EmptyStateView: UIView {
     self.rootVerticalStackView.setCustomSpacing(Styles.grid(3), after: self.titleLabel)
   }
 
-  // MARK: - View model
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.bodyLabel.rac.text = self.viewModel.outputs.bodyLabelText
-    self.bodyLabel.rac.hidden = self.viewModel.outputs.bodyLabelHidden
-    self.bodyLabel.rac.textColor = self.viewModel.outputs.bodyLabelTextColor
-    self.titleLabel.rac.text = self.viewModel.outputs.titleLabelText
-    self.titleLabel.rac.hidden = self.viewModel.outputs.titleLabelHidden
-
-    self.viewModel.outputs.leftRightMargins
-      .observeForUI()
-      .observeValues { leftRightMargins in
-        self.rootVerticalStackView.layoutMargins = .init(leftRight: leftRightMargins)
-      }
-
-    self.viewModel.outputs.imageName
-      .observeForUI()
-      .observeValues { imageName in
-        if let imageName = imageName {
-          self.imageView.image = Kickstarter_iOS.image(named: imageName)
-        } else {
-          self.imageView.image = nil
-        }
-      }
-  }
 }

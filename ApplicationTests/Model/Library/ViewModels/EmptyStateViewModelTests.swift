@@ -1,73 +1,28 @@
 @testable import Kickstarter_iOS
 import KDS
-@testable import KsApi
-
-
-import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 final class EmptyStateViewModelTests: TestCase {
-  private let vm: EmptyStateViewModelType = EmptyStateViewModel()
-
-  private let bodyLabelHidden = TestObserver<Bool, Never>()
-  private let bodyLabelText = TestObserver<String, Never>()
-  private let bodyLabelTextColor = TestObserver<UIColor, Never>()
-  private let imageName = TestObserver<String?, Never>()
-  private let leftRightMargins = TestObserver<CGFloat, Never>()
-  private let titleLabelHidden = TestObserver<Bool, Never>()
-  private let titleLabelText = TestObserver<String, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.bodyLabelHidden.observe(self.bodyLabelHidden.observer)
-    self.vm.outputs.bodyLabelText.observe(self.bodyLabelText.observer)
-    self.vm.outputs.bodyLabelTextColor.observe(self.bodyLabelTextColor.observer)
-    self.vm.outputs.imageName.observe(self.imageName.observer)
-    self.vm.outputs.leftRightMargins.observe(self.leftRightMargins.observer)
-    self.vm.outputs.titleLabelHidden.observe(self.titleLabelHidden.observer)
-    self.vm.outputs.titleLabelText.observe(self.titleLabelText.observer)
-  }
-
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   func testErrorPullToRefreshState() {
-    self.bodyLabelHidden.assertDidNotEmitValue()
-    self.bodyLabelText.assertDidNotEmitValue()
-    self.bodyLabelTextColor.assertDidNotEmitValue()
-    self.imageName.assertDidNotEmitValue()
-    self.leftRightMargins.assertDidNotEmitValue()
-    self.titleLabelHidden.assertDidNotEmitValue()
-    self.titleLabelText.assertDidNotEmitValue()
-
-    self.vm.inputs.configure(with: .errorPullToRefresh)
-
-    self.bodyLabelHidden.assertValues([false])
-    self.bodyLabelText.assertValues(["Something went wrong—pull to refresh."])
-    self.bodyLabelTextColor.assertValues([LegacyColors.ksr_support_700.uiColor()])
-    self.imageName.assertValues(["icon-exclamation"])
-    self.leftRightMargins.assertValues([Styles.grid(10)])
-    self.titleLabelHidden.assertValues([true])
-    self.titleLabelText.assertValues([""])
+    let state = EmptyStateViewType.errorPullToRefresh
+    XCTAssertFalse(state.bodyLabelHidden)
+    XCTAssertEqual(state.bodyLabelText, "Something went wrong—pull to refresh.")
+    XCTAssertEqual(state.bodyLabelTextColor, LegacyColors.ksr_support_700.uiColor())
+    XCTAssertEqual(state.imageName, "icon-exclamation")
+    XCTAssertEqual(state.leftRightMargins, Styles.grid(10))
+    XCTAssertTrue(state.titleLabelHidden)
+    XCTAssertEqual(state.titleLabelText, "")
   }
 
   func testAddOnsUnavailableState() {
-    self.bodyLabelHidden.assertDidNotEmitValue()
-    self.bodyLabelText.assertDidNotEmitValue()
-    self.bodyLabelTextColor.assertDidNotEmitValue()
-    self.imageName.assertDidNotEmitValue()
-    self.leftRightMargins.assertDidNotEmitValue()
-    self.titleLabelHidden.assertDidNotEmitValue()
-    self.titleLabelText.assertDidNotEmitValue()
-
-    self.vm.inputs.configure(with: .addOnsUnavailable)
-
-    self.bodyLabelHidden.assertValues([false])
-    self.bodyLabelText.assertValues(["Change your shipping location or skip add-ons to continue."])
-    self.bodyLabelTextColor.assertValues([LegacyColors.ksr_support_400.uiColor()])
-    self.imageName.assertValues(["icon-globe"])
-    self.leftRightMargins.assertValues([Styles.grid(3)])
-    self.titleLabelHidden.assertValues([false])
-    self.titleLabelText.assertValues(["Add-ons unavailable"])
+    let state = EmptyStateViewType.addOnsUnavailable
+    XCTAssertFalse(state.bodyLabelHidden)
+    XCTAssertEqual(state.bodyLabelText, "Change your shipping location or skip add-ons to continue.")
+    XCTAssertEqual(state.bodyLabelTextColor, LegacyColors.ksr_support_400.uiColor())
+    XCTAssertEqual(state.imageName, "icon-globe")
+    XCTAssertEqual(state.leftRightMargins, Styles.grid(3))
+    XCTAssertFalse(state.titleLabelHidden)
+    XCTAssertEqual(state.titleLabelText, "Add-ons unavailable")
   }
 }
