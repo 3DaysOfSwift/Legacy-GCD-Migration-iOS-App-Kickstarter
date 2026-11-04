@@ -462,20 +462,8 @@ public final class SettingsFeature {
 
   /// App lifecycle receives only a freshly committed user, not the cached initial emission.
   public func refreshResult(allowSessionRestore: Bool = false) -> SignalProducer<User, ErrorEnvelope> {
-    self.userResult(includeCurrent: false, allowSessionRestore: allowSessionRestore)
-  }
-
-  public func userResult() -> SignalProducer<User, ErrorEnvelope> {
-    self.userResult(includeCurrent: true)
-  }
-
-  private func userResult(
-    includeCurrent: Bool,
-    allowSessionRestore: Bool = false
-  ) -> SignalProducer<User, ErrorEnvelope> {
     SignalProducer { observer, lifetime in
       MainActor.assumeIsolated {
-        if includeCurrent, let user = self.session.currentUser { observer.send(value: user) }
         let id = UUID()
         let generation = self.session.generation
         let userID = self.session.currentUser?.id

@@ -262,16 +262,20 @@ final class SettingsFeatureTests: XCTestCase {
     let feature = SettingsFeature(sessionFeature: session, makeProvider: { fixture.provider })
     defer { fixture.provider.gate.releaseAll(); users.gate.releaseAll() }
     let user = try XCTUnwrap(fixture.user)
-    var refreshValues: [User] = []
-    let read = feature.userResult().start { if case let .value(user) = $0 { refreshValues.append(user) } }
+    let read = Task { try await feature.refresh() }
     await users.gate.waitFor(1)
     let write = feature.saveResult([.init(.newsletter(.arts), true)], from: user).start()
-    defer { read.dispose(); write.dispose() }
+    defer { read.cancel(); write.dispose() }
     await fixture.provider.gate.waitFor(1)
     try fixture.provider.succeed(0)
     try users.gate.finish(0, .success(user))
+    do {
+      _ = try await read.value
+      XCTFail("A stale refresh must not return after a preference write")
+    } catch is CancellationError {
+      // Expected.
+    }
     await feature.waitForOperations()
-    XCTAssertEqual(refreshValues.count, 1, "Only the synchronous cached prefix is delivered")
     XCTAssertEqual(fixture.user?.newsletters.arts, true)
   }
 
