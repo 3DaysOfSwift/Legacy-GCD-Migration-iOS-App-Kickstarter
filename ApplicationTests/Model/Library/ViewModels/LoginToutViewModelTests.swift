@@ -46,7 +46,7 @@ final class LoginToutViewModelTests: TestCase {
   }
 
   override func tearDown() async throws {
-    await self.authenticationFeature.waitForOperations()
+    await self.vm.waitForFacebook()
     try await super.tearDown()
   }
 
@@ -61,13 +61,12 @@ final class LoginToutViewModelTests: TestCase {
     }
     self.vm.outputs.isLoading.observe(self.isLoading.observer)
     self.vm.onAppleSuccess = { [weak self] in self?.logIntoEnvironmentWithApple.observer.send(value: $0) }
-    self.vm.outputs.logIntoEnvironmentWithFacebook.observe(self.logIntoEnvironmentWithFacebook.observer)
+    self.vm.onFacebookSuccess = { [weak self] in self?.logIntoEnvironmentWithFacebook.observer.send(value: $0) }
     self.vm.outputs.postNotification.map { ($0.0.name, $0.1.name) }.observe(self.postNotification.observer)
     self.vm.onAppleError = { [weak self] in self?.showAppleErrorAlert.observer.send(value: $0) }
-    self.vm.outputs.showFacebookErrorAlert.observe(self.showFacebookErrorAlert.observer)
-    self.vm.outputs.startFacebookConfirmation.map { _, token in token }
-      .observe(self.startFacebookConfirmation.observer)
-    self.vm.outputs.startTwoFactorChallenge.observe(self.startTwoFactorChallenge.observer)
+    self.vm.onFacebookError = { [weak self] in self?.showFacebookErrorAlert.observer.send(value: $0) }
+    self.vm.onFacebookConfirmation = { [weak self] _, token in self?.startFacebookConfirmation.observer.send(value: token) }
+    self.vm.onFacebookTwoFactor = { [weak self] in self?.startTwoFactorChallenge.observer.send(value: $0) }
   }
 
   func testLoginIntent_Pledge() async {
@@ -146,7 +145,7 @@ final class LoginToutViewModelTests: TestCase {
       self.isLoading.assertValues([true])
 
       // Wait enough time for API request to be made.
-      await self.authenticationFeature.waitForOperations()
+      await self.vm.waitForFacebook()
       await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
@@ -156,7 +155,7 @@ final class LoginToutViewModelTests: TestCase {
 
       self.postNotification.assertDidNotEmitValue()
 
-      await self.authenticationFeature.waitForOperations()
+      await self.vm.waitForFacebook()
 
       await self.scheduler.advance()
 
@@ -270,7 +269,7 @@ final class LoginToutViewModelTests: TestCase {
 
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
-      await self.authenticationFeature.waitForOperations()
+      await self.vm.waitForFacebook()
       await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
@@ -318,7 +317,7 @@ final class LoginToutViewModelTests: TestCase {
 
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
-      await self.authenticationFeature.waitForOperations()
+      await self.vm.waitForFacebook()
       await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
@@ -366,7 +365,7 @@ final class LoginToutViewModelTests: TestCase {
 
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
-      await self.authenticationFeature.waitForOperations()
+      await self.vm.waitForFacebook()
       await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
@@ -416,7 +415,7 @@ final class LoginToutViewModelTests: TestCase {
 
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
-      await self.authenticationFeature.waitForOperations()
+      await self.vm.waitForFacebook()
       await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
@@ -465,7 +464,7 @@ final class LoginToutViewModelTests: TestCase {
 
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
-      await self.authenticationFeature.waitForOperations()
+      await self.vm.waitForFacebook()
       await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false])
@@ -484,7 +483,7 @@ final class LoginToutViewModelTests: TestCase {
       self.vm.inputs.facebookLoginSuccess(result: result)
 
       self.isLoading.assertValues([true, false, true])
-      await self.authenticationFeature.waitForOperations()
+      await self.vm.waitForFacebook()
       await self.scheduler.advance()
 
       self.isLoading.assertValues([true, false, true, false])

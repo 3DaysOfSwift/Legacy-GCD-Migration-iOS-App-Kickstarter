@@ -171,44 +171,21 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
     self.viewModel.onAppleError = { [weak self] in self?.present(UIAlertController.genericError($0), animated: true) }
     self.viewModel.onAppleLog = { Crashlytics.crashlytics().record(error: $0) }
 
-    self.viewModel.outputs.logIntoEnvironmentWithFacebook
-      .observeValues { [weak self] _ in
-        guard let strongSelf = self else { return }
-
-        strongSelf.viewModel.inputs.environmentLoggedIn()
-      }
+    self.viewModel.onFacebookSuccess = { [weak self] _ in self?.viewModel.inputs.environmentLoggedIn() }
+    self.viewModel.onFacebookConfirmation = { [weak self] user, token in
+      self?.pushFacebookConfirmationController(facebookUser: user, facebookToken: token)
+    }
+    self.viewModel.onFacebookTwoFactor = { [weak self] in self?.pushTwoFactorViewController(facebookAccessToken: $0) }
+    self.viewModel.onFacebookError = { [weak self] error in
+      self?.present(UIAlertController.alertController(forError: error), animated: true, completion: nil)
+      Crashlytics.crashlytics().record(error: error.nsError)
+    }
 
     self.viewModel.outputs.postNotification
       .observeForUI()
       .observeValues {
         NotificationCenter.default.post($0.0)
         NotificationCenter.default.post($0.1)
-      }
-
-    self.viewModel.outputs.startFacebookConfirmation
-      .observeForControllerAction()
-      .observeValues { [weak self] user, token in
-        self?.pushFacebookConfirmationController(facebookUser: user, facebookToken: token)
-      }
-
-    self.viewModel.outputs.startTwoFactorChallenge
-      .observeForControllerAction()
-      .observeValues { [weak self] token in
-        self?.pushTwoFactorViewController(facebookAccessToken: token)
-      }
-
-    self.viewModel.outputs.showFacebookErrorAlert
-      .observeForControllerAction()
-      .observeValues { [weak self] error in
-        guard let strongSelf = self else { return }
-
-        strongSelf.present(
-          UIAlertController.alertController(forError: error),
-          animated: true,
-          completion: nil
-        )
-
-        Crashlytics.crashlytics().record(error: error.nsError)
       }
 
     self.helpViewModel.onHelpSheet = { [weak self] in

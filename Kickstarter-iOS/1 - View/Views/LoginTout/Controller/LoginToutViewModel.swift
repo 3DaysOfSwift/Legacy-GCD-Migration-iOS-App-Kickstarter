@@ -51,20 +51,9 @@ public protocol LoginToutViewModelOutputs {
   /// Emits whether a request is loading or not
   var isLoading: Signal<Bool, Never> { get }
 
-  /// Emits an access token envelope that can be used to update the environment via Facebook.
-  var logIntoEnvironmentWithFacebook: Signal<AccessTokenEnvelope, Never> { get }
-
   /// Emits when a login success notification should be posted.
   var postNotification: Signal<(Notification, Notification), Never> { get }
 
-  /// Emits when should show Facebook error alert with AlertError
-  var showFacebookErrorAlert: Signal<AlertError, Never> { get }
-
-  /// Emits a Facebook user and access token when Facebook login has occurred
-  var startFacebookConfirmation: Signal<(ErrorEnvelope.FacebookUser?, String), Never> { get }
-
-  /// Emits an access token to show 2fa view when Facebook login fails with tfaRequired error
-  var startTwoFactorChallenge: Signal<String, Never> { get }
 }
 
 @MainActor
@@ -80,6 +69,12 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
   private let loadingProperty = MutableProperty(false)
   private var appleTask: Task<Void, Never>?
   private var appleVersion = UUID()
+  private var facebookTask: Task<Void, Never>?
+  private var facebookVersion = UUID()
+  var onFacebookSuccess: ((AccessTokenEnvelope) -> Void)?
+  var onFacebookError: ((AlertError) -> Void)?
+  var onFacebookConfirmation: ((ErrorEnvelope.FacebookUser?, String) -> Void)?
+  var onFacebookTwoFactor: ((String) -> Void)?
   var onAppleSuccess: ((AccessTokenEnvelope) -> Void)?
   var onAppleError: ((String) -> Void)?
   var onAppleLog: ((NSError) -> Void)?
@@ -89,54 +84,6 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
     self.authenticationFeature = authenticationFeature
     let isLoading = self.loadingProperty
     self.isLoading = isLoading.signal.skipRepeats()
-
-    let tokenString: Signal<String, Never> = self.facebookLoginSuccessProperty.signal.skipNil()
-      .map { $0.token?.tokenString ?? "" }
-
-    let facebookLogin = tokenString
-      .switchMap { token in
-        authenticationFeature.result(.facebook(token))
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .on(
-            starting: {
-              isLoading.value = true
-            },
-            terminated: {
-              isLoading.value = false
-            }
-          )
-          .materialize()
-      }
-
-    let tfaRequiredError = facebookLogin.errors()
-      .filter { $0.ksrCode == .TfaRequired }
-
-    let facebookSignupError = facebookLogin.errors()
-      .filter { $0.ksrCode == .ConfirmFacebookSignup }
-
-    let genericFacebookErrorAlert = facebookLogin.errors()
-      .filter { env in
-        env.ksrCode != .TfaRequired &&
-          env.ksrCode != .ConfirmFacebookSignup &&
-          env.ksrCode != .FacebookInvalidAccessToken
-      }
-      .map { AlertError.genericFacebookError(envelope: $0) }
-
-    let facebookTokenFailAlert = facebookLogin.errors()
-      .filter { $0.ksrCode == .FacebookInvalidAccessToken }
-      .ignoreValues()
-      .mapConst(AlertError.facebookTokenFail)
-
-    let facebookLoginAttemptFailAlert = self.facebookLoginFailProperty.signal
-      .map { $0 as NSError? }
-      .skipNil()
-      .map(AlertError.facebookLoginAttemptFail)
-
-    self.startTwoFactorChallenge = tokenString.takeWhen(tfaRequiredError)
-
-    self.startFacebookConfirmation = tokenString
-      .takePairWhen(facebookSignupError)
-      .map { token, error in (error.facebookUser ?? nil, token) }
 
     self.postNotification = self.environmentLoggedInProperty.signal
       .mapConst((
@@ -149,23 +96,13 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
       // Post notifications on the next run loop to avoid race condition with VCs being deallocated.
       .ksr_delay(.nanoseconds(0), on: AppEnvironment.current.scheduler)
 
-    self.showFacebookErrorAlert = Signal.merge(
-      facebookTokenFailAlert,
-      facebookLoginAttemptFailAlert,
-      genericFacebookErrorAlert
-    )
-
-    let logIntoEnvironmentWithFacebook = facebookLogin.values()
-
-    self.logIntoEnvironmentWithFacebook = logIntoEnvironmentWithFacebook.signal
-
     self.viewWillAppearProperty.signal
       .take(first: 1)
       .observeValues { AppEnvironment.current.ksrAnalytics.trackLoginTOutPageViewed() }
 
   }
 
-  deinit { self.appleTask?.cancel() }
+  deinit { self.appleTask?.cancel(); self.facebookTask?.cancel() }
 
   public var inputs: LoginToutViewModelInputs { return self }
   public var outputs: LoginToutViewModelOutputs { return self }
@@ -222,15 +159,41 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
 
   public func facebookLoginButtonPressed() { self.onFacebookLogin?() }
 
-  fileprivate let facebookLoginFailProperty = MutableProperty<Error?>(nil)
   public func facebookLoginFail(error: Error?) {
-    self.facebookLoginFailProperty.value = error
+    if let error = error as NSError? { self.onFacebookError?(.facebookLoginAttemptFail(error: error)) }
   }
 
-  fileprivate let facebookLoginSuccessProperty = MutableProperty<LoginManagerLoginResult?>(nil)
   public func facebookLoginSuccess(result: LoginManagerLoginResult) {
-    self.facebookLoginSuccessProperty.value = result
+    let token = result.token?.tokenString ?? ""
+    if self.facebookTask != nil { self.facebookTask?.cancel(); self.loadingProperty.value = false }
+    let version = UUID()
+    self.facebookVersion = version
+    let feature = self.authenticationFeature
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    self.loadingProperty.value = true
+    self.facebookTask = Task { [weak self] in
+      let outcome: Result<AccessTokenEnvelope, Error>
+      do { outcome = .success(try await feature.authenticate(.facebook(token))) }
+      catch { outcome = .failure(error) }
+      do { if delay > 0 { try await Task.sleep(for: .seconds(delay)) }; try Task.checkCancellation() }
+      catch { return }
+      guard let self, self.facebookVersion == version else { return }
+      switch outcome {
+      case let .success(value): self.onFacebookSuccess?(value)
+      case let .failure(error):
+        let envelope = error as? ErrorEnvelope ?? .couldNotParseJSON
+        switch envelope.ksrCode {
+        case .TfaRequired: self.onFacebookTwoFactor?(token)
+        case .ConfirmFacebookSignup: self.onFacebookConfirmation?(envelope.facebookUser, token)
+        case .FacebookInvalidAccessToken: self.onFacebookError?(.facebookTokenFail)
+        default: self.onFacebookError?(.genericFacebookError(envelope: envelope))
+        }
+      }
+      self.facebookTask = nil
+      self.loadingProperty.value = false
+    }
   }
+  func waitForFacebook() async { await self.facebookTask?.value }
 
   public func signupOrLoginWithOAuthButtonPressed() {
     self.onOAuth?()
@@ -249,11 +212,7 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
   }
 
   public let isLoading: Signal<Bool, Never>
-  public let logIntoEnvironmentWithFacebook: Signal<AccessTokenEnvelope, Never>
   public let postNotification: Signal<(Notification, Notification), Never>
-  public let startFacebookConfirmation: Signal<(ErrorEnvelope.FacebookUser?, String), Never>
-  public let startTwoFactorChallenge: Signal<String, Never>
-  public let showFacebookErrorAlert: Signal<AlertError, Never>
 }
 
 private func statusString(_ forStatus: LoginIntent) -> String {
