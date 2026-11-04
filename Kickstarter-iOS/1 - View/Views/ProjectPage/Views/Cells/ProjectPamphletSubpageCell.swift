@@ -12,10 +12,21 @@ internal final class ProjectPamphletSubpageCell: UITableViewCell, ValueCell {
   @IBOutlet private var subpageLabel: UILabel!
   @IBOutlet private var topSeparatorView: UIView!
 
-  private let viewModel: ProjectPamphletSubpageCellViewModelType = ProjectPamphletSubpageCellViewModel()
+  private let viewModel = ProjectPamphletSubpageCellViewModel()
 
   internal func configureWith(value subpage: ProjectPamphletSubpage) {
-    self.viewModel.inputs.configureWith(subpage: subpage)
+    self.viewModel.configureWith(subpage: subpage)
+    self.topSeparatorView.isHidden = self.viewModel.topSeparatorViewHidden
+    self.separatorView.isHidden = self.viewModel.separatorViewHidden
+    if subpage.isComments || subpage.isUpdates {
+      self.countLabel.text = self.viewModel.countLabelText
+      self.countLabel.textColor = LegacyColors.ksr_support_700.uiColor()
+      self.countLabel.backgroundColor = LegacyColors.ksr_support_100.uiColor()
+      self.countContainerView.backgroundColor = LegacyColors.ksr_support_100.uiColor()
+      self.countContainerView.layer.borderColor = UIColor.clear.cgColor
+      self.subpageLabel.text = self.viewModel.labelText
+      self.subpageLabel.textColor = LegacyColors.ksr_support_700.uiColor()
+    }
     self.setNeedsLayout()
   }
 
@@ -58,24 +69,4 @@ internal final class ProjectPamphletSubpageCell: UITableViewCell, ValueCell {
     self.setNeedsLayout()
   }
 
-  internal override func bindViewModel() {
-    super.bindViewModel()
-
-    self.countLabel.rac.text = self.viewModel.outputs.countLabelText
-    self.countLabel.rac.textColor = self.viewModel.outputs.countLabelTextColor
-    self.countLabel.rac.backgroundColor = self.viewModel.outputs.countLabelBackgroundColor
-    self.countContainerView.rac.backgroundColor = self.viewModel.outputs.countLabelBackgroundColor
-
-    self.viewModel.outputs.countLabelBorderColor
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.countContainerView.layer.borderColor = $0.cgColor
-      }
-
-    self.topSeparatorView.rac.hidden = self.viewModel.outputs.topSeparatorViewHidden
-    self.separatorView.rac.hidden = self.viewModel.outputs.separatorViewHidden
-
-    self.subpageLabel.rac.text = self.viewModel.outputs.labelText
-    self.subpageLabel.rac.textColor = self.viewModel.outputs.labelTextColor
-  }
 }

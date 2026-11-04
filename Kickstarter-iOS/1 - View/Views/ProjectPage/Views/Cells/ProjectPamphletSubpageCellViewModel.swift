@@ -1,98 +1,24 @@
 import KDS
 import KsApi
-import Prelude
-import ReactiveSwift
+import Observation
 import UIKit
 
 @MainActor
-public protocol ProjectPamphletSubpageCellViewModelInputs {
-  /// Call with the ProjectPamphletSubpage
-  func configureWith(subpage: ProjectPamphletSubpage)
-}
+@Observable
+public final class ProjectPamphletSubpageCellViewModel {
+  public init() {}
+  public private(set) var countLabelText: String?
+  public private(set) var labelText: String?
+  public private(set) var topSeparatorViewHidden = false
+  public private(set) var separatorViewHidden = false
 
-@MainActor
-public protocol ProjectPamphletSubpageCellViewModelOutputs {
-  /// Emits the background color for the count label
-  var countLabelBackgroundColor: Signal<UIColor, Never> { get }
-
-  /// Emits the border color for the count label
-  var countLabelBorderColor: Signal<UIColor, Never> { get }
-
-  /// Emits the count label's text
-  var countLabelText: Signal<String, Never> { get }
-
-  /// Emits the count label's text color
-  var countLabelTextColor: Signal<UIColor, Never> { get }
-
-  /// Emits the cell's primary label text
-  var labelText: Signal<String, Never> { get }
-
-  /// Emits the cell's primary label text color
-  var labelTextColor: Signal<UIColor, Never> { get }
-
-  /// Emits when the top gradient view should be hidden
-  var topSeparatorViewHidden: Signal<Bool, Never> { get }
-
-  /// Emits when the separator view should be hidden
-  var separatorViewHidden: Signal<Bool, Never> { get }
-}
-
-@MainActor
-public protocol ProjectPamphletSubpageCellViewModelType {
-  var inputs: ProjectPamphletSubpageCellViewModelInputs { get }
-  var outputs: ProjectPamphletSubpageCellViewModelOutputs { get }
-}
-
-@MainActor
-public final class ProjectPamphletSubpageCellViewModel: ProjectPamphletSubpageCellViewModelType,
-  ProjectPamphletSubpageCellViewModelInputs, ProjectPamphletSubpageCellViewModelOutputs {
-  public init() {
-    let commentsSubpage = self.subpageProperty.signal.skipNil().filter { $0.isComments }
-    let updatesSubpage = self.subpageProperty.signal.skipNil().filter { $0.isUpdates }
-
-    self.labelText = Signal.merge(
-      commentsSubpage.mapConst(Strings.project_menu_buttons_comments()),
-      updatesSubpage.mapConst(Strings.project_menu_buttons_updates())
-    )
-
-    self.labelTextColor = Signal.merge(
-      commentsSubpage.mapConst(LegacyColors.ksr_support_700.uiColor()),
-      updatesSubpage.mapConst(LegacyColors.ksr_support_700.uiColor())
-    )
-
-    self.topSeparatorViewHidden = self.subpageProperty.signal.skipNil()
-      .map { $0.position != .first }
-
-    self.separatorViewHidden = self.subpageProperty.signal.skipNil()
-      .map { $0.position == .last }
-
-    self.countLabelText = Signal.merge(commentsSubpage, updatesSubpage)
-      .map { Format.wholeNumber($0.count ?? 0) }
-
-    self.countLabelTextColor = Signal.merge(commentsSubpage, updatesSubpage)
-      .mapConst(LegacyColors.ksr_support_700.uiColor())
-    self.countLabelBorderColor = Signal.merge(commentsSubpage, updatesSubpage)
-      .mapConst(.clear)
-    self.countLabelBackgroundColor = Signal.merge(commentsSubpage, updatesSubpage)
-      .mapConst(LegacyColors.ksr_support_100.uiColor())
-  }
-
-  private let subpageProperty = MutableProperty<ProjectPamphletSubpage?>(nil)
   public func configureWith(subpage: ProjectPamphletSubpage) {
-    self.subpageProperty.value = subpage
+    self.topSeparatorViewHidden = subpage.position != .first
+    self.separatorViewHidden = subpage.position == .last
+    guard subpage.isComments || subpage.isUpdates else { return }
+    self.labelText = subpage.isComments ? Strings.project_menu_buttons_comments() : Strings.project_menu_buttons_updates()
+    self.countLabelText = Format.wholeNumber(subpage.count ?? 0)
   }
-
-  public let countLabelText: Signal<String, Never>
-  public let countLabelTextColor: Signal<UIColor, Never>
-  public let countLabelBorderColor: Signal<UIColor, Never>
-  public let countLabelBackgroundColor: Signal<UIColor, Never>
-  public let labelText: Signal<String, Never>
-  public let labelTextColor: Signal<UIColor, Never>
-  public let topSeparatorViewHidden: Signal<Bool, Never>
-  public let separatorViewHidden: Signal<Bool, Never>
-
-  public var inputs: ProjectPamphletSubpageCellViewModelInputs { return self }
-  public var outputs: ProjectPamphletSubpageCellViewModelOutputs { return self }
 }
 
 public enum ProjectPamphletSubpageCellPosition {
