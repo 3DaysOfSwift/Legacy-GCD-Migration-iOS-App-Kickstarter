@@ -172,11 +172,6 @@ internal final class ActivitiesViewController: UITableViewController {
         NotificationCenter.default.post(.init(name: .ksr_userUpdated))
       }
 
-    self.viewModel.outputs.goToTrackShipping
-      .observeForUI()
-      .observeValues { [weak self] url in
-        self?.goTo(url: url)
-      }
   }
 
   internal override func tableView(
@@ -310,6 +305,6 @@ extension ActivitiesViewController: ManagePledgeViewControllerDelegate {
 
 extension ActivitiesViewController: RewardTrackingDetailsViewDelegate {
   func didTapTrackingButton(with trackingURL: URL) {
-    self.viewModel.inputs.tappedTrackShipping(with: trackingURL)
+    self.goTo(url: trackingURL)
   }
 }
