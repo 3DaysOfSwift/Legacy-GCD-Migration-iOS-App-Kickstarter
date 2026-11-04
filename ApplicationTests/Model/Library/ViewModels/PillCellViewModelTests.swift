@@ -1,28 +1,15 @@
 @testable import Kickstarter_iOS
-@testable import KsApi
-
-
-import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
+@MainActor
 final class PillCellViewModelTests: TestCase {
-  private let text = TestObserver<String, Never>()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private let vm: PillCellViewModelType = PillCellViewModel()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.text.observe(self.text.observer)
-  }
-
-  func testText() {
-    self.text.assertDidNotEmitValue()
-    self.vm.inputs.configure(with: "hi")
-
-    self.text.assertValues(["hi"])
+  func testConfiguringReusedCellUpdatesText() {
+    let cell = PillCell(frame: .zero)
+    cell.configureWith(value: "First")
+    XCTAssertEqual(cell.label.text, "First")
+    cell.configureWith(value: "Second")
+    XCTAssertEqual(cell.label.text, "Second")
   }
 }

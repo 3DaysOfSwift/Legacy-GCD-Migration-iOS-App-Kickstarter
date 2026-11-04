@@ -1,7 +1,6 @@
 import KDS
 
 import Prelude
-import ReactiveSwift
 import UIKit
 
 final class PillCell: UICollectionViewCell, ValueCell {
@@ -12,7 +11,6 @@ final class PillCell: UICollectionViewCell, ValueCell {
       |> \.translatesAutoresizingMaskIntoConstraints .~ false
   }()
 
-  private let viewModel: PillCellViewModelType = PillCellViewModel()
 
   // MARK: - Lifecycle
 
@@ -21,7 +19,6 @@ final class PillCell: UICollectionViewCell, ValueCell {
 
     self.configureSubviews()
     self.bindStyles()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -41,18 +38,10 @@ final class PillCell: UICollectionViewCell, ValueCell {
       |> labelStyle
   }
 
-  // MARK: - View Model
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.label.rac.text = self.viewModel.outputs.text
-  }
-
   // MARK: - Configuration
 
   func configureWith(value: String) {
-    self.viewModel.inputs.configure(with: value)
+    self.label.text = value
   }
 
   // MARK: - Functions

@@ -869,7 +869,6 @@
 			"sourceTree" = "<group>";
 			"children" = (
 				"302231DAEA31955272268827",
-				"6216F9199F037242902C462D",
 				"440606D88DAFC69660C89CBB",
 				"4D43E35DC5252104EA95F13A",
 				"AB32B861CA41C5C382291AF6",
@@ -3333,10 +3332,6 @@
 		"CFA031200000000000000001" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "CFA031200000000000000002";
-		};
-		"C516BE0389BA7BC772CDAED8" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "6216F9199F037242902C462D";
 		};
 		"AA2137F42F61EEF5000BA745" = {
 			"path" = "RichTextExampleProjectsQuery.graphql";
@@ -8190,7 +8185,6 @@
 				"ABC9BB7BD64EE3FE2D0077E2",
 				"C1B2C0C80001047CF6F6746B",
 				"6AB3B9DFD08B8C1AF620E812",
-				"C516BE0389BA7BC772CDAED8",
 				"414D32AB04E60483FE7C51ED",
 				"9FB5BE94DE2F8B9DB5E0FBDC",
 				"55BDD1EB49B8A3F1B6F97732",
@@ -18513,13 +18507,6 @@
 		"50C05037A3946671223BEC68" = {
 			"isa" = "PBXBuildFile";
 			"productRef" = "684BEAAE4A7946CA87DEB952";
-		};
-		"6216F9199F037242902C462D" = {
-			"name" = "PillCellViewModel.swift";
-			"path" = "Kickstarter-iOS/1 - View/Views/RewardsCollection/Views/Cells/PillCellViewModel.swift";
-			"isa" = "PBXFileReference";
-			"sourceTree" = "SOURCE_ROOT";
-			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"214AEC442B725BE408DD3C2F" = {
 			"isa" = "PBXBuildFile";
