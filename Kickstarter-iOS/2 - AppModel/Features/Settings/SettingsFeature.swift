@@ -123,7 +123,6 @@ public final class SettingsFeature {
   private var notificationTails: [Int: NotificationWrite] = [:]
   private var notificationWrites: [UUID: Task<ProjectNotification, Error>] = [:]
   private var notificationRevision = 0
-  private let notificationResults = Signal<(UUID, Result<ProjectNotification, Error>), Never>.pipe()
 
   private let session: SessionFeature
   private let makeProvider: () -> any AccountPreferencesProvider
@@ -600,7 +599,6 @@ public final class SettingsFeature {
       }
       self.notificationWrites[id] = nil
       if self.notificationTails[notification.id]?.id == id { self.notificationTails[notification.id] = nil }
-      self.notificationResults.input.send(value: (id, result))
       return try result.get()
     }
     let pending = NotificationWrite(
@@ -622,35 +620,9 @@ public final class SettingsFeature {
     return notification |> ProjectNotification.lens.email .~ on |> ProjectNotification.lens.mobile .~ on
   }
 
-  /// Compatibility output only. Disposal stops presentation, never an admitted write.
-  public func projectNotificationResult(_ notification: ProjectNotification)
-    -> SignalProducer<ProjectNotification, ErrorEnvelope> {
-    let userID = self.session.currentUser?.id
-    let generation = self.session.generation
-    return SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        guard self.session.isCurrent(userID: userID, generation: generation) else {
-          observer.sendInterrupted()
-          return
-        }
-        do {
-          let pending = try self.notificationRequest(notification)
-          let subscription = self.notificationResults.output.filter { $0.0 == pending.id }.take(first: 1)
-            .observeValues { _, result in
-              switch result {
-              case let .success(value): observer.send(value: value); observer.sendCompleted()
-              case .failure(is CancellationError): observer.sendInterrupted()
-              case let .failure(error): observer.send(error: error as? ErrorEnvelope ?? .couldNotParseJSON)
-              }
-            }
-          lifetime.observeEnded { subscription?.dispose() }
-        } catch { observer.sendInterrupted() }
-      }
-    }
-    .materialize()
-    .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-    .filter { _ in self.session.isCurrent(userID: userID, generation: generation) }
-    .dematerialize()
+  /// Admits an ordered write synchronously. Canceling a screen's observer does not cancel it.
+  func requestProjectNotificationSave(_ notification: ProjectNotification) throws -> Task<ProjectNotification, Error> {
+    try self.notificationRequest(notification).task
   }
 
   /// Waits for owned executions, not presentation scheduler delays.

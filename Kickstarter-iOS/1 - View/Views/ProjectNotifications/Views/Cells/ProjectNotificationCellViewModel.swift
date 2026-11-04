@@ -1,84 +1,67 @@
+import Foundation
 import KsApi
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 
 @MainActor
-public protocol ProjectNotificationCellViewModelInputs {
-  /// Call with the initial cell notification value.
-  func configureWith(notification: ProjectNotification)
-
-  /// Call when the notification switch is tapped.
-  func notificationTapped(on: Bool)
-}
-
-@MainActor
-public protocol ProjectNotificationCellViewModelOutputs {
-  /// Emits the project name.
-  var name: Signal<String, Never> { get }
-
-  /// Emits true when the notification is turned on, false otherwise.
-  var notificationOn: Signal<Bool, Never> { get }
-
-  /// Emits when an update error has occurred and a message should be displayed.
-  var notifyDelegateOfSaveError: Signal<String, Never> { get }
-}
-
-@MainActor
-public protocol ProjectNotificationCellViewModelType {
-  var inputs: ProjectNotificationCellViewModelInputs { get }
-  var outputs: ProjectNotificationCellViewModelOutputs { get }
-}
-
-@MainActor
-public final class ProjectNotificationCellViewModel: ProjectNotificationCellViewModelType,
-  ProjectNotificationCellViewModelInputs, ProjectNotificationCellViewModelOutputs {
+public final class ProjectNotificationCellViewModel {
+  var onName: ((String) -> Void)?
+  var onSwitch: ((Bool) -> Void)?
+  var onError: ((String) -> Void)?
   private let feature: SettingsFeature
+  private let sleep: (TimeInterval) async throws -> Void
   private var notification: ProjectNotification?
-  private let presentation = ScopedDisposable(SerialDisposable())
-  private let names = Signal<String, Never>.pipe()
-  private let switches = Signal<Bool, Never>.pipe()
-  private let errors = Signal<String, Never>.pipe()
+  private var presentation: Task<Void, Never>?
+  private var revision = UUID()
+  private var lastSwitch: Bool?
 
-  public init(feature: SettingsFeature? = nil) {
+  public init(feature: SettingsFeature? = nil, sleep: @escaping (TimeInterval) async throws -> Void = { delay in
+    if delay.isInfinite { try await Task.sleep(nanoseconds: UInt64.max) }
+    else if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
+  }) {
     self.feature = feature ?? AppModel.shared.settingsFeature
-    self.notificationOn = self.switches.output.skipRepeats()
+    self.sleep = sleep
+  }
+
+  private func publishSwitch(_ on: Bool) {
+    guard self.lastSwitch != on else { return }
+    self.lastSwitch = on
+    self.onSwitch?(on)
   }
 
   public func configureWith(notification: ProjectNotification) {
-    // Reused cells cannot receive a previous project's delayed save/error.
-    self.presentation.inner.inner = nil
+    self.revision = UUID()
+    self.presentation?.cancel()
     let current = self.feature.cachedProjectNotification(notification)
     self.notification = current
-    self.names.input.send(value: current.project.name)
-    self.switches.input.send(value: current.email && current.mobile)
+    self.onName?(current.project.name)
+    self.publishSwitch(current.email && current.mobile)
   }
 
   public func notificationTapped(on: Bool) {
     guard let source = self.notification else { return }
-    self.switches.input.send(value: on)
-    let edited = source
-      |> ProjectNotification.lens.email .~ on
-      |> ProjectNotification.lens.mobile .~ on
-    self.presentation.inner.inner = nil
-    self.presentation.inner.inner = self.feature.projectNotificationResult(edited).startWithResult { [weak self] result in
-      guard let self else { return }
-      switch result {
-      case .success:
-        // Confirmed state is in the shared cache; presentation remains optimistic.
-        break
-      case let .failure(error):
+    self.publishSwitch(on)
+    let edited = source |> ProjectNotification.lens.email .~ on |> ProjectNotification.lens.mobile .~ on
+    self.presentation?.cancel()
+    let revision = UUID()
+    self.revision = revision
+    let session = self.feature.sessionFeature
+    let userID = session.currentUser?.id
+    let generation = session.generation
+    guard let command = try? self.feature.requestProjectNotificationSave(edited) else { return }
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    let sleep = self.sleep
+    self.presentation = Task { [weak self] in
+      let result = await command.result
+      do { try await sleep(delay); try Task.checkCancellation() } catch { return }
+      guard let self, self.revision == revision,
+            session.isCurrent(userID: userID, generation: generation) else { return }
+      if case let .failure(error) = result, !(error is CancellationError) {
         let confirmed = self.feature.cachedProjectNotification(source)
-        self.errors.input.send(value: error.errorMessages.first ?? Strings.profile_settings_error())
-        self.switches.input.send(value: confirmed.email && confirmed.mobile)
+        self.onError?((error as? ErrorEnvelope)?.errorMessages.first ?? Strings.profile_settings_error())
+        self.publishSwitch(confirmed.email && confirmed.mobile)
       }
     }
   }
 
-
-  public var name: Signal<String, Never> { self.names.output }
-  public let notificationOn: Signal<Bool, Never>
-  public var notifyDelegateOfSaveError: Signal<String, Never> { self.errors.output }
-  public var inputs: ProjectNotificationCellViewModelInputs { self }
-  public var outputs: ProjectNotificationCellViewModelOutputs { self }
+  func waitForPresentation() async { await self.presentation?.value }
 }

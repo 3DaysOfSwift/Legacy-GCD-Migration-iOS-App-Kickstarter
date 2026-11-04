@@ -3,7 +3,6 @@
 
 
 import Prelude
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -33,12 +32,12 @@ final class SettingsProjectNotificationsTests: TestCase {
     let off = ProjectNotification.template
       |> ProjectNotification.lens.email .~ false |> ProjectNotification.lens.mobile .~ false
     let on = off |> ProjectNotification.lens.email .~ true |> ProjectNotification.lens.mobile .~ true
-    // Producer admission is synchronous; disposing each observer must not drop the command.
-    let first = self.feature.projectNotificationResult(on).start()
-    let duplicate = self.feature.projectNotificationResult(on).start()
-    let second = self.feature.projectNotificationResult(off).start()
-    let third = self.feature.projectNotificationResult(on).start()
-    first.dispose(); duplicate.dispose(); second.dispose(); third.dispose()
+    let first = try self.feature.requestProjectNotificationSave(on)
+    let duplicate = try self.feature.requestProjectNotificationSave(on)
+    let second = try self.feature.requestProjectNotificationSave(off)
+    let third = try self.feature.requestProjectNotificationSave(on)
+    let observer = Task { _ = await first.result }
+    observer.cancel()
     await self.provider.writes.waitFor(1)
     XCTAssertEqual(self.provider.sent.map(\.email), [true])
     try self.provider.writes.finish(0, .success(on))
@@ -48,6 +47,7 @@ final class SettingsProjectNotificationsTests: TestCase {
     await self.provider.writes.waitFor(3)
     XCTAssertEqual(self.provider.sent.map(\.email), [true, false, true])
     try self.provider.writes.finish(2, .success(on))
+    for command in [first, duplicate, second, third] { _ = try await command.value }
     await self.feature.waitForOperations()
     XCTAssertTrue(self.feature.cachedProjectNotification(off).email)
     XCTAssertTrue(self.feature.cachedProjectNotification(off).mobile)
@@ -120,9 +120,8 @@ final class SettingsProjectNotificationsTests: TestCase {
     let vm = ProjectNotificationCellViewModel(feature: self.feature)
     var errors: [String] = []
     var switches: [Bool] = []
-    let errorObservation = vm.outputs.notifyDelegateOfSaveError.observeValues { errors.append($0) }
-    let switchObservation = vm.outputs.notificationOn.observeValues { switches.append($0) }
-    defer { errorObservation?.dispose(); switchObservation?.dispose() }
+    vm.onError = { errors.append($0) }
+    vm.onSwitch = { switches.append($0) }
     vm.configureWith(notification: .template)
     vm.notificationTapped(on: true)
     await self.provider.writes.waitFor(1)
@@ -130,27 +129,28 @@ final class SettingsProjectNotificationsTests: TestCase {
     vm.configureWith(notification: other)
     try self.provider.writes.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
     await self.feature.waitForOperations()
-    await self.scheduler.advance()
+    await vm.waitForPresentation()
     XCTAssertEqual(errors, [])
     XCTAssertEqual(switches, [false, true, false])
   }
 
   func testDelayedErrorCannotReachReplacementSession() async throws {
-    await withEnvironment(apiDelayInterval: .seconds(1)) {
-      let vm = ProjectNotificationCellViewModel(feature: self.feature)
-      var errors: [String] = []
-      let observation = vm.outputs.notifyDelegateOfSaveError.observeValues { errors.append($0) }
-      defer { observation?.dispose() }
-      vm.configureWith(notification: .template)
-      vm.notificationTapped(on: true)
-      await self.provider.writes.waitFor(1)
-      try? self.provider.writes.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
-      await self.feature.waitForOperations()
-      self.session.sessionChanged()
-      await self.scheduler.advance(by: .seconds(2))
-      XCTAssertEqual(errors, [])
-    }
+    let delay = AccountRequestGate<Void>()
+    defer { delay.releaseAll() }
+    let vm = ProjectNotificationCellViewModel(feature: self.feature, sleep: { _ in try await delay.request() })
+    var errors: [String] = []
+    vm.onError = { errors.append($0) }
+    vm.configureWith(notification: .template)
+    vm.notificationTapped(on: true)
+    await self.provider.writes.waitFor(1)
+    try self.provider.writes.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
+    await delay.waitFor(1)
+    self.session.sessionChanged()
+    try delay.finish(0, .success(()))
+    await vm.waitForPresentation()
+    XCTAssertEqual(errors, [])
   }
+
 }
 
 @MainActor

@@ -45,22 +45,22 @@ internal final class ProjectNotificationCell: UITableViewCell, ValueCell {
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.nameLabel.rac.text = self.viewModel.outputs.name
-    self.notificationSwitch.rac.accessibilityLabel = self.viewModel.outputs.name
-    self.notificationSwitch.rac.on = self.viewModel.outputs.notificationOn
-
-    self.viewModel.outputs.notifyDelegateOfSaveError
-      .observeForUI()
-      .observeValues { [weak self] message in
-        self?.delegate?.projectNotificationCell(self, notificationSaveError: message)
-      }
+    self.viewModel.onName = { [weak self] name in
+      self?.nameLabel.text = name
+      self?.notificationSwitch.accessibilityLabel = name
+    }
+    self.viewModel.onSwitch = { [weak self] in self?.notificationSwitch.isOn = $0 }
+    self.viewModel.onError = { [weak self] message in
+      guard let self else { return }
+      self.delegate?.projectNotificationCell(self, notificationSaveError: message)
+    }
   }
 
   internal func configureWith(value: ProjectNotification) {
-    self.viewModel.inputs.configureWith(notification: value)
+    self.viewModel.configureWith(notification: value)
   }
 
   @objc fileprivate func notificationTapped(_: UISwitch) {
-    self.viewModel.inputs.notificationTapped(on: self.notificationSwitch.isOn)
+    self.viewModel.notificationTapped(on: self.notificationSwitch.isOn)
   }
 }
