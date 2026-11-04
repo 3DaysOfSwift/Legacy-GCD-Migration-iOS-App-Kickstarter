@@ -111,13 +111,8 @@ internal final class MessagesViewController: UITableViewController, MessageBanne
       self?.goTo(project: project, refTag: refTag)
     }
 
-    self.viewModel.outputs.goToBacking
-      .observeForControllerAction()
-      .observeValues { [weak self] params in self?.goToBacking(with: params) }
-
-    self.viewModel.outputs.goToPledgeManagementViewPledge
-      .observeForControllerAction()
-      .observeValues { [weak self] url in self?.goToPMPledeView(with: url) }
+    self.viewModel.onBackingNavigation = { [weak self] in self?.goToBacking(with: $0) }
+    self.viewModel.onPledgeManagement = { [weak self] in self?.goToPMPledeView(with: $0) }
 
     self.viewModel.onBlockSuccess = { [weak self] in
       self?.messageBannerViewController?.showBanner(with: .success, message: Strings.Block_user_success())

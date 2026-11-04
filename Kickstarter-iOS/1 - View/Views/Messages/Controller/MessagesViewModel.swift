@@ -42,12 +42,6 @@ public protocol MessagesViewModelOutputs {
   /// Emits a boolean that determines if the empty state is visible and a message to display.
   var emptyStateIsVisibleAndMessageToUser: Signal<(Bool, String), Never> { get }
 
-  /// Emits when we should go to the backing screen.
-  var goToBacking: Signal<ManagePledgeViewParamConfigData, Never> { get }
-
-  /// Emits when we should go to the Pledge Management View Pledge webview.
-  var goToPledgeManagementViewPledge: Signal<String, Never> { get }
-
   /// Emits a list of messages to be displayed.
   var messages: Signal<[Message], Never> { get }
 
@@ -134,15 +128,6 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
     )
     self.backingAndProjectAndIsFromBacking = self.backingPipe.output
 
-    let projectAndBacking = self.backingAndProjectAndIsFromBacking.map { backing, project, _ -> (
-      Project,
-      Backing
-    ) in
-      (project, backing)
-    }
-
-    self.viewPledgeUseCase = .init(with: projectAndBacking)
-
     self.messages = messageThreadEnvelope
       .map { $0.messages }
       .sort { $0.id > $1.id }
@@ -176,6 +161,9 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
       messages && !isBlocked
     }
 
+    self.backingAndProjectAndIsFromBacking.observeValues { [weak self] backing, project, _ in
+      self?.latestProjectBacking = (project, backing)
+    }
     threadRequests.observeValues { [weak self] in self?.loadThread($0) }
     backingRequests.observeValues { [weak self] backing, project, participant, currentUser, envelope in
       self?.loadBacking(backing, project: project, participant: participant, currentUser: currentUser, envelope: envelope)
@@ -279,8 +267,15 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
     self.backingTask?.cancel()
   }
 
+  var onBackingNavigation: ((ManagePledgeViewParamConfigData) -> Void)?
+  var onPledgeManagement: ((String) -> Void)?
+  private var latestProjectBacking: (Project, Backing)?
   public func backingInfoPressed() {
-    self.viewPledgeUseCase.goToPledgeViewTapped()
+    guard let (project, backing) = self.latestProjectBacking else { return }
+    switch pledgeDestination(project: project, backing: backing) {
+    case let .native(params): self.onBackingNavigation?(params)
+    case let .web(url): self.onPledgeManagement?(url)
+    }
   }
 
   public func blockUser(id: String) {
@@ -353,22 +348,12 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
     self.viewWillAppearProperty.value = ()
   }
 
-  private let viewPledgeUseCase: ViewPledgeUseCase
-
   public let backingAndProjectAndIsFromBacking: Signal<(Backing, Project, Bool), Never>
   public let emptyStateIsVisibleAndMessageToUser: Signal<(Bool, String), Never>
   public let messages: Signal<[Message], Never>
   public let participantPreviouslyBlocked: Signal<Bool, Never>
   public let project: Signal<Project, Never>
   public let replyButtonIsEnabled: Signal<Bool, Never>
-
-  public var goToBacking: Signal<ManagePledgeViewParamConfigData, Never> {
-    self.viewPledgeUseCase.goToNativePledgeView
-  }
-
-  public var goToPledgeManagementViewPledge: Signal<String, Never> {
-    self.viewPledgeUseCase.goToPledgeManagementPledgeView
-  }
 
   public var inputs: MessagesViewModelInputs { return self }
   public var outputs: MessagesViewModelOutputs { return self }

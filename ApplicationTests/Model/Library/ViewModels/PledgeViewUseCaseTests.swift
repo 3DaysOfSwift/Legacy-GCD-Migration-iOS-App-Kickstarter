@@ -8,6 +8,7 @@ import ReactiveSwift
 import XCTest
 
 final class PledgeViewUseCaseTests: TestCase {
+  override var requiresSnapshotReferenceSimulator: Bool { false }
   private var useCase: ViewPledgeUseCase!
 
   private let goToNativePledgeViewProjectParam = TestObserver<Param, Never>()

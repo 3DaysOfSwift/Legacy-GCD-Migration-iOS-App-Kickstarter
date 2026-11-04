@@ -24,28 +24,16 @@ public final class ViewPledgeUseCase: ViewPledgeUseCaseType,
   ViewPledgeUseCaseInputs,
   ViewPledgeUseCaseOutputs {
   public init(with projectAndBacking: Signal<(Project, Backing), Never>) {
-    let goToPledgeViewSignal = self.goToPledgeViewTappedProperty.signal
-
-    let shouldGoToPledgeManagementPledgeView = projectAndBacking
-      .takeWhen(goToPledgeViewSignal)
-      .map { project, backing -> Bool in
-        guard let order = backing.order, let isBacking = project.personalization.isBacking,
-              isBacking else { return false }
-
-        return order.checkoutState == .complete
-      }
-
-    self.goToPledgeManagementPledgeView = projectAndBacking
-      .takeWhen(shouldGoToPledgeManagementPledgeView.filter { $0 })
-      .compactMap { _, backing in
-        backing.backingDetailsPageRoute
-      }
-
-    self.goToNativePledgeView = projectAndBacking
-      .takeWhen(shouldGoToPledgeManagementPledgeView.filter { !$0 })
-      .map { project, backing in
-        (projectParam: Param.slug(project.slug), backingParam: Param.id(backing.id))
-      }
+    let destination = projectAndBacking.takeWhen(self.goToPledgeViewTappedProperty.signal)
+      .map { pledgeDestination(project: $0.0, backing: $0.1) }
+    self.goToPledgeManagementPledgeView = destination.compactMap {
+      if case let .web(url) = $0 { return url }
+      return nil
+    }
+    self.goToNativePledgeView = destination.compactMap {
+      if case let .native(params) = $0 { return params }
+      return nil
+    }
   }
 
   public let goToNativePledgeView: Signal<ManagePledgeViewParamConfigData, Never>
@@ -58,4 +46,16 @@ public final class ViewPledgeUseCase: ViewPledgeUseCaseType,
   public func goToPledgeViewTapped() {
     self.goToPledgeViewTappedProperty.value = ()
   }
+}
+
+enum ViewPledgeDestination {
+  case native(ManagePledgeViewParamConfigData)
+  case web(String)
+}
+
+func pledgeDestination(project: Project, backing: Backing) -> ViewPledgeDestination {
+  if let order = backing.order, project.personalization.isBacking == true, order.checkoutState == .complete {
+    return .web(backing.backingDetailsPageRoute)
+  }
+  return .native((projectParam: .slug(project.slug), backingParam: .id(backing.id)))
 }
