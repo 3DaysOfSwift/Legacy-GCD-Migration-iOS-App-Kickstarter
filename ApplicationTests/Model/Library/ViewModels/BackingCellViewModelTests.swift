@@ -3,30 +3,31 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import UIKit
+import XCTest
 
 @MainActor
 internal final class BackingCellViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  fileprivate let vm: BackingCellViewModelType = BackingCellViewModel()
+  fileprivate let vm: BackingCellViewModel = BackingCellViewModel()
 
-  private let backingInfoButtonIsHidden = TestObserver<Bool, Never>()
-  fileprivate let delivery = TestObserver<String, Never>()
-  fileprivate let pledged = TestObserver<String, Never>()
-  fileprivate let reward = TestObserver<String, Never>()
-  fileprivate let rootStackViewAlignment = TestObserver<UIStackView.Alignment, Never>()
+  private let backingInfoButtonIsHidden = BackingRecorder<Bool>()
+  fileprivate let delivery = BackingRecorder<String>()
+  fileprivate let pledged = BackingRecorder<String>()
+  fileprivate let reward = BackingRecorder<String>()
+  fileprivate let rootStackViewAlignment = BackingRecorder<UIStackView.Alignment>()
 
   override func setUp() async throws {
     try await super.setUp()
 
-    self.vm.outputs.backingInfoButtonIsHidden.observe(self.backingInfoButtonIsHidden.observer)
-    self.vm.outputs.pledged.observe(self.pledged.observer)
-    self.vm.outputs.reward.observe(self.reward.observer)
-    self.vm.outputs.delivery.observe(self.delivery.observer)
-    self.vm.outputs.rootStackViewAlignment.observe(self.rootStackViewAlignment.observer)
+    self.vm.onDisplay = { [weak self] display in
+      self?.backingInfoButtonIsHidden.values.append(display.isBackingInfoHidden)
+      self?.pledged.values.append(display.pledged)
+      self?.reward.values.append(display.reward)
+      self?.delivery.values.append(display.delivery)
+      self?.rootStackViewAlignment.values.append(display.alignment)
+    }
   }
 
   func testOutputs() {
@@ -36,7 +37,7 @@ internal final class BackingCellViewModelTests: TestCase {
     self.backingInfoButtonIsHidden.assertValueCount(0)
     self.pledged.assertValueCount(0)
 
-    self.vm.inputs.configureWith(backing: backing, project: Project.template, isFromBacking: true)
+    self.vm.configureWith(backing: backing, project: Project.template, isFromBacking: true)
 
     self.backingInfoButtonIsHidden.assertValues([true])
     self.pledged.assertValueCount(1)
@@ -58,7 +59,7 @@ internal final class BackingCellViewModelTests: TestCase {
     let backing = .template |> Backing.lens.reward .~ reward
 
     withEnvironment(isVoiceOverRunning: { true }) {
-      self.vm.inputs.configureWith(backing: backing, project: Project.template, isFromBacking: true)
+      self.vm.configureWith(backing: backing, project: Project.template, isFromBacking: true)
 
       self.rootStackViewAlignment.assertValues([UIStackView.Alignment.fill])
     }
@@ -70,8 +71,18 @@ internal final class BackingCellViewModelTests: TestCase {
 
     self.backingInfoButtonIsHidden.assertValueCount(0)
 
-    self.vm.inputs.configureWith(backing: backing, project: Project.template, isFromBacking: false)
+    self.vm.configureWith(backing: backing, project: Project.template, isFromBacking: false)
 
     self.backingInfoButtonIsHidden.assertValues([false])
+  }
+}
+
+private final class BackingRecorder<Value: Equatable> {
+  var values: [Value] = []
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
   }
 }

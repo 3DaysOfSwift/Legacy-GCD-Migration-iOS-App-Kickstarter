@@ -2,7 +2,6 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveExtensions
 import UIKit
 
 @MainActor
@@ -12,7 +11,7 @@ internal protocol BackingCellDelegate: AnyObject {
 }
 
 internal final class BackingCell: UITableViewCell, ValueCell {
-  fileprivate let viewModel: BackingCellViewModelType = BackingCellViewModel()
+  fileprivate let viewModel: BackingCellViewModel = BackingCellViewModel()
 
   @IBOutlet private var backingInfoButton: UIButton!
   @IBOutlet private var deliveryLabel: UILabel!
@@ -35,7 +34,7 @@ internal final class BackingCell: UITableViewCell, ValueCell {
   }
 
   internal func configureWith(value: (backing: Backing, project: Project, isFromBacking: Bool)) {
-    self.viewModel.inputs.configureWith(
+    self.viewModel.configureWith(
       backing: value.backing,
       project: value.project,
       isFromBacking: value.isFromBacking
@@ -81,11 +80,13 @@ internal final class BackingCell: UITableViewCell, ValueCell {
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.backingInfoButton.rac.hidden = self.viewModel.outputs.backingInfoButtonIsHidden
-    self.pledgedLabel.rac.text = self.viewModel.outputs.pledged
-    self.rewardLabel.rac.text = self.viewModel.outputs.reward
-    self.deliveryLabel.rac.text = self.viewModel.outputs.delivery
-    self.rootStackView.rac.alignment = self.viewModel.outputs.rootStackViewAlignment
+    self.viewModel.onDisplay = { [weak self] display in
+      self?.backingInfoButton.isHidden = display.isBackingInfoHidden
+      self?.pledgedLabel.text = display.pledged
+      self?.rewardLabel.text = display.reward
+      self?.deliveryLabel.text = display.delivery
+      self?.rootStackView.alignment = display.alignment
+    }
   }
 
   @objc private func backingInfoButtonTapped() {
