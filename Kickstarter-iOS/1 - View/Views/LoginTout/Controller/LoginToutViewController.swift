@@ -54,7 +54,7 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
   private var sessionStartedObserver: MainActorNotificationObservation?
   private let oauth = OAuth()
 
-  private let viewModel: LoginToutViewModelType = LoginToutViewModel()
+  private let viewModel: LoginToutViewModel = LoginToutViewModel()
 
   // MARK: - Configuration
 
@@ -242,15 +242,11 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
         self?.goToHelpType(helpType)
       }
 
-    self.contextLabel.rac.text = self.viewModel.outputs.logInContextText
-    self.bringCreativeProjectsToLifeLabel.rac.hidden = self.viewModel.outputs.headlineLabelHidden
-
-    self.viewModel.outputs.headlineLabelHidden
-      .observeForUI()
-      .observeValues { [weak self] isHidden in
-        _ = self?.contextLabel
-          ?|> UILabel.lens.font .~ (isHidden ? UIFont.ksr_title2() : UIFont.ksr_subhead())
-      }
+    self.viewModel.onContext = { [weak self] text, isHidden in
+      self?.contextLabel.text = text
+      self?.bringCreativeProjectsToLifeLabel.isHidden = isHidden
+      self?.contextLabel.font = isHidden ? UIFont.ksr_title2() : UIFont.ksr_subhead()
+    }
 
     self.viewModel.outputs.attemptAppleLogin
       .observeForUI()

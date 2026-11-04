@@ -57,14 +57,8 @@ public protocol LoginToutViewModelOutputs {
   /// Emits when the controller should be dismissed.
   var dismissViewController: Signal<(), Never> { get }
 
-  /// Emits if label should be hidden.
-  var headlineLabelHidden: Signal<Bool, Never> { get }
-
   /// Emits whether a request is loading or not
   var isLoading: Signal<Bool, Never> { get }
-
-  /// Emits the login context to be displayed.
-  var logInContextText: Signal<String, Never> { get }
 
   /// Emits an access token envelope that can be used to update the environment via Apple.
   var logIntoEnvironmentWithApple: Signal<AccessTokenEnvelope, Never> { get }
@@ -105,15 +99,6 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
   LoginToutViewModelOutputs {
   public init(authenticationFeature: AuthenticationFeature? = nil) {
     let authenticationFeature = authenticationFeature ?? AppModel.shared.authenticationFeature
-    let intent: Signal<LoginIntent, Never> = self.loginIntentProperty.signal.skipNil()
-      .takeWhen(self.viewWillAppearProperty.signal)
-
-    self.logInContextText = intent.map { (intent: LoginIntent) -> String in statusString(intent) }
-
-    self.headlineLabelHidden = intent.map { (intent: LoginIntent) -> Bool in
-      intent != LoginIntent.generic && intent != LoginIntent.discoveryOnboarding
-    }
-
     let isLoading: MutableProperty<Bool> = MutableProperty(false)
 
     self.isLoading = isLoading.signal.skipRepeats()
@@ -251,9 +236,10 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
     self.appleAuthorizationDidFailWithErrorProperty.value = error
   }
 
-  fileprivate let loginIntentProperty = MutableProperty<LoginIntent?>(.loginTab)
+  var onContext: ((String, Bool) -> Void)?
+  private var configuredIntent: LoginIntent?
   public func configureWith(_ intent: LoginIntent) {
-    self.loginIntentProperty.value = intent
+    self.configuredIntent = intent
   }
 
   fileprivate let environmentLoggedInProperty = MutableProperty(())
@@ -294,14 +280,15 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
   fileprivate var viewWillAppearProperty = MutableProperty(())
   public func viewWillAppear() {
     self.viewWillAppearProperty.value = ()
+    if let intent = self.configuredIntent {
+      self.onContext?(statusString(intent), intent != .generic && intent != .discoveryOnboarding)
+    }
   }
 
   public let attemptAppleLogin: Signal<(), Never>
   public let attemptFacebookLogin: Signal<(), Never>
   public let dismissViewController: Signal<(), Never>
-  public let headlineLabelHidden: Signal<Bool, Never>
   public let isLoading: Signal<Bool, Never>
-  public let logInContextText: Signal<String, Never>
   public let logIntoEnvironmentWithApple: Signal<AccessTokenEnvelope, Never>
   public let logIntoEnvironmentWithFacebook: Signal<AccessTokenEnvelope, Never>
   public let postNotification: Signal<(Notification, Notification), Never>

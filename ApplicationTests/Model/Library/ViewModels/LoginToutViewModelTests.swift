@@ -19,7 +19,7 @@ final class LoginToutViewModelTests: TestCase {
     }),
     makeProvider: { AsyncAuthenticationProvider(service: AppEnvironment.current.apiService) }
   )
-  private lazy var vm: LoginToutViewModelType = LoginToutViewModel(
+  private lazy var vm: LoginToutViewModel = LoginToutViewModel(
     authenticationFeature: self
       .authenticationFeature
   )
@@ -54,9 +54,11 @@ final class LoginToutViewModelTests: TestCase {
     self.vm.outputs.attemptAppleLogin.observe(self.attemptAppleLogin.observer)
     self.vm.outputs.attemptFacebookLogin.observe(self.attemptFacebookLogin.observer)
     self.vm.outputs.dismissViewController.observe(self.dismissViewController.observer)
-    self.vm.outputs.headlineLabelHidden.observe(self.headlineLabelHidden.observer)
+    self.vm.onContext = { [weak self] text, hidden in
+      self?.logInContextText.observer.send(value: text)
+      self?.headlineLabelHidden.observer.send(value: hidden)
+    }
     self.vm.outputs.isLoading.observe(self.isLoading.observer)
-    self.vm.outputs.logInContextText.observe(self.logInContextText.observer)
     self.vm.outputs.logIntoEnvironmentWithApple.observe(self.logIntoEnvironmentWithApple.observer)
     self.vm.outputs.logIntoEnvironmentWithFacebook.observe(self.logIntoEnvironmentWithFacebook.observer)
     self.vm.outputs.postNotification.map { ($0.0.name, $0.1.name) }.observe(self.postNotification.observer)
