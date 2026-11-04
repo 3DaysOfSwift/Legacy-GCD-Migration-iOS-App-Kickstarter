@@ -1,47 +1,18 @@
 @testable import Kickstarter_iOS
 @testable import KsApi
 
-
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
-final class SettingsPrivacySwitchCellViewModelTests: TestCase {
-  private let privacySwitchIsOn = TestObserver<Bool, Never>()
-  private let privacySwitchToggledOn = TestObserver<Bool, Never>()
-
-  private let vm = SettingsPrivacySwitchCellViewModel()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.privacySwitchIsOn.observe(self.privacySwitchIsOn.observer)
-    self.vm.privacySwitchToggledOn.observe(self.privacySwitchToggledOn.observer)
-  }
-
-  func testPrivacySwitchIsOn_configuredWithUser() {
-    let showPublicProfileUser = User.template
-      |> UserAttribute.privacy(.showPublicProfile).keyPath .~ true
-    let privateProfileUser = User.template
-      |> UserAttribute.privacy(.showPublicProfile).keyPath .~ false
-
-    self.vm.configure(with: showPublicProfileUser)
-
-    self.privacySwitchIsOn.assertValues([false])
-
-    self.vm.configure(with: privateProfileUser)
-
-    self.privacySwitchIsOn.assertValues([false, true])
-  }
-
-  func testPrivacySwitch() {
-    self.vm.inputs.switchToggled(on: true)
-
-    self.privacySwitchToggledOn.assertValues([true])
-
-    self.vm.inputs.switchToggled(on: false)
-
-    self.privacySwitchToggledOn.assertValues([true, false])
+@MainActor
+final class SettingsPrivacySwitchCellViewModelTests: XCTestCase {
+  func testPrivacySwitchReflectsPublicProfileIncludingMissingValue() {
+    let viewModel = SettingsPrivacySwitchCellViewModel()
+    viewModel.configure(with: User.template |> \.showPublicProfile .~ true)
+    XCTAssertFalse(viewModel.privacySwitchIsOn)
+    viewModel.configure(with: User.template |> \.showPublicProfile .~ false)
+    XCTAssertTrue(viewModel.privacySwitchIsOn)
+    viewModel.configure(with: User.template |> \.showPublicProfile .~ nil)
+    XCTAssertTrue(viewModel.privacySwitchIsOn)
   }
 }
