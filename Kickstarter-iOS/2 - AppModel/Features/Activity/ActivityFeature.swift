@@ -1,6 +1,7 @@
 import Foundation
 import KsApi
 import Prelude
+import Observation
 import ReactiveSwift
 
 @MainActor
@@ -22,7 +23,7 @@ public struct AsyncActivityProvider: ActivityProvider {
 
 /// Owns the Activity tab's ordered, deduplicated history and survey requests.
 /// Refresh retains accumulated history unless the first returned page is empty.
-@MainActor
+@MainActor @Observable
 public final class ActivityFeature {
   public let sessionFeature: SessionFeature
   public private(set) var activities: [Activity] = []

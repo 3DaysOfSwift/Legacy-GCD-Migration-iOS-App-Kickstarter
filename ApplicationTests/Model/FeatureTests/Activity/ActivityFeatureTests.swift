@@ -3,6 +3,7 @@
 
 
 import Prelude
+import Observation
 import XCTest
 
 @MainActor
@@ -17,6 +18,25 @@ final class ActivityFeatureTests: TestCase {
       activities: ids.map { Activity.template |> Activity.lens.id .~ $0 },
       urls: .init(api: .init(moreActivities: cursor))
     )
+  }
+
+  func testNativeObservationTracksLoadingAndActivityChanges() async throws {
+    let provider = ControlledActivityProvider()
+    defer { provider.releaseAll() }
+    let feature = ActivityFeature(sessionFeature: self.session(), makeProvider: { provider }, sleep: { _ in })
+    let loadingChanged = expectation(description: "loading state changed")
+    withObservationTracking { _ = feature.isLoading } onChange: { loadingChanged.fulfill() }
+    let request = feature.requestPage()
+    await fulfillment(of: [loadingChanged], timeout: 2)
+    XCTAssertTrue(feature.isLoading)
+    let activitiesChanged = expectation(description: "activities changed")
+    withObservationTracking { _ = feature.activities } onChange: { activitiesChanged.fulfill() }
+    await provider.pages.waitFor(1)
+    try provider.pages.finish(0, .success(self.page([4])))
+    await request?.value
+    await fulfillment(of: [activitiesChanged], timeout: 2)
+    XCTAssertEqual(feature.activities.map(\.id), [4])
+    XCTAssertFalse(feature.isLoading)
   }
 
   func testHistorySharingPaginationSortingEmptyAndRetry() async throws {
