@@ -2,7 +2,6 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveSwift
 import UIKit
 
 protocol CategoryPillCellDelegate: AnyObject {
@@ -21,7 +20,7 @@ final class CategoryPillCell: UICollectionViewCell, ValueCell {
 
   // MARK: - Properties
 
-  private let viewModel: CategoryPillCellViewModelType = CategoryPillCellViewModel()
+  private let viewModel: CategoryPillCellViewModel = CategoryPillCellViewModel()
 
   // MARK: - Lifecycle
 
@@ -54,22 +53,18 @@ final class CategoryPillCell: UICollectionViewCell, ValueCell {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.button.rac.title = self.viewModel.outputs.buttonTitle
-    self.button.rac.selected = self.viewModel.outputs.isSelected
-
-    self.viewModel.outputs.notifyDelegatePillCellTapped
-      .observeForUI()
-      .observeValues { [weak self] indexPath, category in
-        guard let self = self else { return }
-
-        self.delegate?.categoryPillCell(self, didTapAtIndex: indexPath, withCategory: category)
-      }
+    self.viewModel.onTitle = { [weak self] in self?.button.setTitle($0, for: .normal) }
+    self.viewModel.onSelection = { [weak self] in self?.button.isSelected = $0 }
+    self.viewModel.onTap = { [weak self] indexPath, category in
+      guard let self else { return }
+      self.delegate?.categoryPillCell(self, didTapAtIndex: indexPath, withCategory: category)
+    }
   }
 
   // MARK: - Configuration
 
   func configureWith(value: CategoryPillCellValue) {
-    self.viewModel.inputs.configure(with: value)
+    self.viewModel.configure(with: value)
   }
 
   // MARK: - Functions
@@ -90,11 +85,11 @@ final class CategoryPillCell: UICollectionViewCell, ValueCell {
   // MARK: - Accessors
 
   public func setIsSelected(_ isSelected: Bool) {
-    self.viewModel.inputs.setIsSelected(selected: isSelected)
+    self.viewModel.setIsSelected(selected: isSelected)
   }
 
   @objc func pillCellTapped() {
-    self.viewModel.inputs.pillCellTapped()
+    self.viewModel.pillCellTapped()
   }
 }
 

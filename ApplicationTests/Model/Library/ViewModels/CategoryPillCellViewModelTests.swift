@@ -1,68 +1,34 @@
 @testable import Kickstarter_iOS
 @testable import KsApi
-
-
-import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
+@MainActor
 final class CategoryPillCellViewModelTests: TestCase {
-  private let buttonTitle = TestObserver<String, Never>()
-  private let isSelected = TestObserver<Bool, Never>()
-  private let notifyDelegatePillCellTappedIndexPath = TestObserver<IndexPath, Never>()
-  private let notifyDelegatePillCellTappedCategory = TestObserver<KsApi.Category, Never>()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  func testConfigurationSelectionAndTap() {
+    let vm = CategoryPillCellViewModel()
+    var titles: [String] = []
+    var selections: [Bool] = []
+    var tapped: [(IndexPath, KsApi.Category)] = []
+    vm.onTitle = { titles.append($0) }
+    vm.onSelection = { selections.append($0) }
+    vm.onTap = { tapped.append(($0, $1)) }
+    let index = IndexPath(item: 0, section: 0)
 
-  private let vm: CategoryPillCellViewModelType = CategoryPillCellViewModel()
+    vm.pillCellTapped()
+    vm.configure(with: ("title", .art, nil))
+    vm.pillCellTapped()
+    XCTAssertTrue(tapped.isEmpty)
+    vm.configure(with: ("updated", .art, index))
+    vm.setIsSelected(selected: true)
+    vm.setIsSelected(selected: true)
+    vm.setIsSelected(selected: false)
+    vm.pillCellTapped()
 
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.buttonTitle.observe(self.buttonTitle.observer)
-    self.vm.outputs.isSelected.observe(self.isSelected.observer)
-    self.vm.outputs.notifyDelegatePillCellTapped.map(first)
-      .observe(self.notifyDelegatePillCellTappedIndexPath.observer)
-    self.vm.outputs.notifyDelegatePillCellTapped.map(second)
-      .observe(self.notifyDelegatePillCellTappedCategory.observer)
-  }
-
-  func testButtonTitle() {
-    let indexPath = IndexPath(item: 0, section: 0)
-
-    self.buttonTitle.assertDidNotEmitValue()
-
-    self.vm.inputs.configure(with: ("title", .art, indexPath))
-
-    self.buttonTitle.assertValues(["title"])
-  }
-
-  func testIsSelected() {
-    let indexPath = IndexPath(item: 0, section: 0)
-
-    self.isSelected.assertDidNotEmitValue()
-
-    self.vm.inputs.configure(with: ("title", .art, indexPath))
-
-    self.vm.inputs.setIsSelected(selected: true)
-
-    self.isSelected.assertValues([true])
-
-    self.vm.inputs.setIsSelected(selected: false)
-
-    self.isSelected.assertValues([true, false])
-  }
-
-  func testNotifyDelegatePillCellTapped() {
-    let indexPath = IndexPath(item: 0, section: 0)
-
-    self.notifyDelegatePillCellTappedIndexPath.assertDidNotEmitValue()
-    self.notifyDelegatePillCellTappedCategory.assertDidNotEmitValue()
-
-    self.vm.inputs.configure(with: ("title", .art, indexPath))
-    self.vm.inputs.pillCellTapped()
-
-    self.notifyDelegatePillCellTappedIndexPath.assertValues([indexPath])
-    self.notifyDelegatePillCellTappedCategory.assertValues([.art])
+    XCTAssertEqual(titles, ["title", "updated"])
+    XCTAssertEqual(selections, [true, false])
+    XCTAssertEqual(tapped.count, 1)
+    XCTAssertEqual(tapped.first?.0, index)
+    XCTAssertEqual(tapped.first?.1, .art)
   }
 }
