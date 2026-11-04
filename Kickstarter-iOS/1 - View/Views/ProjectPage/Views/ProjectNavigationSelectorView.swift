@@ -23,7 +23,7 @@ final class ProjectNavigationSelectorView: UIView {
   internal weak var delegate: ProjectNavigationSelectorViewDelegate?
   private var selectedButtonBorderViewLeadingConstraint: NSLayoutConstraint?
   private var selectedButtonBorderViewWidthConstraint: NSLayoutConstraint?
-  private let viewModel: ProjectNavigationSelectorViewModelType = ProjectNavigationSelectorViewModel()
+  private let viewModel = ProjectNavigationSelectorViewModel()
 
   private lazy var buttonsStackView: UIStackView = {
     UIStackView(frame: .zero)
@@ -61,7 +61,7 @@ final class ProjectNavigationSelectorView: UIView {
   }
 
   internal func configure(with projectProperties: (Project, RefTag?)) {
-    self.viewModel.inputs.configureNavigationSelector(with: projectProperties)
+    self.viewModel.configureNavigationSelector(with: projectProperties)
   }
 
   // MARK: - Styles
@@ -89,30 +89,13 @@ final class ProjectNavigationSelectorView: UIView {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.animateButtonBottomBorderViewConstraints
-      .observeForUI()
-      .observeValues { [weak self] index in
-        self?.pinSelectedButtonBorderView(toIndex: index)
-      }
-
-    self.viewModel.outputs.configureNavigationSelectorUI
-      .observeForUI()
-      .observeValues { [weak self] sections in
-        self?.setupConstraintsForSelectedButtonBorderView(sections: sections)
-      }
-
-    self.viewModel.outputs.notifyDelegateProjectNavigationSelectorDidSelect
-      .observeForUI()
-      .observeValues { [weak self] index in
-        guard let self = self else { return }
-        self.delegate?.projectNavigationSelectorViewDidSelect(self, index: index)
-      }
-
-    self.viewModel.outputs.updateNavigationSelectorUI
-      .observeForUI()
-      .observeValues { [weak self] index in
-        self?.selectButton(atIndex: index)
-      }
+    self.viewModel.onAnimate = { [weak self] in self?.pinSelectedButtonBorderView(toIndex: $0) }
+    self.viewModel.onSections = { [weak self] in self?.setupConstraintsForSelectedButtonBorderView(sections: $0) }
+    self.viewModel.onSelect = { [weak self] index in
+      guard let self else { return }
+      self.delegate?.projectNavigationSelectorViewDidSelect(self, index: index)
+      self.selectButton(atIndex: index)
+    }
   }
 
   // MARK: Functions
@@ -134,7 +117,7 @@ final class ProjectNavigationSelectorView: UIView {
 
   override func didMoveToSuperview() {
     super.didMoveToSuperview()
-    self.viewModel.inputs.didMoveToSuperview()
+    self.viewModel.didMoveToSuperview()
   }
 
   private func setupConstraints() {
@@ -299,7 +282,7 @@ final class ProjectNavigationSelectorView: UIView {
 
   @objc
   private func buttonTapped(_ button: UIButton) {
-    self.viewModel.inputs.buttonTapped(index: button.tag)
+    self.viewModel.buttonTapped(index: button.tag)
   }
 }
 
