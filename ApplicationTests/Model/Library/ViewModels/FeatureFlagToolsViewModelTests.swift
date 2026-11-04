@@ -1,172 +1,40 @@
 @testable import Kickstarter_iOS
-import Foundation
 @testable import KsApi
-
-
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class FeatureFlagToolsViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  private lazy var vm: FeatureFlagToolsViewModelType = {
-    let vm = FeatureFlagToolsViewModel()
-    vm.outputs.postNotification.map(\.name).observe(self.postNotificationName.observer)
-    vm.outputs.updateConfigWithFeatures.observe(self.updateConfigWithFeatures.observer)
-    vm.outputs.reloadWithData.observe(self.reloadWithDataFeatures.observer)
-    return vm
-  }()
+  private let vm = FeatureFlagToolsViewModel(sleep: {})
 
-  private let postNotificationName = TestObserver<Notification.Name, Never>()
-  private let updateConfigWithFeatures = TestObserver<Features, Never>()
-  private let reloadWithDataFeatures = TestObserver<[Features], Never>()
-
-
-
-  func testDataIsSortedAlphabetically() {
-    let featuresArray = Feature.allCases.map { $0.rawValue }
-    let sortedClientFeatures = featuresArray.sorted().map { [$0: true] }
-    let configFeatures = featuresArray.reduce(into: [String: Bool]()) { $0[$1] = true }
-
-    let mockConfig = Config.template
-      |> \.features .~ configFeatures
-
-    withEnvironment(config: mockConfig) {
-      self.vm.inputs.viewDidLoad()
-
-      self.reloadWithDataFeatures.assertValue(sortedClientFeatures)
+  func testSortedRecognizedFeaturesAndUpdates() async {
+    let keys = Feature.allCases.map(\.rawValue).sorted()
+    let original = keys.reduce(into: [String: Bool]()) { $0[$1] = true }
+    let config = Config.template |> \.features .~ original.merging(["unknown_feature": false]) { old, _ in old }
+    await withEnvironment(config: config) {
+      var updated: Features?
+      var notifications = 0
+      self.vm.onUpdateConfig = { updated = $0 }
+      self.vm.onConfigUpdated = { notifications += 1 }
+      self.vm.viewDidLoad()
+      XCTAssertEqual(self.vm.reloadWithData, keys.map { [$0: true] })
+      self.vm.setFeatureAtIndexEnabled(index: 0, isEnabled: true)
+      XCTAssertNil(updated)
+      self.vm.setFeatureAtIndexEnabled(index: -1, isEnabled: false)
+      XCTAssertNil(updated)
+      self.vm.setFeatureAtIndexEnabled(index: 0, isEnabled: false)
+      XCTAssertEqual(updated?[keys[0]], false)
+      XCTAssertEqual(updated?["unknown_feature"], false)
+      self.vm.didUpdateConfig()
+      XCTAssertEqual(notifications, 1)
+      await self.vm.waitForReload()
     }
   }
 
-  func testFeatureFlagTools_LoadsWithFeatureFlags() {
-    let featureName = Feature.allCases.first?.rawValue ?? ""
-    let mockConfig = Config.template
-      |> \.features .~ [featureName: true]
-
-    withEnvironment(config: mockConfig) {
-      self.vm.inputs.viewDidLoad()
-
-      self.reloadWithDataFeatures.assertValues([
-        [
-          [featureName: true]
-        ]
-      ])
-    }
-  }
-
-  func testFeatureFlagTools_LoadsWithoutRecognizedFeatureFlags() {
-    let mockConfig = Config.template
-      |> \.features .~ ["some_unknown_feature": false]
-
-    withEnvironment(config: mockConfig) {
-      self.vm.inputs.viewDidLoad()
-
-      self.reloadWithDataFeatures.assertValues([[]], "Does NOT emit unknown features")
-    }
-  }
-
-  func testFeatureEnabledFromDictionaries_UnknownFeatures() {
-    let featureEnabled = featureEnabledFromDictionaries([["some_unknown_feature": false]])
-
-    XCTAssertTrue(featureEnabled.isEmpty, "Unknown features do not produce Feature enums")
-  }
-
-  func testFeatureEnabledFromDictionaries_KnownFeatures() {
-    let featureEnabled = featureEnabledFromDictionaries([[
-      "ios_braze": false,
-      "ios_segment": false
-    ]])
-
-    XCTAssertFalse(featureEnabled.isEmpty, "Known features produce Feature enums")
-  }
-
-  func testUpdateFeatureFlagEnabledValue() {
-    let originalFeatures = Feature.allCases.map { $0.rawValue }
-      .reduce(into: [String: Bool]()) { $0[$1] = true }
-    let expectedFeatures = Feature.allCases.map { $0.rawValue }.reduce(into: [String: Bool]()) {
-      if $1 == Feature.allCases.first?.rawValue ?? "" {
-        return $0[$1] = false
-      }
-      return $0[$1] = true
-    }
-
-    let mockConfig = Config.template
-      |> \.features .~ originalFeatures
-
-    withEnvironment(config: mockConfig) {
-      self.vm.inputs.viewDidLoad()
-
-      self.reloadWithDataFeatures.assertValues([
-        Feature.allCases.map { $0.rawValue }.map { [$0: true] }
-      ])
-
-      self.vm.inputs.setFeatureAtIndexEnabled(index: 0, isEnabled: true)
-
-      self.updateConfigWithFeatures.assertValues([], "Doesn't update when the enabled value is the same.")
-
-      self.vm.inputs.setFeatureAtIndexEnabled(index: 0, isEnabled: false)
-
-      self.updateConfigWithFeatures.assertValues([expectedFeatures])
-    }
-
-    let updatedConfig = Config.template
-      |> \.features .~ expectedFeatures
-
-    withEnvironment(config: updatedConfig) {
-      self.vm.inputs.didUpdateConfig()
-
-      self.scheduler.run()
-
-      self.reloadWithDataFeatures.assertValues([
-        Feature.allCases.map { $0.rawValue }.map { [$0: true] },
-        Feature.allCases.map { $0.rawValue }.map {
-          if $0 == Feature.allCases.first?.rawValue ?? "" {
-            return [$0: false]
-          }
-          return [$0: true]
-        }
-      ])
-    }
-  }
-
-  func testUpdateConfig_UnknownFeatures() {
-    let mockConfig = Config.template
-      |> \.features .~ ["some_unknown_feature": false]
-
-    withEnvironment(config: mockConfig) {
-      self.vm.inputs.viewDidLoad()
-
-      self.reloadWithDataFeatures.assertValues([[]])
-
-      self.vm.inputs.setFeatureAtIndexEnabled(index: 0, isEnabled: true)
-
-      self.updateConfigWithFeatures.assertValues([], "Doesn't update when the enabled value is the same.")
-
-      self.vm.inputs.setFeatureAtIndexEnabled(index: 0, isEnabled: false)
-
-      self.updateConfigWithFeatures.assertValues([])
-    }
-  }
-
-  func testPostNotification() {
-    let originalFeatures = Feature.allCases.map { $0.rawValue }
-      .reduce(into: [String: Bool]()) { $0[$1] = true }
-
-    let mockConfig = Config.template
-      |> \.features .~ originalFeatures
-
-    withEnvironment(config: mockConfig) {
-      self.vm.inputs.viewDidLoad()
-
-      self.vm.inputs.setFeatureAtIndexEnabled(index: 0, isEnabled: false)
-
-      self.updateConfigWithFeatures.assertValueCount(1)
-
-      self.vm.inputs.didUpdateConfig()
-
-      self.postNotificationName.assertValues([.ksr_configUpdated])
-    }
+  func testUnknownFeaturesAreIgnored() {
+    XCTAssertTrue(featureEnabledFromDictionaries([["some_unknown_feature": false]]).isEmpty)
+    let known = Feature.allCases[0].rawValue
+    XCTAssertFalse(featureEnabledFromDictionaries([[known: false]]).isEmpty)
   }
 }

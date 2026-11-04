@@ -1,99 +1,49 @@
 import Foundation
 import KsApi
-import Prelude
-import ReactiveSwift
+import Observation
 
 public typealias FeatureEnabled = (feature: Feature, isEnabled: Bool)
 
 @MainActor
-public protocol FeatureFlagToolsViewModelOutputs {
-  var postNotification: Signal<Notification, Never> { get }
-  var reloadWithData: Signal<[Features], Never> { get }
-  var updateConfigWithFeatures: Signal<Features, Never> { get }
-}
+@Observable
+public final class FeatureFlagToolsViewModel {
+  public private(set) var reloadWithData: [Features] = []
+  public var onUpdateConfig: ((Features) -> Void)?
+  public var onConfigUpdated: (() -> Void)?
+  private var sortedFeatures: [(key: String, value: Bool)] = []
+  private var reloadTask: Task<Void, Never>?
+  private let sleep: () async throws -> Void
 
-@MainActor
-public protocol FeatureFlagToolsViewModelInputs {
-  func didUpdateConfig()
-  func setFeatureAtIndexEnabled(index: Int, isEnabled: Bool)
-  func viewDidLoad()
-}
-
-@MainActor
-public protocol FeatureFlagToolsViewModelType {
-  var inputs: FeatureFlagToolsViewModelInputs { get }
-  var outputs: FeatureFlagToolsViewModelOutputs { get }
-}
-
-@MainActor
-public final class FeatureFlagToolsViewModel: FeatureFlagToolsViewModelType, FeatureFlagToolsViewModelInputs,
-  FeatureFlagToolsViewModelOutputs {
-  public init() {
-    let didUpdateConfigAndUI = self.didUpdateConfigProperty.signal
-      .ksr_debounce(.seconds(1), on: AppEnvironment.current.scheduler)
-
-    let features = Signal.merge(
-      self.viewDidLoadProperty.signal,
-      didUpdateConfigAndUI
-    )
-    .map { _ in AppEnvironment.current.config?.features }
-    .skipNil()
-
-    let sortedFeatures = features
-      .map { features in Array(features)
-        .filter { Feature(rawValue: $0.0) != nil }
-        .sorted(by: { $0.0 < $1.0 })
-      }
-
-    self.reloadWithData = sortedFeatures.map { featureTuples in
-      featureTuples.map { key, value in [key: value] }
-    }
-
-    self.updateConfigWithFeatures = sortedFeatures
-      .takePairWhen(self.setFeatureEnabledAtIndexProperty.signal.skipNil())
-      .map(unpack)
-      .map { features, index, enabled -> Features? in
-        guard features.count > index else {
-          return nil
-        }
-        let featureEnabledPair = features[index]
-
-        guard featureEnabledPair.value != enabled else {
-          return nil
-        }
-
-        var environmentFeatures = AppEnvironment.current.config?.features
-        environmentFeatures?[featureEnabledPair.key] = enabled
-
-        return environmentFeatures
-      }
-      .skipNil()
-
-    self.postNotification = self.didUpdateConfigProperty.signal
-      .mapConst(Notification(name: .ksr_configUpdated, object: nil))
+  public init(sleep: @escaping () async throws -> Void = { try await Task.sleep(for: .seconds(1)) }) {
+    self.sleep = sleep
   }
 
-  private let setFeatureEnabledAtIndexProperty = MutableProperty<(Int, Bool)?>(nil)
-  public func setFeatureAtIndexEnabled(index: Int, isEnabled: Bool) {
-    self.setFeatureEnabledAtIndexProperty.value = (index, isEnabled)
-  }
-
-  private let didUpdateConfigProperty = MutableProperty(())
+  public func viewDidLoad() { self.reload() }
   public func didUpdateConfig() {
-    self.didUpdateConfigProperty.value = ()
+    self.onConfigUpdated?()
+    self.reloadTask?.cancel()
+    self.reloadTask = Task { [weak self, sleep] in
+      do {
+        try await sleep()
+        try Task.checkCancellation()
+        self?.reload()
+      } catch { }
+    }
   }
-
-  private let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+  public func setFeatureAtIndexEnabled(index: Int, isEnabled: Bool) {
+    guard self.sortedFeatures.indices.contains(index),
+          self.sortedFeatures[index].value != isEnabled,
+          var features = AppEnvironment.current.config?.features else { return }
+    features[self.sortedFeatures[index].key] = isEnabled
+    self.onUpdateConfig?(features)
   }
-
-  public let postNotification: Signal<Notification, Never>
-  public let reloadWithData: Signal<[Features], Never>
-  public let updateConfigWithFeatures: Signal<Features, Never>
-
-  public var inputs: FeatureFlagToolsViewModelInputs { return self }
-  public var outputs: FeatureFlagToolsViewModelOutputs { return self }
+  private func reload() {
+    guard let features = AppEnvironment.current.config?.features else { return }
+    self.sortedFeatures = features.filter { Feature(rawValue: $0.key) != nil }
+      .sorted { $0.key < $1.key }
+    self.reloadWithData = self.sortedFeatures.map { [$0.key: $0.value] }
+  }
+  internal func waitForReload() async { await self.reloadTask?.value }
 }
 
 public func featureEnabledFromDictionaries(_ dictionaryArray: [Features]) -> [FeatureEnabled] {

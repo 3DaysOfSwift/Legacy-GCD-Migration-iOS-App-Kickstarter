@@ -1,3 +1,4 @@
+import Observation
 import Foundation
 import KsApi
 
@@ -9,7 +10,7 @@ final class FeatureFlagToolsViewController: UITableViewController {
 
   private var features = [FeatureEnabled]()
   private let reuseId = "FeatureFlagTools.TableViewCell"
-  private let viewModel: FeatureFlagToolsViewModelType = FeatureFlagToolsViewModel()
+  private let viewModel = FeatureFlagToolsViewModel()
 
   static func instantiate() -> FeatureFlagToolsViewController {
     return FeatureFlagToolsViewController(style: .plain)
@@ -26,33 +27,28 @@ final class FeatureFlagToolsViewController: UITableViewController {
 
     self.tableView.register(UITableViewCell.self, forCellReuseIdentifier: self.reuseId)
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.reloadWithData
-      .observeForUI()
-      .observeValues { [weak self] features in
-        self?.features = featureEnabledFromDictionaries(features)
+    self.viewModel.onUpdateConfig = { [weak self] in self?.updateConfig(with: $0) }
+    self.viewModel.onConfigUpdated = { NotificationCenter.default.post(name: .ksr_configUpdated, object: nil) }
+    self.observeFeatures()
+  }
 
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.updateConfigWithFeatures
-      .observeForUI()
-      .observeValues { [weak self] features in
-        self?.updateConfig(with: features)
-      }
-
-    self.viewModel.outputs.postNotification
-      .observeForUI()
-      .observeValues(NotificationCenter.default.post)
+  private func observeFeatures() {
+    withObservationTracking {
+      self.features = featureEnabledFromDictionaries(self.viewModel.reloadWithData)
+      self.tableView.reloadData()
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeFeatures() }
+    }
   }
 
   @objc private func switchTogged(_ switchControl: UISwitch) {
-    self.viewModel.inputs.setFeatureAtIndexEnabled(index: switchControl.tag, isEnabled: switchControl.isOn)
+    self.viewModel.setFeatureAtIndexEnabled(index: switchControl.tag, isEnabled: switchControl.isOn)
   }
 
   // MARK: - Private Helpers
@@ -66,7 +62,7 @@ final class FeatureFlagToolsViewController: UITableViewController {
     AppEnvironment.updateDebugData(DebugData(config: updatedConfig))
     AppEnvironment.updateConfig(updatedConfig)
 
-    self.viewModel.inputs.didUpdateConfig()
+    self.viewModel.didUpdateConfig()
   }
 }
 
