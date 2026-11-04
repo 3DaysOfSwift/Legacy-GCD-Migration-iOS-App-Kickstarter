@@ -1,56 +1,30 @@
 @testable import Kickstarter_iOS
-import Foundation
 @testable import KsApi
-
-
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
+import XCTest
 
 @MainActor
 internal final class MessageCellViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  fileprivate let vm: MessageCellViewModelType = MessageCellViewModel()
+  func testDisplayAndHeaderTapUseConfiguredMessage() {
+    let vm = MessageCellViewModel()
+    var displays: [MessageCellViewModel.Display] = []
+    var senders: [User] = []
+    vm.onDisplay = { displays.append($0) }
+    vm.onSender = { senders.append($0) }
+    vm.cellHeaderTapped()
+    XCTAssertTrue(senders.isEmpty)
 
-  fileprivate let avatarURL = TestObserver<URL?, Never>()
-  fileprivate let body = TestObserver<String, Never>()
-  fileprivate let _name = TestObserver<String, Never>()
-  fileprivate let timestamp = TestObserver<String, Never>()
-  fileprivate let timestampAccessibilityLabel = TestObserver<String, Never>()
-  fileprivate let messageSender = TestObserver<User, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.avatarURL.observe(self.avatarURL.observer)
-    self.vm.outputs.name.observe(self._name.observer)
-    self.vm.outputs.timestamp.observe(self.timestamp.observer)
-    self.vm.outputs.timestampAccessibilityLabel.observe(self.timestampAccessibilityLabel.observer)
-    self.vm.outputs.body.observe(self.body.observer)
-    self.vm.outputs.messageSender.observe(self.messageSender.observer)
-  }
-
-  func testOutputs() {
     let message = Message.template
-    self.vm.inputs.configureWith(message: message)
+    vm.configureWith(message: message)
+    vm.cellHeaderTapped()
 
-    self.avatarURL.assertValueCount(1)
-    self._name.assertValues([message.sender.name])
-    self.timestamp.assertValueCount(1)
-    self.timestampAccessibilityLabel.assertValueCount(1)
-    self.body.assertValues([message.body])
-  }
-
-  func testOutput_CellHeaderTapped_EmitsCellAuthor() {
-    let message = Message.template
-    withEnvironment(currentUser: .template) {
-      self.vm.inputs.configureWith(message: message)
-      self.messageSender.assertDidNotEmitValue()
-
-      self.vm.inputs.cellHeaderTapped()
-
-      self.messageSender
-        .assertValue(message.sender)
-    }
+    XCTAssertEqual(displays.count, 1)
+    XCTAssertEqual(displays.first?.avatarURL, URL(string: message.sender.avatar.large ?? message.sender.avatar.medium))
+    XCTAssertEqual(displays.first?.name, message.sender.name)
+    XCTAssertEqual(displays.first?.body, message.body)
+    XCTAssertEqual(displays.first?.timestamp, Format.date(secondsInUTC: message.createdAt, dateStyle: .short, timeStyle: .short))
+    XCTAssertEqual(displays.first?.timestampAccessibilityLabel, Format.date(secondsInUTC: message.createdAt, dateStyle: .long, timeStyle: .short))
+    XCTAssertEqual(senders, [message.sender])
   }
 }

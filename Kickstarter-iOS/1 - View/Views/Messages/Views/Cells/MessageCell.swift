@@ -2,7 +2,6 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveExtensions
 import UIKit
 
 @MainActor
@@ -11,7 +10,7 @@ protocol MessageCellDelegate: AnyObject {
 }
 
 internal final class MessageCell: UITableViewCell, ValueCell {
-  fileprivate let viewModel: MessageCellViewModelType = MessageCellViewModel()
+  fileprivate let viewModel: MessageCellViewModel = MessageCellViewModel()
 
   @IBOutlet private var avatarImageView: UIImageView!
   @IBOutlet private var dividerView: UIView!
@@ -50,7 +49,7 @@ internal final class MessageCell: UITableViewCell, ValueCell {
   }
 
   internal func configureWith(value message: Message) {
-    self.viewModel.inputs.configureWith(message: message)
+    self.viewModel.configureWith(message: message)
   }
 
   internal override func bindStyles() {
@@ -84,32 +83,24 @@ internal final class MessageCell: UITableViewCell, ValueCell {
   }
 
   internal override func bindViewModel() {
-    self.nameLabel.rac.text = self.viewModel.outputs.name
-    self.participantStackView.rac.accessibilityLabel = self.viewModel.outputs.name
-    self.timestampLabel.rac.text = self.viewModel.outputs.timestamp
-    self.timestampLabel.rac.accessibilityLabel = self.viewModel.outputs.timestampAccessibilityLabel
-    self.bodyTextView.rac.text = self.viewModel.outputs.body
-
-    self.viewModel.outputs.avatarURL
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.avatarImageView.af.cancelImageRequest()
-        self?.avatarImageView.image = nil
-      })
-      .skipNil()
-      .observeValues { [weak self] in
-        self?.avatarImageView.af.setImage(withURL: $0)
-      }
-
-    self.viewModel.outputs.messageSender
-      .observeForUI()
-      .observeValues { [weak self] sender in
-        guard let self = self else { return }
-        self.delegate?.messageCellDidTapHeader(self, sender)
-      }
+    self.viewModel.onDisplay = { [weak self] display in
+      guard let self else { return }
+      self.nameLabel.text = display.name
+      self.participantStackView.accessibilityLabel = display.name
+      self.timestampLabel.text = display.timestamp
+      self.timestampLabel.accessibilityLabel = display.timestampAccessibilityLabel
+      self.bodyTextView.text = display.body
+      self.avatarImageView.af.cancelImageRequest()
+      self.avatarImageView.image = nil
+      if let url = display.avatarURL { self.avatarImageView.af.setImage(withURL: url) }
+    }
+    self.viewModel.onSender = { [weak self] sender in
+      guard let self else { return }
+      self.delegate?.messageCellDidTapHeader(self, sender)
+    }
   }
 
   @objc private func messageCellHeaderTapped() {
-    self.viewModel.inputs.cellHeaderTapped()
+    self.viewModel.cellHeaderTapped()
   }
 }
