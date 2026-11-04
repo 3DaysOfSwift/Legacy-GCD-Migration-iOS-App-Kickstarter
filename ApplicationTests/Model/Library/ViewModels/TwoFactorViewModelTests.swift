@@ -2,8 +2,6 @@
 @testable import KsApi
 
 
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -19,13 +17,13 @@ final class TwoFactorViewModelTests: TestCase {
     authenticationFeature: self
       .authenticationFeature
   )
-  var codeTextFieldBecomeFirstResponder = TestObserver<(), Never>()
-  var isFormValid = TestObserver<Bool, Never>()
-  var isLoading = TestObserver<Bool, Never>()
-  var logIntoEnvironment = TestObserver<AccessTokenEnvelope, Never>()
-  var postNotificationName = TestObserver<(Notification.Name, Notification.Name), Never>()
-  var resendSuccess = TestObserver<(), Never>()
-  var showError = TestObserver<String, Never>()
+  private var codeTextFieldBecomeFirstResponder = TwoFactorRecorder<Void>()
+  private var isFormValid = TwoFactorRecorder<Bool>()
+  private var isLoading = TwoFactorRecorder<Bool>()
+  private var logIntoEnvironment = TwoFactorRecorder<AccessTokenEnvelope>()
+  private var postNotificationName = TwoFactorRecorder<(Notification.Name, Notification.Name)>()
+  private var resendSuccess = TwoFactorRecorder<Void>()
+  private var showError = TwoFactorRecorder<String>()
 
   override func setUp() async throws {
     try await super.setUp()
@@ -38,13 +36,13 @@ final class TwoFactorViewModelTests: TestCase {
   }
 
   private func bindOutputs() {
-    self.vm.onFirstResponder = { [weak self] in self?.codeTextFieldBecomeFirstResponder.observer.send(value: ()) }
-    self.vm.onFormValid = { [weak self] in self?.isFormValid.observer.send(value: $0) }
-    self.vm.onLoading = { [weak self] in self?.isLoading.observer.send(value: $0) }
-    self.vm.onLogin = { [weak self] in self?.logIntoEnvironment.observer.send(value: $0) }
-    self.vm.onNotification = { [weak self] in self?.postNotificationName.observer.send(value: ($0.name, $1.name)) }
-    self.vm.onResendSuccess = { [weak self] in self?.resendSuccess.observer.send(value: ()) }
-    self.vm.onError = { [weak self] in self?.showError.observer.send(value: $0) }
+    self.vm.onFirstResponder = { [weak self] in self?.codeTextFieldBecomeFirstResponder.values.append(()) }
+    self.vm.onFormValid = { [weak self] in self?.isFormValid.values.append($0) }
+    self.vm.onLoading = { [weak self] in self?.isLoading.values.append($0) }
+    self.vm.onLogin = { [weak self] in self?.logIntoEnvironment.values.append($0) }
+    self.vm.onNotification = { [weak self] in self?.postNotificationName.values.append(($0.name, $1.name)) }
+    self.vm.onResendSuccess = { [weak self] in self?.resendSuccess.values.append(()) }
+    self.vm.onError = { [weak self] in self?.showError.values.append($0) }
   }
 
   func testCodeTextFieldBecomesFirstResponder() async {
@@ -303,5 +301,17 @@ final class TwoFactorViewModelTests: TestCase {
       self.showError.assertValueCount(0, "No error was emitted")
       self.resendSuccess.assertValueCount(0, "Code was not resent")
     }
+  }
+}
+
+private final class TwoFactorRecorder<Value> {
+  var values: [Value] = []
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+}
+private extension TwoFactorRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
   }
 }
