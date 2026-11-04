@@ -70,16 +70,26 @@ public final class ProfileFeature {
   private let userPipe = Signal<User, Never>.pipe()
   private let graphUserPipe = Signal<User, Never>.pipe()
   private let combinedUserPipe = Signal<User, Never>.pipe()
-  private let projectsPipe = Signal<(ProfileProjectsType, [ProjectCardProperties]), Never>.pipe()
-  private let loadingPipe = Signal<(ProfileProjectsType, Bool), Never>.pipe()
   public var userValues: Signal<User, Never> { self.userPipe.output }
   public var graphUserValues: Signal<User, Never> { self.graphUserPipe.output }
   public var combinedUserValues: Signal<User, Never> { self.combinedUserPipe.output }
-  public var projectValues: Signal<(ProfileProjectsType, [ProjectCardProperties]), Never> {
-    self.projectsPipe.output
+  public enum PageEvent {
+    case projects(ProfileProjectsType, [ProjectCardProperties])
+    case loading(ProfileProjectsType, Bool)
+  }
+  private var pageSubscribers: [UUID: @MainActor (PageEvent) -> Void] = [:]
+
+  func observePages(_ receive: @escaping @MainActor (PageEvent) -> Void) -> PlatformObservation {
+    let id = UUID()
+    self.pageSubscribers[id] = receive
+    return PlatformObservation { [weak self] in
+      Task { @MainActor in self?.pageSubscribers[id] = nil }
+    }
   }
 
-  public var loadingValues: Signal<(ProfileProjectsType, Bool), Never> { self.loadingPipe.output }
+  private func publish(_ event: PageEvent) {
+    for receive in Array(self.pageSubscribers.values) { receive(event) }
+  }
 
   public init(
     sessionFeature: SessionFeature, makeProvider: @escaping () -> any ProfileProvider,
@@ -264,7 +274,7 @@ public final class ProfileFeature {
         if page.request?.token == token {
           page.request = nil
           page.snapshot.isLoading = false
-          if self.pages[type] === page { self.loadingPipe.input.send(value: (type, false)) }
+          if self.pages[type] === page { self.publish(.loading(type, false)) }
         }
       }
       do {
@@ -277,7 +287,7 @@ public final class ProfileFeature {
               self.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
         page.cursor = result.projects.isEmpty ? nil : result.cursor
         page.snapshot.projects = cursor == nil ? result.projects : page.snapshot.projects + result.projects
-        self.projectsPipe.input.send(value: (type, page.snapshot.projects))
+        self.publish(.projects(type, page.snapshot.projects))
       } catch {
         guard !Task.isCancelled, !(error is CancellationError), self.pages[type] === page,
               page.request?.token == token,
@@ -286,7 +296,7 @@ public final class ProfileFeature {
       }
     }
     page.request = (token, cursor, task)
-    self.loadingPipe.input.send(value: (type, true))
+    self.publish(.loading(type, true))
     return task
   }
 }

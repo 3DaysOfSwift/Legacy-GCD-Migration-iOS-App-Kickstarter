@@ -1,9 +1,6 @@
 import Foundation
 import GraphAPI
 import KsApi
-import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 
 public enum ProfileProjectsType: Decodable, Hashable {
   case backed
@@ -18,202 +15,98 @@ public enum ProfileProjectsType: Decodable, Hashable {
 }
 
 @MainActor
-public protocol BackerDashboardProjectsViewModelInputs {
-  /// Call to configure with the ProfileProjectsType to display.
-  func configureWith(projectsType: ProfileProjectsType)
-
-  /// Call when the user has updated.
-  func currentUserUpdated()
-
-  /// Call when a project cell is tapped.
-  func projectTapped(_ project: ProjectCardProperties)
-
-  /// Call when pull-to-refresh is invoked.
-  func refresh()
-
-  /// Call when the view loads.
-  func viewDidLoad()
-
-  /// Call when the view did appear.
-  func viewDidAppear(_ animated: Bool)
-
-  /// Call when a new row is displayed.
-  func willDisplayRow(_ row: Int, outOf totalRows: Int)
-}
-
-@MainActor
-public protocol BackerDashboardProjectsViewModelOutputs {
-  /// Emits a boolean that determines if the empty state is visible and a ProfileProjectsType.
-  var emptyStateIsVisible: Signal<(Bool, ProfileProjectsType), Never> { get }
-
-  /// Emits the project, projects, and ref tag when should go to project page.
-  var goToProject: Signal<(ProjectCardProperties, RefTag), Never> { get }
-
-  /// Emits when the pull-to-refresh control is refreshing or not.
-  var isRefreshing: Signal<Bool, Never> { get }
-
-  /// Emits `true` when the next page is loading.
-  var isLoadingNextPage: Signal<Bool, Never> { get }
-
-  /// Emits a list of projects for the tableview datasource.
-  var projects: Signal<[ProjectCardProperties], Never> { get }
-}
-
-@MainActor
-public protocol BackerDashboardProjectsViewModelType {
-  var inputs: BackerDashboardProjectsViewModelInputs { get }
-  var outputs: BackerDashboardProjectsViewModelOutputs { get }
-}
-
-@MainActor
-public final class BackerDashboardProjectsViewModel: BackerDashboardProjectsViewModelType,
-  BackerDashboardProjectsViewModelInputs, BackerDashboardProjectsViewModelOutputs {
+public final class BackerDashboardProjectsViewModel {
+  public var onEmptyState: ((Bool, ProfileProjectsType) -> Void)?
+  public var onProject: ((ProjectCardProperties, RefTag) -> Void)?
+  public var onRefreshing: ((Bool) -> Void)?
+  public var onLoadingNextPage: ((Bool) -> Void)?
+  public var onProjects: (([ProjectCardProperties]) -> Void)?
   private let profileFeature: ProfileFeature
+  private var observer: PlatformObservation?
+  private var projectsType: ProfileProjectsType?
+  private var latestProjects: [ProjectCardProperties]?
+  private var lastTappedProject: ProjectCardProperties?
+  private var lastCounts: (Int?, Int, Int)?
+  private var closeToBottom: Bool?
+  private var latestWasRefresh: Bool?
+  private var isLoading: Bool?
+  private var refreshing: Bool?
+  private var loadingNextPage: Bool?
   internal private(set) var pageTask: Task<Void, Never>?
+
   public init(profileFeature: ProfileFeature? = nil) {
-    let profileFeature = profileFeature ?? AppModel.shared.profileFeature
-    self.profileFeature = profileFeature
-    let projectsType = self.configureWithProjectsTypeAndSortProperty.signal.skipNil()
-
-    let userUpdated = Signal.merge(
-      self.viewDidAppearProperty.signal.ignoreValues(),
-      self.currentUserUpdatedProperty.signal
-    )
-
-    let userCounts: Signal<(Int?, Int, Int), Never> = projectsType.takeWhen(userUpdated)
-      .map { type -> (Int?, Int, Int) in
-        (
-          profileFeature.sessionFeature.currentUser?.id,
-          profileFeature.projectCount(for: type),
-          profileFeature.sessionFeature.generation
-        )
-      }
-    let userUpdatedProjectCount = userCounts.skipRepeats { previous, current in
-      previous.0 == current.0 && previous.1 == current.1 && previous.2 == current.2
-    }
-
-    let requestFirstPageWith = projectsType
-      .takeWhen(
-        Signal.merge(
-          userUpdatedProjectCount.ignoreValues(),
-          self.refreshProperty.signal
-        )
-      )
-
-    let isCloseToBottom = self.willDisplayRowProperty.signal.skipNil()
-      .map { row, total in total > 5 && row >= total - 3 }
-      .skipRepeats()
-      .filter(isTrue)
-
-    let isCloseToBottomWith = projectsType.takeWhen(isCloseToBottom)
-
-    let isLoading = profileFeature.loadingValues
-      .filter { [configuredType = self.configureWithProjectsTypeAndSortProperty] type, _ in
-        configuredType.value == type
-      }
-      .map { $0.1 }
-    self.projects = profileFeature.projectValues
-      .filter { [configuredType = self.configureWithProjectsTypeAndSortProperty] type, _ in
-        configuredType.value == type
-      }
-      .map { $0.1 }
-
-    let latestLoadingWasRefresh = Signal.merge(
-      userUpdatedProjectCount.mapConst(true),
-      isCloseToBottom.mapConst(false),
-      self.refreshProperty.signal.mapConst(true)
-    )
-
-    self.isRefreshing = Signal.combineLatest(isLoading, latestLoadingWasRefresh)
-      .map { isLoading, latestLoadingWasRefresh in
-        isLoading && latestLoadingWasRefresh
-      }
-      .skipRepeats()
-
-    self.isLoadingNextPage = Signal.combineLatest(isLoading, latestLoadingWasRefresh)
-      .map { isLoading, latestLoadingWasRefresh in
-        isLoading && !latestLoadingWasRefresh
-      }
-      .skipRepeats()
-
-    self.emptyStateIsVisible = Signal.combineLatest(projectsType, self.projects)
-      .map { type, projects in
-        (projects.isEmpty, type)
-      }
-
-    self.goToProject = projectsType
-      .takePairWhen(self.projectTappedProperty.signal.skipNil())
-      .map { projectsType, project in
-        let ref = (projectsType == .backed) ? RefTag.profileBacked : RefTag.profileSaved
-        return (project, ref)
-      }
-
-    requestFirstPageWith.observeValues { [weak self] type in
-      self?.pageTask = profileFeature.requestPage(type: type)
-    }
-    isCloseToBottomWith.observeValues { [weak self] type in
-      self?.pageTask = profileFeature.requestPage(type: type, next: true)
-    }
-
-    // Tracking
-
-    Signal.combineLatest(self.projectTappedProperty.signal, projectsType)
-      .observeValues { project, profilesProjectType in
-        guard let project = project else { return }
-        let sectionContext: KSRAnalytics.SectionContext = profilesProjectType == .backed ?
-          .backed : .watched
-
-        AppEnvironment.current.ksrAnalytics.trackProjectCardClicked(
-          page: .profile,
-          project: project.projectAnalytics,
-          location: .accountMenu,
-          section: sectionContext
-        )
-      }
+    let feature = profileFeature ?? AppModel.shared.profileFeature
+    self.profileFeature = feature
+    self.observer = feature.observePages { [weak self] event in self?.receive(event) }
   }
 
-  private let configureWithProjectsTypeAndSortProperty =
-    MutableProperty<ProfileProjectsType?>(nil)
   public func configureWith(projectsType: ProfileProjectsType) {
-    self.configureWithProjectsTypeAndSortProperty.value = projectsType
+    self.projectsType = projectsType
+    if let projects = self.latestProjects { self.onEmptyState?(projects.isEmpty, projectsType) }
+    if let project = self.lastTappedProject { self.track(project, type: projectsType) }
+  }
+  public func currentUserUpdated() { self.refreshIfCountChanged() }
+  public func viewDidAppear(_ animated: Bool) { self.refreshIfCountChanged() }
+  public func viewDidLoad() {}
+
+  private func refreshIfCountChanged() {
+    guard let type = self.projectsType else { return }
+    let counts = (self.profileFeature.sessionFeature.currentUser?.id,
+                  self.profileFeature.projectCount(for: type), self.profileFeature.sessionFeature.generation)
+    if let previous = self.lastCounts, previous.0 == counts.0, previous.1 == counts.1, previous.2 == counts.2 { return }
+    self.lastCounts = counts
+    self.setMode(refresh: true)
+    self.pageTask = self.profileFeature.requestPage(type: type)
   }
 
-  private let currentUserUpdatedProperty = MutableProperty(())
-  public func currentUserUpdated() {
-    self.currentUserUpdatedProperty.value = ()
-  }
-
-  private let projectTappedProperty = MutableProperty<ProjectCardProperties?>(nil)
-  public func projectTapped(_ project: ProjectCardProperties) {
-    self.projectTappedProperty.value = project
-  }
-
-  private let refreshProperty = MutableProperty(())
   public func refresh() {
-    self.refreshProperty.value = ()
+    self.setMode(refresh: true)
+    if let type = self.projectsType { self.pageTask = self.profileFeature.requestPage(type: type) }
   }
 
-  private let viewDidAppearProperty = MutableProperty(false)
-  public func viewDidAppear(_ animated: Bool) {
-    self.viewDidAppearProperty.value = animated
-  }
-
-  private let willDisplayRowProperty = MutableProperty<(row: Int, total: Int)?>(nil)
   public func willDisplayRow(_ row: Int, outOf totalRows: Int) {
-    self.willDisplayRowProperty.value = (row, totalRows)
+    let close = totalRows > 5 && row >= totalRows - 3
+    guard self.closeToBottom != close else { return }
+    self.closeToBottom = close
+    guard close else { return }
+    self.setMode(refresh: false)
+    if let type = self.projectsType { self.pageTask = self.profileFeature.requestPage(type: type, next: true) }
   }
 
-  private let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+  public func projectTapped(_ project: ProjectCardProperties) {
+    self.lastTappedProject = project
+    guard let type = self.projectsType else { return }
+    self.onProject?(project, type == .backed ? .profileBacked : .profileSaved)
+    self.track(project, type: type)
   }
 
-  public let emptyStateIsVisible: Signal<(Bool, ProfileProjectsType), Never>
-  public let goToProject: Signal<(ProjectCardProperties, RefTag), Never>
-  public let isRefreshing: Signal<Bool, Never>
-  public let isLoadingNextPage: Signal<Bool, Never>
-  public let projects: Signal<[ProjectCardProperties], Never>
+  private func track(_ project: ProjectCardProperties, type: ProfileProjectsType) {
+    AppEnvironment.current.ksrAnalytics.trackProjectCardClicked(
+      page: .profile, project: project.projectAnalytics, location: .accountMenu,
+      section: type == .backed ? .backed : .watched
+    )
+  }
 
-  public var inputs: BackerDashboardProjectsViewModelInputs { return self }
-  public var outputs: BackerDashboardProjectsViewModelOutputs { return self }
+  private func receive(_ event: ProfileFeature.PageEvent) {
+    switch event {
+    case let .projects(type, projects):
+      guard self.projectsType == type else { return }
+      self.latestProjects = projects
+      self.onEmptyState?(projects.isEmpty, type)
+      self.onProjects?(projects)
+    case let .loading(type, loading):
+      guard self.projectsType == type else { return }
+      self.isLoading = loading
+      self.publishLoading()
+    }
+  }
+
+  private func setMode(refresh: Bool) { self.latestWasRefresh = refresh; self.publishLoading() }
+  private func publishLoading() {
+    guard let loading = self.isLoading, let refresh = self.latestWasRefresh else { return }
+    let refreshing = loading && refresh
+    let next = loading && !refresh
+    if self.refreshing != refreshing { self.refreshing = refreshing; self.onRefreshing?(refreshing) }
+    if self.loadingNextPage != next { self.loadingNextPage = next; self.onLoadingNextPage?(next) }
+  }
 }

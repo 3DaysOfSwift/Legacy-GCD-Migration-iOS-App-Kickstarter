@@ -6,7 +6,7 @@ import UIKit
 
 internal final class BackerDashboardProjectsViewController: UITableViewController {
   private var userUpdatedObserver: MainActorNotificationObservation?
-  fileprivate let viewModel: BackerDashboardProjectsViewModelType = BackerDashboardProjectsViewModel()
+  fileprivate let viewModel: BackerDashboardProjectsViewModel = BackerDashboardProjectsViewModel()
   fileprivate let dataSource = BackerDashboardProjectsDataSource()
 
   private let nextPageLoadingIndicator = UIActivityIndicatorView()
@@ -14,7 +14,7 @@ internal final class BackerDashboardProjectsViewController: UITableViewControlle
   internal static func configuredWith(projectsType: ProfileProjectsType)
     -> BackerDashboardProjectsViewController {
     let vc = BackerDashboardProjectsViewController()
-    vc.viewModel.inputs.configureWith(projectsType: projectsType)
+    vc.viewModel.configureWith(projectsType: projectsType)
     return vc
   }
 
@@ -40,10 +40,10 @@ internal final class BackerDashboardProjectsViewController: UITableViewControlle
     self.tableView.tableHeaderView = UIView(frame: CGRect(x: 0, y: 0, width: 0, height: Styles.grid(2)))
 
     self.userUpdatedObserver = MainActorNotificationObservation(name: .ksr_userUpdated) { [weak self] _ in
-        self?.viewModel.inputs.currentUserUpdated()
+        self?.viewModel.currentUserUpdated()
       }
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
 
@@ -52,7 +52,7 @@ internal final class BackerDashboardProjectsViewController: UITableViewControlle
 
     // The refresh control needs to be on screen when we call beginRefreshing, or else it won't show the spinner.
     // So this is all done on didAppear instead of willAppear.
-    self.viewModel.inputs.viewDidAppear(animated)
+    self.viewModel.viewDidAppear(animated)
   }
 
   internal override func viewDidDisappear(_ animated: Bool) {
@@ -66,48 +66,28 @@ internal final class BackerDashboardProjectsViewController: UITableViewControlle
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.isRefreshing
-      .observeForUI()
-      .observeValues { [weak self] isRefreshing in
-        if isRefreshing {
-          self?.refreshControl?.beginRefreshing()
-        } else {
-          self?.refreshControl?.endRefreshing()
-        }
+    self.viewModel.onRefreshing = { [weak self] refreshing in
+      if refreshing { self?.refreshControl?.beginRefreshing() } else { self?.refreshControl?.endRefreshing() }
+    }
+    self.viewModel.onLoadingNextPage = { [weak self] loading in
+      guard let self else { return }
+      if loading {
+        self.nextPageLoadingIndicator.startAnimating()
+        self.tableView.tableFooterView = self.nextPageLoadingIndicator
+      } else {
+        self.nextPageLoadingIndicator.stopAnimating()
+        self.tableView.tableFooterView = nil
       }
-
-    self.viewModel.outputs.isLoadingNextPage
-      .observeForUI()
-      .observeValues { [weak self] isLoading in
-        guard let self else { return }
-        if isLoading {
-          self.nextPageLoadingIndicator.startAnimating()
-          self.tableView.tableFooterView = self.nextPageLoadingIndicator
-        } else {
-          self.nextPageLoadingIndicator.stopAnimating()
-          self.tableView.tableFooterView = nil
-        }
-      }
-
-    self.viewModel.outputs.emptyStateIsVisible
-      .observeForUI()
-      .observeValues { [weak self] isVisible, type in
-        self?.dataSource.emptyState(visible: isVisible, projectsType: type)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.projects
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.dataSource.load(projects: $0)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.goToProject
-      .observeForControllerAction()
-      .observeValues { [weak self] project, reftag in
-        self?.goTo(project: project, refTag: reftag)
-      }
+    }
+    self.viewModel.onEmptyState = { [weak self] visible, type in
+      self?.dataSource.emptyState(visible: visible, projectsType: type)
+      self?.tableView.reloadData()
+    }
+    self.viewModel.onProjects = { [weak self] projects in
+      self?.dataSource.load(projects: projects)
+      self?.tableView.reloadData()
+    }
+    self.viewModel.onProject = { [weak self] project, refTag in self?.goTo(project: project, refTag: refTag) }
   }
 
   internal override func bindStyles() {
@@ -122,7 +102,7 @@ internal final class BackerDashboardProjectsViewController: UITableViewControlle
     willDisplay _: UITableViewCell,
     forRowAt indexPath: IndexPath
   ) {
-    self.viewModel.inputs.willDisplayRow(
+    self.viewModel.willDisplayRow(
       self.dataSource.itemIndexAt(indexPath),
       outOf: self.dataSource.numberOfItems()
     )
@@ -133,7 +113,7 @@ internal final class BackerDashboardProjectsViewController: UITableViewControlle
       return
     }
 
-    self.viewModel.inputs.projectTapped(projectCellModel.properties)
+    self.viewModel.projectTapped(projectCellModel.properties)
   }
 
   private func goTo(project: ProjectCardProperties, refTag: RefTag) {
@@ -147,6 +127,6 @@ internal final class BackerDashboardProjectsViewController: UITableViewControlle
   }
 
   @objc private func refresh() {
-    self.viewModel.inputs.refresh()
+    self.viewModel.refresh()
   }
 }
