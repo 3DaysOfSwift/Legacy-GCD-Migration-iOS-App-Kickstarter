@@ -33,7 +33,7 @@ final class CuratedProjectsViewController: UIViewController {
       |> \.translatesAutoresizingMaskIntoConstraints .~ false
   }()
 
-  private let viewModel: CuratedProjectsViewModelType = CuratedProjectsViewModel()
+  private let viewModel = CuratedProjectsViewModel()
 
   // MARK: - Lifecycle
 
@@ -54,7 +54,7 @@ final class CuratedProjectsViewController: UIViewController {
     self.configureSubviews()
     self.setupConstraints()
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   public override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
@@ -68,7 +68,7 @@ final class CuratedProjectsViewController: UIViewController {
   // MARK: - Configuration
 
   public func configure(with categories: [KsApi.Category], context: CuratedProjectsContext) {
-    self.viewModel.inputs.configure(with: categories)
+    self.viewModel.configure(with: categories)
 
     self.headerView.configure(with: CategorySelectionOnboardingHeaderViewContext.curatedProjects(context))
   }
@@ -104,32 +104,20 @@ final class CuratedProjectsViewController: UIViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.loadingIndicator.rac.animating = self.viewModel.outputs.isLoading
-
-    self.viewModel.outputs.dismissViewController
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.dismiss(animated: true)
-      }
-
-    self.viewModel.outputs.loadProjects
-      .observeForUI()
-      .observeValues { [weak self] projects in
-        self?.dataSource.load(projects: projects)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.goToProject
-      .observeForControllerAction()
-      .observeValues { [weak self] project, projects, refTag in
-        self?.goToProject(project, projects: projects, refTag: refTag)
-      }
-
-    self.viewModel.outputs.showErrorMessage
-      .observeForUI()
-      .observeValues { [weak self] message in
-        self?.present(UIAlertController.genericError(message), animated: true)
-      }
+    self.viewModel.onLoading = { [weak self] loading in
+      if loading { self?.loadingIndicator.startAnimating() } else { self?.loadingIndicator.stopAnimating() }
+    }
+    self.viewModel.onDismiss = { [weak self] in self?.dismiss(animated: true) }
+    self.viewModel.onProjects = { [weak self] projects in
+      self?.dataSource.load(projects: projects)
+      self?.tableView.reloadData()
+    }
+    self.viewModel.onProject = { [weak self] value in
+      self?.goToProject(value.project, projects: value.projects, refTag: value.refTag)
+    }
+    self.viewModel.onError = { [weak self] message in
+      self?.present(UIAlertController.genericError(message), animated: true)
+    }
   }
 
   // MARK: - Styles
@@ -153,7 +141,7 @@ final class CuratedProjectsViewController: UIViewController {
   // MARK: - Accessors
 
   @objc func doneButtonTapped() {
-    self.viewModel.inputs.doneButtonTapped()
+    self.viewModel.doneButtonTapped()
   }
 
   // MARK: - Functions
@@ -173,7 +161,7 @@ extension CuratedProjectsViewController: UITableViewDelegate {
   func tableView(_: UITableView, didSelectRowAt indexPath: IndexPath) {
     let project = self.dataSource.projectAtIndexPath(indexPath)
 
-    self.viewModel.inputs.projectTapped(project)
+    self.viewModel.projectTapped(project)
   }
 }
 

@@ -48,6 +48,8 @@ public final class RecommendationsFeature {
   private let makeProvider: () -> any RecommendationsProvider
   private let sleep: @MainActor @Sendable (TimeInterval) async throws -> Void
   private var pending: [UUID: Pending] = [:]
+  private var latestSelections: [UUID: Selection] = [:]
+  public func selection(route: UUID) -> Selection? { self.latestSelections[route] }
   private var operations: [UUID: Task<Void, Never>] = [:]
   private let selectionPipe = Signal<(UUID, Selection), Never>.pipe()
   public var selections: Signal<(UUID, Selection), Never> { self.selectionPipe.output }
@@ -74,6 +76,7 @@ public final class RecommendationsFeature {
   }
   public func release(route: UUID) {
     self.pending.removeValue(forKey: route)?.task.cancel()
+    self.latestSelections.removeValue(forKey: route)
   }
   public func reset() {
     for route in Array(self.pending.keys) { self.release(route: route) }
@@ -111,6 +114,7 @@ public final class RecommendationsFeature {
         }
         try Task.checkCancellation()
         guard self.session == session, self.pending[route]?.id == id, let selection else { return }
+        self.latestSelections[route] = selection
         self.selectionPipe.input.send(value: (route, selection))
       } catch {
         // These screens historically suppress category lookup errors. Individual
