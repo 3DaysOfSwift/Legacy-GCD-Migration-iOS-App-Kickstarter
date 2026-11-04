@@ -3,9 +3,6 @@
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -13,29 +10,14 @@ internal final class ActivitySampleProjectCellViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
   internal let vm = ActivitySampleProjectCellViewModel()
-  internal let cellAccessibilityHint = TestObserver<String, Never>()
-  internal let goToActivity = TestObserver<Void, Never>()
-  internal let projectSubtitleText = TestObserver<String, Never>()
-  internal let projectTitleText = TestObserver<String, Never>()
-  internal let projectImage = TestObserver<String?, Never>()
-
-  internal override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.cellAccessibilityHint.observe(self.cellAccessibilityHint.observer)
-    self.vm.outputs.goToActivity.observe(self.goToActivity.observer)
-    self.vm.outputs.projectImageURL.map { $0?.absoluteString }.observe(self.projectImage.observer)
-    self.vm.outputs.projectSubtitleText.observe(self.projectSubtitleText.observer)
-    self.vm.outputs.projectTitleText.observe(self.projectTitleText.observer)
-  }
-
   func testGoToActivity() {
     let activity = Activity.template
 
-    self.vm.inputs.configureWith(activity: activity)
-    self.vm.inputs.seeAllActivityTapped()
-
-    self.goToActivity.assertValueCount(1)
+    _ = self.vm.configureWith(activity: activity)
+    var events = 0
+    self.vm.onGoToActivity = { events += 1 }
+    self.vm.seeAllActivityTapped()
+    XCTAssertEqual(events, 1)
   }
 
   func testProjectCancellationActivity() {
@@ -44,12 +26,12 @@ internal final class ActivitySampleProjectCellViewModelTests: TestCase {
       |> Activity.lens.category .~ .cancellation
       |> Activity.lens.project .~ project
 
-    self.vm.inputs.configureWith(activity: activity)
+    let display = self.vm.configureWith(activity: activity)
 
-    self.cellAccessibilityHint.assertValues([Strings.Opens_project()])
-    self.projectImage.assertValues([project.photo.med])
-    self.projectSubtitleText.assertValues([Strings.activity_funding_canceled()])
-    self.projectTitleText.assertValues([project.name])
+    XCTAssertEqual(display.accessibilityHint, Strings.Opens_project())
+    XCTAssertEqual(display.imageURL?.absoluteString, project.photo.med)
+    XCTAssertEqual(display.subtitle, Strings.activity_funding_canceled())
+    XCTAssertEqual(display.title, project.name)
   }
 
   func testProjectFailureActivity() {
@@ -58,12 +40,12 @@ internal final class ActivitySampleProjectCellViewModelTests: TestCase {
       |> Activity.lens.category .~ .failure
       |> Activity.lens.project .~ project
 
-    self.vm.inputs.configureWith(activity: activity)
+    let display = self.vm.configureWith(activity: activity)
 
-    self.cellAccessibilityHint.assertValues([Strings.Opens_project()])
-    self.projectImage.assertValues([project.photo.med])
-    self.projectSubtitleText.assertValues([Strings.activity_project_was_not_successfully_funded()])
-    self.projectTitleText.assertValues([project.name])
+    XCTAssertEqual(display.accessibilityHint, Strings.Opens_project())
+    XCTAssertEqual(display.imageURL?.absoluteString, project.photo.med)
+    XCTAssertEqual(display.subtitle, Strings.activity_project_was_not_successfully_funded())
+    XCTAssertEqual(display.title, project.name)
   }
 
   func testProjectLaunchActivity() {
@@ -74,14 +56,12 @@ internal final class ActivitySampleProjectCellViewModelTests: TestCase {
       |> Activity.lens.user .~ user
       |> Activity.lens.project .~ project
 
-    self.vm.inputs.configureWith(activity: activity)
+    let display = self.vm.configureWith(activity: activity)
 
-    self.cellAccessibilityHint.assertValues([Strings.Opens_project()])
-    self.projectImage.assertValues([project.photo.med])
-    self.projectSubtitleText.assertValues(
-      [Strings.activity_user_name_launched_project(user_name: user.name)]
-    )
-    self.projectTitleText.assertValues([project.name])
+    XCTAssertEqual(display.accessibilityHint, Strings.Opens_project())
+    XCTAssertEqual(display.imageURL?.absoluteString, project.photo.med)
+    XCTAssertEqual(display.subtitle, Strings.activity_user_name_launched_project(user_name: user.name))
+    XCTAssertEqual(display.title, project.name)
   }
 
   func testProjectSuccessActivity() {
@@ -90,12 +70,12 @@ internal final class ActivitySampleProjectCellViewModelTests: TestCase {
       |> Activity.lens.category .~ .success
       |> Activity.lens.project .~ project
 
-    self.vm.inputs.configureWith(activity: activity)
+    let display = self.vm.configureWith(activity: activity)
 
-    self.cellAccessibilityHint.assertValues([Strings.Opens_project()])
-    self.projectImage.assertValues([project.photo.med])
-    self.projectSubtitleText.assertValues([Strings.activity_successfully_funded()])
-    self.projectTitleText.assertValues([project.name])
+    XCTAssertEqual(display.accessibilityHint, Strings.Opens_project())
+    XCTAssertEqual(display.imageURL?.absoluteString, project.photo.med)
+    XCTAssertEqual(display.subtitle, Strings.activity_successfully_funded())
+    XCTAssertEqual(display.title, project.name)
   }
 
   func testProjectUpdateActivity() {
@@ -112,18 +92,16 @@ internal final class ActivitySampleProjectCellViewModelTests: TestCase {
       |> Activity.lens.project .~ project
       |> Activity.lens.update .~ update
 
-    self.vm.inputs.configureWith(activity: activity)
+    let display = self.vm.configureWith(activity: activity)
 
-    self.cellAccessibilityHint.assertValues([Strings.Opens_update()])
-    self.projectImage.assertValues([project.photo.med])
-    self.projectTitleText.assertValues([project.name])
-    self.projectSubtitleText.assertValues(
-      [
+    XCTAssertEqual(display.accessibilityHint, Strings.Opens_update())
+    XCTAssertEqual(display.imageURL?.absoluteString, project.photo.med)
+    XCTAssertEqual(display.title, project.name)
+    XCTAssertEqual(display.subtitle,
         Strings.activity_posted_update_number_title(
           update_number: Format.wholeNumber(update.sequence),
           update_title: update.title
         )
-      ]
     )
   }
 }

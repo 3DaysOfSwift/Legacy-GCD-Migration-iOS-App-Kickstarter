@@ -11,7 +11,7 @@ internal protocol ActivitySampleProjectCellDelegate: AnyObject {
 }
 
 internal final class ActivitySampleProjectCell: UITableViewCell, ValueCell {
-  fileprivate let viewModel: ActivitySampleProjectCellViewModelType = ActivitySampleProjectCellViewModel()
+  fileprivate let viewModel = ActivitySampleProjectCellViewModel()
   internal weak var delegate: ActivitySampleProjectCellDelegate?
 
   @IBOutlet fileprivate var activityStackView: UIStackView!
@@ -74,34 +74,20 @@ internal final class ActivitySampleProjectCell: UITableViewCell, ValueCell {
 
   internal override func bindViewModel() {
     super.bindViewModel()
-
-    self.rac.accessibilityHint = self.viewModel.outputs.cellAccessibilityHint
-    self.projectSubtitleLabel.rac.text = self.viewModel.outputs.projectSubtitleText
-    self.projectTitleLabel.rac.text = self.viewModel.outputs.projectTitleText
-
-    self.viewModel.outputs.goToActivity
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        self?.delegate?.goToActivity()
-      }
-
-    self.viewModel.outputs.projectImageURL
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.projectImageView.af.cancelImageRequest()
-        self?.projectImageView.image = nil
-      })
-      .skipNil()
-      .observeValues { [weak self] url in
-        self?.projectImageView.ksr_setImageWithURL(url)
-      }
+    self.viewModel.onGoToActivity = { [weak self] in self?.delegate?.goToActivity() }
   }
 
   internal func configureWith(value: Activity) {
-    self.viewModel.inputs.configureWith(activity: value)
+    let display = self.viewModel.configureWith(activity: value)
+    self.accessibilityHint = display.accessibilityHint
+    self.projectSubtitleLabel.text = display.subtitle
+    if let title = display.title { self.projectTitleLabel.text = title }
+    self.projectImageView.af.cancelImageRequest()
+    self.projectImageView.image = nil
+    if let url = display.imageURL { self.projectImageView.ksr_setImageWithURL(url) }
   }
 
   @objc fileprivate func seeAllActivityButtonTapped() {
-    self.viewModel.inputs.seeAllActivityTapped()
+    self.viewModel.seeAllActivityTapped()
   }
 }
