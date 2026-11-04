@@ -290,6 +290,9 @@ public final class FriendsFeature {
   }
   public func followAll() async throws { try await self.execute(.all) }
 
+  /// Admits Follow All immediately, preserving its position among account writes.
+  func startFollowAll() -> Task<Void, Error> { self.request(.all) }
+
   // Compatibility outputs carry values only; the Feature owns native async execution.
   public func followAllResult() -> SignalProducer<Void, ErrorEnvelope> { self.result(.all) }
   private func result(_ command: Command) -> SignalProducer<Void, ErrorEnvelope> {

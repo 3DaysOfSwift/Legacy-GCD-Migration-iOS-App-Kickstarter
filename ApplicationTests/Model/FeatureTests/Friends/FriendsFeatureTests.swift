@@ -208,16 +208,15 @@ final class FriendsFeatureTests: TestCase {
     let page = self.feature.requestPage(route: self.route)
     await self.provider.pages.waitFor(1)
     let follow = self.feature.startFollowing(user: Self.user(1), following: true)
-    let completed = expectation(description: "Follow all settled")
-    let all = self.feature.followAllResult().startWithCompleted { completed.fulfill() }
-    defer { follow.cancel(); all.dispose() }
+    let all = self.feature.startFollowAll()
+    defer { follow.cancel(); all.cancel() }
     await self.provider.writes.waitFor(1)
     try self.provider.writes.finish(0, .success(()))
     await self.provider.writes.waitFor(2)
     XCTAssertEqual(self.provider.operations, ["1:true", "all"])
     try self.provider.writes.finish(1, .success(()))
     // Await the command lane without waiting on the deliberately suspended old page.
-    await fulfillment(of: [completed], timeout: 2)
+    try await all.value
     try self.provider.pages.finish(0, .success(Self.page([1], cursor: "next")))
     await page?.value
     await self.feature.waitForOperations()
