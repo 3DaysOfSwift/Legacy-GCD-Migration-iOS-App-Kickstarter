@@ -162,11 +162,10 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
   // MARK: - View Model
 
   public override func bindViewModel() {
-    self.viewModel.outputs.startOAuthSignupOrLogin
-      .observeForControllerAction()
-      .observeValues { [weak self] _ in
-        self?.pushOAuthFlow()
-      }
+    self.viewModel.onOAuth = { [weak self] in self?.pushOAuthFlow() }
+    self.viewModel.onFacebookLogin = { [weak self] in self?.attemptFacebookLogin() }
+    self.viewModel.onAppleLogin = { [weak self] in self?.attemptAppleLogin() }
+    self.viewModel.onDismiss = { [weak self] in self?.dismiss(animated: true) }
 
     self.viewModel.outputs.logIntoEnvironmentWithApple
       .observeValues { [weak self] _ in
@@ -199,10 +198,6 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
         self?.pushTwoFactorViewController(facebookAccessToken: token)
       }
 
-    self.viewModel.outputs.attemptFacebookLogin
-      .observeValues { [weak self] _ in self?.attemptFacebookLogin()
-      }
-
     self.viewModel.outputs.showFacebookErrorAlert
       .observeForControllerAction()
       .observeValues { [weak self] error in
@@ -215,12 +210,6 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
         )
 
         Crashlytics.crashlytics().record(error: error.nsError)
-      }
-
-    self.viewModel.outputs.dismissViewController
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.dismiss(animated: true)
       }
 
     self.helpViewModel.onHelpSheet = { [weak self] in
@@ -247,12 +236,6 @@ public final class LoginToutViewController: UIViewController, @MainActor MFMailC
       self?.bringCreativeProjectsToLifeLabel.isHidden = isHidden
       self?.contextLabel.font = isHidden ? UIFont.ksr_title2() : UIFont.ksr_subhead()
     }
-
-    self.viewModel.outputs.attemptAppleLogin
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.attemptAppleLogin()
-      }
 
     self.viewModel.outputs.showAppleErrorAlert
       .observeForControllerAction()

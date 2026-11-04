@@ -51,9 +51,10 @@ final class LoginToutViewModelTests: TestCase {
   }
 
   private func bindOutputs() {
-    self.vm.outputs.attemptAppleLogin.observe(self.attemptAppleLogin.observer)
-    self.vm.outputs.attemptFacebookLogin.observe(self.attemptFacebookLogin.observer)
-    self.vm.outputs.dismissViewController.observe(self.dismissViewController.observer)
+    self.vm.onAppleLogin = { [weak self] in self?.attemptAppleLogin.observer.send(value: ()) }
+    self.vm.onFacebookLogin = { [weak self] in self?.attemptFacebookLogin.observer.send(value: ()) }
+    self.vm.onDismiss = { [weak self] in self?.dismissViewController.observer.send(value: ()) }
+    self.vm.onOAuth = { [weak self] in self?.startOAuthSignupOrLogin.observer.send(value: ()) }
     self.vm.onContext = { [weak self] text, hidden in
       self?.logInContextText.observer.send(value: text)
       self?.headlineLabelHidden.observer.send(value: hidden)
@@ -66,7 +67,6 @@ final class LoginToutViewModelTests: TestCase {
     self.vm.outputs.showFacebookErrorAlert.observe(self.showFacebookErrorAlert.observer)
     self.vm.outputs.startFacebookConfirmation.map { _, token in token }
       .observe(self.startFacebookConfirmation.observer)
-    self.vm.outputs.startOAuthSignupOrLogin.observe(self.startOAuthSignupOrLogin.observer)
     self.vm.outputs.startTwoFactorChallenge.observe(self.startTwoFactorChallenge.observer)
   }
 

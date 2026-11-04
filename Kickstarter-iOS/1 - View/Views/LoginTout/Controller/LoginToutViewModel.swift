@@ -48,15 +48,6 @@ public protocol LoginToutViewModelInputs {
 
 @MainActor
 public protocol LoginToutViewModelOutputs {
-  /// Emits when Apple login should start
-  var attemptAppleLogin: Signal<Void, Never> { get }
-
-  /// Emits when Facebook login should start
-  var attemptFacebookLogin: Signal<(), Never> { get }
-
-  /// Emits when the controller should be dismissed.
-  var dismissViewController: Signal<(), Never> { get }
-
   /// Emits whether a request is loading or not
   var isLoading: Signal<Bool, Never> { get }
 
@@ -77,9 +68,6 @@ public protocol LoginToutViewModelOutputs {
 
   /// Emits when should show Facebook error alert with AlertError
   var showFacebookErrorAlert: Signal<AlertError, Never> { get }
-
-  /// Emits when OAuth flow should be shown
-  var startOAuthSignupOrLogin: Signal<(), Never> { get }
 
   /// Emits a Facebook user and access token when Facebook login has occurred
   var startFacebookConfirmation: Signal<(ErrorEnvelope.FacebookUser?, String), Never> { get }
@@ -102,9 +90,6 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
     let isLoading: MutableProperty<Bool> = MutableProperty(false)
 
     self.isLoading = isLoading.signal.skipRepeats()
-    self.startOAuthSignupOrLogin = self.signupOrLoginWithOAuthButtonPressedProperty.signal
-    self.attemptFacebookLogin = self.facebookLoginButtonPressedProperty.signal
-    self.attemptAppleLogin = self.appleLoginButtonPressedProperty.signal.ignoreValues()
 
     let tokenString: Signal<String, Never> = self.facebookLoginSuccessProperty.signal.skipNil()
       .map { $0.token?.tokenString ?? "" }
@@ -165,11 +150,6 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
       // Post notifications on the next run loop to avoid race condition with VCs being deallocated.
       .ksr_delay(.nanoseconds(0), on: AppEnvironment.current.scheduler)
 
-    self.dismissViewController = self.viewIsPresentedProperty.signal
-      .filter(isTrue)
-      .takeWhen(self.userSessionStartedProperty.signal)
-      .ignoreValues()
-
     self.showFacebookErrorAlert = Signal.merge(
       facebookTokenFailAlert,
       facebookLoginAttemptFailAlert,
@@ -214,17 +194,17 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
       .take(first: 1)
       .observeValues { AppEnvironment.current.ksrAnalytics.trackLoginTOutPageViewed() }
 
-    self.signupOrLoginWithOAuthButtonPressedProperty.signal
-      .observeValues { AppEnvironment.current.ksrAnalytics.trackLoginInitiateButtonClicked() }
   }
 
   public var inputs: LoginToutViewModelInputs { return self }
   public var outputs: LoginToutViewModelOutputs { return self }
 
-  fileprivate let appleLoginButtonPressedProperty = MutableProperty(())
-  public func appleLoginButtonPressed() {
-    self.appleLoginButtonPressedProperty.value = ()
-  }
+  var onAppleLogin: (() -> Void)?
+  var onFacebookLogin: (() -> Void)?
+  var onOAuth: (() -> Void)?
+  var onDismiss: (() -> Void)?
+  private var isPresented: Bool?
+  public func appleLoginButtonPressed() { self.onAppleLogin?() }
 
   fileprivate let appleAuthorizationDidSucceedWithDataProperty = MutableProperty<SignInWithAppleData?>(nil)
   public func appleAuthorizationDidSucceed(with data: SignInWithAppleData?) {
@@ -247,10 +227,7 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
     self.environmentLoggedInProperty.value = ()
   }
 
-  fileprivate let facebookLoginButtonPressedProperty = MutableProperty(())
-  public func facebookLoginButtonPressed() {
-    self.facebookLoginButtonPressedProperty.value = ()
-  }
+  public func facebookLoginButtonPressed() { self.onFacebookLogin?() }
 
   fileprivate let facebookLoginFailProperty = MutableProperty<Error?>(nil)
   public func facebookLoginFail(error: Error?) {
@@ -262,20 +239,13 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
     self.facebookLoginSuccessProperty.value = result
   }
 
-  fileprivate let signupOrLoginWithOAuthButtonPressedProperty = MutableProperty(())
   public func signupOrLoginWithOAuthButtonPressed() {
-    self.signupOrLoginWithOAuthButtonPressedProperty.value = ()
+    self.onOAuth?()
+    AppEnvironment.current.ksrAnalytics.trackLoginInitiateButtonClicked()
   }
 
-  fileprivate let userSessionStartedProperty = MutableProperty(())
-  public func userSessionStarted() {
-    self.userSessionStartedProperty.value = ()
-  }
-
-  fileprivate let viewIsPresentedProperty = MutableProperty<Bool>(false)
-  public func view(isPresented: Bool) {
-    self.viewIsPresentedProperty.value = isPresented
-  }
+  public func userSessionStarted() { if self.isPresented == true { self.onDismiss?() } }
+  public func view(isPresented: Bool) { self.isPresented = isPresented }
 
   fileprivate var viewWillAppearProperty = MutableProperty(())
   public func viewWillAppear() {
@@ -285,15 +255,11 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
     }
   }
 
-  public let attemptAppleLogin: Signal<(), Never>
-  public let attemptFacebookLogin: Signal<(), Never>
-  public let dismissViewController: Signal<(), Never>
   public let isLoading: Signal<Bool, Never>
   public let logIntoEnvironmentWithApple: Signal<AccessTokenEnvelope, Never>
   public let logIntoEnvironmentWithFacebook: Signal<AccessTokenEnvelope, Never>
   public let postNotification: Signal<(Notification, Notification), Never>
   public let startFacebookConfirmation: Signal<(ErrorEnvelope.FacebookUser?, String), Never>
-  public let startOAuthSignupOrLogin: Signal<(), Never>
   public let startTwoFactorChallenge: Signal<String, Never>
   public let showAppleErrorAlert: Signal<String, Never>
   public let showFacebookErrorAlert: Signal<AlertError, Never>
