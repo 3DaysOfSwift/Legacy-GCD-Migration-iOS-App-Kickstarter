@@ -2,7 +2,6 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveSwift
 import UIKit
 
 internal final class FindFriendsFriendFollowCell: UITableViewCell, ValueCell {
@@ -14,47 +13,35 @@ internal final class FindFriendsFriendFollowCell: UITableViewCell, ValueCell {
   @IBOutlet fileprivate var followButton: UIButton!
   @IBOutlet fileprivate var unfollowButton: UIButton!
 
-  fileprivate let viewModel: FindFriendsFriendFollowCellViewModelType = FindFriendsFriendFollowCellViewModel()
+  fileprivate let viewModel = FindFriendsFriendFollowCellViewModel()
 
   func configureWith(value: (friend: User, source: FriendsSource)) {
-    self.viewModel.inputs.configureWith(friend: value.friend)
+    self.viewModel.configureWith(friend: value.friend)
+    self.renderState()
+    self.avatarImageView.af.cancelImageRequest()
+    self.avatarImageView.image = nil
+    if let url = self.viewModel.imageURL { self.avatarImageView.ksr_setImageWithURL(url) }
   }
 
   override func bindViewModel() {
     super.bindViewModel()
+    self.viewModel.onChange = { [weak self] in self?.renderState() }
+  }
 
-    self.rac.accessibilityValue = self.viewModel.outputs.cellAccessibilityValue
-
-    self.followButton.rac.enabled = self.viewModel.outputs.enableFollowButton
-    self.followButton.rac.accessibilityLabel = self.viewModel.outputs.followButtonAccessibilityLabel
-
-    self.unfollowButton.rac.enabled = self.viewModel.outputs.enableUnfollowButton
-    self.unfollowButton.rac.accessibilityLabel = self.viewModel.outputs.unfollowButtonAccessibilityLabel
-
-    self.friendNameLabel.rac.text = self.viewModel.outputs.name
-
-    self.friendLocationLabel.rac.text = self.viewModel.outputs.location
-
-    self.projectsBackedLabel.rac.text = self.viewModel.outputs.projectsBackedText
-
-    self.projectsCreatedLabel.rac.text = self.viewModel.outputs.projectsCreatedText
-
-    self.projectsCreatedLabel.rac.hidden = self.viewModel.outputs.hideProjectsCreated
-
-    self.followButton.rac.hidden = self.viewModel.outputs.hideFollowButton
-
-    self.unfollowButton.rac.hidden = self.viewModel.outputs.hideUnfollowButton
-
-    self.viewModel.outputs.imageURL
-      .observeForUI()
-      .on(event: { [weak avatarImageView] _ in
-        avatarImageView?.af.cancelImageRequest()
-        avatarImageView?.image = nil
-      })
-      .skipNil()
-      .observeValues { [weak avatarImageView] url in
-        avatarImageView?.ksr_setImageWithURL(url)
-      }
+  private func renderState() {
+    let model = self.viewModel
+    self.accessibilityValue = model.cellAccessibilityValue
+    if let value = model.enableFollowButton { self.followButton.isEnabled = value }
+    if let value = model.enableUnfollowButton { self.unfollowButton.isEnabled = value }
+    self.followButton.accessibilityLabel = model.followButtonAccessibilityLabel
+    self.unfollowButton.accessibilityLabel = model.unfollowButtonAccessibilityLabel
+    self.friendNameLabel.text = model.name
+    self.friendLocationLabel.text = model.location
+    self.projectsBackedLabel.text = model.projectsBackedText
+    if let text = model.projectsCreatedText { self.projectsCreatedLabel.text = text }
+    if let value = model.hideProjectsCreated { self.projectsCreatedLabel.isHidden = value }
+    if let value = model.hideFollowButton { self.followButton.isHidden = value }
+    if let value = model.hideUnfollowButton { self.unfollowButton.isHidden = value }
   }
 
   override func bindStyles() {
@@ -103,10 +90,10 @@ internal final class FindFriendsFriendFollowCell: UITableViewCell, ValueCell {
   }
 
   @objc func followButtonTapped() {
-    self.viewModel.inputs.followButtonTapped()
+    self.viewModel.followButtonTapped()
   }
 
   @objc func unfollowButtonTapped() {
-    self.viewModel.inputs.unfollowButtonTapped()
+    self.viewModel.unfollowButtonTapped()
   }
 }

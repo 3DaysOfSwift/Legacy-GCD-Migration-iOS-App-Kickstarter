@@ -281,20 +281,17 @@ final class FriendsFeatureTests: TestCase {
   }
 
   func testReusedFindFriendsCellIgnoresPreviousFriendCompletion() async throws {
-    let vm = FindFriendsFriendFollowCellViewModel(feature: self.feature)
-    var hidden: [Bool] = []
-    let subscription = vm.outputs.hideFollowButton.observeValues { hidden.append($0) }
-    defer { subscription?.dispose() }
+    let vm = FindFriendsFriendFollowCellViewModel(feature: self.feature, delay: {})
     vm.configureWith(friend: Self.user(1))
     vm.followButtonTapped()
     await self.provider.writes.waitFor(1)
     vm.configureWith(friend: Self.user(2))
     try self.provider.writes.finish(0, .success(()))
     await self.feature.waitForOperations()
-    await self.scheduler.advance()
-    XCTAssertEqual(hidden, [false])
+    await vm.waitForObservations()
+    XCTAssertEqual(vm.hideFollowButton, false)
     vm.configureWith(friend: Self.user(1))
-    XCTAssertEqual(hidden, [false, true])
+    XCTAssertEqual(vm.hideFollowButton, true)
   }
 
   func testActivityAndFindFriendsShareFollowingStateWithoutSharingCellLifetime() async throws {
@@ -312,27 +309,24 @@ final class FriendsFeatureTests: TestCase {
     await self.feature.waitForOperations()
     await vm.waitForObservation()
     XCTAssertTrue(hidden.isEmpty)
-    let other = FindFriendsFriendFollowCellViewModel(feature: self.feature)
-    var otherHidden: [Bool] = []
-    let otherSubscription = other.hideFollowButton.observeValues { otherHidden.append($0) }
-    defer { otherSubscription?.dispose() }
+    let other = FindFriendsFriendFollowCellViewModel(feature: self.feature, delay: {})
     other.configureWith(friend: Self.user(1))
-    XCTAssertEqual(otherHidden, [true])
+    XCTAssertEqual(other.hideFollowButton, true)
   }
 
   func testDelayedSuccessDoesNotReachReplacementSession() async throws {
-    let vm = FindFriendsFriendFollowCellViewModel(feature: self.feature)
-    var hidden: [Bool] = []
-    let subscription = vm.hideFollowButton.observeValues { hidden.append($0) }
-    defer { subscription?.dispose() }
+    let gate = AccountRequestGate<Void>()
+    defer { gate.releaseAll() }
+    let vm = FindFriendsFriendFollowCellViewModel(feature: self.feature, delay: { try await gate.request() })
     vm.configureWith(friend: Self.user(1))
     vm.followButtonTapped()
     await self.provider.writes.waitFor(1)
     try self.provider.writes.finish(0, .success(()))
-    await self.feature.waitForOperations()
+    await gate.waitFor(1)
     self.session.sessionChanged()
-    await self.scheduler.advance()
-    XCTAssertEqual(hidden, [false])
+    try gate.finish(0, .success(()))
+    await vm.waitForObservations()
+    XCTAssertEqual(vm.hideFollowButton, false)
     XCTAssertEqual(self.feature.cached(Self.user(1)).isFriend, false)
   }
 

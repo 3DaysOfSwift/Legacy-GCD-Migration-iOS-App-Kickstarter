@@ -1,194 +1,96 @@
 import Foundation
 import KsApi
-import Prelude
-import ReactiveExtensions
-import ReactiveSwift
+import Observation
 
-@MainActor
-public protocol FindFriendsFriendFollowCellViewModelInputs {
-  /// Call to set friend from whence it comes
-  func configureWith(friend: User)
+@MainActor @Observable
+public final class FindFriendsFriendFollowCellViewModel {
+  public private(set) var cellAccessibilityValue: String?
+  public private(set) var enableFollowButton: Bool?
+  public private(set) var enableUnfollowButton: Bool?
+  public private(set) var followButtonAccessibilityLabel: String?
+  public private(set) var hideFollowButton: Bool?
+  public private(set) var hideProjectsCreated: Bool?
+  public private(set) var hideUnfollowButton: Bool?
+  public private(set) var imageURL: URL?
+  public private(set) var location: String?
+  public private(set) var name: String?
+  public private(set) var projectsBackedText: String?
+  public private(set) var projectsCreatedText: String?
+  public private(set) var unfollowButtonAccessibilityLabel: String?
+  @ObservationIgnored var onChange: (@MainActor () -> Void)?
+  @ObservationIgnored private let feature: FriendsFeature
+  @ObservationIgnored private let delay: @MainActor () async throws -> Void
+  @ObservationIgnored private var followObservation: Task<Void, Never>?
+  @ObservationIgnored private var unfollowObservation: Task<Void, Never>?
+  private var friend: User?
 
-  /// Call when follow friend button is tapped
-  func followButtonTapped()
-
-  /// Call when unfollow friend button is tapped
-  func unfollowButtonTapped()
-}
-
-@MainActor
-public protocol FindFriendsFriendFollowCellViewModelOutputs {
-  /// Emits accessibilityValue for the Cell
-  var cellAccessibilityValue: Signal<String, Never> { get }
-
-  /// Emits whether Follow button should be enabled
-  var enableFollowButton: Signal<Bool, Never> { get }
-
-  /// Emits whether Unfollow button should be enabled
-  var enableUnfollowButton: Signal<Bool, Never> { get }
-
-  // Emits follow button accessibilityLabel that includes friend's name
-  var followButtonAccessibilityLabel: Signal<String, Never> { get }
-
-  /// Emits when to show Follow button
-  var hideFollowButton: Signal<Bool, Never> { get }
-
-  /// Emits whether should show projects created text
-  var hideProjectsCreated: Signal<Bool, Never> { get }
-
-  /// Emits when to show Unfollow button
-  var hideUnfollowButton: Signal<Bool, Never> { get }
-
-  /// Emits an URL to friend's avatar
-  var imageURL: Signal<URL?, Never> { get }
-
-  /// Emits friend's location
-  var location: Signal<String, Never> { get }
-
-  /// Emits friend's name
-  var name: Signal<String, Never> { get }
-
-  /// Emits number of projects backed text
-  var projectsBackedText: Signal<String, Never> { get }
-
-  /// Emits number of projects created text
-  var projectsCreatedText: Signal<String, Never> { get }
-
-  // Emits unfollow button accessibilityLabel that includes friend's name
-  var unfollowButtonAccessibilityLabel: Signal<String, Never> { get }
-}
-
-@MainActor
-public protocol FindFriendsFriendFollowCellViewModelType {
-  var inputs: FindFriendsFriendFollowCellViewModelInputs { get }
-  var outputs: FindFriendsFriendFollowCellViewModelOutputs { get }
-}
-
-@MainActor
-public final class FindFriendsFriendFollowCellViewModel: FindFriendsFriendFollowCellViewModelType,
-  FindFriendsFriendFollowCellViewModelInputs, FindFriendsFriendFollowCellViewModelOutputs {
-  public init(feature: FriendsFeature? = nil) {
-    let feature = feature ?? AppModel.shared.friendsFeature
-    let configuredFriend = self.configureWithFriendProperty
-    let friend: Signal<User, Never> = self.configureWithFriendProperty.signal.skipNil()
-      .map { feature.cached($0) }
-
-    self.imageURL = friend.map { (friend: User) -> URL? in URL(string: friend.avatar.medium) }
-
-    self.location = friend.map { (friend: User) -> String in friend.location?.displayableName ?? "" }
-
-    self.name = friend.map { (friend: User) -> String in friend.name }
-
-    self.projectsBackedText = friend
-      .map { (friend: User) -> Int in friend.stats.backedProjectsCount ?? 0 }
-      .map(Strings.social_following_friend_projects_count_backed(backed_count:))
-
-    let projectsCreatedCount: Signal<Int, Never> = friend.map { (friend: User) -> Int in
-      friend.stats.createdProjectsCount ?? 0
+  public init(feature: FriendsFeature? = nil, delay: (@MainActor () async throws -> Void)? = nil) {
+    self.feature = feature ?? AppModel.shared.friendsFeature
+    self.delay = delay ?? {
+      let seconds = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+      if seconds.isInfinite { try await Task.sleep(nanoseconds: UInt64.max) }
+      else if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
     }
-
-    self.hideProjectsCreated = projectsCreatedCount.map {
-      (count: Int) -> Bool in count == 0
-    }
-
-    self.projectsCreatedText = projectsCreatedCount
-      .filter { $0 > 0 }
-      .map(Strings.social_following_friend_projects_count_created(created_count:))
-
-    let isLoadingFollowRequest: MutableProperty<Bool> = MutableProperty(false)
-    let isLoadingUnfollowRequest: MutableProperty<Bool> = MutableProperty(false)
-
-    let followFriendEvent: Signal<Signal<User, ErrorEnvelope>.Event, Never> = friend
-      .takeWhen(self.followButtonTappedProperty.signal)
-      .switchMap { user in
-        feature.delayed(feature.setFollowingResult(user: user, following: true)
-          .on(
-            starting: {
-              isLoadingFollowRequest.value = true
-            },
-            terminated: {
-              isLoadingFollowRequest.value = false
-            }
-          ))
-          .materialize()
-      }
-
-    let unfollowFriendEvent: Signal<Signal<User, ErrorEnvelope>.Event, Never> = friend
-      .takeWhen(self.unfollowButtonTappedProperty.signal)
-      .switchMap { user in
-        feature.delayed(feature.setFollowingResult(user: user, following: false)
-          .on(
-            starting: {
-              isLoadingUnfollowRequest.value = true
-            },
-            terminated: {
-              isLoadingUnfollowRequest.value = false
-            }
-          ))
-          .materialize()
-      }
-
-    let updatedFriendToFollowed: Signal<User, Never> = followFriendEvent.values()
-      .filter { $0.id == configuredFriend.value?.id }
-
-    let updatedFriendToUnfollowed: Signal<User, Never> = unfollowFriendEvent.values()
-      .filter { $0.id == configuredFriend.value?.id }
-
-    let isFollowed: Signal<Bool, Never> = Signal.merge(
-      friend, updatedFriendToFollowed, updatedFriendToUnfollowed
-    )
-    .map { $0.isFriend ?? false }
-
-    self.hideFollowButton = isFollowed.skipRepeats()
-
-    self.hideUnfollowButton = isFollowed.map(negate).skipRepeats()
-
-    self.enableFollowButton = Signal.merge(
-      self.hideFollowButton.map(negate),
-      isLoadingFollowRequest.signal.map(negate)
-    )
-    .skipRepeats()
-
-    self.enableUnfollowButton = Signal.merge(
-      self.hideUnfollowButton.map(negate),
-      isLoadingUnfollowRequest.signal.map(negate)
-    )
-    .skipRepeats()
-
-    self.followButtonAccessibilityLabel = self.name.map(Strings.Follow_friend_name)
-    self.unfollowButtonAccessibilityLabel = self.name.map(Strings.Unfollow_friend_name)
-    self.cellAccessibilityValue = isFollowed.map { $0 ? Strings.Followed() : Strings.Not_followed() }
   }
 
-  public var inputs: FindFriendsFriendFollowCellViewModelInputs { return self }
-  public var outputs: FindFriendsFriendFollowCellViewModelOutputs { return self }
-
-  fileprivate let configureWithFriendProperty = MutableProperty<User?>(nil)
   public func configureWith(friend: User) {
-    self.configureWithFriendProperty.value = friend
+    let friend = self.feature.cached(friend)
+    self.friend = friend
+    self.imageURL = URL(string: friend.avatar.medium)
+    self.location = friend.location?.displayableName ?? ""
+    self.name = friend.name
+    self.projectsBackedText = Strings.social_following_friend_projects_count_backed(backed_count: friend.stats.backedProjectsCount ?? 0)
+    let count = friend.stats.createdProjectsCount ?? 0
+    self.hideProjectsCreated = count == 0
+    if count > 0 { self.projectsCreatedText = Strings.social_following_friend_projects_count_created(created_count: count) }
+    self.followButtonAccessibilityLabel = Strings.Follow_friend_name(friend_name: friend.name)
+    self.unfollowButtonAccessibilityLabel = Strings.Unfollow_friend_name(friend_name: friend.name)
+    self.applyFollowing(friend.isFriend ?? false)
   }
 
-  fileprivate let followButtonTappedProperty = MutableProperty(())
-  public func followButtonTapped() {
-    self.followButtonTappedProperty.value = ()
+  private func applyFollowing(_ following: Bool) {
+    self.hideFollowButton = following
+    self.hideUnfollowButton = !following
+    self.enableFollowButton = !following
+    self.enableUnfollowButton = following
+    self.cellAccessibilityValue = following ? Strings.Followed() : Strings.Not_followed()
+    self.onChange?()
   }
 
-  fileprivate let unfollowButtonTappedProperty = MutableProperty(())
-  public func unfollowButtonTapped() {
-    self.unfollowButtonTappedProperty.value = ()
+  public func followButtonTapped() { self.setFollowing(true) }
+  public func unfollowButtonTapped() { self.setFollowing(false) }
+
+  private func setFollowing(_ following: Bool) {
+    guard let friend = self.friend else { return }
+    let generation = self.feature.sessionFeature.generation
+    let sessionUser = self.feature.sessionFeature.currentUser?.id
+    let command = self.feature.startFollowing(user: friend, following: following)
+    if following { self.followObservation?.cancel(); self.enableFollowButton = false }
+    else { self.unfollowObservation?.cancel(); self.enableUnfollowButton = false }
+    self.onChange?()
+    let task = Task { [weak self] in
+      do {
+        let updated = try await command.value
+        guard let self, !Task.isCancelled else { return }
+        if following { self.enableFollowButton = true } else { self.enableUnfollowButton = true }
+        self.onChange?()
+        try await self.delay()
+        try Task.checkCancellation()
+        guard self.friend?.id == updated.id, self.feature.sessionFeature.generation == generation,
+              self.feature.sessionFeature.currentUser?.id == sessionUser else { return }
+        self.applyFollowing(updated.isFriend ?? false)
+      } catch {
+        guard let self, !Task.isCancelled else { return }
+        if following { self.enableFollowButton = true } else { self.enableUnfollowButton = true }
+        self.onChange?()
+      }
+    }
+    if following { self.followObservation = task } else { self.unfollowObservation = task }
   }
 
-  public let cellAccessibilityValue: Signal<String, Never>
-  public let enableFollowButton: Signal<Bool, Never>
-  public let enableUnfollowButton: Signal<Bool, Never>
-  public let followButtonAccessibilityLabel: Signal<String, Never>
-  public let hideFollowButton: Signal<Bool, Never>
-  public let hideProjectsCreated: Signal<Bool, Never>
-  public let hideUnfollowButton: Signal<Bool, Never>
-  public let imageURL: Signal<URL?, Never>
-  public let location: Signal<String, Never>
-  public let name: Signal<String, Never>
-  public let projectsBackedText: Signal<String, Never>
-  public let projectsCreatedText: Signal<String, Never>
-  public let unfollowButtonAccessibilityLabel: Signal<String, Never>
+  func waitForObservations() async {
+    await self.followObservation?.value
+    await self.unfollowObservation?.value
+  }
+  deinit { self.followObservation?.cancel(); self.unfollowObservation?.cancel() }
 }
