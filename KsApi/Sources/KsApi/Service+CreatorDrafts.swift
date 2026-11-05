@@ -1,6 +1,10 @@
 import Foundation
 
 extension Service {
+  @MainActor public func publishCreatorDraft(_ draft: UpdateDraft) async throws -> Update {
+    try await self.discussionResponse(route: .publishUpdateDraft(draft))
+  }
+
   @MainActor public func creatorDraft(project: Project) async throws -> UpdateDraft {
     try await self.discussionResponse(route: .fetchUpdateDraft(forProject: project))
   }

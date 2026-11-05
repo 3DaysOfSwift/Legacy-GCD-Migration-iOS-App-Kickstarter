@@ -197,10 +197,6 @@ public struct Service: ServiceType {
       .eraseToAnyPublisher()
   }
 
-  public func publish(draft: UpdateDraft) -> SignalProducer<Update, ErrorEnvelope> {
-    return request(.publishUpdateDraft(draft))
-  }
-
   /**
    Post Campaign Pledge Validation.
    - parameter checkoutId: The Checkout Id..

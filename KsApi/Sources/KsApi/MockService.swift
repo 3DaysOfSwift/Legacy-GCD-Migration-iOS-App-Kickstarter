@@ -1367,12 +1367,10 @@
       return client.performWithResult(mutation: mutation, result: self.triggerThirdPartyEventResult)
     }
 
-    internal func publish(draft _: UpdateDraft) -> SignalProducer<Update, ErrorEnvelope> {
-      if let error = publishUpdateError {
-        return SignalProducer(error: error)
-      }
-
-      return SignalProducer(value: self.fetchUpdateResponse)
+    @MainActor public func publishCreatorDraft(_ draft: UpdateDraft) async throws -> Update {
+      try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
+      if let error = self.publishUpdateError { throw error }
+      return self.fetchUpdateResponse
     }
 
     internal func previewUrl(forDraft draft: UpdateDraft) -> URL? {

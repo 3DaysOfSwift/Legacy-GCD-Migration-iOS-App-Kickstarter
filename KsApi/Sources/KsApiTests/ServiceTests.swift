@@ -450,9 +450,7 @@ final class ServiceTests: XCTestCase {
 
     let expectedResult = try! JSONDecoder().decode(MySwiftModel.self, from: jsonData.data(using: .utf8)!)
 
-    let model: SignalProducer<MySwiftModel, ErrorEnvelope> = Service()
-      .decodeModelToSignal(jsonData.data(using: .utf8)!)
-    let result = try! model.single()?.get()
+    let result = try! Service().decodeModelToResult(data: jsonData.data(using: .utf8)!, ofType: MySwiftModel.self).get()
     XCTAssertEqual(result, expectedResult)
   }
 
@@ -467,9 +465,8 @@ final class ServiceTests: XCTestCase {
     }
     """
 
-    let model: SignalProducer<MySwiftModel, ErrorEnvelope> = Service()
-      .decodeModelToSignal(jsonData.data(using: .utf8)!)
-    XCTAssertThrowsError(try model.single()?.get(), "wrong key should throw an error")
+    let model = Service().decodeModelToResult(data: jsonData.data(using: .utf8)!, ofType: MySwiftModel.self)
+    XCTAssertThrowsError(try model.get(), "invalid JSON should throw an error")
   }
 
   func testSwiftDecodeModel_WrongTypeModel() {
@@ -483,12 +480,11 @@ final class ServiceTests: XCTestCase {
     }
     """
 
-    let model: SignalProducer<MySwiftModel, ErrorEnvelope> = Service()
-      .decodeModelToSignal(jsonData.data(using: .utf8)!)
-    XCTAssertThrowsError(try model.single()?.get(), "wrong key should throw an error")
+    let model = Service().decodeModelToResult(data: jsonData.data(using: .utf8)!, ofType: MySwiftModel.self)
+    XCTAssertThrowsError(try model.get(), "invalid JSON should throw an error")
   }
 
-  func testSwiftDecodeModel_Optional_WrongTypeModel() {
+  func testSwiftDecodeModel_Result_WrongTypeModel() {
     let jsonData: String = """
     {
         "array": ["string1", "string2"],
@@ -499,9 +495,8 @@ final class ServiceTests: XCTestCase {
     }
     """
     let data = jsonData.data(using: .utf8)!
-    let model: SignalProducer<MySwiftModel?, ErrorEnvelope> = Service().decodeModelToSignal(data: data)
-    let result = try! model.single()?.get()
-    XCTAssertNil(result)
+    let model = Service().decodeModelToResult(data: data, ofType: MySwiftModel.self)
+    XCTAssertThrowsError(try model.get())
   }
 
   func testSwiftDecodeModel_ValidModel_Combine() {

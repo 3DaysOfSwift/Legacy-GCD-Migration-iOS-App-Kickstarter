@@ -194,7 +194,7 @@ public protocol ServiceType {
   func previewUrl(forDraft draft: UpdateDraft) -> URL?
 
   /// Publishes a project update draft.
-  func publish(draft: UpdateDraft) -> SignalProducer<Update, ErrorEnvelope>
+  @MainActor func publishCreatorDraft(_ draft: UpdateDraft) async throws -> Update
 
   func fetchDiscovery_combine(paginationUrl: String)
     -> AnyPublisher<DiscoveryEnvelope, ErrorEnvelope>

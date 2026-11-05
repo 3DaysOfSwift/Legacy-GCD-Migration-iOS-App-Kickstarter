@@ -202,6 +202,18 @@ final class DemoCatalogTests: XCTestCase {
     }
   }
 
+  @MainActor
+  func testPublishingDraftUsesMockAndRejectsDemo() async throws {
+    let published = try await MockService().publishCreatorDraft(.template)
+    XCTAssertEqual(published.id, Update.template.id)
+    do {
+      _ = try await MockService.publicDemo().publishCreatorDraft(.template)
+      XCTFail("Demo mode must not publish")
+    } catch {
+      // Demo mode does not perform live writes.
+    }
+  }
+
   private func query(term: String? = nil) -> GraphAPI.SearchQuery {
     .init(term: .someOrNil(term), sort: .none, categoryId: .none, state: .none,
       raised: .none, locationId: .none, pledged: .none, goal: .none,
