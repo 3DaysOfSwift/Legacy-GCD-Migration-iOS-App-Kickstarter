@@ -1,28 +1,17 @@
 @testable import Kickstarter_iOS
-
-
-import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
+import Foundation
 import XCTest
 
+@MainActor
 final class PledgeDisclaimerViewModelTests: TestCase {
-  private let vm: PledgeDisclaimerViewModelType = PledgeDisclaimerViewModel()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private let notifyDelegateLinkTappedWithURL = TestObserver<URL, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-    self.vm.outputs.notifyDelegateLinkTappedWithURL
-      .observe(self.notifyDelegateLinkTappedWithURL.observer)
-  }
-
-  func testPresentTrustAndSafety() {
-    self.notifyDelegateLinkTappedWithURL.assertDidNotEmitValue()
-
+  func testLinkTapForwardsTheURL() {
+    let viewModel = PledgeDisclaimerViewModel()
+    var received: [URL] = []
+    viewModel.onLinkTapped = { received.append($0) }
     let url = URL(string: "http://www.kickstarter.com")!
-    self.vm.inputs.linkTapped(url: url)
-
-    self.notifyDelegateLinkTappedWithURL.assertValues([url])
+    viewModel.linkTapped(url: url)
+    XCTAssertEqual(received, [url])
   }
 }

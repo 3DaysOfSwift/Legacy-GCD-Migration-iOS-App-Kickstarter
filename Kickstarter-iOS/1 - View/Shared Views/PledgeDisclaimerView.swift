@@ -18,7 +18,7 @@ final class PledgeDisclaimerView: UIView {
   private lazy var textView: UITextView = { UITextView(frame: .zero) |> \.delegate .~ self }()
 
   weak var delegate: PledgeDisclaimerViewDelegate?
-  private let viewModel: PledgeDisclaimerViewModelType = PledgeDisclaimerViewModel()
+  private let viewModel = PledgeDisclaimerViewModel()
 
   // MARK: - Lifecycle
 
@@ -39,7 +39,8 @@ final class PledgeDisclaimerView: UIView {
   // MARK: - Configuration
 
   public func configure(with data: PledgeDisclaimerViewData) {
-    self.viewModel.inputs.configure(with: data)
+    self.iconImageView.image = Kickstarter_iOS.image(named: data.iconImageName)?.withRenderingMode(.alwaysTemplate)
+    self.textView.attributedText = data.attributedText
   }
 
   // MARK: - Views
@@ -93,25 +94,10 @@ final class PledgeDisclaimerView: UIView {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.notifyDelegateLinkTappedWithURL
-      .observeForUI()
-      .observeValues { [weak self] url in
-        guard let self = self else { return }
-        self.delegate?.pledgeDisclaimerView(self, didTapURL: url)
-      }
-
-    self.viewModel.outputs.iconImageName
-      .observeForUI()
-      .observeValues { [weak self] iconImageName in
-        self?.iconImageView.image = Kickstarter_iOS
-          .image(named: iconImageName)?.withRenderingMode(.alwaysTemplate)
-      }
-
-    self.viewModel.outputs.attributedText
-      .observeForUI()
-      .observeValues { [weak self] text in
-        self?.textView.attributedText = text
-      }
+    self.viewModel.onLinkTapped = { [weak self] url in
+      guard let self else { return }
+      self.delegate?.pledgeDisclaimerView(self, didTapURL: url)
+    }
   }
 }
 
@@ -127,7 +113,7 @@ extension PledgeDisclaimerView: UITextViewDelegate {
     _: UITextView, shouldInteractWith url: URL, in _: NSRange,
     interaction _: UITextItemInteraction
   ) -> Bool {
-    self.viewModel.inputs.linkTapped(url: url)
+    self.viewModel.linkTapped(url: url)
     return false
   }
 }
