@@ -17,11 +17,11 @@ internal protocol ProjectPamphletMainCellDelegate: VideoViewControllerDelegate {
 internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
   internal weak var delegate: ProjectPamphletMainCellDelegate? {
     didSet {
-      self.viewModel.inputs.delegateDidSet()
+      self.viewModel.delegateDidSet()
     }
   }
 
-  fileprivate let viewModel: ProjectPamphletMainCellViewModelType = ProjectPamphletMainCellViewModel()
+  fileprivate let viewModel = ProjectPamphletMainCellViewModel()
 
   fileprivate weak var videoController: VideoViewController?
 
@@ -82,12 +82,12 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
       }
       self.contentStackView.insertArrangedSubview(self.alertBanner, at: 1)
 
-      self.viewModel.inputs.awakeFromNib()
+      self.viewModel.awakeFromNib()
     }
   }
 
   internal func configureWith(value: ProjectPamphletMainCellData) {
-    self.viewModel.inputs.configureWith(value: value)
+    self.viewModel.configureWith(value: value)
   }
 
   internal func scrollContentOffset(_ offset: CGFloat) {
@@ -270,84 +270,53 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.backersSubtitleLabel.rac.text = self.viewModel.outputs.backersSubtitleLabelText
-    self.backersTitleLabel.rac.text = self.viewModel.outputs.backersTitleLabelText
-    self.backersTitleLabel.rac.textColor = self.viewModel.outputs.projectUnsuccessfulLabelTextColor
-    self.categoryNameLabel.rac.text = self.viewModel.outputs.categoryNameLabelText
-    self.conversionLabel.rac.hidden = self.viewModel.outputs.conversionLabelHidden
-    self.conversionLabel.rac.text = self.viewModel.outputs.conversionLabelText
-    self.creatorButton.rac.accessibilityLabel = self.viewModel.outputs.creatorLabelText
-    self.creatorLabel.rac.text = self.viewModel.outputs.creatorLabelText
-    self.deadlineSubtitleLabel.rac.text = self.viewModel.outputs.deadlineSubtitleLabelText
-    self.deadlineTitleLabel.rac.text = self.viewModel.outputs.deadlineTitleLabelText
-    self.deadlineTitleLabel.rac.textColor = self.viewModel.outputs.projectUnsuccessfulLabelTextColor
-    self.fundingProgressBarView.rac.backgroundColor =
-      self.viewModel.outputs.fundingProgressBarViewBackgroundColor
-    self.locationNameLabel.rac.text = self.viewModel.outputs.locationNameLabelText
-    self.locationStackView.rac.hidden = self.viewModel.outputs.locationStackViewHidden
-    self.pledgeSubtitleLabel.rac.text = self.viewModel.outputs.pledgedSubtitleLabelText
-    self.pledgeSubtitleLabel.rac.textColor = self.viewModel.outputs.pledgedTitleLabelTextColor
-    self.pledgedTitleLabel.rac.text = self.viewModel.outputs.pledgedTitleLabelText
-    self.pledgedTitleLabel.rac.textColor = self.viewModel.outputs.pledgedTitleLabelTextColor
-    self.projectBlurbLabel.rac.text = self.viewModel.outputs.projectBlurbLabelText
-    self.projectNameLabel.rac.text = self.viewModel.outputs.projectNameLabelText
-    self.stateLabel.rac.text = self.viewModel.outputs.projectStateLabelText
-    self.stateLabel.rac.textColor = self.viewModel.outputs.projectStateLabelTextColor
-    self.stateLabel.rac.hidden = self.viewModel.outputs.stateLabelHidden
-    self.statsStackView.rac.accessibilityLabel = self.viewModel.outputs.statsStackViewAccessibilityLabel
-    self.backingContainerView.rac.hidden = self.viewModel.outputs.backingLabelHidden
-    self.progressBarAndStatsStackView.rac.hidden = self.viewModel.outputs.isPrelaunchProject
-    self.backingLabel.rac.text = self.viewModel.outputs.prelaunchProjectBackingText
-    self.alertBanner.rac.hidden = self.viewModel.outputs.projectNoticeBannerHidden
-
-    self.viewModel.outputs.configureVideoPlayerController
-      .observeForUI()
-      .observeValues { [weak self] in self?.configureVideoPlayerController(forProject: $0) }
-
-    self.viewModel.outputs.creatorImageUrl
-      .observeForUI()
-      .on(event: { [weak self] _ in self?.creatorImageView.image = nil })
-      .skipNil()
-      .observeValues { [weak self] in self?.creatorImageView.af.setImage(withURL: $0) }
-
-    self.viewModel.outputs.notifyDelegateToGoToCreator
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        guard let self = self else { return }
-        self.delegate?.projectPamphletMainCell(self, goToCreatorForProject: $0)
-      }
-
-    self.viewModel.outputs.notifyDelegateToGoToProjectNotice
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        guard let self = self else { return }
-        self.delegate?.projectPamphletMainCellGoToProjectNotice(self)
-      }
-
-    self.viewModel.outputs.opacityForViews
-      .observeForUI()
-      .observeValues { [weak self] alpha in
-        guard let self = self else { return }
-        UIView.animate(
-          withDuration: alpha == 0.0 ? 0.0 : 0.3,
-          delay: 0.0,
-          options: .curveEaseOut,
-          animations: {
-            self.creatorStackView.alpha = alpha
-            self.statsStackView.alpha = alpha
-            self.blurbAndOverviewStackview.alpha = alpha
-          },
-          completion: nil
-        )
-      }
-
-    self.viewModel.outputs.progressPercentage
-      .observeForUI()
-      .observeValues { [weak self] progress in
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .backersSubtitleLabelText(value): self.backersSubtitleLabel.text = value
+      case let .backersTitleLabelText(value): self.backersTitleLabel.text = value
+      case let .projectUnsuccessfulLabelTextColor(value): self.backersTitleLabel.textColor = value; self.deadlineTitleLabel.textColor = value
+      case let .categoryNameLabelText(value): self.categoryNameLabel.text = value
+      case let .conversionLabelHidden(value): self.conversionLabel.isHidden = value
+      case let .conversionLabelText(value): self.conversionLabel.text = value
+      case let .creatorLabelText(value): self.creatorButton.accessibilityLabel = value; self.creatorLabel.text = value
+      case let .deadlineSubtitleLabelText(value): self.deadlineSubtitleLabel.text = value
+      case let .deadlineTitleLabelText(value): self.deadlineTitleLabel.text = value
+      case let .fundingProgressBarViewBackgroundColor(value): self.fundingProgressBarView.backgroundColor = value
+      case let .locationNameLabelText(value): self.locationNameLabel.text = value
+      case let .locationStackViewHidden(value): self.locationStackView.isHidden = value
+      case let .pledgedSubtitleLabelText(value): self.pledgeSubtitleLabel.text = value
+      case let .pledgedTitleLabelTextColor(value): self.pledgeSubtitleLabel.textColor = value; self.pledgedTitleLabel.textColor = value
+      case let .pledgedTitleLabelText(value): self.pledgedTitleLabel.text = value
+      case let .projectBlurbLabelText(value): self.projectBlurbLabel.text = value
+      case let .projectNameLabelText(value): self.projectNameLabel.text = value
+      case let .projectStateLabelText(value): self.stateLabel.text = value
+      case let .projectStateLabelTextColor(value): self.stateLabel.textColor = value
+      case let .stateLabelHidden(value): self.stateLabel.isHidden = value
+      case let .statsStackViewAccessibilityLabel(value): self.statsStackView.accessibilityLabel = value
+      case let .backingLabelHidden(value): self.backingContainerView.isHidden = value
+      case let .isPrelaunchProject(value): self.progressBarAndStatsStackView.isHidden = value
+      case let .prelaunchProjectBackingText(value): self.backingLabel.text = value
+      case let .projectNoticeBannerHidden(value): self.alertBanner.isHidden = value
+      case let .configureVideoPlayerController(project): self.configureVideoPlayerController(forProject: project)
+      case let .creatorImageUrl(url):
+        self.creatorImageView.image = nil
+        if let url { self.creatorImageView.af.setImage(withURL: url) }
+      case let .notifyDelegateToGoToCreator(project): self.delegate?.projectPamphletMainCell(self, goToCreatorForProject: project)
+      case .notifyDelegateToGoToProjectNotice: self.delegate?.projectPamphletMainCellGoToProjectNotice(self)
+      case let .opacityForViews(alpha):
+        UIView.animate(withDuration: alpha == 0 ? 0 : 0.3, delay: 0, options: .curveEaseOut) {
+          self.creatorStackView.alpha = alpha
+          self.statsStackView.alpha = alpha
+          self.blurbAndOverviewStackview.alpha = alpha
+        }
+      case let .progressPercentage(progress):
         let anchorX = progress == 0 ? 0 : 0.5 / progress
-        self?.fundingProgressBarView.layer.anchorPoint = CGPoint(x: CGFloat(anchorX), y: 0.5)
-        self?.fundingProgressBarView.transform = CGAffineTransform(scaleX: CGFloat(progress), y: 1.0)
+        self.fundingProgressBarView.layer.anchorPoint = CGPoint(x: CGFloat(anchorX), y: 0.5)
+        self.fundingProgressBarView.transform = CGAffineTransform(scaleX: CGFloat(progress), y: 1)
+      case .projectImageUrl: break
       }
+    }
   }
 
   fileprivate func configureVideoPlayerController(
@@ -371,23 +340,23 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
   }
 
   private func alertBannerLearnMoreTapped() {
-    self.viewModel.inputs.projectNoticeLearnMoreTapped()
+    self.viewModel.projectNoticeLearnMoreTapped()
   }
 
   @objc fileprivate func creatorButtonTapped() {
-    self.viewModel.inputs.creatorButtonTapped()
+    self.viewModel.creatorButtonTapped()
   }
 }
 
 extension ProjectPamphletMainCell: VideoViewControllerDelegate {
   internal func videoViewControllerDidFinish(_ controller: VideoViewController) {
     self.delegate?.videoViewControllerDidFinish(controller)
-    self.viewModel.inputs.videoDidFinish()
+    self.viewModel.videoDidFinish()
   }
 
   internal func videoViewControllerDidStart(_ controller: VideoViewController) {
     self.delegate?.videoViewControllerDidStart(controller)
-    self.viewModel.inputs.videoDidStart()
+    self.viewModel.videoDidStart()
   }
 }
 

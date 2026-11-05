@@ -1,7 +1,6 @@
 import KDS
 import KsApi
 import Prelude
-import ReactiveSwift
 import UIKit
 
 public typealias ProjectPamphletMainCellData = (
@@ -10,366 +9,129 @@ public typealias ProjectPamphletMainCellData = (
 )
 
 @MainActor
-public protocol ProjectPamphletMainCellViewModelInputs {
-  /// Call when cell awakeFromNib is called.
-  func awakeFromNib()
-
-  /// Call with the ProjectPamphletMainCellData provided to the view controller.
-  func configureWith(value: ProjectPamphletMainCellData)
-
-  /// Call when the creator button is tapped.
-  func creatorButtonTapped()
-
-  /// Call when the delegate has been set on the cell.
-  func delegateDidSet()
-
-  /// Call when the project notice learn more button is tapped.
-  func projectNoticeLearnMoreTapped()
-
-  func videoDidFinish()
-  func videoDidStart()
-}
-
-@MainActor
-public protocol ProjectPamphletMainCellViewModelOutputs {
-  /// Emits a string to use for the backer subtitle label.
-  var backersSubtitleLabelText: Signal<String, Never> { get }
-
-  /// Emits a string to use for the backers title label.
-  var backersTitleLabelText: Signal<String, Never> { get }
-
-  /// Emits a string to use for the category name label.
-  var categoryNameLabelText: Signal<String, Never> { get }
-
-  /// Emits a project when the video player controller should be configured.
-  var configureVideoPlayerController: Signal<any ProjectPamphletMainCellConfiguration, Never> { get }
-
-  /// Emits a boolean that determines if the conversion labels should be hidden.
-  var conversionLabelHidden: Signal<Bool, Never> { get }
-
-  /// Emits a string for the conversion label.
-  var conversionLabelText: Signal<String, Never> { get }
-
-  /// Emits an image url to be loaded into the creator's image view.
-  var creatorImageUrl: Signal<URL?, Never> { get }
-
-  /// Emits text to be put into the creator label.
-  var creatorLabelText: Signal<String, Never> { get }
-
-  /// Emits the text for the deadline subtitle label.
-  var deadlineSubtitleLabelText: Signal<String, Never> { get }
-
-  /// Emits the text for the deadline title label.
-  var deadlineTitleLabelText: Signal<String, Never> { get }
-
-  /// Emits the background color of the funding progress bar view.
-  var fundingProgressBarViewBackgroundColor: Signal<UIColor, Never> { get }
-
-  /// Emits the prelaunch project state. Used to hide/show progress bar and stats view.
-  var isPrelaunchProject: Signal<Bool, Never> { get }
-
-  /// Emits a string to use for the location name label.
-  var locationNameLabelText: Signal<String, Never> { get }
-
-  /// Emits a bool for if the location stack view should be hidden.
-  var locationStackViewHidden: Signal<Bool, Never> { get }
-
-  /// Emits the project when we should go to the creator's view for the project.
-  var notifyDelegateToGoToCreator: Signal<any ProjectPamphletMainCellConfiguration, Never> { get }
-
-  /// Emits the project when project notice details should be displayed.
-  var notifyDelegateToGoToProjectNotice: Signal<(), Never> { get }
-
-  /// Emits an alpha value for views to create transition after full project loads.
-  var opacityForViews: Signal<CGFloat, Never> { get }
-
-  /// Emits the text for the pledged subtitle label.
-  var pledgedSubtitleLabelText: Signal<String, Never> { get }
-
-  /// Emits the text for the pledged title label.
-  var pledgedTitleLabelText: Signal<String, Never> { get }
-
-  /// Emits the text color of the pledged title label.
-  var pledgedTitleLabelTextColor: Signal<UIColor, Never> { get }
-
-  /// Emits a string for the backing label, which could be "you're a backer" or "coming soon".
-  var prelaunchProjectBackingText: Signal<String, Never> { get }
-
-  /// Emits a percentage between 0.0 and 1.0 that can be used to render the funding progress bar.
-  var progressPercentage: Signal<Float, Never> { get }
-
-  /// Emits text to be put into the project blurb label.
-  var projectBlurbLabelText: Signal<String, Never> { get }
-
-  /// Emits a URL to be loaded into the project's image view.
-  var projectImageUrl: Signal<URL?, Never> { get }
-
-  /// Emits text to be put into the project name label.
-  var projectNameLabelText: Signal<String, Never> { get }
-
-  /// Emits a string that should be put into the project state label.
-  var projectStateLabelText: Signal<String, Never> { get }
-
-  /// Emits the text color of the project state label.
-  var projectStateLabelTextColor: Signal<UIColor, Never> { get }
-
-  /// Emits the text color of the backer and deadline title label.
-  var projectUnsuccessfulLabelTextColor: Signal<UIColor, Never> { get }
-
-  /// Emits a boolean that determines if the project state label should be hidden.
-  var stateLabelHidden: Signal<Bool, Never> { get }
-
-  /// Emits a string to use for the stats stack view accessibility value.
-  var statsStackViewAccessibilityLabel: Signal<String, Never> { get }
-
-  /// Emits a boolean that determines if the "you're a backer" or "coming soon" label should be hidden.
-  var backingLabelHidden: Signal<Bool, Never> { get }
-
-  /// Emits false if the project notice banner should be shown.
-  var projectNoticeBannerHidden: Signal<Bool, Never> { get }
-}
-
-@MainActor
-public protocol ProjectPamphletMainCellViewModelType {
-  var inputs: ProjectPamphletMainCellViewModelInputs { get }
-  var outputs: ProjectPamphletMainCellViewModelOutputs { get }
-}
-
-@MainActor
-public final class ProjectPamphletMainCellViewModel: ProjectPamphletMainCellViewModelType,
-  ProjectPamphletMainCellViewModelInputs, ProjectPamphletMainCellViewModelOutputs {
-  public init() {
-    let data = Signal.combineLatest(
-      self.dataProperty.signal.skipNil(),
-      self.awakeFromNibProperty.signal
-    )
-    .map(first)
-
-    let project = data.map(first)
-    let properties = project.map { $0.projectPamphletMainCellProperties }
-
-    self.projectNameLabelText = properties.map { $0.name }
-    self.projectBlurbLabelText = properties.map { $0.blurb }
-
-    self.creatorLabelText = properties.map {
-      Strings.project_creator_by_creator(creator_name: $0.creatorName)
-    }
-
-    self.creatorImageUrl = properties.map { URL(string: $0.creatorAvatarURL) }
-
-    self.stateLabelHidden = properties.map { $0.state == .live }
-
-    self.projectStateLabelText = properties
-      .filter { $0.state != .live }
-      .map(fundingStatus(forProperties:))
-
-    self.projectStateLabelTextColor = properties
-      .filter { $0.state != .live }
-      .map {
-        $0.state == .successful ? LegacyColors.ksr_create_700.uiColor() : LegacyColors.ksr_support_400
-          .uiColor()
-      }
-
-    self.fundingProgressBarViewBackgroundColor = properties
-      .map(progressColor(forProperties:))
-
-    self.projectUnsuccessfulLabelTextColor = properties
-      .map { $0.state == .successful || $0.state == .live ?
-        LegacyColors.ksr_support_400.uiColor() : LegacyColors.ksr_support_400.uiColor()
-      }
-
-    self.pledgedTitleLabelTextColor = properties
-      .map { $0.state == .successful || $0.state == .live ?
-        LegacyColors.ksr_create_700.uiColor() : LegacyColors.ksr_support_400.uiColor()
-      }
-
-    self.prelaunchProjectBackingText = properties
-      .map { $0.displayPrelaunch == .some(true) ?
-        Strings.Coming_soon() : Strings.Youre_a_backer()
-      }
-
-    self.projectImageUrl = properties.map { URL(string: $0.photo) }
-
-    self.projectNoticeBannerHidden = properties.map {
-      ($0.projectNotice ?? "") == ""
-    }
-
-    let videoIsPlaying = Signal.merge(
-      project.take(first: 1).mapConst(false),
-      self.videoDidStartProperty.signal.mapConst(true),
-      self.videoDidFinishProperty.signal.mapConst(false)
-    )
-
-    self.backingLabelHidden = Signal.combineLatest(properties, videoIsPlaying)
-      .map { properties, videoIsPlaying in
-        guard let displayPrelaunch = properties.displayPrelaunch else {
-          return true
-        }
-
-        guard !displayPrelaunch else {
-          return false
-        }
-
-        return properties.isBacking != true || videoIsPlaying
-      }
-      .skipRepeats()
-
-    let backersTitleAndSubtitleText = properties.map { properties -> (String?, String?) in
-      let string = Strings.Backers_count_separator_backers(backers_count: properties.backersCount)
-      let parts = string.split(separator: "\n").map(String.init)
-      return (parts.first, parts.last)
-    }
-
-    self.backersTitleLabelText = backersTitleAndSubtitleText.map { title, _ in title ?? "" }
-    self.backersSubtitleLabelText = backersTitleAndSubtitleText.map { _, subtitle in subtitle ?? "" }
-
-    self.categoryNameLabelText = properties.map { $0.categoryName ?? "" }
-
-    let deadlineTitleAndSubtitle = properties.map { properties -> (String, String) in
-      var durationValue = ("", "")
-
-      if let deadline = properties.deadline {
-        let environment: Environment = AppEnvironment.current
-        durationValue = Format.duration(
-          from: environment.dateType.init().date,
-          to: environment.dateType.init(timeIntervalSince1970: deadline).date,
-          calendar: environment.calendar, useToGo: true
-        )
-      }
-
-      return durationValue
-    }
-
-    self.deadlineTitleLabelText = deadlineTitleAndSubtitle.map(first)
-    self.deadlineSubtitleLabelText = deadlineTitleAndSubtitle.map(second)
-
-    let propertiesAndNeedsConversion = properties.map { properties -> (
-      ProjectPamphletMainCellProperties,
-      Bool
-    ) in
-      (
-        properties,
-        properties.needsConversion
-      )
-    }
-
-    self.conversionLabelHidden = propertiesAndNeedsConversion.map(second).map(negate)
-
-    self.locationNameLabelText = properties.map { $0.locationName }
-
-    self.locationStackViewHidden = properties.map { $0.locationName.isEmpty }
-
-    self.pledgedTitleLabelText = propertiesAndNeedsConversion.map { properties, needsConversion in
-      pledgedText(for: properties, needsConversion)
-    }
-
-    self.pledgedSubtitleLabelText = propertiesAndNeedsConversion.map { properties, needsConversion in
-      goalText(for: properties, needsConversion)
-    }
-
-    self.conversionLabelText = propertiesAndNeedsConversion.filter(second).map(first).map { properties in
-      conversionText(for: properties)
-    }
-
-    self.statsStackViewAccessibilityLabel = propertiesAndNeedsConversion
-      .map(statsStackViewAccessibilityLabelForProperties(_:needsConversion:))
-
-    self.isPrelaunchProject = properties.map { $0.displayPrelaunch }.skipNil()
-
-    self.progressPercentage = properties.map { $0.fundingProgress }.map(clamp(0, 1))
-
-    self.notifyDelegateToGoToCreator = project
-      .takeWhen(self.creatorButtonTappedProperty.signal)
-
-    self.notifyDelegateToGoToProjectNotice = self.projectNoticeLearnMoreTappedProperty.signal
-
-    self.configureVideoPlayerController = Signal.combineLatest(project, self.delegateDidSetProperty.signal)
-      .map(first)
-      .take(first: 1)
-
-    self.opacityForViews = Signal.merge(
-      self.dataProperty.signal.skipNil().mapConst(1.0),
-      self.awakeFromNibProperty.signal.mapConst(0.0)
-    )
-
-    // Tracking
-
-    self.notifyDelegateToGoToCreator.observeValues { project in
-      AppEnvironment.current.ksrAnalytics.trackGotoCreatorDetailsClicked(project: project)
-    }
+final class ProjectPamphletMainCellViewModel {
+  enum Event {
+    case backersSubtitleLabelText(String)
+    case backersTitleLabelText(String)
+    case categoryNameLabelText(String)
+    case configureVideoPlayerController(any ProjectPamphletMainCellConfiguration)
+    case conversionLabelHidden(Bool)
+    case conversionLabelText(String)
+    case creatorImageUrl(URL?)
+    case creatorLabelText(String)
+    case deadlineSubtitleLabelText(String)
+    case deadlineTitleLabelText(String)
+    case fundingProgressBarViewBackgroundColor(UIColor)
+    case isPrelaunchProject(Bool)
+    case locationNameLabelText(String)
+    case locationStackViewHidden(Bool)
+    case notifyDelegateToGoToCreator(any ProjectPamphletMainCellConfiguration)
+    case notifyDelegateToGoToProjectNotice
+    case opacityForViews(CGFloat)
+    case pledgedSubtitleLabelText(String)
+    case pledgedTitleLabelText(String)
+    case pledgedTitleLabelTextColor(UIColor)
+    case prelaunchProjectBackingText(String)
+    case progressPercentage(Float)
+    case projectBlurbLabelText(String)
+    case projectImageUrl(URL?)
+    case projectNameLabelText(String)
+    case projectStateLabelText(String)
+    case projectStateLabelTextColor(UIColor)
+    case projectUnsuccessfulLabelTextColor(UIColor)
+    case stateLabelHidden(Bool)
+    case statsStackViewAccessibilityLabel(String)
+    case backingLabelHidden(Bool)
+    case projectNoticeBannerHidden(Bool)
   }
+  var onEvent: ((Event) -> Void)?
+  private var data: ProjectPamphletMainCellData?
+  private var awake = false
+  private var delegateReady = false
+  private var videoConfigured = false
+  private var videoInitialized = false
+  private var videoPlaying = false
+  private var lastBackingHidden: Bool?
 
-  private let awakeFromNibProperty = MutableProperty(())
-  public func awakeFromNib() {
-    self.awakeFromNibProperty.value = ()
+  func awakeFromNib() {
+    self.awake = true
+    self.publishProject()
+    self.onEvent?(.opacityForViews(0))
   }
-
-  fileprivate let dataProperty
-    = MutableProperty<ProjectPamphletMainCellData?>(nil)
-  public func configureWith(value: ProjectPamphletMainCellData) {
-    self.dataProperty.value = value
+  func configureWith(value: ProjectPamphletMainCellData) {
+    self.data = value
+    if self.awake { self.publishProject() }
+    self.onEvent?(.opacityForViews(1))
   }
-
-  fileprivate let creatorButtonTappedProperty = MutableProperty(())
-  public func creatorButtonTapped() {
-    self.creatorButtonTappedProperty.value = ()
+  func delegateDidSet() { self.delegateReady = true; self.configureVideoIfReady() }
+  func creatorButtonTapped() {
+    guard self.awake, let project = self.data?.project else { return }
+    self.onEvent?(.notifyDelegateToGoToCreator(project))
+    AppEnvironment.current.ksrAnalytics.trackGotoCreatorDetailsClicked(project: project)
   }
-
-  fileprivate let delegateDidSetProperty = MutableProperty(())
-  public func delegateDidSet() {
-    self.delegateDidSetProperty.value = ()
+  func projectNoticeLearnMoreTapped() { self.onEvent?(.notifyDelegateToGoToProjectNotice) }
+  func videoDidStart() { self.videoPlaying = true; self.publishBackingHidden() }
+  func videoDidFinish() { self.videoPlaying = false; self.publishBackingHidden() }
+  private func configureVideoIfReady() {
+    guard self.awake, self.delegateReady, !self.videoConfigured, let project = self.data?.project else { return }
+    self.videoConfigured = true
+    self.onEvent?(.configureVideoPlayerController(project))
   }
-
-  fileprivate let projectNoticeLearnMoreTappedProperty = MutableProperty(())
-  public func projectNoticeLearnMoreTapped() {
-    self.projectNoticeLearnMoreTappedProperty.value = ()
+  private func publishBackingHidden() {
+    guard self.awake, self.videoInitialized, let properties = self.data?.project.projectPamphletMainCellProperties else { return }
+    let hidden: Bool
+    if let prelaunch = properties.displayPrelaunch {
+      hidden = prelaunch ? false : properties.isBacking != true || self.videoPlaying
+    } else { hidden = true }
+    guard self.lastBackingHidden != hidden else { return }
+    self.lastBackingHidden = hidden
+    self.onEvent?(.backingLabelHidden(hidden))
   }
-
-  fileprivate let videoDidFinishProperty = MutableProperty(())
-  public func videoDidFinish() {
-    self.videoDidFinishProperty.value = ()
+  private func publishProject() {
+    guard self.awake, let project = self.data?.project else { return }
+    let properties = project.projectPamphletMainCellProperties
+    self.onEvent?(.projectNameLabelText(properties.name))
+    self.onEvent?(.projectBlurbLabelText(properties.blurb))
+    self.onEvent?(.creatorLabelText(Strings.project_creator_by_creator(creator_name: properties.creatorName)))
+    self.onEvent?(.creatorImageUrl(URL(string: properties.creatorAvatarURL)))
+    self.onEvent?(.stateLabelHidden(properties.state == .live))
+    if properties.state != .live {
+      self.onEvent?(.projectStateLabelText(fundingStatus(forProperties: properties)))
+      self.onEvent?(.projectStateLabelTextColor(properties.state == .successful ? LegacyColors.ksr_create_700.uiColor() : LegacyColors.ksr_support_400.uiColor()))
+    }
+    self.onEvent?(.fundingProgressBarViewBackgroundColor(progressColor(forProperties: properties)))
+    self.onEvent?(.projectUnsuccessfulLabelTextColor(LegacyColors.ksr_support_400.uiColor()))
+    self.onEvent?(.pledgedTitleLabelTextColor(properties.state == .successful || properties.state == .live ? LegacyColors.ksr_create_700.uiColor() : LegacyColors.ksr_support_400.uiColor()))
+    self.onEvent?(.prelaunchProjectBackingText(properties.displayPrelaunch == true ? Strings.Coming_soon() : Strings.Youre_a_backer()))
+    self.onEvent?(.projectImageUrl(URL(string: properties.photo)))
+    self.onEvent?(.projectNoticeBannerHidden((properties.projectNotice ?? "").isEmpty))
+    if !self.videoInitialized { self.videoInitialized = true; self.videoPlaying = false }
+    self.publishBackingHidden()
+    let backers = Strings.Backers_count_separator_backers(backers_count: properties.backersCount).split(separator: "\n").map(String.init)
+    self.onEvent?(.backersTitleLabelText(backers.first ?? ""))
+    self.onEvent?(.backersSubtitleLabelText(backers.last ?? ""))
+    self.onEvent?(.categoryNameLabelText(properties.categoryName ?? ""))
+    var duration = ("", "")
+    if let deadline = properties.deadline {
+      let environment: Environment = AppEnvironment.current
+      duration = Format.duration(from: environment.dateType.init().date,
+        to: environment.dateType.init(timeIntervalSince1970: deadline).date,
+        calendar: environment.calendar, useToGo: true)
+    }
+    self.onEvent?(.deadlineTitleLabelText(duration.0))
+    self.onEvent?(.deadlineSubtitleLabelText(duration.1))
+    let conversion = properties.needsConversion
+    self.onEvent?(.conversionLabelHidden(!conversion))
+    self.onEvent?(.locationNameLabelText(properties.locationName))
+    self.onEvent?(.locationStackViewHidden(properties.locationName.isEmpty))
+    self.onEvent?(.pledgedTitleLabelText(pledgedText(for: properties, conversion)))
+    self.onEvent?(.pledgedSubtitleLabelText(goalText(for: properties, conversion)))
+    if conversion { self.onEvent?(.conversionLabelText(conversionText(for: properties))) }
+    self.onEvent?(.statsStackViewAccessibilityLabel(statsStackViewAccessibilityLabelForProperties(properties, needsConversion: conversion)))
+    if let prelaunch = properties.displayPrelaunch { self.onEvent?(.isPrelaunchProject(prelaunch)) }
+    self.onEvent?(.progressPercentage(clamp(0, 1)(properties.fundingProgress)))
+    self.configureVideoIfReady()
   }
-
-  fileprivate let videoDidStartProperty = MutableProperty(())
-  public func videoDidStart() {
-    self.videoDidStartProperty.value = ()
-  }
-
-  public let backersSubtitleLabelText: Signal<String, Never>
-  public let backersTitleLabelText: Signal<String, Never>
-  public let categoryNameLabelText: Signal<String, Never>
-  public let configureVideoPlayerController: Signal<any ProjectPamphletMainCellConfiguration, Never>
-  public let conversionLabelHidden: Signal<Bool, Never>
-  public let conversionLabelText: Signal<String, Never>
-  public let creatorImageUrl: Signal<URL?, Never>
-  public let creatorLabelText: Signal<String, Never>
-  public let deadlineSubtitleLabelText: Signal<String, Never>
-  public let deadlineTitleLabelText: Signal<String, Never>
-  public let isPrelaunchProject: Signal<Bool, Never>
-  public let fundingProgressBarViewBackgroundColor: Signal<UIColor, Never>
-  public let locationNameLabelText: Signal<String, Never>
-  public let locationStackViewHidden: Signal<Bool, Never>
-  public let notifyDelegateToGoToCreator: Signal<any ProjectPamphletMainCellConfiguration, Never>
-  public let notifyDelegateToGoToProjectNotice: Signal<(), Never>
-  public let opacityForViews: Signal<CGFloat, Never>
-  public let pledgedSubtitleLabelText: Signal<String, Never>
-  public let pledgedTitleLabelText: Signal<String, Never>
-  public let pledgedTitleLabelTextColor: Signal<UIColor, Never>
-  public let prelaunchProjectBackingText: Signal<String, Never>
-  public let progressPercentage: Signal<Float, Never>
-  public let projectBlurbLabelText: Signal<String, Never>
-  public let projectImageUrl: Signal<URL?, Never>
-  public let projectNameLabelText: Signal<String, Never>
-  public let projectStateLabelText: Signal<String, Never>
-  public let projectStateLabelTextColor: Signal<UIColor, Never>
-  public let projectUnsuccessfulLabelTextColor: Signal<UIColor, Never>
-  public let stateLabelHidden: Signal<Bool, Never>
-  public let statsStackViewAccessibilityLabel: Signal<String, Never>
-  public let backingLabelHidden: Signal<Bool, Never>
-  public let projectNoticeBannerHidden: Signal<Bool, Never>
-
-  public var inputs: ProjectPamphletMainCellViewModelInputs { return self }
-  public var outputs: ProjectPamphletMainCellViewModelOutputs { return self }
 }
 
 @MainActor

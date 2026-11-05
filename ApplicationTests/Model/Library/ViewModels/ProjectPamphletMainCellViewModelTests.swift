@@ -4,79 +4,100 @@ import KDS
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class ProjectPamphletMainCellViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  private let vm: ProjectPamphletMainCellViewModelType = ProjectPamphletMainCellViewModel()
+  private let vm = ProjectPamphletMainCellViewModel()
 
-  private let backingLabelHidden = TestObserver<Bool, Never>()
-  private let backersTitleLabelText = TestObserver<String, Never>()
-  private let conversionLabelHidden = TestObserver<Bool, Never>()
-  private let conversionLabelText = TestObserver<String, Never>()
-  private let creatorImageUrl = TestObserver<String?, Never>()
-  private let creatorLabelText = TestObserver<String, Never>()
-  private let deadlineSubtitleLabelText = TestObserver<String, Never>()
-  private let deadlineTitleLabelText = TestObserver<String, Never>()
-  private let fundingProgressBarViewBackgroundColor = TestObserver<UIColor, Never>()
-  private let isPrelaunchProject = TestObserver<Bool, Never>()
-  private let notifyDelegateToGoToCreator = TestObserver<any ProjectPamphletMainCellConfiguration, Never>()
-  private let opacityForViews = TestObserver<CGFloat, Never>()
-  private let pledgedSubtitleLabelText = TestObserver<String, Never>()
-  private let pledgedTitleLabelText = TestObserver<String, Never>()
-  private let pledgedTitleLabelTextColor = TestObserver<UIColor, Never>()
-  private let prelaunchProjectBackingText = TestObserver<String, Never>()
-  private let progressPercentage = TestObserver<Float, Never>()
-  private let projectBlurbLabelText = TestObserver<String, Never>()
-  private let projectImageUrl = TestObserver<String?, Never>()
-  private let projectNameLabelText = TestObserver<String, Never>()
-  private let projectStateLabelText = TestObserver<String, Never>()
-  private let projectStateLabelTextColor = TestObserver<UIColor, Never>()
-  private let projectUnsuccessfulLabelTextColor = TestObserver<UIColor, Never>()
-  private let stateLabelHidden = TestObserver<Bool, Never>()
-  private let statsStackViewAccessibilityLabel = TestObserver<String, Never>()
+  private let backingLabelHidden = PamphletRecorder<Bool>()
+  private let backersTitleLabelText = PamphletRecorder<String>()
+  private let conversionLabelHidden = PamphletRecorder<Bool>()
+  private let conversionLabelText = PamphletRecorder<String>()
+  private let creatorImageUrl = PamphletRecorder<String?>()
+  private let creatorLabelText = PamphletRecorder<String>()
+  private let deadlineSubtitleLabelText = PamphletRecorder<String>()
+  private let deadlineTitleLabelText = PamphletRecorder<String>()
+  private let fundingProgressBarViewBackgroundColor = PamphletRecorder<UIColor>()
+  private let isPrelaunchProject = PamphletRecorder<Bool>()
+  private let notifyDelegateToGoToCreator = PamphletRecorder<any ProjectPamphletMainCellConfiguration>()
+  private let opacityForViews = PamphletRecorder<CGFloat>()
+  private let pledgedSubtitleLabelText = PamphletRecorder<String>()
+  private let pledgedTitleLabelText = PamphletRecorder<String>()
+  private let pledgedTitleLabelTextColor = PamphletRecorder<UIColor>()
+  private let prelaunchProjectBackingText = PamphletRecorder<String>()
+  private let progressPercentage = PamphletRecorder<Float>()
+  private let projectBlurbLabelText = PamphletRecorder<String>()
+  private let projectImageUrl = PamphletRecorder<String?>()
+  private let projectNameLabelText = PamphletRecorder<String>()
+  private let projectStateLabelText = PamphletRecorder<String>()
+  private let projectStateLabelTextColor = PamphletRecorder<UIColor>()
+  private let projectUnsuccessfulLabelTextColor = PamphletRecorder<UIColor>()
+  private let stateLabelHidden = PamphletRecorder<Bool>()
+  private let statsStackViewAccessibilityLabel = PamphletRecorder<String>()
 
   override func setUp() async throws {
     try await super.setUp()
 
-    self.vm.outputs.statsStackViewAccessibilityLabel
-      .observe(self.statsStackViewAccessibilityLabel.observer)
-    self.vm.outputs.backersTitleLabelText.observe(self.backersTitleLabelText.observer)
-    self.vm.outputs.conversionLabelHidden.observe(self.conversionLabelHidden.observer)
-    self.vm.outputs.conversionLabelText.observe(self.conversionLabelText.observer)
-    self.vm.outputs.creatorImageUrl.map { $0?.absoluteString }.observe(self.creatorImageUrl.observer)
-    self.vm.outputs.creatorLabelText.observe(self.creatorLabelText.observer)
-    self.vm.outputs.deadlineSubtitleLabelText.observe(self.deadlineSubtitleLabelText.observer)
-    self.vm.outputs.deadlineTitleLabelText.observe(self.deadlineTitleLabelText.observer)
-    self.vm.outputs.fundingProgressBarViewBackgroundColor
-      .observe(self.fundingProgressBarViewBackgroundColor.observer)
-    self.vm.outputs.notifyDelegateToGoToCreator.observe(self.notifyDelegateToGoToCreator.observer)
-    self.vm.outputs.opacityForViews.observe(self.opacityForViews.observer)
-    self.vm.outputs.pledgedSubtitleLabelText.observe(self.pledgedSubtitleLabelText.observer)
-    self.vm.outputs.pledgedTitleLabelText.observe(self.pledgedTitleLabelText.observer)
-    self.vm.outputs.pledgedTitleLabelTextColor.observe(self.pledgedTitleLabelTextColor.observer)
-    self.vm.outputs.progressPercentage.observe(self.progressPercentage.observer)
-    self.vm.outputs.projectBlurbLabelText.observe(self.projectBlurbLabelText.observer)
-    self.vm.outputs.projectImageUrl.map { $0?.absoluteString }.observe(self.projectImageUrl.observer)
-    self.vm.outputs.projectNameLabelText.observe(self.projectNameLabelText.observer)
-    self.vm.outputs.projectStateLabelText.observe(self.projectStateLabelText.observer)
-    self.vm.outputs.projectStateLabelTextColor.observe(self.projectStateLabelTextColor.observer)
-    self.vm.outputs.projectUnsuccessfulLabelTextColor.observe(self.projectUnsuccessfulLabelTextColor.observer)
-    self.vm.outputs.stateLabelHidden.observe(self.stateLabelHidden.observer)
-    self.vm.outputs.backingLabelHidden.observe(self.backingLabelHidden.observer)
-    self.vm.outputs.isPrelaunchProject.observe(self.isPrelaunchProject.observer)
-    self.vm.outputs.prelaunchProjectBackingText.observe(self.prelaunchProjectBackingText.observer)
+    self.vm.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case .backersSubtitleLabelText: break
+      case let .backersTitleLabelText(value): self.backersTitleLabelText.record(value)
+      case .categoryNameLabelText: break
+      case .configureVideoPlayerController: break
+      case let .conversionLabelHidden(value): self.conversionLabelHidden.record(value)
+      case let .conversionLabelText(value): self.conversionLabelText.record(value)
+      case let .creatorImageUrl(value): self.creatorImageUrl.record(value?.absoluteString)
+      case let .creatorLabelText(value): self.creatorLabelText.record(value)
+      case let .deadlineSubtitleLabelText(value): self.deadlineSubtitleLabelText.record(value)
+      case let .deadlineTitleLabelText(value): self.deadlineTitleLabelText.record(value)
+      case let .fundingProgressBarViewBackgroundColor(value): self.fundingProgressBarViewBackgroundColor.record(value)
+      case let .isPrelaunchProject(value): self.isPrelaunchProject.record(value)
+      case .locationNameLabelText: break
+      case .locationStackViewHidden: break
+      case let .notifyDelegateToGoToCreator(value): self.notifyDelegateToGoToCreator.record(value)
+      case .notifyDelegateToGoToProjectNotice: break
+      case let .opacityForViews(value): self.opacityForViews.record(value)
+      case let .pledgedSubtitleLabelText(value): self.pledgedSubtitleLabelText.record(value)
+      case let .pledgedTitleLabelText(value): self.pledgedTitleLabelText.record(value)
+      case let .pledgedTitleLabelTextColor(value): self.pledgedTitleLabelTextColor.record(value)
+      case let .prelaunchProjectBackingText(value): self.prelaunchProjectBackingText.record(value)
+      case let .progressPercentage(value): self.progressPercentage.record(value)
+      case let .projectBlurbLabelText(value): self.projectBlurbLabelText.record(value)
+      case let .projectImageUrl(value): self.projectImageUrl.record(value?.absoluteString)
+      case let .projectNameLabelText(value): self.projectNameLabelText.record(value)
+      case let .projectStateLabelText(value): self.projectStateLabelText.record(value)
+      case let .projectStateLabelTextColor(value): self.projectStateLabelTextColor.record(value)
+      case let .projectUnsuccessfulLabelTextColor(value): self.projectUnsuccessfulLabelTextColor.record(value)
+      case let .stateLabelHidden(value): self.stateLabelHidden.record(value)
+      case let .statsStackViewAccessibilityLabel(value): self.statsStackViewAccessibilityLabel.record(value)
+      case let .backingLabelHidden(value): self.backingLabelHidden.record(value)
+      case .projectNoticeBannerHidden: break
+      }
+    }
+  }
+
+  func testVideoPlayerConfiguredOnceAfterProjectAndDelegateAreReady() {
+    let vm = ProjectPamphletMainCellViewModel()
+    var configurations = 0
+    vm.onEvent = { if case .configureVideoPlayerController = $0 { configurations += 1 } }
+    vm.delegateDidSet()
+    vm.configureWith(value: (Project.template, nil))
+    XCTAssertEqual(configurations, 0)
+    vm.awakeFromNib()
+    XCTAssertEqual(configurations, 1)
+    vm.delegateDidSet()
+    vm.configureWith(value: (Project.template, nil))
+    XCTAssertEqual(configurations, 1)
   }
 
   func testStatsStackViewAccessibilityLabel() {
     let project = .template
       |> Project.lens.dates.deadline .~ (self.dateType.init().timeIntervalSince1970 + 60 * 60 * 24 * 10)
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.statsStackViewAccessibilityLabel.assertValues(
       ["$1,000 of $2,000 goal, 10 backers so far, 10 days to go to go"]
@@ -88,7 +109,7 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
       |> Project.lens.stats.userCurrency .~ Project.Country.us.currencyCode
       |> Project.lens.stats.userCurrencyRate .~ 1.2
       |> Project.lens.stats.convertedPledgedAmount .~ 1_200
-    self.vm.inputs.configureWith(value: (nonUSProject, nil))
+    self.vm.configureWith(value: (nonUSProject, nil))
 
     self.statsStackViewAccessibilityLabel.assertValues(
       [
@@ -103,7 +124,7 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
       |> Project.lens.stats.userCurrency .~ Project.Country.us.currencyCode
       |> Project.lens.stats.userCurrencyRate .~ 1.2
       |> Project.lens.stats.convertedPledgedAmount .~ 1_200
-    self.vm.inputs.configureWith(value: (nonUSProjectCurrencyProject, nil))
+    self.vm.configureWith(value: (nonUSProjectCurrencyProject, nil))
 
     self.statsStackViewAccessibilityLabel.assertValues(
       [
@@ -117,7 +138,7 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
       |> Project.lens.stats.userCurrency .~ Project.Country.gb.currencyCode
       |> Project.lens.stats.userCurrencyRate .~ 2.0
 
-    self.vm.inputs.configureWith(value: (nonUSUserCurrency, nil))
+    self.vm.configureWith(value: (nonUSUserCurrency, nil))
 
     self.statsStackViewAccessibilityLabel.assertValues(
       [
@@ -137,8 +158,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
       |> Project.lens.stats.usdExchangeRate .~ 2.0
 
     withEnvironment(countryCode: "CA") {
-      self.vm.inputs.configureWith(value: (defaultUserCurrency, nil))
-      self.vm.inputs.awakeFromNib()
+      self.vm.configureWith(value: (defaultUserCurrency, nil))
+      self.vm.awakeFromNib()
 
       self.statsStackViewAccessibilityLabel.assertValues(
         ["US$ 2,000 of US$ 4,000 goal, 10 backers so far, 10 days to go to go"]
@@ -148,32 +169,32 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
 
   func testBackingLabelHidden_NotABacker() {
     let project = .template |> Project.lens.personalization.isBacking .~ false
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.backingLabelHidden.assertValues([true])
   }
 
   func testBackingLabelHidden_NotABacker_VideoInteraction() {
     let project = .template |> Project.lens.personalization.isBacking .~ false
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.backingLabelHidden.assertValues([true])
 
-    self.vm.inputs.videoDidStart()
+    self.vm.videoDidStart()
 
     self.backingLabelHidden.assertValues([true])
 
-    self.vm.inputs.videoDidFinish()
+    self.vm.videoDidFinish()
 
     self.backingLabelHidden.assertValues([true])
   }
 
   func testBackingLabelHidden_LoggedOut() {
     let project = .template |> Project.lens.personalization.isBacking .~ nil
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.backingLabelHidden.assertValues([true])
   }
@@ -181,8 +202,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
   func testBackingLabelHidden_Backer() {
     let project = .template |> Project.lens.personalization.isBacking .~ true
       |> \.displayPrelaunch .~ false
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.backingLabelHidden.assertValues([false])
     self.isPrelaunchProject.assertValues([false])
@@ -192,8 +213,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
   func testBackingLabelHidden_PrelaunchProject() {
     let project = .template |> Project.lens.personalization.isBacking .~ false
       |> \.displayPrelaunch .~ true
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.backingLabelHidden.assertValues([false])
     self.isPrelaunchProject.assertValues([true])
@@ -203,16 +224,16 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
   func testBackingLabelHidden_Backer_VideoInteraction() {
     let project = .template |> Project.lens.personalization.isBacking .~ true
       |> \.displayPrelaunch .~ false
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.backingLabelHidden.assertValues([false])
 
-    self.vm.inputs.videoDidStart()
+    self.vm.videoDidStart()
 
     self.backingLabelHidden.assertValues([false, true])
 
-    self.vm.inputs.videoDidFinish()
+    self.vm.videoDidFinish()
 
     self.backingLabelHidden.assertValues([false, true, false])
   }
@@ -220,44 +241,44 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
   func testCreatorImageUrl() {
     let project = .template
       |> (Project.lens.creator.avatar .. User.Avatar.lens.small) .~ "hello.jpg"
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
     self.creatorImageUrl.assertValues(["hello.jpg"])
   }
 
   func testCreatorLabelText() {
     let project = Project.template |> Project.lens.creator.name .~ "Creator Blob"
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
     self.creatorLabelText.assertValues(["by Creator Blob"])
   }
 
   func testProjectBlurbLabelText() {
     let project = Project.template |> Project.lens.blurb .~ "The elevator pitch"
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
     self.projectBlurbLabelText.assertValues(["The elevator pitch"])
   }
 
   func testProjectImageUrl() {
     let project = .template
       |> Project.lens.photo.full .~ "project.jpg"
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
     self.projectImageUrl.assertValues(["project.jpg"])
   }
 
   func testProjectNameLabelText() {
     let project = Project.template |> Project.lens.blurb .~ "The elevator pitch"
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
     self.projectBlurbLabelText.assertValues(["The elevator pitch"])
   }
 
   func testBackersTitleLabel() {
     let project = .template |> Project.lens.stats.backersCount .~ 1_000
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.backersTitleLabelText.assertValues([Format.wholeNumber(project.stats.backersCount)])
   }
@@ -270,8 +291,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
       |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs.configureWith(value: (project, nil))
-      self.vm.inputs.awakeFromNib()
+      self.vm.configureWith(value: (project, nil))
+      self.vm.awakeFromNib()
 
       self.conversionLabelText.assertValueCount(0)
       self.conversionLabelHidden.assertValues([true])
@@ -288,8 +309,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
       |> Project.lens.stats.userCurrencyRate .~ 1.3
 
     withEnvironment(countryCode: "CA") {
-      self.vm.inputs.configureWith(value: (project, nil))
-      self.vm.inputs.awakeFromNib()
+      self.vm.configureWith(value: (project, nil))
+      self.vm.awakeFromNib()
 
       self.conversionLabelText.assertValues(["Converted from US$ 1,000 pledged of US$ 2,000 goal."])
       self.conversionLabelHidden.assertValues([false])
@@ -304,8 +325,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
       |> Project.lens.stats.pledged .~ 1
 
     withEnvironment(config: .template |> Config.lens.countryCode .~ "US") {
-      self.vm.inputs.configureWith(value: (project, nil))
-      self.vm.inputs.awakeFromNib()
+      self.vm.configureWith(value: (project, nil))
+      self.vm.awakeFromNib()
 
       self.conversionLabelText.assertValues(["Converted from £1 pledged of £2 goal."])
       self.conversionLabelHidden.assertValues([false])
@@ -320,8 +341,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
       |> Project.lens.stats.pledged .~ 1
 
     withEnvironment(config: .template |> Config.lens.countryCode .~ "US") {
-      self.vm.inputs.configureWith(value: (project, nil))
-      self.vm.inputs.awakeFromNib()
+      self.vm.configureWith(value: (project, nil))
+      self.vm.awakeFromNib()
 
       self.conversionLabelText.assertValues(["Converted from €1 pledged of €2 goal."])
       self.conversionLabelHidden.assertValues([false])
@@ -332,8 +353,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
     let project = .template
       |> Project.lens.dates.deadline .~ (self.dateType.init().timeIntervalSince1970 + 60 * 60 * 24 * 4)
 
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.deadlineTitleLabelText.assertValues(["4"])
     self.deadlineSubtitleLabelText.assertValues(["days to go"])
@@ -343,8 +364,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
     let project = .template
       |> Project.lens.state .~ .failed
 
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.fundingProgressBarViewBackgroundColor.assertValues([LegacyColors.ksr_support_400.uiColor()])
   }
@@ -353,8 +374,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
     let project = .template
       |> Project.lens.state .~ .successful
 
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.fundingProgressBarViewBackgroundColor.assertValues([LegacyColors.ksr_create_700.uiColor()])
   }
@@ -363,8 +384,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
     let project = .template
       |> Project.lens.state .~ .successful
 
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.pledgedTitleLabelTextColor.assertValues([LegacyColors.ksr_create_700.uiColor()])
   }
@@ -373,8 +394,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
     let project = .template
       |> Project.lens.state .~ .canceled
 
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.pledgedTitleLabelTextColor.assertValues([LegacyColors.ksr_support_400.uiColor()])
   }
@@ -389,8 +410,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
       |> Project.lens.stats.goal .~ 2_000
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs.configureWith(value: (project, nil))
-      self.vm.inputs.awakeFromNib()
+      self.vm.configureWith(value: (project, nil))
+      self.vm.awakeFromNib()
 
       self.pledgedTitleLabelText.assertValues(["$1,000"])
       self.pledgedSubtitleLabelText.assertValues(["pledged of $2,000"])
@@ -401,8 +422,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
     let project = Project.template
 
     withEnvironment(countryCode: "CA") {
-      self.vm.inputs.configureWith(value: (project, nil))
-      self.vm.inputs.awakeFromNib()
+      self.vm.configureWith(value: (project, nil))
+      self.vm.awakeFromNib()
 
       self.pledgedTitleLabelText.assertValues(
         ["US$ 1,000"]
@@ -421,8 +442,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
       |> Project.lens.stats.userCurrencyRate .~ 2.0
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs.configureWith(value: (project, nil))
-      self.vm.inputs.awakeFromNib()
+      self.vm.configureWith(value: (project, nil))
+      self.vm.awakeFromNib()
 
       self.pledgedTitleLabelText.assertValues(["$2,000"])
       self.pledgedSubtitleLabelText.assertValues(["pledged of $4,000"])
@@ -438,8 +459,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
       |> Project.lens.stats.goal .~ 2
 
     withEnvironment(countryCode: "GB") {
-      self.vm.inputs.configureWith(value: (project, nil))
-      self.vm.inputs.awakeFromNib()
+      self.vm.configureWith(value: (project, nil))
+      self.vm.awakeFromNib()
 
       self.pledgedTitleLabelText.assertValues(["£1"])
       self.pledgedSubtitleLabelText.assertValues(["pledged of £2"])
@@ -457,8 +478,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
       |> Project.lens.stats.userCurrencyRate .~ 2.0
 
     withEnvironment(countryCode: "GB") {
-      self.vm.inputs.configureWith(value: (project, nil))
-      self.vm.inputs.awakeFromNib()
+      self.vm.configureWith(value: (project, nil))
+      self.vm.awakeFromNib()
 
       self.pledgedTitleLabelText.assertValues(["£4"])
       self.pledgedSubtitleLabelText.assertValues(["pledged of £40"])
@@ -469,8 +490,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
     let project = .template
       |> Project.lens.stats.pledged .~ 100
       |> Project.lens.stats.goal .~ 200
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.progressPercentage.assertValues([0.5])
   }
@@ -479,8 +500,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
     let project = .template
       |> Project.lens.stats.pledged .~ 300
       |> Project.lens.stats.goal .~ 200
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.progressPercentage.assertValues([1.0])
   }
@@ -488,8 +509,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
   func testProjectStateLabelTextColor_SuccessfulProject() {
     let project = .template
       |> Project.lens.state .~ .successful
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.projectStateLabelTextColor.assertValues([LegacyColors.ksr_create_700.uiColor()])
   }
@@ -497,8 +518,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
   func testProjectStateLabelTextColor_UnsuccessfulProject() {
     let project = .template
       |> Project.lens.state .~ .failed
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.projectStateLabelTextColor.assertValues([LegacyColors.ksr_support_400.uiColor()])
   }
@@ -506,8 +527,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
   func testProjectUnsuccessfulLabelTextColor_SuccessfulProjects() {
     let project = .template
       |> Project.lens.state .~ .failed
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.projectUnsuccessfulLabelTextColor.assertValues([LegacyColors.ksr_support_400.uiColor()])
   }
@@ -515,8 +536,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
   func testProjectUnsuccessfulLabelTextColor_UnsuccessfulProjects() {
     let project = .template
       |> Project.lens.state .~ .failed
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.projectUnsuccessfulLabelTextColor.assertValues([LegacyColors.ksr_support_400.uiColor()])
   }
@@ -524,8 +545,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
   func testStateLabelHidden_LiveProject() {
     let project = .template
       |> Project.lens.state .~ .live
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.stateLabelHidden.assertValues([true])
   }
@@ -533,8 +554,8 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
   func testStateLabelHidden_NonLiveProject() {
     let project = .template
       |> Project.lens.state .~ .successful
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     self.stateLabelHidden.assertValues([false])
   }
@@ -542,11 +563,11 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
   func testViewTransition() {
     self.opacityForViews.assertValueCount(0)
 
-    self.vm.inputs.awakeFromNib()
+    self.vm.awakeFromNib()
 
     self.opacityForViews.assertValues([0.0])
 
-    self.vm.inputs.configureWith(value: (Project.template, nil))
+    self.vm.configureWith(value: (Project.template, nil))
 
     self.opacityForViews.assertValues([0.0, 1.0], "Fade in views after project comes in.")
   }
@@ -556,12 +577,12 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
 
     XCTAssertTrue(self.notifyDelegateToGoToCreator.values.isEmpty)
 
-    self.vm.inputs.configureWith(value: (project, nil))
-    self.vm.inputs.awakeFromNib()
+    self.vm.configureWith(value: (project, nil))
+    self.vm.awakeFromNib()
 
     XCTAssertTrue(self.notifyDelegateToGoToCreator.values.isEmpty)
 
-    self.vm.inputs.creatorButtonTapped()
+    self.vm.creatorButtonTapped()
 
     XCTAssertEqual(self.notifyDelegateToGoToCreator.values.count, 1)
     XCTAssertEqual(
@@ -571,5 +592,18 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
 
     XCTAssertEqual(["CTA Clicked"], self.segmentTrackingClient.events)
     XCTAssertEqual("creator_details", self.segmentTrackingClient.properties.last?["context_cta"] as? String)
+  }
+}
+
+private final class PamphletRecorder<Value> {
+  private(set) var values: [Value] = []
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+}
+private extension PamphletRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
   }
 }
