@@ -71,22 +71,18 @@ final class PaymentsFeatureTests: TestCase {
   }
 
   func testCardWritesStayOrderedAndFailureDoesNotBlockNextCommand() async throws {
-    var errors = 0, cards = 0
-    let a = self.feature.removeResult(id: "old").startWithFailed { _ in errors += 1 }
-    let b = self.feature.storeResult(secret: "fixture").startWithResult { result in
-      if case .success = result { cards += 1 } else { XCTFail("Unexpected storage failure") }
-    }
-    defer { a.dispose(); b.dispose() }
+    let removal = Task { try await self.feature.remove(id: "old") }
     await self.provider.removals.waitFor(1)
+    let storage = Task { try await self.feature.store(secret: "fixture") }
+    await Task.yield()
     XCTAssertEqual(self.provider.stores.count, 0)
     try self.provider.removals.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
     await self.provider.stores.waitFor(1)
     XCTAssertEqual(self.provider.removedIDs, ["old"])
     XCTAssertEqual(self.provider.storedSecrets, ["fixture"])
     try self.provider.stores.finish(0, .success(self.storedCard()))
-    await self.feature.waitForOperations()
-    XCTAssertEqual(errors, 1)
-    XCTAssertEqual(cards, 1)
+    do { _ = try await removal.value; XCTFail("Removal should fail") } catch {}
+    _ = try await storage.value
     XCTAssertEqual(self.provider.removals.count, 1)
   }
 
@@ -109,14 +105,14 @@ final class PaymentsFeatureTests: TestCase {
   func testReadOvertakenByWriteReloadsBeforePublishing() async throws {
     let read = Task { try await self.feature.cards() }
     await self.provider.cardReads.waitFor(1)
-    let write = self.feature.removeResult(id: "card").start()
-    defer { write.dispose() }
+    let write = Task { try await self.feature.remove(id: "card") }
     await self.provider.removals.waitFor(1)
     try self.provider.cardReads.finish(0, .success(UserEnvelope(me: .template)))
     try self.provider.removals.finish(0, .success(DeletePaymentMethodEnvelope(storedCards: [])))
     await self.provider.cardReads.waitFor(2)
     try self.provider.cardReads.finish(1, .success(UserEnvelope(me: .template)))
     _ = try await read.value
+    _ = try await write.value
     XCTAssertEqual(self.provider.cardReads.count, 2)
   }
 
