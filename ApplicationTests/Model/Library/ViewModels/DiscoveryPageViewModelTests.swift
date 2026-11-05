@@ -81,8 +81,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.vm.outputs.goToProjectPlaylist.map(second).observe(self.goToPlaylist.observer)
     self.vm.outputs.goToProjectPlaylist.map(third).observe(self.goToPlaylistRefTag.observer)
     self.vm.outputs.goToProjectUpdate.map { $0.1 }.observe(self.goToProjectUpdate.observer)
-    self.vm.outputs.notifyDelegateContentOffsetChanged
-      .observe(self.notifyDelegateContentOffsetChanged.observer)
+    self.vm.outputs.onContentOffsetChanged = { [weak self] in self?.notifyDelegateContentOffsetChanged.observer.send(value: $0) }
     self.vm.outputs.projectsAreLoadingAnimated.observe(self.projectsAreLoadingAnimated.observer)
     self.vm.outputs.projectsLoaded.ignoreValues().observe(self.hasLoadedProjects.observer)
     self.vm.outputs.projectsLoaded.map(second).observe(self.projectsLoadedDiscoveryParams.observer)

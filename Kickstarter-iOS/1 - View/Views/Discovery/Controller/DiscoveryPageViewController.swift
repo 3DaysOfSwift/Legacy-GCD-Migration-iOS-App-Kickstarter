@@ -280,9 +280,7 @@ internal final class DiscoveryPageViewController: UITableViewController,
         }
       }
 
-    self.viewModel.outputs.notifyDelegateContentOffsetChanged
-      .observeForUI()
-      .observeValues { [weak self] offset in
+    self.viewModel.outputs.onContentOffsetChanged = { [weak self] offset in
         guard let self = self else { return }
 
         self.delegate?.discoverPageViewController(self, contentOffsetDidChangeTo: offset)

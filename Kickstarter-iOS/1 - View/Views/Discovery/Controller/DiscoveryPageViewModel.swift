@@ -103,7 +103,7 @@ public protocol DiscoveryPageViewModelOutputs: AnyObject {
   var hideEmptyState: Signal<(), Never> { get }
 
   /// Emits with the current contentOffset.
-  var notifyDelegateContentOffsetChanged: Signal<CGPoint, Never> { get }
+  var onContentOffsetChanged: ((CGPoint) -> Void)? { get set }
 
   /// Emits a list of projects that should be shown, and the corresponding filter request params
   var projectsLoaded: Signal<([Project], DiscoveryParams?), Never> { get }
@@ -336,13 +336,11 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
 
 
 
-    self.notifyDelegateContentOffsetChanged = Signal.combineLatest(
-      self.scrollViewDidScrollToContentOffsetProperty.signal.skipNil(),
-      self.projectsAreLoadingAnimated.map(first)
-    )
-    .filter(second >>> isFalse)
-    .map(first)
-
+    self.featureBindings += self.projectsAreLoadingAnimated.observeValues { [weak self] loading, _ in
+      guard let self else { return }
+      self.currentProjectsLoading = loading
+      self.publishContentOffsetIfReady()
+    }
 
     // These observers only admit commands. The Feature owns and retains the work.
     self.featureBindings += requestFirstPageWith.observeValues { [weak self] parameters in
@@ -434,9 +432,15 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.sortProperty.value = sort
   }
 
-  private let scrollViewDidScrollToContentOffsetProperty = MutableProperty<CGPoint?>(nil)
+  private var currentContentOffset: CGPoint?
+  private var currentProjectsLoading: Bool?
   public func scrollViewDidScroll(toContentOffset offset: CGPoint) {
-    self.scrollViewDidScrollToContentOffsetProperty.value = offset
+    self.currentContentOffset = offset
+    self.publishContentOffsetIfReady()
+  }
+  private func publishContentOffsetIfReady() {
+    guard self.currentProjectsLoading == false, let offset = self.currentContentOffset else { return }
+    self.onContentOffsetChanged?(offset)
   }
 
   fileprivate let selectedFilterProperty = MutableProperty<DiscoveryParams?>(nil)
@@ -507,7 +511,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   public let goToProjectPlaylist: Signal<(Project, [Project], RefTag), Never>
   public let goToProjectUpdate: Signal<(Project, Update), Never>
   public let hideEmptyState: Signal<Void, Never>
-  public let notifyDelegateContentOffsetChanged: Signal<CGPoint, Never>
+  public var onContentOffsetChanged: ((CGPoint) -> Void)?
   public let projectsLoaded: Signal<([Project], DiscoveryParams?), Never>
   public let projectsAreLoadingAnimated: Signal<(Bool, Bool), Never>
   public var onScrollsToTopChanged: ((Bool) -> Void)?
