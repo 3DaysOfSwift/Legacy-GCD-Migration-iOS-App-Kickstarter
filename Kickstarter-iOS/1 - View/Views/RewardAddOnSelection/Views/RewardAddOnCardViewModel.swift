@@ -1,7 +1,6 @@
 import KDS
 import KsApi
 import Prelude
-import ReactiveSwift
 import UIKit
 
 public struct RewardAddOnCardViewData: Equatable {
@@ -13,136 +12,25 @@ public struct RewardAddOnCardViewData: Equatable {
 }
 
 @MainActor
-public protocol RewardAddOnCardViewModelInputs {
-  func addButtonTapped()
-  func configure(with data: RewardAddOnCardViewData)
-  func stepperValueChanged(_ value: Double)
-}
-
-@MainActor
-public protocol RewardAddOnCardViewModelOutputs {
-  var amountConversionLabelHidden: Signal<Bool, Never> { get }
-  var amountConversionLabelText: Signal<String, Never> { get }
-  var amountLabelAttributedText: Signal<NSAttributedString, Never> { get }
-  var descriptionLabelText: Signal<String, Never> { get }
-  var includedItemsLabelAttributedText: Signal<NSAttributedString, Never> { get }
-  var includedItemsStackViewHidden: Signal<Bool, Never> { get }
-  var estimatedShippingLabelText: Signal<String?, Never> { get }
-  var estimatedShippingStackViewHidden: Signal<Bool, Never> { get }
-  var pillsViewHidden: Signal<Bool, Never> { get }
-  var reloadPills: Signal<[String], Never> { get }
-  var rewardLocationPickupLabelText: Signal<String, Never> { get }
-  var rewardLocationStackViewHidden: Signal<Bool, Never> { get }
-  var rewardTitleLabelText: Signal<String, Never> { get }
-  var stepperMaxValue: Signal<Double, Never> { get }
-  var rewardImage: Signal<Reward.Image, Never> { get }
-  var rewardImageHidden: Signal<Bool, Never> { get }
-}
-
-@MainActor
-public protocol RewardAddOnCardViewModelType {
-  var inputs: RewardAddOnCardViewModelInputs { get }
-  var outputs: RewardAddOnCardViewModelOutputs { get }
-}
-
-@MainActor
-public final class RewardAddOnCardViewModel: RewardAddOnCardViewModelType, RewardAddOnCardViewModelInputs,
-  RewardAddOnCardViewModelOutputs {
-  public init() {
-    let configData = self.configDataProperty.signal
-      .skipNil()
-
-    let project: Signal<Project, Never> = configData.map(\.project)
-    let reward: Signal<Reward, Never> = configData.map(\.reward)
-    let shippingRule: Signal<ShippingRule?, Never> = configData.map(\.shippingRule)
-
-    let projectAndReward = Signal.zip(project, reward)
-    let projectRewardShippingRule = configData.map {
-      data in (data.project, data.reward, data.shippingRule)
-    }
-
-    self.amountConversionLabelHidden = project.map(needsConversion(project:) >>> negate)
-
-    self.amountConversionLabelText = projectRewardShippingRule
-      .filter(first >>> needsConversion(project:))
-      .map { project, reward, shippingRule -> (Project, Reward, Double) in
-        let convertedAmount = reward.minimum
-          .addingCurrency(shippingRule?.cost ?? 0)
-          .multiplyingCurrency(
-            Double(project.stats.userCurrencyRate ?? project.stats.staticUsdRate)
-          )
-
-        return (project, reward, convertedAmount)
-      }
-      .map { project, _, amount in
-        let userCurrency = project.stats.userCurrency ?? Project.Country.us.currencyCode
-
-        return Format.currency(
-          amount,
-          currencyCode: userCurrency,
-          omitCurrencyCode: project.stats.omitUSCurrencyCode,
-          roundingMode: .up
-        )
-      }
-      .map(Strings.About_reward_amount(reward_amount:))
-
-    self.amountLabelAttributedText = projectRewardShippingRule
-      .map { amountStringForReward(project: $0.0, reward: $0.1, shippingRule: $0.2) }
-
-    self.descriptionLabelText = reward.map(\.description)
-
-    self.rewardTitleLabelText = reward.map(\.title).skipNil()
-
-    let rewardItemsIsEmpty = reward.map { reward in
-      guard let items = reward.rewardsItems else {
-        assertionFailure("Expected reward items to be fetched.")
-        return true
-      }
-      return items.isEmpty
-    }
-
-    self.includedItemsStackViewHidden = rewardItemsIsEmpty.skipRepeats()
-
-    self.includedItemsLabelAttributedText = reward.map { reward in
-      guard let items = reward.rewardsItems else {
-        assertionFailure("Expected reward items to be fetched.")
-        return []
-      }
-
-      return items
-    }
-    .map(itemsLabelAttributedText)
-    .skipNil()
-
-    self.estimatedShippingLabelText = Signal.combineLatest(reward, project, shippingRule)
-      .map { reward, project, shippingRule in
-        guard let locationId = shippingRule?.location.id else { return nil }
-
-        return estimatedShippingText(for: [reward], project: project, locationId: locationId)
-      }
-
-    self.estimatedShippingStackViewHidden = Signal.combineLatest(reward, self.estimatedShippingLabelText)
-      .map { reward, text in
-        reward.shipping.enabled == false || text == nil
-      }
-
-    self.reloadPills = projectAndReward.map(pillValues(project:reward:))
-    self.pillsViewHidden = self.reloadPills.map { $0.isEmpty }
-
-    self.rewardLocationStackViewHidden = reward
-      .map { !isRewardLocalPickup($0) }
-
-    self.rewardLocationPickupLabelText = reward.map { $0.localPickup?.displayableName }.skipNil()
-
-    self.stepperMaxValue = projectAndReward
-      .map { project, reward in
-        rewardLimitPerBackerRemainingForBacker(project: project, reward: reward) ?? 0
-      }
-      .map(Double.init)
-
-    self.rewardImage = reward.map { $0.image }.skipNil()
-    self.rewardImageHidden = reward.map { $0.image == nil }
+public final class RewardAddOnCardViewModel {
+  public struct Display {
+    let conversionHidden: Bool
+    let conversion: String?
+    let amount: NSAttributedString
+    let description: String
+    let title: String?
+    let includedItems: NSAttributedString?
+    let includedItemsHidden: Bool
+    let shipping: String?
+    let shippingHidden: Bool
+    let pills: [String]
+    let pickup: String?
+    let pickupHidden: Bool
+    let maximum: Double
+    let image: Reward.Image?
   }
+  public var onDisplay: ((Display) -> Void)?
+  public init() {}
 
   public var onQuantity: ((Int) -> Void)?
   public var onQuantitySelected: ((Int, Int) -> Void)?
@@ -152,10 +40,36 @@ public final class RewardAddOnCardViewModel: RewardAddOnCardViewModelType, Rewar
 
   public func addButtonTapped() { self.updateQuantity(1) }
 
-  private let configDataProperty = MutableProperty<RewardAddOnCardViewData?>(nil)
   public func configure(with data: RewardAddOnCardViewData) {
     self.currentData = data
-    self.configDataProperty.value = data
+    let project = data.project
+    let reward = data.reward
+    let rule = data.shippingRule
+    let conversion: String?
+    if needsConversion(project: project) {
+      let amount = reward.minimum.addingCurrency(rule?.cost ?? 0)
+        .multiplyingCurrency(Double(project.stats.userCurrencyRate ?? project.stats.staticUsdRate))
+      let currency = project.stats.userCurrency ?? Project.Country.us.currencyCode
+      let formatted = Format.currency(amount, currencyCode: currency,
+                                      omitCurrencyCode: project.stats.omitUSCurrencyCode, roundingMode: .up)
+      conversion = Strings.About_reward_amount(reward_amount: formatted)
+    } else {
+      conversion = nil
+    }
+    if reward.rewardsItems == nil { assertionFailure("Expected reward items to be fetched.") }
+    let rewardItems = reward.rewardsItems ?? []
+    let shipping = rule.flatMap { estimatedShippingText(for: [reward], project: project, locationId: $0.location.id) }
+    self.onDisplay?(Display(
+      conversionHidden: !needsConversion(project: project), conversion: conversion,
+      amount: amountStringForReward(project: project, reward: reward, shippingRule: rule),
+      description: reward.description, title: reward.title,
+      includedItems: itemsLabelAttributedText(rewardItems), includedItemsHidden: rewardItems.isEmpty,
+      shipping: shipping, shippingHidden: !reward.shipping.enabled || shipping == nil,
+      pills: pillValues(project: project, reward: reward), pickup: reward.localPickup?.displayableName,
+      pickupHidden: !isRewardLocalPickup(reward),
+      maximum: Double(rewardLimitPerBackerRemainingForBacker(project: project, reward: reward) ?? 0),
+      image: reward.image
+    ))
     self.onQuantity?(data.selectedQuantities[data.reward.id] ?? 0)
   }
 
@@ -171,25 +85,7 @@ public final class RewardAddOnCardViewModel: RewardAddOnCardViewModelType, Rewar
     if value == 0 || value >= maxValue { self.onWarningFeedback?() }
   }
 
-  public let amountConversionLabelHidden: Signal<Bool, Never>
-  public let amountConversionLabelText: Signal<String, Never>
-  public let amountLabelAttributedText: Signal<NSAttributedString, Never>
-  public let descriptionLabelText: Signal<String, Never>
-  public let includedItemsLabelAttributedText: Signal<NSAttributedString, Never>
-  public let includedItemsStackViewHidden: Signal<Bool, Never>
-  public let estimatedShippingLabelText: Signal<String?, Never>
-  public let estimatedShippingStackViewHidden: Signal<Bool, Never>
-  public let pillsViewHidden: Signal<Bool, Never>
-  public let reloadPills: Signal<[String], Never>
-  public let rewardTitleLabelText: Signal<String, Never>
-  public let rewardLocationPickupLabelText: Signal<String, Never>
-  public let rewardLocationStackViewHidden: Signal<Bool, Never>
-  public let stepperMaxValue: Signal<Double, Never>
-  public let rewardImage: Signal<Reward.Image, Never>
-  public let rewardImageHidden: Signal<Bool, Never>
 
-  public var inputs: RewardAddOnCardViewModelInputs { return self }
-  public var outputs: RewardAddOnCardViewModelOutputs { return self }
 }
 
 // MARK: - Functions

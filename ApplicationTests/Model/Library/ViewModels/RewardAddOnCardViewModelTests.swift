@@ -4,9 +4,6 @@ import Foundation
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -14,62 +11,67 @@ final class RewardAddOnCardViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   fileprivate let vm = RewardAddOnCardViewModel()
 
-  private let addButtonHidden = TestObserver<Bool, Never>()
-  private let amountConversionLabelHidden = TestObserver<Bool, Never>()
-  private let amountConversionLabelText = TestObserver<String, Never>()
-  private let amountLabelAttributedText = TestObserver<String, Never>()
-  private let descriptionLabelText = TestObserver<String, Never>()
-  private let estimatedDeliveryDateLabelHidden = TestObserver<Bool, Never>()
-  private let estimatedDeliveryDateLabelText = TestObserver<String, Never>()
-  private let generateSelectionFeedback = TestObserver<Void, Never>()
-  private let generateNotificationWarningFeedback = TestObserver<Void, Never>()
-  private let includedItemsLabelAttributedText = TestObserver<String, Never>()
-  private let includedItemsStackViewHidden = TestObserver<Bool, Never>()
-  private let notifiyDelegateDidSelectQuantityQuantity = TestObserver<Int, Never>()
-  private let notifiyDelegateDidSelectQuantityRewardId = TestObserver<Int, Never>()
-  private let pillsViewHidden = TestObserver<Bool, Never>()
-  private let quantityLabelText = TestObserver<String, Never>()
-  private let reloadPills = TestObserver<[String], Never>()
-  private let rewardTitleLabelText = TestObserver<String, Never>()
-  private let rewardLocationPickupLabelText = TestObserver<String, Never>()
-  private let rewardLocationStackViewHidden = TestObserver<Bool, Never>()
-  private let stepperMaxValue = TestObserver<Double, Never>()
-  private let stepperStackViewHidden = TestObserver<Bool, Never>()
-  private let stepperValue = TestObserver<Double, Never>()
-  private let rewardImageURL = TestObserver<String, Never>()
-  private let rewardImageHidden = TestObserver<Bool, Never>()
+  private let addButtonHidden = Recorder<Bool>()
+  private let amountConversionLabelHidden = Recorder<Bool>()
+  private let amountConversionLabelText = Recorder<String>()
+  private let amountLabelAttributedText = Recorder<String>()
+  private let descriptionLabelText = Recorder<String>()
+  private let estimatedDeliveryDateLabelHidden = Recorder<Bool>()
+  private let estimatedDeliveryDateLabelText = Recorder<String>()
+  private let generateSelectionFeedback = Recorder<Void>()
+  private let generateNotificationWarningFeedback = Recorder<Void>()
+  private let includedItemsLabelAttributedText = Recorder<String>()
+  private let includedItemsStackViewHidden = Recorder<Bool>()
+  private let notifiyDelegateDidSelectQuantityQuantity = Recorder<Int>()
+  private let notifiyDelegateDidSelectQuantityRewardId = Recorder<Int>()
+  private let pillsViewHidden = Recorder<Bool>()
+  private let quantityLabelText = Recorder<String>()
+  private let reloadPills = Recorder<[String]>()
+  private let rewardTitleLabelText = Recorder<String>()
+  private let rewardLocationPickupLabelText = Recorder<String>()
+  private let rewardLocationStackViewHidden = Recorder<Bool>()
+  private let stepperMaxValue = Recorder<Double>()
+  private let stepperStackViewHidden = Recorder<Bool>()
+  private let stepperValue = Recorder<Double>()
+  private let rewardImageURL = Recorder<String>()
+  private let rewardImageHidden = Recorder<Bool>()
 
   override func setUp() async throws {
     try await super.setUp()
     self.vm.onQuantity = { [weak self] quantity in
-      self?.addButtonHidden.observer.send(value: quantity > 0)
-      self?.quantityLabelText.observer.send(value: String(quantity))
-      self?.stepperStackViewHidden.observer.send(value: quantity == 0)
-      self?.stepperValue.observer.send(value: Double(quantity))
+      self?.addButtonHidden.record(quantity > 0)
+      self?.quantityLabelText.record(String(quantity))
+      self?.stepperStackViewHidden.record(quantity == 0)
+      self?.stepperValue.record(Double(quantity))
     }
     self.vm.onQuantitySelected = { [weak self] quantity, rewardId in
-      self?.notifiyDelegateDidSelectQuantityQuantity.observer.send(value: quantity)
-      self?.notifiyDelegateDidSelectQuantityRewardId.observer.send(value: rewardId)
+      self?.notifiyDelegateDidSelectQuantityQuantity.record(quantity)
+      self?.notifiyDelegateDidSelectQuantityRewardId.record(rewardId)
     }
-    self.vm.onSelectionFeedback = { [weak self] in self?.generateSelectionFeedback.observer.send(value: ()) }
-    self.vm.onWarningFeedback = { [weak self] in self?.generateNotificationWarningFeedback.observer.send(value: ()) }
+    self.vm.onSelectionFeedback = { [weak self] in self?.generateSelectionFeedback.record(()) }
+    self.vm.onWarningFeedback = { [weak self] in self?.generateNotificationWarningFeedback.record(()) }
 
-    self.vm.outputs.amountLabelAttributedText.map(\.string)
-      .observe(self.amountLabelAttributedText.observer)
-    self.vm.outputs.amountConversionLabelHidden.observe(self.amountConversionLabelHidden.observer)
-    self.vm.outputs.amountConversionLabelText.observe(self.amountConversionLabelText.observer)
-    self.vm.outputs.descriptionLabelText.observe(self.descriptionLabelText.observer)
-    self.vm.outputs.includedItemsLabelAttributedText.map(\.string)
-      .observe(self.includedItemsLabelAttributedText.observer)
-    self.vm.outputs.includedItemsStackViewHidden.observe(self.includedItemsStackViewHidden.observer)
-    self.vm.outputs.pillsViewHidden.observe(self.pillsViewHidden.observer)
-    self.vm.outputs.reloadPills.observe(self.reloadPills.observer)
-    self.vm.outputs.rewardTitleLabelText.observe(self.rewardTitleLabelText.observer)
-    self.vm.outputs.rewardLocationStackViewHidden.observe(self.rewardLocationStackViewHidden.observer)
-    self.vm.outputs.rewardLocationPickupLabelText.observe(self.rewardLocationPickupLabelText.observer)
-    self.vm.outputs.stepperMaxValue.observe(self.stepperMaxValue.observer)
-    self.vm.outputs.rewardImage.map { $0.url }.skipNil().observe(self.rewardImageURL.observer)
-    self.vm.outputs.rewardImageHidden.observe(self.rewardImageHidden.observer)
+    var previousItemsHidden: Bool?
+    self.vm.onDisplay = { [weak self] display in
+      guard let self else { return }
+      self.amountLabelAttributedText.record(display.amount.string)
+      self.amountConversionLabelHidden.record(display.conversionHidden)
+      if let text = display.conversion { self.amountConversionLabelText.record(text) }
+      self.descriptionLabelText.record(display.description)
+      if let items = display.includedItems { self.includedItemsLabelAttributedText.record(items.string) }
+      if previousItemsHidden != display.includedItemsHidden {
+        self.includedItemsStackViewHidden.record(display.includedItemsHidden)
+        previousItemsHidden = display.includedItemsHidden
+      }
+      self.pillsViewHidden.record(display.pills.isEmpty)
+      self.reloadPills.record(display.pills)
+      if let title = display.title { self.rewardTitleLabelText.record(title) }
+      self.rewardLocationStackViewHidden.record(display.pickupHidden)
+      if let pickup = display.pickup { self.rewardLocationPickupLabelText.record(pickup) }
+      self.stepperMaxValue.record(display.maximum)
+      if let url = display.image?.url { self.rewardImageURL.record(url) }
+      self.rewardImageHidden.record(display.image == nil)
+    }
   }
 
   // MARK: - Reward Title
@@ -79,7 +81,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
       |> Reward.lens.title .~ "The thing"
       |> Reward.lens.remaining .~ nil
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -97,7 +99,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = .template
       |> Reward.lens.image .~ Reward.Image(altText: "The image", url: imageURL)
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -114,7 +116,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = .template
       |> Reward.lens.image .~ nil
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -132,7 +134,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
       |> Reward.lens.title .~ nil
       |> Reward.lens.remaining .~ nil
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -152,7 +154,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
       |> Reward.lens.title .~ "The thing"
       |> Reward.lens.remaining .~ nil
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: project,
         reward: reward,
@@ -173,7 +175,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -196,7 +198,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "MX") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -221,7 +223,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -246,7 +248,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -271,7 +273,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "MX") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -294,7 +296,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = Reward.noReward
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -317,7 +319,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = Reward.noReward
 
     withEnvironment(countryCode: "MX") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -340,7 +342,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = Reward.noReward
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -366,7 +368,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = Reward.noReward
 
     withEnvironment(countryCode: "CA") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -403,7 +405,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
           )
       ]
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -417,7 +419,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
   }
 
   func testItemsContainerHidden_WithNoItems() {
-    self.vm.inputs.configure(with: .init(
+    self.vm.configure(with: .init(
       project: .template,
       reward: .template |> Reward.lens.rewardsItems .~ [],
       context: .pledge,
@@ -436,7 +438,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
       |> Reward.lens.localPickup .~ nil
       |> Reward.lens.shipping.preference .~ .local
 
-    self.vm.inputs.configure(with: .init(
+    self.vm.configure(with: .init(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -456,7 +458,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
       |> Reward.lens.localPickup .~ .brooklyn
       |> Reward.lens.shipping.preference .~ .local
 
-    self.vm.inputs.configure(with: .init(
+    self.vm.configure(with: .init(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -476,7 +478,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
       |> Reward.lens.localPickup .~ .brooklyn
       |> Reward.lens.shipping.preference .~ Reward.Shipping.Preference.none
 
-    self.vm.inputs.configure(with: .init(
+    self.vm.configure(with: .init(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -494,7 +496,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let project = Project.template
     let reward = Reward.template
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: project,
         reward: reward,
@@ -516,7 +518,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -543,7 +545,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 1
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -571,7 +573,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 1
 
     withEnvironment(countryCode: "MX") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -600,7 +602,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 10
 
     withEnvironment(countryCode: "CA") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -629,7 +631,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 10
 
     withEnvironment(countryCode: "CA") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -658,7 +660,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 1
 
     withEnvironment(countryCode: "XX") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -685,7 +687,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
       |> Reward.lens.minimum .~ 2
 
     withEnvironment(countryCode: "XX") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -717,7 +719,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     withEnvironment(
       apiService: MockService(currency: "MXN"), countryCode: "MX"
     ) {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -751,7 +753,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     withEnvironment(
       apiService: MockService(currency: "MXN"), countryCode: "MX"
     ) {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -785,7 +787,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     withEnvironment(
       apiService: MockService(currency: "MXN"), countryCode: "MX"
     ) {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -814,7 +816,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "GB") {
-      self.vm.inputs
+      self.vm
         .configure(with: .init(
           project: project,
           reward: reward,
@@ -841,7 +843,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
       |> Reward.lens.limit .~ 100
       |> Reward.lens.remaining .~ 25
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -865,7 +867,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
       |> Reward.lens.backersCount .~ 25
       |> Reward.lens.remaining .~ 25
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -890,7 +892,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
       |> Reward.lens.remaining .~ nil
       |> Reward.lens.endsAt .~ (MockDate().timeIntervalSince1970 + 60.0 * 60.0 * 24.0)
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -917,7 +919,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
       |> Reward.lens.remaining .~ nil
       |> Reward.lens.endsAt .~ date?.timeIntervalSince1970
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -944,7 +946,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
       |> Reward.lens.remaining .~ 75
       |> Reward.lens.endsAt .~ date?.timeIntervalSince1970
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -972,7 +974,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
       |> Reward.lens.remaining .~ 75
       |> Reward.lens.endsAt .~ date?.timeIntervalSince1970
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -997,7 +999,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
       |> Reward.lens.remaining .~ 0
       |> Reward.lens.endsAt .~ (MockDate().date.timeIntervalSince1970 - 1)
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -1019,7 +1021,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
       |> Reward.lens.backersCount .~ nil
       |> Reward.lens.endsAt .~ nil
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -1044,7 +1046,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.state .~ .live
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: project,
         reward: reward,
@@ -1067,7 +1069,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = Reward.template
       |> Reward.lens.limitPerBacker .~ 10
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -1082,7 +1084,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     self.stepperStackViewHidden.assertValues([true])
     self.stepperValue.assertValues([0])
 
-    self.vm.inputs.addButtonTapped()
+    self.vm.addButtonTapped()
 
     self.addButtonHidden.assertValues([false, true])
     self.quantityLabelText.assertValues(["0", "1"])
@@ -1090,7 +1092,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     self.stepperStackViewHidden.assertValues([true, false])
     self.stepperValue.assertValues([0, 1])
 
-    self.vm.inputs.stepperValueChanged(0)
+    self.vm.stepperValueChanged(0)
 
     self.addButtonHidden.assertValues([false, true, false])
     self.quantityLabelText.assertValues(["0", "1", "0"])
@@ -1107,7 +1109,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = Reward.template
       |> Reward.lens.limitPerBacker .~ 10
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -1120,13 +1122,13 @@ final class RewardAddOnCardViewModelTests: TestCase {
     self.notifiyDelegateDidSelectQuantityRewardId.assertDidNotEmitValue()
     self.notifiyDelegateDidSelectQuantityQuantity.assertDidNotEmitValue()
 
-    self.vm.inputs.addButtonTapped()
+    self.vm.addButtonTapped()
 
     self.quantityLabelText.assertValues(["0", "1"])
     self.notifiyDelegateDidSelectQuantityRewardId.assertValues([1])
     self.notifiyDelegateDidSelectQuantityQuantity.assertValues([1])
 
-    self.vm.inputs.stepperValueChanged(2)
+    self.vm.stepperValueChanged(2)
 
     self.quantityLabelText.assertValues(["0", "1", "2"])
     self.notifiyDelegateDidSelectQuantityRewardId.assertValues([1, 1])
@@ -1141,7 +1143,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = Reward.template
       |> Reward.lens.limitPerBacker .~ 10
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -1154,13 +1156,13 @@ final class RewardAddOnCardViewModelTests: TestCase {
     self.notifiyDelegateDidSelectQuantityRewardId.assertDidNotEmitValue()
     self.notifiyDelegateDidSelectQuantityQuantity.assertDidNotEmitValue()
 
-    self.vm.inputs.stepperValueChanged(4)
+    self.vm.stepperValueChanged(4)
 
     self.quantityLabelText.assertValues(["5", "4"])
     self.notifiyDelegateDidSelectQuantityRewardId.assertValues([1])
     self.notifiyDelegateDidSelectQuantityQuantity.assertValues([4])
 
-    self.vm.inputs.stepperValueChanged(3)
+    self.vm.stepperValueChanged(3)
 
     self.quantityLabelText.assertValues(["5", "4", "3"])
     self.notifiyDelegateDidSelectQuantityRewardId.assertValues([1, 1])
@@ -1171,7 +1173,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
     let reward = Reward.template
       |> Reward.lens.limitPerBacker .~ 10
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -1183,27 +1185,27 @@ final class RewardAddOnCardViewModelTests: TestCase {
     self.generateSelectionFeedback.assertDidNotEmitValue()
     self.generateNotificationWarningFeedback.assertDidNotEmitValue()
 
-    self.vm.inputs.stepperValueChanged(1)
+    self.vm.stepperValueChanged(1)
     self.generateSelectionFeedback.assertValueCount(1)
     self.generateNotificationWarningFeedback.assertValueCount(0)
 
-    self.vm.inputs.stepperValueChanged(5)
+    self.vm.stepperValueChanged(5)
     self.generateSelectionFeedback.assertValueCount(2)
     self.generateNotificationWarningFeedback.assertValueCount(0)
 
-    self.vm.inputs.stepperValueChanged(10)
+    self.vm.stepperValueChanged(10)
     self.generateSelectionFeedback.assertValueCount(2)
     self.generateNotificationWarningFeedback.assertValueCount(1)
 
-    self.vm.inputs.stepperValueChanged(4)
+    self.vm.stepperValueChanged(4)
     self.generateSelectionFeedback.assertValueCount(3)
     self.generateNotificationWarningFeedback.assertValueCount(1)
 
-    self.vm.inputs.stepperValueChanged(0)
+    self.vm.stepperValueChanged(0)
     self.generateSelectionFeedback.assertValueCount(3)
     self.generateNotificationWarningFeedback.assertValueCount(2)
 
-    self.vm.inputs
+    self.vm
       .configure(with: .init(
         project: .template,
         reward: reward,
@@ -1216,4 +1218,13 @@ final class RewardAddOnCardViewModelTests: TestCase {
     self.generateSelectionFeedback.assertValueCount(3)
     self.generateNotificationWarningFeedback.assertValueCount(2)
   }
+}
+
+private final class Recorder<Value> {
+  private var values: [Value] = []
+  func record(_ value: Value) { self.values.append(value) }
+  func assertDidNotEmitValue(file: StaticString = #filePath, line: UInt = #line) { XCTAssertTrue(self.values.isEmpty, file: file, line: line) }
+  func assertValueCount(_ count: Int, file: StaticString = #filePath, line: UInt = #line) { XCTAssertEqual(self.values.count, count, file: file, line: line) }
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) where Value: Equatable { XCTAssertEqual(self.values, expected, message, file: file, line: line) }
+  func assertValue(_ expected: Value, file: StaticString = #filePath, line: UInt = #line) where Value: Equatable { XCTAssertEqual(self.values.last, expected, file: file, line: line) }
 }

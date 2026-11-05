@@ -130,19 +130,30 @@ public final class RewardAddOnCardView: UIView {
   public override func bindViewModel() {
     super.bindViewModel()
 
-    self.amountConversionLabel.rac.hidden = self.viewModel.outputs.amountConversionLabelHidden
-    self.amountConversionLabel.rac.text = self.viewModel.outputs.amountConversionLabelText
-    self.descriptionLabel.rac.text = self.viewModel.outputs.descriptionLabelText
-    self.includedItemsStackView.rac.hidden = self.viewModel.outputs.includedItemsStackViewHidden
-    self.includedItemsLabel.rac.attributedText = self.viewModel.outputs.includedItemsLabelAttributedText
-    self.estimatedShippingStackView.rac.hidden = self.viewModel.outputs.estimatedShippingStackViewHidden
-    self.amountLabel.rac.attributedText = self.viewModel.outputs.amountLabelAttributedText
-    self.pillsView.rac.hidden = self.viewModel.outputs.pillsViewHidden
-    self.rewardLocationStackView.rac.hidden = self.viewModel.outputs.rewardLocationStackViewHidden
-    self.rewardLocationPickupLabel.rac.text = self.viewModel.outputs.rewardLocationPickupLabelText
-    self.rewardTitleLabel.rac.text = self.viewModel.outputs.rewardTitleLabelText
-    self.stepper.rac.maximumValue = self.viewModel.outputs.stepperMaxValue
-    self.rewardImageView.rac.hidden = self.viewModel.outputs.rewardImageHidden
+    self.viewModel.onDisplay = { [weak self] display in
+      guard let self else { return }
+      self.amountConversionLabel.isHidden = display.conversionHidden
+      self.amountConversionLabel.text = display.conversion
+      self.descriptionLabel.text = display.description
+      self.includedItemsStackView.isHidden = display.includedItemsHidden
+      self.includedItemsLabel.attributedText = display.includedItems
+      self.estimatedShippingStackView.isHidden = display.shippingHidden
+      self.estimatedShippingLabel.text = display.shipping
+      self.amountLabel.attributedText = display.amount
+      self.pillsView.isHidden = display.pills.isEmpty
+      self.configurePillsView(display.pills)
+      self.rewardLocationStackView.isHidden = display.pickupHidden
+      self.rewardLocationPickupLabel.text = display.pickup
+      self.rewardTitleLabel.text = display.title
+      self.stepper.maximumValue = display.maximum
+      self.rewardImageView.isHidden = display.image == nil
+      self.rewardImageView.af.cancelImageRequest()
+      self.rewardImageView.image = nil
+      self.rewardImageView.accessibilityLabel = display.image?.altText
+      if let url = display.image?.url.flatMap(URL.init(string:)) {
+        self.rewardImageView.ksr_setImageWithURL(url)
+      }
+    }
 
     self.viewModel.onQuantity = { [weak self] quantity in
       self?.addButton.isHidden = quantity > 0
@@ -157,32 +168,7 @@ public final class RewardAddOnCardView: UIView {
     self.viewModel.onSelectionFeedback = { generateSelectionFeedback() }
     self.viewModel.onWarningFeedback = { generateNotificationWarningFeedback() }
 
-    self.viewModel.outputs.reloadPills
-      .observeForUI()
-      .observeValues { [weak self] values in
-        self?.configurePillsView(values)
-      }
 
-    self.viewModel.outputs.estimatedShippingLabelText
-      .observeForUI()
-      .observeValues { [weak self] text in
-        guard let labelText = text else { return }
-
-        self?.estimatedShippingLabel.text = labelText
-      }
-
-    self.viewModel.outputs.rewardImage
-      .observeForUI()
-      .on(event: { [weak rewardImageView] _ in
-        rewardImageView?.af.cancelImageRequest()
-        rewardImageView?.image = nil
-      })
-      .observeValues { [weak rewardImageView] image in
-        rewardImageView?.accessibilityLabel = image.altText
-
-        guard let url = image.url, let imageURL = URL(string: url) else { return }
-        rewardImageView?.ksr_setImageWithURL(imageURL)
-      }
   }
 
   // MARK: - Private Helpers
@@ -283,7 +269,7 @@ public final class RewardAddOnCardView: UIView {
   // MARK: - Configuration
 
   internal func configure(with data: RewardAddOnCardViewData) {
-    self.viewModel.inputs.configure(with: data)
+    self.viewModel.configure(with: data)
 
     self.layoutIfNeeded()
   }
@@ -291,11 +277,11 @@ public final class RewardAddOnCardView: UIView {
   // MARK: - Actions
 
   @objc func addButtonTapped() {
-    self.viewModel.inputs.addButtonTapped()
+    self.viewModel.addButtonTapped()
   }
 
   @objc func stepperValueChanged(_ stepper: UIStepper) {
-    self.viewModel.inputs.stepperValueChanged(stepper.value)
+    self.viewModel.stepperValueChanged(stepper.value)
   }
 }
 
