@@ -177,45 +177,10 @@ public struct Service: ServiceType {
       .appendingPathComponent("/v1/projects/\(draft.update.projectId)/updates/draft/preview")
   }
 
-  public func fetchActivities(count: Int?) -> SignalProducer<ActivityEnvelope, ErrorEnvelope> {
-    let categories: [Activity.Category] = [
-      .backing,
-      .cancellation,
-      .failure,
-      .follow,
-      .launch,
-      .shipped,
-      .success,
-      .update
-    ]
-    return request(.activities(categories: categories, count: count))
-  }
-
-  public func fetchActivities(paginationUrl: String)
-    -> SignalProducer<ActivityEnvelope, ErrorEnvelope> {
-    return requestPaginationDecodable(paginationUrl)
-  }
-
   // FIXME: Should be able to convert this to Apollo as it uses /v1 but check its' use cases first.
   public func fetchBacking(forProject project: Project, forUser user: User)
     -> SignalProducer<Backing, ErrorEnvelope> {
     return request(.backing(projectId: project.id, backerId: user.id))
-  }
-
-  public func fetchDiscovery(paginationUrl: String)
-    -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope> {
-    return requestPaginationDecodable(paginationUrl)
-  }
-
-  public func fetchDiscovery(params: DiscoveryParams)
-    -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope> {
-    if !params.validForAPIV1() {
-      assert(
-        false,
-        "Using a field which was added for GraphQL support in API V1. This param may have unexpected effects on an API V1 call."
-      )
-    }
-    return request(.discover(params))
   }
 
   public func fetchDiscovery_combine(paginationUrl: String)
@@ -226,20 +191,6 @@ public struct Service: ServiceType {
   public func fetchDiscovery_combine(params: DiscoveryParams)
     -> AnyPublisher<DiscoveryEnvelope, ErrorEnvelope> {
     return request(.discover(params))
-  }
-
-  public func fetchGraphCategories()
-    -> SignalProducer<RootCategoriesEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .fetch(query: GraphAPI.FetchRootCategoriesQuery())
-      .map(RootCategoriesEnvelope.envelope(from:))
-  }
-
-  public func fetchGraphCategory(id: String)
-    -> SignalProducer<CategoryEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .fetch(query: GraphAPI.FetchCategoryQuery(id: id))
-      .flatMap(CategoryEnvelope.envelopeProducer(from:))
   }
 
   public func fetchGraphUser(withStoredCards: Bool)
@@ -420,10 +371,6 @@ public struct Service: ServiceType {
     return requestPaginationDecodable(paginationUrl)
   }
 
-  public func fetchProjectNotifications() -> SignalProducer<[ProjectNotification], ErrorEnvelope> {
-    return request(.projectNotifications)
-  }
-
   public func fetchProjects(member: Bool) -> SignalProducer<ProjectsEnvelope, ErrorEnvelope> {
     return request(.projects(member: member))
   }
@@ -435,80 +382,6 @@ public struct Service: ServiceType {
   public func fetchProjectStats(projectId: Int) ->
     SignalProducer<ProjectStatsEnvelope, ErrorEnvelope> {
     return request(.projectStats(projectId: projectId))
-  }
-
-  public func fetchRewardAddOnsSelectionViewRewards(
-    slug: String,
-    shippingEnabled: Bool,
-    locationId: String?
-  ) -> SignalProducer<Project, ErrorEnvelope> {
-    let query = GraphAPI.FetchAddOnsQuery(
-      projectSlug: slug,
-      shippingEnabled: shippingEnabled,
-      locationId: GraphQLNullable.someOrNil(locationId)
-    )
-
-    return GraphQL.shared.client
-      .fetch(query: query)
-      .flatMap(Project.projectProducer(from:))
-  }
-
-  public func fastFetchRewardAddOnsSelection(
-    baseRewardId: Int,
-    countryCode: String
-  ) -> SignalProducer<[Reward], ErrorEnvelope> {
-    guard let graphCountryCode = GraphAPI.CountryCode(rawValue: countryCode) else {
-      assertionFailure("Unable to map selected code to country")
-      return SignalProducer(error: .graphError("Invalid country code"))
-    }
-
-    let query = GraphAPI.FastFetchAddOnsQuery(
-      baseRewardId: "\(baseRewardId)",
-      country: .case(graphCountryCode)
-    )
-
-    return GraphQL.shared.client
-      .fetch(query: query)
-      .flatMap(Reward.addOnsProducer(from:))
-  }
-
-  public func fetchBackedProjects(
-    cursor: String? = nil,
-    limit: Int? = nil
-  ) -> SignalProducer<FetchMyBackedProjectsQuery.Data, ErrorEnvelope> {
-    let query = GraphAPI.FetchMyBackedProjectsQuery(
-      first: GraphQLNullable.someOrNil(limit),
-      after: GraphQLNullable.someOrNil(cursor)
-    )
-
-    return GraphQL.shared.client
-      .fetch(query: query)
-  }
-
-  public func fetchSavedProjects(
-    cursor: String? = nil,
-    limit: Int? = nil
-  ) -> SignalProducer<FetchMySavedProjectsQuery.Data, ErrorEnvelope> {
-    let query = GraphAPI.FetchMySavedProjectsQuery(
-      first: GraphQLNullable.someOrNil(limit),
-      after: GraphQLNullable.someOrNil(cursor)
-    )
-
-    return GraphQL.shared.client
-      .fetch(query: query)
-  }
-
-  public func fetchRewardShippingRules(projectId: Int, rewardId: Int)
-    -> SignalProducer<ShippingRulesEnvelope, ErrorEnvelope> {
-    return request(.shippingRules(projectId: projectId, rewardId: rewardId))
-  }
-
-  public func fetchSurveyResponse(surveyResponseId id: Int) -> SignalProducer<SurveyResponse, ErrorEnvelope> {
-    return request(.surveyResponse(surveyResponseId: id))
-  }
-
-  public func fetchUserSelf() -> SignalProducer<User, ErrorEnvelope> {
-    return request(.userSelf)
   }
 
   public func fetchUserSelf_combine(withOAuthToken token: String) -> AnyPublisher<User, ErrorEnvelope> {
@@ -530,10 +403,6 @@ public struct Service: ServiceType {
 
   public func fetchUpdateDraft(forProject project: Project) -> SignalProducer<UpdateDraft, ErrorEnvelope> {
     return request(.fetchUpdateDraft(forProject: project))
-  }
-
-  public func fetchUnansweredSurveyResponses() -> SignalProducer<[SurveyResponse], ErrorEnvelope> {
-    return request(.unansweredSurveyResponses)
   }
 
   public func exchangeTokenForOAuthToken(params: OAuthTokenExchangeParams)

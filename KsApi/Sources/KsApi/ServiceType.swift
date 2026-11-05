@@ -116,12 +116,6 @@ public protocol ServiceType {
   func delete(image: UpdateDraft.Image, fromDraft draft: UpdateDraft)
     -> SignalProducer<UpdateDraft.Image, ErrorEnvelope>
 
-  /// Fetch a page of activities.
-  func fetchActivities(count: Int?) -> SignalProducer<ActivityEnvelope, ErrorEnvelope>
-
-  /// Fetch activities from a pagination URL
-  func fetchActivities(paginationUrl: String) -> SignalProducer<ActivityEnvelope, ErrorEnvelope>
-
   /// Fetches the current user's backing for the project, if it exists.
   func fetchBacking(forProject project: Project, forUser user: User)
     -> SignalProducer<Backing, ErrorEnvelope>
@@ -179,12 +173,6 @@ public protocol ServiceType {
   @MainActor func applicationSurvey(id: Int) async throws -> SurveyResponse
   @MainActor func registerApplicationPushToken(_ token: String) async throws
 
-  /// Fetch discovery envelope with a pagination url.
-  func fetchDiscovery(paginationUrl: String) -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope>
-
-  /// Fetch the full discovery envelope with specified discovery params.
-  func fetchDiscovery(params: DiscoveryParams) -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope>
-
   @MainActor func richTextExampleProjects() async throws -> [RichTextExampleResponse]
   @MainActor func richTextExampleProject(slug: String) async throws -> RichTextExampleResponse?
 
@@ -198,13 +186,6 @@ public protocol ServiceType {
   @MainActor func followUser(id: Int) async throws -> User
   @MainActor func unfollowUser(id: Int) async throws
   @MainActor func followEveryFriend() async throws
-
-  /// Fetch Categories objects using graphQL.
-  func fetchGraphCategories() -> SignalProducer<RootCategoriesEnvelope, ErrorEnvelope>
-
-  /// Fetch Category objects using graphQL.
-  func fetchGraphCategory(id: String)
-    -> SignalProducer<CategoryEnvelope, ErrorEnvelope>
 
   /// Fetches various fields of a given User using graphQL.
   func fetchGraphUser(withStoredCards: Bool)
@@ -271,9 +252,6 @@ public protocol ServiceType {
   func fetchProjectActivities(paginationUrl: String) ->
     SignalProducer<ProjectActivityEnvelope, ErrorEnvelope>
 
-  /// Fetch the user's project notifications.
-  func fetchProjectNotifications() -> SignalProducer<[ProjectNotification], ErrorEnvelope>
-
   /// Fetches the projects that the current user is a member of.
   func fetchProjects(member: Bool) -> SignalProducer<ProjectsEnvelope, ErrorEnvelope>
 
@@ -286,25 +264,6 @@ public protocol ServiceType {
   /// Fetch the add-on rewards for the add-on selection view with a `Project` slug and optional `Location` ID.
   @MainActor func rewardAddOns(slug: String, locationID: String?) async throws -> [Reward]?
   @MainActor func fastRewardAddOns(baseRewardID: Int, country: String) async throws -> [Reward]
-
-  func fetchRewardAddOnsSelectionViewRewards(slug: String, shippingEnabled: Bool, locationId: String?)
-    -> SignalProducer<Project, ErrorEnvelope>
-
-  func fastFetchRewardAddOnsSelection(
-    baseRewardId: Int,
-    countryCode: String
-  ) -> SignalProducer<[Reward], ErrorEnvelope>
-
-  /// Fetches a reward's shipping rules for a project and reward id.
-  func fetchRewardShippingRules(projectId: Int, rewardId: Int)
-    -> SignalProducer<ShippingRulesEnvelope, ErrorEnvelope>
-
-  /// Fetches a survey response belonging to the current user.
-  func fetchSurveyResponse(surveyResponseId: Int)
-    -> SignalProducer<SurveyResponse, ErrorEnvelope>
-
-  /// Fetches all of the user's unanswered surveys.
-  func fetchUnansweredSurveyResponses() -> SignalProducer<[SurveyResponse], ErrorEnvelope>
 
   /// Fetches an update from its id and project.
   func fetchUpdate(updateId: Int, projectParam: Param) -> SignalProducer<Update, ErrorEnvelope>
@@ -321,9 +280,6 @@ public protocol ServiceType {
 
   /// Fetch a user.
   func fetchUser(userId: Int) -> SignalProducer<User, ErrorEnvelope>
-
-  /// Fetch the logged-in user's data.
-  func fetchUserSelf() -> SignalProducer<User, ErrorEnvelope>
 
   /// Fetch the logged-in user's data.
   func fetchUserSelf_combine(withOAuthToken: String) -> AnyPublisher<User, ErrorEnvelope>
@@ -387,12 +343,6 @@ public protocol ServiceType {
   /// Verifies an email address with a given access token.
   func verifyEmail(withToken token: String)
     -> SignalProducer<EmailVerificationResponseEnvelope, ErrorEnvelope>
-
-  func fetchSavedProjects(cursor: String?, limit: Int?)
-    -> SignalProducer<GraphAPI.FetchMySavedProjectsQuery.Data, ErrorEnvelope>
-
-  func fetchBackedProjects(cursor: String?, limit: Int?)
-    -> SignalProducer<GraphAPI.FetchMyBackedProjectsQuery.Data, ErrorEnvelope>
 
   func blockUser(input: BlockUserInput) -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 

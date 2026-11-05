@@ -1048,18 +1048,6 @@
       return try result.get()
     }
 
-    internal func fetchGraphCategories()
-      -> SignalProducer<RootCategoriesEnvelope, ErrorEnvelope> {
-      if let demoCatalog { return SignalProducer(value: demoCatalog.categories) }
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let fetchGraphCategoriesQuery = GraphAPI.FetchRootCategoriesQuery()
-
-      return client.fetchWithResult(query: fetchGraphCategoriesQuery, result: self.fetchGraphCategoriesResult)
-    }
-
     @MainActor public func richTextExampleProjects() async throws -> [RichTextExampleResponse] {
       try Task.checkCancellation()
       guard let data = try await self.fetch(query: GraphAPI.RichTextExampleProjectsQuery(storyRichText: true)) else {
@@ -1101,17 +1089,6 @@
       case .none:
         return []
       }
-    }
-
-    internal func fetchGraphCategory(id: String)
-      -> SignalProducer<CategoryEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let fetchGraphCategoryQuery = GraphAPI.FetchCategoryQuery(id: id)
-
-      return client.fetchWithResult(query: fetchGraphCategoryQuery, result: self.fetchGraphCategoryResult)
     }
 
     internal func fetchGraphUser(withStoredCards: Bool)
@@ -1157,29 +1134,6 @@
 
     internal func logout() -> MockService {
       return self |> MockService.lens.oauthToken .~ nil
-    }
-
-    internal func fetchActivities(count _: Int?) -> SignalProducer<ActivityEnvelope, ErrorEnvelope> {
-      if let error = fetchActivitiesError {
-        return SignalProducer(error: error)
-      } else if let activities = fetchActivitiesResponse {
-        return SignalProducer(
-          value: ActivityEnvelope(
-            activities: activities,
-            urls: ActivityEnvelope.UrlsEnvelope(
-              api: ActivityEnvelope.UrlsEnvelope.ApiEnvelope(
-                moreActivities: "http://\(Secrets.Api.Endpoint.production)/gimme/more"
-              )
-            )
-          )
-        )
-      }
-      return .empty
-    }
-
-    internal func fetchActivities(paginationUrl _: String)
-      -> SignalProducer<ActivityEnvelope, ErrorEnvelope> {
-      return self.fetchActivities(count: nil)
     }
 
     func fetchBacking(forProject project: Project, forUser user: User)
@@ -1254,43 +1208,6 @@
       )))
     }
 
-    internal func fetchDiscovery(paginationUrl: String)
-      -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope> {
-      if let demoCatalog { return demoResponse { try demoCatalog.discovery(paginationURL: paginationUrl) } }
-      if let error = fetchDiscoveryError {
-        return SignalProducer(error: error)
-      }
-
-      let project: (Int) -> Project = {
-        .template |> Project.lens.id .~ ($0 + paginationUrl.hashValue)
-      }
-      let envelope = self.fetchDiscoveryResponse ?? (
-        .template
-          |> DiscoveryEnvelope.lens.projects .~ (1...4).map(project)
-          |> DiscoveryEnvelope.lens.urls.api.moreProjects .~ (paginationUrl + "+1")
-      )
-
-      return SignalProducer(value: envelope)
-    }
-
-    internal func fetchDiscovery(params: DiscoveryParams)
-      -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope> {
-      if let demoCatalog { return demoResponse { try demoCatalog.discovery(params) } }
-      if let error = fetchDiscoveryError {
-        return SignalProducer(error: error)
-      }
-
-      let project: (Int) -> Project = {
-        .template |> Project.lens.id %~ const($0 + params.hashValue)
-      }
-      let envelope = self.fetchDiscoveryResponse ?? (
-        .template
-          |> DiscoveryEnvelope.lens.projects .~ (1...4).map(project)
-      )
-
-      return SignalProducer(value: envelope)
-    }
-
     func fetchBacking(id _: Int)
       -> SignalProducer<ProjectAndBackingEnvelope, ErrorEnvelope> {
       return producer(for: self.fetchProjectAndBackingResult)
@@ -1307,32 +1224,6 @@
       try Task.checkCancellation()
       // Retain the mock's explicit unsupported fast-query behavior.
       throw ErrorEnvelope.graphError("Unimplemented mock")
-    }
-
-    func fetchRewardAddOnsSelectionViewRewards(slug: String, shippingEnabled: Bool, locationId: String?)
-      -> SignalProducer<Project, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let fetchRewardAddOnsSelectionViewRewardsQuery = GraphAPI.FetchAddOnsQuery(
-        projectSlug: slug,
-        shippingEnabled: shippingEnabled,
-        locationId: GraphQLNullable.someOrNil(locationId)
-      )
-
-      return client
-        .fetchWithResult(
-          query: fetchRewardAddOnsSelectionViewRewardsQuery,
-          result: self.fetchRewardAddOnsSelectionViewRewardsResult
-        )
-    }
-
-    func fastFetchRewardAddOnsSelection(
-      baseRewardId _: Int,
-      countryCode _: String
-    ) -> SignalProducer<[Reward], ErrorEnvelope> {
-      return SignalProducer(error: ErrorEnvelope.graphError("Unimplemented mock"))
     }
 
     @MainActor public func messageThreadsPage(
@@ -1383,33 +1274,6 @@
     @MainActor public func submitMessage(body: String, subject _: MessageSubject) async throws -> Message {
       _ = try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
       return .template |> Message.lens.id .~ body.hashValue |> Message.lens.body .~ body
-    }
-
-    internal func fetchProjectNotifications() -> SignalProducer<[ProjectNotification], ErrorEnvelope> {
-      return SignalProducer(value: self.fetchProjectNotificationsResponse)
-    }
-
-    public func fetchSavedProjects(
-      cursor _: String? = nil,
-      limit _: Int? = nil
-    ) -> SignalProducer<GraphAPI.FetchMySavedProjectsQuery.Data, ErrorEnvelope> {
-      guard let result = self.fetchBackerSavedProjectsResponse else {
-        return .empty
-      }
-      return SignalProducer(value: result)
-    }
-
-    public func fetchBackedProjects(
-      cursor _: String? = nil,
-      limit _: Int? = nil
-    ) -> SignalProducer<
-      GraphAPI.FetchMyBackedProjectsQuery.Data,
-      ErrorEnvelope
-    > {
-      guard let result = self.fetchBackerBackedProjectsResponse else {
-        return .empty
-      }
-      return SignalProducer(value: result)
     }
 
     internal func fetchProject(param: Param) -> SignalProducer<Project, ErrorEnvelope> {
@@ -1750,23 +1614,6 @@
       return SignalProducer(value: .template)
     }
 
-    internal func fetchRewardShippingRules(projectId _: Int, rewardId _: Int)
-      -> SignalProducer<ShippingRulesEnvelope, ErrorEnvelope> {
-      if let error = self.fetchShippingRulesResult?.error {
-        return SignalProducer(error: error)
-      }
-
-      return SignalProducer(value: .init(shippingRules: self.fetchShippingRulesResult?.value ?? [.template]))
-    }
-
-    internal func fetchUserSelf() -> SignalProducer<User, ErrorEnvelope> {
-      if let error = fetchUserSelfError {
-        return SignalProducer(error: error)
-      }
-
-      return SignalProducer(value: self.fetchUserSelfResponse ?? .template)
-    }
-
     func fetchUserSelf_combine(withOAuthToken _: String) -> AnyPublisher<User, ErrorEnvelope> {
       if let error = fetchUserSelfError {
         return Fail(outputType: User.self, failure: self.fetchUserSelfError!).eraseToAnyPublisher()
@@ -1774,20 +1621,6 @@
 
       return Just(self.fetchUserSelfResponse ?? .template).setFailureType(to: ErrorEnvelope.self)
         .eraseToAnyPublisher()
-    }
-
-    internal func fetchSurveyResponse(surveyResponseId id: Int)
-      -> SignalProducer<SurveyResponse, ErrorEnvelope> {
-      if let response = fetchSurveyResponseResponse {
-        return SignalProducer(value: response)
-      } else if let error = fetchSurveyResponseError {
-        return SignalProducer(error: error)
-      }
-      return SignalProducer(value: .template |> SurveyResponse.lens.id .~ id)
-    }
-
-    internal func fetchUnansweredSurveyResponses() -> SignalProducer<[SurveyResponse], ErrorEnvelope> {
-      return SignalProducer(value: self.fetchUnansweredSurveyResponsesResponse)
     }
 
     internal func fetchUser(userId _: Int) -> SignalProducer<User, ErrorEnvelope> {
