@@ -90,6 +90,10 @@ public final class CommentsViewModel: CommentsViewModelType,
   // MARK: Initializers
 
   private let feature: DiscussionFeature
+  private let pagePipe = Signal<(UUID, [Comment], Int), Never>.pipe()
+  private let loadingPipe = Signal<(UUID, Bool), Never>.pipe()
+  private let errorPipe = Signal<(UUID, ErrorEnvelope), Never>.pipe()
+  private var pageObservation: MainActorObservation?
   private let route = UUID()
   private let disposables = ScopedDisposable(CompositeDisposable())
   private(set) var loadingTask: Task<Void, Never>?
@@ -179,9 +183,9 @@ public final class CommentsViewModel: CommentsViewModelType,
       requestFirstPageWith.mapConst(false),
       requestNextPage.mapConst(true)
     )
-    let comments = feature.pageValues.filter { $0.0 == route }.map { $0.1 }.skipRepeats()
-    let isLoading = feature.loading.filter { $0.0 == route }.map { $0.1 }
-    let errors = feature.errors.filter { $0.0 == route }.map { $0.1 }
+    let comments = self.pagePipe.output.filter { $0.0 == route }.map { $0.1 }.skipRepeats()
+    let isLoading = self.loadingPipe.output.filter { $0.0 == route }.map { $0.1 }
+    let errors = self.errorPipe.output.filter { $0.0 == route }.map { $0.1 }
 
     let commentsWithRetryingComment = currentComments
       .takePairWhen(self.retryingComment.signal.skipNil())
@@ -431,6 +435,14 @@ public final class CommentsViewModel: CommentsViewModelType,
     }
     self.disposables += requestNextPage.observeValues { [weak self] in
       self?.loadingTask = feature.requestNextPage(route: route)
+    }
+    self.pageObservation = feature.observePages { [weak self] update in
+      guard let self else { return }
+      switch update {
+      case let .page(route, comments, count): self.pagePipe.input.send(value: (route, comments, count))
+      case let .loading(route, loading): self.loadingPipe.input.send(value: (route, loading))
+      case let .error(route, error): self.errorPipe.input.send(value: (route, error))
+      }
     }
   }
 

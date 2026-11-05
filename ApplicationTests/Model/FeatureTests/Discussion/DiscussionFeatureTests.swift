@@ -431,8 +431,10 @@ final class DiscussionFeatureTests: TestCase {
     let previous = feature.snapshot(for: route).comments
     provider.missingEnvelope = true
     var pages = 0
-    let observation = feature.pageValues.observeValues { _ in pages += 1 }
-    defer { observation?.dispose() }
+    let observation = feature.observePages { update in
+      if case .page = update { pages += 1 }
+    }
+    defer { observation.stop() }
     await feature.loadNextPage(route: route)
     XCTAssertEqual(pages, 0)
     XCTAssertEqual(feature.snapshot(for: route).comments, previous)

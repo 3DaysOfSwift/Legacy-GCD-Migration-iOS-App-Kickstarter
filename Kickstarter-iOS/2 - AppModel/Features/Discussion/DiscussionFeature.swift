@@ -308,12 +308,20 @@ public final class DiscussionFeature {
 
   private let sleep: (TimeInterval) async throws -> Void
   private var pages: [UUID: PageRoute] = [:]
-  private let pagePipe = Signal<(UUID, [Comment], Int), Never>.pipe()
-  private let loadingPipe = Signal<(UUID, Bool), Never>.pipe()
-  private let errorPipe = Signal<(UUID, ErrorEnvelope), Never>.pipe()
-  public var pageValues: Signal<(UUID, [Comment], Int), Never> { self.pagePipe.output }
-  public var loading: Signal<(UUID, Bool), Never> { self.loadingPipe.output }
-  public var errors: Signal<(UUID, ErrorEnvelope), Never> { self.errorPipe.output }
+  internal enum PageUpdate {
+    case page(UUID, [Comment], Int)
+    case loading(UUID, Bool)
+    case error(UUID, ErrorEnvelope)
+  }
+  private var pageObservers: [(id: UUID, callback: (PageUpdate) -> Void)] = []
+  internal func observePages(_ callback: @escaping (PageUpdate) -> Void) -> MainActorObservation {
+    let id = UUID()
+    self.pageObservers.append((id, callback))
+    return MainActorObservation { [weak self] in self?.pageObservers.removeAll { $0.id == id } }
+  }
+  private func emitPage(_ update: PageUpdate) {
+    for observer in self.pageObservers { observer.callback(update) }
+  }
 
   public init(
     sessionFeature: SessionFeature,
@@ -355,10 +363,10 @@ public final class DiscussionFeature {
         page.hasReceivedPage = previous.hasReceivedPage
         page.snapshot.totalCount = previous.snapshot.totalCount
         if previous.hasReceivedPage {
-          self.pagePipe.input.send(value: (route, [], previous.snapshot.totalCount))
+          self.emitPage(.page(route, [], previous.snapshot.totalCount))
         }
       } else {
-        self.pagePipe.input.send(value: (route, [], 0))
+        self.emitPage(.page(route, [], 0))
       }
     }
     return self.startPage(route: route, page: page, source: source, cursor: nil)
@@ -392,7 +400,7 @@ public final class DiscussionFeature {
         if let self, self.pages[route]?.request?.id == requestID {
           page.request = nil
           page.snapshot.isLoading = false
-          self.loadingPipe.input.send(value: (route, false))
+          self.emitPage(.loading(route, false))
         }
       }
       do {
@@ -433,7 +441,7 @@ public final class DiscussionFeature {
         page.cursor = nextCursor
         // Preserve the existing empty-page sentinel (not the envelope flags).
         page.nextSource = comments.isEmpty ? nil : nextSource
-        self.pagePipe.input.send(value: (route, comments, count))
+        self.emitPage(.page(route, comments, count))
       } catch is CancellationError {
         // Navigation, refresh and account changes never become visible errors.
       } catch DiscussionResponseError.missingEnvelope {
@@ -445,11 +453,11 @@ public final class DiscussionFeature {
               page.userID == AppEnvironment.current.currentUser?.id else { return }
         let failure = (error as? ErrorEnvelope) ?? .couldNotParseJSON
         page.snapshot.error = failure
-        self.errorPipe.input.send(value: (route, failure))
+        self.emitPage(.error(route, failure))
       }
     }
     page.request = (requestID, task)
-    self.loadingPipe.input.send(value: (route, true))
+    self.emitPage(.loading(route, true))
     return task
   }
 
