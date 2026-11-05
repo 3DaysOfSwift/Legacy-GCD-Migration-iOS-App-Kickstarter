@@ -5,7 +5,6 @@ import GraphAPI
 @testable import KsApi
 
 
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -174,8 +173,7 @@ final class SearchRequestCancellationTests: TestCase {
   func testLiveProviderAdapterPublishesThroughFeature() async throws {
     let expected = try self.fixture()
     await self.withEnvironment(
-      apiService: MockService(fetchGraphQLResponses: [(GraphAPI.SearchQuery.self, expected)]),
-      scheduler: QueueScheduler.main
+      apiService: MockService(fetchGraphQLResponses: [(GraphAPI.SearchQuery.self, expected)])
     ) {
       let feature = SearchFeature(provider: AsyncSearchProjectsProvider())
       let loaded = self.expectation(description: "async Feature result")
@@ -221,7 +219,7 @@ final class SearchRequestCancellationTests: TestCase {
         return CancellationProbe()
       }, map: { SearchPageResponse($0) })
     }
-    await self.withEnvironment(debounceInterval: .seconds(0), scheduler: QueueScheduler.main) {
+    await self.withEnvironment(debounceInterval: .seconds(0)) {
       let feature = SearchFeature(provider: provider)
       var resultEvents = 0
       let observation = feature.observe { update in
