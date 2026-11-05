@@ -17,7 +17,7 @@ public final class RewardAddOnCardView: UIView {
   // MARK: - Properties
 
   weak var delegate: RewardAddOnCardViewDelegate?
-  private let viewModel: RewardAddOnCardViewModelType = RewardAddOnCardViewModel()
+  private let viewModel = RewardAddOnCardViewModel()
 
   private let rootStackView = UIStackView(frame: .zero)
   private let detailsStackView = UIStackView(frame: .zero)
@@ -130,7 +130,6 @@ public final class RewardAddOnCardView: UIView {
   public override func bindViewModel() {
     super.bindViewModel()
 
-    self.addButton.rac.hidden = self.viewModel.outputs.addButtonHidden
     self.amountConversionLabel.rac.hidden = self.viewModel.outputs.amountConversionLabelHidden
     self.amountConversionLabel.rac.text = self.viewModel.outputs.amountConversionLabelText
     self.descriptionLabel.rac.text = self.viewModel.outputs.descriptionLabelText
@@ -139,35 +138,30 @@ public final class RewardAddOnCardView: UIView {
     self.estimatedShippingStackView.rac.hidden = self.viewModel.outputs.estimatedShippingStackViewHidden
     self.amountLabel.rac.attributedText = self.viewModel.outputs.amountLabelAttributedText
     self.pillsView.rac.hidden = self.viewModel.outputs.pillsViewHidden
-    self.quantityLabel.rac.text = self.viewModel.outputs.quantityLabelText
     self.rewardLocationStackView.rac.hidden = self.viewModel.outputs.rewardLocationStackViewHidden
     self.rewardLocationPickupLabel.rac.text = self.viewModel.outputs.rewardLocationPickupLabelText
     self.rewardTitleLabel.rac.text = self.viewModel.outputs.rewardTitleLabelText
-    self.stepperStackView.rac.hidden = self.viewModel.outputs.stepperStackViewHidden
     self.stepper.rac.maximumValue = self.viewModel.outputs.stepperMaxValue
-    self.stepper.rac.value = self.viewModel.outputs.stepperValue
     self.rewardImageView.rac.hidden = self.viewModel.outputs.rewardImageHidden
 
-    self.viewModel.outputs.notifiyDelegateDidSelectQuantity
-      .observeForUI()
-      .observeValues { [weak self] quantity, rewardId in
-        guard let self = self else { return }
-        self.delegate?.rewardAddOnCardView(self, didSelectQuantity: quantity, rewardId: rewardId)
-      }
+    self.viewModel.onQuantity = { [weak self] quantity in
+      self?.addButton.isHidden = quantity > 0
+      self?.quantityLabel.text = String(quantity)
+      self?.stepperStackView.isHidden = quantity == 0
+      self?.stepper.value = Double(quantity)
+    }
+    self.viewModel.onQuantitySelected = { [weak self] quantity, rewardId in
+      guard let self else { return }
+      self.delegate?.rewardAddOnCardView(self, didSelectQuantity: quantity, rewardId: rewardId)
+    }
+    self.viewModel.onSelectionFeedback = { generateSelectionFeedback() }
+    self.viewModel.onWarningFeedback = { generateNotificationWarningFeedback() }
 
     self.viewModel.outputs.reloadPills
       .observeForUI()
       .observeValues { [weak self] values in
         self?.configurePillsView(values)
       }
-
-    self.viewModel.outputs.generateSelectionFeedback
-      .observeForUI()
-      .observeValues { generateSelectionFeedback() }
-
-    self.viewModel.outputs.generateNotificationWarningFeedback
-      .observeForUI()
-      .observeValues { generateNotificationWarningFeedback() }
 
     self.viewModel.outputs.estimatedShippingLabelText
       .observeForUI()

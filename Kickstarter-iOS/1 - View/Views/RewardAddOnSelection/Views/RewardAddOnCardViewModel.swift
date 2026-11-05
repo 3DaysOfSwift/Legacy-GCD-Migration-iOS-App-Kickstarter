@@ -16,34 +16,25 @@ public struct RewardAddOnCardViewData: Equatable {
 public protocol RewardAddOnCardViewModelInputs {
   func addButtonTapped()
   func configure(with data: RewardAddOnCardViewData)
-  func rewardAddOnCardTapped()
   func stepperValueChanged(_ value: Double)
 }
 
 @MainActor
 public protocol RewardAddOnCardViewModelOutputs {
-  var addButtonHidden: Signal<Bool, Never> { get }
   var amountConversionLabelHidden: Signal<Bool, Never> { get }
   var amountConversionLabelText: Signal<String, Never> { get }
   var amountLabelAttributedText: Signal<NSAttributedString, Never> { get }
   var descriptionLabelText: Signal<String, Never> { get }
-  var generateSelectionFeedback: Signal<Void, Never> { get }
-  var generateNotificationWarningFeedback: Signal<Void, Never> { get }
   var includedItemsLabelAttributedText: Signal<NSAttributedString, Never> { get }
   var includedItemsStackViewHidden: Signal<Bool, Never> { get }
   var estimatedShippingLabelText: Signal<String?, Never> { get }
   var estimatedShippingStackViewHidden: Signal<Bool, Never> { get }
-  var notifiyDelegateDidSelectQuantity: Signal<(SelectedRewardQuantity, SelectedRewardId), Never> { get }
   var pillsViewHidden: Signal<Bool, Never> { get }
-  var quantityLabelText: Signal<String, Never> { get }
   var reloadPills: Signal<[String], Never> { get }
   var rewardLocationPickupLabelText: Signal<String, Never> { get }
   var rewardLocationStackViewHidden: Signal<Bool, Never> { get }
-  var rewardSelected: Signal<Int, Never> { get }
   var rewardTitleLabelText: Signal<String, Never> { get }
   var stepperMaxValue: Signal<Double, Never> { get }
-  var stepperStackViewHidden: Signal<Bool, Never> { get }
-  var stepperValue: Signal<Double, Never> { get }
   var rewardImage: Signal<Reward.Image, Never> { get }
   var rewardImageHidden: Signal<Bool, Never> { get }
 }
@@ -63,7 +54,6 @@ public final class RewardAddOnCardViewModel: RewardAddOnCardViewModelType, Rewar
 
     let project: Signal<Project, Never> = configData.map(\.project)
     let reward: Signal<Reward, Never> = configData.map(\.reward)
-    let selectedQuantities: Signal<SelectedRewardQuantities, Never> = configData.map(\.selectedQuantities)
     let shippingRule: Signal<ShippingRule?, Never> = configData.map(\.shippingRule)
 
     let projectAndReward = Signal.zip(project, reward)
@@ -139,33 +129,6 @@ public final class RewardAddOnCardViewModel: RewardAddOnCardViewModelType, Rewar
     self.reloadPills = projectAndReward.map(pillValues(project:reward:))
     self.pillsViewHidden = self.reloadPills.map { $0.isEmpty }
 
-    self.rewardSelected = reward
-      .takeWhen(self.rewardAddOnCardTappedProperty.signal)
-      .map { $0.id }
-
-    let initialSelectedQuantity = Signal.combineLatest(
-      reward,
-      selectedQuantities
-    )
-    .map { reward, selectedQuantities in selectedQuantities[reward.id] ?? 0 }
-
-    let updatedSelectedQuantity = Signal.merge(
-      self.addButtonTappedProperty.signal.mapConst(1),
-      self.stepperValueChangedProperty.signal.skipNil().map(Int.init)
-    )
-
-    let initialOrUpdatedSelectedQuantity = Signal.merge(
-      initialSelectedQuantity,
-      updatedSelectedQuantity
-    )
-
-    self.addButtonHidden = initialOrUpdatedSelectedQuantity.map { $0 > 0 }
-
-    self.quantityLabelText = initialOrUpdatedSelectedQuantity.map(String.init)
-
-    self.notifiyDelegateDidSelectQuantity = updatedSelectedQuantity
-      .withLatest(from: reward.map(\.id))
-
     self.rewardLocationStackViewHidden = reward
       .map { !isRewardLocalPickup($0) }
 
@@ -177,68 +140,51 @@ public final class RewardAddOnCardViewModel: RewardAddOnCardViewModelType, Rewar
       }
       .map(Double.init)
 
-    self.stepperStackViewHidden = initialOrUpdatedSelectedQuantity.map { $0 == 0 }
-
-    self.stepperValue = initialOrUpdatedSelectedQuantity
-      .map(Double.init)
-
-    let generateFeedbackWithValues = updatedSelectedQuantity.map(Double.init)
-      .withLatestFrom(self.stepperMaxValue)
-
-    self.generateSelectionFeedback = generateFeedbackWithValues
-      .filter { value, max in value > 0 && value < max }
-      .ignoreValues()
-
-    self.generateNotificationWarningFeedback = generateFeedbackWithValues
-      .filter { value, max in value == 0 || value >= max }
-      .ignoreValues()
-
     self.rewardImage = reward.map { $0.image }.skipNil()
     self.rewardImageHidden = reward.map { $0.image == nil }
   }
 
-  private let addButtonTappedProperty = MutableProperty(())
-  public func addButtonTapped() {
-    self.addButtonTappedProperty.value = ()
-  }
+  public var onQuantity: ((Int) -> Void)?
+  public var onQuantitySelected: ((Int, Int) -> Void)?
+  public var onSelectionFeedback: (() -> Void)?
+  public var onWarningFeedback: (() -> Void)?
+  private var currentData: RewardAddOnCardViewData?
+
+  public func addButtonTapped() { self.updateQuantity(1) }
 
   private let configDataProperty = MutableProperty<RewardAddOnCardViewData?>(nil)
   public func configure(with data: RewardAddOnCardViewData) {
+    self.currentData = data
     self.configDataProperty.value = data
+    self.onQuantity?(data.selectedQuantities[data.reward.id] ?? 0)
   }
 
-  private let rewardAddOnCardTappedProperty = MutableProperty(())
-  public func rewardAddOnCardTapped() {
-    self.rewardAddOnCardTappedProperty.value = ()
+  public func stepperValueChanged(_ value: Double) { self.updateQuantity(Int(value)) }
+
+  private func updateQuantity(_ quantity: Int) {
+    self.onQuantity?(quantity)
+    guard let data = self.currentData else { return }
+    self.onQuantitySelected?(quantity, data.reward.id)
+    let maxValue = Double(rewardLimitPerBackerRemainingForBacker(project: data.project, reward: data.reward) ?? 0)
+    let value = Double(quantity)
+    if value > 0 && value < maxValue { self.onSelectionFeedback?() }
+    if value == 0 || value >= maxValue { self.onWarningFeedback?() }
   }
 
-  private let stepperValueChangedProperty = MutableProperty<Double?>(nil)
-  public func stepperValueChanged(_ value: Double) {
-    self.stepperValueChangedProperty.value = value
-  }
-
-  public let addButtonHidden: Signal<Bool, Never>
   public let amountConversionLabelHidden: Signal<Bool, Never>
   public let amountConversionLabelText: Signal<String, Never>
   public let amountLabelAttributedText: Signal<NSAttributedString, Never>
   public let descriptionLabelText: Signal<String, Never>
-  public let generateSelectionFeedback: Signal<Void, Never>
-  public let generateNotificationWarningFeedback: Signal<Void, Never>
   public let includedItemsLabelAttributedText: Signal<NSAttributedString, Never>
   public let includedItemsStackViewHidden: Signal<Bool, Never>
   public let estimatedShippingLabelText: Signal<String?, Never>
   public let estimatedShippingStackViewHidden: Signal<Bool, Never>
-  public let notifiyDelegateDidSelectQuantity: Signal<(SelectedRewardQuantity, SelectedRewardId), Never>
   public let pillsViewHidden: Signal<Bool, Never>
-  public let quantityLabelText: Signal<String, Never>
   public let reloadPills: Signal<[String], Never>
-  public let rewardSelected: Signal<Int, Never>
   public let rewardTitleLabelText: Signal<String, Never>
   public let rewardLocationPickupLabelText: Signal<String, Never>
   public let rewardLocationStackViewHidden: Signal<Bool, Never>
   public let stepperMaxValue: Signal<Double, Never>
-  public let stepperStackViewHidden: Signal<Bool, Never>
-  public let stepperValue: Signal<Double, Never>
   public let rewardImage: Signal<Reward.Image, Never>
   public let rewardImageHidden: Signal<Bool, Never>
 

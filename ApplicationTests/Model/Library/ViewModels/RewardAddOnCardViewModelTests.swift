@@ -12,7 +12,7 @@ import XCTest
 @MainActor
 final class RewardAddOnCardViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  fileprivate let vm: RewardAddOnCardViewModelType = RewardAddOnCardViewModel()
+  fileprivate let vm = RewardAddOnCardViewModel()
 
   private let addButtonHidden = TestObserver<Bool, Never>()
   private let amountConversionLabelHidden = TestObserver<Bool, Never>()
@@ -30,7 +30,6 @@ final class RewardAddOnCardViewModelTests: TestCase {
   private let pillsViewHidden = TestObserver<Bool, Never>()
   private let quantityLabelText = TestObserver<String, Never>()
   private let reloadPills = TestObserver<[String], Never>()
-  private let rewardSelected = TestObserver<Int, Never>()
   private let rewardTitleLabelText = TestObserver<String, Never>()
   private let rewardLocationPickupLabelText = TestObserver<String, Never>()
   private let rewardLocationStackViewHidden = TestObserver<Bool, Never>()
@@ -42,34 +41,33 @@ final class RewardAddOnCardViewModelTests: TestCase {
 
   override func setUp() async throws {
     try await super.setUp()
+    self.vm.onQuantity = { [weak self] quantity in
+      self?.addButtonHidden.observer.send(value: quantity > 0)
+      self?.quantityLabelText.observer.send(value: String(quantity))
+      self?.stepperStackViewHidden.observer.send(value: quantity == 0)
+      self?.stepperValue.observer.send(value: Double(quantity))
+    }
+    self.vm.onQuantitySelected = { [weak self] quantity, rewardId in
+      self?.notifiyDelegateDidSelectQuantityQuantity.observer.send(value: quantity)
+      self?.notifiyDelegateDidSelectQuantityRewardId.observer.send(value: rewardId)
+    }
+    self.vm.onSelectionFeedback = { [weak self] in self?.generateSelectionFeedback.observer.send(value: ()) }
+    self.vm.onWarningFeedback = { [weak self] in self?.generateNotificationWarningFeedback.observer.send(value: ()) }
 
-    self.vm.outputs.addButtonHidden.observe(self.addButtonHidden.observer)
     self.vm.outputs.amountLabelAttributedText.map(\.string)
       .observe(self.amountLabelAttributedText.observer)
     self.vm.outputs.amountConversionLabelHidden.observe(self.amountConversionLabelHidden.observer)
     self.vm.outputs.amountConversionLabelText.observe(self.amountConversionLabelText.observer)
     self.vm.outputs.descriptionLabelText.observe(self.descriptionLabelText.observer)
-    self.vm.outputs.generateSelectionFeedback.observe(self.generateSelectionFeedback.observer)
-    self.vm.outputs.generateNotificationWarningFeedback.observe(
-      self.generateNotificationWarningFeedback.observer
-    )
     self.vm.outputs.includedItemsLabelAttributedText.map(\.string)
       .observe(self.includedItemsLabelAttributedText.observer)
     self.vm.outputs.includedItemsStackViewHidden.observe(self.includedItemsStackViewHidden.observer)
-    self.vm.outputs.notifiyDelegateDidSelectQuantity.map(first)
-      .observe(self.notifiyDelegateDidSelectQuantityQuantity.observer)
-    self.vm.outputs.notifiyDelegateDidSelectQuantity.map(second)
-      .observe(self.notifiyDelegateDidSelectQuantityRewardId.observer)
     self.vm.outputs.pillsViewHidden.observe(self.pillsViewHidden.observer)
-    self.vm.outputs.quantityLabelText.observe(self.quantityLabelText.observer)
     self.vm.outputs.reloadPills.observe(self.reloadPills.observer)
-    self.vm.outputs.rewardSelected.observe(self.rewardSelected.observer)
     self.vm.outputs.rewardTitleLabelText.observe(self.rewardTitleLabelText.observer)
     self.vm.outputs.rewardLocationStackViewHidden.observe(self.rewardLocationStackViewHidden.observer)
     self.vm.outputs.rewardLocationPickupLabelText.observe(self.rewardLocationPickupLabelText.observer)
     self.vm.outputs.stepperMaxValue.observe(self.stepperMaxValue.observer)
-    self.vm.outputs.stepperStackViewHidden.observe(self.stepperStackViewHidden.observer)
-    self.vm.outputs.stepperValue.observe(self.stepperValue.observer)
     self.vm.outputs.rewardImage.map { $0.url }.skipNil().observe(self.rewardImageURL.observer)
     self.vm.outputs.rewardImageHidden.observe(self.rewardImageHidden.observer)
   }
