@@ -2,8 +2,6 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 import UIKit
 
 internal protocol CommentDialogDelegate: AnyObject {
@@ -13,7 +11,7 @@ internal protocol CommentDialogDelegate: AnyObject {
 
 internal final class CommentDialogViewController: UIViewController {
   private var keyboardObservation: Keyboard.Observation?
-  fileprivate let viewModel: CommentDialogViewModelType = CommentDialogViewModel()
+  fileprivate let viewModel = CommentDialogViewModel()
   internal weak var delegate: CommentDialogDelegate?
 
   @IBOutlet fileprivate var bottomConstraint: NSLayoutConstraint!
@@ -26,12 +24,12 @@ internal final class CommentDialogViewController: UIViewController {
 
   internal override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
-    self.viewModel.inputs.viewWillAppear()
+    self.viewModel.viewWillAppear()
   }
 
   internal override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
-    self.viewModel.inputs.viewWillDisappear()
+    self.viewModel.viewWillDisappear()
   }
 
   internal static func configuredWith(
@@ -39,7 +37,7 @@ internal final class CommentDialogViewController: UIViewController {
     context: KSRAnalytics.CommentDialogContext
   ) -> CommentDialogViewController {
     let vc = Storyboard.CommentsDialog.instantiate(CommentDialogViewController.self)
-    vc.viewModel.inputs.configureWith(
+    vc.viewModel.configureWith(
       project: project, update: update, recipientName: recipient?.name,
       context: context
     )
@@ -71,38 +69,30 @@ internal final class CommentDialogViewController: UIViewController {
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.bodyTextView.rac.text = self.viewModel.outputs.bodyTextViewText
-    self.postButton.rac.enabled = self.viewModel.outputs.postButtonEnabled
-    self.subtitleLabel.rac.text = self.viewModel.outputs.subtitle
-    self.loadingView.rac.hidden = self.viewModel.outputs.loadingViewIsHidden
-
-    self.viewModel.outputs.showKeyboard
-      .observeForControllerAction()
-      .observeValues { [weak textView = self.bodyTextView] show in
-        _ = show ? textView?.becomeFirstResponder() : textView?.resignFirstResponder()
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .body(text): self.bodyTextView.text = text
+      case let .postEnabled(enabled): self.postButton.isEnabled = enabled
+      case let .loadingHidden(hidden): self.loadingView.isHidden = hidden
+      case let .posted(comment): self.commentPostedSuccessfully(comment)
+      case .dismiss: self.notifyPresenterOfDismissal()
+      case let .subtitle(text): self.subtitleLabel.text = text
+      case let .keyboard(show):
+        _ = show ? self.bodyTextView.becomeFirstResponder() : self.bodyTextView.resignFirstResponder()
+      case let .error(message): self.presentError(message)
       }
-
-    self.viewModel.outputs.notifyPresenterDialogWantsDismissal
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.notifyPresenterOfDismissal() }
-
-    self.viewModel.outputs.notifyPresenterCommentWasPostedSuccesfully
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.commentPostedSuccessfully($0) }
-
-    self.viewModel.errors.presentError
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.presentError($0) }
+    }
 
     self.keyboardObservation = Keyboard.observe { [weak self] in self?.animateTextViewConstraint($0) }
   }
 
   @IBAction internal func cancelButtonPressed() {
-    self.viewModel.inputs.cancelButtonPressed()
+    self.viewModel.cancelButtonPressed()
   }
 
   @IBAction internal func postButtonPressed() {
-    self.viewModel.inputs.postButtonPressed()
+    self.viewModel.postButtonPressed()
   }
 
   fileprivate func notifyPresenterOfDismissal() {
@@ -130,6 +120,6 @@ internal final class CommentDialogViewController: UIViewController {
 
 extension CommentDialogViewController: UITextViewDelegate {
   internal func textViewDidChange(_ textView: UITextView) {
-    self.viewModel.inputs.commentBodyChanged(textView.text)
+    self.viewModel.commentBodyChanged(textView.text)
   }
 }
