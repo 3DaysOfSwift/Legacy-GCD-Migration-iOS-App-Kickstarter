@@ -14157,8 +14157,8 @@
 			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"61669C6F20F8AF309A2D9AA4" = {
-			"name" = "ViewPledgeUseCase.swift";
-			"path" = "Kickstarter-iOS/2 - AppModel/Features/Pledge/ViewPledgeUseCase.swift";
+			"name" = "PledgeDestination.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Features/Pledge/PledgeDestination.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";

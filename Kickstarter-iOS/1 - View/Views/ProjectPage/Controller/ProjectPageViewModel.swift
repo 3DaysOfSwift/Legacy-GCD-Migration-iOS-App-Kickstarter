@@ -742,11 +742,17 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
           .redemptionPageUrl
       }
 
-    self.viewPledgeUseCase = .init(with: projectAndBacking)
-
-    ctaButtonTappedWithType
-      .filter(shouldGoToManagePledge(with:))
-      .observeValues { [weak self] _ in self?.viewPledgeUseCase.goToPledgeViewTapped() }
+    let pledgeDestinationEvents = projectAndBacking
+      .takeWhen(ctaButtonTappedWithType.filter(shouldGoToManagePledge(with:)))
+      .map { pledgeDestination(project: $0.0, backing: $0.1) }
+    self.goToManagePledge = pledgeDestinationEvents.compactMap {
+      if case let .native(params) = $0 { return params }
+      return nil
+    }
+    self.goToPledgeManagementPledgeView = pledgeDestinationEvents.compactMap {
+      if case let .web(url) = $0 { return url }
+      return nil
+    }
 
     // MARK: Similar Projects
 
@@ -940,8 +946,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.viewWillTransitionProperty.value = ()
   }
 
-  private let viewPledgeUseCase: ViewPledgeUseCase
-
   public let configureDataSource: Signal<
     (NavigationSection, Either<Project, any ProjectPageParam>, RefTag?),
     Never
@@ -956,15 +960,11 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.rewardsUseCase.goToLoginWithIntent
   }
 
-  public var goToManagePledge: Signal<ManagePledgeViewParamConfigData, Never> {
-    self.viewPledgeUseCase.goToNativePledgeView
-  }
+  public let goToManagePledge: Signal<ManagePledgeViewParamConfigData, Never>
 
   public let goToPledgeManager: Signal<String, Never>
 
-  public var goToPledgeManagementPledgeView: Signal<String, Never> {
-    self.viewPledgeUseCase.goToPledgeManagementPledgeView
-  }
+  public let goToPledgeManagementPledgeView: Signal<String, Never>
 
   public let goToRestrictedCreator: Signal<String, Never>
   public let goToRewards: Signal<(Project, RefTag?, String?), Never>
