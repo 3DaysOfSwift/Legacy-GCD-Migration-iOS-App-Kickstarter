@@ -137,6 +137,10 @@ public protocol DiscoveryPageViewModelType {
 public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, DiscoveryPageViewModelInputs,
   DiscoveryPageViewModelOutputs {
   private let discoveryFeature: DiscoveryFeature
+  private let projectsPipe = Signal<(DiscoveryParams.Sort, [Project]), Never>.pipe()
+  private let loadingPipe = Signal<(DiscoveryParams.Sort, Bool), Never>.pipe()
+  private let activitiesPipe = Signal<(DiscoveryParams.Sort, [Activity]), Never>.pipe()
+  private var discoveryObservation: MainActorObservation?
   private let featureBindings = ScopedDisposable(CompositeDisposable())
   internal private(set) var pageTask: Task<Void, Never>?
   internal private(set) var activityTask: Task<Void, Never>?
@@ -196,10 +200,10 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     )
 
     let selectedSort = self.sortProperty
-    let paginatedProjects = discoveryFeature.projects
+    let paginatedProjects = self.projectsPipe.output
       .filter { $0.0 == selectedSort.value }
       .map { $0.1 }
-    let isLoading = discoveryFeature.loading
+    let isLoading = self.loadingPipe.output
       .filter { $0.0 == selectedSort.value }
       .map { $0.1 }
 
@@ -283,7 +287,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
         return SignalProducer(value: (project, update))
       }
 
-    let activities = discoveryFeature.activities
+    let activities = self.activitiesPipe.output
       .filter { $0.0 == selectedSort.value }
       .map { $0.1 }
       .skipRepeats(==)
@@ -404,6 +408,14 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
           params: params
         )
       }
+    self.discoveryObservation = discoveryFeature.observe { [weak self] update in
+      guard let self else { return }
+      switch update {
+      case let .projects(sort, projects): self.projectsPipe.input.send(value: (sort, projects))
+      case let .loading(sort, loading): self.loadingPipe.input.send(value: (sort, loading))
+      case let .activities(sort, activities): self.activitiesPipe.input.send(value: (sort, activities))
+      }
+    }
   }
 
 

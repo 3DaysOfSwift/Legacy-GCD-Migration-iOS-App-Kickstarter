@@ -2,7 +2,6 @@ import Foundation
 import Observation
 import KsApi
 import Prelude
-import ReactiveSwift
 
 @MainActor
 public protocol DiscoveryProvider {
@@ -27,7 +26,7 @@ public struct AsyncDiscoveryProvider: DiscoveryProvider {
 }
 
 /// One Explore owner, with independent request identities for its four retained feeds.
-/// Signals are output-only compatibility adapters for the existing UIKit presentation.
+/// Main-actor updates notify the existing UIKit presentation of changes.
 @MainActor @Observable
 public final class DiscoveryFeature {
   public struct PageSnapshot {
@@ -51,14 +50,21 @@ public final class DiscoveryFeature {
   private var pages: [String: Page] = [:]
   private let provider: any DiscoveryProvider
   private let sleep: @MainActor (TimeInterval) async throws -> Void
-  private let projectsPipe = Signal<(DiscoveryParams.Sort, [Project]), Never>.pipe()
-  private let loadingPipe = Signal<(DiscoveryParams.Sort, Bool), Never>.pipe()
-  private let activitiesPipe = Signal<(DiscoveryParams.Sort, [Activity]), Never>.pipe()
+  internal enum Update {
+    case projects(DiscoveryParams.Sort, [Project])
+    case loading(DiscoveryParams.Sort, Bool)
+    case activities(DiscoveryParams.Sort, [Activity])
+  }
+  @ObservationIgnored private var observers: [(id: UUID, callback: (Update) -> Void)] = []
+  internal func observe(_ callback: @escaping (Update) -> Void) -> MainActorObservation {
+    let id = UUID()
+    self.observers.append((id, callback))
+    return MainActorObservation { [weak self] in self?.observers.removeAll { $0.id == id } }
+  }
+  private func emit(_ update: Update) {
+    for observer in self.observers { observer.callback(update) }
+  }
   public private(set) var selectedParameters: DiscoveryParams?
-
-  public var projects: Signal<(DiscoveryParams.Sort, [Project]), Never> { self.projectsPipe.output }
-  public var loading: Signal<(DiscoveryParams.Sort, Bool), Never> { self.loadingPipe.output }
-  public var activities: Signal<(DiscoveryParams.Sort, [Activity]), Never> { self.activitiesPipe.output }
 
   public static func initialParameters(for user: User?) -> DiscoveryParams {
     guard user?.optedOutOfRecommendations == false else {
@@ -146,7 +152,7 @@ public final class DiscoveryFeature {
         if page.request?.id == id {
           page.request = nil
           page.snapshot.isLoading = false
-          self?.loadingPipe.input.send(value: (sort, false))
+          self?.emit(.loading(sort, false))
         }
       }
       do {
@@ -165,7 +171,7 @@ public final class DiscoveryFeature {
         page.snapshot.projects = ((cursor == nil ? [] : page.snapshot.projects) + envelope.projects).distincts()
         page.cursor = envelope.urls.api.moreProjects
         page.snapshot.hasMore = !envelope.projects.isEmpty
-        self.projectsPipe.input.send(value: (sort, page.snapshot.projects))
+        self.emit(.projects(sort, page.snapshot.projects))
       } catch {
         guard page.request?.id == id, !Task.isCancelled, !(error is CancellationError),
               AppEnvironment.current.currentUser?.id == requestedUserID else { return }
@@ -173,7 +179,7 @@ public final class DiscoveryFeature {
       }
     }
     page.request = (id, cursor, task)
-    self.loadingPipe.input.send(value: (sort, true))
+    self.emit(.loading(sort, true))
     return task
   }
 
@@ -196,7 +202,7 @@ public final class DiscoveryFeature {
         guard let self, page.activityRequest?.id == id,
               AppEnvironment.current.currentUser?.id == requestedUserID else { return }
         page.snapshot.activitySample = envelope.activities
-        self.activitiesPipe.input.send(value: (sort, envelope.activities))
+        self.emit(.activities(sort, envelope.activities))
       } catch {
         // Legacy sample failures leave the existing sample unchanged.
         guard page.activityRequest?.id == id, !Task.isCancelled, !(error is CancellationError),
@@ -220,7 +226,7 @@ public final class DiscoveryFeature {
     activity?.task.cancel()
     if page.snapshot.isLoading {
       page.snapshot.isLoading = false
-      self.loadingPipe.input.send(value: (sort, false))
+      self.emit(.loading(sort, false))
     }
   }
 

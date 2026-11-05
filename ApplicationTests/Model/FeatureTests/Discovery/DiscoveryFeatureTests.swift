@@ -61,6 +61,31 @@ final class DiscoveryFeatureTests: TestCase {
     XCTAssertEqual(feature.snapshot(for: .magic).projects.map(\.id), [1])
   }
 
+  func testNativeUpdatesPreserveSortAndStopAfterCancellation() async throws {
+    let provider = ControlledDiscoveryProvider()
+    defer { provider.releaseAll() }
+    let feature = DiscoveryFeature(provider: provider, sleep: { _ in })
+    var events: [String] = []
+    let observation = feature.observe { update in
+      switch update {
+      case let .loading(sort, loading): events.append("\(sort.rawValue):\(loading)")
+      case let .projects(sort, projects): events.append("\(sort.rawValue):\(projects.count)")
+      case .activities: break
+      }
+    }
+    let request = feature.requestRefresh(sort: .popular, parameters: .defaults)
+    await provider.waitForCount(1)
+    try provider.complete(0, ids: [1, 2])
+    await request.value
+    XCTAssertEqual(events, ["popularity:true", "popularity:2", "popularity:false"])
+    observation.stop()
+    let next = feature.requestRefresh(sort: .magic, parameters: .defaults)
+    await provider.waitForCount(2)
+    try provider.complete(1, ids: [3])
+    await next.value
+    XCTAssertEqual(events, ["popularity:true", "popularity:2", "popularity:false"])
+  }
+
   func testConstructionDoesNotLoadAnyFeed() {
     let provider = ControlledDiscoveryProvider()
     let feature = DiscoveryFeature(provider: provider)
