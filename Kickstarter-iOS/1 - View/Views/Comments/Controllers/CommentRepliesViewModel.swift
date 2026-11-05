@@ -242,8 +242,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
       .skipNil()
       .takeWhen(self.dataSourceLoadedProperty.signal)
 
-    let blockUserEvent = self.blockUserProperty.signal
-      .switchMap { id in discussionBlockUserEvents(feature: feature, id: id) }
+    let blockUserEvent = self.blockEventPipe.output
 
     self.didBlockUser = blockUserEvent.values().ignoreValues()
       .map { _ in NotificationCenter.default.post(.init(name: .ksr_blockedUser)) }
@@ -295,9 +294,17 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     }
   }
 
+  private let blockPresentation = DiscussionBlockPresentation()
+  private let blockEventPipe = Signal<Signal<EmptyResponseEnvelope, ErrorEnvelope>.Event, Never>.pipe()
   private let blockUserProperty = MutableProperty<String>("")
   public func blockUser(id: String) {
     self.blockUserProperty.value = id
+    self.blockPresentation.start(feature: self.feature, id: id) { [weak self] result in
+      switch result {
+      case let .success(value): self?.blockEventPipe.input.send(value: .value(value))
+      case let .failure(error): self?.blockEventPipe.input.send(value: .failed(error))
+      }
+    }
   }
 
   private let didSelectCommentProperty = MutableProperty<Comment?>(nil)
@@ -375,6 +382,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     await self.contextTask?.value
     await self.loadingTask?.value
     await self.feature.waitForMutations()
+    await self.blockPresentation.wait()
   }
 
   public var inputs: CommentRepliesViewModelInputs { return self }

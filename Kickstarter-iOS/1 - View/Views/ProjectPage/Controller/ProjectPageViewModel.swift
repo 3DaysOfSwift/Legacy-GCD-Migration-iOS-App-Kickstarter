@@ -659,8 +659,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
     // MARK: User blocking
 
-    let blockUserEvent = self.blockUserProperty.signal
-      .switchMap { id in discussionBlockUserEvents(feature: projectDetailsFeature.discussionFeature, id: String(id)) }
+    let blockUserEvent = self.blockEventPipe.output
 
     self.didBlockUser = blockUserEvent.values().ignoreValues()
       .map { _ in NotificationCenter.default.post(.init(name: .ksr_blockedUser)) }
@@ -801,6 +800,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
   internal func waitForBlocking() async {
     await self.projectDetailsFeature.discussionFeature.waitForMutations()
+    await self.blockPresentation.wait()
   }
 
   deinit {
@@ -829,9 +829,17 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.applicationDidEnterBackgroundProperty.value = ()
   }
 
+  private let blockPresentation = DiscussionBlockPresentation()
+  private let blockEventPipe = Signal<Signal<EmptyResponseEnvelope, ErrorEnvelope>.Event, Never>.pipe()
   fileprivate let blockUserProperty = MutableProperty<Int>(0)
   public func blockUser(id: Int) {
     self.blockUserProperty.value = id
+    self.blockPresentation.start(feature: self.projectDetailsFeature.discussionFeature, id: String(id)) { [weak self] result in
+      switch result {
+      case let .success(value): self?.blockEventPipe.input.send(value: .value(value))
+      case let .failure(error): self?.blockEventPipe.input.send(value: .failed(error))
+      }
+    }
   }
 
   private let configDataProperty = MutableProperty<(

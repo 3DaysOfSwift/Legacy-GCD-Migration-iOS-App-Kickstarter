@@ -125,14 +125,22 @@ final class DiscussionFeatureTests: TestCase {
   func testSameAccountReauthenticationDuringBlockPresentationDelaySuppressesNotification() async {
     let provider = ControlledDiscussionProvider()
     let feature = self.feature(provider)
-    var successes = 0
-    let subscription = discussionBlockUserEvents(feature: feature, id: "target").startWithValues { event in
-      if event.value != nil { successes += 1 }
+    let entered = expectation(description: "presentation delay entered")
+    var finish: CheckedContinuation<Void, Error>?
+    let presentation = DiscussionBlockPresentation { _ in
+      try await withCheckedThrowingContinuation { continuation in
+        finish = continuation
+        entered.fulfill()
+      }
     }
-    defer { subscription.dispose() }
-    await feature.waitForMutations()
+    var successes = 0
+    presentation.start(feature: feature, id: "target") { result in
+      if case .success = result { successes += 1 }
+    }
+    await fulfillment(of: [entered], timeout: 2)
     feature.sessionFeature.sessionChanged()
-    await self.scheduler.advance()
+    finish?.resume()
+    await presentation.wait()
     XCTAssertEqual(successes, 0)
     XCTAssertEqual(provider.blockIDs, ["target"])
   }

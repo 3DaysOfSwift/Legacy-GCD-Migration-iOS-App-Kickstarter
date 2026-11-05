@@ -376,8 +376,7 @@ public final class CommentsViewModel: CommentsViewModelType,
       .map(HelpType.helpType)
       .skipNil()
 
-    let blockUserEvent = self.blockUserProperty.signal
-      .switchMap { id in discussionBlockUserEvents(feature: feature, id: id) }
+    let blockUserEvent = self.blockEventPipe.output
 
     self.didBlockUser = blockUserEvent.values().ignoreValues()
       .map { _ in NotificationCenter.default.post(.init(name: .ksr_blockedUser)) }
@@ -451,9 +450,17 @@ public final class CommentsViewModel: CommentsViewModelType,
   private let retryingComment = MutableProperty<(Comment, String)?>(nil)
   private let failableOrComment = MutableProperty<(Comment, String)?>(nil)
 
+  private let blockPresentation = DiscussionBlockPresentation()
+  private let blockEventPipe = Signal<Signal<EmptyResponseEnvelope, ErrorEnvelope>.Event, Never>.pipe()
   private let blockUserProperty = MutableProperty<String>("")
   public func blockUser(id: String) {
     self.blockUserProperty.value = id
+    self.blockPresentation.start(feature: self.feature, id: id) { [weak self] result in
+      switch result {
+      case let .success(value): self?.blockEventPipe.input.send(value: .value(value))
+      case let .failure(error): self?.blockEventPipe.input.send(value: .failed(error))
+      }
+    }
   }
 
   private let commentCellDidTapViewRepliesProperty = MutableProperty<Comment?>(nil)
@@ -535,6 +542,7 @@ public final class CommentsViewModel: CommentsViewModelType,
     await self.contextTask?.value
     await self.loadingTask?.value
     await self.feature.waitForMutations()
+    await self.blockPresentation.wait()
   }
 
   public var inputs: CommentsViewModelInputs { return self }
@@ -560,35 +568,37 @@ private func commentsReplacingCommentById(
   return mutableComments
 }
 
-/// Transitional adapter for the legacy screens. The Feature owns the admitted
-/// write; cancellation only stops this screen's wait and delayed delivery.
+/// Owns one screen's wait while the Feature retains the admitted block write.
 @MainActor
-internal func discussionBlockUserEvents(
-  feature: DiscussionFeature, id: String
-) -> SignalProducer<Signal<EmptyResponseEnvelope, ErrorEnvelope>.Event, Never> {
-  let userID = feature.sessionFeature.currentUser?.id
-  let generation = feature.sessionFeature.generation
-  let result = SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> { observer, lifetime in
-    MainActor.assumeIsolated {
-      let request = feature.requestBlockUser(id: id)
-      let waiter = Task { @MainActor in
-        do {
-          let response = try await request.value
-          guard !Task.isCancelled else { return }
-          observer.send(value: response)
-          observer.sendCompleted()
-        } catch is CancellationError {
-          if !Task.isCancelled { observer.sendInterrupted() }
-        } catch {
-          guard !Task.isCancelled else { return }
-          observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
+internal final class DiscussionBlockPresentation {
+  private var task: Task<Void, Never>?
+  private let sleep: @MainActor (TimeInterval) async throws -> Void
+  init(sleep: @escaping @MainActor (TimeInterval) async throws -> Void = { seconds in
+    if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
+  }) { self.sleep = sleep }
+  func start(feature: DiscussionFeature, id: String, deliver: @escaping (Result<EmptyResponseEnvelope, ErrorEnvelope>) -> Void) {
+    self.task?.cancel()
+    let userID = feature.sessionFeature.currentUser?.id
+    let generation = feature.sessionFeature.generation
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    let request = feature.requestBlockUser(id: id)
+    let sleep = self.sleep
+    self.task = Task { @MainActor in
+      let result = await request.result
+      do {
+        try Task.checkCancellation()
+        try await sleep(delay)
+        try Task.checkCancellation()
+        guard feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+        switch result {
+        case let .success(value): deliver(.success(value))
+        case let .failure(error):
+          guard !(error is CancellationError) else { return }
+          deliver(.failure((error as? ErrorEnvelope) ?? .couldNotParseJSON))
         }
-      }
-      lifetime.observeEnded { waiter.cancel() }
+      } catch { /* A replaced or released screen must not receive a late result. */ }
     }
   }
-  return result
-    .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-    .materialize()
-    .filter { _ in feature.sessionFeature.isCurrent(userID: userID, generation: generation) }
+  func wait() async { await self.task?.value }
+  deinit { self.task?.cancel() }
 }
