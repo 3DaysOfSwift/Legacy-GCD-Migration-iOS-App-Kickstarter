@@ -20,10 +20,8 @@ let package = Package(
   ],
   dependencies: [
     .package(path: "../GraphAPI"),
-    .package(url: "https://github.com/ReactiveCocoa/ReactiveSwift", from: "7.1.1"),
     .package(url: "https://github.com/apollographql/apollo-ios.git", .exact("1.9.3")),
     .package(url: "https://github.com/kickstarter/Kickstarter-Prelude.git", from: "1.0.0"),
-    .package(url: "https://github.com/kickstarter/Kickstarter-ReactiveExtensions", from: "2.0.0"),
     .package(url: "https://github.com/scinfu/SwiftSoup", from: "2.4.3")
   ],
   targets: [
@@ -32,11 +30,9 @@ let package = Package(
       dependencies: [
         .product(name: "Prelude", package: "Kickstarter-Prelude"),
         .product(name: "SwiftSoup", package: "SwiftSoup"),
-        .product(name: "ReactiveExtensions", package: "Kickstarter-ReactiveExtensions"),
 
         .product(name: "Apollo", package: "apollo-ios"),
         .product(name: "ApolloAPI", package: "apollo-ios"),
-        .product(name: "ReactiveSwift", package: "ReactiveSwift"),
 
         .product(name: "GraphAPI", package: "GraphAPI")
       ]
@@ -49,7 +45,6 @@ let package = Package(
         .product(name: "GraphAPITestMocks", package: "GraphAPI"),
         .product(name: "Apollo", package: "apollo-ios"),
         .product(name: "ApolloAPI", package: "apollo-ios"),
-        .product(name: "ReactiveSwift", package: "ReactiveSwift"),
         .byName(name: "KsApi")
       ]
     ),
@@ -60,7 +55,6 @@ let package = Package(
         .byName(name: "KsApiTestHelpers"),
         .product(name: "GraphAPI", package: "GraphAPI"),
         .product(name: "GraphAPITestMocks", package: "GraphAPI"),
-        .product(name: "ReactiveExtensions-TestHelpers", package: "Kickstarter-ReactiveExtensions")
       ],
       resources: [
         .process("queries/templates/")

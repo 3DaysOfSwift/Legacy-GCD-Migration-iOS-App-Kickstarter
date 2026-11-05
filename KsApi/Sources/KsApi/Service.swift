@@ -3,7 +3,6 @@ import Combine
 import Foundation
 import GraphAPI
 import Prelude
-import ReactiveExtensions
 import UIKit
 
 public extension Bundle {

@@ -1,6 +1,5 @@
 import Foundation
 import Prelude
-import ReactiveExtensions
 
 extension Service {
   // MARK: - Swift.Codable

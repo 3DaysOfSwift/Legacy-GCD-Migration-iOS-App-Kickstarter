@@ -1,7 +1,6 @@
 import Combine
 import Foundation
 import Prelude
-import ReactiveExtensions
 
 extension Service {
   @MainActor public func markPledgeReceived(projectID: Int, userID: Int, received: Bool) async throws -> Backing {
