@@ -30,8 +30,7 @@ final class PledgePaymentMethodsViewController: UIViewController {
 
   internal weak var delegate: PledgePaymentMethodsViewControllerDelegate?
   internal weak var messageDisplayingDelegate: PledgeViewControllerMessageDisplaying?
-  private let viewModel: PledgePaymentMethodsViewModelType =
-    PledgePaymentMethodsViewModel(stripeIntentService: StripeIntentService())
+  private let viewModel = PledgePaymentMethodsViewModel(stripeIntentService: StripeIntentService())
   private let paymentSheet = PaymentSheetOperation()
 
   // MARK: - Lifecycle
@@ -42,7 +41,7 @@ final class PledgePaymentMethodsViewController: UIViewController {
     self.configureSubviews()
     self.setupConstraints()
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   override func viewWillDisappear(_ animated: Bool) {
@@ -83,73 +82,31 @@ final class PledgePaymentMethodsViewController: UIViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.reloadPaymentMethods
-      .observeForUI()
-      .observeValues { [weak self] data in
-        guard let self = self else { return }
-
-        let cards = data.existingPaymentMethods
-        let paymentSheetCards = data.newPaymentMethods
-        let isLoading = data.isLoading
-        let selectedPaymentMethod = data.selectedPaymentMethod
-        let shouldReload = data.shouldReload
-
-        self.dataSource.load(
-          cards,
-          paymentSheetCards: paymentSheetCards,
-          isLoading: isLoading
-        )
-
-        if shouldReload {
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .reloadPaymentMethods(data):
+        self.dataSource.load(data.existingPaymentMethods, paymentSheetCards: data.newPaymentMethods, isLoading: data.isLoading)
+        if data.shouldReload {
           self.tableView.reloadData()
-        } else {
-          switch selectedPaymentMethod {
-          case let .savedCreditCard(selectedCardId, _):
-            self.tableView.visibleCells
-              .compactMap { $0 as? PledgePaymentMethodCell }
-              .forEach { $0.setSelectedCardId(selectedCardId) }
-          case .none:
-            break
-          }
+        } else if case let .savedCreditCard(selectedCardId, _) = data.selectedPaymentMethod {
+          self.tableView.visibleCells.compactMap { $0 as? PledgePaymentMethodCell }
+            .forEach { $0.setSelectedCardId(selectedCardId) }
         }
+      case let .notifyDelegateLoadPaymentMethodsError(message):
+        self.messageDisplayingDelegate?.pledgeViewController(self, didErrorWith: message, error: nil)
+      case let .notifyDelegateCreditCardSelected(payment):
+        self.delegate?.pledgePaymentMethodsViewController(self, didSelectCreditCard: payment)
+      case let .goToAddCardViaStripeScreen(data): self.goToPaymentSheet(data: data)
+      case let .updateAddNewCardLoading(loading): self.updateAddNewPaymentMethodButtonLoading(state: loading)
       }
-
-    self.viewModel.outputs.notifyDelegateLoadPaymentMethodsError
-      .observeForUI()
-      .observeValues { [weak self] errorMessage in
-        guard let self = self else { return }
-        self.messageDisplayingDelegate?.pledgeViewController(self, didErrorWith: errorMessage, error: nil)
-      }
-
-    self.viewModel.outputs.notifyDelegateCreditCardSelected
-      .observeForUI()
-      .observeValues { [weak self] paymentSourceId in
-        guard let self = self else { return }
-
-        self.delegate?.pledgePaymentMethodsViewController(self, didSelectCreditCard: paymentSourceId)
-      }
-
-    self.viewModel.outputs.goToAddCardViaStripeScreen
-      .observeForUI()
-      .observeValues { [weak self] data in
-        guard let strongSelf = self else { return }
-
-        strongSelf.goToPaymentSheet(data: data)
-      }
-
-    self.viewModel.outputs.updateAddNewCardLoading
-      .observeForUI()
-      .observeValues { [weak self] showLoadingIndicator in
-        guard let strongSelf = self else { return }
-
-        strongSelf.updateAddNewPaymentMethodButtonLoading(state: showLoadingIndicator)
-      }
+    }
   }
 
   // MARK: - Configuration
 
   func configure(with value: PledgePaymentMethodsValue) {
-    self.viewModel.inputs.configure(with: value)
+    self.viewModel.configure(with: value)
   }
 
   // MARK: - Functions
@@ -165,13 +122,13 @@ final class PledgePaymentMethodsViewController: UIViewController {
           let top = self.navigationController?.topViewController else { return false }
         return self.parent === top && (top is PledgeViewController || top is PostCampaignCheckoutViewController)
       },
-      didPresent: { [weak self] in self?.viewModel.inputs.stripePaymentSheetDidAppear() },
+      didPresent: { [weak self] in self?.viewModel.stripePaymentSheetDidAppear() },
       completed: { [weak self] result in
         guard let self else { return }
-        self.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: true)
+        self.viewModel.shouldCancelPaymentSheetAppearance(state: true)
         switch result {
         case let .completed(method):
-          self.viewModel.inputs.paymentSheetDidAdd(clientSecret: data.clientSecret, paymentMethod: method)
+          self.viewModel.paymentSheetDidAdd(clientSecret: data.clientSecret, paymentMethod: method)
         case .noSelection, .canceled: break
         case let .failed(error), let .loadFailed(error):
           self.messageDisplayingDelegate?
@@ -193,7 +150,7 @@ final class PledgePaymentMethodsViewController: UIViewController {
 
   func cancelModalPresentation(_ hidden: Bool) {
     if hidden { self.paymentSheet.cancelBeforePresentation() }
-    self.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: hidden)
+    self.viewModel.shouldCancelPaymentSheetAppearance(state: hidden)
   }
 }
 
@@ -204,12 +161,12 @@ extension PledgePaymentMethodsViewController: UITableViewDelegate {
     guard !self.dataSource.isLoadingStateCell(indexPath: indexPath) else {
       return nil
     }
-    return self.viewModel.inputs.willSelectRowAtIndexPath(indexPath)
+    return self.viewModel.willSelectRowAtIndexPath(indexPath)
   }
 
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     tableView.deselectRow(at: indexPath, animated: true)
 
-    self.viewModel.inputs.didSelectRowAtIndexPath(indexPath)
+    self.viewModel.didSelectRowAtIndexPath(indexPath)
   }
 }

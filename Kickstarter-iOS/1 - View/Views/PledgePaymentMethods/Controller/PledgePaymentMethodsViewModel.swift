@@ -2,7 +2,6 @@ import GraphAPI
 import KsApi
 import PassKit
 import Prelude
-import ReactiveSwift
 import StripePaymentSheet
 import UIKit
 
@@ -27,466 +26,205 @@ public typealias PaymentSheetSetupData = (
 )
 
 @MainActor
-public protocol PledgePaymentMethodsViewModelInputs {
-  func shouldCancelPaymentSheetAppearance(state: Bool)
-  func stripePaymentSheetDidAppear()
-  func configure(with value: PledgePaymentMethodsValue)
-  func didSelectRowAtIndexPath(_ indexPath: IndexPath)
-  func paymentSheetDidAdd(
-    clientSecret: String,
-    paymentMethod: String?
-  )
-  func viewDidLoad()
-  func willSelectRowAtIndexPath(_ indexPath: IndexPath) -> IndexPath?
-}
-
-@MainActor
-public protocol PledgePaymentMethodsViewModelOutputs {
-  var goToAddCardViaStripeScreen: Signal<PaymentSheetSetupData, Never> { get }
-  var notifyDelegateCreditCardSelected: Signal<PaymentSourceSelected, Never> { get }
-  var notifyDelegateLoadPaymentMethodsError: Signal<String, Never> { get }
-  var reloadPaymentMethods: Signal<PledgePaymentMethodsAndSelectionData, Never> { get }
-  var updateAddNewCardLoading: Signal<Bool, Never> { get }
-}
-
-@MainActor
-public protocol PledgePaymentMethodsViewModelType {
-  var inputs: PledgePaymentMethodsViewModelInputs { get }
-  var outputs: PledgePaymentMethodsViewModelOutputs { get }
-}
-
-@MainActor
-public final class PledgePaymentMethodsViewModel: PledgePaymentMethodsViewModelType,
-  PledgePaymentMethodsViewModelInputs, PledgePaymentMethodsViewModelOutputs {
+final class PledgePaymentMethodsViewModel {
+  enum Event {
+    case goToAddCardViaStripeScreen(PaymentSheetSetupData)
+    case notifyDelegateCreditCardSelected(PaymentSourceSelected)
+    case notifyDelegateLoadPaymentMethodsError(String)
+    case reloadPaymentMethods(PledgePaymentMethodsAndSelectionData)
+    case updateAddNewCardLoading(Bool)
+  }
+  var onEvent: ((Event) -> Void)?
   let stripeIntentService: StripeIntentServiceType
+  private let sleep: @MainActor (TimeInterval) async throws -> Void
+  private var configuration: PledgePaymentMethodsValue?
+  private var loaded = false
+  private var cardsTask: Task<Void, Never>?
+  private var setupTask: Task<Void, Never>?
+  private var storeTask: Task<Void, Never>?
+  private var shouldCancel = true
+  private var cancellationKnown = false
+  private var initialCards: PledgePaymentMethodsAndSelectionData?
+  private var currentCards: PledgePaymentMethodsAndSelectionData?
+  private var newCards: [UserCreditCards.CreditCard] = []
+  private var lastSelection: PaymentSourceSelected?
 
-  public init(stripeIntentService: StripeIntentServiceType) {
+  init(stripeIntentService: StripeIntentServiceType,
+       sleep: @escaping @MainActor (TimeInterval) async throws -> Void = { seconds in
+         if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
+       }) {
     self.stripeIntentService = stripeIntentService
-    let paymentsFeature = stripeIntentService.paymentsFeature
-
-    let configureWithValue = Signal.combineLatest(
-      self.viewDidLoadProperty.signal,
-      self.configureWithValueProperty.signal.skipNil()
-    )
-    .map(second)
-
-    let project = configureWithValue.map { $0.project }
-    let context = configureWithValue.map { $0.context }
-    let checkoutId = configureWithValue.map { $0.checkoutId }
-    let availableCardTypes = project.map { $0.availableCardTypes }.skipNil()
-
-    let paymentSheetEnabled = true
-
-    let storedCardsEvent = configureWithValue
-      .switchMap { _ in
-        paymentsFeature.currentResult {
-          paymentsFeature.result { try await paymentsFeature.cards() }
-            .ksr_debounce(.seconds(1), on: AppEnvironment.current.scheduler)
-        }
-          .map { envelope in (envelope, false) }
-          .prefix(value: (nil, true))
-          .materialize()
-      }
-
-    let storedCardsValues = storedCardsEvent.values()
-      .filter(second >>> isFalse)
-      .map(first)
-      .skipNil()
-      .map { $0.me.storedCards.storedCards }
-
-    let backing = configureWithValue
-      .map { $0.project.personalization.backing }
-
-    let storedCards = Signal.combineLatest(storedCardsValues, backing)
-      .map(cards(_:orderedBy:))
-
-    let initialCardData = Signal.combineLatest(
-      storedCards,
-      availableCardTypes,
-      project
-    )
-    .map { ($0.0, $0.1, $0.2, false) }
-
-    let newlyAddedCardProducer = self.newStripeIntentCreditCardProperty.signal.skipNil()
-      .switchMap { setupIntent, paymentMethodId -> SignalProducer<
-        Signal<UserCreditCards.CreditCard, ErrorEnvelope>.Event,
-        Never
-      > in
-        return paymentsFeature.currentResult {
-          paymentsFeature.storeResult(secret: setupIntent)
-            .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-        }
-          .map { (envelope: CreatePaymentSourceEnvelope) -> UserCreditCards.CreditCard? in
-            guard envelope.createPaymentSource.isSuccessful else {
-              return nil
-            }
-
-            // There is a backend bug (PAY-2911) where the stripeCardId isn't being refreshed
-            // after the add card mutation is called. This adds it back in.
-            var card = envelope.createPaymentSource.paymentSource
-            if card.stripeCardId == nil {
-              card.stripeCardId = paymentMethodId
-            }
-
-            return card
-          }
-          .skipNil()
-          .materialize()
-      }
-
-    let allNewlyAddedCards: Signal<[UserCreditCards.CreditCard], Never> = newlyAddedCardProducer.values()
-      .scan(into: []) { array, card in
-        array.insert(card, at: 0)
-      }
-
-    let newCardsData: Signal<([PledgePaymentMethodCellData], UserCreditCards.CreditCard?), Never> = Signal
-      .combineLatest(
-        allNewlyAddedCards,
-        availableCardTypes,
-        project
-      )
-      .map { cards, availableCardTypes, project in
-        pledgePaymentMethodCellDataAndSelectedCard(
-          with: cards,
-          availableCardTypes: availableCardTypes,
-          project: project,
-          newCardAdded: true
-        )
-      }
-
-    let allCards = Signal.merge(
-      storedCards
-    )
-    .scan([]) { current, new in new + current }
-
-    let cards = initialCardData
-      .map(pledgePaymentMethodCellDataAndSelectedCard)
-
-    let reloadWithLoadingCell: Signal<PledgePaymentMethodsAndSelectionData, Never> = storedCardsEvent.values()
-      .filter(second >>> isTrue)
-      .map { _ in PledgePaymentMethodsAndSelectionData(
-        existingPaymentMethods: [],
-        newPaymentMethods: [],
-        selectedPaymentMethod: nil,
-        isLoading: true,
-        shouldReload: true
-      ) }
-
-    let configuredCards: Signal<PledgePaymentMethodsAndSelectionData, Never> = cards
-      .map { cellData, selectedCard -> PledgePaymentMethodsAndSelectionData in
-
-        var selectedPaymentMethod: PaymentSourceSelected?
-        if let card = selectedCard {
-          selectedPaymentMethod = createSelectedPaymentMethod(from: card)
-        }
-
-        return PledgePaymentMethodsAndSelectionData(
-          existingPaymentMethods: cellData,
-          newPaymentMethods: [],
-          selectedPaymentMethod: selectedPaymentMethod,
-          isLoading: false,
-          shouldReload: true
-        )
-      }
-
-    let configuredCardsWithNewSetupIntentCards = configuredCards
-      .takePairWhen(newCardsData)
-      .map { cards, setupIntentCards -> PledgePaymentMethodsAndSelectionData in
-        let (newCards, newSelectedCard) = setupIntentCards
-
-        var updatedCardData = cards
-        updatedCardData.newPaymentMethods = newCards
-
-        if let selectedCard = newSelectedCard {
-          updatedCardData.selectedPaymentMethod = createSelectedPaymentMethod(from: selectedCard)
-        }
-
-        let updatedPaymentMethodSelectionData =
-          pledgePaymentSheetMethodCellDataAndSelectedCardSetupIntent(
-            with: updatedCardData
-          )
-
-        return updatedPaymentMethodSelectionData
-      }
-
-    let updatedCardsWithNewSetupIntentCards = Signal.merge(
-      configuredCards,
-      configuredCardsWithNewSetupIntentCards
-    )
-    .map { pledgePaymentMethodsAndSelectionData -> PledgePaymentMethodsAndSelectionData in
-      var updatedData = pledgePaymentMethodsAndSelectionData
-      updatedData.isLoading = false
-      updatedData.shouldReload = false
-      return updatedData
+    self.sleep = sleep
+  }
+  deinit { self.cardsTask?.cancel(); self.setupTask?.cancel(); self.storeTask?.cancel() }
+  private struct SessionIdentity { let userID: Int?; let generation: Int }
+  private var sessionIdentity: SessionIdentity {
+    let session = self.stripeIntentService.paymentsFeature.sessionFeature
+    return SessionIdentity(userID: session.currentUser?.id, generation: session.generation)
+  }
+  private func isCurrent(_ identity: SessionIdentity) -> Bool {
+    self.stripeIntentService.paymentsFeature.sessionFeature.isCurrent(userID: identity.userID, generation: identity.generation)
+  }
+  func configure(with value: PledgePaymentMethodsValue) {
+    self.configuration = value
+    if self.loaded { self.loadCards() }
+    if self.loaded, self.cancellationKnown { self.onEvent?(.updateAddNewCardLoading(!self.shouldCancel)) }
+  }
+  func viewDidLoad() {
+    self.loaded = true
+    if self.configuration != nil {
+      self.loadCards()
+      if self.cancellationKnown { self.onEvent?(.updateAddNewCardLoading(!self.shouldCancel)) }
     }
-
-    let updatedCards = updatedCardsWithNewSetupIntentCards
-      .takePairWhen(self.didSelectRowAtIndexPathProperty.signal.skipNil())
-      .filter { _, indexPath in
-        indexPath.section == PaymentMethodsTableViewSection.paymentMethods.rawValue
+  }
+  private func loadCards() {
+    guard let config = self.configuration else { return }
+    self.cardsTask?.cancel()
+    let identity = self.sessionIdentity
+    self.publish(PledgePaymentMethodsAndSelectionData(existingPaymentMethods: [], newPaymentMethods: [], selectedPaymentMethod: nil, isLoading: true, shouldReload: true))
+    let feature = self.stripeIntentService.paymentsFeature
+    let sleep = self.sleep
+    self.cardsTask = Task { [weak self] in
+      guard self?.isCurrent(identity) == true else { return }
+      do {
+        let result = try await feature.cards()
+        try await sleep(1)
+        try Task.checkCancellation()
+        guard let self, self.isCurrent(identity), let types = config.project.availableCardTypes else { return }
+        let ordered = cards(result.me.storedCards.storedCards, orderedBy: config.project.personalization.backing)
+        let (data, selected) = pledgePaymentMethodCellDataAndSelectedCard(with: ordered, availableCardTypes: types, project: config.project, newCardAdded: false)
+        let selectedPayment = selected.map(createSelectedPaymentMethod(from:))
+        let configured = PledgePaymentMethodsAndSelectionData(existingPaymentMethods: data, newPaymentMethods: [], selectedPaymentMethod: selectedPayment, isLoading: false, shouldReload: true)
+        self.initialCards = configured
+        self.publish(configured)
+      } catch {
+        guard !Task.isCancelled, !(error is CancellationError), let self, self.isCurrent(identity) else { return }
+        self.publishError(error)
       }
-      .map { (
-        data: PledgePaymentMethodsAndSelectionData,
-        indexPath: IndexPath
-      ) -> PledgePaymentMethodsAndSelectionData? in
-        let updatedData = PledgePaymentMethodsAndSelectionData(
-          existingPaymentMethods: [],
-          newPaymentMethods: [],
-          selectedPaymentMethod: nil,
-          isLoading: false,
-          shouldReload: true
-        )
-
-        let paymentMethodCount = data.existingPaymentMethods.count
-        let paymentSheetPaymentMethodCount = data.newPaymentMethods.count
-
-        if indexPath.row < paymentSheetPaymentMethodCount {
-          // we are selecting a new payment sheet card
-          let card = data.newPaymentMethods[indexPath.row].card
-
-          var selectionUpdatedData = updatedData
-          selectionUpdatedData.existingPaymentMethods = cellData(data.existingPaymentMethods, selecting: nil)
-          selectionUpdatedData.newPaymentMethods = cellData(data.newPaymentMethods, selecting: card)
-          selectionUpdatedData.selectedPaymentMethod = createSelectedPaymentMethod(from: card)
-
-          return selectionUpdatedData
-        } else if indexPath.row < paymentSheetPaymentMethodCount + paymentMethodCount {
-          // we are selecting an existing payment card
-          let card = data.existingPaymentMethods[indexPath.row - paymentSheetPaymentMethodCount].card
-
-          var selectionUpdatedData = updatedData
-          selectionUpdatedData.existingPaymentMethods = cellData(data.existingPaymentMethods, selecting: card)
-          selectionUpdatedData.newPaymentMethods = cellData(data.newPaymentMethods, selecting: nil)
-          selectionUpdatedData.selectedPaymentMethod = createSelectedPaymentMethod(from: card)
-          return selectionUpdatedData
-        }
-
-        return nil
-      }
-      .skipNil()
-
-    let configuredPaymentMethodsIncludingSetupIntentCards = Signal.merge(
-      configuredCards,
-      configuredCardsWithNewSetupIntentCards
-    )
-
-    self.reloadPaymentMethods = Signal.merge(
-      reloadWithLoadingCell,
-      configuredPaymentMethodsIncludingSetupIntentCards,
-      updatedCards
-    )
-
-    self.notifyDelegateCreditCardSelected = self.reloadPaymentMethods
-      .map { $0.selectedPaymentMethod }
-      .skipNil()
-      .skipRepeats()
-
-    let didTapToAddNewCard = self.didSelectRowAtIndexPathProperty.signal.skipNil()
-      .filter { $0.section == PaymentMethodsTableViewSection.addNewCard.rawValue }
-
-    let paymentSheetOnPledgeContext = context.map { _ in paymentSheetEnabled }
-
-    let showLoadingIndicator = Signal.combineLatest(project, paymentSheetOnPledgeContext.filter(isTrue))
-      .takeWhen(didTapToAddNewCard)
-      .mapConst(true)
-
-    self.shouldCancelPaymentSheetAppearance <~ showLoadingIndicator.mapConst(false)
-
-    self.shouldCancelPaymentSheetAppearance <~ updatedCards.signal
-      .mapConst(true)
-
-    // Only ever use the value if the view model is configured and the payment sheet could exist.
-    // In the logged out state, the payment sheet is part of the view without being configured,
-    // so this is a real risk.
-    let safeShouldCancelPaymentSheet = Signal.combineLatest(
-      self.shouldCancelPaymentSheetAppearance.signal,
-      configureWithValue
-    )
-    .map(first)
-
-    let createSetupIntentEvent = Signal.combineLatest(
-      project,
-      checkoutId,
-      context
-    )
-    .takeWhen(didTapToAddNewCard)
-    .switchMap { project, _, pledgeContext -> SignalProducer<
-      Signal<PaymentSheetSetupData, ErrorEnvelope>.Event,
-      Never
-    > in
-
-      let setupIntentContext = pledgeContext == .latePledge
-        ? GraphAPI.StripeIntentContextTypes.postCampaignCheckout
-        : GraphAPI.StripeIntentContextTypes.crowdfundingCheckout
-      let clientSecretSignal: SignalProducer<String, ErrorEnvelope> = stripeIntentService.createSetupIntent(
-        for: project.graphID,
-        context: setupIntentContext
-      )
-      .map { $0.clientSecret }
-
-      return paymentsFeature.currentResult {
-        clientSecretSignal
-          .ksr_debounce(.seconds(1), on: AppEnvironment.current.scheduler)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .switchMap { clientSecret -> SignalProducer<PaymentSheetSetupData, ErrorEnvelope> in
-
-            var configuration = PaymentSheet.Configuration()
-            configuration.merchantDisplayName = Strings.general_accessibility_kickstarter()
-            configuration.allowsDelayedPaymentMethods = true
-
-            // Log in to Stripe Link
-            configuration.defaultBillingDetails.email = AppEnvironment.current.currentUserEmail
-
-            let data = PaymentSheetSetupData(
-              clientSecret: clientSecret,
-              configuration: configuration
-            )
-
-            return SignalProducer(value: data)
-          }
-      }.materialize()
     }
-
-    self.goToAddCardViaStripeScreen = createSetupIntentEvent.values()
-      .withLatestFrom(safeShouldCancelPaymentSheet)
-      .map { data, shouldCancel -> PaymentSheetSetupData? in
-        shouldCancel ? nil : data
+  }
+  func paymentSheetDidAdd(clientSecret: String, paymentMethod: String?) {
+    self.storeTask?.cancel()
+    let identity = self.sessionIdentity
+    let feature = self.stripeIntentService.paymentsFeature
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    let sleep = self.sleep
+    self.storeTask = Task { [weak self] in
+      guard self?.isCurrent(identity) == true else { return }
+      do {
+        let envelope = try await feature.store(secret: clientSecret)
+        try await sleep(delay)
+        try Task.checkCancellation()
+        guard let self, self.isCurrent(identity), envelope.createPaymentSource.isSuccessful,
+              let config = self.configuration, let types = config.project.availableCardTypes else { return }
+        var card = envelope.createPaymentSource.paymentSource
+        if card.stripeCardId == nil { card.stripeCardId = paymentMethod }
+        self.newCards.insert(card, at: 0)
+        let (newData, selected) = pledgePaymentMethodCellDataAndSelectedCard(with: self.newCards, availableCardTypes: types, project: config.project, newCardAdded: true)
+        guard var updated = self.initialCards else { return }
+        updated.newPaymentMethods = newData
+        if let selected { updated.selectedPaymentMethod = createSelectedPaymentMethod(from: selected) }
+        self.publish(pledgePaymentSheetMethodCellDataAndSelectedCardSetupIntent(with: updated))
+      } catch {
+        do { try await sleep(delay) } catch { return }
+        guard !Task.isCancelled, !(error is CancellationError), let self, self.isCurrent(identity) else { return }
+        self.publishError(error)
       }
-      .skipNil()
-
-    self.notifyDelegateLoadPaymentMethodsError = Signal
-      .merge(storedCardsEvent.errors(), createSetupIntentEvent.errors(), newlyAddedCardProducer.errors())
-      .map { $0.localizedDescription }
-
-    self.updateAddNewCardLoading = Signal.merge(
-      createSetupIntentEvent.errors().mapConst(false),
-      safeShouldCancelPaymentSheet.negate()
-    )
-
-    self.willSelectRowAtIndexPathReturnProperty <~ self.reloadPaymentMethods
-      .map { ($0.existingPaymentMethods, $0.newPaymentMethods) }
-      .takePairWhen(self.willSelectRowAtIndexPathProperty.signal.skipNil())
-      .map { cellData, indexPath -> IndexPath? in
-        let enabledPaymentMethodCells = cellData.0.map { $0.isEnabled }
-        let enabledPaymentSheetPaymentMethodCells = cellData.1.map { $0.isEnabled }
-        // order is important here, because payment sheet method cells are always displayed before payment method cells and we check select them from top (0) onward... (1,2,3, etc)
-        let allEnabledPaymentMethodCells = enabledPaymentSheetPaymentMethodCells + enabledPaymentMethodCells
-
-        guard
-          // the cell is in the payment methods or add new card section.
-          [
-            PaymentMethodsTableViewSection.paymentMethods.rawValue,
-            PaymentMethodsTableViewSection.addNewCard.rawValue
-          ]
-          .contains(indexPath.section),
-          // the row is within bounds and the card is enabled,
-          (
-            allEnabledPaymentMethodCells.count > indexPath
-              .row && allEnabledPaymentMethodCells[indexPath.row]
-          ) ||
-          // or we're adding a new card.
-          indexPath.section == PaymentMethodsTableViewSection.addNewCard.rawValue
-        else { return nil }
-
-        return indexPath
+    }
+  }
+  func shouldCancelPaymentSheetAppearance(state: Bool) {
+    self.shouldCancel = state
+    self.cancellationKnown = true
+    if self.configuration != nil, self.loaded { self.onEvent?(.updateAddNewCardLoading(!state)) }
+  }
+  func willSelectRowAtIndexPath(_ indexPath: IndexPath) -> IndexPath? {
+    guard let data = self.currentCards, indexPath.row >= 0 else { return nil }
+    if indexPath.section == PaymentMethodsTableViewSection.addNewCard.rawValue { return indexPath }
+    guard indexPath.section == PaymentMethodsTableViewSection.paymentMethods.rawValue else { return nil }
+    let enabled = data.newPaymentMethods.map(\.isEnabled) + data.existingPaymentMethods.map(\.isEnabled)
+    return indexPath.row < enabled.count && enabled[indexPath.row] ? indexPath : nil
+  }
+  func didSelectRowAtIndexPath(_ indexPath: IndexPath) {
+    if indexPath.section == PaymentMethodsTableViewSection.addNewCard.rawValue {
+      self.startSetup()
+      return
+    }
+    guard indexPath.section == PaymentMethodsTableViewSection.paymentMethods.rawValue,
+          indexPath.row >= 0, var data = self.currentCards else { return }
+    let newCount = data.newPaymentMethods.count
+    let card: UserCreditCards.CreditCard
+    if indexPath.row < newCount {
+      card = data.newPaymentMethods[indexPath.row].card
+      data.newPaymentMethods = cellData(data.newPaymentMethods, selecting: card)
+      data.existingPaymentMethods = cellData(data.existingPaymentMethods, selecting: nil)
+    } else {
+      let row = indexPath.row - newCount
+      guard row < data.existingPaymentMethods.count else { return }
+      card = data.existingPaymentMethods[row].card
+      data.existingPaymentMethods = cellData(data.existingPaymentMethods, selecting: card)
+      data.newPaymentMethods = cellData(data.newPaymentMethods, selecting: nil)
+    }
+    data.selectedPaymentMethod = createSelectedPaymentMethod(from: card)
+    data.isLoading = false
+    data.shouldReload = true
+    self.shouldCancelPaymentSheetAppearance(state: true)
+    self.publish(data)
+  }
+  private func startSetup() {
+    guard self.loaded, let config = self.configuration else { return }
+    self.shouldCancelPaymentSheetAppearance(state: false)
+    self.setupTask?.cancel()
+    let identity = self.sessionIdentity
+    let service = self.stripeIntentService
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    let sleep = self.sleep
+    self.setupTask = Task { [weak self] in
+      guard self?.isCurrent(identity) == true else { return }
+      do {
+        let context: GraphAPI.StripeIntentContextTypes = config.context == .latePledge ? .postCampaignCheckout : .crowdfundingCheckout
+        let envelope = try await service.setupIntent(for: config.project.graphID, context: context)
+        try await sleep(1 + delay)
+        try Task.checkCancellation()
+        guard let self, self.isCurrent(identity), !self.shouldCancel else { return }
+        var configuration = PaymentSheet.Configuration()
+        configuration.merchantDisplayName = Strings.general_accessibility_kickstarter()
+        configuration.allowsDelayedPaymentMethods = true
+        configuration.defaultBillingDetails.email = AppEnvironment.current.currentUserEmail
+        self.onEvent?(.goToAddCardViaStripeScreen((envelope.clientSecret, configuration)))
+      } catch {
+        do { try await sleep(delay) } catch { return }
+        guard !Task.isCancelled, !(error is CancellationError), let self, self.isCurrent(identity) else { return }
+        self.publishError(error)
+        self.onEvent?(.updateAddNewCardLoading(false))
       }
-
-    // Facebook CAPI + Google Analytics
-    let stripePaymentSheetDidAppear = self.stripePaymentSheetDidAppearProperty.signal
-
-    _ = Signal.combineLatest(project, self.viewDidLoadProperty.signal)
-      .takeWhen(stripePaymentSheetDidAppear)
-      .observeValues { project, _ in
-
-        AppEnvironment.current.appTrackingTransparency.updateAdvertisingIdentifier()
-
-        guard let externalId = AppEnvironment.current.appTrackingTransparency.advertisingIdentifier
-        else { return }
-
-        var userId = ""
-
-        if let userValue = AppEnvironment.current.currentUser {
-          userId = "\(userValue.id)"
-        }
-
-        let projectId = "\(project.id)"
-
-        var extInfo = Array(repeating: "", count: 16)
-        extInfo[0] = "i2"
-        extInfo[4] = AppEnvironment.current.mainBundle.platformVersion
-
-        _ = AppEnvironment
-          .current
-          .apiService
-          .triggerThirdPartyEventInput(
-            input: .init(
-              deviceId: externalId,
-              eventName: ThirdPartyEventInputName.AddNewPaymentMethod.rawValue,
-              projectId: projectId,
-              pledgeAmount: nil,
-              shipping: nil,
-              transactionId: nil,
-              userId: userId,
-              appData: .init(
-                advertiserTrackingEnabled: true,
-                applicationTrackingEnabled: true,
-                extinfo: extInfo
-              ),
-              clientMutationId: ""
-            )
-          )
-      }
+    }
   }
-
-  private let configureWithValueProperty = MutableProperty<PledgePaymentMethodsValue?>(nil)
-  public func configure(with value: PledgePaymentMethodsValue) {
-    self.configureWithValueProperty.value = value
+  private func publish(_ data: PledgePaymentMethodsAndSelectionData) {
+    self.currentCards = data
+    self.onEvent?(.reloadPaymentMethods(data))
+    if let selected = data.selectedPaymentMethod, self.lastSelection != selected {
+      self.lastSelection = selected
+      self.onEvent?(.notifyDelegateCreditCardSelected(selected))
+    }
   }
-
-  private let newStripeIntentCreditCardProperty =
-    MutableProperty<(String, String?)?>(nil)
-  public func paymentSheetDidAdd(
-    clientSecret: String,
-    paymentMethod: String?
-  ) {
-    self.newStripeIntentCreditCardProperty.value = (clientSecret, paymentMethod)
+  private func publishError(_ error: Error) {
+    self.onEvent?(.notifyDelegateLoadPaymentMethodsError(((error as? ErrorEnvelope) ?? .couldNotParseJSON).localizedDescription))
   }
-
-  private let shouldCancelPaymentSheetAppearance = MutableProperty<Bool>(true)
-  public func shouldCancelPaymentSheetAppearance(state: Bool) {
-    self.shouldCancelPaymentSheetAppearance.value = state
+  func stripePaymentSheetDidAppear() {
+    guard self.loaded, let config = self.configuration else { return }
+    AppEnvironment.current.appTrackingTransparency.updateAdvertisingIdentifier()
+    guard let externalId = AppEnvironment.current.appTrackingTransparency.advertisingIdentifier else { return }
+    let userId = AppEnvironment.current.currentUser.map { "\($0.id)" } ?? ""
+    var extInfo = Array(repeating: "", count: 16)
+    extInfo[0] = "i2"
+    extInfo[4] = AppEnvironment.current.mainBundle.platformVersion
+    _ = AppEnvironment.current.apiService.triggerThirdPartyEventInput(input: .init(deviceId: externalId, eventName: ThirdPartyEventInputName.AddNewPaymentMethod.rawValue, projectId: "\(config.project.id)", pledgeAmount: nil, shipping: nil, transactionId: nil, userId: userId, appData: .init(advertiserTrackingEnabled: true, applicationTrackingEnabled: true, extinfo: extInfo), clientMutationId: ""))
   }
-
-  private let stripePaymentSheetDidAppearProperty = MutableProperty(())
-  public func stripePaymentSheetDidAppear() {
-    self.stripePaymentSheetDidAppearProperty.value = ()
+  func waitForPending() async {
+    await self.cardsTask?.value
+    await self.setupTask?.value
+    await self.storeTask?.value
   }
-
-  private let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
-  }
-
-  private let didSelectRowAtIndexPathProperty = MutableProperty<IndexPath?>(nil)
-  public func didSelectRowAtIndexPath(_ indexPath: IndexPath) {
-    self.didSelectRowAtIndexPathProperty.value = indexPath
-  }
-
-  private let willSelectRowAtIndexPathProperty = MutableProperty<IndexPath?>(nil)
-  private let willSelectRowAtIndexPathReturnProperty = MutableProperty<IndexPath?>(nil)
-  public func willSelectRowAtIndexPath(_ indexPath: IndexPath) -> IndexPath? {
-    self.willSelectRowAtIndexPathProperty.value = indexPath
-    return self.willSelectRowAtIndexPathReturnProperty.value
-  }
-
-  public let goToAddCardViaStripeScreen: Signal<PaymentSheetSetupData, Never>
-  public let notifyDelegateCreditCardSelected: Signal<PaymentSourceSelected, Never>
-  public let notifyDelegateLoadPaymentMethodsError: Signal<String, Never>
-  public let reloadPaymentMethods: Signal<PledgePaymentMethodsAndSelectionData, Never>
-  public let updateAddNewCardLoading: Signal<Bool, Never>
-
-  public var inputs: PledgePaymentMethodsViewModelInputs { return self }
-  public var outputs: PledgePaymentMethodsViewModelOutputs { return self }
 }
 
 private func pledgePaymentSheetMethodCellDataAndSelectedCardSetupIntent(

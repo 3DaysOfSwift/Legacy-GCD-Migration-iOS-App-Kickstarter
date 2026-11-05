@@ -4,86 +4,81 @@ import Foundation
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 @testable import StripePaymentSheet
 import XCTest
 
 @MainActor
 final class PledgePaymentMethodsViewModelTests: TestCase {
 
-  private func advancePayments(by interval: DispatchTimeInterval = .seconds(0)) async {
+  private func advancePayments(by _: DispatchTimeInterval = .seconds(0)) async {
+    await self.vm.waitForPending()
     await self.mockStripeIntentService.paymentsFeature.waitForOperations()
-    await self.scheduler.advance(by: interval)
-    // A successful store can trigger a card reload during delivery.
-    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
-    await self.scheduler.advance()
   }
-  private func runPayments() async {
-    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
-    await self.scheduler.run()
-    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
-    await self.scheduler.run()
-  }
+  private func runPayments() async { await self.advancePayments() }
 
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  private var vm: PledgePaymentMethodsViewModelType =
+  private var vm: PledgePaymentMethodsViewModel =
     PledgePaymentMethodsViewModel(stripeIntentService: MockStripeIntentService())
   private var mockStripeIntentService = MockStripeIntentService()
 
   private let userTemplate = GraphUser.template |> \.storedCards .~ UserCreditCards.template
 
-  private let goToAddStripeCardIntent = TestObserver<PaymentSheetSetupData, Never>()
-  private let goToProject = TestObserver<Project, Never>()
-  private let notifyDelegateCreditCardSelected = TestObserver<PaymentSourceSelected, Never>()
-  private let notifyDelegateLoadPaymentMethodsError = TestObserver<String, Never>()
+  private let goToAddStripeCardIntent = PledgePaymentRecorder<PaymentSheetSetupData>()
+  private let goToProject = PledgePaymentRecorder<Project>()
+  private let notifyDelegateCreditCardSelected = PledgePaymentRecorder<PaymentSourceSelected>()
+  private let notifyDelegateLoadPaymentMethodsError = PledgePaymentRecorder<String>()
 
-  private let reloadPaymentMethodsCards = TestObserver<[UserCreditCards.CreditCard], Never>()
-  private let reloadPaymentSheetPaymentMethodsCards = TestObserver<
-    [PledgePaymentMethodCellData],
-    Never
-  >()
-  private let reloadPaymentMethodsAvailableCardTypes = TestObserver<[Bool], Never>()
-  private let reloadPaymentMethodsIsLoading = TestObserver<Bool, Never>()
-  private let reloadPaymentMethodsIsSelected = TestObserver<[Bool], Never>()
-  private let reloadPaymentMethodsProjectCountry = TestObserver<[String], Never>()
-  private let reloadPaymentMethodsSelectedCardId = TestObserver<String?, Never>()
-  private let reloadPaymentMethodsShouldReload = TestObserver<Bool, Never>()
-  private let addNewCardLoadingState = TestObserver<Bool, Never>()
+  private let reloadPaymentMethodsCards = PledgePaymentRecorder<[UserCreditCards.CreditCard]>()
+  private let reloadPaymentSheetPaymentMethodsCards = PledgePaymentRecorder<[PledgePaymentMethodCellData]>()
+  private let reloadPaymentMethodsAvailableCardTypes = PledgePaymentRecorder<[Bool]>()
+  private let reloadPaymentMethodsIsLoading = PledgePaymentRecorder<Bool>()
+  private let reloadPaymentMethodsIsSelected = PledgePaymentRecorder<[Bool]>()
+  private let reloadPaymentMethodsProjectCountry = PledgePaymentRecorder<[String]>()
+  private let reloadPaymentMethodsSelectedCardId = PledgePaymentRecorder<String?>()
+  private let reloadPaymentMethodsShouldReload = PledgePaymentRecorder<Bool>()
+  private let addNewCardLoadingState = PledgePaymentRecorder<Bool>()
 
   override func setUp() async throws {
     try await super.setUp()
-    MainActor.assumeIsolated {
+    self.vm = PledgePaymentMethodsViewModel(stripeIntentService: self.mockStripeIntentService, sleep: { _ in try Task.checkCancellation() })
+    self.vm.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .notifyDelegateCreditCardSelected(value): self.notifyDelegateCreditCardSelected.record(value)
+      case let .notifyDelegateLoadPaymentMethodsError(value): self.notifyDelegateLoadPaymentMethodsError.record(value)
+      case let .goToAddCardViaStripeScreen(value): self.goToAddStripeCardIntent.record(value)
+      case let .updateAddNewCardLoading(value): self.addNewCardLoadingState.record(value)
+      case let .reloadPaymentMethods(data):
+        self.reloadPaymentMethodsCards.record(data.existingPaymentMethods.map { $0.card })
+        self.reloadPaymentMethodsAvailableCardTypes.record(data.existingPaymentMethods.map { $0.isEnabled })
+        self.reloadPaymentMethodsIsSelected.record(data.existingPaymentMethods.map { $0.isSelected })
+        self.reloadPaymentMethodsProjectCountry.record(data.existingPaymentMethods.map { $0.projectCountry })
+        self.reloadPaymentSheetPaymentMethodsCards.record(data.newPaymentMethods)
+        self.reloadPaymentMethodsSelectedCardId.record(data.selectedPaymentMethod?.savedCreditCardId)
+        self.reloadPaymentMethodsShouldReload.record(data.shouldReload)
+        self.reloadPaymentMethodsIsLoading.record(data.isLoading)
+      }
+    }
+  }
 
-      self.vm = PledgePaymentMethodsViewModel(stripeIntentService: self.mockStripeIntentService)
-
-      self.vm.outputs.notifyDelegateCreditCardSelected
-        .observe(self.notifyDelegateCreditCardSelected.observer)
-      self.vm.outputs.notifyDelegateLoadPaymentMethodsError
-        .observe(self.notifyDelegateLoadPaymentMethodsError.observer)
-
-      // swiftlint:disable line_length
-      self.vm.outputs.reloadPaymentMethods.map { $0.existingPaymentMethods }.map { $0.map { $0.card } }
-        .observe(self.reloadPaymentMethodsCards.observer)
-      self.vm.outputs.reloadPaymentMethods.map { $0.existingPaymentMethods }.map { $0.map { $0.isEnabled } }
-        .observe(self.reloadPaymentMethodsAvailableCardTypes.observer)
-      self.vm.outputs.reloadPaymentMethods.map { $0.existingPaymentMethods }.map { $0.map { $0.isSelected } }
-        .observe(self.reloadPaymentMethodsIsSelected.observer)
-      self.vm.outputs.reloadPaymentMethods.map { $0.existingPaymentMethods }
-        .map { $0.map { $0.projectCountry } }
-        .observe(self.reloadPaymentMethodsProjectCountry.observer)
-      self.vm.outputs.reloadPaymentMethods.map { $0.newPaymentMethods }
-        .observe(self.reloadPaymentSheetPaymentMethodsCards.observer)
-      self.vm.outputs.reloadPaymentMethods.map { data in data.selectedPaymentMethod?.savedCreditCardId }
-        .observe(self.reloadPaymentMethodsSelectedCardId.observer)
-      self.vm.outputs.reloadPaymentMethods.map { $0.shouldReload }
-        .observe(self.reloadPaymentMethodsShouldReload.observer)
-      self.vm.outputs.reloadPaymentMethods.map { $0.isLoading }
-        .observe(self.reloadPaymentMethodsIsLoading.observer)
-      self.vm.outputs.updateAddNewCardLoading.map { $0 }.observe(self.addNewCardLoadingState.observer)
-      self.vm.outputs.goToAddCardViaStripeScreen.map { $0 }.observe(self.goToAddStripeCardIntent.observer)
-      // swiftlint:enable line_length
+  func testAccountChangeDuringCardDelaySuppressesOldCards() async {
+    let gate = PledgePaymentDelayGate()
+    let vm = PledgePaymentMethodsViewModel(stripeIntentService: self.mockStripeIntentService, sleep: { _ in
+      try await gate.wait()
+    })
+    var completedLoads = 0
+    vm.onEvent = { event in
+      if case let .reloadPaymentMethods(data) = event, !data.isLoading { completedLoads += 1 }
+    }
+    let response = UserEnvelope<GraphUser>(me: self.userTemplate)
+    await withEnvironment(apiService: MockService(fetchGraphUserResult: .success(response)), currentUser: .template) {
+      vm.configure(with: (.template, .template, "checkout", .template, .pledge, nil))
+      vm.viewDidLoad()
+      await gate.waitUntilBlocked()
+      self.mockStripeIntentService.paymentsFeature.sessionFeature.sessionChanged()
+      gate.resume()
+      await vm.waitForPending()
+      XCTAssertEqual(completedLoads, 0)
     }
   }
 
@@ -109,7 +104,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       self.reloadPaymentMethodsShouldReload.assertDidNotEmitValue()
       self.reloadPaymentMethodsIsLoading.assertDidNotEmitValue()
 
-      self.vm.inputs
+      self.vm
         .configure(with: (
           User.template,
           Project.template,
@@ -118,7 +113,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.runPayments()
 
@@ -158,7 +153,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       await self.advancePayments(by: .seconds(1))
 
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: sampleSetupIntent,
           paymentMethod: "pm_fake"
@@ -268,7 +263,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
             |> Backing.lens.paymentSource .~ paymentSource
         )
 
-      self.vm.inputs
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -277,7 +272,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.runPayments()
 
@@ -327,7 +322,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       await self.advancePayments(by: .seconds(1))
 
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "seti_1LVlHO4VvJ2PtfhK43R6p7FI_secret_MEDiGbxfYVnHGsQy8v8TbZJTQhlNKLZ",
           paymentMethod: "pm_fake"
@@ -418,7 +413,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       self.reloadPaymentMethodsShouldReload.assertDidNotEmitValue()
       self.reloadPaymentMethodsIsLoading.assertDidNotEmitValue()
 
-      self.vm.inputs
+      self.vm
         .configure(with: (
           User.template,
           Project.template,
@@ -427,7 +422,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.runPayments()
 
@@ -455,7 +450,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       await self.advancePayments(by: .seconds(1))
 
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "seti_1LVlHO4VvJ2PtfhK43R6p7FI_secret_MEDiGbxfYVnHGsQy8v8TbZJTQhlNKLZ",
           paymentMethod: "pm_fake"
@@ -504,7 +499,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       self.reloadPaymentMethodsShouldReload.assertDidNotEmitValue()
       self.reloadPaymentMethodsIsLoading.assertDidNotEmitValue()
 
-      self.vm.inputs
+      self.vm
         .configure(with: (
           User.template,
           Project.template,
@@ -513,7 +508,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.runPayments()
 
@@ -545,7 +540,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         isErroredPaymentMethod: false
       )
 
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "seti_1LVlHO4VvJ2PtfhK43R6p7FI_secret_MEDiGbxfYVnHGsQy8v8TbZJTQhlNKLZ",
           paymentMethod: "pm_fake"
@@ -603,7 +598,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       self.reloadPaymentMethodsShouldReload.assertDidNotEmitValue()
       self.reloadPaymentMethodsIsLoading.assertDidNotEmitValue()
 
-      self.vm.inputs
+      self.vm
         .configure(with: (
           User.template,
           projectWithErroredBacking,
@@ -612,7 +607,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.runPayments()
 
@@ -641,7 +636,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         isErroredPaymentMethod: false
       )
 
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "seti_1LVlHO4VvJ2PtfhK43R6p7FI_secret_MEDiGbxfYVnHGsQy8v8TbZJTQhlNKLZ",
           paymentMethod: "pm_fake"
@@ -695,7 +690,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       self.reloadPaymentSheetPaymentMethodsCards.assertDidNotEmitValue()
       self.reloadPaymentMethodsSelectedCardId.assertDidNotEmitValue()
 
-      self.vm.inputs
+      self.vm
         .configure(with: (
           User.template,
           Project.template,
@@ -704,7 +699,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.runPayments()
 
@@ -722,7 +717,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       let paymentOption = STPPaymentMethod.sampleStringPaymentOption(paymentMethod)
       let paymentOptionsDisplayData = STPPaymentMethod.samplePaymentOptionsDisplayData(paymentOption)
 
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "seti_1LVlHO4VvJ2PtfhK43R6p7FI_secret_MEDiGbxfYVnHGsQy8v8TbZJTQhlNKLZ",
           paymentMethod: "pm_fake"
@@ -737,7 +732,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       let indexPath = IndexPath(row: 1, section: 0)
 
-      self.vm.inputs.didSelectRowAtIndexPath(indexPath)
+      self.vm.didSelectRowAtIndexPath(indexPath)
       self.reloadPaymentMethodsSelectedCardId
         .assertValues(
           [
@@ -750,7 +745,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       let indexPath2 = IndexPath(row: 0, section: 0)
 
-      self.vm.inputs.didSelectRowAtIndexPath(indexPath2)
+      self.vm.didSelectRowAtIndexPath(indexPath2)
       self.reloadPaymentMethodsSelectedCardId
         .assertValues(
           [
@@ -788,7 +783,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       self.reloadPaymentMethodsShouldReload.assertDidNotEmitValue()
       self.reloadPaymentMethodsIsLoading.assertDidNotEmitValue()
 
-      self.vm.inputs
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -797,7 +792,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.runPayments()
 
@@ -826,7 +821,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
     let mockService = MockService(fetchGraphUserResult: .success(response))
 
     await withEnvironment(apiService: mockService, currentUser: nil) {
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       self.reloadPaymentMethodsCards.assertDidNotEmitValue()
       self.reloadPaymentMethodsAvailableCardTypes.assertDidNotEmitValue()
@@ -856,7 +851,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
     let mockService = MockService(fetchGraphUserResult: .success(response))
 
     await withEnvironment(apiService: mockService, currentUser: User.template) {
-      self.vm.inputs
+      self.vm
         .configure(with: (
           User.template,
           Project.template,
@@ -865,7 +860,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.runPayments()
 
@@ -879,7 +874,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         section: PaymentMethodsTableViewSection.paymentMethods.rawValue
       )
 
-      self.vm.inputs.didSelectRowAtIndexPath(discoverIndexPath)
+      self.vm.didSelectRowAtIndexPath(discoverIndexPath)
 
       self.notifyDelegateCreditCardSelected.assertValues([
         PaymentSourceSelected.savedCreditCard(UserCreditCards.amex.id, "pm_fake_amex"),
@@ -903,7 +898,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
     )
 
     await withEnvironment(apiService: mockService, currentUser: User.template) {
-      self.vm.inputs
+      self.vm
         .configure(with: (
           User.template,
           Project.template,
@@ -912,7 +907,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.runPayments()
 
@@ -929,7 +924,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       let paymentOption = STPPaymentMethod.sampleStringPaymentOption(paymentMethod)
       let paymentOptionsDisplayData = STPPaymentMethod.samplePaymentOptionsDisplayData(paymentOption)
 
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "seti_1LVlHO4VvJ2PtfhK43R6p7FI_secret_MEDiGbxfYVnHGsQy8v8TbZJTQhlNKLZ",
           paymentMethod: "pm_fake_from_viewmodel"
@@ -963,7 +958,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
     )
 
     await withEnvironment(apiService: mockService, currentUser: User.template) {
-      self.vm.inputs
+      self.vm
         .configure(with: (
           User.template,
           Project.template,
@@ -972,7 +967,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .latePledge,
           .discovery
         ))
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.runPayments()
 
@@ -989,7 +984,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       let paymentOption = STPPaymentMethod.sampleStringPaymentOption(paymentMethod)
 
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "fake_payment_intent",
           paymentMethod: "pm_fake_from_response"
@@ -1022,7 +1017,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       |> \.availableCardTypes .~ ["AMEX", "VISA", "MASTERCARD"]
 
     await withEnvironment(apiService: mockService, currentUser: User.template) {
-      self.vm.inputs
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1031,7 +1026,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.runPayments()
 
@@ -1048,18 +1043,18 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         row: 2,
         section: PaymentMethodsTableViewSection.paymentMethods.rawValue
       )
-      XCTAssertNil(self.vm.inputs.willSelectRowAtIndexPath(discoverIndexPath))
+      XCTAssertNil(self.vm.willSelectRowAtIndexPath(discoverIndexPath))
 
       let amexIndexPath = IndexPath(
         row: 1,
         section: PaymentMethodsTableViewSection.paymentMethods.rawValue
       )
-      XCTAssertEqual(self.vm.inputs.willSelectRowAtIndexPath(amexIndexPath), amexIndexPath)
+      XCTAssertEqual(self.vm.willSelectRowAtIndexPath(amexIndexPath), amexIndexPath)
 
       let outOfBoundsIndexPath = IndexPath(
         row: 1, section: PaymentMethodsTableViewSection.loading.rawValue
       )
-      XCTAssertNil(self.vm.inputs.willSelectRowAtIndexPath(outOfBoundsIndexPath))
+      XCTAssertNil(self.vm.willSelectRowAtIndexPath(outOfBoundsIndexPath))
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
@@ -1073,8 +1068,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService,
       currentUser: User.template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs
+      self.vm.viewDidLoad()
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1088,7 +1083,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         row: 0,
         section: PaymentMethodsTableViewSection.addNewCard.rawValue
       )
-      self.vm.inputs.didSelectRowAtIndexPath(addNewCardIndexPath)
+      self.vm.didSelectRowAtIndexPath(addNewCardIndexPath)
 
       self.goToAddStripeCardIntent.assertDidNotEmitValue()
 
@@ -1110,8 +1105,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService,
       currentUser: User.template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs
+      self.vm.viewDidLoad()
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1125,7 +1120,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         row: 0,
         section: PaymentMethodsTableViewSection.addNewCard.rawValue
       )
-      self.vm.inputs.didSelectRowAtIndexPath(addNewCardIndexPath)
+      self.vm.didSelectRowAtIndexPath(addNewCardIndexPath)
 
       self.goToAddStripeCardIntent.assertDidNotEmitValue()
 
@@ -1147,8 +1142,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService,
       currentUser: User.template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs
+      self.vm.viewDidLoad()
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1162,7 +1157,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         row: 0,
         section: PaymentMethodsTableViewSection.addNewCard.rawValue
       )
-      self.vm.inputs.didSelectRowAtIndexPath(addNewCardIndexPath)
+      self.vm.didSelectRowAtIndexPath(addNewCardIndexPath)
 
       self.goToAddStripeCardIntent.assertDidNotEmitValue()
 
@@ -1184,8 +1179,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService,
       currentUser: User.template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs
+      self.vm.viewDidLoad()
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1199,7 +1194,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         row: 0,
         section: PaymentMethodsTableViewSection.addNewCard.rawValue
       )
-      self.vm.inputs.didSelectRowAtIndexPath(addNewCardIndexPath)
+      self.vm.didSelectRowAtIndexPath(addNewCardIndexPath)
 
       self.goToAddStripeCardIntent.assertDidNotEmitValue()
 
@@ -1221,8 +1216,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService,
       currentUser: User.template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs
+      self.vm.viewDidLoad()
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1236,7 +1231,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
         row: 0,
         section: PaymentMethodsTableViewSection.addNewCard.rawValue
       )
-      self.vm.inputs.didSelectRowAtIndexPath(addNewCardIndexPath)
+      self.vm.didSelectRowAtIndexPath(addNewCardIndexPath)
 
       XCTAssertEqual(self.goToAddStripeCardIntent.values.count, 0)
 
@@ -1263,8 +1258,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService,
       currentUser: User.template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs
+      self.vm.viewDidLoad()
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1284,7 +1279,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       await self.advancePayments(by: .seconds(1))
 
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "seti_1LVlHO4VvJ2PtfhK43R6p7FI_secret_MEDiGbxfYVnHGsQy8v8TbZJTQhlNKLZ",
           paymentMethod: "pm_fake"
@@ -1318,8 +1313,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService,
       currentUser: User.template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs
+      self.vm.viewDidLoad()
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1339,7 +1334,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       await self.advancePayments(by: .seconds(1))
 
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "seti_1LVlHO4VvJ2PtfhK43R6p7FI_secret_MEDiGbxfYVnHGsQy8v8TbZJTQhlNKLZ",
           paymentMethod: "pm_fake"
@@ -1380,8 +1375,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService,
       currentUser: User.template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs
+      self.vm.viewDidLoad()
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1401,7 +1396,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       await self.advancePayments(by: .seconds(1))
 
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "seti_1LVlHO4VvJ2PtfhK43R6p7FI_secret_MEDiGbxfYVnHGsQy8v8TbZJTQhlNKLZ",
           paymentMethod: "pm_fake"
@@ -1441,8 +1436,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService,
       currentUser: User.template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs
+      self.vm.viewDidLoad()
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1463,7 +1458,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       await self.advancePayments(by: .seconds(1))
 
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "seti_1LVlHO4VvJ2PtfhK43R6p7FI_secret_MEDiGbxfYVnHGsQy8v8TbZJTQhlNKLZ",
           paymentMethod: "pm_fake"
@@ -1496,8 +1491,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService,
       currentUser: User.template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs
+      self.vm.viewDidLoad()
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1515,7 +1510,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
       await self.advancePayments(by: .seconds(1))
 
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "seti_1LVlHO4VvJ2PtfhK43R6p7FI_secret_MEDiGbxfYVnHGsQy8v8TbZJTQhlNKLZ",
           paymentMethod: "pm_fake"
@@ -1555,8 +1550,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockServiceInitial,
       currentUser: User.template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs
+      self.vm.viewDidLoad()
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1575,7 +1570,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService1,
       currentUser: User.template
     ) {
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "seti_fake",
           paymentMethod: "pm_fake"
@@ -1594,7 +1589,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService2,
       currentUser: User.template
     ) {
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "seti_fake",
           paymentMethod: "pm_fake"
@@ -1613,7 +1608,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService3,
       currentUser: User.template
     ) {
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "seti_fake",
           paymentMethod: "pm_fake"
@@ -1642,8 +1637,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService,
       currentUser: User.template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs
+      self.vm.viewDidLoad()
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1652,7 +1647,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.didSelectRowAtIndexPath(addNewCardIndexPath)
+      self.vm.didSelectRowAtIndexPath(addNewCardIndexPath)
 
       await self.runPayments()
 
@@ -1673,8 +1668,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService,
       currentUser: User.template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs
+      self.vm.viewDidLoad()
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1683,10 +1678,10 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.shouldCancelPaymentSheetAppearance(state: true)
-      self.vm.inputs.shouldCancelPaymentSheetAppearance(state: false)
-      self.vm.inputs.shouldCancelPaymentSheetAppearance(state: false)
-      self.vm.inputs.shouldCancelPaymentSheetAppearance(state: false)
+      self.vm.shouldCancelPaymentSheetAppearance(state: true)
+      self.vm.shouldCancelPaymentSheetAppearance(state: false)
+      self.vm.shouldCancelPaymentSheetAppearance(state: false)
+      self.vm.shouldCancelPaymentSheetAppearance(state: false)
 
       await self.runPayments()
 
@@ -1718,8 +1713,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService,
       currentUser: User.template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs
+      self.vm.viewDidLoad()
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1728,10 +1723,10 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.shouldCancelPaymentSheetAppearance(state: false)
+      self.vm.shouldCancelPaymentSheetAppearance(state: false)
 
       await self.advancePayments(by: .seconds(1))
-      self.vm.inputs.didSelectRowAtIndexPath(paymentMethodSelectionIndexPath)
+      self.vm.didSelectRowAtIndexPath(paymentMethodSelectionIndexPath)
 
       await self.runPayments()
 
@@ -1756,8 +1751,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService,
       currentUser: User.template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs
+      self.vm.viewDidLoad()
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1766,7 +1761,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.didSelectRowAtIndexPath(addNewCardIndexPath)
+      self.vm.didSelectRowAtIndexPath(addNewCardIndexPath)
 
       await self.runPayments()
 
@@ -1807,8 +1802,8 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       apiService: mockService,
       currentUser: User.template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs
+      self.vm.viewDidLoad()
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1817,7 +1812,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .latePledge,
           .discovery
         ))
-      self.vm.inputs.didSelectRowAtIndexPath(addNewCardIndexPath)
+      self.vm.didSelectRowAtIndexPath(addNewCardIndexPath)
 
       await self.runPayments()
 
@@ -1858,7 +1853,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       |> \.availableCardTypes .~ ["VISA"]
 
     await withEnvironment(apiService: mockService, currentUser: User.template) {
-      self.vm.inputs
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1867,7 +1862,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.runPayments()
 
@@ -1877,7 +1872,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       XCTAssertEqual(self.reloadPaymentMethodsSelectedCardId.lastValue, UserCreditCards.visa.id)
 
       // Add a new card
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "si_fake",
           paymentMethod: "pm_fake"
@@ -1917,7 +1912,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       |> \.availableCardTypes .~ ["VISA"]
 
     await withEnvironment(apiService: mockService, currentUser: User.template) {
-      self.vm.inputs
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1926,7 +1921,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.runPayments()
 
@@ -1936,7 +1931,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       XCTAssertNil(self.reloadPaymentMethodsSelectedCardId.lastValue ?? nil)
 
       // Add a new card
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "si_fake",
           paymentMethod: "pm_fake"
@@ -1982,7 +1977,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       |> \.availableCardTypes .~ ["VISA"]
 
     await withEnvironment(apiService: mockService1, currentUser: User.template) {
-      self.vm.inputs
+      self.vm
         .configure(with: (
           User.template,
           project,
@@ -1991,7 +1986,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
           .pledge,
           .discovery
         ))
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       await self.runPayments()
 
@@ -2001,7 +1996,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       XCTAssertNil(self.reloadPaymentMethodsSelectedCardId.lastValue ?? nil)
 
       // Add a new card (the visa)
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "si_fake",
           paymentMethod: "pm_fake"
@@ -2023,7 +2018,7 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
 
     await withEnvironment(apiService: mockService2, currentUser: User.template) {
       // Add another new card (the discover)
-      self.vm.inputs
+      self.vm
         .paymentSheetDidAdd(
           clientSecret: "si_fake",
           paymentMethod: "pm_fake"
@@ -2070,4 +2065,29 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
     }
   }
+}
+
+private final class PledgePaymentRecorder<Value> {
+  private(set) var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    self.assertValueCount(0, message, file: file, line: line)
+  }
+}
+private extension PledgePaymentRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
+  }
+}
+
+@MainActor
+private final class PledgePaymentDelayGate {
+  private var continuation: CheckedContinuation<Void, Error>?
+  func wait() async throws { try await withCheckedThrowingContinuation { self.continuation = $0 } }
+  func waitUntilBlocked() async { while self.continuation == nil { await Task.yield() } }
+  func resume() { self.continuation?.resume(); self.continuation = nil }
 }
