@@ -171,27 +171,31 @@ final class PledgeCTAContainerView: UIView {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.onCTATapped = { [weak self] state in
-        self?.delegate?.pledgeCTAButtonTapped(with: state)
+    self.viewModel.outputs.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .tapped(state): self.delegate?.pledgeCTAButtonTapped(with: state)
+      case let .activityHidden(hidden): self.activityIndicatorContainerView.isHidden = hidden
+      case let .buttonStyle(style): _ = self.pledgeCTAButton |> style.style
+      case let .buttonTitle(title): self.pledgeCTAButton.setTitle(title, for: .normal)
+      case let .buttonHidden(hidden):
+        self.pledgeCTAButton.isHidden = hidden
+        self.pledgeButtonAndWatchesStackView.isHidden = hidden
+      case let .watchesHidden(hidden): self.watchesLabel.isHidden = hidden
+      case let .prelaunch(value):
+        if value.prelaunch {
+          _ = self.pledgeCTAButton |> (value.saved ? prelaunchButtonSavedImageStyle : prelaunchButtonUnsavedImageStyle)
+          self.watchesLabel.isHidden = false
+        }
+      case let .retryHidden(hidden): self.retryStackView.isHidden = hidden
+      case let .contentHidden(hidden):
+        self.spacer.isHidden = hidden
+        self.titleAndSubtitleStackView.isHidden = hidden
+      case let .subtitle(text): self.subtitleLabel.text = text
+      case let .title(text): self.titleLabel.text = text
+      case let .watchesCount(text): self.watchesLabel.text = text
       }
-
-    self.viewModel.outputs.buttonStyleType
-      .observeForUI()
-      .observeValues { [weak self] buttonStyleType in
-        _ = self?.pledgeCTAButton
-          ?|> buttonStyleType.style
-      }
-
-    self.viewModel.outputs.prelaunchCTASaved
-      .observeForUI()
-      .observeValues { [weak self] isPrelaunch, saved, _ in
-        guard isPrelaunch else { return }
-
-        _ = self?.pledgeCTAButton
-          ?|> saved ? prelaunchButtonSavedImageStyle : prelaunchButtonUnsavedImageStyle
-
-        self?.watchesLabel.isHidden = !isPrelaunch
-      }
+    }
 
     self.projectSavedObserver = MainActorNotificationObservation(name: .ksr_projectSaved) { [weak self]
         notification in
@@ -200,17 +204,7 @@ final class PledgeCTAContainerView: UIView {
           )
       }
 
-    self.activityIndicatorContainerView.rac.hidden = self.viewModel.outputs.activityIndicatorIsHidden
-    self.pledgeCTAButton.rac.hidden = self.viewModel.outputs.pledgeCTAButtonIsHidden
-    self.pledgeCTAButton.rac.title = self.viewModel.outputs.buttonTitleText
-    self.retryStackView.rac.hidden = self.viewModel.outputs.retryStackViewIsHidden
-    self.spacer.rac.hidden = self.viewModel.outputs.spacerIsHidden
-    self.subtitleLabel.rac.text = self.viewModel.outputs.subtitleText
-    self.titleAndSubtitleStackView.rac.hidden = self.viewModel.outputs.stackViewIsHidden
-    self.titleLabel.rac.text = self.viewModel.outputs.titleText
-    self.pledgeButtonAndWatchesStackView.rac.hidden = self.viewModel.outputs.pledgeCTAButtonIsHidden
-    self.watchesLabel.rac.hidden = self.viewModel.outputs.watchesLabelIsHidden
-    self.watchesLabel.rac.text = self.viewModel.outputs.watchesCountText
+
   }
 
   // MARK: - Configuration

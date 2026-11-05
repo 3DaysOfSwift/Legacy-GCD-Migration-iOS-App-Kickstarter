@@ -4,8 +4,6 @@ import Foundation
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -13,36 +11,42 @@ internal final class PledgeCTAContainerViewViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   let vm = PledgeCTAContainerViewViewModel(sleep: { try Task.checkCancellation() })
 
-  let activityIndicatorIsHidden = TestObserver<Bool, Never>()
-  let buttonStyleType = TestObserver<ButtonStyleType, Never>()
-  let buttonTitleText = TestObserver<String, Never>()
-  let notifyDelegateCTATapped = TestObserver<PledgeStateCTAType, Never>()
-  let pledgeCTAButtonIsHidden = TestObserver<Bool, Never>()
-  let pledgeRetryButtonIsHidden = TestObserver<Bool, Never>()
-  let prelaunchCTASaved = TestObserver<PledgeCTAPrelaunchState, Never>()
-  let spacerIsHidden = TestObserver<Bool, Never>()
-  let stackViewIsHidden = TestObserver<Bool, Never>()
-  let subtitleText = TestObserver<String, Never>()
-  let titleText = TestObserver<String, Never>()
-  let watchesLabelHidden = TestObserver<Bool, Never>()
-  let watchesCountText = TestObserver<String, Never>()
+  let activityIndicatorIsHidden = PledgeCTARecorder<Bool>()
+  let buttonStyleType = PledgeCTARecorder<ButtonStyleType>()
+  let buttonTitleText = PledgeCTARecorder<String>()
+  let notifyDelegateCTATapped = PledgeCTARecorder<PledgeStateCTAType>()
+  let pledgeCTAButtonIsHidden = PledgeCTARecorder<Bool>()
+  let pledgeRetryButtonIsHidden = PledgeCTARecorder<Bool>()
+  let prelaunchCTASaved = PledgeCTARecorder<PledgeCTAPrelaunchState>()
+  let spacerIsHidden = PledgeCTARecorder<Bool>()
+  let stackViewIsHidden = PledgeCTARecorder<Bool>()
+  let subtitleText = PledgeCTARecorder<String>()
+  let titleText = PledgeCTARecorder<String>()
+  let watchesLabelHidden = PledgeCTARecorder<Bool>()
+  let watchesCountText = PledgeCTARecorder<String>()
 
   internal override func setUp() async throws {
     try await super.setUp()
 
-    self.vm.outputs.activityIndicatorIsHidden.observe(self.activityIndicatorIsHidden.observer)
-    self.vm.outputs.buttonStyleType.observe(self.buttonStyleType.observer)
-    self.vm.outputs.buttonTitleText.observe(self.buttonTitleText.observer)
-    self.vm.outputs.onCTATapped = { [weak self] state in self?.notifyDelegateCTATapped.observer.send(value: state) }
-    self.vm.outputs.pledgeCTAButtonIsHidden.observe(self.pledgeCTAButtonIsHidden.observer)
-    self.vm.outputs.prelaunchCTASaved.observe(self.prelaunchCTASaved.observer)
-    self.vm.outputs.retryStackViewIsHidden.observe(self.pledgeRetryButtonIsHidden.observer)
-    self.vm.outputs.spacerIsHidden.observe(self.spacerIsHidden.observer)
-    self.vm.outputs.stackViewIsHidden.observe(self.stackViewIsHidden.observer)
-    self.vm.outputs.subtitleText.observe(self.subtitleText.observer)
-    self.vm.outputs.titleText.observe(self.titleText.observer)
-    self.vm.outputs.watchesLabelIsHidden.observe(self.watchesLabelHidden.observer)
-    self.vm.outputs.watchesCountText.observe(self.watchesCountText.observer)
+    self.vm.outputs.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .activityHidden(value): self.activityIndicatorIsHidden.record(value)
+      case let .buttonStyle(value): self.buttonStyleType.record(value)
+      case let .buttonTitle(value): self.buttonTitleText.record(value)
+      case let .tapped(value): self.notifyDelegateCTATapped.record(value)
+      case let .buttonHidden(value): self.pledgeCTAButtonIsHidden.record(value)
+      case let .watchesHidden(value): self.watchesLabelHidden.record(value)
+      case let .prelaunch(value): self.prelaunchCTASaved.record(value)
+      case let .retryHidden(value): self.pledgeRetryButtonIsHidden.record(value)
+      case let .contentHidden(value):
+        self.spacerIsHidden.record(value)
+        self.stackViewIsHidden.record(value)
+      case let .subtitle(value): self.subtitleText.record(value)
+      case let .title(value): self.titleText.record(value)
+      case let .watchesCount(value): self.watchesCountText.record(value)
+      }
+    }
   }
 
   func testPledgeCTA_Backer_LiveProject_US_ProjectCurrency() {
@@ -447,9 +451,28 @@ internal final class PledgeCTAContainerViewViewModelTests: TestCase {
 
     self.vm.inputs.pledgeCTAButtonTapped()
 
-    self.scheduler.advance(by: .seconds(1))
-
     XCTAssertEqual(self.notifyDelegateCTATapped.values.count, 1)
     XCTAssertEqual(self.notifyDelegateCTATapped.values.last!, .prelaunch(saved: true, watchCount: 102))
+  }
+}
+
+@MainActor
+final class PledgeCTARecorder<Value> {
+  private(set) var values: [Value] = []
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValueCount(_ count: Int, file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, file: file, line: line)
+  }
+  func assertDidNotEmitValue(file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, file: file, line: line)
+  }
+  func assertDidEmitValue(file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertFalse(self.values.isEmpty, file: file, line: line)
+  }
+}
+
+private extension PledgeCTARecorder where Value: Equatable {
+  func assertValues(_ values: [Value], file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, values, file: file, line: line)
   }
 }
