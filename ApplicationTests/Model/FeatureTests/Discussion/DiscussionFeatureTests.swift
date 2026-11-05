@@ -32,14 +32,24 @@ final class DiscussionFeatureTests: TestCase {
     let provider = ControlledDiscussionProvider()
     let feature = self.feature(provider)
     var values: [Comment] = []
+    var resumeDelay: CheckedContinuation<Void, Never>?
+    let delayStarted = expectation(description: "Presentation delay started")
     await withEnvironment(currentUser: .template) {
-      let subscription = feature.postCommentProducer(
-        project: .template, commentableId: "project", parentId: nil, user: .template, body: "old"
-      ).startWithValues { values.append($0.0) }
-      defer { subscription.dispose() }
-      await feature.waitForMutations()
+      let vm = CommentDialogViewModel(feature: feature, sleep: {
+        await withCheckedContinuation { continuation in
+          resumeDelay = continuation
+          delayStarted.fulfill()
+        }
+      })
+      vm.onEvent = { if case let .posted(comment) = $0 { values.append(comment) } }
+      vm.configureWith(project: .template, update: nil, recipientName: nil, context: .projectComments)
+      vm.viewWillAppear()
+      vm.commentBodyChanged("old")
+      vm.postButtonPressed()
+      await fulfillment(of: [delayStarted], timeout: 2)
       await withEnvironment(currentUser: nil) {
-        await self.scheduler.advance(by: .seconds(1))
+        resumeDelay?.resume()
+        await vm.waitForMutations()
         XCTAssertEqual(values.count, 1, "No confirmed old-session value delivered after the status delay")
       }
     }
@@ -200,16 +210,23 @@ final class DiscussionFeatureTests: TestCase {
     defer { provider.releaseAll() }
     let feature = self.feature(provider)
     var values: [Comment] = []
-    let subscription = feature.postCommentProducer(
-      project: .template, commentableId: "project", parentId: nil, user: .template, body: "durable"
-    ).startWithValues { values.append($0.0) }
-    await provider.waitForPosts(1)
-    subscription.dispose()
-    feature.release(route: UUID())
-    try provider.finishPost(0, result: .success(.template))
-    await feature.waitForMutations()
-    XCTAssertEqual(values.count, 1, "Only the immediate optimistic value reaches a disposed screen")
-    XCTAssertEqual(provider.postInputs.count, 1)
+    await withEnvironment(currentUser: .template) {
+      var vm: CommentDialogViewModel? = CommentDialogViewModel(feature: feature, sleep: {})
+      weak var weakVM = vm
+      vm?.onEvent = { if case let .posted(comment) = $0 { values.append(comment) } }
+      vm?.configureWith(project: .template, update: nil, recipientName: nil, context: .projectComments)
+      vm?.viewWillAppear()
+      vm?.commentBodyChanged("durable")
+      vm?.postButtonPressed()
+      await provider.waitForPosts(1)
+      vm = nil
+      XCTAssertNil(weakVM)
+      feature.release(route: UUID())
+      do { try provider.finishPost(0, result: .success(.template)) } catch { XCTFail("Missing post") }
+      await feature.waitForMutations()
+      XCTAssertEqual(values.count, 1, "Only the immediate optimistic value reaches a disposed screen")
+      XCTAssertEqual(provider.postInputs.count, 1)
+    }
   }
 
   func testAccountChangeRejectsPostCompletionAndQueuedWritesBeforeDispatch() async throws {
