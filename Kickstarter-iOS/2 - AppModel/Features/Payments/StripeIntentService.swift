@@ -1,7 +1,6 @@
 import Foundation
 import GraphAPI
 import KsApi
-import ReactiveSwift
 
 @MainActor
 public protocol StripeIntentServiceType {
@@ -11,7 +10,7 @@ public protocol StripeIntentServiceType {
     backingId: String,
     checkoutId: String,
     pledgeTotal: Double
-  ) -> SignalProducer<PaymentIntentEnvelope, ErrorEnvelope>
+  ) -> Task<PaymentIntentEnvelope, Error>
   func setupIntent(for projectId: String?, context: GraphAPI.StripeIntentContextTypes) async throws -> ClientSecretEnvelope
 }
 
@@ -24,8 +23,7 @@ public class StripeIntentService: StripeIntentServiceType {
   }
 
   /**
-   Returns a signal producer that emits a `PaymentIntentEnvelope` or `ErrorEnvelope` value representing whether or not a payment intent was created and returned successfully.
-   The returned producer emits once and completes.
+   Creates a payment intent and returns its envelope.
 
    - parameter for: The types to register that we will request permissions for.
    - parameters:
@@ -40,8 +38,8 @@ public class StripeIntentService: StripeIntentServiceType {
     backingId: String,
     checkoutId: String,
     pledgeTotal: Double
-  ) -> SignalProducer<PaymentIntentEnvelope, ErrorEnvelope> {
-    self.paymentsFeature.intentResult(projectID: projectId, backingID: backingId, checkoutID: checkoutId, total: pledgeTotal)
+  ) -> Task<PaymentIntentEnvelope, Error> {
+    self.paymentsFeature.requestIntent(projectID: projectId, backingID: backingId, checkoutID: checkoutId, total: pledgeTotal)
   }
 
   /**

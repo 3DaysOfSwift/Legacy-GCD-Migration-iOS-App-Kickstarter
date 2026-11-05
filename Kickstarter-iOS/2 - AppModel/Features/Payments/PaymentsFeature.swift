@@ -1,7 +1,6 @@
 import Foundation
 import GraphAPI
 import KsApi
-import ReactiveSwift
 
 @MainActor
 public protocol PaymentsProvider {
@@ -76,7 +75,6 @@ public final class PaymentsFeature {
   private var commands: [UUID: Task<Value, Error>] = [:]
   private var cardTail: [Session: Pending] = [:]
   private var cardRevision = 0
-  private var observers: [UUID: Task<Void, Never>] = [:]
 
   private func request(_ command: Command, operation: @escaping @MainActor (any PaymentsProvider) async throws -> Value)
     -> Task<Value, Error> {
@@ -158,82 +156,33 @@ public final class PaymentsFeature {
   }
   public func intent(projectID: String, backingID: String, checkoutID: String, total: Double) async throws -> PaymentIntentEnvelope {
     try Task.checkCancellation()
+    let task = self.requestIntent(projectID: projectID, backingID: backingID, checkoutID: checkoutID, total: total)
+    let value = try await task.value
+    try Task.checkCancellation()
+    return value
+  }
+
+  /// Admit the intent immediately; cancellation of a screen's waiter does not cancel the write.
+  public func requestIntent(projectID: String, backingID: String, checkoutID: String, total: Double) -> Task<PaymentIntentEnvelope, Error> {
     let session = self.session
     let amount = String(format: "%.2f", total)
-    let value = try await self.request(.intent(projectID, backingID, checkoutID, amount)) {
+    let request = self.request(.intent(projectID, backingID, checkoutID, amount)) {
       .intent(try await $0.intent(input: KsApi.CreatePaymentIntentInput(
         projectId: projectID, backingId: backingID, amountDollars: amount,
         checkoutId: encodeToBase64("Checkout-\(checkoutID)"), digitalMarketingAttributed: nil
       )))
-    }.value
-    try self.requireCurrent(session)
-    guard case let .intent(envelope) = value else { preconditionFailure("Payment command type mismatch") }
-    return envelope
-  }
-
-  private func commandResult<Output>(
-    _ command: Command, operation: @escaping @MainActor (any PaymentsProvider) async throws -> Value,
-    extract: @escaping (Value) -> Output
-  ) -> SignalProducer<Output, ErrorEnvelope> {
-    let session = self.session
-    return SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        guard self.session == session else { observer.sendInterrupted(); return }
-        let task = self.request(command, operation: operation)
-        lifetime += self.result { extract(try await task.value) }.start(observer)
-      }
     }
-  }
-  public func intentResult(projectID: String, backingID: String, checkoutID: String, total: Double) -> SignalProducer<PaymentIntentEnvelope, ErrorEnvelope> {
-    let amount = String(format: "%.2f", total)
-    return self.commandResult(.intent(projectID, backingID, checkoutID, amount), operation: {
-      .intent(try await $0.intent(input: KsApi.CreatePaymentIntentInput(
-        projectId: projectID, backingId: backingID, amountDollars: amount,
-        checkoutId: encodeToBase64("Checkout-\(checkoutID)"), digitalMarketingAttributed: nil
-      )))
-    }) {
-      guard case let .intent(value) = $0 else { preconditionFailure("Payment command type mismatch") }
-      return value
+    return Task { [self] in
+      let value = try await request.value
+      try self.requireCurrent(session)
+      guard case let .intent(envelope) = value else { preconditionFailure("Payment command type mismatch") }
+      return envelope
     }
-  }
-
-  /// UIKit compatibility boundary. Only observation is canceled on disposal.
-  /// Awaitable commands above own mutations independently of this adapter.
-  public func result<Value>(_ operation: @escaping @MainActor () async throws -> Value) -> SignalProducer<Value, ErrorEnvelope> {
-    let session = self.session
-    return SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        let id = UUID()
-        let task = Task { [self] in
-          defer { self.observers[id] = nil }
-          do {
-            try self.requireCurrent(session)
-            let value = try await operation()
-            try self.requireCurrent(session)
-            observer.send(value: value)
-            observer.sendCompleted()
-          } catch {
-            guard !Task.isCancelled, !(error is CancellationError), self.session == session
-            else { observer.sendInterrupted(); return }
-            observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
-          }
-        }
-        self.observers[id] = task
-        lifetime.observeEnded { task.cancel() }
-      }
-    }
-  }
-
-  public func reset() {
-    for task in self.observers.values { task.cancel() }
-    // Already-admitted writes settle; queued obsolete writes fail their session
-    // check before reaching the provider.
   }
 
   public func waitForOperations() async {
-    while !self.observers.isEmpty || !self.commands.isEmpty {
+    while !self.commands.isEmpty {
       for task in Array(self.commands.values) { _ = await task.result }
-      for task in Array(self.observers.values) { await task.value }
     }
   }
 }

@@ -2,7 +2,6 @@
 import GraphAPI
 @testable import KsApi
 
-import ReactiveSwift
 
 @MainActor
 public class MockStripeIntentService: StripeIntentServiceType {
@@ -23,7 +22,7 @@ public class MockStripeIntentService: StripeIntentServiceType {
     backingId: String,
     checkoutId: String,
     pledgeTotal: Double
-  ) -> SignalProducer<PaymentIntentEnvelope, ErrorEnvelope> {
+  ) -> Task<PaymentIntentEnvelope, Error> {
     assert(
       AppEnvironment.current.apiService is MockService,
       "AppEnvironment.current.apiService should be a MockService when used in test."
@@ -31,7 +30,7 @@ public class MockStripeIntentService: StripeIntentServiceType {
 
     self.paymentIntentRequests += 1
 
-    return self.paymentsFeature.intentResult(projectID: projectId, backingID: backingId, checkoutID: checkoutId, total: pledgeTotal)
+    return self.paymentsFeature.requestIntent(projectID: projectId, backingID: backingId, checkoutID: checkoutId, total: pledgeTotal)
   }
 
   public func setupIntent(for projectId: String?, context: GraphAPI.StripeIntentContextTypes) async throws -> ClientSecretEnvelope {

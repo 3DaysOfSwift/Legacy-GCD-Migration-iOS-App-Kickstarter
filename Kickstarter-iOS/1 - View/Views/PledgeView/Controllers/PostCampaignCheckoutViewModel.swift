@@ -329,23 +329,8 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     // MARK: Create Payment Intent
 
     /// Called once on viewDidLoad. All signals, except checkoutId and backingId, are linked ot initialData.
-    let paymentIntentEvent = Signal.combineLatest(
-      project,
-      pledgeTotal,
-      checkoutId,
-      backingId
-    )
-    .switchMap { project, pledgeTotal, checkoutId, backingId in
-      let projectId = project.graphID
-
-      return stripeIntentService.createPaymentIntent(
-        for: projectId,
-        backingId: backingId,
-        checkoutId: checkoutId,
-        pledgeTotal: pledgeTotal
-      )
-      .materialize()
-    }
+    let paymentIntentInput = Signal.combineLatest(project, pledgeTotal, checkoutId, backingId)
+    let paymentIntentEvent = self.paymentIntentPipe.output
 
     let paymentIntentClientSecret = paymentIntentEvent.values()
       .map { $0.clientSecret }
@@ -657,6 +642,24 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
           refTag: data.refTag
         )
       }
+    self.paymentIntentObservation = paymentIntentInput.observeValues { [weak self] project, total, checkoutID, backingID in
+      guard let self else { return }
+      self.paymentIntentTask?.cancel()
+      let request = self.stripeIntentService.createPaymentIntent(
+        for: project.graphID, backingId: backingID, checkoutId: checkoutID, pledgeTotal: total
+      )
+      self.paymentIntentTask = Task { [weak self] in
+        do {
+          let intent = try await request.value
+          guard !Task.isCancelled else { return }
+          self?.paymentIntentPipe.input.send(value: .value(intent))
+        } catch {
+          guard !Task.isCancelled, !(error is CancellationError) else { return }
+          self?.paymentIntentPipe.input.send(value: .failed((error as? ErrorEnvelope) ?? .couldNotParseJSON))
+        }
+      }
+    }
+
   }
 
   // MARK: - Helpers
@@ -788,6 +791,15 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   // MARK: - Use cases
 
   private let loginSignupUseCase: LoginSignupUseCase
+  private let paymentIntentPipe = Signal<Signal<PaymentIntentEnvelope, ErrorEnvelope>.Event, Never>.pipe()
+  private var paymentIntentObservation: (any Disposable)?
+  private var paymentIntentTask: Task<Void, Never>?
+
+  deinit {
+    self.paymentIntentObservation?.dispose()
+    self.paymentIntentTask?.cancel()
+  }
+
   private let loginStatePipe = Signal<Bool, Never>.pipe()
   private let loginNavigationPipe = Signal<LoginIntent, Never>.pipe()
   private let loginSessionPipe = Signal<Void, Never>.pipe()

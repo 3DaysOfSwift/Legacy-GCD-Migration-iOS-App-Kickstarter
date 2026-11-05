@@ -81,7 +81,6 @@ public final class AppModel {
     self.activityFeature.reset()
     self.profileFeature.reset()
     self.messagingFeature.reset()
-    self.paymentsFeature.reset()
     self.pledgeFeature.reset()
     self.pledgedProjectsFeature.reset()
   }

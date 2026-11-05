@@ -15,7 +15,6 @@ final class PaymentsFeatureTests: TestCase {
   private lazy var feature = PaymentsFeature(sessionFeature: self.session, makeProvider: { self.provider })
   override func tearDown() async throws {
     self.session.sessionChanged()
-    self.feature.reset()
     self.provider.releaseAll()
     await self.feature.waitForOperations()
     try await super.tearDown()
@@ -147,6 +146,18 @@ final class PaymentsFeatureTests: TestCase {
     do { _ = try await caller.value; XCTFail("Canceled caller must not receive a secret") }
     catch { XCTAssertTrue(error is CancellationError) }
     XCTAssertEqual(self.provider.setups.count, 1)
+  }
+
+  func testCancelingIntentWaiterDoesNotCancelAdmittedWrite() async throws {
+    let request = self.feature.requestIntent(projectID: "p", backingID: "b", checkoutID: "c", total: 1)
+    let waiter = Task { try await request.value }
+    waiter.cancel()
+    await self.provider.intents.waitFor(1)
+    try self.provider.intents.finish(0, .success(PaymentIntentEnvelope(clientSecret: "fixture")))
+    let intent = try await request.value
+    XCTAssertEqual(intent.clientSecret, "fixture")
+    XCTAssertEqual(self.provider.intents.count, 1)
+    _ = await waiter.result
   }
 
   func testPublicDemoRejectsEveryPaymentEntryPoint() async {
