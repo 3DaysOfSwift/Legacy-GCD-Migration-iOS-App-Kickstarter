@@ -109,10 +109,15 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
     let backing = project.map(\.personalization.backing).skipNil()
 
-    self.loginSignupUseCase = LoginSignupUseCase(
-      withLoginIntent: .backProject,
-      initialData: initialData.ignoreValues()
-    )
+    self.loginSignupUseCase = LoginSignupUseCase(withLoginIntent: .backProject)
+    let login = self.loginSignupUseCase
+    let loginState = self.loginStatePipe
+    let loginNavigation = self.loginNavigationPipe
+    let loginSession = self.loginSessionPipe
+    login.onLoginState = { loginState.input.send(value: $0) }
+    login.onLogin = { loginNavigation.input.send(value: $0) }
+    login.onSessionChanged = { loginSession.input.send(value: ()) }
+    initialData.observeValues { _ in login.initialDataAvailable() }
 
     self.paymentMethodsUseCase = PaymentMethodsUseCase()
     let paymentMethods = self.paymentMethodsUseCase
@@ -125,7 +130,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     paymentMethods.onSelected = { paymentSelected.input.send(value: $0) }
     paymentMethods.onValidity = { paymentValid.input.send(value: $0) }
     initialData.observeValues { paymentMethods.configure($0) }
-    self.loginSignupUseCase.dataOutputs.isLoggedIn.observeValues { paymentMethods.loginChanged($0) }
+    self.loginStatePipe.output.observeValues { paymentMethods.loginChanged($0) }
 
     // MARK: Calculate totals
 
@@ -177,7 +182,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     )
 
     let createCheckoutEvents = Signal.combineLatest(
-      self.loginSignupUseCase.dataOutputs.isLoggedIn,
+      self.loginStatePipe.output,
       pledgeDetailsData
     )
     .filter { isLoggedIn, _ in isLoggedIn }
@@ -553,7 +558,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       pledgeTotal,
       pledgeButtonEnabled,
       context,
-      self.loginSignupUseCase.dataOutputs.isLoggedIn
+      self.loginStatePipe.output
     )
     .map { project, pledgeTotal, pledgeButtonEnabled, context, isLoggedIn in
       PledgeViewCTAContainerViewData(
@@ -702,7 +707,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   }
 
   public func goToLoginSignupTapped() {
-    self.loginSignupUseCase.uiInputs.goToLoginSignupTapped()
+    self.loginSignupUseCase.goToLoginSignupTapped()
   }
 
   private let (pledgeDisclaimerViewDidTapLearnMoreSignal, pledgeDisclaimerViewDidTapLearnMoreObserver)
@@ -722,7 +727,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   }
 
   public func userSessionDidChange() {
-    self.loginSignupUseCase.uiInputs.userSessionDidChange()
+    self.loginSignupUseCase.userSessionDidChange()
   }
 
   private let viewDidLoadProperty = MutableProperty(())
@@ -762,7 +767,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   public let configureStripeIntegration: Signal<StripeConfigurationData, Never>
   public let estimatedShippingViewHidden: Signal<Bool, Never>
   public var goToLoginSignup: Signal<LoginIntent, Never> {
-    self.loginSignupUseCase.uiOutputs.goToLoginSignup
+    self.loginNavigationPipe.output
   }
 
   public let processingViewIsHidden: Signal<Bool, Never>
@@ -783,6 +788,9 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   // MARK: - Use cases
 
   private let loginSignupUseCase: LoginSignupUseCase
+  private let loginStatePipe = Signal<Bool, Never>.pipe()
+  private let loginNavigationPipe = Signal<LoginIntent, Never>.pipe()
+  private let loginSessionPipe = Signal<Void, Never>.pipe()
   private let paymentMethodsUseCase: PaymentMethodsUseCase
   private let paymentHiddenPipe = Signal<Bool, Never>.pipe()
   private let paymentConfigPipe = Signal<PledgePaymentMethodsValue, Never>.pipe()

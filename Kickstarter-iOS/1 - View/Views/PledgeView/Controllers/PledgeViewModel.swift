@@ -142,10 +142,15 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     self.pledgeAmountSummaryViewHidden = context.map { $0.pledgeAmountSummaryViewHidden }
 
-    self.loginSignupUseCase = LoginSignupUseCase(
-      withLoginIntent: .backProject,
-      initialData: initialData.ignoreValues()
-    )
+    self.loginSignupUseCase = LoginSignupUseCase(withLoginIntent: .backProject)
+    let login = self.loginSignupUseCase
+    let loginState = self.loginStatePipe
+    let loginNavigation = self.loginNavigationPipe
+    let loginSession = self.loginSessionPipe
+    login.onLoginState = { loginState.input.send(value: $0) }
+    login.onLogin = { loginNavigation.input.send(value: $0) }
+    login.onSessionChanged = { loginSession.input.send(value: ()) }
+    initialData.observeValues { _ in login.initialDataAvailable() }
 
     self.paymentMethodsUseCase = PaymentMethodsUseCase()
     let paymentMethods = self.paymentMethodsUseCase
@@ -158,7 +163,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     paymentMethods.onSelected = { paymentSelected.input.send(value: $0) }
     paymentMethods.onValidity = { paymentValid.input.send(value: $0) }
     initialData.observeValues { paymentMethods.configure($0) }
-    self.loginSignupUseCase.dataOutputs.isLoggedIn.observeValues { paymentMethods.loginChanged($0) }
+    self.loginStatePipe.output.observeValues { paymentMethods.loginChanged($0) }
 
     self.descriptionSectionSeparatorHidden = Signal.combineLatest(context, baseReward)
       .map { context, reward in
@@ -366,7 +371,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     let configurePaymentMethodsViewController = Signal.merge(
       initialDataUnpacked,
-      initialDataUnpacked.takeWhen(self.loginSignupUseCase.dataOutputs.userSessionChanged)
+      initialDataUnpacked.takeWhen(self.loginSessionPipe.output)
     )
 
     self.configureStripeIntegration = Signal.combineLatest(
@@ -873,7 +878,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     self.configurePledgeViewCTAContainerView = Signal.combineLatest(
       project,
       pledgeTotal.skipRepeats(),
-      self.loginSignupUseCase.dataOutputs.isLoggedIn,
+      self.loginStatePipe.output,
       isEnabled,
       context,
       willRetryPaymentMethod
@@ -1021,7 +1026,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   }
 
   public func goToLoginSignupTapped() {
-    self.loginSignupUseCase.uiInputs.goToLoginSignupTapped()
+    self.loginSignupUseCase.goToLoginSignupTapped()
   }
 
   private let (pledgeDisclaimerViewDidTapLearnMoreSignal, pledgeDisclaimerViewDidTapLearnMoreObserver)
@@ -1063,7 +1068,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   }
 
   public func userSessionDidChange() {
-    self.loginSignupUseCase.uiInputs.userSessionDidChange()
+    self.loginSignupUseCase.userSessionDidChange()
   }
 
   // MARK: - Outputs
@@ -1087,7 +1092,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   public let goToApplePayPaymentAuthorization: Signal<PaymentAuthorizationData, Never>
   public let goToThanks: Signal<ThanksPageData, Never>
   public var goToLoginSignup: Signal<LoginIntent, Never> {
-    return self.loginSignupUseCase.uiOutputs.goToLoginSignup
+    return self.loginNavigationPipe.output
   }
 
   public let localPickupViewHidden: Signal<Bool, Never>
@@ -1121,6 +1126,9 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   private let planLoadingPipe = Signal<Bool, Never>.pipe()
   private let planConfigPipe = Signal<PledgePaymentPlansAndSelectionData?, Never>.pipe()
   private let loginSignupUseCase: LoginSignupUseCase
+  private let loginStatePipe = Signal<Bool, Never>.pipe()
+  private let loginNavigationPipe = Signal<LoginIntent, Never>.pipe()
+  private let loginSessionPipe = Signal<Void, Never>.pipe()
   private let paymentMethodsUseCase: PaymentMethodsUseCase
   private let paymentHiddenPipe = Signal<Bool, Never>.pipe()
   private let paymentConfigPipe = Signal<PledgePaymentMethodsValue, Never>.pipe()

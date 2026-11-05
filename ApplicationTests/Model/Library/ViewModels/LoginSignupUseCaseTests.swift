@@ -1,70 +1,45 @@
 @testable import Kickstarter_iOS
 @testable import KsApi
-
-
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class LoginSignupUseCaseTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-
-  let userSessionChanged = TestObserver<Void, Never>()
-  let goToLoginSignup = TestObserver<LoginIntent, Never>()
-  let isLoggedIn = TestObserver<Bool, Never>()
-
-  let (initialDataSignal, initialDataObserver) = Signal<Void, Never>.pipe()
-  var useCase: LoginSignupUseCase!
+  private var useCase: LoginSignupUseCase!
+  private var sessions = 0
+  private var intents: [LoginIntent] = []
+  private var loginStates: [Bool] = []
 
   override func setUp() async throws {
     try await super.setUp()
-
-    self.useCase = LoginSignupUseCase(withLoginIntent: .generic, initialData: self.initialDataSignal)
-
-    self.useCase.uiOutputs.goToLoginSignup.observe(self.goToLoginSignup.observer)
-    self.useCase.dataOutputs.userSessionChanged.observe(self.userSessionChanged.observer)
-    self.useCase.dataOutputs.isLoggedIn.observe(self.isLoggedIn.observer)
+    self.useCase = LoginSignupUseCase(withLoginIntent: .generic)
+    self.useCase.onSessionChanged = { [weak self] in self?.sessions += 1 }
+    self.useCase.onLogin = { [weak self] in self?.intents.append($0) }
+    self.useCase.onLoginState = { [weak self] in self?.loginStates.append($0) }
   }
 
-  func testUseCase_SendsUserSessionChange_WhenUserSessionIsChanged() {
-    self.userSessionChanged.assertDidNotEmitValue()
-
-    self.useCase.uiInputs.userSessionDidChange()
-
-    self.userSessionChanged.assertDidEmitValue()
-  }
-
-  func testUseCase_GoesToLoginSignup_AfterLoginSignupTapped() {
-    self.goToLoginSignup.assertDidNotEmitValue()
-
-    self.useCase.uiInputs.goToLoginSignupTapped()
-
-    self.goToLoginSignup.assertDidEmitValue()
-  }
-
-  func testUseCase_SendsLoggedInEvent_InitiallyAndAfterSessionChanged() {
-    self.isLoggedIn.assertDidNotEmitValue()
-
-    self.initialDataObserver.send(value: ())
-
-    self.isLoggedIn.assertLastValue(false)
-
-    self.useCase.uiInputs.userSessionDidChange()
-
-    self.isLoggedIn.assertLastValue(false)
-
+  func testSessionChangeNotifiesAndReportsCurrentState() {
+    self.useCase.initialDataAvailable()
+    self.useCase.userSessionDidChange()
+    XCTAssertEqual(self.sessions, 1)
+    XCTAssertEqual(self.loginStates, [false, false])
     withEnvironment(currentUser: .template) {
-      self.useCase.uiInputs.userSessionDidChange()
-      self.isLoggedIn.assertLastValue(true)
+      self.useCase.userSessionDidChange()
+      XCTAssertEqual(self.loginStates, [false, false, true])
+      XCTAssertTrue(self.useCase.isLoggedIn)
     }
   }
 
-  func testUseCase_LoggedIn_SendsInitialLoggedInEvent() {
+  func testLoginActionPreservesIntent() {
+    self.useCase.goToLoginSignupTapped()
+    XCTAssertEqual(self.intents.count, 1)
+    XCTAssertEqual(self.intents.first, .generic)
+  }
+
+  func testInitialLoggedInState() {
     withEnvironment(currentUser: .template) {
-      self.isLoggedIn.assertDidNotEmitValue()
-      self.initialDataObserver.send(value: ())
-      self.isLoggedIn.assertLastValue(true)
+      self.useCase.initialDataAvailable()
+      XCTAssertEqual(self.loginStates, [true])
     }
   }
 }
