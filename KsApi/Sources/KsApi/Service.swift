@@ -361,58 +361,13 @@ public struct Service: ServiceType {
     return request(.project(.id(project.id)))
   }
 
-  public func fetchProjectActivities(forProject project: Project) ->
-    SignalProducer<ProjectActivityEnvelope, ErrorEnvelope> {
-    return request(.projectActivities(project))
-  }
-
-  public func fetchProjectActivities(paginationUrl: String)
-    -> SignalProducer<ProjectActivityEnvelope, ErrorEnvelope> {
-    return requestPaginationDecodable(paginationUrl)
-  }
-
-  public func fetchProjects(member: Bool) -> SignalProducer<ProjectsEnvelope, ErrorEnvelope> {
-    return request(.projects(member: member))
-  }
-
-  public func fetchProjects(paginationUrl url: String) -> SignalProducer<ProjectsEnvelope, ErrorEnvelope> {
-    return requestPaginationDecodable(url)
-  }
-
-  public func fetchProjectStats(projectId: Int) ->
-    SignalProducer<ProjectStatsEnvelope, ErrorEnvelope> {
-    return request(.projectStats(projectId: projectId))
-  }
-
   public func fetchUserSelf_combine(withOAuthToken token: String) -> AnyPublisher<User, ErrorEnvelope> {
     return requestWithAuthentication(.userSelf, oauthToken: token)
-  }
-
-  public func fetchUser(userId: Int) -> SignalProducer<User, ErrorEnvelope> {
-    return request(.user(userId: userId))
-  }
-
-  public func fetchUser(_ user: User) -> SignalProducer<User, ErrorEnvelope> {
-    return self.fetchUser(userId: user.id)
-  }
-
-  public func fetchUpdate(updateId: Int, projectParam: Param)
-    -> SignalProducer<Update, ErrorEnvelope> {
-    return request(.update(updateId: updateId, projectParam: projectParam))
-  }
-
-  public func fetchUpdateDraft(forProject project: Project) -> SignalProducer<UpdateDraft, ErrorEnvelope> {
-    return request(.fetchUpdateDraft(forProject: project))
   }
 
   public func exchangeTokenForOAuthToken(params: OAuthTokenExchangeParams)
     -> AnyPublisher<OAuthTokenExchangeResponse, ErrorEnvelope> {
     return request(.exchangeToken(params: params))
-  }
-
-  public func backingUpdate(forProject project: Project, forUser user: User, received: Bool) ->
-    SignalProducer<Backing, ErrorEnvelope> {
-    return request(.backingUpdate(projectId: project.id, backerId: user.id, received: received))
   }
 
   public func updateRewardReceived(
@@ -430,14 +385,6 @@ public struct Service: ServiceType {
       .eraseToAnyPublisher()
   }
 
-  public func followAllFriends() -> SignalProducer<VoidEnvelope, ErrorEnvelope> {
-    return request(.followAllFriends)
-  }
-
-  public func followFriend(userId id: Int) -> SignalProducer<User, ErrorEnvelope> {
-    return request(.followFriend(userId: id))
-  }
-
   public func login(email: String, password: String, code: String?) ->
     SignalProducer<AccessTokenEnvelope, ErrorEnvelope> {
     return request(.login(email: email, password: password, code: code))
@@ -448,58 +395,13 @@ public struct Service: ServiceType {
     return request(.facebookLogin(facebookAccessToken: facebookAccessToken, code: code))
   }
 
-  public func markAsRead(messageThread: MessageThread) -> SignalProducer<MessageThread, ErrorEnvelope> {
-    return request(.markAsRead(messageThread))
-  }
-
   public func publish(draft: UpdateDraft) -> SignalProducer<Update, ErrorEnvelope> {
     return request(.publishUpdateDraft(draft))
-  }
-
-  public func register(pushToken: String) -> SignalProducer<VoidEnvelope, ErrorEnvelope> {
-    return request(.registerPushToken(pushToken))
-  }
-
-  public func resetPassword(email: String) -> SignalProducer<User, ErrorEnvelope> {
-    return request(.resetPassword(email: email))
-  }
-
-  public func searchMessages(query: String, project: Project?)
-    -> SignalProducer<MessageThreadsEnvelope, ErrorEnvelope> {
-    return request(.searchMessages(query: query, project: project))
-  }
-
-  public func sendMessage(body: String, toSubject subject: MessageSubject)
-    -> SignalProducer<Message, ErrorEnvelope> {
-    return request(.sendMessage(body: body, messageSubject: subject))
-  }
-
-  public func unfollowFriend(userId id: Int) -> SignalProducer<VoidEnvelope, ErrorEnvelope> {
-    return request(.unfollowFriend(userId: id))
   }
 
   public func update(draft: UpdateDraft, title: String, body: String, isPublic: Bool)
     -> SignalProducer<UpdateDraft, ErrorEnvelope> {
     return request(.updateUpdateDraft(draft, title: title, body: body, isPublic: isPublic))
-  }
-
-  public func updateProjectNotification(_ notification: ProjectNotification)
-    -> SignalProducer<ProjectNotification, ErrorEnvelope> {
-    return request(.updateProjectNotification(notification: notification))
-  }
-
-  public func verifyEmail(withToken token: String)
-    -> SignalProducer<EmailVerificationResponseEnvelope, ErrorEnvelope> {
-    request(.verifyEmail(accessToken: token))
-  }
-
-  public func blockUser(input: BlockUserInput)
-    -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(mutation: GraphAPI.BlockUserMutation(input: GraphAPI.BlockUserInput.from(input)))
-      .flatMap { _ in
-        SignalProducer(value: EmptyResponseEnvelope())
-      }
   }
 
   /**

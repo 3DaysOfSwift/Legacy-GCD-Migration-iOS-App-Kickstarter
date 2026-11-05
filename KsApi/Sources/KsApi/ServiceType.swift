@@ -244,59 +244,22 @@ public protocol ServiceType {
   /// Fetch the newest data for a particular project from its project value.
   func fetchProject_combine(project: Project) -> AnyPublisher<Project, ErrorEnvelope>
 
-  /// Fetch a page of activities for a project.
-  func fetchProjectActivities(forProject project: Project) ->
-    SignalProducer<ProjectActivityEnvelope, ErrorEnvelope>
-
-  /// Fetch a page of activities for a project from a pagination url.
-  func fetchProjectActivities(paginationUrl: String) ->
-    SignalProducer<ProjectActivityEnvelope, ErrorEnvelope>
-
-  /// Fetches the projects that the current user is a member of.
-  func fetchProjects(member: Bool) -> SignalProducer<ProjectsEnvelope, ErrorEnvelope>
-
-  /// Fetches more projects from a pagination URL.
-  func fetchProjects(paginationUrl: String) -> SignalProducer<ProjectsEnvelope, ErrorEnvelope>
-
-  /// Fetches the stats for a particular project.
-  func fetchProjectStats(projectId: Int) -> SignalProducer<ProjectStatsEnvelope, ErrorEnvelope>
-
   /// Fetch the add-on rewards for the add-on selection view with a `Project` slug and optional `Location` ID.
   @MainActor func rewardAddOns(slug: String, locationID: String?) async throws -> [Reward]?
   @MainActor func fastRewardAddOns(baseRewardID: Int, country: String) async throws -> [Reward]
-
-  /// Fetches an update from its id and project.
-  func fetchUpdate(updateId: Int, projectParam: Param) -> SignalProducer<Update, ErrorEnvelope>
 
   /// Fetches a project update draft.
   @MainActor func creatorDraft(project: Project) async throws -> UpdateDraft
   @MainActor func saveCreatorDraft(_ draft: UpdateDraft, title: String, body: String, isPublic: Bool) async throws -> UpdateDraft
   @MainActor func addCreatorDraftImage(file: URL, draft: UpdateDraft) async throws -> UpdateDraft.Image
   @MainActor func removeCreatorDraftImage(_ image: UpdateDraft.Image, draft: UpdateDraft) async throws -> UpdateDraft.Image
-  func fetchUpdateDraft(forProject project: Project) -> SignalProducer<UpdateDraft, ErrorEnvelope>
-
-  /// Fetch the newest data for a particular user.
-  func fetchUser(_ user: User) -> SignalProducer<User, ErrorEnvelope>
-
-  /// Fetch a user.
-  func fetchUser(userId: Int) -> SignalProducer<User, ErrorEnvelope>
 
   /// Fetch the logged-in user's data.
   func fetchUserSelf_combine(withOAuthToken: String) -> AnyPublisher<User, ErrorEnvelope>
 
-  /// Mark reward received.
-  func backingUpdate(forProject project: Project, forUser user: User, received: Bool)
-    -> SignalProducer<Backing, ErrorEnvelope>
-
   /// Mark reward as received or unreceived. Return Bool is true if success.
   func updateRewardReceived(backingId: String, rewardReceived: Bool)
     -> AnyPublisher<Bool, ErrorEnvelope>
-
-  /// Follow all friends of current user.
-  func followAllFriends() -> SignalProducer<VoidEnvelope, ErrorEnvelope>
-
-  /// Follow a user with their id.
-  func followFriend(userId id: Int) -> SignalProducer<User, ErrorEnvelope>
 
   /// Attempt a login with an email, password and optional code.
   func login(email: String, password: String, code: String?) ->
@@ -306,45 +269,15 @@ public protocol ServiceType {
   func login(facebookAccessToken: String, code: String?) ->
     SignalProducer<AccessTokenEnvelope, ErrorEnvelope>
 
-  /// Marks all the messages in a particular thread as read.
-  func markAsRead(messageThread: MessageThread) -> SignalProducer<MessageThread, ErrorEnvelope>
-
   /// Returns a project update preview URL.
   func previewUrl(forDraft draft: UpdateDraft) -> URL?
 
   /// Publishes a project update draft.
   func publish(draft: UpdateDraft) -> SignalProducer<Update, ErrorEnvelope>
 
-  /// Registers a push token.
-  func register(pushToken: String) -> SignalProducer<VoidEnvelope, ErrorEnvelope>
-
-  /// Reset user password with email address.
-  func resetPassword(email: String) -> SignalProducer<User, ErrorEnvelope>
-
-  /// Searches all of the messages, (optionally) bucketed to a specific project.
-  func searchMessages(query: String, project: Project?)
-    -> SignalProducer<MessageThreadsEnvelope, ErrorEnvelope>
-
-  /// Sends a message to a subject, i.e. creator project, message thread, backer of backing.
-  func sendMessage(body: String, toSubject subject: MessageSubject)
-    -> SignalProducer<Message, ErrorEnvelope>
-
-  /// Unfollow a user with their id.
-  func unfollowFriend(userId id: Int) -> SignalProducer<VoidEnvelope, ErrorEnvelope>
-
-  /// Update the project notification setting.
-  func updateProjectNotification(_ notification: ProjectNotification)
-    -> SignalProducer<ProjectNotification, ErrorEnvelope>
-
   /// Updates the draft of a project update.
   func update(draft: UpdateDraft, title: String, body: String, isPublic: Bool)
     -> SignalProducer<UpdateDraft, ErrorEnvelope>
-
-  /// Verifies an email address with a given access token.
-  func verifyEmail(withToken token: String)
-    -> SignalProducer<EmailVerificationResponseEnvelope, ErrorEnvelope>
-
-  func blockUser(input: BlockUserInput) -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
   func fetchDiscovery_combine(paginationUrl: String)
     -> AnyPublisher<DiscoveryEnvelope, ErrorEnvelope>

@@ -626,18 +626,6 @@
       return client.performWithResult(mutation: mutation, result: self.addUserToSecretRewardGroup)
     }
 
-    public func blockUser(input: BlockUserInput)
-      -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI
-        .BlockUserMutation(input: GraphAPI.BlockUserInput(blockUserId: input.blockUserId))
-
-      return client.performWithResult(mutation: mutation, result: self.blockUserResult)
-    }
-
     @MainActor public func recordProjectAttribution(input: GraphAPI.CreateAttributionEventInput) async throws {
       try Task.checkCancellation()
       guard let result = self.createAttributionEventResult else { throw ErrorEnvelope.couldNotParseJSON }
@@ -1003,23 +991,6 @@
       try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
     }
 
-    internal func followAllFriends() -> SignalProducer<VoidEnvelope, ErrorEnvelope> {
-      return SignalProducer(value: VoidEnvelope())
-    }
-
-    internal func followFriend(userId id: Int) -> SignalProducer<User, ErrorEnvelope> {
-      if let error = followFriendError {
-        return SignalProducer(error: error)
-      }
-
-      return SignalProducer(
-        value:
-        User.template
-          |> \.id .~ id
-          |> \.isFriend .~ true
-      )
-    }
-
     internal func fetch<Q: GraphQLQuery>(query: Q) -> SignalProducer<Q.Data, ErrorEnvelope> {
       if let demoCatalog { return demoResponse { try demoCatalog.graphResponse(for: query) } }
       if self.pendingLegacyGraphQLQueries.contains(where: { $0 == Q.self }) { return .never }
@@ -1120,14 +1091,6 @@
       return client.fetchWithResult(query: fetchGraphUserSetupQuery, result: self.fetchGraphUserSetupResult)
     }
 
-    internal func unfollowFriend(userId _: Int) -> SignalProducer<VoidEnvelope, ErrorEnvelope> {
-      if let error = unfollowFriendError {
-        return SignalProducer(error: error)
-      }
-
-      return SignalProducer(value: VoidEnvelope())
-    }
-
     internal func login(_ oauthToken: OauthTokenAuthType) -> MockService {
       return self |> MockService.lens.oauthToken .~ oauthToken
     }
@@ -1143,17 +1106,6 @@
           |> Backing.lens.backer .~ user
           |> Backing.lens.backerId .~ user.id
           |> Backing.lens.projectId .~ project.id
-      )
-    }
-
-    func backingUpdate(forProject project: Project, forUser user: User, received: Bool)
-      -> SignalProducer<Backing, ErrorEnvelope> {
-      return SignalProducer(
-        value: self.fetchBackingResponse
-          |> Backing.lens.backer .~ user
-          |> Backing.lens.backerId .~ user.id
-          |> Backing.lens.projectId .~ project.id
-          |> Backing.lens.backerCompleted .~ received
       )
     }
 
@@ -1542,78 +1494,6 @@
       fatalError("Sorry, this is unimplemented!")
     }
 
-    internal func fetchProjectActivities(forProject _: Project) ->
-      SignalProducer<ProjectActivityEnvelope, ErrorEnvelope> {
-      if let error = fetchProjectActivitiesError {
-        return SignalProducer(error: error)
-      } else if let activities = fetchProjectActivitiesResponse {
-        return SignalProducer(
-          value: ProjectActivityEnvelope(
-            activities: activities,
-            urls: ProjectActivityEnvelope.UrlsEnvelope(
-              api: ProjectActivityEnvelope.UrlsEnvelope.ApiEnvelope(
-                moreActivities: "http://\(Secrets.Api.Endpoint.production)/gimme/more"
-              )
-            )
-          )
-        )
-      }
-      return .empty
-    }
-
-    internal func fetchProjectActivities(paginationUrl _: String)
-      -> SignalProducer<ProjectActivityEnvelope, ErrorEnvelope> {
-      if let error = fetchProjectActivitiesError {
-        return SignalProducer(error: error)
-      } else if let activities = fetchProjectActivitiesResponse {
-        return SignalProducer(
-          value: ProjectActivityEnvelope(
-            activities: activities,
-            urls: ProjectActivityEnvelope.UrlsEnvelope(
-              api: ProjectActivityEnvelope.UrlsEnvelope.ApiEnvelope(
-                moreActivities: ""
-              )
-            )
-          )
-        )
-      }
-      return .empty
-    }
-
-    internal func fetchProjects(member _: Bool) -> SignalProducer<ProjectsEnvelope, ErrorEnvelope> {
-      if let error = fetchProjectsError {
-        return SignalProducer(error: error)
-      } else if let projects = fetchProjectsResponse {
-        return SignalProducer(
-          value: ProjectsEnvelope(
-            projects: projects,
-            urls: ProjectsEnvelope.UrlsEnvelope(
-              api: ProjectsEnvelope.UrlsEnvelope.ApiEnvelope(
-                moreProjects: ""
-              )
-            )
-          )
-        )
-      }
-      return .empty
-    }
-
-    internal func fetchProjects(paginationUrl _: String) ->
-      SignalProducer<ProjectsEnvelope, ErrorEnvelope> {
-      return self.fetchProjects(member: true)
-    }
-
-    internal func fetchProjectStats(projectId _: Int) ->
-      SignalProducer<ProjectStatsEnvelope, ErrorEnvelope> {
-      if let error = fetchProjectStatsError {
-        return SignalProducer(error: error)
-      } else if let response = fetchProjectStatsResponse {
-        return SignalProducer(value: response)
-      }
-
-      return SignalProducer(value: .template)
-    }
-
     func fetchUserSelf_combine(withOAuthToken _: String) -> AnyPublisher<User, ErrorEnvelope> {
       if let error = fetchUserSelfError {
         return Fail(outputType: User.self, failure: self.fetchUserSelfError!).eraseToAnyPublisher()
@@ -1621,14 +1501,6 @@
 
       return Just(self.fetchUserSelfResponse ?? .template).setFailureType(to: ErrorEnvelope.self)
         .eraseToAnyPublisher()
-    }
-
-    internal func fetchUser(userId _: Int) -> SignalProducer<User, ErrorEnvelope> {
-      return producer(for: self.fetchUserResult)
-    }
-
-    internal func fetchUser(_: User) -> SignalProducer<User, ErrorEnvelope> {
-      return producer(for: self.fetchUserResult)
     }
 
     @MainActor public func authenticate(
@@ -1727,61 +1599,6 @@
       return SignalProducer(value: AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
     }
 
-    internal func markAsRead(messageThread: MessageThread)
-      -> SignalProducer<MessageThread, ErrorEnvelope> {
-      return SignalProducer(value: messageThread)
-    }
-
-    func resetPassword(email _: String) -> SignalProducer<User, ErrorEnvelope> {
-      if let response = resetPasswordResponse {
-        return SignalProducer(value: response)
-      } else if let error = resetPasswordError {
-        return SignalProducer(error: error)
-      }
-      return SignalProducer(value: .template)
-    }
-
-    func register(pushToken _: String) -> SignalProducer<VoidEnvelope, ErrorEnvelope> {
-      return SignalProducer(value: VoidEnvelope())
-    }
-
-    internal func searchMessages(query _: String, project _: Project?)
-      -> SignalProducer<MessageThreadsEnvelope, ErrorEnvelope> {
-      return SignalProducer(
-        value:
-        MessageThreadsEnvelope(
-          messageThreads: self.fetchMessageThreadsResponse,
-          urls: MessageThreadsEnvelope.UrlsEnvelope(
-            api: MessageThreadsEnvelope.UrlsEnvelope.ApiEnvelope(
-              moreMessageThreads: ""
-            )
-          )
-        )
-      )
-    }
-
-    internal func sendMessage(body: String, toSubject _: MessageSubject)
-      -> SignalProducer<Message, ErrorEnvelope> {
-      return SignalProducer(
-        value: .template
-          |> Message.lens.id .~ body.hashValue
-          |> Message.lens.body .~ body
-      )
-    }
-
-    internal func updateProjectNotification(_ notification: ProjectNotification)
-      -> SignalProducer<ProjectNotification, ErrorEnvelope> {
-      if let error = updateProjectNotificationError {
-        return SignalProducer(error: error)
-      }
-      return SignalProducer(value: notification)
-    }
-
-    internal func fetchUpdate(updateId: Int, projectParam _: Param)
-      -> SignalProducer<Update, ErrorEnvelope> {
-      return SignalProducer(value: self.fetchUpdateResponse |> Update.lens.id .~ updateId)
-    }
-
     @MainActor public func creatorDraft(project: Project) async throws -> UpdateDraft {
       try Task.checkCancellation()
       guard self.demoCatalog == nil else { throw ErrorEnvelope.graphError("Creator drafts are unavailable in public demo mode") }
@@ -1805,13 +1622,6 @@
       return self.removeAttachmentResponse ?? .template
     }
 
-    internal func fetchUpdateDraft(forProject _: Project) -> SignalProducer<UpdateDraft, ErrorEnvelope> {
-      if let error = self.fetchDraftError {
-        return SignalProducer(error: error)
-      }
-      return SignalProducer(value: self.fetchDraftResponse ?? .template)
-    }
-
     internal func update(draft: UpdateDraft, title: String, body: String, isPublic: Bool)
       -> SignalProducer<UpdateDraft, ErrorEnvelope> {
       if let error = self.updateDraftError {
@@ -1823,11 +1633,6 @@
         |> UpdateDraft.lens.update.isPublic .~ isPublic
 
       return SignalProducer(value: updatedDraft)
-    }
-
-    internal func verifyEmail(withToken _: String)
-      -> SignalProducer<EmailVerificationResponseEnvelope, ErrorEnvelope> {
-      return producer(for: self.verifyEmailResult)
     }
 
     internal func addImage(file _: URL, toDraft _: UpdateDraft)
