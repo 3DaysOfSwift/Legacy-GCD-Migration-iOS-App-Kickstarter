@@ -67,11 +67,11 @@ final class AppLifecycleFeatureTests: XCTestCase {
     var second: [Reachability] = []
     let delivered = expectation(description: "both observers received offline")
     delivered.expectedFulfillmentCount = 2
-    let a = self.feature.connectivityProducer.startWithValues {
+    let a = self.feature.connectivitySource.observe {
       first.append($0)
       if $0 == .none { delivered.fulfill() }
     }
-    let b = self.feature.connectivityProducer.startWithValues {
+    let b = self.feature.connectivitySource.observe {
       second.append($0)
       if $0 == .none { delivered.fulfill() }
     }
@@ -84,55 +84,34 @@ final class AppLifecycleFeatureTests: XCTestCase {
     XCTAssertEqual(first, [.wifi, .wwan, .none])
     XCTAssertEqual(second, first)
     XCTAssertEqual(self.monitorStarts, 1)
-    a.dispose(); b.dispose()
+    withExtendedLifetime((a, b)) {}
   }
 
   func testConnectivityDisposalDoesNotStopOtherObserverAndFeatureReleaseStopsStream() async {
     let monitor = self.connectivityMonitor!
     let stopped = expectation(description: "stream cancelled")
     monitor.continuation.onTermination = { _ in stopped.fulfill() }
-    let a = self.feature.connectivityProducer.startWithValues { _ in }
-    a.dispose()
+    var stoppedValues: [Reachability] = []
+    let a = self.feature.connectivitySource.observe { stoppedValues.append($0) }
+    a.stop()
     let delivered = expectation(description: "remaining observer")
-    let b = self.feature.connectivityProducer.startWithValues { if $0 == .wwan { delivered.fulfill() } }
+    let b = self.feature.connectivitySource.observe { if $0 == .wwan { delivered.fulfill() } }
     monitor.continuation.yield(.wwan)
     await fulfillment(of: [delivered], timeout: 2)
-    b.dispose()
+    XCTAssertEqual(stoppedValues, [.wifi])
+    b.stop()
     weak var released = self.feature
     self.feature = nil
     XCTAssertNil(released)
     await fulfillment(of: [stopped], timeout: 2)
   }
 
-  func testReachabilityCompatibilityDeliversInitialValueSynchronously() {
+  func testConnectivityObserverReceivesInitialValueSynchronously() {
     var values: [Reachability] = []
-    let producer = Reachability.makeSignalProducer { self.feature.connectivityProducer }
-    let disposable = producer.startWithValues { values.append($0) }
+    let observation = self.feature.connectivitySource.observe { values.append($0) }
     XCTAssertEqual(values, [.wifi])
     XCTAssertEqual(self.monitorStarts, 1)
-    disposable.dispose()
-  }
-
-  func testBackgroundReachabilitySubscriptionDeliversAndDisposesOnLifetimeEnd() async {
-    let delivered = expectation(description: "background subscriber received initial value")
-    let disposed = expectation(description: "upstream subscription disposed")
-    let (stop, continuation) = AsyncStream<Void>.makeStream()
-    let task = Task.detached {
-      let producer = Reachability.makeSignalProducer {
-        SignalProducer(value: .wifi).concat(.never).on(disposed: { disposed.fulfill() })
-      }
-      let disposable = producer.startWithValues { value in
-        XCTAssertTrue(Thread.isMainThread)
-        XCTAssertEqual(value, .wifi)
-        delivered.fulfill()
-      }
-      for await _ in stop {}
-      disposable.dispose()
-    }
-    await fulfillment(of: [delivered], timeout: 2)
-    continuation.finish()
-    await task.value
-    await fulfillment(of: [disposed], timeout: 2)
+    withExtendedLifetime(observation) {}
   }
 
   func testReachabilityPreservesNativeFlagClassification() {

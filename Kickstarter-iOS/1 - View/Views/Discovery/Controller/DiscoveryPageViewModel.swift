@@ -336,7 +336,11 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     .ignoreValues()
     .map(shouldShowPersonalization)
 
-    self.reachabilityProperty <~ AppEnvironment.current.reachability.observe(on: UIScheduler())
+
+
+    self.connectivityObservation = AppEnvironment.current.reachability.observe { [reachability = self.reachabilityProperty] value in
+      reachability.value = value
+    }
 
     self.showVideoFeedBanner = Signal.merge(
       self.viewWillAppearProperty.signal,
@@ -499,6 +503,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   }
 
   private let reachabilityProperty = MutableProperty<Reachability>(.none)
+  private var connectivityObservation: ConnectivityObservation?
 
   public let activitiesForSample: Signal<[Activity], Never>
   public let asyncReloadData: Signal<Void, Never>

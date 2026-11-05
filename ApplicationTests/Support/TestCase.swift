@@ -34,7 +34,7 @@ class TestCase: XCTestCase {
   }()
 
   internal let remoteConfigClient = MockRemoteConfigClient()
-  internal let reachability = MutableProperty(Reachability.wifi)
+  internal let reachability = ConnectivityState(.wifi)
   internal let scheduler = TestScheduler(startDate: MockDate().date)
   internal let segmentTrackingClient = MockTrackingClient()
   internal let ubiquitousStore = MockKeyValueStore()
@@ -85,7 +85,7 @@ class TestCase: XCTestCase {
       locale: .init(identifier: "en_US"),
       mainBundle: self.mainBundle,
       pushRegistrationType: MockPushRegistration.self,
-      reachability: self.reachability.producer,
+      reachability: self.reachability,
       remoteConfigClient: self.remoteConfigClient,
       scheduler: self.scheduler,
       ubiquitousStore: self.ubiquitousStore,

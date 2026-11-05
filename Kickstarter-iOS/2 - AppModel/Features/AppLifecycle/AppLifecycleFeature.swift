@@ -88,15 +88,15 @@ public final class AppLifecycleFeature {
   private var reachabilityMonitor: (any ReachabilityMonitoring)?
   private var connectivityTask: Task<Void, Never>?
   private var connectivityStarted = false
-  private let connectivityState = MutableProperty<Reachability>(.none)
+  private let connectivityState = ConnectivityState()
 
   public var connectivity: Reachability {
     self.startConnectivity()
     return self.connectivityState.value
   }
-  public var connectivityProducer: SignalProducer<Reachability, Never> {
+  public var connectivitySource: ConnectivityState {
     self.startConnectivity()
-    return self.connectivityState.producer
+    return self.connectivityState
   }
   private func startConnectivity() {
     guard !self.connectivityStarted else { return }

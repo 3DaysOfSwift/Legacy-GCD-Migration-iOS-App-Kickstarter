@@ -104,7 +104,7 @@ public struct Environment {
   public let pushRegistrationType: PushRegistrationType.Type
 
   /// A reachability signal producer.
-  public let reachability: SignalProducer<Reachability, Never>
+  public let reachability: ConnectivityState
 
   /// The remote config client
   public let remoteConfigClient: RemoteConfigClientType?
@@ -155,7 +155,7 @@ public struct Environment {
     locale: Locale = .current,
     mainBundle: NSBundleType = Bundle.main,
     pushRegistrationType: PushRegistrationType.Type = PushRegistration.self,
-    reachability: SignalProducer<Reachability, Never> = Reachability.signalProducer,
+    reachability: ConnectivityState = AppModel.shared.appLifecycleFeature.connectivitySource,
     remoteConfigClient: RemoteConfigClientType? = nil,
     scheduler: DateScheduler = QueueScheduler.main,
     statsigClient: StatsigClientType? = nil,

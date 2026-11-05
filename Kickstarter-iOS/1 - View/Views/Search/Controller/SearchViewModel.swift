@@ -148,7 +148,11 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.showEmptyState = self.queryParametersPipe.output
       .takePairWhen(shouldShowEmptyState)
 
-    self.reachabilityProperty <~ AppEnvironment.current.reachability.observe(on: UIScheduler())
+
+
+    self.connectivityObservation = AppEnvironment.current.reachability.observe { [reachability = self.reachabilityProperty] value in
+      reachability.value = value
+    }
 
     self.showVideoFeedBanner = Signal.merge(
       self.appearancePipe.output,
@@ -326,6 +330,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
 
   private let searchFiltersUseCase: SearchFiltersUseCase
   private let reachabilityProperty = MutableProperty<Reachability>(.none)
+  private var connectivityObservation: ConnectivityObservation?
 
   public let goToProject: Signal<(ProjectPageParam, RefTag), Never>
   public let projects: Signal<[SearchResultCard], Never>

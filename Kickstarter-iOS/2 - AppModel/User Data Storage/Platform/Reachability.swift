@@ -1,5 +1,4 @@
 import Foundation
-import ReactiveSwift
 import SystemConfiguration
 
 public enum Reachability: Sendable {
@@ -9,29 +8,6 @@ public enum Reachability: Sendable {
 
   @MainActor public static var current: Reachability {
     AppModel.shared.appLifecycleFeature.connectivity
-  }
-
-  /// Compatibility at the UI boundary. Main-thread subscribers keep their immediate
-  /// initial value; other subscribers enter the actor before accessing feature state.
-  public static var signalProducer: SignalProducer<Reachability, Never> {
-    makeSignalProducer { AppModel.shared.appLifecycleFeature.connectivityProducer }
-  }
-
-  static func makeSignalProducer(
-    connectivity: @escaping @MainActor @Sendable () -> SignalProducer<Reachability, Never>
-  ) -> SignalProducer<Reachability, Never> {
-    SignalProducer { observer, lifetime in
-      let subscription = ReachabilitySubscription(observer: observer, lifetime: lifetime)
-      if Thread.isMainThread {
-        MainActor.assumeIsolated { subscription.start(connectivity) }
-      } else {
-        let task = Task { @MainActor in
-          guard !Task.isCancelled else { return }
-          subscription.start(connectivity)
-        }
-        subscription.cancelOnEnd(task)
-      }
-    }
   }
 
   static func from(flags: SCNetworkReachabilityFlags) -> Reachability {
@@ -109,28 +85,28 @@ private final class ReachabilityCallback: Sendable {
   init(continuation: AsyncStream<Reachability>.Continuation) { self.continuation = continuation }
 }
 
-/// Narrow compatibility boundary for the pinned ReactiveSwift version, which has
-/// no Sendable annotations. These immutable references come only from the normal
-/// SignalProducer initializer: its Signal.pipe serializes event delivery; Lifetime
-/// uses CompositeDisposable's atomic state and synchronized disposable collection.
-/// Arbitrary standalone observers must not be placed in this wrapper. UI values
-/// are emitted on MainActor; disposal can originate on the subscriber's executor.
-private final class ReachabilitySubscription: @unchecked Sendable {
-  private let observer: Signal<Reachability, Never>.Observer
-  private let lifetime: Lifetime
-
-  init(observer: Signal<Reachability, Never>.Observer, lifetime: Lifetime) {
-    self.observer = observer
-    self.lifetime = lifetime
+/// Main-actor connectivity state shared by screens and the lifecycle feature.
+@MainActor
+public final class ConnectivityState {
+  public var value: Reachability {
+    didSet { for observer in Array(self.observers.values) { observer(self.value) } }
   }
-
-  @MainActor func start(_ connectivity: () -> SignalProducer<Reachability, Never>) {
-    guard !self.lifetime.hasEnded else { return }
-    let disposable = connectivity().start(self.observer)
-    self.lifetime.observeEnded { disposable.dispose() }
+  private var observers: [UUID: (Reachability) -> Void] = [:]
+  public init(_ value: Reachability = .none) { self.value = value }
+  public func observe(_ observer: @escaping (Reachability) -> Void) -> ConnectivityObservation {
+    let id = UUID()
+    self.observers[id] = observer
+    observer(self.value)
+    return ConnectivityObservation { [weak self] in self?.observers.removeValue(forKey: id) }
   }
+}
 
-  func cancelOnEnd(_ task: Task<Void, Never>) {
-    self.lifetime.observeEnded { task.cancel() }
+public final class ConnectivityObservation {
+  private let cancel: @MainActor () -> Void
+  @MainActor init(_ cancel: @escaping @MainActor () -> Void) { self.cancel = cancel }
+  @MainActor public func stop() { self.cancel() }
+  deinit {
+    let cancel = self.cancel
+    Task { @MainActor in cancel() }
   }
 }
