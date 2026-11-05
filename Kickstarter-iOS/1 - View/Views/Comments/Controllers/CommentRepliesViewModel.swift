@@ -50,7 +50,7 @@ public protocol CommentRepliesViewModelInputs {
 }
 
 @MainActor
-public protocol CommentRepliesViewModelOutputs {
+public protocol CommentRepliesViewModelOutputs: AnyObject {
   /// Emits data to configure comment composer view.
   var configureCommentComposerViewWithData: Signal<CommentComposerViewData, Never> { get }
 
@@ -73,10 +73,10 @@ public protocol CommentRepliesViewModelOutputs {
   var showPaginationErrorState: Signal<(), Never> { get }
 
   /// Emits when a block user request is successful.
-  var didBlockUser: Signal<(), Never> { get }
+  var onDidBlockUser: (() -> Void)? { get set }
 
   /// Emits when a block user request fails.
-  var didBlockUserError: Signal<(), Never> { get }
+  var onDidBlockUserError: (() -> Void)? { get set }
 }
 
 @MainActor
@@ -242,14 +242,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
       .skipNil()
       .takeWhen(self.dataSourceLoadedProperty.signal)
 
-    let blockUserEvent = self.blockEventPipe.output
-
-    self.didBlockUser = blockUserEvent.values().ignoreValues()
-      .map { _ in NotificationCenter.default.post(.init(name: .ksr_blockedUser)) }
-
-    // TODO: Display proper error messaging from the backend
-    self.didBlockUserError = blockUserEvent.errors().ignoreValues()
-
     // MARK: User Blocking Analytics
 
     _ = self.blockUserProperty.signal
@@ -267,7 +259,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
 
     _ = self.blockUserProperty.signal
       .combineLatest(with: project)
-      .takeWhen(blockUserEvent.values().ignoreValues())
+      .takeWhen(self.blockConfirmedPipe.output)
       .observeValues { blockedUserId, project in
         AppEnvironment.current.ksrAnalytics
           .trackBlockedUser(
@@ -295,14 +287,19 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   }
 
   private let blockPresentation = DiscussionBlockPresentation()
-  private let blockEventPipe = Signal<Signal<EmptyResponseEnvelope, ErrorEnvelope>.Event, Never>.pipe()
+  private let blockConfirmedPipe = Signal<Void, Never>.pipe()
   private let blockUserProperty = MutableProperty<String>("")
   public func blockUser(id: String) {
     self.blockUserProperty.value = id
     self.blockPresentation.start(feature: self.feature, id: id) { [weak self] result in
+      guard let self else { return }
       switch result {
-      case let .success(value): self?.blockEventPipe.input.send(value: .value(value))
-      case let .failure(error): self?.blockEventPipe.input.send(value: .failed(error))
+      case .success:
+        NotificationCenter.default.post(.init(name: .ksr_blockedUser))
+        self.onDidBlockUser?()
+        self.blockConfirmedPipe.input.send(value: ())
+      case .failure:
+        self.onDidBlockUserError?()
       }
     }
   }
@@ -364,8 +361,8 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   public let resetCommentComposer: Signal<(), Never>
   public let scrollToReply: Signal<String, Never>
   public let showPaginationErrorState: Signal<(), Never>
-  public var didBlockUser: Signal<(), Never>
-  public var didBlockUserError: Signal<(), Never>
+  public var onDidBlockUser: (() -> Void)?
+  public var onDidBlockUserError: (() -> Void)?
 
   deinit {
     self.loadingTask?.cancel()

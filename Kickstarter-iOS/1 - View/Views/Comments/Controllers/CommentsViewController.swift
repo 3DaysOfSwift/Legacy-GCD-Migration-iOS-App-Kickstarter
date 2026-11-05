@@ -188,18 +188,14 @@ internal final class CommentsViewController: UITableViewController, MessageBanne
         self?.presentHelpWebViewController(with: helpType)
       }
 
-    self.viewModel.outputs.didBlockUser
-      .observeForUI()
-      .observeValues { [weak self] _ in
+    self.viewModel.outputs.onDidBlockUser = { [weak self] in
         guard let self, let messageBanner = self.messageBannerViewController else { return }
 
         self.commentComposer.isHidden = true
         messageBanner.showBanner(with: .success, message: Strings.Block_user_success())
       }
 
-    self.viewModel.outputs.didBlockUserError
-      .observeForUI()
-      .observeValues { [weak self] _ in
+    self.viewModel.outputs.onDidBlockUserError = { [weak self] in
         guard let self, let messageBanner = self.messageBannerViewController else { return }
 
         messageBanner.showBanner(with: .error, message: Strings.Block_user_fail())

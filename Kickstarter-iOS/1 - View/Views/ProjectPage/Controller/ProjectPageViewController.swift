@@ -656,17 +656,13 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         // TODO: Use this flag to hide or show the Report this project label [MBL-983](https://kickstarter.atlassian.net/browse/MBL-983)
       }
 
-    self.viewModel.outputs.didBlockUser
-      .observeForUI()
-      .observeValues { [weak self] _ in
+    self.viewModel.outputs.onDidBlockUser = { [weak self] in
         guard let self, let messageBanner = self.messageBannerViewController else { return }
 
         messageBanner.showBanner(with: .success, message: Strings.Block_user_success())
       }
 
-    self.viewModel.outputs.didBlockUserError
-      .observeForUI()
-      .observeValues { [weak self] _ in
+    self.viewModel.outputs.onDidBlockUserError = { [weak self] in
         guard let self, let messageBanner = self.messageBannerViewController else { return }
 
         messageBanner.showBanner(with: .error, message: Strings.Block_user_fail())

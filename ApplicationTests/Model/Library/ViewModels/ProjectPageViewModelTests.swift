@@ -110,8 +110,8 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.outputs.configureProjectNavigationSelectorView
         .observe(self.configureProjectNavigationSelectorView.observer)
 
-      self.vm.outputs.didBlockUser.observe(self.didBlockUser.observer)
-      self.vm.outputs.didBlockUserError.observe(self.didBlockUserError.observer)
+      self.vm.outputs.onDidBlockUser = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
+      self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }
       self.vm.outputs.dismissManagePledgeAndShowMessageBannerWithMessage
         .observe(self.dismissManagePledgeAndShowMessageBannerWithMessage.observer)
       self.vm.outputs.goToComments.observe(self.goToComments.observer)

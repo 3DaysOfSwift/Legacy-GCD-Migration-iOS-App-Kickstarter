@@ -41,8 +41,8 @@ internal final class CommentRepliesViewModelTests: TestCase {
       self.vm.outputs.configureCommentComposerViewWithData.map(\.canPostComment)
         .observe(self.configureCommentComposerViewCanPostComment.observer)
       self.vm.outputs.loadCommentIntoDataSource.observe(self.loadCommentIntoDataSourceComment.observer)
-      self.vm.outputs.didBlockUser.observe(self.didBlockUser.observer)
-      self.vm.outputs.didBlockUserError.observe(self.didBlockUserError.observer)
+      self.vm.outputs.onDidBlockUser = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
+      self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }
       self.vm.outputs.loadFailableReplyIntoDataSource.map(first)
         .observe(self.loadFailableReplyIntoDataSource.observer)
 

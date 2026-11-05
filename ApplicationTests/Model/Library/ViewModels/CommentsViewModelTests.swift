@@ -43,8 +43,8 @@ internal final class CommentsViewModelTests: TestCase {
         .observe(self.configureCommentComposerViewURL.observer)
       self.vm.outputs.configureCommentComposerViewWithData.map(\.canPostComment)
         .observe(self.configureCommentComposerViewCanPostComment.observer)
-      self.vm.outputs.didBlockUser.observe(self.didBlockUser.observer)
-      self.vm.outputs.didBlockUserError.observe(self.didBlockUserError.observer)
+      self.vm.outputs.onDidBlockUser = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
+      self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }
       self.vm.outputs.configureFooterViewWithState.observe(self.configureFooterViewWithState.observer)
       self.vm.outputs.goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder.map { $0.0 }
         .observe(self.goToCommentRepliesComment.observer)

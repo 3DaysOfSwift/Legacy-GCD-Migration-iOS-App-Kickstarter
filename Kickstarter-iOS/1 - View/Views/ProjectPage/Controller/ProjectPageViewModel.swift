@@ -130,7 +130,7 @@ public protocol ProjectPageViewModelInputs {
 }
 
 @MainActor
-public protocol ProjectPageViewModelOutputs {
+public protocol ProjectPageViewModelOutputs: AnyObject {
   /// Emits a tuple of a `NavigationSection`, `Project` and `RefTag?` to configure the data source
   var configureDataSource: Signal<
     (NavigationSection, Either<Project, any ProjectPageParam>, RefTag?),
@@ -224,10 +224,10 @@ public protocol ProjectPageViewModelOutputs {
   var updateWatchProjectWithPrelaunchProjectState: Signal<PledgeCTAPrelaunchState, Never> { get }
 
   /// Emits when a block user request is successful.
-  var didBlockUser: Signal<(), Never> { get }
+  var onDidBlockUser: (() -> Void)? { get set }
 
   /// Emits when a block user request fails.
-  var didBlockUserError: Signal<(), Never> { get }
+  var onDidBlockUserError: (() -> Void)? { get set }
 
   /// The current state of similar projects.
   var similarProjects: Property<SimilarProjectsState> { get }
@@ -659,14 +659,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
     // MARK: User blocking
 
-    let blockUserEvent = self.blockEventPipe.output
-
-    self.didBlockUser = blockUserEvent.values().ignoreValues()
-      .map { _ in NotificationCenter.default.post(.init(name: .ksr_blockedUser)) }
-
-    // TODO: Display proper error messaging from the backend
-    self.didBlockUserError = blockUserEvent.errors().ignoreValues()
-
     // MARK: User Blocking Analytics
 
     _ = self.blockUserProperty.signal
@@ -685,7 +677,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
     _ = self.blockUserProperty.signal
       .combineLatest(with: freshProject)
-      .takeWhen(blockUserEvent.values().ignoreValues())
+      .takeWhen(self.blockConfirmedPipe.output)
       .observeValues { blockedUserId, project in
         AppEnvironment.current.ksrAnalytics
           .trackBlockedUser(
@@ -830,14 +822,19 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   }
 
   private let blockPresentation = DiscussionBlockPresentation()
-  private let blockEventPipe = Signal<Signal<EmptyResponseEnvelope, ErrorEnvelope>.Event, Never>.pipe()
+  private let blockConfirmedPipe = Signal<Void, Never>.pipe()
   fileprivate let blockUserProperty = MutableProperty<Int>(0)
   public func blockUser(id: Int) {
     self.blockUserProperty.value = id
     self.blockPresentation.start(feature: self.projectDetailsFeature.discussionFeature, id: String(id)) { [weak self] result in
+      guard let self else { return }
       switch result {
-      case let .success(value): self?.blockEventPipe.input.send(value: .value(value))
-      case let .failure(error): self?.blockEventPipe.input.send(value: .failed(error))
+      case .success:
+        NotificationCenter.default.post(.init(name: .ksr_blockedUser))
+        self.onDidBlockUser?()
+        self.blockConfirmedPipe.input.send(value: ())
+      case .failure:
+        self.onDidBlockUserError?()
       }
     }
   }
@@ -1001,8 +998,8 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   >
   public let updateFAQsInDataSource: Signal<(Project, RefTag?, [Bool]), Never>
   public let updateWatchProjectWithPrelaunchProjectState: Signal<PledgeCTAPrelaunchState, Never>
-  public let didBlockUser: Signal<(), Never>
-  public let didBlockUserError: Signal<(), Never>
+  public var onDidBlockUser: (() -> Void)?
+  public var onDidBlockUserError: (() -> Void)?
 
   public var inputs: ProjectPageViewModelInputs { return self }
   public var outputs: ProjectPageViewModelOutputs { return self }
