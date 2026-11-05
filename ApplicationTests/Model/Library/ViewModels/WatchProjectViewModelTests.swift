@@ -10,6 +10,7 @@ internal final class WatchProjectViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   internal var vm: WatchProjectViewModel!
   private var feature: ProjectMediaFeature!
+  private var clock: WatchTestClock!
 
   private let generateImpactFeedback = WatchRecording<()>()
   private let generateSelectionFeedback = WatchRecording<()>()
@@ -24,7 +25,9 @@ internal final class WatchProjectViewModelTests: TestCase {
   internal override func setUp() async throws {
     try await super.setUp()
     self.feature = ProjectMediaFeature(makeProvider: { AsyncProjectMediaProvider(service: AppEnvironment.current.apiService) })
-    self.vm = WatchProjectViewModel(feature: self.feature)
+    self.clock = WatchTestClock()
+    let clock = self.clock!
+    self.vm = WatchProjectViewModel(feature: self.feature, sleep: { try await clock.sleep($0) })
 
     self.vm.onEvent = { [weak self] event in
       guard let self else { return }
@@ -54,7 +57,7 @@ internal final class WatchProjectViewModelTests: TestCase {
     @unknown default: seconds = 0
     }
     await Task.yield()
-    if seconds > 0 { try? await Task.sleep(for: .seconds(seconds + 0.03)) }
+    await self.clock.advance(by: seconds)
     await self.feature.waitForOperations()
     if seconds >= 0.5 { await self.vm.waitForOperation() }
     await Task.yield()
@@ -441,6 +444,40 @@ internal final class WatchProjectViewModelTests: TestCase {
       XCTAssertEqual(["watch_project"], self.segmentTrackingClient.properties(forKey: "context_cta"))
       XCTAssertEqual(["watch"], self.segmentTrackingClient.properties(forKey: "context_type"))
     }
+  }
+}
+
+@MainActor
+private final class WatchTestClock {
+  private var now: TimeInterval = 0
+  private var sleepers: [UUID: (deadline: TimeInterval, continuation: CheckedContinuation<Void, Error>)] = [:]
+
+  func sleep(_ seconds: TimeInterval) async throws {
+    try Task.checkCancellation()
+    guard seconds > 0 else { return }
+    let id = UUID()
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+        if Task.isCancelled {
+          continuation.resume(throwing: CancellationError())
+        } else {
+          self.sleepers[id] = (self.now + seconds, continuation)
+        }
+      }
+    } onCancel: {
+      Task { @MainActor [weak self] in
+        self?.sleepers.removeValue(forKey: id)?.continuation.resume(throwing: CancellationError())
+      }
+    }
+    try Task.checkCancellation()
+  }
+
+  func advance(by seconds: TimeInterval) async {
+    await Task.yield()
+    self.now += seconds
+    let due = self.sleepers.filter { $0.value.deadline <= self.now }.map(\.key)
+    for id in due { self.sleepers.removeValue(forKey: id)?.continuation.resume() }
+    await Task.yield()
   }
 }
 
