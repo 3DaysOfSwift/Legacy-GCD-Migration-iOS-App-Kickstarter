@@ -1,55 +1,33 @@
 @testable import Kickstarter_iOS
-
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
+@MainActor
 final class KSRSearchBarViewModelTests: XCTestCase {
-  private let vm = KSRSearchBarViewModel()
-
-  private let changeSearchFieldFocusObserver = TestObserver<Bool, Never>()
-  private let resignFirstResponderObserver = TestObserver<(), Never>()
-  private let searchFieldTextObserver = TestObserver<String, Never>()
-
-  override func setUp() {
-    super.setUp()
-
-    self.vm.outputs.changeSearchFieldFocus.observe(self.changeSearchFieldFocusObserver.observer)
-    self.vm.outputs.resignFirstResponder.observe(self.resignFirstResponderObserver.observer)
-    self.vm.outputs.searchFieldText.observe(self.searchFieldTextObserver.observer)
+  func testFocusAndReturn() {
+    let model = KSRSearchBarViewModel()
+    var focus: [Bool] = []
+    var resignCount = 0
+    model.onFocusChanged = { focus.append($0) }
+    model.onResign = { resignCount += 1 }
+    model.searchFieldDidBeginEditing()
+    model.searchTextEditingDidEnd()
+    XCTAssertEqual(focus, [true, false])
+    XCTAssertEqual(resignCount, 1)
   }
 
-  func testSearchFieldFocus_OnBeginEditing() {
-    self.vm.inputs.searchFieldDidBeginEditing()
-    self.changeSearchFieldFocusObserver.assertValues([true])
-  }
-
-  func testSearchFieldFocus_OnEditingDidEnd() {
-    self.vm.inputs.searchTextEditingDidEnd()
-    self.changeSearchFieldFocusObserver.assertValues([false])
-  }
-
-  func testSearchTextChanged() {
-    self.vm.inputs.searchTextChanged("hello world")
-    self.searchFieldTextObserver.assertValues(["hello world"])
-  }
-
-  func testClearSearchText() {
-    self.vm.inputs.searchTextChanged("hello world")
-    self.vm.inputs.clearSearchText()
-    self.searchFieldTextObserver.assertValues(["hello world", ""])
-    self.resignFirstResponderObserver.assertDidNotEmitValue()
-  }
-
-  func testCancelButtonPressed() {
-    self.vm.inputs.searchTextChanged("hello world")
-    self.vm.inputs.cancelButtonPressed()
-    self.searchFieldTextObserver.assertValues(["hello world", ""])
-    self.resignFirstResponderObserver.assertValueCount(1)
-  }
-
-  func testSearchTextEditingDidEnd_ResignsFirstResponder() {
-    self.vm.inputs.searchTextEditingDidEnd()
-    self.resignFirstResponderObserver.assertValueCount(1)
+  func testClearAndCancel() {
+    let model = KSRSearchBarViewModel()
+    var texts: [String] = []
+    var resignCount = 0
+    model.onTextChanged = { texts.append($0) }
+    model.onResign = { resignCount += 1 }
+    model.searchTextChanged("hello world")
+    model.clearSearchText()
+    XCTAssertEqual(texts, ["hello world", ""])
+    XCTAssertEqual(resignCount, 0)
+    model.searchTextChanged("again")
+    model.cancelButtonPressed()
+    XCTAssertEqual(texts, ["hello world", "", "again", ""])
+    XCTAssertEqual(resignCount, 1)
   }
 }

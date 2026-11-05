@@ -40,7 +40,7 @@ final class KSRSearchBar: UIView {
 
   // MARK: - ViewModel
 
-  private let viewModel: KSRSearchBarViewModelType = KSRSearchBarViewModel()
+  private let viewModel = KSRSearchBarViewModel()
 
   // MARK: - Init
 
@@ -58,31 +58,16 @@ final class KSRSearchBar: UIView {
   // MARK: - ViewModel Outputs Bindings
 
   override func bindViewModel() {
-    self.textField.rac.text = self.viewModel.outputs.searchFieldText
-
-    // Using `observeForUI` here caused a crash due to `os_unfair_lock` reentrancy when calling `resignFirstResponder`.
-    // Switching to `observeForControllerAction` avoids triggering the callback while ReactiveSwift internals are holding the lock.
-    self.viewModel.outputs
-      .resignFirstResponder
-      .observeForControllerAction()
-      .observeValues { _ in
-        self.textField.resignFirstResponder()
-      }
-
-    self.viewModel.outputs
-      .changeSearchFieldFocus
-      .observeForUI()
-      .observeValues { isFocused in
-        self.updateAppearance(isFocused: isFocused)
-      }
-
-    self.viewModel.outputs
-      .searchFieldText
-      .observeForUI()
-      .observeValues { text in
-        self.onTextChange?(text)
-        self.updateClearButton()
-      }
+    self.viewModel.onResign = { [weak self] in
+      Task { @MainActor [weak self] in self?.textField.resignFirstResponder() }
+    }
+    self.viewModel.onFocusChanged = { [weak self] in self?.updateAppearance(isFocused: $0) }
+    self.viewModel.onTextChanged = { [weak self] text in
+      guard let self else { return }
+      self.textField.text = text
+      self.onTextChange?(text)
+      self.updateClearButton()
+    }
   }
 
   // MARK: - Setup
@@ -186,15 +171,15 @@ final class KSRSearchBar: UIView {
   // MARK: - Actions
 
   @objc private func textDidChange() {
-    self.viewModel.inputs.searchTextChanged(self.textField.text ?? "")
+    self.viewModel.searchTextChanged(self.textField.text ?? "")
   }
 
   @objc private func clearTapped() {
-    self.viewModel.inputs.clearSearchText()
+    self.viewModel.clearSearchText()
   }
 
   @objc private func cancelTapped() {
-    self.viewModel.inputs.cancelButtonPressed()
+    self.viewModel.cancelButtonPressed()
     self.onCancel?()
   }
 }
@@ -203,16 +188,16 @@ final class KSRSearchBar: UIView {
 
 extension KSRSearchBar: UITextFieldDelegate {
   func textFieldShouldReturn(_: UITextField) -> Bool {
-    self.viewModel.inputs.searchTextEditingDidEnd()
+    self.viewModel.searchTextEditingDidEnd()
     return true
   }
 
   func textFieldDidBeginEditing(_: UITextField) {
-    self.viewModel.inputs.searchFieldDidBeginEditing()
+    self.viewModel.searchFieldDidBeginEditing()
   }
 
   func textFieldDidEndEditing(_: UITextField) {
-    self.viewModel.inputs.searchTextEditingDidEnd()
+    self.viewModel.searchTextEditingDidEnd()
   }
 }
 
