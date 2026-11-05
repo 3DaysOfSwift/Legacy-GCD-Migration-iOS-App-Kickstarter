@@ -3,24 +3,22 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class PledgeExpandableRewardsHeaderViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  internal let vm: PledgeExpandableRewardsHeaderViewModelType = PledgeExpandableRewardsHeaderViewModel()
+  internal let vm = PledgeExpandableRewardsHeaderViewModel()
 
-  private let loadRewardsIntoDataSource = TestObserver<[PledgeExpandableRewardsHeaderItem], Never>()
-  private let expandRewards = TestObserver<Bool, Never>()
+  private let loadRewardsIntoDataSource = Recorder<[PledgeExpandableRewardsHeaderItem]>()
+  private let expandRewards = Recorder<Bool>()
 
   override func setUp() async throws {
     try await super.setUp()
 
-    self.vm.outputs.loadRewardsIntoDataSource.observe(self.loadRewardsIntoDataSource.observer)
-    self.vm.outputs.expandRewards.observe(self.expandRewards.observer)
+    self.vm.onRewards = { [weak self] in self?.loadRewardsIntoDataSource.record($0) }
+    self.vm.onExpansion = { [weak self] in self?.expandRewards.record($0) }
   }
 
   func testLoadRewardsIntoDataSource() {
@@ -51,8 +49,8 @@ final class PledgeExpandableRewardsHeaderViewModelTests: TestCase {
       omitCurrencyCode: false
     )
 
-    self.vm.inputs.configure(with: data)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configure(with: data)
+    self.vm.viewDidLoad()
 
     self.loadRewardsIntoDataSource.assertValueCount(1)
 
@@ -84,6 +82,21 @@ final class PledgeExpandableRewardsHeaderViewModelTests: TestCase {
     XCTAssertEqual(itemData[3].isReward, true)
   }
 
+  func testConfigurationAfterViewLoadsAndMissingDeliveryDate() {
+    self.vm.viewDidLoad()
+    let noDate = Reward.template |> Reward.lens.estimatedDeliveryOn .~ nil
+    let data = PledgeExpandableRewardsHeaderViewData(
+      rewards: [noDate], selectedQuantities: [:], currencyCode: "USD", omitCurrencyCode: false
+    )
+    self.vm.configure(with: data)
+    self.loadRewardsIntoDataSource.assertDidNotEmitValue()
+    let dated = Reward.template |> Reward.lens.estimatedDeliveryOn .~ 1_475_361_315
+    self.vm.configure(with: .init(
+      rewards: [dated], selectedQuantities: [:], currencyCode: "USD", omitCurrencyCode: false
+    ))
+    self.loadRewardsIntoDataSource.assertValueCount(1)
+  }
+
   func testExpandRewards() {
     self.expandRewards.assertDidNotEmitValue()
 
@@ -94,21 +107,36 @@ final class PledgeExpandableRewardsHeaderViewModelTests: TestCase {
       omitCurrencyCode: false
     )
 
-    self.vm.inputs.configure(with: data)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configure(with: data)
+    self.vm.viewDidLoad()
 
     self.expandRewards.assertDidNotEmitValue()
 
-    self.vm.inputs.expandButtonTapped()
+    self.vm.expandButtonTapped()
 
     self.expandRewards.assertValues([true])
 
-    self.vm.inputs.expandButtonTapped()
+    self.vm.expandButtonTapped()
 
     self.expandRewards.assertValues([true, false])
 
-    self.vm.inputs.expandButtonTapped()
+    self.vm.expandButtonTapped()
 
     self.expandRewards.assertValues([true, false, true])
+  }
+}
+
+private final class Recorder<Value> {
+  private var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func record(_ value: Value) { self.values.append(value) }
+  func assertDidNotEmitValue(file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, file: file, line: line)
+  }
+  func assertValueCount(_ count: Int, file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, file: file, line: line)
+  }
+  func assertValues(_ expected: [Value], file: StaticString = #filePath, line: UInt = #line) where Value: Equatable {
+    XCTAssertEqual(self.values, expected, file: file, line: line)
   }
 }

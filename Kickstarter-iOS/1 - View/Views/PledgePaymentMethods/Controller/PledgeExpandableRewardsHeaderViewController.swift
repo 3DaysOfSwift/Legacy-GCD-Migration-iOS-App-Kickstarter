@@ -40,7 +40,7 @@ final class PledgeExpandableRewardsHeaderViewController: UIViewController {
       |> \.rowHeight .~ UITableView.automaticDimension
   }()
 
-  private let viewModel: PledgeExpandableRewardsHeaderViewModelType = PledgeExpandableRewardsHeaderViewModel()
+  private let viewModel = PledgeExpandableRewardsHeaderViewModel()
 
   // MARK: - Lifecycle
 
@@ -52,7 +52,7 @@ final class PledgeExpandableRewardsHeaderViewController: UIViewController {
 
     self.expandButton.addTarget(self, action: #selector(self.expandButtonTapped), for: .touchUpInside)
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   private func configureSubviews() {
@@ -125,21 +125,15 @@ final class PledgeExpandableRewardsHeaderViewController: UIViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.loadRewardsIntoDataSource
-      .observeForUI()
-      .observeValues { [weak self] data in
-        self?.dataSource.load(data)
-        self?.tableView.reloadData()
-        self?.tableView.setNeedsLayout()
-
-        self?.updateTableViewContainerHeight(expanded: false, animated: false)
-      }
-
-    self.viewModel.outputs.expandRewards
-      .observeForUI()
-      .observeValues { [weak self] expanded in
-        self?.updateTableViewContainerHeight(expanded: expanded, animated: true)
-      }
+    self.viewModel.onRewards = { [weak self] data in
+      self?.dataSource.load(data)
+      self?.tableView.reloadData()
+      self?.tableView.setNeedsLayout()
+      self?.updateTableViewContainerHeight(expanded: false, animated: false)
+    }
+    self.viewModel.onExpansion = { [weak self] expanded in
+      self?.updateTableViewContainerHeight(expanded: expanded, animated: true)
+    }
   }
 
   private func updateTableViewContainerHeight(expanded: Bool, animated: Bool) {
@@ -182,13 +176,13 @@ final class PledgeExpandableRewardsHeaderViewController: UIViewController {
   // MARK: - Actions
 
   @objc func expandButtonTapped() {
-    self.viewModel.inputs.expandButtonTapped()
+    self.viewModel.expandButtonTapped()
   }
 
   // MARK: - Configuration
 
   func configure(with data: PledgeExpandableRewardsHeaderViewData) {
-    self.viewModel.inputs.configure(with: data)
+    self.viewModel.configure(with: data)
 
     self.view.setNeedsLayout()
   }

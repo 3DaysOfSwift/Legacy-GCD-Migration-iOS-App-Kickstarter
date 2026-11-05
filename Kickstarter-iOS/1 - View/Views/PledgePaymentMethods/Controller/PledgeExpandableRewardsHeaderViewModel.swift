@@ -1,7 +1,6 @@
 import KDS
 import KsApi
 import Prelude
-import ReactiveSwift
 import UIKit
 
 public enum PledgeExpandableRewardsHeaderItem {
@@ -38,101 +37,41 @@ public struct PledgeExpandableRewardsHeaderViewData {
 }
 
 @MainActor
-public protocol PledgeExpandableRewardsHeaderViewModelInputs {
-  func configure(with data: PledgeExpandableRewardsHeaderViewData)
-  func expandButtonTapped()
-  func viewDidLoad()
-}
+public final class PledgeExpandableRewardsHeaderViewModel {
+  public var onRewards: (([PledgeExpandableRewardsHeaderItem]) -> Void)?
+  public var onExpansion: ((Bool) -> Void)?
+  private var data: PledgeExpandableRewardsHeaderViewData?
+  private var loaded = false
+  private var expanded = false
 
-@MainActor
-public protocol PledgeExpandableRewardsHeaderViewModelOutputs {
-  var loadRewardsIntoDataSource: Signal<[PledgeExpandableRewardsHeaderItem], Never> { get }
-  var expandRewards: Signal<Bool, Never> { get }
-}
+  public init() {}
 
-@MainActor
-public protocol PledgeExpandableRewardsHeaderViewModelType {
-  var inputs: PledgeExpandableRewardsHeaderViewModelInputs { get }
-  var outputs: PledgeExpandableRewardsHeaderViewModelOutputs { get }
-}
-
-@MainActor
-public final class PledgeExpandableRewardsHeaderViewModel: PledgeExpandableRewardsHeaderViewModelType,
-  PledgeExpandableRewardsHeaderViewModelInputs, PledgeExpandableRewardsHeaderViewModelOutputs {
-  public init() {
-    let data = Signal.combineLatest(
-      self.configureWithRewardsProperty.signal.skipNil(),
-      self.viewDidLoadProperty.signal
-    )
-    .map(first)
-
-    let rewards = data.map(\.rewards)
-    let selectedQuantities = data.map(\.selectedQuantities)
-
-    let latestRewardDeliveryDate = rewards.map { rewards in
-      rewards
-        .compactMap { $0.estimatedDeliveryOn }
-        .reduce(0) { accum, value in max(accum, value) }
-    }
-
-    self.expandRewards = self.expandButtonTappedProperty.signal
-      .scan(false) { current, _ in !current }
-
-    let estimatedDeliveryString = latestRewardDeliveryDate.map { date -> String? in
-      guard date > 0 else { return nil }
-
-      let dateString = Format.date(
-        secondsInUTC: date,
-        template: DateFormatter.monthYear,
-        timeZone: UTCTimeZone
-      )
-
-      return Strings.backing_info_estimated_delivery_date(delivery_date: dateString)
-    }
-    .skipNil()
-
-    let total: Signal<Double, Never> = Signal.combineLatest(
-      rewards,
-      selectedQuantities
-    )
-    .map { rewards, selectedQuantities in
-      rewards.reduce(0.0) { total, reward in
-        let totalForReward = reward.minimum
-          .multiplyingCurrency(Double(selectedQuantities[reward.id] ?? 0))
-
-        return total.addingCurrency(totalForReward)
-      }
-    }
-
-    self.loadRewardsIntoDataSource = Signal.zip(
-      data,
-      selectedQuantities,
-      estimatedDeliveryString,
-      total
-    )
-    .map(items)
-  }
-
-  private let configureWithRewardsProperty = MutableProperty<PledgeExpandableRewardsHeaderViewData?>(nil)
   public func configure(with data: PledgeExpandableRewardsHeaderViewData) {
-    self.configureWithRewardsProperty.value = data
+    self.data = data
+    self.publishRewardsIfReady()
   }
 
-  private let expandButtonTappedProperty = MutableProperty(())
-  public func expandButtonTapped() {
-    self.expandButtonTappedProperty.value = ()
-  }
-
-  private let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    self.loaded = true
+    self.publishRewardsIfReady()
   }
 
-  public let loadRewardsIntoDataSource: Signal<[PledgeExpandableRewardsHeaderItem], Never>
-  public let expandRewards: Signal<Bool, Never>
+  public func expandButtonTapped() {
+    self.expanded.toggle()
+    self.onExpansion?(self.expanded)
+  }
 
-  public var inputs: PledgeExpandableRewardsHeaderViewModelInputs { return self }
-  public var outputs: PledgeExpandableRewardsHeaderViewModelOutputs { return self }
+  private func publishRewardsIfReady() {
+    guard self.loaded, let data = self.data else { return }
+    let date = data.rewards.compactMap(\.estimatedDeliveryOn).max() ?? 0
+    guard date > 0 else { return }
+    let dateString = Format.date(secondsInUTC: date, template: DateFormatter.monthYear, timeZone: UTCTimeZone)
+    let delivery = Strings.backing_info_estimated_delivery_date(delivery_date: dateString)
+    let total = data.rewards.reduce(0.0) { total, reward in
+      total.addingCurrency(reward.minimum.multiplyingCurrency(Double(data.selectedQuantities[reward.id] ?? 0)))
+    }
+    self.onRewards?(items(with: data, selectedQuantities: data.selectedQuantities, estimatedDeliveryString: delivery, total: total))
+  }
 }
 
 // MARK: - Functions
