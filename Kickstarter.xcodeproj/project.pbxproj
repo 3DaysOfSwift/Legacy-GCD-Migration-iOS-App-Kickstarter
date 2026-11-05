@@ -2214,10 +2214,6 @@
 			"isa" = "PBXBuildFile";
 			"productRef" = "0411C93C51C03AB9C4AB5B15";
 		};
-		"BE3C0CFEF2D03C21D9E61D6B" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "563C73E873A8459EAC6AD540";
-		};
 		"5AA6F1A531492186017ACD49" = {
 			"path" = "GraphAPI/GraphAPITestMocks/SimpleShippingRule+Mock.graphql.swift";
 			"isa" = "PBXFileReference";
@@ -7763,7 +7759,6 @@
 				"3D38083AAD2E5AAFF4BBD12A",
 				"5012A98785ACB9E03CC1B9CF",
 				"71F78CFBABA9C56994658609",
-				"BE3C0CFEF2D03C21D9E61D6B",
 				"AB7571FF8ADC2A1076ECC83F",
 				"5132322EDA2ADE8DCAC6DB7E",
 				"FAC74296451F50CE2A64B388",
@@ -12546,13 +12541,6 @@
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "sourcecode.swift";
 			"sourceTree" = "SOURCE_ROOT";
-		};
-		"563C73E873A8459EAC6AD540" = {
-			"name" = "CategoryCollectionViewSectionHeaderViewModel.swift";
-			"path" = "Kickstarter-iOS/1 - View/Shared Views/HeaderFooterViews/CategoryCollectionViewSectionHeaderViewModel.swift";
-			"isa" = "PBXFileReference";
-			"sourceTree" = "SOURCE_ROOT";
-			"lastKnownFileType" = "sourcecode.swift";
 		};
 		"592754A00ADAEA6FE61925F5" = {
 			"isa" = "PBXBuildFile";
@@ -22490,7 +22478,6 @@
 			"sourceTree" = "<group>";
 			"children" = (
 				"D425B1163A68508F45C696A8",
-				"563C73E873A8459EAC6AD540",
 				"9511355CB070A24E8BCE1E18",
 				"72A78017A7456221BDE7E3F4",
 			);

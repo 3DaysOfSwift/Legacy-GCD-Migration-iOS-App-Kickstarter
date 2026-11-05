@@ -9,14 +9,10 @@ public final class CategoryCollectionViewSectionHeaderView: UICollectionReusable
 
   private lazy var label: UILabel = { UILabel(frame: .zero) }()
 
-  private let viewModel: CategoryCollectionViewSectionHeaderViewModelType =
-    CategoryCollectionViewSectionHeaderViewModel()
-
   override init(frame: CGRect) {
     super.init(frame: frame)
 
     self.setupSubviews()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -25,7 +21,7 @@ public final class CategoryCollectionViewSectionHeaderView: UICollectionReusable
   }
 
   func configure(with value: String) {
-    self.viewModel.inputs.configure(with: value)
+    self.label.text = value
   }
 
   public override func bindStyles() {
@@ -36,12 +32,6 @@ public final class CategoryCollectionViewSectionHeaderView: UICollectionReusable
 
     _ = self.label
       |> labelStyle
-  }
-
-  public override func bindViewModel() {
-    super.bindViewModel()
-
-    self.label.rac.text = self.viewModel.outputs.text
   }
 
   private func setupSubviews() {

@@ -1,28 +1,17 @@
 @testable import Kickstarter_iOS
-@testable import KsApi
-
-
-import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
+import UIKit
 import XCTest
 
+@MainActor
 final class CategoryCollectionViewSectionHeaderViewModelTests: TestCase {
-  private let text = TestObserver<String, Never>()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  private let vm: CategoryCollectionViewSectionHeaderViewModelType
-    = CategoryCollectionViewSectionHeaderViewModel()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.text.observe(self.text.observer)
-  }
-
-  func testText() {
-    self.text.assertDidNotEmitValue()
-    self.vm.inputs.configure(with: "Ceramics")
-    self.text.assertValues(["Ceramics"])
+  func testConfiguringUpdatesHeaderText() {
+    let header = CategoryCollectionViewSectionHeaderView(frame: .zero)
+    header.configure(with: "Ceramics")
+    let label = header.subviews.compactMap { $0 as? UILabel }.first
+    XCTAssertEqual(label?.text, "Ceramics")
+    header.configure(with: "Painting")
+    XCTAssertEqual(label?.text, "Painting")
   }
 }
