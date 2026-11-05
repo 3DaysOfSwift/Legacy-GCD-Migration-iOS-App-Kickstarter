@@ -1,7 +1,5 @@
 import AlamofireImage
 import Kingfisher
-import ReactiveExtensions
-import ReactiveSwift
 import UIKit
 
 // AlamofireImage owns each image-view request receipt, cancels replacement,
@@ -50,38 +48,5 @@ extension UIImageView {
       runImageTransitionIfCached: false,
       completion: nil
     )
-  }
-}
-
-@MainActor private enum Associations {
-  fileprivate static var ksr_imageUrl = 0
-}
-
-@MainActor
-extension Rac where Object: UIImageView {
-  public var ksr_imageUrl: Signal<URL?, Never> {
-    nonmutating set {
-      let prop: MutableProperty<URL?> = lazyMutableProperty(
-        object,
-        key: &Associations.ksr_imageUrl,
-        setter: { [weak object] url in
-          // The binding below delivers through observeForUI; initialization is
-          // also MainActor-isolated. Keep this synchronous image assignment.
-          MainActor.assumeIsolated {
-            object?.af.cancelImageRequest()
-            object?.image = nil
-            guard let url else { return }
-            object?.ksr_setImageWithURL(url)
-          }
-        },
-        getter: { nil }
-      )
-
-      prop <~ newValue.observeForUI()
-    }
-
-    get {
-      .empty
-    }
   }
 }
