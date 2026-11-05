@@ -1,94 +1,51 @@
 @testable import Kickstarter_iOS
 @testable import KsApi
-
-
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class RewardsUseCaseTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
   private var vm: RewardsUseCase!
-
-  private let goToLoginWithIntent = TestObserver<LoginIntent, Never>()
-  private let goToRewards = TestObserver<Void, Never>()
-  private let secretRewardToken = TestObserver<String?, Never>()
-  private let userSessionStarted = TestObserver<Void, Never>()
-
-  private let (secretRewardTokenSignal, secretRewardTokenObserver) = Signal<String?, Never>.pipe()
-  private let (userSessionStartedSignal, userSessionStartedObserver) = Signal<Void, Never>.pipe()
-  private let (goToRewardsTappedSignal, goToRewardsTappedObserver) = Signal<Void, Never>.pipe()
+  private var logins: [LoginIntent] = []
+  private var rewards = 0
 
   override func setUp() async throws {
     try await super.setUp()
-
-    self.secretRewardTokenSignal.observe(self.secretRewardToken.observer)
-    self.userSessionStartedSignal.observe(self.userSessionStarted.observer)
-
-    self.vm = .init(
-      secretRewardToken: self.secretRewardTokenSignal,
-      userSessionStarted: self.userSessionStartedSignal,
-      goToRewardsTapped: self.goToRewardsTappedSignal
-    )
-
-    self.vm.goToLoginWithIntent.observe(self.goToLoginWithIntent.observer)
-    self.vm.goToRewards.observe(self.goToRewards.observer)
+    self.vm = RewardsUseCase()
+    self.vm.onLogin = { [weak self] in self?.logins.append($0) }
+    self.vm.onRewards = { [weak self] in self?.rewards += 1 }
   }
 
-  func test_goToRewards_whenUserIsLoggedOut_andNoSecretRewardToken() {
+  func testNoTokenValueDoesNotNavigate() {
+    self.vm.goToRewardsTapped()
+    XCTAssertEqual(self.rewards, 0)
+    XCTAssertTrue(self.logins.isEmpty)
+  }
+
+  func testNoSecretTokenAllowsLoggedOutUser() {
     withEnvironment(currentUser: nil) {
-      self.secretRewardTokenObserver.send(value: nil)
-
-      self.goToLoginWithIntent.assertDidNotEmitValue()
-      self.goToRewards.assertDidNotEmitValue()
-
-      self.goToRewardsTappedObserver.send(value: ())
-
-      self.goToLoginWithIntent.assertDidNotEmitValue()
-      self.goToRewards.assertDidEmitValue()
+      self.vm.configure(secretRewardToken: nil)
+      self.vm.goToRewardsTapped()
+      XCTAssertEqual(self.rewards, 1)
+      XCTAssertTrue(self.logins.isEmpty)
     }
   }
 
-  func test_goToRewards_whenUserIsLoggedIn_andNoSecretRewardToken() {
-    withEnvironment(currentUser: .template) {
-      self.secretRewardTokenObserver.send(value: nil)
-
-      self.goToLoginWithIntent.assertDidNotEmitValue()
-      self.goToRewards.assertDidNotEmitValue()
-
-      self.goToRewardsTappedObserver.send(value: ())
-
-      self.goToLoginWithIntent.assertDidNotEmitValue()
-      self.goToRewards.assertDidEmitValue()
-    }
-  }
-
-  func test_goToRewards_whenUserIsLoggedIn_andHasSecretRewardToken() {
-    withEnvironment(currentUser: .template) {
-      self.secretRewardTokenObserver.send(value: "secret-reward-token")
-
-      self.goToLoginWithIntent.assertDidNotEmitValue()
-      self.goToRewards.assertDidNotEmitValue()
-
-      self.goToRewardsTappedObserver.send(value: ())
-
-      self.goToLoginWithIntent.assertDidNotEmitValue()
-      self.goToRewards.assertDidEmitValue()
-    }
-  }
-
-  func test_goToLogin_whenUserIsLoggedOut_andHasSecretRewardToken() {
+  func testSecretTokenRequiresLogin() {
     withEnvironment(currentUser: nil) {
-      self.secretRewardTokenObserver.send(value: "secret-reward-token")
+      self.vm.configure(secretRewardToken: "secret")
+      self.vm.goToRewardsTapped()
+      XCTAssertEqual(self.logins, [.backProject])
+      XCTAssertEqual(self.rewards, 0)
+    }
+  }
 
-      self.goToLoginWithIntent.assertDidNotEmitValue()
-      self.goToRewards.assertDidNotEmitValue()
-
-      self.goToRewardsTappedObserver.send(value: ())
-
-      self.goToLoginWithIntent.assertValues([.backProject])
-      self.goToRewards.assertDidNotEmitValue()
+  func testSecretTokenAllowsLoggedInUser() {
+    withEnvironment(currentUser: .template) {
+      self.vm.configure(secretRewardToken: "secret")
+      self.vm.goToRewardsTapped()
+      XCTAssertEqual(self.rewards, 1)
+      XCTAssertTrue(self.logins.isEmpty)
     }
   }
 }

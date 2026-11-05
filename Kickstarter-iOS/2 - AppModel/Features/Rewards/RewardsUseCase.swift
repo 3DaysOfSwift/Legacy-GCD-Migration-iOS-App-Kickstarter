@@ -1,76 +1,25 @@
 import Foundation
-import KsApi
-import ReactiveSwift
 
 @MainActor
-public protocol RewardsUseCaseOutputs {
-  var goToLoginWithIntent: Signal<LoginIntent, Never> { get }
-  var goToRewards: Signal<Void, Never> { get }
-}
+public final class RewardsUseCase {
+  private var hasTokenValue = false
+  private var secretRewardToken: String?
+  var onLogin: ((LoginIntent) -> Void)?
+  var onRewards: (() -> Void)?
 
-@MainActor
-public protocol RewardsUseCaseType {
-  var outputs: RewardsUseCaseOutputs { get }
-}
+  public init() {}
 
-@MainActor
-public final class RewardsUseCase: RewardsUseCaseType, RewardsUseCaseOutputs {
-  public init(
-    secretRewardToken: Signal<String?, Never>,
-    userSessionStarted: Signal<Void, Never>,
-    goToRewardsTapped: Signal<Void, Never>
-  ) {
-    // `goToRewardsTapped` emits when the "View rewards", "View your rewards"
-    // or "Back this project" button is tapped.
-    let initialIsLoggedIn = goToRewardsTapped
-      .compactMap {
-        AppEnvironment.current.currentUser != nil
-      }
-
-    let isLoggedIn = Signal.merge(
-      initialIsLoggedIn,
-      userSessionStarted.mapConst(true)
-    )
-
-    let isSecretReward = secretRewardToken
-      .map { secretRewardToken -> Bool in
-        guard let secretRewardToken = secretRewardToken else {
-          return false
-        }
-
-        return !secretRewardToken.isEmpty
-      }
-
-    // Determines if login is required.
-    // This is necessary when a secret reward token is present,
-    // since calling `addUserToSecretRewardGroup` requires the user to be logged in.
-    let requiresLoginForSecretRewards = isSecretReward
-      .combineLatest(with: isLoggedIn)
-      .compactMap { isSecretReward, isLoggedIn -> Bool in
-        isSecretReward && !isLoggedIn
-      }
-
-    self.goToRewards = requiresLoginForSecretRewards
-      .takeWhen(goToRewardsTapped)
-      .filter { $0 == false }
-      .ignoreValues()
-
-    // This signal emits to prompt login when accessing a secret reward token
-    // while the user is currently logged out.
-    self.goToLoginWithIntent = requiresLoginForSecretRewards
-      .takeWhen(goToRewardsTapped)
-      .filter { $0 == true }
-      .map { _ -> LoginIntent in
-        LoginIntent.backProject
-      }
+  func configure(secretRewardToken: String?) {
+    self.hasTokenValue = true
+    self.secretRewardToken = secretRewardToken
   }
 
-  // MARK: Properties
-
-  public var goToLoginWithIntent: ReactiveSwift.Signal<LoginIntent, Never>
-  public var goToRewards: Signal<Void, Never>
-
-  // MARK: Type
-
-  public var outputs: any RewardsUseCaseOutputs { return self }
+  func goToRewardsTapped() {
+    guard self.hasTokenValue else { return }
+    if let token = self.secretRewardToken, !token.isEmpty, AppEnvironment.current.currentUser == nil {
+      self.onLogin?(.backProject)
+    } else {
+      self.onRewards?()
+    }
+  }
 }

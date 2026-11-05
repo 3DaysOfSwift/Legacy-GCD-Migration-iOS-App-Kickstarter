@@ -717,17 +717,20 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
       }
       .ignoreValues()
 
-    self.rewardsUseCase = RewardsUseCase(
-      secretRewardToken: secretRewardToken,
-      userSessionStarted: self.userSessionStartedProperty.signal,
-      goToRewardsTapped: shouldGoToRewards
-    )
+    self.rewardsUseCase = RewardsUseCase()
+    let rewardsUseCase = self.rewardsUseCase
+    let rewardsNavigation = self.rewardsNavigationPipe
+    let rewardsLogin = self.rewardsLoginPipe
+    rewardsUseCase.onRewards = { rewardsNavigation.input.send(value: ()) }
+    rewardsUseCase.onLogin = { rewardsLogin.input.send(value: $0) }
+    secretRewardToken.observeValues { rewardsUseCase.configure(secretRewardToken: $0) }
+    shouldGoToRewards.observeValues { rewardsUseCase.goToRewardsTapped() }
 
     self.goToRewards = freshProjectAndRefTag
       .combineLatest(with: secretRewardToken)
       .map(unpack)
       .takeWhen(
-        self.rewardsUseCase.goToRewards
+        self.rewardsNavigationPipe.output
       )
 
     // MARK: - Pledge View
@@ -957,7 +960,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   public let goToComments: Signal<Project, Never>
 
   public var goToLoginWithIntent: Signal<LoginIntent, Never> {
-    self.rewardsUseCase.goToLoginWithIntent
+    self.rewardsLoginPipe.output
   }
 
   public let goToManagePledge: Signal<ManagePledgeViewParamConfigData, Never>
@@ -1014,6 +1017,8 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   // MARK: - RewardsUseCase
 
   private let rewardsUseCase: RewardsUseCase
+  private let rewardsNavigationPipe = Signal<Void, Never>.pipe()
+  private let rewardsLoginPipe = Signal<LoginIntent, Never>.pipe()
 }
 
 
