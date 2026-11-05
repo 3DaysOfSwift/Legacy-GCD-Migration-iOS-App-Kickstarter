@@ -101,6 +101,10 @@ public final class CommentsViewModel: CommentsViewModelType,
   private var latestPostingProject: Project?
   private var postingUser: User?
   private var latestCommentableID: String?
+  private var latestNavigationUpdate: Update?
+  private var hasNavigationConfiguration = false
+  private var lastViewedReplyComment: Comment?
+  private var lastReplyComment: Comment?
 
   public init(feature: DiscussionFeature? = nil) {
     let feature = feature ?? AppModel.shared.discussionFeature
@@ -229,34 +233,6 @@ public final class CommentsViewModel: CommentsViewModelType,
     )
 
 
-    let viewCommentReplies = self.commentCellDidTapViewRepliesProperty.signal
-      .skipNil()
-      .filter { comment in
-        guard let replyCount = comment.replyCount else {
-          return false
-        }
-        return replyCount > 0
-      }
-
-    let update = self.projectAndUpdateProperty.signal
-      .skipNil()
-      .map(second)
-
-    let commentsWithRepliesAndProject = Signal.combineLatest(
-      viewCommentReplies, initialProject, update
-    )
-
-    let replyCommentWithProject = Signal.combineLatest(
-      self.commentCellDidTapReplyProperty.signal.skipNil(),
-      initialProject,
-      update
-    )
-
-    let showReplies = Signal.merge(
-        commentsWithRepliesAndProject.map { ($0, $1, $2, false) },
-        replyCommentWithProject.map { ($0, $1, $2, true) }
-      )
-
     // get an id needed to post a comment to either a project or a project update
     let commentableId = projectOrUpdate
       .flatMap { projectOrUpdate in
@@ -321,9 +297,6 @@ public final class CommentsViewModel: CommentsViewModelType,
     self.disposables += commentsToDisplay.observeValues { [weak self] comments, project, error in
       self?.onLoadComments?(comments, project, error)
     }
-    self.disposables += showReplies.observeValues { [weak self] comment, project, update, firstResponder in
-      self?.onShowReplies?(comment, project, update, firstResponder)
-    }
     self.disposables += footerState.observeValues { [weak self] state in
       self?.onFooterState?(state)
     }
@@ -333,6 +306,7 @@ public final class CommentsViewModel: CommentsViewModelType,
     self.disposables += initialProject.observeValues { [weak self] project in
       self?.latestPostingProject = project
       self?.publishComposer(for: project)
+      self?.publishPendingNavigation()
     }
     self.disposables += commentableId.observeValues { [weak self] id in
       self?.latestCommentableID = id
@@ -403,9 +377,10 @@ public final class CommentsViewModel: CommentsViewModelType,
     }
   }
 
-  private let commentCellDidTapViewRepliesProperty = MutableProperty<Comment?>(nil)
   public func commentCellDidTapViewReplies(_ comment: Comment) {
-    self.commentCellDidTapViewRepliesProperty.value = comment
+    guard let count = comment.replyCount, count > 0 else { return }
+    self.lastViewedReplyComment = comment
+    self.publishNavigation(comment, firstResponder: false)
   }
 
   public func didSelectComment(_ comment: Comment) {
@@ -440,9 +415,19 @@ public final class CommentsViewModel: CommentsViewModelType,
     if let type = HelpType.helpType(from: url) { self.onShowHelp?(type) }
   }
 
-  fileprivate let commentCellDidTapReplyProperty = MutableProperty<Comment?>(nil)
   public func commentCellDidTapReply(comment: Comment) {
-    self.commentCellDidTapReplyProperty.value = comment
+    self.lastReplyComment = comment
+    self.publishNavigation(comment, firstResponder: true)
+  }
+
+  private func publishNavigation(_ comment: Comment, firstResponder: Bool) {
+    guard self.hasNavigationConfiguration, let project = self.latestPostingProject else { return }
+    self.onShowReplies?(comment, project, self.latestNavigationUpdate, firstResponder)
+  }
+
+  private func publishPendingNavigation() {
+    if let comment = self.lastViewedReplyComment { self.publishNavigation(comment, firstResponder: false) }
+    if let comment = self.lastReplyComment { self.publishNavigation(comment, firstResponder: true) }
   }
 
   private let commentTableViewFooterViewDidTapRetryProperty = MutableProperty(())
@@ -453,6 +438,9 @@ public final class CommentsViewModel: CommentsViewModelType,
   fileprivate let projectAndUpdateProperty = MutableProperty<(Project?, Update?)?>(nil)
   public func configureWith(project: Project?, update: Update?) {
     self.projectAndUpdateProperty.value = (project, update)
+    self.latestNavigationUpdate = update
+    self.hasNavigationConfiguration = true
+    self.publishPendingNavigation()
   }
 
   fileprivate let refreshProperty = MutableProperty(())

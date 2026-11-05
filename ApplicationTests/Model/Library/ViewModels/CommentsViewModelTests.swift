@@ -326,6 +326,16 @@ internal final class CommentsViewModelTests: TestCase {
     self.goToCommentRepliesShowKeyboard.assertValues([true])
   }
 
+  func testReplyTapBeforeConfigurationWaitsForProject() {
+    self.vm.inputs.commentCellDidTapReply(comment: .template)
+    self.goToCommentRepliesComment.assertDidNotEmitValue()
+    self.vm.inputs.configureWith(project: .template, update: nil)
+    self.goToCommentRepliesComment.assertDidNotEmitValue()
+    self.vm.inputs.viewDidLoad()
+    self.goToCommentRepliesComment.assertValues([.template])
+    self.goToCommentRepliesShowKeyboard.assertValues([true])
+  }
+
   func testGoToCommentReplies_CommentHasReplies_GoToEmits_HasNotShownKeyboard() async {
     self.goToCommentRepliesComment.assertDidNotEmitValue()
     self.goToCommentRepliesProject.assertDidNotEmitValue()
