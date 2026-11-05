@@ -1343,36 +1343,6 @@
       return AccessTokenEnvelope(accessToken: "deadbeef", user: .template)
     }
 
-    internal func login(email _: String, password _: String, code _: String?) ->
-      SignalProducer<AccessTokenEnvelope, ErrorEnvelope> {
-      if let error = loginError {
-        return SignalProducer(error: error)
-      } else if let accessTokenEnvelope = loginResponse {
-        return SignalProducer(value: accessTokenEnvelope)
-      } else if let resendCodeResponse = resendCodeResponse {
-        return SignalProducer(error: resendCodeResponse)
-      } else if let resendCodeError = resendCodeError {
-        return SignalProducer(error: resendCodeError)
-      }
-
-      return SignalProducer(value: AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
-    }
-
-    internal func login(facebookAccessToken _: String, code _: String?) ->
-      SignalProducer<AccessTokenEnvelope, ErrorEnvelope> {
-      if let error = loginError {
-        return SignalProducer(error: error)
-      } else if let accessTokenEnvelope = loginResponse {
-        return SignalProducer(value: accessTokenEnvelope)
-      } else if let resendCodeResponse = resendCodeResponse {
-        return SignalProducer(error: resendCodeResponse)
-      } else if let resendCodeError = resendCodeError {
-        return SignalProducer(error: resendCodeError)
-      }
-
-      return SignalProducer(value: AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
-    }
-
     @MainActor public func creatorDraft(project: Project) async throws -> UpdateDraft {
       try Task.checkCancellation()
       guard self.demoCatalog == nil else { throw ErrorEnvelope.graphError("Creator drafts are unavailable in public demo mode") }

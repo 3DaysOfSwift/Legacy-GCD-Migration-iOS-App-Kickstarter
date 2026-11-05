@@ -193,14 +193,6 @@ public protocol ServiceType {
   func updateRewardReceived(backingId: String, rewardReceived: Bool)
     -> AnyPublisher<Bool, ErrorEnvelope>
 
-  /// Attempt a login with an email, password and optional code.
-  func login(email: String, password: String, code: String?) ->
-    SignalProducer<AccessTokenEnvelope, ErrorEnvelope>
-
-  /// Attempt a login with Facebook access token and optional code.
-  func login(facebookAccessToken: String, code: String?) ->
-    SignalProducer<AccessTokenEnvelope, ErrorEnvelope>
-
   /// Returns a project update preview URL.
   func previewUrl(forDraft draft: UpdateDraft) -> URL?
 

@@ -201,16 +201,6 @@ public struct Service: ServiceType {
       .eraseToAnyPublisher()
   }
 
-  public func login(email: String, password: String, code: String?) ->
-    SignalProducer<AccessTokenEnvelope, ErrorEnvelope> {
-    return request(.login(email: email, password: password, code: code))
-  }
-
-  public func login(facebookAccessToken: String, code: String?) ->
-    SignalProducer<AccessTokenEnvelope, ErrorEnvelope> {
-    return request(.facebookLogin(facebookAccessToken: facebookAccessToken, code: code))
-  }
-
   public func publish(draft: UpdateDraft) -> SignalProducer<Update, ErrorEnvelope> {
     return request(.publishUpdateDraft(draft))
   }

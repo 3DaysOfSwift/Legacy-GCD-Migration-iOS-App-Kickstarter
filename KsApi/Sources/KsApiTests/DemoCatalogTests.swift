@@ -189,9 +189,14 @@ final class DemoCatalogTests: XCTestCase {
     withExtendedLifetime(subscription) {}
   }
 
-  func testDemoLoginDoesNotPretendToAuthenticate() throws {
-    let response = MockService.publicDemo().login(email: "demo@example.invalid", password: "demo", code: nil)
-    XCTAssertThrowsError(try XCTUnwrap(response.first()).get())
+  @MainActor
+  func testDemoLoginDoesNotPretendToAuthenticate() async {
+    do {
+      _ = try await MockService.publicDemo().authenticate(email: "demo@example.invalid", password: "demo", code: nil)
+      XCTFail("Demo mode must not authenticate")
+    } catch {
+      // The demo has no live authentication service.
+    }
   }
 
   private func query(term: String? = nil) -> GraphAPI.SearchQuery {
