@@ -378,9 +378,11 @@ public final class CommentsViewModel: CommentsViewModelType,
 
     // MARK: User Blocking Analytics
 
+    let blockAnalytics = self.blockAnalytics
     _ = self.blockUserProperty.signal
       .combineLatest(with: initialProject)
       .observeValues { blockedUserId, project in
+        blockAnalytics.latest = (project, "\(blockedUserId)")
         AppEnvironment.current.ksrAnalytics
           .trackBlockedUser(
             project,
@@ -391,19 +393,7 @@ public final class CommentsViewModel: CommentsViewModelType,
           )
       }
 
-    _ = self.blockUserProperty.signal
-      .combineLatest(with: initialProject)
-      .takeWhen(self.blockConfirmedPipe.output)
-      .observeValues { blockedUserId, project in
-        AppEnvironment.current.ksrAnalytics
-          .trackBlockedUser(
-            project,
-            page: .project,
-            sectionContext: .comments,
-            typeContext: .confirm,
-            targetUserId: "\(blockedUserId)"
-          )
-      }
+
     self.disposables += projectOrUpdate.observeValues { [weak self] value in
       guard let self else { return }
       self.contextRevision += 1
@@ -443,7 +433,7 @@ public final class CommentsViewModel: CommentsViewModelType,
   private let failableOrComment = MutableProperty<(Comment, String)?>(nil)
 
   private let blockPresentation = DiscussionBlockPresentation()
-  private let blockConfirmedPipe = Signal<Void, Never>.pipe()
+  private let blockAnalytics = BlockUserAnalyticsContext()
   private let blockUserProperty = MutableProperty<String>("")
   public func blockUser(id: String) {
     self.blockUserProperty.value = id
@@ -453,7 +443,15 @@ public final class CommentsViewModel: CommentsViewModelType,
       case .success:
         NotificationCenter.default.post(.init(name: .ksr_blockedUser))
         self.onDidBlockUser?()
-        self.blockConfirmedPipe.input.send(value: ())
+        if let (project, blockedUserId) = self.blockAnalytics.latest {
+          AppEnvironment.current.ksrAnalytics.trackBlockedUser(
+            project,
+            page: .project,
+            sectionContext: .comments,
+            typeContext: .confirm,
+            targetUserId: blockedUserId
+          )
+        }
       case .failure:
         self.onDidBlockUserError?()
       }
@@ -598,4 +596,9 @@ internal final class DiscussionBlockPresentation {
   }
   func wait() async { await self.task?.value }
   deinit { self.task?.cancel() }
+}
+
+@MainActor
+internal final class BlockUserAnalyticsContext {
+  var latest: (Project, String)?
 }

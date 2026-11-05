@@ -661,9 +661,11 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
     // MARK: User Blocking Analytics
 
+    let blockAnalytics = self.blockAnalytics
     _ = self.blockUserProperty.signal
       .combineLatest(with: freshProject)
       .observeValues { blockedUserId, project in
+        blockAnalytics.latest = (project, "\(blockedUserId)")
         AppEnvironment.current.ksrAnalytics
           .trackBlockedUser(
             project,
@@ -675,20 +677,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
           )
       }
 
-    _ = self.blockUserProperty.signal
-      .combineLatest(with: freshProject)
-      .takeWhen(self.blockConfirmedPipe.output)
-      .observeValues { blockedUserId, project in
-        AppEnvironment.current.ksrAnalytics
-          .trackBlockedUser(
-            project,
-            page: .project,
-            sectionContext: .overview,
-            locationContext: .creatorDetailsMenu,
-            typeContext: .confirm,
-            targetUserId: "\(blockedUserId)"
-          )
-      }
+
 
     // MARK: Rewards
 
@@ -822,7 +811,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   }
 
   private let blockPresentation = DiscussionBlockPresentation()
-  private let blockConfirmedPipe = Signal<Void, Never>.pipe()
+  private let blockAnalytics = BlockUserAnalyticsContext()
   fileprivate let blockUserProperty = MutableProperty<Int>(0)
   public func blockUser(id: Int) {
     self.blockUserProperty.value = id
@@ -832,7 +821,16 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
       case .success:
         NotificationCenter.default.post(.init(name: .ksr_blockedUser))
         self.onDidBlockUser?()
-        self.blockConfirmedPipe.input.send(value: ())
+        if let (project, blockedUserId) = self.blockAnalytics.latest {
+          AppEnvironment.current.ksrAnalytics.trackBlockedUser(
+            project,
+            page: .project,
+            sectionContext: .overview,
+            locationContext: .creatorDetailsMenu,
+            typeContext: .confirm,
+            targetUserId: blockedUserId
+          )
+        }
       case .failure:
         self.onDidBlockUserError?()
       }

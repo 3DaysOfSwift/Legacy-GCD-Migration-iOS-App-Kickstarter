@@ -244,9 +244,11 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
 
     // MARK: User Blocking Analytics
 
+    let blockAnalytics = self.blockAnalytics
     _ = self.blockUserProperty.signal
       .combineLatest(with: project)
       .observeValues { blockedUserId, project in
+        blockAnalytics.latest = (project, "\(blockedUserId)")
         AppEnvironment.current.ksrAnalytics
           .trackBlockedUser(
             project,
@@ -257,19 +259,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
           )
       }
 
-    _ = self.blockUserProperty.signal
-      .combineLatest(with: project)
-      .takeWhen(self.blockConfirmedPipe.output)
-      .observeValues { blockedUserId, project in
-        AppEnvironment.current.ksrAnalytics
-          .trackBlockedUser(
-            project,
-            page: .project,
-            sectionContext: .comments,
-            typeContext: .confirm,
-            targetUserId: "\(blockedUserId)"
-          )
-      }
+
     self.disposables += requestFirstPageWith.observeValues { [weak self] comment in
       self?.loadingTask = feature.requestFirstPage(route: route, source: .replies(comment.id), refresh: true)
     }
@@ -287,7 +277,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   }
 
   private let blockPresentation = DiscussionBlockPresentation()
-  private let blockConfirmedPipe = Signal<Void, Never>.pipe()
+  private let blockAnalytics = BlockUserAnalyticsContext()
   private let blockUserProperty = MutableProperty<String>("")
   public func blockUser(id: String) {
     self.blockUserProperty.value = id
@@ -297,7 +287,15 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
       case .success:
         NotificationCenter.default.post(.init(name: .ksr_blockedUser))
         self.onDidBlockUser?()
-        self.blockConfirmedPipe.input.send(value: ())
+        if let (project, blockedUserId) = self.blockAnalytics.latest {
+          AppEnvironment.current.ksrAnalytics.trackBlockedUser(
+            project,
+            page: .project,
+            sectionContext: .comments,
+            typeContext: .confirm,
+            targetUserId: blockedUserId
+          )
+        }
       case .failure:
         self.onDidBlockUserError?()
       }
