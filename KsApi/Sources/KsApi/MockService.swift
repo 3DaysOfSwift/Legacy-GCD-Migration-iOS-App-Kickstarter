@@ -747,47 +747,6 @@
       return client.performWithResult(mutation: mutation, result: self.createAttributionEventResult)
     }
 
-    internal func createBacking(input: CreateBackingInput)
-      -> SignalProducer<CreateBackingEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI.CreateBackingMutation(input: GraphAPI.CreateBackingInput.from(input))
-
-      return client.performWithResult(mutation: mutation, result: self.createBackingResult)
-    }
-
-    internal func completeOnSessionCheckout(input: GraphAPI.CompleteOnSessionCheckoutInput) ->
-      SignalProducer<GraphAPI.CompleteOnSessionCheckoutMutation.Data, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI.CompleteOnSessionCheckoutMutation(input: input)
-      return client.performWithResult(mutation: mutation, result: self.completeOnSessionCheckoutResult)
-    }
-
-    internal func createCheckout(input: CreateCheckoutInput)
-      -> SignalProducer<CreateCheckoutEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI.CreateCheckoutMutation(
-        input: GraphAPI
-          .CreateCheckoutInput(
-            projectId: input.projectId,
-            amount: GraphQLNullable.someOrNil(input.amount),
-            locationId: GraphQLNullable.someOrNil(input.locationId),
-            rewardIds: GraphQLNullable.someOrNil(input.rewardIds),
-            refParam: GraphQLNullable.someOrNil(input.refParam)
-          )
-      )
-
-      return client.performWithResult(mutation: mutation, result: self.createCheckoutResult)
-    }
-
     internal func createFlaggingInput(input: CreateFlaggingInput) -> ReactiveSwift
       .SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
       guard let client = self.apolloClient else {

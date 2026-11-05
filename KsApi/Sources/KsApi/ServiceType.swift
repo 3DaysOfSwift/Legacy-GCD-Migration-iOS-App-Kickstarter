@@ -128,16 +128,6 @@ public protocol ServiceType {
   func createAttributionEvent(input: GraphAPI.CreateAttributionEventInput) ->
     SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
-  func createBacking(input: CreateBackingInput) ->
-    SignalProducer<CreateBackingEnvelope, ErrorEnvelope>
-
-  func completeOnSessionCheckout(input: GraphAPI.CompleteOnSessionCheckoutInput) ->
-    SignalProducer<GraphAPI.CompleteOnSessionCheckoutMutation.Data, ErrorEnvelope>
-
-  /// Create a checkout and returns it. Called before createBacking so that the backend can run some extra validations.
-  func createCheckout(input: CreateCheckoutInput) ->
-    SignalProducer<CreateCheckoutEnvelope, ErrorEnvelope>
-
   /// Sends report project data for a specific project
   func createFlaggingInput(input: CreateFlaggingInput)
     -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>

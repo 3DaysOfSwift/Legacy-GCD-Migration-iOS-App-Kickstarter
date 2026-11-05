@@ -215,34 +215,6 @@ public struct Service: ServiceType {
       }
   }
 
-  public func createBacking(input: CreateBackingInput) ->
-    SignalProducer<CreateBackingEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(mutation: GraphAPI.CreateBackingMutation(input: GraphAPI.CreateBackingInput.from(input)))
-      .flatMap(CreateBackingEnvelope.producer(from:))
-  }
-
-  public func completeOnSessionCheckout(input: GraphAPI.CompleteOnSessionCheckoutInput) ->
-    SignalProducer<GraphAPI.CompleteOnSessionCheckoutMutation.Data, ErrorEnvelope> {
-    return GraphQL.shared.client.perform(mutation: GraphAPI.CompleteOnSessionCheckoutMutation(input: input))
-  }
-
-  public func createCheckout(input: CreateCheckoutInput) ->
-    SignalProducer<CreateCheckoutEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(mutation: GraphAPI.CreateCheckoutMutation(
-        input: GraphAPI
-          .CreateCheckoutInput(
-            projectId: input.projectId,
-            amount: GraphQLNullable.someOrNil(input.amount),
-            locationId: GraphQLNullable.someOrNil(input.locationId),
-            rewardIds: GraphQLNullable.someOrNil(input.rewardIds),
-            refParam: GraphQLNullable.someOrNil(input.refParam)
-          )
-      ))
-      .flatMap(CreateCheckoutEnvelope.producer(from:))
-  }
-
   public func createFlaggingInput(input: CreateFlaggingInput)
     -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
     return GraphQL.shared.client

@@ -1,6 +1,5 @@
 import Foundation
 import GraphAPI
-import ReactiveSwift
 
 public struct CreateCheckoutEnvelope: Decodable, Sendable {
   public var checkout: Checkout
@@ -25,11 +24,4 @@ extension CreateCheckoutEnvelope {
     return CreateCheckoutEnvelope(checkout: Checkout(id: id, paymentUrl: paymentUrl, backingId: backingId))
   }
 
-  static func producer(from data: GraphAPI.CreateCheckoutMutation.Data)
-    -> SignalProducer<CreateCheckoutEnvelope, ErrorEnvelope> {
-    guard let envelope = CreateCheckoutEnvelope.from(data) else {
-      return SignalProducer(error: .couldNotParseJSON)
-    }
-    return SignalProducer(value: envelope)
-  }
 }
