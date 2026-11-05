@@ -1,6 +1,5 @@
 import KsApi
 import Prelude
-import ReactiveSwift
 import UIKit
 
 public enum RewardsCollectionViewContext {
@@ -8,466 +7,184 @@ public enum RewardsCollectionViewContext {
   case managePledge
 }
 
-@MainActor public protocol RewardsCollectionViewModelInputs {
-  func configure(
-    with project: Project,
-    refTag: RefTag?,
-    context: RewardsCollectionViewContext,
-    secretRewardToken: String?
-  )
-  func confirmedEditReward()
-  func rewardCellShouldShowDividerLine(_ show: Bool)
-  func rewardSelected(with rewardId: Int)
-  func shippingLocationViewDidFailToLoad()
-  func shippingLocationSelected(_ location: Location?)
-  func traitCollectionDidChange(_ traitCollection: UITraitCollection)
-  func viewDidAppear()
-  func viewDidLayoutSubviews()
-  func viewDidLoad()
-  func viewWillAppear()
-}
-
-@MainActor public protocol RewardsCollectionViewModelOutputs {
-  var configureRewardsCollectionViewFooterWithCount: Signal<Int, Never> { get }
-  var flashScrollIndicators: Signal<Void, Never> { get }
-  var goToAddOnSelection: Signal<PledgeViewData, Never> { get }
-  var goToCustomizeYourReward: Signal<PledgeViewData, Never> { get }
-  var navigationBarShadowImageHidden: Signal<Bool, Never> { get }
-  var reloadDataWithValues: Signal<[RewardCardViewData], Never> { get }
-  var showPlaceholderRewardCards: Signal<Int, Never> { get }
-  var rewardsCollectionViewFooterIsHidden: Signal<Bool, Never> { get }
-  var scrollToRewardIndexPath: Signal<IndexPath, Never> { get }
-  var showEditRewardConfirmationPrompt: Signal<(String, String), Never> { get }
-  var title: Signal<String, Never> { get }
-
-  func selectedReward() -> Reward?
-}
-
-@MainActor public protocol RewardsCollectionViewModelType {
-  var inputs: RewardsCollectionViewModelInputs { get }
-  var outputs: RewardsCollectionViewModelOutputs { get }
-}
-
-@MainActor public final class RewardsCollectionViewModel: RewardsCollectionViewModelType,
-  RewardsCollectionViewModelInputs, RewardsCollectionViewModelOutputs {
+@MainActor
+final class RewardsCollectionViewModel {
+  enum Event {
+    case configureFooter(Int), flashScrollIndicators
+    case goToAddOnSelection(PledgeViewData), goToCustomizeYourReward(PledgeViewData)
+    case navigationBarShadowImageHidden(Bool), reloadData([RewardCardViewData])
+    case showPlaceholderRewardCards(Int), footerHidden(Bool), scrollToReward(IndexPath)
+    case showEditRewardConfirmationPrompt(String, String), title(String)
+  }
+  var onEvent: ((Event) -> Void)?
   private let rewardsFeature: RewardsFeature
   private let route = UUID()
-  private let observations = ScopedDisposable(CompositeDisposable())
   internal private(set) var loadingTask: Task<Void, Never>?
   private var loadingGeneration = UUID()
-  private let (fetchedRewardsSignal, fetchedRewardsObserver) = Signal<[Reward], Never>.pipe()
+  private var configuration: (project: Project, refTag: RefTag?, context: RewardsCollectionViewContext, secret: String?)?
+  private var didLoad = false
+  private var hasLocation = false
+  private var location: Location?
+  private var displayedLocation: Location?
+  private var displayedRewards: [Reward]?
+  private var isLoading = true
+  private var didLayout = false
+  private var didScroll = false
+  private var selected: Reward?
+  private var pendingPledge: (PledgeViewData, Bool)?
+  private var showDivider: Bool?
 
-  public init(rewardsFeature: RewardsFeature? = nil) {
-    let feature = rewardsFeature ?? AppModel.shared.rewardsFeature
-    self.rewardsFeature = feature
-    let configData = self.configDataProperty.signal
-      .skipNil()
-      .takeWhen(self.viewDidLoadProperty.signal)
-
-    let project = configData
-      .map { $0.0 }
-
-    let secretRewardToken = configData
-      .map { _, _, _, secretRewardToken in
-        secretRewardToken
-      }
-
-    self.title = configData
-      .map { project, _, context, _ in (context, project) }
-      .takeWhen(self.viewDidLoadProperty.signal)
-      .map { titleForContext($0.0, project: $0.1) }
-
-    // The selected shipping location.
-    // Can be nil if the project has no shippable rewards.
-    // TODO: If we passed in ShippableCountries to the location selector, we could call this faster.
-    let isLoadingProperty = MutableProperty(true)
-    let selectedShippingLocation: Signal<Location?, Never> = self.shippingLocationSelectedSignal
-      .signal
-      .skipRepeats()
-      .on(value: { _ in isLoadingProperty.value = true })
-
-    // The Feature owns requests; this signal feeds the remaining presentation bindings.
-    let fetchedRewards = self.fetchedRewardsSignal
-
-    self.scrollToRewardIndexPath = Signal.combineLatest(
-      project,
-      fetchedRewards,
-      secretRewardToken,
-      self.viewDidLayoutSubviewsProperty.signal
-    )
-    .map { project, rewards, secretRewardToken, _ in
-      rewardToScrollIndexPath(
-        project,
-        rewards: rewards,
-        secretRewardToken: secretRewardToken
-      )
-    }
-    .skipNil()
-    .take(first: 1)
-
-    let isLoading = isLoadingProperty
-      .signal(takeInitialValueWhen: configData.ignoreValues())
-      .skipRepeats()
-
-    self.showPlaceholderRewardCards = project
-      .combineLatestAndFilterOn(isLoading)
-      .map { $0.rewards.count }
-
-    self.reloadDataWithValues = project.combineLatest(
-      with: selectedShippingLocation.takePairWhen(fetchedRewards)
-    )
-    .combineLatestAndFilterOn(isLoading.signal.negate())
-    .map { project, locationAndRewards in
-      let (location, rewards) = locationAndRewards
-      return rewards.map { reward in
-        RewardCardViewData(
-          project: project,
-          reward: reward,
-          context: .pledge,
-          currentShippingLocation: location
-        )
-      }
-    }
-
-    self.configureRewardsCollectionViewFooterWithCount = self.reloadDataWithValues
-      .map { $0.count }
-
-    self.flashScrollIndicators = self.viewDidAppearProperty.signal
-
-    // MARK: Shipping Location
-
-    let selectedShippingRule: Signal<ShippingRule?, Never> = selectedShippingLocation
-      .takePairWhen(self.selectedRewardProperty.signal.skipNil())
-      .map { location, reward in
-        shippingRule(forReward: reward, selectedLocation: location)
-      }
-
-    let selectedRewardFromId = fetchedRewards
-      .takePairWhen(self.rewardSelectedWithRewardIdProperty.signal.skipNil())
-      .map { rewards, rewardId in
-        rewards.first(where: { $0.id == rewardId })
-      }
-      .skipNil()
-
-    self.selectedRewardProperty <~ selectedRewardFromId
-
-    let refTag = configData
-      .map { $0.1 }
-
-    let goToPledge: Signal<(PledgeViewData, Bool), Never> = Signal.combineLatest(
-      project,
-      selectedRewardFromId,
-      refTag,
-      selectedShippingRule
-    )
-    .takeWhen(self.rewardSelectedWithRewardIdProperty.signal)
-    .filter { project, reward, _, shippingRule in
-      rewardsCarouselCanNavigateToReward(
-        reward,
-        in: project,
-        selectedShippingLocation: shippingRule?.location
-      )
-    }
-    .map { project, reward, refTag, selectedShippingRule -> (PledgeViewData, Bool) in
-      let pledgeContext =
-        project.isInPostCampaignPledgingPhase
-          ? PledgeViewContext.latePledge
-          : PledgeViewContext.pledge
-
-      /// Differentiating between updating a reward for a regular pledge and updating a Pledge Over Time pledge.
-      let isPledgeOverTime = project.isPledgeOverTimeAllowed == true
-      let updatePledgeContext = isPledgeOverTime
-        ? PledgeViewContext.editPledgeOverTime
-        : PledgeViewContext.updateReward
-
-      let data = PledgeViewData(
-        project: project,
-        rewards: [reward],
-        bonusSupport: nil,
-        selectedShippingRule: selectedShippingRule,
-        selectedQuantities: [reward.id: 1],
-        selectedLocationId: nil, // Set during add-ons selection.
-        refTag: refTag,
-        context: project.personalization.backing == nil ? pledgeContext : updatePledgeContext
-      )
-
-      return (data, reward.hasAddOns)
-    }
-
-    // Reward has add-ons, project is not backed, navigates to add-on selection without prompt.
-    let goToAddOnSelectionNotBackedWithAddOns = goToPledge
-      .filter(second >>> isTrue)
-      .map(first)
-      .filter(shouldTriggerEditRewardPrompt >>> isFalse)
-
-    // Reward has add-ons, project is backed with add-ons, triggers prompt before add-on selection.
-    let goToAddOnSelectionBackedWithAddOns = goToPledge
-      .filter(second >>> isTrue)
-      .map(first)
-      .filter(shouldTriggerEditRewardPrompt >>> isTrue)
-
-    // Reward does not have add-ons, project is not backed, navigates to pledge without prompt.
-    let goToPledgeNotBackedWithAddOns = goToPledge
-      .filter(second >>> isFalse)
-      .map(first)
-      .filter(shouldTriggerEditRewardPrompt >>> isFalse)
-
-    // Reward does not have add-ons, project is backed with add-ons, triggers prompt before pledge.
-    let goToPledgeBackedWithAddOns = goToPledge
-      .filter(second >>> isFalse)
-      .map(first)
-      .filter(shouldTriggerEditRewardPrompt >>> isTrue)
-
-    self.showEditRewardConfirmationPrompt = Signal.merge(
-      goToAddOnSelectionBackedWithAddOns,
-      goToPledgeBackedWithAddOns
-    )
-    .map { _ in
-      (Strings.Continue_with_this_reward(), Strings.It_may_not_offer_some_or_all_of_your_add_ons())
-    }
-
-    let goToAddOnSelectionBackedConfirmed = goToPledge
-      .takeWhen(self.confirmedEditRewardProperty.signal)
-      .filter(second >>> isTrue)
-      .map(first)
-
-    let goToPledgeBackedConfirmed = goToPledge
-      .takeWhen(self.confirmedEditRewardProperty.signal)
-      .filter(second >>> isFalse)
-      .map(first)
-
-    self.goToAddOnSelection = Signal.merge(
-      goToAddOnSelectionNotBackedWithAddOns,
-      goToAddOnSelectionBackedConfirmed
-    )
-
-    self.goToCustomizeYourReward = Signal.merge(
-      goToPledgeNotBackedWithAddOns,
-      goToPledgeBackedConfirmed
-    )
-
-    self.rewardsCollectionViewFooterIsHidden = self.traitCollectionChangedProperty.signal
-      .skipNil()
-      .map { isFalse($0.verticalSizeClass == .regular) }
-
-    let hideDividerLine = self.rewardCellShouldShowDividerLineProperty.signal
-      .negate()
-
-    self.navigationBarShadowImageHidden = Signal.merge(
-      hideDividerLine,
-      hideDividerLine.takeWhen(self.viewWillAppearProperty.signal)
-    )
-
-    // Tracking
-    Signal.combineLatest(
-      project,
-      refTag,
-    )
-    .takeWhen(self.viewDidLoadProperty.signal)
-    .observeValues { project, refTag in
-      // This event is fired before a base reward is selected
-      let reward = Reward.noReward
-      let (backing, shippingTotal) = backingAndShippingTotal(for: project, and: reward)
-      let checkoutPropertiesData = checkoutProperties(
-        from: project,
-        baseReward: reward,
-        addOnRewards: backing?.addOns ?? [],
-        selectedQuantities: [:],
-        additionalPledgeAmount: backing?.bonusAmount ?? 0,
-        pledgeTotal: backing?.amount ?? reward.minimum,
-        shippingTotal: shippingTotal ?? 0,
-        isApplePay: nil
-      )
-
-      AppEnvironment.current.ksrAnalytics.trackRewardsViewed(
-        project: project,
-        checkoutPropertiesData: checkoutPropertiesData,
-        refTag: refTag
-      )
-    }
-
-    Signal.combineLatest(project, selectedRewardFromId, refTag)
-      .observeValues { project, reward, refTag in
-
-        // The `Backing` is nil for a new pledge.
-        let (backing, shippingTotal) = backingAndShippingTotal(for: project, and: reward)
-
-        // Regardless of whether this is the beginning of a new pledge or we are editing our reward,
-        // we only have the base reward selected at this point
-        let checkoutPropertiesData = checkoutProperties(
-          from: project,
-          baseReward: reward,
-          addOnRewards: backing?.addOns ?? [],
-          selectedQuantities: [reward.id: 1],
-          additionalPledgeAmount: backing?.bonusAmount ?? 0,
-          pledgeTotal: backing?.amount ?? reward.minimum, // The total is the value of the reward
-          shippingTotal: shippingTotal ?? 0,
-          isApplePay: nil
-        )
-
-        AppEnvironment.current.ksrAnalytics.trackRewardClicked(
-          project: project,
-          reward: reward,
-          checkoutPropertiesData: checkoutPropertiesData,
-          refTag: refTag
-        )
-      }
-
-    // Facebook CAPI + Google Analytics
-    _ = Signal.combineLatest(project, self.viewDidAppearProperty.signal.ignoreValues())
-      .observeValues { projectAndRefTag in
-        let (project, _) = projectAndRefTag
-
-        AppEnvironment.current.appTrackingTransparency.updateAdvertisingIdentifier()
-
-        guard let externalId = AppEnvironment.current.appTrackingTransparency.advertisingIdentifier
-        else { return }
-
-        var userId = ""
-
-        if let userValue = AppEnvironment.current.currentUser {
-          userId = "\(userValue.id)"
-        }
-
-        let projectId = "\(project.id)"
-
-        var extInfo = Array(repeating: "", count: 16)
-        extInfo[0] = "i2"
-        extInfo[4] = AppEnvironment.current.mainBundle.platformVersion
-
-        _ = AppEnvironment
-          .current
-          .apiService
-          .triggerThirdPartyEventInput(
-            input: .init(
-              deviceId: externalId,
-              eventName: ThirdPartyEventInputName.RewardSelectionViewed.rawValue,
-              projectId: projectId,
-              pledgeAmount: nil,
-              shipping: nil,
-              transactionId: nil,
-              userId: userId,
-              appData: .init(
-                advertiserTrackingEnabled: true,
-                applicationTrackingEnabled: true,
-                extinfo: extInfo
-              ),
-              clientMutationId: ""
-            )
-          )
-      }
-
-    self.observations += project.combineLatest(with: selectedShippingLocation)
-      .observeValues { [weak self] project, location in
-        guard let self else { return }
-        let generation = UUID()
-        self.loadingGeneration = generation
-        let request = feature.requestLoad(route: self.route, project: project, location: location)
-        self.loadingTask = Task { [weak self] in
-          await request.value
-          guard let self, !Task.isCancelled, !request.isCancelled,
-                self.loadingGeneration == generation else { return }
-          let snapshot = feature.snapshot(for: self.route)
-          if snapshot.hasResult { self.fetchedRewardsObserver.send(value: snapshot.rewards) }
-          isLoadingProperty.value = false
-          self.loadingTask = nil
-        }
-      }
+  init(rewardsFeature: RewardsFeature? = nil) {
+    self.rewardsFeature = rewardsFeature ?? AppModel.shared.rewardsFeature
   }
-
   deinit {
     self.loadingTask?.cancel()
-
     let feature = self.rewardsFeature
     let route = self.route
     Task { @MainActor in feature.release(route: route) }
   }
-
-  private let configDataProperty = MutableProperty<(
-    Project,
-    RefTag?,
-    RewardsCollectionViewContext,
-    String?
-  )?>(nil)
-  public func configure(
-    with project: Project,
-    refTag: RefTag?,
-    context: RewardsCollectionViewContext,
-    secretRewardToken: String?
+  func configure(
+    with project: Project, refTag: RefTag?, context: RewardsCollectionViewContext, secretRewardToken: String?
   ) {
-    self.configDataProperty.value = (project, refTag, context, secretRewardToken)
+    self.configuration = (project, refTag, context, secretRewardToken)
   }
-
-  private let confirmedEditRewardProperty = MutableProperty(())
-  public func confirmedEditReward() {
-    self.confirmedEditRewardProperty.value = ()
+  func viewDidLoad() {
+    guard let config = self.configuration else { return }
+    self.didLoad = true
+    self.onEvent?(.title(titleForContext(config.context, project: config.project)))
+    self.onEvent?(.showPlaceholderRewardCards(config.project.rewards.count))
+    self.trackRewardsViewed(project: config.project, refTag: config.refTag)
+    if self.hasLocation { self.startLoading() }
   }
-
-  private let rewardCellShouldShowDividerLineProperty = MutableProperty<Bool>(false)
-  public func rewardCellShouldShowDividerLine(_ show: Bool) {
-    self.rewardCellShouldShowDividerLineProperty.value = show
+  func shippingLocationSelected(_ location: Location?) {
+    guard !self.hasLocation || self.location != location else { return }
+    self.hasLocation = true
+    self.location = location
+    guard self.didLoad else { return }
+    if !self.isLoading, let config = self.configuration {
+      self.isLoading = true
+      self.onEvent?(.showPlaceholderRewardCards(config.project.rewards.count))
+    }
+    self.startLoading()
   }
-
-  private let rewardSelectedWithRewardIdProperty = MutableProperty<Int?>(nil)
-  public func rewardSelected(with rewardId: Int) {
-    self.rewardSelectedWithRewardIdProperty.value = rewardId
+  func shippingLocationViewDidFailToLoad() {}
+  private func startLoading() {
+    guard let config = self.configuration else { return }
+    let generation = UUID()
+    self.loadingGeneration = generation
+    let currentLocation = self.location
+    let feature = self.rewardsFeature
+    let request = feature.requestLoad(route: self.route, project: config.project, location: currentLocation)
+    self.loadingTask = Task { [weak self] in
+      await request.value
+      guard let self, !Task.isCancelled, !request.isCancelled, self.loadingGeneration == generation else { return }
+      let snapshot = feature.snapshot(for: self.route)
+      if snapshot.hasResult {
+        self.displayedRewards = snapshot.rewards
+        self.displayedLocation = currentLocation
+      }
+      self.isLoading = false
+      self.publishCards()
+      self.scrollIfReady()
+      self.loadingTask = nil
+    }
   }
-
-  private let shippingLocationViewDidFailToLoadProperty = MutableProperty(())
-  public func shippingLocationViewDidFailToLoad() {
-    self.shippingLocationViewDidFailToLoadProperty.value = ()
+  private func publishCards() {
+    guard let config = self.configuration, let rewards = self.displayedRewards else { return }
+    let cards = rewards.map { reward in
+      RewardCardViewData(
+        project: config.project, reward: reward, context: .pledge,
+        currentShippingLocation: self.displayedLocation
+      )
+    }
+    self.onEvent?(.reloadData(cards))
+    self.onEvent?(.configureFooter(cards.count))
   }
-
-  private let (shippingLocationSelectedSignal, shippingLocationSelectedObserver) = Signal<Location?, Never>
-    .pipe()
-  public func shippingLocationSelected(_ location: Location?) {
-    self.shippingLocationSelectedObserver.send(value: location)
+  func viewDidLayoutSubviews() { self.didLayout = true; self.scrollIfReady() }
+  private func scrollIfReady() {
+    guard self.didLayout, !self.didScroll, let config = self.configuration, let rewards = self.displayedRewards,
+          let index = rewardToScrollIndexPath(config.project, rewards: rewards, secretRewardToken: config.secret) else { return }
+    self.didScroll = true
+    self.onEvent?(.scrollToReward(index))
   }
-
-  private let traitCollectionChangedProperty = MutableProperty<UITraitCollection?>(nil)
-  public func traitCollectionDidChange(_ traitCollection: UITraitCollection) {
-    self.traitCollectionChangedProperty.value = traitCollection
+  func rewardSelected(with rewardId: Int) {
+    guard let config = self.configuration,
+          let reward = self.displayedRewards?.first(where: { $0.id == rewardId }),
+          self.hasLocation else { return }
+    self.selected = reward
+    self.trackRewardClicked(reward, project: config.project, refTag: config.refTag)
+    let rule = shippingRule(forReward: reward, selectedLocation: self.location)
+    guard rewardsCarouselCanNavigateToReward(reward, in: config.project, selectedShippingLocation: rule?.location) else { return }
+    let pledgeContext: PledgeViewContext = config.project.isInPostCampaignPledgingPhase ? .latePledge : .pledge
+    let updateContext: PledgeViewContext = config.project.isPledgeOverTimeAllowed == true ? .editPledgeOverTime : .updateReward
+    let data = PledgeViewData(
+      project: config.project, rewards: [reward], bonusSupport: nil, selectedShippingRule: rule,
+      selectedQuantities: [reward.id: 1], selectedLocationId: nil, refTag: config.refTag,
+      context: config.project.personalization.backing == nil ? pledgeContext : updateContext
+    )
+    self.pendingPledge = (data, reward.hasAddOns)
+    if shouldTriggerEditRewardPrompt(data) {
+      self.onEvent?(.showEditRewardConfirmationPrompt(
+        Strings.Continue_with_this_reward(), Strings.It_may_not_offer_some_or_all_of_your_add_ons()
+      ))
+    } else { self.navigate(data, hasAddOns: reward.hasAddOns) }
   }
-
-  private let viewDidAppearProperty = MutableProperty(())
-  public func viewDidAppear() {
-    self.viewDidAppearProperty.value = ()
+  func confirmedEditReward() {
+    guard let (data, hasAddOns) = self.pendingPledge else { return }
+    self.navigate(data, hasAddOns: hasAddOns)
   }
-
-  private let viewDidLayoutSubviewsProperty = MutableProperty(())
-  public func viewDidLayoutSubviews() {
-    self.viewDidLayoutSubviewsProperty.value = ()
+  private func navigate(_ data: PledgeViewData, hasAddOns: Bool) {
+    self.onEvent?(hasAddOns ? .goToAddOnSelection(data) : .goToCustomizeYourReward(data))
   }
-
-  private let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+  func selectedReward() -> Reward? { self.selected }
+  func rewardCellShouldShowDividerLine(_ show: Bool) {
+    self.showDivider = show
+    self.onEvent?(.navigationBarShadowImageHidden(!show))
   }
-
-  private let viewWillAppearProperty = MutableProperty(())
-  public func viewWillAppear() {
-    self.viewWillAppearProperty.value = ()
+  func viewWillAppear() {
+    if let show = self.showDivider { self.onEvent?(.navigationBarShadowImageHidden(!show)) }
   }
-
-  public let configureRewardsCollectionViewFooterWithCount: Signal<Int, Never>
-  public let flashScrollIndicators: Signal<Void, Never>
-  public let goToAddOnSelection: Signal<PledgeViewData, Never>
-  public let goToCustomizeYourReward: Signal<PledgeViewData, Never>
-  public let navigationBarShadowImageHidden: Signal<Bool, Never>
-  public let reloadDataWithValues: Signal<[RewardCardViewData], Never>
-  public let showPlaceholderRewardCards: Signal<Int, Never>
-  public let rewardsCollectionViewFooterIsHidden: Signal<Bool, Never>
-  public let scrollToRewardIndexPath: Signal<IndexPath, Never>
-  public let showEditRewardConfirmationPrompt: Signal<(String, String), Never>
-  public let title: Signal<String, Never>
-
-  private let selectedRewardProperty = MutableProperty<Reward?>(nil)
-  public func selectedReward() -> Reward? {
-    return self.selectedRewardProperty.value
+  func traitCollectionDidChange(_ traitCollection: UITraitCollection) {
+    self.onEvent?(.footerHidden(traitCollection.verticalSizeClass != .regular))
   }
-
-  public var inputs: RewardsCollectionViewModelInputs { return self }
-  public var outputs: RewardsCollectionViewModelOutputs { return self }
+  func viewDidAppear() {
+    self.onEvent?(.flashScrollIndicators)
+    guard let config = self.configuration, self.didLoad else { return }
+    let project = config.project
+    AppEnvironment.current.appTrackingTransparency.updateAdvertisingIdentifier()
+    guard let externalId = AppEnvironment.current.appTrackingTransparency.advertisingIdentifier else { return }
+    let userId = AppEnvironment.current.currentUser.map { "\($0.id)" } ?? ""
+    var extInfo = Array(repeating: "", count: 16)
+    extInfo[0] = "i2"
+    extInfo[4] = AppEnvironment.current.mainBundle.platformVersion
+    _ = AppEnvironment.current.apiService.triggerThirdPartyEventInput(
+      input: .init(
+        deviceId: externalId, eventName: ThirdPartyEventInputName.RewardSelectionViewed.rawValue,
+        projectId: "\(project.id)", pledgeAmount: nil, shipping: nil, transactionId: nil, userId: userId,
+        appData: .init(advertiserTrackingEnabled: true, applicationTrackingEnabled: true, extinfo: extInfo),
+        clientMutationId: ""
+      )
+    )
+  }
+  private func trackRewardsViewed(project: Project, refTag: RefTag?) {
+    let reward = Reward.noReward
+    let (backing, shippingTotal) = backingAndShippingTotal(for: project, and: reward)
+    let properties = checkoutProperties(
+      from: project, baseReward: reward, addOnRewards: backing?.addOns ?? [], selectedQuantities: [:],
+      additionalPledgeAmount: backing?.bonusAmount ?? 0, pledgeTotal: backing?.amount ?? reward.minimum,
+      shippingTotal: shippingTotal ?? 0, isApplePay: nil
+    )
+    AppEnvironment.current.ksrAnalytics.trackRewardsViewed(project: project, checkoutPropertiesData: properties, refTag: refTag)
+  }
+  private func trackRewardClicked(_ reward: Reward, project: Project, refTag: RefTag?) {
+    let (backing, shippingTotal) = backingAndShippingTotal(for: project, and: reward)
+    let properties = checkoutProperties(
+      from: project, baseReward: reward, addOnRewards: backing?.addOns ?? [], selectedQuantities: [reward.id: 1],
+      additionalPledgeAmount: backing?.bonusAmount ?? 0, pledgeTotal: backing?.amount ?? reward.minimum,
+      shippingTotal: shippingTotal ?? 0, isApplePay: nil
+    )
+    AppEnvironment.current.ksrAnalytics.trackRewardClicked(project: project, reward: reward, checkoutPropertiesData: properties, refTag: refTag)
+  }
 }
 
 // MARK: - Functions
@@ -559,7 +276,7 @@ private func shippingRule(forReward reward: Reward, selectedLocation location: L
     return nil
   }
 
-  guard var rule = rules.first(where: { $0.location.id == selectedLocation.id }) else {
+  guard let rule = rules.first(where: { $0.location.id == selectedLocation.id }) else {
     assert(
       !hasShipping,
       "This reward is shippable, but no shipping rule matched the selected location. The backer may not be able to complete this pledge."
@@ -569,17 +286,4 @@ private func shippingRule(forReward reward: Reward, selectedLocation location: L
   }
 
   return rule
-}
-
-// Combines a value signal with a boolean signal, returning filtered results.
-//
-// This will fire when _either_ the value signal, or the boolean signal, fires -
-// unlike filterWhenLatestFrom(someSignal, satisfies: isTrue), which will only fire
-// when the value signal changes.
-private extension Signal where Error == Never {
-  func combineLatestAndFilterOn(_ signal: Signal<Bool, Never>) -> Signal<Value, Never> {
-    return self.combineLatest(with: signal)
-      .filter { _, test in test == true }
-      .map { value, _ in value }
-  }
 }

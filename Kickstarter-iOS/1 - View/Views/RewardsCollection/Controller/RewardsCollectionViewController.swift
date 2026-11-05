@@ -47,7 +47,7 @@ final class RewardsCollectionViewController: UICollectionViewController {
       |> \.translatesAutoresizingMaskIntoConstraints .~ false
   }()
 
-  private let viewModel: RewardsCollectionViewModelType = RewardsCollectionViewModel()
+  private let viewModel = RewardsCollectionViewModel()
 
   static func instantiate(
     with project: Project,
@@ -56,7 +56,7 @@ final class RewardsCollectionViewController: UICollectionViewController {
     secretRewardToken: String? = nil
   ) -> RewardsCollectionViewController {
     let rewardsCollectionVC = RewardsCollectionViewController()
-    rewardsCollectionVC.viewModel.inputs.configure(
+    rewardsCollectionVC.viewModel.configure(
       with: project,
       refTag: refTag,
       context: context,
@@ -111,13 +111,13 @@ final class RewardsCollectionViewController: UICollectionViewController {
     )
 
     self.setupConstraints()
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
 
-    self.viewModel.inputs.viewDidAppear()
+    self.viewModel.viewDidAppear()
   }
 
   override func viewDidLayoutSubviews() {
@@ -133,20 +133,20 @@ final class RewardsCollectionViewController: UICollectionViewController {
       layout.itemSize = itemSize
       layout.invalidateLayout()
     } else {
-      self.viewModel.inputs.viewDidLayoutSubviews()
+      self.viewModel.viewDidLayoutSubviews()
     }
   }
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
 
-    self.viewModel.inputs.viewWillAppear()
+    self.viewModel.viewWillAppear()
   }
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
 
-    self.viewModel.inputs.traitCollectionDidChange(self.traitCollection)
+    self.viewModel.traitCollectionDidChange(self.traitCollection)
   }
 
   override func bindStyles() {
@@ -167,82 +167,23 @@ final class RewardsCollectionViewController: UICollectionViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.title
-      .observeForUI()
-      .observeValues { [weak self] title in
-        _ = self
-          ?|> \.title .~ title
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .title(title): self.title = title
+      case let .reloadData(values): self.dataSource.load(values); self.collectionView.reloadData()
+      case let .scrollToReward(indexPath): self.scrollToReward(atIndexPath: indexPath)
+      case let .goToAddOnSelection(data), let .goToCustomizeYourReward(data): self.goToAddOnSelection(data: data)
+      case let .showPlaceholderRewardCards(count): self.dataSource.isLoading(rewardsCount: count); self.collectionView.reloadData()
+      case let .footerHidden(hidden):
+        self.updateRewardCollectionViewFooterConstraints(hidden)
+        self.rewardsCollectionFooterView.isHidden = hidden
+      case let .configureFooter(count): self.configureRewardsCollectionViewFooter(with: count)
+      case .flashScrollIndicators: self.collectionView.flashScrollIndicators()
+      case let .navigationBarShadowImageHidden(hidden): self.navigationController?.navigationBar.shadowImage = hidden ? UIImage() : self.navigationBarShadowImage
+      case let .showEditRewardConfirmationPrompt(title, message): self.showEditRewardConfirmationPrompt(title: title, message: message)
       }
-
-    self.viewModel.outputs.reloadDataWithValues
-      .observeForUI()
-      .observeValues { [weak self] values in
-        self?.dataSource.load(values)
-        self?.collectionView.reloadData()
-      }
-
-    self.viewModel.outputs.scrollToRewardIndexPath
-      .observeForUI()
-      .observeValues { [weak self] indexPath in
-        self?.scrollToReward(atIndexPath: indexPath)
-      }
-
-    self.viewModel.outputs.goToAddOnSelection
-      .observeForControllerAction()
-      .observeValues { [weak self] data in
-        self?.goToAddOnSelection(data: data)
-      }
-
-    self.viewModel.outputs.goToCustomizeYourReward
-      .observeForControllerAction()
-      .observeValues { [weak self] data in
-        guard let self else { return }
-        /// Goes to screen that only has the pledge amount or bonus amount selectors
-        self.goToAddOnSelection(data: data)
-      }
-
-    self.viewModel.outputs.showPlaceholderRewardCards
-      .observeForUI()
-      .observeValues { [weak self] rewardsCount in
-        guard let self else { return }
-        self.dataSource.isLoading(rewardsCount: rewardsCount)
-        self.collectionView.reloadData()
-      }
-
-    self.viewModel.outputs.rewardsCollectionViewFooterIsHidden
-      .observeForUI()
-      .observeValues { [weak self] isHidden in
-        self?.updateRewardCollectionViewFooterConstraints(isHidden)
-      }
-
-    self.viewModel.outputs.configureRewardsCollectionViewFooterWithCount
-      .observeForUI()
-      .observeValues { [weak self] count in
-        self?.configureRewardsCollectionViewFooter(with: count)
-      }
-
-    self.viewModel.outputs.flashScrollIndicators
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.collectionView.flashScrollIndicators()
-      }
-
-    self.rewardsCollectionFooterView.rac.hidden = self.viewModel.outputs.rewardsCollectionViewFooterIsHidden
-
-    self.viewModel.outputs.navigationBarShadowImageHidden
-      .observeForUI()
-      .observeValues { [weak self] hidden in
-        guard let self = self else { return }
-        self.navigationController?.navigationBar.shadowImage = hidden
-          ? UIImage()
-          : self.navigationBarShadowImage
-      }
-
-    self.viewModel.outputs.showEditRewardConfirmationPrompt
-      .observeForControllerAction()
-      .observeValues { [weak self] title, message in
-        self?.showEditRewardConfirmationPrompt(title: title, message: message)
-      }
+    }
   }
 
   // MARK: - Functions
@@ -325,7 +266,7 @@ final class RewardsCollectionViewController: UICollectionViewController {
     )
 
     let continueAction = UIAlertAction(title: Strings.Yes_continue(), style: .default) { [weak self] _ in
-      self?.viewModel.inputs.confirmedEditReward()
+      self?.viewModel.confirmedEditReward()
     }
 
     alert.addAction(continueAction)
@@ -376,11 +317,11 @@ extension RewardsCollectionViewController: UICollectionViewDelegateFlowLayout {
 
 extension RewardsCollectionViewController: RewardCellDelegate {
   func rewardCellDidTapPledgeButton(_: RewardCell, rewardId: Int) {
-    self.viewModel.inputs.rewardSelected(with: rewardId)
+    self.viewModel.rewardSelected(with: rewardId)
   }
 
   func rewardCell(_: RewardCell, shouldShowDividerLine show: Bool) {
-    self.viewModel.inputs.rewardCellShouldShowDividerLine(show)
+    self.viewModel.rewardCellShouldShowDividerLine(show)
   }
 }
 
@@ -391,11 +332,11 @@ extension RewardsCollectionViewController: PledgeShippingLocationViewControllerD
     _: PledgeShippingLocationViewController,
     didSelect location: Location?
   ) {
-    self.viewModel.inputs.shippingLocationSelected(location)
+    self.viewModel.shippingLocationSelected(location)
   }
 
   func pledgeShippingLocationViewControllerFailedToLoad(_: PledgeShippingLocationViewController) {
-    self.viewModel.inputs.shippingLocationViewDidFailToLoad()
+    self.viewModel.shippingLocationViewDidFailToLoad()
   }
 }
 
