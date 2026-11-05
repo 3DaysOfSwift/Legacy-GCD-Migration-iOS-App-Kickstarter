@@ -34,12 +34,11 @@ internal final class CommentRepliesViewModelTests: TestCase {
   override func setUp() async throws {
     try await super.setUp()
     MainActor.assumeIsolated {
-      self.vm.outputs.configureCommentComposerViewWithData.map(\.becomeFirstResponder)
-        .observe(self.configureCommentComposerBecomeFirstResponder.observer)
-      self.vm.outputs.configureCommentComposerViewWithData.map(\.avatarURL)
-        .observe(self.configureCommentComposerViewURL.observer)
-      self.vm.outputs.configureCommentComposerViewWithData.map(\.canPostComment)
-        .observe(self.configureCommentComposerViewCanPostComment.observer)
+      self.vm.outputs.onConfigureComposer = { [weak self] data in
+        self?.configureCommentComposerBecomeFirstResponder.observer.send(value: data.becomeFirstResponder)
+        self?.configureCommentComposerViewURL.observer.send(value: data.avatarURL)
+        self?.configureCommentComposerViewCanPostComment.observer.send(value: data.canPostComment)
+      }
       self.vm.outputs.onLoadRootComment = { [weak self] comment in self?.loadCommentIntoDataSourceComment.observer.send(value: comment) }
       self.vm.outputs.onDidBlockUser = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
       self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }

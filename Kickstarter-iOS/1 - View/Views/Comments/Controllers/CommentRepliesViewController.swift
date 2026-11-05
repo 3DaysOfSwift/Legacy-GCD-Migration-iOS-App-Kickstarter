@@ -99,9 +99,7 @@ final class CommentRepliesViewController: UITableViewController, MessageBannerVi
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.configureCommentComposerViewWithData
-      .observeForUI()
-      .observeValues { [weak self] data in
+    self.viewModel.outputs.onConfigureComposer = { [weak self] data in
         self?.commentComposer.configure(with: data)
       }
 

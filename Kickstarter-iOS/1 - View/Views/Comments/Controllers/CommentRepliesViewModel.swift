@@ -52,7 +52,7 @@ public protocol CommentRepliesViewModelInputs {
 @MainActor
 public protocol CommentRepliesViewModelOutputs: AnyObject {
   /// Emits data to configure comment composer view.
-  var configureCommentComposerViewWithData: Signal<CommentComposerViewData, Never> { get }
+  var onConfigureComposer: ((CommentComposerViewData) -> Void)? { get set }
 
   /// Emits a root `Comment`s  to load into the data source.
   var onLoadRootComment: ((Comment) -> Void)? { get set }
@@ -92,6 +92,10 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   private let feature: DiscussionFeature
   private var latestRootComment: Comment?
   private var latestProject: Project?
+  private var composerUser: User?
+  private var composerFirstResponder = false
+  private var requestedFirstResponder = false
+  private var composerLoaded = false
   private var latestReplies: ([Comment], Int)?
   private var latestFailableReply: (Comment, String)?
   private var pageObservation: MainActorObservation?
@@ -117,39 +121,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
 
     let currentUser = self.viewDidLoadProperty.signal
       .map { _ in AppEnvironment.current.currentUser }
-
-    let inputAreaBecomeFirstResponder = Signal.merge(
-      rootCommentProject
-        .map(third)
-        .takeWhen(self.viewDidAppearProperty.signal),
-      self.viewDidLoadProperty.signal.mapConst(false)
-    ).skipRepeats()
-
-    self.configureCommentComposerViewWithData = Signal
-      .combineLatest(
-        project,
-        currentUser.signal,
-        self.viewDidLoadProperty.signal,
-        inputAreaBecomeFirstResponder
-      )
-      .map { ($0.0, $0.1, $0.3) }
-      .map { project, currentUser, inputAreaBecomeFirstResponder in
-        let isBacker = userIsBackingProject(project)
-        let isCreatorOrCollaborator = !project.memberData.permissions.isEmpty && !isBacker
-        let canPostComment = isBacker || isCreatorOrCollaborator
-
-        guard let user = currentUser else {
-          return (
-            avatarURL: nil,
-            canPostComment: false,
-            hidden: true,
-            becomeFirstResponder: false
-          )
-        }
-
-        let url = URL(string: user.avatar.medium)
-        return (url, canPostComment, false, inputAreaBecomeFirstResponder)
-      }
 
     let commentCellTapped = self.didSelectCommentProperty.signal.skipNil()
     let erroredCommentTapped = commentCellTapped.filter { comment in comment.status == .failed }
@@ -244,6 +215,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     self.disposables += project.observeValues { [weak self] project in
       guard let self else { return }
       self.latestProject = project
+      self.updateComposer()
       if let replies = self.latestReplies { self.onLoadReplies?(replies, project) }
       if let (comment, id) = self.latestFailableReply { self.onLoadFailableReply?(comment, id, project) }
     }
@@ -318,6 +290,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     inputAreaBecomeFirstResponder: Bool,
     replyId: String?
   ) {
+    self.requestedFirstResponder = inputAreaBecomeFirstResponder
     self.commentProjectProperty.value = (comment, project, inputAreaBecomeFirstResponder)
     self.updateProperty.value = update
     if let replyId { self.replyID = replyId }
@@ -336,17 +309,33 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     if let replyID = self.replyID { self.onScrollToReply?(replyID) }
   }
 
-  fileprivate let viewDidAppearProperty = MutableProperty(())
   public func viewDidAppear() {
-    self.viewDidAppearProperty.value = ()
+    guard self.composerLoaded, self.latestProject != nil,
+          self.composerFirstResponder != self.requestedFirstResponder else { return }
+    self.composerFirstResponder = self.requestedFirstResponder
+    self.updateComposer()
   }
 
   fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
+    self.composerLoaded = true
+    self.composerUser = AppEnvironment.current.currentUser
+    self.composerFirstResponder = false
     self.viewDidLoadProperty.value = ()
   }
 
-  public let configureCommentComposerViewWithData: Signal<CommentComposerViewData, Never>
+  private func updateComposer() {
+    guard self.composerLoaded, let project = self.latestProject else { return }
+    guard let user = self.composerUser else {
+      self.onConfigureComposer?((nil, false, true, false))
+      return
+    }
+    let isBacker = userIsBackingProject(project)
+    let canPost = isBacker || !project.memberData.permissions.isEmpty
+    self.onConfigureComposer?((URL(string: user.avatar.medium), canPost, false, self.composerFirstResponder))
+  }
+
+  public var onConfigureComposer: ((CommentComposerViewData) -> Void)?
   public var onLoadRootComment: ((Comment) -> Void)?
   public var onLoadReplies: ((([Comment], Int), Project) -> Void)?
   public var onLoadFailableReply: ((Comment, String, Project) -> Void)?
