@@ -2,7 +2,6 @@
 import UserNotifications
 import AppTrackingTransparency
 import Prelude
-import ReactiveSwift
 import XCTest
 import SystemConfiguration
 
@@ -432,20 +431,19 @@ final class AppLifecycleFeatureTests: XCTestCase {
     XCTAssertEqual(self.provider.tokens, ["synthetic-a"])
   }
 
-  func testDisposingObserverDoesNotCancelAdmittedRegistration() async throws {
+  func testCancellingPresentationWaitDoesNotCancelAdmittedRegistration() async throws {
     let request = self.feature.requestPushRegistration(token: "synthetic-a")
-    var values: [String] = []
-    let observer = self.feature.result { try await request.value }.startWithResult {
-      if case .success(let value) = $0 { values.append(value) }
-    }
+    let operation = self.feature.sessionBound { try await request.value }
+    let observer = Task { try await operation() }
     await self.provider.registrations.waitFor(1)
-    observer.dispose()
+    observer.cancel()
     try self.provider.registrations.finish(0, .success(()))
     _ = try await request.value
+    await self.assertCancelled(observer)
     await self.feature.waitForOperations()
-    XCTAssertTrue(values.isEmpty)
     XCTAssertEqual(self.provider.tokens, ["synthetic-a"])
   }
+
 }
 
 @MainActor

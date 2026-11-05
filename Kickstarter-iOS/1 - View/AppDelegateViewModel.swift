@@ -267,7 +267,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       visitorCookies().forEach(AppEnvironment.current.cookieStorage.setCookie)
 
       let request = lifecycleFeature.requestConfiguration()
-      return lifecycleFeature.result { try await request.value }.demoteErrors()
+      return lifecycleResult(feature: lifecycleFeature) { try await request.value }.demoteErrors()
     }
     .map { configRetainingDebugFeatureFlags($0) }
 
@@ -339,7 +339,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       .ksr_debounce(.seconds(5), on: AppEnvironment.current.scheduler)
       .switchMap { token in
         let request = lifecycleFeature.requestPushRegistration(token: token)
-        return lifecycleFeature.result { try await request.value }.demoteErrors()
+        return lifecycleResult(feature: lifecycleFeature) { try await request.value }.demoteErrors()
       }
 
     self.registerPushTokenInBraze = self.deviceTokenDataProperty.signal
@@ -417,7 +417,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       redirectObservation.cancel()
       // Admit synchronously so every newer link invalidates old work immediately.
       let request = lifecycleFeature.requestDestination(navigation, route: route)
-      return lifecycleFeature.result { try await request.value }.demoteErrors().skipNil()
+      return lifecycleResult(feature: lifecycleFeature) { try await request.value }.demoteErrors().skipNil()
     }
 
     let updatedUserNotificationSettings = deepLink.filter { nav in
@@ -931,10 +931,33 @@ private func navigation(fromShortcutItem shortcutItem: ShortcutItem) -> SignalPr
   }
 }
 
+// Transitional adapter owned by the legacy app delegate presentation layer.
+@MainActor
+private func lifecycleResult<Value>(
+  feature: AppLifecycleFeature, operation: @escaping @MainActor () async throws -> Value
+) -> SignalProducer<Value, ErrorEnvelope> {
+  let admitted = feature.sessionBound(operation)
+  return SignalProducer { observer, lifetime in
+    MainActor.assumeIsolated {
+      let task = Task { @MainActor in
+        do {
+          let value = try await admitted()
+          observer.send(value: value)
+          observer.sendCompleted()
+        } catch {
+          if Task.isCancelled || error is CancellationError { observer.sendInterrupted() }
+          else { observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON) }
+        }
+      }
+      lifetime.observeEnded { task.cancel() }
+    }
+  }
+}
+
 // Rendering policy remains unchanged; the Feature owns the recommendation read.
 @MainActor
 private func shortcutItems(forUser user: User?, feature: AppLifecycleFeature) -> SignalProducer<[ShortcutItem], Never> {
-  feature.result { try await feature.hasRecommendations(for: user) }
+  lifecycleResult(feature: feature) { try await feature.hasRecommendations(for: user) }
     .map { shortcutItems(isProjectMember: (user?.stats.memberProjectsCount ?? 0) > 0, hasRecommendations: $0) }
     .demoteErrors()
 }

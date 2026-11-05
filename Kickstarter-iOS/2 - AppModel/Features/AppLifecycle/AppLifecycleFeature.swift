@@ -4,7 +4,6 @@ import AppTrackingTransparency
 import UserNotifications
 import KsApi
 import Prelude
-import ReactiveSwift
 
 @MainActor
 public protocol AppLifecycleProvider {
@@ -136,7 +135,6 @@ public final class AppLifecycleFeature {
   private var recommendationTasks: [UUID: Task<Bool, Error>] = [:]
   private var destinationTasks: [UUID: Task<Destination?, Error>] = [:]
   private var pushTasks: [UUID: Task<String, Error>] = [:]
-  private var observers: [UUID: Task<Void, Never>] = [:]
 
   public init(
     sessionFeature: SessionFeature, settingsFeature: SettingsFeature,
@@ -458,49 +456,29 @@ public final class AppLifecycleFeature {
     self.config?.task.cancel()
     self.recommendations?.request.task.cancel()
     for route in Set(self.destinations.keys).union(self.redirectVersions.keys) { self.release(route: route) }
-    for task in self.observers.values { task.cancel() }
   }
   public func waitForOperations() async {
     while !self.configTasks.isEmpty || !self.recommendationTasks.isEmpty
-      || !self.redirectTasks.isEmpty || !self.destinationTasks.isEmpty || !self.pushTasks.isEmpty || !self.observers.isEmpty
+      || !self.redirectTasks.isEmpty || !self.destinationTasks.isEmpty || !self.pushTasks.isEmpty
     {
       for task in Array(self.configTasks.values) { _ = await task.result }
       for task in Array(self.recommendationTasks.values) { _ = await task.result }
       for task in Array(self.redirectTasks.values) { _ = await task.result }
       for task in Array(self.destinationTasks.values) { _ = await task.result }
       for task in Array(self.pushTasks.values) { _ = await task.result }
-      for task in Array(self.observers.values) { await task.value }
     }
   }
 
-  /// Output adapter only. Tasks above own sharing, cancellation and ordering.
-  /// Disposing one observer leaves shared reads and admitted writes intact.
-  public func result<Value>(_ operation: @escaping @MainActor () async throws -> Value)
-    -> SignalProducer<Value, ErrorEnvelope>
+  /// Capture the session at admission and reject a result if it becomes obsolete.
+  internal func sessionBound<Value>(_ operation: @escaping @MainActor () async throws -> Value)
+    -> @MainActor () async throws -> Value
   {
     let session = self.session
-    return SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        let id = UUID()
-        let task = Task { [self] in
-          defer { self.observers[id] = nil }
-          do {
-            try self.requireCurrent(session)
-            let value = try await operation()
-            try self.requireCurrent(session)
-            observer.send(value: value)
-            observer.sendCompleted()
-          } catch {
-            guard !Task.isCancelled, !(error is CancellationError), self.session == session else {
-              observer.sendInterrupted()
-              return
-            }
-            observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
-          }
-        }
-        self.observers[id] = task
-        lifetime.observeEnded { task.cancel() }
-      }
+    return { [self] in
+      try self.requireCurrent(session)
+      let value = try await operation()
+      try self.requireCurrent(session)
+      return value
     }
   }
 }
