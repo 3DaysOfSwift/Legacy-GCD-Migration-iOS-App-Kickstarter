@@ -153,9 +153,7 @@ final class CommentRepliesViewController: UITableViewController, MessageBannerVi
         }
       }
 
-    self.viewModel.outputs.showPaginationErrorState
-      .observeForUI()
-      .observeValues { [weak self] _ in
+    self.viewModel.outputs.onPaginationError = { [weak self] in
         guard let self = self else { return }
         self.dataSource.showPaginationErrorState()
         self.tableView.reloadData()

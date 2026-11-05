@@ -70,7 +70,7 @@ public protocol CommentRepliesViewModelOutputs: AnyObject {
   var scrollToReply: Signal<String, Never> { get }
 
   /// Emits when a pagination error has occurred.
-  var showPaginationErrorState: Signal<(), Never> { get }
+  var onPaginationError: (() -> Void)? { get set }
 
   /// Emits when a block user request is successful.
   var onDidBlockUser: (() -> Void)? { get set }
@@ -91,8 +91,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   CommentRepliesViewModelOutputs {
   private let feature: DiscussionFeature
   private let pagePipe = Signal<(UUID, [Comment], Int), Never>.pipe()
-  private let loadingPipe = Signal<(UUID, Bool), Never>.pipe()
-  private let errorPipe = Signal<(UUID, ErrorEnvelope), Never>.pipe()
   private var pageObservation: MainActorObservation?
   private let route = UUID()
   private let disposables = ScopedDisposable(CompositeDisposable())
@@ -163,7 +161,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     )
 
     let replyPages = self.pagePipe.output.filter { $0.0 == route }
-    let error = self.errorPipe.output.filter { $0.0 == route }.map { $0.1 }
 
     let commentComposerDidSubmitText = self.commentComposerDidSubmitTextProperty.signal.skipNil()
 
@@ -236,7 +233,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     self.loadFailableReplyIntoDataSource = Signal.combineLatest(failableOrRetriedComment, project)
       .map(unpack)
 
-    self.showPaginationErrorState = error.ignoreValues()
 
     self.scrollToReply = self.replyIdProperty.signal
       .skipNil()
@@ -263,15 +259,13 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     self.disposables += requestFirstPageWith.observeValues { [weak self] comment in
       self?.loadingTask = feature.requestFirstPage(route: route, source: .replies(comment.id), refresh: true)
     }
-    self.disposables += self.paginateOrErrorCellWasTappedProperty.signal.observeValues { [weak self] in
-      self?.loadingTask = feature.requestNextPage(route: route)
-    }
     self.pageObservation = feature.observePages { [weak self] update in
       guard let self else { return }
       switch update {
       case let .page(route, comments, count): self.pagePipe.input.send(value: (route, comments, count))
-      case let .loading(route, loading): self.loadingPipe.input.send(value: (route, loading))
-      case let .error(route, error): self.errorPipe.input.send(value: (route, error))
+      case .loading: break
+      case let .error(eventRoute, _):
+        if eventRoute == route { self.onPaginationError?() }
       }
     }
   }
@@ -326,9 +320,8 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     self.replyIdProperty.value = replyId
   }
 
-  fileprivate let paginateOrErrorCellWasTappedProperty = MutableProperty(())
   public func paginateOrErrorCellWasTapped() {
-    self.paginateOrErrorCellWasTappedProperty.value = ()
+    self.loadingTask = self.feature.requestNextPage(route: self.route)
   }
 
   fileprivate let retryFirstPageProperty = MutableProperty(())
@@ -357,7 +350,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   public let loadFailableReplyIntoDataSource: Signal<(Comment, String, Project), Never>
   public let resetCommentComposer: Signal<(), Never>
   public let scrollToReply: Signal<String, Never>
-  public let showPaginationErrorState: Signal<(), Never>
+  public var onPaginationError: (() -> Void)?
   public var onDidBlockUser: (() -> Void)?
   public var onDidBlockUserError: (() -> Void)?
 

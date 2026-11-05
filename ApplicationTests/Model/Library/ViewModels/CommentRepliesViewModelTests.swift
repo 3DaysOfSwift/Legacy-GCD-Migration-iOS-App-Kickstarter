@@ -64,7 +64,7 @@ internal final class CommentRepliesViewModelTests: TestCase {
         .observe(self.loadRepliesAndProjectIntoDataSourceTotalCount.observer)
       self.vm.outputs.resetCommentComposer.observe(self.resetCommentComposer.observer)
       self.vm.outputs.scrollToReply.observe(self.scrollToReply.observer)
-      self.vm.outputs.showPaginationErrorState.observe(self.showPaginationErrorState.observer)
+      self.vm.outputs.onPaginationError = { [weak self] in self?.showPaginationErrorState.observer.send(value: ()) }
     }
   }
 
