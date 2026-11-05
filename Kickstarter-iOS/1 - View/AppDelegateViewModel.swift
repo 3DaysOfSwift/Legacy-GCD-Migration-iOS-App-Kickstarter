@@ -239,7 +239,10 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
         self.userSessionStartedProperty.signal
       )
       .switchMap { _ -> SignalProducer<Signal<GraphUserSetup?, ErrorEnvelope>.Event, Never> in
-        settingsFeature.setupResult().wrapInOptional().materialize()
+        let request = settingsFeature.requestSetup()
+        return lifecycleResult(feature: lifecycleFeature) {
+          try await withTaskCancellationHandler { try await request.value } onCancel: { request.cancel() }
+        }.wrapInOptional().materialize()
       }
 
     self.fetchUserEmail = fetchUserSetupEvent.values()
@@ -440,7 +443,8 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       .map(accessTokenFromUrl)
       .skipNil()
       .switchMap { accessToken in
-        settingsFeature.verificationResult(token: accessToken)
+        let request = settingsFeature.requestVerification(token: accessToken)
+        return lifecycleResult(feature: lifecycleFeature) { try await request.value }
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
       }

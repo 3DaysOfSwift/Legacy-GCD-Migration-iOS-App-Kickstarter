@@ -130,6 +130,7 @@ public final class SettingsFeature {
   private var tail: Pending?
   private var writes: [UUID: Task<User, Error>] = [:]
   private var reads: [UUID: Task<Void, Never>] = [:]
+  private var setupReads: [UUID: Task<GraphUserSetup, Error>] = [:]
   private var emailRead: (
     id: UUID,
     userID: Int?,
@@ -304,13 +305,14 @@ public final class SettingsFeature {
   /// They do not establish a login. Distinct links queue; equivalent tails share.
   public func verifyEmail(token: String) async throws -> EmailVerificationResponseEnvelope {
     try Task.checkCancellation()
-    let task = self.verificationRequest(token: token)
+    let task = self.requestVerification(token: token)
     let envelope = try await task.value
     try Task.checkCancellation()
     return envelope
   }
 
-  private func verificationRequest(token: String) -> Task<EmailVerificationResponseEnvelope, Error> {
+  @discardableResult
+  public func requestVerification(token: String) -> Task<EmailVerificationResponseEnvelope, Error> {
     let userID = self.session.currentUser?.id
     let generation = self.session.generation
     if let tail = self.verificationTail, tail.token == token,
@@ -349,41 +351,20 @@ public final class SettingsFeature {
     return task
   }
 
-  public func verificationResult(token: String)
-    -> SignalProducer<EmailVerificationResponseEnvelope, ErrorEnvelope> {
-    self.readResult { try await self.verifyEmail(token: token) }
-  }
-
-  public func setupResult() -> SignalProducer<GraphUserSetup, ErrorEnvelope> {
+  @discardableResult
+  public func requestSetup() -> Task<GraphUserSetup, Error> {
     let userID = self.session.currentUser?.id
     let generation = self.session.generation
-    return self.readResult {
+    let id = UUID()
+    let task = Task { [self] in
+      defer { self.setupReads[id] = nil }
       while let previous = self.tail?.task { _ = await previous.result }
       try Task.checkCancellation()
       guard self.session.isCurrent(userID: userID, generation: generation) else { throw CancellationError() }
       return try await self.session.refreshSetup()
     }
-  }
-
-  private func readResult<Value>(_ operation: @escaping @MainActor () async throws -> Value)
-    -> SignalProducer<Value, ErrorEnvelope> {
-    SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        let id = UUID()
-        let task = Task { [self] in
-          defer { self.reads[id] = nil }
-          do {
-            let value = try await operation()
-            try Task.checkCancellation()
-            observer.send(value: value)
-            observer.sendCompleted()
-          } catch is CancellationError { observer.sendInterrupted() }
-          catch { observer.send(error: error as? ErrorEnvelope ?? .couldNotParseJSON) }
-        }
-        self.reads[id] = task
-        lifetime.observeEnded { task.cancel() }
-      }
-    }
+    self.setupReads[id] = task
+    return task
   }
 
   public func emailUser() async throws -> GraphUser {
@@ -611,9 +592,10 @@ public final class SettingsFeature {
 
   /// Waits for owned executions, not presentation scheduler delays.
   func waitForOperations() async {
-    while !self.reads.isEmpty || !self.writes.isEmpty || !self.verificationWrites.isEmpty || self
+    while !self.reads.isEmpty || !self.setupReads.isEmpty || !self.writes.isEmpty || !self.verificationWrites.isEmpty || self
       .emailRead != nil || !self.notificationWrites.isEmpty {
       for task in Array(self.notificationWrites.values) { _ = await task.result }
+      for setup in Array(self.setupReads.values) { _ = await setup.result }
       let reads = Array(self.reads.values)
       let writes = Array(self.writes.values)
       let verifications = Array(self.verificationWrites.values)
