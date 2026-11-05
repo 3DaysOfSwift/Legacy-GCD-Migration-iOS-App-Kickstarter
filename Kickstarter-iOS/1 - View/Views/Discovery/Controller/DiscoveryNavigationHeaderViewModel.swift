@@ -1,295 +1,159 @@
 import KsApi
-import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 import UIKit
 
 @MainActor
-public protocol DiscoveryNavigationHeaderViewModelInputs {
-  /// Call to configure with Discovery params.
-  func configureWith(params: DiscoveryParams)
+final class DiscoveryNavigationHeaderViewModel {
+  enum Event {
+    case animateArrowToDown(Bool), arrowOpacityAnimated(CGFloat, Bool)
+    case debugContainerViewIsHidden(Bool), debugImageViewIsDimmed(Bool)
+    case dividerIsHidden(Bool), dismissDiscoveryFilters, exploreLabelIsHidden(Bool)
+    case favoriteButtonAccessibilityLabel(String), favoriteViewIsDimmed(Bool), favoriteViewIsHidden(Bool)
+    case notifyDelegateFilterSelectedParams(DiscoveryParams), primaryLabelFont(Bool)
+    case primaryLabelOpacityAnimated(CGFloat, Bool), primaryLabelText(String)
+    case secondaryLabelIsHidden(Bool), secondaryLabelText(String)
+    case showDiscoveryFilters(SelectableRow), showFavoriteOnboardingAlert(String)
+    case titleButtonAccessibilityHint(String), titleButtonAccessibilityLabel(String)
+    case updateFavoriteButton(Bool, Bool)
+  }
 
-  /// Call when favorite category button is tapped.
-  func favoriteButtonTapped()
+  var onEvent: ((Event) -> Void)?
+  private let scheduleDismissal: @MainActor (@escaping @MainActor () -> Void) -> Void
+  private var dismissalGeneration = 0
+  private var currentParams: DiscoveryParams?
+  private var configuredParams: DiscoveryParams?
+  private var currentRow: SelectableRow?
+  private var filtersHidden = true
+  private var hasPublishedParams = false
+  private var didAnimateArrowOpacity = false
+  private var lastSecondaryHidden: Bool?
+  private var lastFavoriteHidden: Bool?
+  private var lastFavoriteDimmed: Bool?
+  private var debugContainerHidden: Bool?
+  private var lastCategoryID: Int?
 
-  /// Call when params have been selected from the filters menu.
-  func filtersSelected(row: SelectableRow)
-
-  /// Call when title button is tapped.
-  func titleButtonTapped()
-
-  /// Call when the view controller view loads.
-  func viewDidLoad()
-}
-
-@MainActor
-public protocol DiscoveryNavigationHeaderViewModelOutputs {
-  /// Emits to animate arrow image down or up.
-  var animateArrowToDown: Signal<Bool, Never> { get }
-
-  /// Emits opacity for arrow and whether to animate the change, used for launch transition.
-  var arrowOpacityAnimated: Signal<(CGFloat, Bool), Never> { get }
-
-  /// Emits when debug container view should be shown/hidden, depending if build is Beta/Debug or Release.
-  var debugContainerViewIsHidden: Signal<Bool, Never> { get }
-
-  /// Emits when the debug image view should dim
-  var debugImageViewIsDimmed: Signal<Bool, Never> { get }
-
-  /// Emits whether divider label is hidden.
-  var dividerIsHidden: Signal<Bool, Never> { get }
-
-  /// Emits when the filters view controller should be dismissed.
-  var dismissDiscoveryFilters: Signal<(), Never> { get }
-
-  /// Emits when the Explore label should be shown/hidden after filter is selected.
-  var exploreLabelIsHidden: Signal<Bool, Never> { get }
-
-  /// Emits a11y label for favorite button.
-  var favoriteButtonAccessibilityLabel: Signal<String, Never> { get }
-
-  /// Emits when favorite button should be enabled, e.g. when filters is closed.
-  var favoriteViewIsDimmed: Signal<Bool, Never> { get }
-
-  /// Emits whether the favorite container view is hidden.
-  var favoriteViewIsHidden: Signal<Bool, Never> { get }
-
-  /// Emits params for Discovery view controller when filter selected.
-  var notifyDelegateFilterSelectedParams: Signal<DiscoveryParams, Never> { get }
-
-  /// Emits to set the font for primary label and whether it should be bolded or not.
-  var primaryLabelFont: Signal<Bool, Never> { get }
-
-  /// Emits an opacity for primary label and whether to animate the change.
-  var primaryLabelOpacityAnimated: Signal<(CGFloat, Bool), Never> { get }
-
-  /// Emits text for filter label.
-  var primaryLabelText: Signal<String, Never> { get }
-
-  /// Emits to show/hide subcategory label.
-  var secondaryLabelIsHidden: Signal<Bool, Never> { get }
-
-  /// Emits text for subcategory label.
-  var secondaryLabelText: Signal<String, Never> { get }
-
-  /// Emits when discovery filters view controller should be presented.
-  var showDiscoveryFilters: Signal<SelectableRow, Never> { get }
-
-  /// Emits to show an onboarding alert for first time tapping the favorite button with the category name.
-  var showFavoriteOnboardingAlert: Signal<String, Never> { get }
-
-  /// Emits a11y hint for title button.
-  var titleButtonAccessibilityHint: Signal<String, Never> { get }
-
-  /// Emits a11y label for title button.
-  var titleButtonAccessibilityLabel: Signal<String, Never> { get }
-
-  /// Emits to update heart to selected or not, with animation or not.
-  var updateFavoriteButton: Signal<(selected: Bool, animated: Bool), Never> { get }
-}
-
-@MainActor
-public protocol DiscoveryNavigationHeaderViewModelType {
-  var inputs: DiscoveryNavigationHeaderViewModelInputs { get }
-  var outputs: DiscoveryNavigationHeaderViewModelOutputs { get }
-}
-
-@MainActor
-public final class DiscoveryNavigationHeaderViewModel: DiscoveryNavigationHeaderViewModelType,
-  DiscoveryNavigationHeaderViewModelInputs, DiscoveryNavigationHeaderViewModelOutputs {
-  public init() {
-    let scheduler = AppEnvironment.current.scheduler
-    let currentParams = Signal.merge(
-      self.paramsProperty.signal.skipNil().skipRepeats(),
-      self.filtersSelectedRowProperty.signal.skipNil().map { $0.params }
-    )
-
-    let paramsAndFiltersAreHidden = Signal.merge(
-      currentParams.map { ($0, false) },
-      currentParams.takeWhen(self.titleButtonTappedProperty.signal).map { ($0, true) }
-    )
-    .scan(nil) { data, paramsAndFiltersHidden -> (params: DiscoveryParams, filtersAreHidden: Bool)? in
-      let (params, filtersAreHidden) = paramsAndFiltersHidden
-      return (
-        params: params,
-        filtersAreHidden: filtersAreHidden ? !(data?.filtersAreHidden ?? true) : true
-      )
+  init(scheduleDismissal: @escaping @MainActor (@escaping @MainActor () -> Void) -> Void = { action in
+    Task { @MainActor in
+      try? await Task.sleep(for: .milliseconds(400))
+      guard !Task.isCancelled else { return }
+      action()
     }
-    .skipNil()
+  }) {
+    self.scheduleDismissal = scheduleDismissal
+  }
 
-    let strings = paramsAndFiltersAreHidden.map(first).map(stringsForTitle)
-    let filtersAreHidden = paramsAndFiltersAreHidden.map(second)
+  func viewDidLoad() {
+    guard let environment = AppEnvironment.current else { return }
+    let hidden = !(environment.mainBundle.isAlpha || environment.mainBundle.isBeta || environment.mainBundle.isDebug)
+    self.debugContainerHidden = hidden
+    self.onEvent?(.debugContainerViewIsHidden(hidden))
+    self.publishFavoriteHidden(true)
+    self.onEvent?(.primaryLabelOpacityAnimated(0, false))
+    self.onEvent?(.arrowOpacityAnimated(0, false))
+  }
 
-    self.animateArrowToDown = filtersAreHidden
+  func configureWith(params: DiscoveryParams) {
+    self.currentRow = SelectableRow(isSelected: true, params: params)
+    guard self.configuredParams != params else { return }
+    self.configuredParams = params
+    self.receive(params: params)
+  }
 
-    self.dividerIsHidden = strings
-      .map { $0.subcategory == nil }
-      .skipRepeats()
+  func filtersSelected(row: SelectableRow) {
+    self.currentRow = row
+    self.onEvent?(.exploreLabelIsHidden(shouldHideLabel(row.params)))
+    self.receive(params: row.params)
+    self.dismissAfterDelay()
+  }
 
-    self.exploreLabelIsHidden = self.filtersSelectedRowProperty.signal.map {
-      shouldHideLabel($0?.params)
+  func titleButtonTapped() {
+    guard let params = self.currentParams else { return }
+    self.filtersHidden.toggle()
+    self.publish(params: params)
+    if self.filtersHidden { self.dismissAfterDelay() }
+    else if let row = self.currentRow { self.onEvent?(.showDiscoveryFilters(row)) }
+  }
+
+  func favoriteButtonTapped() {
+    if let id = self.lastCategoryID {
+      toggleStoredFavoriteCategory(withId: id)
+      self.publishFavorite(id: id, animated: true)
     }
+    guard let params = self.currentParams else { return }
+    guard let environment = AppEnvironment.current else { return }
+    guard !environment.ubiquitousStore.hasSeenFavoriteCategoryAlert || !environment.userDefaults.hasSeenFavoriteCategoryAlert else { return }
+    let title = stringsForTitle(params: params)
+    environment.ubiquitousStore.hasSeenFavoriteCategoryAlert = true
+    environment.userDefaults.hasSeenFavoriteCategoryAlert = true
+    self.onEvent?(.showFavoriteOnboardingAlert(Strings.category_name_saved(category_name: title.subcategory ?? title.filter)))
+  }
 
-    self.debugContainerViewIsHidden = self.viewDidLoadProperty.signal
-      .map { DiscoveryNavigationHeaderViewModel.canShowBetaTools(environment: AppEnvironment.current) }
-      .negate()
-
-    self.favoriteViewIsHidden = paramsAndFiltersAreHidden.map(first)
-      .map { $0.category == nil }
-      .mergeWith(self.viewDidLoadProperty.signal.mapConst(true))
-      .skipRepeats()
-
-    self.favoriteViewIsDimmed = paramsAndFiltersAreHidden
-      .filter { params, _ in params.category != nil }
-      .map { _, filtersAreHidden in !filtersAreHidden }
-      .skipRepeats()
-
-    self.debugImageViewIsDimmed = self.debugContainerViewIsHidden
-      .takePairWhen(filtersAreHidden)
-      .filter { debugContainerIsHidden, _ in isFalse(debugContainerIsHidden) }
-      .map(second)
-      .negate()
-
-    let dismissFiltersSignal = Signal.merge(
-      self.filtersSelectedRowProperty.signal.ignoreValues(),
-      paramsAndFiltersAreHidden.filter { $0.filtersAreHidden }.skip(first: 1).ignoreValues()
-    )
-
-    self.dismissDiscoveryFilters = dismissFiltersSignal
-      .ksr_debounce(.milliseconds(400), on: scheduler)
-
-    self.notifyDelegateFilterSelectedParams = currentParams.skip(first: 1)
-
-    self.primaryLabelFont = paramsAndFiltersAreHidden
-      .map { params, filtersAreHidden in
-        (params.category?.isRoot ?? true) && filtersAreHidden
-      }
-
-    self.primaryLabelOpacityAnimated = Signal.merge(
-      self.viewDidLoadProperty.signal.mapConst((0.0, false)),
-      paramsAndFiltersAreHidden
-        .map(first)
-        .map { ($0.category?.isRoot == .some(false) ? 0.6 : 1.0, true) }
-    )
-
-    self.primaryLabelText = strings.map { filter in
-      filter.filter
+  private func receive(params: DiscoveryParams) {
+    self.currentParams = params
+    self.filtersHidden = true
+    self.publish(params: params)
+    if self.hasPublishedParams {
+      self.onEvent?(.notifyDelegateFilterSelectedParams(params))
+      self.dismissAfterDelay()
     }
+    self.hasPublishedParams = true
+    if let id = params.category?.intID {
+      self.lastCategoryID = id
+      self.publishFavorite(id: id, animated: false)
+    }
+  }
 
-    self.secondaryLabelIsHidden = strings
-      .map { $0.subcategory == nil }
-      .skipRepeats()
-
-    self.secondaryLabelText = strings.map { $0.subcategory ?? "" }
-
-    self.arrowOpacityAnimated = Signal.merge(
-      self.viewDidLoadProperty.signal.mapConst((0.0, false)),
-      self.secondaryLabelText.signal.mapConst((1.0, true)).take(first: 1)
-    )
-
-    let rowForFilters = Signal.merge(
-      self.paramsProperty.signal.skipNil().map { SelectableRow(isSelected: true, params: $0) },
-      self.filtersSelectedRowProperty.signal.skipNil()
-    )
-
-    self.showDiscoveryFilters = rowForFilters
-      .takeWhen(paramsAndFiltersAreHidden.filter { !$0.filtersAreHidden })
-
-    self.titleButtonAccessibilityHint = self.animateArrowToDown
-      .map { $0 ? Strings.Opens_filters() : Strings.Closes_filters()
+  private func publish(params: DiscoveryParams) {
+    let strings = stringsForTitle(params: params)
+    let secondaryHidden = strings.subcategory == nil
+    self.onEvent?(.animateArrowToDown(self.filtersHidden))
+    if self.lastSecondaryHidden != secondaryHidden {
+      self.lastSecondaryHidden = secondaryHidden
+      self.onEvent?(.dividerIsHidden(secondaryHidden))
+      self.onEvent?(.secondaryLabelIsHidden(secondaryHidden))
+    }
+    self.publishFavoriteHidden(params.category == nil)
+    if params.category != nil {
+      let dimmed = !self.filtersHidden
+      if self.lastFavoriteDimmed != dimmed {
+        self.lastFavoriteDimmed = dimmed
+        self.onEvent?(.favoriteViewIsDimmed(dimmed))
       }
-
-    self.titleButtonAccessibilityLabel = paramsAndFiltersAreHidden
-      .map(first)
-      .map(accessibilityLabelForTitleButton)
-
-    let categoryIdOnParamsUpdated = currentParams
-      .map { $0.category?.intID }
-      .skipNil()
-
-    let categoryIdOnFavoriteTap = categoryIdOnParamsUpdated
-      .takeWhen(self.favoriteButtonTappedProperty.signal)
-      .on(value: { toggleStoredFavoriteCategory(withId: $0) })
-
-    self.updateFavoriteButton = Signal.merge(
-      categoryIdOnParamsUpdated.map { ($0, false) },
-      categoryIdOnFavoriteTap.map { ($0, true) }
-    )
-    .map { id, animated in (selected: isFavoriteCategoryStored(withId: id), animated: animated) }
-
-    self.favoriteButtonAccessibilityLabel = self.updateFavoriteButton
-      .map {
-        $0.selected
-          ? Strings.discovery_favorite_categories_buttons_unfavorite_a11y_label()
-          : Strings.discovery_favorite_categories_buttons_favorite_a11y_label()
-      }
-
-    self.showFavoriteOnboardingAlert = strings
-      .map { Strings.category_name_saved(category_name: $0.subcategory ?? $0.filter) }
-      .takeWhen(self.favoriteButtonTappedProperty.signal)
-      .filter { _ in
-        !AppEnvironment.current.ubiquitousStore.hasSeenFavoriteCategoryAlert ||
-          !AppEnvironment.current.userDefaults.hasSeenFavoriteCategoryAlert
-      }
-      .on(value: { _ in
-        AppEnvironment.current.ubiquitousStore.hasSeenFavoriteCategoryAlert = true
-        AppEnvironment.current.userDefaults.hasSeenFavoriteCategoryAlert = true
-      })
+    }
+    if self.debugContainerHidden == false { self.onEvent?(.debugImageViewIsDimmed(!self.filtersHidden)) }
+    self.onEvent?(.primaryLabelFont((params.category?.isRoot ?? true) && self.filtersHidden))
+    self.onEvent?(.primaryLabelOpacityAnimated(params.category?.isRoot == .some(false) ? 0.6 : 1, true))
+    self.onEvent?(.primaryLabelText(strings.filter))
+    self.onEvent?(.secondaryLabelText(strings.subcategory ?? ""))
+    if !self.didAnimateArrowOpacity {
+      self.didAnimateArrowOpacity = true
+      self.onEvent?(.arrowOpacityAnimated(1, true))
+    }
+    self.onEvent?(.titleButtonAccessibilityHint(self.filtersHidden ? Strings.Opens_filters() : Strings.Closes_filters()))
+    self.onEvent?(.titleButtonAccessibilityLabel(accessibilityLabelForTitleButton(params: params)))
   }
 
-  fileprivate let paramsProperty = MutableProperty<DiscoveryParams?>(nil)
-  public func configureWith(params: DiscoveryParams) {
-    self.paramsProperty.value = params
+  private func publishFavoriteHidden(_ hidden: Bool) {
+    guard self.lastFavoriteHidden != hidden else { return }
+    self.lastFavoriteHidden = hidden
+    self.onEvent?(.favoriteViewIsHidden(hidden))
   }
 
-  fileprivate let favoriteButtonTappedProperty = MutableProperty(())
-  public func favoriteButtonTapped() {
-    self.favoriteButtonTappedProperty.value = ()
+  private func publishFavorite(id: Int, animated: Bool) {
+    let selected = isFavoriteCategoryStored(withId: id)
+    self.onEvent?(.updateFavoriteButton(selected, animated))
+    self.onEvent?(.favoriteButtonAccessibilityLabel(selected
+      ? Strings.discovery_favorite_categories_buttons_unfavorite_a11y_label()
+      : Strings.discovery_favorite_categories_buttons_favorite_a11y_label()))
   }
 
-  fileprivate let filtersSelectedRowProperty = MutableProperty<SelectableRow?>(nil)
-  public func filtersSelected(row: SelectableRow) {
-    self.filtersSelectedRowProperty.value = row
+  private func dismissAfterDelay() {
+    self.dismissalGeneration += 1
+    let generation = self.dismissalGeneration
+    self.scheduleDismissal { [weak self] in
+      guard let self, self.dismissalGeneration == generation else { return }
+      self.onEvent?(.dismissDiscoveryFilters)
+    }
   }
-
-  fileprivate let titleButtonTappedProperty = MutableProperty(())
-  public func titleButtonTapped() {
-    self.titleButtonTappedProperty.value = ()
-  }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
-  }
-
-  private static func canShowBetaTools(environment: Environment) -> Bool {
-    return environment.mainBundle.isAlpha || environment.mainBundle.isBeta || environment.mainBundle.isDebug
-  }
-
-  public let animateArrowToDown: Signal<Bool, Never>
-  public let arrowOpacityAnimated: Signal<(CGFloat, Bool), Never>
-  public let debugContainerViewIsHidden: Signal<Bool, Never>
-  public let debugImageViewIsDimmed: Signal<Bool, Never>
-  public let dismissDiscoveryFilters: Signal<(), Never>
-  public let dividerIsHidden: Signal<Bool, Never>
-  public let exploreLabelIsHidden: Signal<Bool, Never>
-  public let favoriteButtonAccessibilityLabel: Signal<String, Never>
-  public let favoriteViewIsDimmed: Signal<Bool, Never>
-  public let favoriteViewIsHidden: Signal<Bool, Never>
-  public let notifyDelegateFilterSelectedParams: Signal<DiscoveryParams, Never>
-  public let primaryLabelFont: Signal<Bool, Never>
-  public let primaryLabelOpacityAnimated: Signal<(CGFloat, Bool), Never>
-  public let primaryLabelText: Signal<String, Never>
-  public let secondaryLabelIsHidden: Signal<Bool, Never>
-  public let secondaryLabelText: Signal<String, Never>
-  public let showDiscoveryFilters: Signal<SelectableRow, Never>
-  public let showFavoriteOnboardingAlert: Signal<String, Never>
-  public let titleButtonAccessibilityHint: Signal<String, Never>
-  public let titleButtonAccessibilityLabel: Signal<String, Never>
-  public let updateFavoriteButton: Signal<(selected: Bool, animated: Bool), Never>
-
-  public var inputs: DiscoveryNavigationHeaderViewModelInputs { return self }
-  public var outputs: DiscoveryNavigationHeaderViewModelOutputs { return self }
 }
 
 private func shouldHideLabel(_ params: DiscoveryParams?) -> Bool {

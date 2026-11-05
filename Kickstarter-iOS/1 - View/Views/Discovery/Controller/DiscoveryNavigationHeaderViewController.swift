@@ -12,7 +12,7 @@ internal protocol DiscoveryNavigationHeaderViewDelegate: AnyObject {
 }
 
 internal final class DiscoveryNavigationHeaderViewController: UIViewController {
-  fileprivate let viewModel: DiscoveryNavigationHeaderViewModelType = DiscoveryNavigationHeaderViewModel()
+  fileprivate let viewModel = DiscoveryNavigationHeaderViewModel()
 
   @IBOutlet fileprivate var arrowImageView: UIImageView!
   @IBOutlet fileprivate var betaToolsButton: UIButton!
@@ -43,7 +43,7 @@ internal final class DiscoveryNavigationHeaderViewController: UIViewController {
   }
 
   internal func configureWith(params: DiscoveryParams) {
-    self.viewModel.inputs.configureWith(params: params)
+    self.viewModel.configureWith(params: params)
   }
 
   override func viewDidLoad() {
@@ -67,7 +67,7 @@ internal final class DiscoveryNavigationHeaderViewController: UIViewController {
       for: .touchUpInside
     )
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
 
     // Initial style
     self.primaryLabel.font = self.traitCollection.isRegularRegular
@@ -78,105 +78,44 @@ internal final class DiscoveryNavigationHeaderViewController: UIViewController {
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.debugContainerView.rac.hidden = self.viewModel.outputs.debugContainerViewIsHidden
-    self.exploreLabel.rac.hidden = self.viewModel.outputs.exploreLabelIsHidden
-    self.favoriteContainerView.rac.hidden = self.viewModel.outputs.favoriteViewIsHidden
-    self.favoriteButton.rac.accessibilityLabel = self.viewModel.outputs.favoriteButtonAccessibilityLabel
-    self.primaryLabel.rac.text = self.viewModel.outputs.primaryLabelText
-    self.secondaryLabel.rac.text = self.viewModel.outputs.secondaryLabelText
-    self.secondaryLabel.rac.hidden = self.viewModel.outputs.secondaryLabelIsHidden
-    self.dividerLabel.rac.hidden = self.viewModel.outputs.dividerIsHidden
-    self.titleButton.rac.accessibilityLabel = self.viewModel.outputs.titleButtonAccessibilityLabel
-    self.titleButton.rac.accessibilityHint = self.viewModel.outputs.titleButtonAccessibilityHint
-
-    self.viewModel.outputs.primaryLabelOpacityAnimated
-      .observeForUI()
-      .observeValues { [weak self] alpha, animated in
-        UIView.animate(
-          withDuration: animated ? 0.2 : 0.0, delay: 0.0, options: .curveEaseOut, animations: {
-            self?.primaryLabel.alpha = alpha
-          },
-          completion: nil
-        )
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .debugContainerViewIsHidden(hidden): self.debugContainerView.isHidden = hidden
+      case let .exploreLabelIsHidden(hidden): self.exploreLabel.isHidden = hidden
+      case let .favoriteViewIsHidden(hidden): self.favoriteContainerView.isHidden = hidden
+      case let .favoriteButtonAccessibilityLabel(label): self.favoriteButton.accessibilityLabel = label
+      case let .primaryLabelText(text): self.primaryLabel.text = text
+      case let .secondaryLabelText(text): self.secondaryLabel.text = text
+      case let .secondaryLabelIsHidden(hidden): self.secondaryLabel.isHidden = hidden
+      case let .dividerIsHidden(hidden): self.dividerLabel.isHidden = hidden
+      case let .titleButtonAccessibilityLabel(label): self.titleButton.accessibilityLabel = label
+      case let .titleButtonAccessibilityHint(hint): self.titleButton.accessibilityHint = hint
+      case let .primaryLabelOpacityAnimated(alpha, animated):
+        UIView.animate(withDuration: animated ? 0.2 : 0, delay: 0, options: .curveEaseOut) {
+          self.primaryLabel.alpha = alpha
+        }
+      case let .arrowOpacityAnimated(alpha, animated):
+        UIView.animate(withDuration: animated ? 0.2 : 0, delay: 0, options: .curveEaseOut) {
+          self.arrowImageView.alpha = alpha
+        }
+      case let .primaryLabelFont(isBold):
+        let label = self.primaryLabel!
+        let font: UIFont = label.traitCollection.isRegularRegular ? .ksr_body(size: 18) : .ksr_callout()
+        label.font = isBold ? font.bolded : font
+      case let .animateArrowToDown(down): self.animateArrow(toDown: down)
+      case let .updateFavoriteButton(selected, animated): self.updateFavoriteButton(selected: selected, animated: animated)
+      case let .notifyDelegateFilterSelectedParams(params): self.delegate?.discoveryNavigationHeaderFilterSelectedParams(params)
+      case let .showDiscoveryFilters(row): self.showDiscoveryFilters(selectedRow: row)
+      case .dismissDiscoveryFilters: self.dismiss(animated: false, completion: nil)
+      case let .showFavoriteOnboardingAlert(name): self.showFavoriteCategoriesAlert(categoryName: name)
+      case let .favoriteViewIsDimmed(dimmed):
+        UIView.animate(withDuration: 0.2, delay: 0, options: .curveEaseOut) {
+          self.favoriteContainerView.alpha = dimmed ? 0.4 : 1
+        }
+      case let .debugImageViewIsDimmed(dimmed): self.debugImageView.tintAdjustmentMode = dimmed ? .dimmed : .normal
       }
-
-    self.viewModel.outputs.arrowOpacityAnimated
-      .observeForUI()
-      .observeValues { [weak self] alpha, animated in
-        UIView.animate(
-          withDuration: animated ? 0.2 : 0.0, delay: 0.0, options: .curveEaseOut, animations: {
-            self?.arrowImageView.alpha = alpha
-          },
-          completion: nil
-        )
-      }
-
-    self.viewModel.outputs.primaryLabelFont
-      .observeForUI()
-      .observeValues { [weak self] isBold in
-        guard let label = self?.primaryLabel else { return }
-
-        _ = label
-          |> UILabel.lens.font %~~ { _, label in
-            label.traitCollection.isRegularRegular
-              ? isBold ? UIFont.ksr_body(size: 18).bolded : UIFont.ksr_body(size: 18)
-              : isBold ? UIFont.ksr_callout().bolded : UIFont.ksr_callout()
-          }
-      }
-
-    self.viewModel.outputs.animateArrowToDown
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.animateArrow(toDown: $0)
-      }
-
-    self.viewModel.outputs.updateFavoriteButton
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.updateFavoriteButton(selected: $0, animated: $1)
-      }
-
-    self.viewModel.outputs.notifyDelegateFilterSelectedParams
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.delegate?.discoveryNavigationHeaderFilterSelectedParams($0)
-      }
-
-    self.viewModel.outputs.showDiscoveryFilters
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.showDiscoveryFilters(selectedRow: $0)
-      }
-
-    self.viewModel.outputs.dismissDiscoveryFilters
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.dismiss(animated: false, completion: nil)
-      }
-
-    self.viewModel.outputs.showFavoriteOnboardingAlert
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.showFavoriteCategoriesAlert(categoryName: $0)
-      }
-
-    self.viewModel.outputs.favoriteViewIsDimmed
-      .observeForUI()
-      .observeValues { [weak self] isDimmed in
-        UIView.animate(
-          withDuration: 0.2, delay: 0.0, options: .curveEaseOut, animations: {
-            self?.favoriteContainerView.alpha = isDimmed ? 0.4 : 1.0
-          },
-          completion: nil
-        )
-      }
-
-    self.viewModel.outputs.debugImageViewIsDimmed
-      .observeForUI()
-      .observeValues { [weak self] isDimmed in
-        _ = self?.debugImageView
-          ?|> \.tintAdjustmentMode .~ (isDimmed ? .dimmed : .normal)
-      }
+    }
   }
 
   internal override func bindStyles() {
@@ -343,23 +282,23 @@ internal final class DiscoveryNavigationHeaderViewController: UIViewController {
   }
 
   @objc fileprivate func titleButtonTapped() {
-    self.viewModel.inputs.titleButtonTapped()
+    self.viewModel.titleButtonTapped()
   }
 
   @objc fileprivate func favoriteButtonTapped() {
-    self.viewModel.inputs.favoriteButtonTapped()
+    self.viewModel.favoriteButtonTapped()
   }
 }
 
 extension DiscoveryNavigationHeaderViewController: DiscoveryFiltersViewControllerDelegate {
   internal func discoveryFiltersDidClose(_: DiscoveryFiltersViewController) {
-    self.viewModel.inputs.titleButtonTapped()
+    self.viewModel.titleButtonTapped()
   }
 
   internal func discoveryFilters(
     _: DiscoveryFiltersViewController,
     selectedRow: SelectableRow
   ) {
-    self.viewModel.inputs.filtersSelected(row: selectedRow)
+    self.viewModel.filtersSelected(row: selectedRow)
   }
 }
