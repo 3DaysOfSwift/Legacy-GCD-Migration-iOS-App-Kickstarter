@@ -11,7 +11,7 @@ import XCTest
 @MainActor
 internal final class PledgeCTAContainerViewViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  let vm: PledgeCTAContainerViewViewModelType = PledgeCTAContainerViewViewModel()
+  let vm = PledgeCTAContainerViewViewModel(sleep: { try Task.checkCancellation() })
 
   let activityIndicatorIsHidden = TestObserver<Bool, Never>()
   let buttonStyleType = TestObserver<ButtonStyleType, Never>()
@@ -384,7 +384,7 @@ internal final class PledgeCTAContainerViewViewModelTests: TestCase {
     XCTAssertEqual("pledge_initiate", segmentTrackingClientProperties?["context_cta"] as? String)
   }
 
-  func testPledgeCTA_PrelaunchGoesFromUnsavedToSavedViaNotification_Success() {
+  func testPledgeCTA_PrelaunchGoesFromUnsavedToSavedViaNotification_Success() async {
     let unsavedProject = Project.template
       |> \.displayPrelaunch .~ true
       |> \.watchesCount .~ 99
@@ -411,8 +411,7 @@ internal final class PledgeCTAContainerViewViewModelTests: TestCase {
       |> \.personalization.isStarred .~ true
 
     self.vm.inputs.savedProjectFromNotification(project: savedProject)
-
-    self.scheduler.advance(by: .seconds(1))
+    await self.vm.waitForSavedProject()
 
     self.buttonStyleType.assertValues([.black, .none])
     self.buttonTitleText.assertValues(["Notify me on launch", "Saved"])
@@ -422,6 +421,17 @@ internal final class PledgeCTAContainerViewViewModelTests: TestCase {
     XCTAssertEqual(self.prelaunchCTASaved.values.last!.prelaunch, prelaunchCTASaved.prelaunch)
     XCTAssertEqual(self.prelaunchCTASaved.values.last!.saved, prelaunchCTASaved.saved)
     self.notifyDelegateCTATapped.assertDidNotEmitValue()
+  }
+
+  func testNewSavedProjectNotificationSupersedesPendingUpdate() async {
+    let initial = Project.template |> \.displayPrelaunch .~ true |> \.watchesCount .~ 10
+    let first = initial |> \.personalization.isStarred .~ true |> \.watchesCount .~ 11
+    let latest = initial |> \.personalization.isStarred .~ true |> \.watchesCount .~ 12
+    self.vm.inputs.configureWith(value: .project(initial))
+    self.vm.inputs.savedProjectFromNotification(project: first)
+    self.vm.inputs.savedProjectFromNotification(project: latest)
+    await self.vm.waitForSavedProject()
+    self.watchesCountText.assertValues(["10 followers", "12 followers"])
   }
 
   func testPledgeCTA_PrelaunchNotifiesWithStateViaButtonClick_Success() {

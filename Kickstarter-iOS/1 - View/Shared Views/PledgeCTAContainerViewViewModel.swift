@@ -1,3 +1,4 @@
+import Foundation
 import KsApi
 import Prelude
 import ReactiveExtensions
@@ -52,7 +53,13 @@ public protocol PledgeCTAContainerViewViewModelType {
 @MainActor
 public final class PledgeCTAContainerViewViewModel: PledgeCTAContainerViewViewModelType,
   PledgeCTAContainerViewViewModelInputs, PledgeCTAContainerViewViewModelOutputs {
-  public init() {
+  private let sleep: @MainActor () async throws -> Void
+  private var savedProjectTask: Task<Void, Never>?
+
+  public init(sleep: @escaping @MainActor () async throws -> Void = {
+    try await Task.sleep(for: .milliseconds(100))
+  }) {
+    self.sleep = sleep
     let projectOrError = self.configData.signal
       .skipNil()
       .map { $0.projectOrError }
@@ -74,17 +81,11 @@ public final class PledgeCTAContainerViewViewModel: PledgeCTAContainerViewViewMo
       .negate()
 
     let backing = project.map { $0.personalization.backing }
-
-    let savedProjectFromNotificationAfterDebounce = self.savedProjectFromNotificationProperty.signal.skipNil()
-      .ksr_debounce(.milliseconds(100), on: AppEnvironment.current.scheduler)
-
-    self.pledgeState <~ Signal
-      .merge(
-        Signal.combineLatest(project, backing),
-        savedProjectFromNotificationAfterDebounce
-      )
-      .map { pledgeCTA(project: $0.0, backing: $0.1) }
-      .skipRepeats()
+    let pledgeState = self.pledgeState
+    _ = Signal.combineLatest(project, backing).observeValues { project, backing in
+      let next = pledgeCTA(project: project, backing: backing)
+      if pledgeState.value != next { pledgeState.value = next }
+    }
 
     let inError = Signal.merge(
       projectError.ignoreValues().mapConst(true),
@@ -161,6 +162,7 @@ public final class PledgeCTAContainerViewViewModel: PledgeCTAContainerViewViewMo
       .map(subtitle(project:pledgeState:))
 
 
+
   }
 
   private var latestProject: Project?
@@ -181,11 +183,24 @@ public final class PledgeCTAContainerViewViewModel: PledgeCTAContainerViewViewMo
     }
   }
 
-  fileprivate let savedProjectFromNotificationProperty = MutableProperty<(Project, Backing?)?>(nil)
   public func savedProjectFromNotification(project: Project?) {
-    guard let projectValue = project else { return }
-    self.savedProjectFromNotificationProperty.value = (projectValue, projectValue.personalization.backing)
+    guard let project else { return }
+    self.savedProjectTask?.cancel()
+    let sleep = self.sleep
+    self.savedProjectTask = Task { [weak self] in
+      do { try await sleep(); try Task.checkCancellation() } catch { return }
+      self?.updatePledgeState(project: project, backing: project.personalization.backing)
+    }
   }
+
+  private func updatePledgeState(project: Project, backing: Backing?) {
+    let next = pledgeCTA(project: project, backing: backing)
+    if self.pledgeState.value != next { self.pledgeState.value = next }
+  }
+
+  func waitForSavedProject() async { await self.savedProjectTask?.value }
+
+  deinit { self.savedProjectTask?.cancel() }
 
   public var inputs: PledgeCTAContainerViewViewModelInputs { return self }
   public var outputs: PledgeCTAContainerViewViewModelOutputs { return self }
