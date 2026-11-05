@@ -77,20 +77,17 @@ final class PledgeFeatureTests: TestCase {
     let cancelInput = KsApi.CancelBackingInput(
       backingId: "backing", cancellationReason: "fixture note")
     let update = self.feature.updateResult(updateInput).startWithFailed { _ in errors += 1 }
-    let cancel = self.feature.cancelResult(cancelInput).startWithResult {
-      if case .success = $0 { canceled += 1 } else { XCTFail("Unexpected cancellation failure") }
-    }
-    defer {
-      update.dispose()
-      cancel.dispose()
-    }
+    let cancel = Task { try await self.feature.cancel(cancelInput); canceled += 1 }
+    defer { update.dispose() }
     await self.provider.updates.waitFor(1)
+    await Task.yield()
     XCTAssertEqual(self.provider.cancellations.count, 0)
     try self.provider.updates.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
     await self.provider.cancellations.waitFor(1)
     XCTAssertEqual(self.provider.updateInputs, [updateInput])
     XCTAssertEqual(self.provider.cancelInputs, [cancelInput])
     try self.provider.cancellations.finish(0, .success(()))
+    try await cancel.value
     await self.feature.waitForOperations()
     XCTAssertEqual(errors, 1)
     XCTAssertEqual(canceled, 1)
@@ -111,18 +108,15 @@ final class PledgeFeatureTests: TestCase {
   }
 
   func testDuplicateCancellationSharesAndLaterExplicitRetryStartsNewRequest() async throws {
-    var failures = 0
     let input = KsApi.CancelBackingInput(backingId: "backing", cancellationReason: nil)
-    let first = self.feature.cancelResult(input).startWithFailed { _ in failures += 1 }
-    let duplicate = self.feature.cancelResult(input).startWithFailed { _ in failures += 1 }
-    defer {
-      first.dispose()
-      duplicate.dispose()
-    }
+    let first = Task { try await self.feature.cancel(input) }
     await self.provider.cancellations.waitFor(1)
+    let duplicate = Task { try await self.feature.cancel(input) }
+    await Task.yield()
     try self.provider.cancellations.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
-    await self.feature.waitForOperations()
-    XCTAssertEqual(failures, 2)
+    for task in [first, duplicate] {
+      do { try await task.value; XCTFail("Expected failure") } catch {}
+    }
     XCTAssertEqual(self.provider.cancellations.count, 1)
     let retry = Task { try await self.feature.cancel(input) }
     await self.provider.cancellations.waitFor(2)
@@ -221,14 +215,9 @@ final class PledgeFeatureTests: TestCase {
       var delivered = false
       let first = self.feature.delayedResult(self.feature.createResult(self.createInput()))
         .startWithResult { _ in delivered = true }
-      let second = self.feature.delayedResult(
-        self.feature.cancelResult(.init(backingId: "backing", cancellationReason: nil))
-      )
-      .startWithResult { _ in delivered = true }
-      defer {
-        first.dispose()
-        second.dispose()
-      }
+      let second = Task { try await self.feature.cancelWithPresentationDelay(
+        .init(backingId: "backing", cancellationReason: nil)) }
+      defer { first.dispose() }
       await self.provider.creates.waitFor(1)
       do { try self.provider.creates.finish(0, .success(self.created())) } catch {
         XCTFail("Missing fixture")
@@ -240,6 +229,8 @@ final class PledgeFeatureTests: TestCase {
       await self.feature.waitForOperations()
       self.session.sessionChanged()
       await self.scheduler.advance(by: 1)
+      do { try await second.value; XCTFail("Old session must not receive a result") }
+      catch { XCTAssertTrue(error is CancellationError) }
       XCTAssertFalse(delivered)
     }
   }
@@ -478,13 +469,14 @@ final class PledgeFeatureTests: TestCase {
   }
 
   func testBackingRefreshWaitsForAdmittedMutation() async throws {
-    let write = self.feature.cancelResult(.init(backingId: "b", cancellationReason: nil)).start()
-    defer { write.dispose() }
+    let write = Task { try await self.feature.cancel(.init(backingId: "b", cancellationReason: nil)) }
+    await self.provider.cancellations.waitFor(1)
     let read = self.feature.backingResult(route: UUID(), id: 1).start()
     defer { read.dispose() }
     await self.provider.cancellations.waitFor(1)
     XCTAssertEqual(self.provider.backings.count, 0)
     try self.provider.cancellations.finish(0, .success(()))
+    try await write.value
     await self.provider.backings.waitFor(1)
     try self.provider.backings.finish(0, .success(.template))
     await self.feature.waitForOperations()
@@ -494,11 +486,12 @@ final class PledgeFeatureTests: TestCase {
     let route = UUID()
     let old = Task { try await self.feature.backing(route: route, id: 1) }
     await self.provider.backings.waitFor(1)
-    let write = self.feature.cancelResult(.init(backingId: "b", cancellationReason: nil)).start()
-    defer { write.dispose() }
+    let write = Task { try await self.feature.cancel(.init(backingId: "b", cancellationReason: nil)) }
+    await self.provider.cancellations.waitFor(1)
     let refresh = Task { try await self.feature.backing(route: route, id: 1) }
     await self.provider.cancellations.waitFor(1)
     try self.provider.cancellations.finish(0, .success(()))
+    try await write.value
     await self.provider.backings.waitFor(2)
     try self.provider.backings.finish(1, .success(.template))
     try self.provider.backings.finish(0, .success(.template))

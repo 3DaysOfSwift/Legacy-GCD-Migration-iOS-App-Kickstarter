@@ -329,10 +329,7 @@ public final class PledgeFeature {
   > {
     self.result(.update(input), transform: Self.updated)
   }
-  public func cancelResult(_ input: KsApi.CancelBackingInput) -> SignalProducer<Void, ErrorEnvelope>
-  {
-    self.result(.cancel(input), transform: { _ in () })
-  }
+
   private func result<Output>(
     _ command: Command, transform: @escaping @MainActor (Value) throws -> Output
   ) -> SignalProducer<Output, ErrorEnvelope> {
