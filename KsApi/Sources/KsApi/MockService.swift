@@ -4,7 +4,6 @@
   import Foundation
   import GraphAPI
   import Prelude
-  import ReactiveSwift
 
   internal struct MockService: ServiceType {
     private let demoCatalog: DemoCatalog?
@@ -1355,16 +1354,12 @@
       return self.removeAttachmentResponse ?? .template
     }
 
-    internal func triggerThirdPartyEventInput(input: TriggerThirdPartyEventInput) -> ReactiveSwift
-      .SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
+    @MainActor public func prepareThirdPartyEvent(input: TriggerThirdPartyEventInput) -> @MainActor () async throws -> Void {
+      let result = self.apolloClient == nil ? nil : self.triggerThirdPartyEventResult
+      return {
+        try Task.checkCancellation()
+        if let result { _ = try result.get() }
       }
-
-      let mutation = GraphAPI
-        .TriggerThirdPartyEventMutation(input: GraphAPI.TriggerThirdPartyEventInput.from(input))
-
-      return client.performWithResult(mutation: mutation, result: self.triggerThirdPartyEventResult)
     }
 
     @MainActor public func publishCreatorDraft(_ draft: UpdateDraft) async throws -> Update {
@@ -1545,23 +1540,6 @@
       catch let error as ErrorEnvelope { return Fail(error: error).eraseToAnyPublisher() }
       catch { return Fail(error: ErrorEnvelope.couldNotParseJSON).eraseToAnyPublisher() }
     }.eraseToAnyPublisher()
-  }
-
-  private func demoResponse<Value>(_ response: @escaping () throws -> Value)
-    -> SignalProducer<Value, ErrorEnvelope> {
-    SignalProducer { observer, _ in
-      do { observer.send(value: try response()); observer.sendCompleted() }
-      catch let error as ErrorEnvelope { observer.send(error: error) }
-      catch { observer.send(error: ErrorEnvelope.couldNotParseJSON) }
-    }
-  }
-
-  private func producer<T, E>(for property: Result<T, E>?) -> SignalProducer<T, E> {
-    guard let result = property else { return .empty }
-    switch result {
-    case let .success(value): return .init(value: value)
-    case let .failure(error): return .init(error: error)
-    }
   }
 
   private extension Result {

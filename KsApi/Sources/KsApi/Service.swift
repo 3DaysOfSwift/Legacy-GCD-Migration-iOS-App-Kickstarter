@@ -4,7 +4,6 @@ import Foundation
 import GraphAPI
 import Prelude
 import ReactiveExtensions
-import ReactiveSwift
 import UIKit
 
 public extension Bundle {
@@ -102,16 +101,13 @@ public struct Service: ServiceType {
       map: { Location.locations(from: $0) })
   }
 
-  public func triggerThirdPartyEventInput(input: TriggerThirdPartyEventInput)
-    -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(
-        mutation: GraphAPI
-          .TriggerThirdPartyEventMutation(input: GraphAPI.TriggerThirdPartyEventInput.from(input))
-      )
-      .flatMap { _ in
-        SignalProducer(value: EmptyResponseEnvelope())
-      }
+  @MainActor public func prepareThirdPartyEvent(input: TriggerThirdPartyEventInput) -> @MainActor () async throws -> Void {
+    let mutation = GraphAPI.TriggerThirdPartyEventMutation(input: GraphAPI.TriggerThirdPartyEventInput.from(input))
+    return {
+      let _: Void = try await CancellableGraphQLRequest.fetch(start: { completion in
+        GraphQL.shared.client.perform(mutation: mutation, queue: .global(qos: .userInitiated), resultHandler: completion)
+      }, map: { _ in () })
+    }
   }
 
   public func createFlaggingInputCombine(input: CreateFlaggingInput)

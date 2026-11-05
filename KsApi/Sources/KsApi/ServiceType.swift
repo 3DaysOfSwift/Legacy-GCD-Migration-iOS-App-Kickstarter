@@ -3,7 +3,6 @@ import ApolloAPI
 import Combine
 import GraphAPI
 import Prelude
-import ReactiveSwift
 import UIKit
 
 public enum Mailbox: String {
@@ -82,8 +81,7 @@ public protocol ServiceType {
   func logout() -> Self
 
   /// Sends facebook ad data and/or google analytics data relevant to the user
-  func triggerThirdPartyEventInput(input: TriggerThirdPartyEventInput)
-    -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
+  @MainActor func prepareThirdPartyEvent(input: TriggerThirdPartyEventInput) -> @MainActor () async throws -> Void
 
   /// Let the server know to create/track an attribution event.
   @MainActor func recordProjectAttribution(input: GraphAPI.CreateAttributionEventInput) async throws

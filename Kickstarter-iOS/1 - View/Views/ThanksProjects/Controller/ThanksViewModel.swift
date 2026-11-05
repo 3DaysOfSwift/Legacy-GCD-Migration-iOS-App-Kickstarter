@@ -138,7 +138,7 @@ final class ThanksViewModel {
     var extInfo = Array(repeating: "", count: 16)
     extInfo[0] = "i2"
     extInfo[4] = AppEnvironment.current.mainBundle.platformVersion
-    _ = AppEnvironment.current.apiService.triggerThirdPartyEventInput(input: .init(
+    _ = AppEnvironment.current.apiService.prepareThirdPartyEvent(input: .init(
       deviceId: externalId, eventName: ThirdPartyEventInputName.BackingComplete.rawValue,
       projectId: "\(data.project.id)", pledgeAmount: pledgeAmount, shipping: shipping,
       transactionId: transactionId, userId: userId,

@@ -4,6 +4,26 @@ import GraphAPI
 import XCTest
 
 final class TriggerThirdPartyEventInputTests: XCTestCase {
+  @MainActor
+  func testPreparedEventRunsOnlyWhenAwaited() async {
+    let input = TriggerThirdPartyEventInput(
+      deviceId: "device", eventName: "event", projectId: "project", pledgeAmount: nil,
+      shipping: nil, transactionId: nil, userId: "user",
+      appData: GraphAPI.AppDataInput(advertiserTrackingEnabled: true, applicationTrackingEnabled: true, extinfo: []),
+      clientMutationId: ""
+    )
+    let service = MockService(apolloClient: MockGraphQLClient.shared, triggerThirdPartyEventResult: .failure(.couldNotParseJSON))
+    let operation = service.prepareThirdPartyEvent(input: input)
+    do {
+      try await operation()
+      XCTFail("The deferred operation should surface its service error")
+    } catch let error as ErrorEnvelope {
+      XCTAssertEqual(error.ksrCode, ErrorEnvelope.couldNotParseJSON.ksrCode)
+    } catch {
+      XCTFail("Unexpected error: \(error)")
+    }
+  }
+
   func testTriggerThirdPartyEventInputTestsDictionary_WithValue_Success() {
     let triggerThirdPartyEventInput =
       TriggerThirdPartyEventInput(

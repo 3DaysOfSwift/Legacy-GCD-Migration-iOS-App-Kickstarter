@@ -519,7 +519,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         _ = AppEnvironment
           .current
           .apiService
-          .triggerThirdPartyEventInput(
+          .prepareThirdPartyEvent(
             input: .init(
               deviceId: externalId,
               eventName: ThirdPartyEventInputName.ProjectPageViewed.rawValue,

@@ -218,7 +218,7 @@ final class PledgePaymentMethodsViewModel {
     var extInfo = Array(repeating: "", count: 16)
     extInfo[0] = "i2"
     extInfo[4] = AppEnvironment.current.mainBundle.platformVersion
-    _ = AppEnvironment.current.apiService.triggerThirdPartyEventInput(input: .init(deviceId: externalId, eventName: ThirdPartyEventInputName.AddNewPaymentMethod.rawValue, projectId: "\(config.project.id)", pledgeAmount: nil, shipping: nil, transactionId: nil, userId: userId, appData: .init(advertiserTrackingEnabled: true, applicationTrackingEnabled: true, extinfo: extInfo), clientMutationId: ""))
+    _ = AppEnvironment.current.apiService.prepareThirdPartyEvent(input: .init(deviceId: externalId, eventName: ThirdPartyEventInputName.AddNewPaymentMethod.rawValue, projectId: "\(config.project.id)", pledgeAmount: nil, shipping: nil, transactionId: nil, userId: userId, appData: .init(advertiserTrackingEnabled: true, applicationTrackingEnabled: true, extinfo: extInfo), clientMutationId: ""))
   }
   func waitForPending() async {
     await self.cardsTask?.value
