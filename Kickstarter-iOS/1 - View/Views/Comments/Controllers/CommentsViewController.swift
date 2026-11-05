@@ -157,26 +157,19 @@ internal final class CommentsViewController: UITableViewController, MessageBanne
         self?.navigationController?.pushViewController(vc, animated: true)
       }
 
-    self.viewModel.outputs.beginOrEndRefreshing
-      .observeForUI()
-      .observeValues { [weak self] in
-        $0 ? self?.refreshControl?.beginRefreshing() : self?.refreshControl?.endRefreshing()
-      }
+    self.viewModel.outputs.onRefreshing = { [weak self] in
+      $0 ? self?.refreshControl?.beginRefreshing() : self?.refreshControl?.endRefreshing()
+    }
 
-    self.viewModel.outputs.configureFooterViewWithState
-      .observeForUI()
-      .observeValues { [weak self] state in
-        self?.footerView.configureWith(value: state)
+    self.viewModel.outputs.onFooterState = { [weak self] state in
+      self?.footerView.configureWith(value: state)
+      self?.footerNeedsLayout = true
+      self?.view.setNeedsLayout()
+    }
 
-        self?.footerNeedsLayout = true
-        self?.view.setNeedsLayout()
-      }
-
-    self.viewModel.outputs.cellSeparatorHidden
-      .observeForUI()
-      .observeValues { [weak self] isHidden in
-        self?.tableView.separatorStyle = isHidden ? .none : .singleLine
-      }
+    self.viewModel.outputs.onSeparatorHidden = { [weak self] isHidden in
+      self?.tableView.separatorStyle = isHidden ? .none : .singleLine
+    }
 
     self.viewModel.outputs.onShowHelp = { [weak self] helpType in
       self?.presentHelpWebViewController(with: helpType)

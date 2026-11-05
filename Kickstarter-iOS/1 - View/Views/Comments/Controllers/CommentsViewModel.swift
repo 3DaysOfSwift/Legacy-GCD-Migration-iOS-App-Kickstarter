@@ -44,16 +44,16 @@ public protocol CommentsViewModelInputs {
 @MainActor
 public protocol CommentsViewModelOutputs: AnyObject {
   /// Emits a boolean that determines if comments are currently loading.
-  var beginOrEndRefreshing: Signal<Bool, Never> { get }
+  var onRefreshing: ((Bool) -> Void)? { get set }
 
   /// Emits a boolean that determines if cell separator is to be hidden.
-  var cellSeparatorHidden: Signal<Bool, Never> { get }
+  var onSeparatorHidden: ((Bool) -> Void)? { get set }
 
   /// Emits data to configure comment composer view.
   var onConfigureComposer: ((CommentComposerViewData) -> Void)? { get set }
 
   /// Configures the footer view with the current state.
-  var configureFooterViewWithState: Signal<CommentTableViewFooterViewState, Never> { get }
+  var onFooterState: ((CommentTableViewFooterViewState) -> Void)? { get set }
 
   /// Emits the selected `Comment`, `Project`, `Update?` and a `Bool` to determine if keyboard should show when user to navigate to replies.
   var goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder: Signal<
@@ -231,8 +231,6 @@ public final class CommentsViewModel: CommentsViewModelType,
       errorsAndHasRequestedNextPage
     )
 
-    self.beginOrEndRefreshing = isLoading
-    self.cellSeparatorHidden = commentsAndProject.map(first).map { $0.count == .zero }
 
     let viewCommentReplies = self.commentCellDidTapViewRepliesProperty.signal
       .skipNil()
@@ -293,7 +291,7 @@ public final class CommentsViewModel: CommentsViewModelType,
         .map(first)
     )
 
-    self.configureFooterViewWithState = Signal.merge(
+    let footerState = Signal.merge(
       hideFooterView,
       footerViewActivityState.mapConst(.activity),
       // Footer view would be only be visible if there is an error for pagination responses.
@@ -324,6 +322,12 @@ public final class CommentsViewModel: CommentsViewModelType,
     }
 
 
+    self.disposables += footerState.observeValues { [weak self] state in
+      self?.onFooterState?(state)
+    }
+    self.disposables += commentsAndProject.observeValues { [weak self] comments, _ in
+      self?.onSeparatorHidden?(comments.isEmpty)
+    }
     self.disposables += initialProject.observeValues { [weak self] project in
       self?.latestPostingProject = project
       self?.publishComposer(for: project)
@@ -359,7 +363,9 @@ public final class CommentsViewModel: CommentsViewModelType,
       guard let self else { return }
       switch update {
       case let .page(route, comments, count): self.pagePipe.input.send(value: (route, comments, count))
-      case let .loading(route, loading): self.loadingPipe.input.send(value: (route, loading))
+      case let .loading(route, loading):
+        self.loadingPipe.input.send(value: (route, loading))
+        if route == self.route { self.onRefreshing?(loading) }
       case let .error(route, error): self.errorPipe.input.send(value: (route, error))
       }
     }
@@ -473,10 +479,10 @@ public final class CommentsViewModel: CommentsViewModelType,
     self.willDisplayRowProperty.value = (row, totalRows)
   }
 
-  public let beginOrEndRefreshing: Signal<Bool, Never>
-  public let cellSeparatorHidden: Signal<Bool, Never>
+  public var onRefreshing: ((Bool) -> Void)?
+  public var onSeparatorHidden: ((Bool) -> Void)?
   public var onConfigureComposer: ((CommentComposerViewData) -> Void)?
-  public let configureFooterViewWithState: Signal<CommentTableViewFooterViewState, Never>
+  public var onFooterState: ((CommentTableViewFooterViewState) -> Void)?
   public let goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder: Signal<
     (Comment, Project, Update?, Bool),
     Never

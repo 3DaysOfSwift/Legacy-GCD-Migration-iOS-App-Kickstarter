@@ -35,8 +35,8 @@ internal final class CommentsViewModelTests: TestCase {
   override func setUp() async throws {
     try await super.setUp()
     MainActor.assumeIsolated {
-      self.vm.outputs.beginOrEndRefreshing.observe(self.beginOrEndRefreshing.observer)
-      self.vm.outputs.cellSeparatorHidden.observe(self.cellSeparatorHidden.observer)
+      self.vm.outputs.onRefreshing = { [weak self] in self?.beginOrEndRefreshing.observer.send(value: $0) }
+      self.vm.outputs.onSeparatorHidden = { [weak self] in self?.cellSeparatorHidden.observer.send(value: $0) }
       self.vm.outputs.onConfigureComposer = { [weak self] data in
         self?.commentComposerViewHidden.observer.send(value: data.hidden)
         self?.configureCommentComposerViewURL.observer.send(value: data.avatarURL)
@@ -44,7 +44,7 @@ internal final class CommentsViewModelTests: TestCase {
       }
       self.vm.outputs.onDidBlockUser = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
       self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }
-      self.vm.outputs.configureFooterViewWithState.observe(self.configureFooterViewWithState.observer)
+      self.vm.outputs.onFooterState = { [weak self] in self?.configureFooterViewWithState.observer.send(value: $0) }
       self.vm.outputs.goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder.map { $0.0 }
         .observe(self.goToCommentRepliesComment.observer)
       self.vm.outputs.goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder.map { $0.1 }
