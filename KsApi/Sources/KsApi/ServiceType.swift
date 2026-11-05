@@ -55,9 +55,6 @@ public protocol ServiceType {
     apolloClient: ApolloClientType?
   )
 
-  /// Fetches a GraphQL query and returns the data.
-  func fetch<Q: GraphQLQuery>(query: Q) -> SignalProducer<Q.Data, ErrorEnvelope>
-
   /// Fetches a GraphQL query with async/await and returns the data.
   func fetch<Q: GraphQLQuery>(query: Q) async throws -> Q.Data?
 

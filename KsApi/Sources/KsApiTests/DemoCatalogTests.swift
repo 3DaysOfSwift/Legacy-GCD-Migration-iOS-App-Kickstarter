@@ -3,7 +3,6 @@ import Foundation
 import GraphAPI
 import ImageIO
 @testable import KsApi
-import ReactiveSwift
 import XCTest
 
 final class DemoCatalogTests: XCTestCase {
@@ -140,19 +139,23 @@ final class DemoCatalogTests: XCTestCase {
     XCTAssertThrowsError(try catalogue.project(.id(-1)))
   }
 
-  func testPublicDemoDoesNotChangeDefaultTestMocks() throws {
+  func testPublicDemoDoesNotChangeDefaultTestMocks() async throws {
     let request = query()
-    let original: SignalProducer<GraphAPI.SearchQuery.Data, ErrorEnvelope> = MockService().fetch(query: request)
-    XCTAssertThrowsError(try XCTUnwrap(original.first()).get())
-    let demo: SignalProducer<GraphAPI.SearchQuery.Data, ErrorEnvelope> = MockService.publicDemo().fetch(query: request)
-    XCTAssertEqual(try XCTUnwrap(demo.first()).get().projects?.totalCount, 24)
+    do {
+      let _: GraphAPI.SearchQuery.Data? = try await MockService().fetch(query: request)
+      XCTFail("Default mock should not supply demo data")
+    } catch {
+      // The default mock has no query fixture.
+    }
+    let demo: GraphAPI.SearchQuery.Data? = try await MockService.publicDemo().fetch(query: request)
+    XCTAssertEqual(demo?.projects?.totalCount, 24)
   }
 
-  func testAsyncAndReactiveDemoResponsesAgree() async throws {
-    let service = MockService.publicDemo()
-    let asynchronous: GraphAPI.SearchQuery.Data? = try await service.fetch(query: query(term: "Ocean"))
-    let reactive: SignalProducer<GraphAPI.SearchQuery.Data, ErrorEnvelope> = service.fetch(query: query(term: "Ocean"))
-    XCTAssertEqual(asynchronous?.projects?.totalCount, try XCTUnwrap(reactive.first()).get().projects?.totalCount)
+  func testAsyncDemoResponseMatchesCatalog() async throws {
+    let request = query(term: "Ocean")
+    let response: GraphAPI.SearchQuery.Data? = try await MockService.publicDemo().fetch(query: request)
+    let expected: GraphAPI.SearchQuery.Data = try DemoCatalog().graphResponse(for: request)
+    XCTAssertEqual(response?.projects?.totalCount, expected.projects?.totalCount)
   }
 
   func testLocationAndStateSurviveDiscoveryPagination() throws {

@@ -967,17 +967,6 @@
       try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
     }
 
-    internal func fetch<Q: GraphQLQuery>(query: Q) -> SignalProducer<Q.Data, ErrorEnvelope> {
-      if let demoCatalog { return demoResponse { try demoCatalog.graphResponse(for: query) } }
-      if self.pendingLegacyGraphQLQueries.contains(where: { $0 == Q.self }) { return .never }
-      for (queryType, result) in self.fetchGraphQLResponses ?? [] {
-        if queryType == Q.self, let response = result as? Q.Data {
-          return SignalProducer(value: response)
-        }
-      }
-      return SignalProducer(error: ErrorEnvelope.graphError("Unimplemented mock"))
-    }
-
     internal func fetch<Q: GraphQLQuery>(query: Q) async throws -> Q.Data? {
       if let demoCatalog { return try demoCatalog.graphResponse(for: query) }
       for (queryType, result) in self.fetchGraphQLResponses ?? [] {
