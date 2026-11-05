@@ -100,6 +100,9 @@ public final class CommentsViewModel: CommentsViewModelType,
   private(set) var contextTask: Task<Void, Never>?
   private var contextRevision = 0
   private var retryTasks: [String: Task<Void, Never>] = [:]
+  private var postTasks: [UUID: Task<Void, Never>] = [:]
+  private var latestPostingProject: Project?
+  private var postingUser: User?
   private var latestCommentableID: String?
 
   public init(feature: DiscussionFeature? = nil) {
@@ -281,8 +284,6 @@ public final class CommentsViewModel: CommentsViewModelType,
         replyCommentWithProject.map { ($0, $1, $2, true) }
       )
 
-    let commentComposerDidSubmitText = self.commentComposerDidSubmitTextProperty.signal.skipNil()
-
     // get an id needed to post a comment to either a project or a project update
     let commentableId = projectOrUpdate
       .flatMap { projectOrUpdate in
@@ -292,26 +293,6 @@ public final class CommentsViewModel: CommentsViewModelType,
           SignalProducer.init(value: encodeToBase64("FreeformPost-\(update.id)"))
         }
       }
-
-    let postFailableCommentConfigData:
-      Signal<(project: Project, commentableId: String, user: User), Never> = Signal.combineLatest(
-        initialProject,
-        commentableId,
-        currentUser.skipNil()
-      ).map { project, commentableId, user in
-        (project: project, commentableId: commentableId, user: user)
-      }
-
-    self.failableOrComment <~ postFailableCommentConfigData
-      .takePairWhen(commentComposerDidSubmitText)
-      .map { data in
-        let ((project, commentableId, user), text) = data
-        return (project, commentableId, nil, user, text)
-      }
-      .flatMap(
-        .concurrent(limit: DiscussionFeature.concurrentCommentLimit),
-        feature.postCommentProducer
-      )
 
     let footerViewActivityState = Signal
       .combineLatest(isCloseToBottom, isLoading)
@@ -367,6 +348,9 @@ public final class CommentsViewModel: CommentsViewModelType,
     }
 
 
+    self.disposables += initialProject.observeValues { [weak self] project in
+      self?.latestPostingProject = project
+    }
     self.disposables += commentableId.observeValues { [weak self] id in
       self?.latestCommentableID = id
     }
@@ -455,6 +439,17 @@ public final class CommentsViewModel: CommentsViewModelType,
   fileprivate let commentComposerDidSubmitTextProperty = MutableProperty<String?>(nil)
   public func commentComposerDidSubmitText(_ text: String) {
     self.commentComposerDidSubmitTextProperty.value = text
+    guard let project = self.latestPostingProject, let commentableID = self.latestCommentableID,
+          let user = self.postingUser else { return }
+    let id = UUID()
+    let task = self.feature.beginPresentedPost(project: project, commentableID: commentableID, parentID: nil, user: user, body: text) { [weak self] comment, replacementID in
+      self?.failableOrComment.value = (comment, replacementID)
+    }
+    self.postTasks[id] = task
+    Task { [weak self] in
+      await task.value
+      self?.postTasks[id] = nil
+    }
   }
 
   fileprivate let commentRemovedCellDidTapURLProperty = MutableProperty<URL?>(nil)
@@ -484,6 +479,7 @@ public final class CommentsViewModel: CommentsViewModelType,
 
   fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
+    self.postingUser = AppEnvironment.current.currentUser
     self.viewDidLoadProperty.value = ()
   }
 
@@ -510,6 +506,7 @@ public final class CommentsViewModel: CommentsViewModelType,
     self.loadingTask?.cancel()
     self.contextTask?.cancel()
     self.retryTasks.values.forEach { $0.cancel() }
+    self.postTasks.values.forEach { $0.cancel() }
 
     let feature = self.feature
     let route = self.route
@@ -523,6 +520,7 @@ public final class CommentsViewModel: CommentsViewModelType,
     await self.loadingTask?.value
     await self.feature.waitForMutations()
     for task in self.retryTasks.values { await task.value }
+    for task in self.postTasks.values { await task.value }
     await self.blockPresentation.wait()
   }
 

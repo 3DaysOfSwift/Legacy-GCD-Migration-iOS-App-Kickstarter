@@ -11,6 +11,61 @@ import XCTest
 final class DiscussionFeatureTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
+  func testNativePostPublishesOptimisticAndConfirmedValues() async {
+    let provider = ControlledDiscussionProvider()
+    var delays: [TimeInterval] = []
+    let feature = DiscussionFeature(
+      sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }),
+      makeProvider: { provider }, sleep: { delays.append($0) }
+    )
+    var values: [Comment] = []
+    let task = feature.beginPresentedPost(project: .template, commentableID: "project", parentID: nil, user: .template, body: "hello") { value, _ in
+      values.append(value)
+    }
+    XCTAssertEqual(values.count, 1)
+    await task.value
+    XCTAssertEqual(values.count, 2)
+    XCTAssertEqual(values.last?.status, .success)
+    XCTAssertEqual(provider.postInputs.count, 1)
+    XCTAssertEqual(delays, [1])
+  }
+
+  func testNativePostFailureRetainsTheOptimisticIdentity() async {
+    let provider = ControlledDiscussionProvider()
+    provider.fail = true
+    var delays: [TimeInterval] = []
+    let feature = DiscussionFeature(
+      sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }),
+      makeProvider: { provider }, sleep: { delays.append($0) }
+    )
+    var values: [Comment] = []
+    let task = feature.beginPresentedPost(project: .template, commentableID: "project", parentID: nil, user: .template, body: "hello") { value, _ in
+      values.append(value)
+    }
+    await task.value
+    XCTAssertEqual(values.count, 2)
+    XCTAssertEqual(values.last?.status, .failed)
+    XCTAssertEqual(values.first?.id, values.last?.id)
+    XCTAssertEqual(delays, [1, 1])
+  }
+
+  func testCancellingPostPresentationDoesNotCancelAdmittedWrite() async {
+    let provider = ControlledDiscussionProvider()
+    provider.pauseWrites = true
+    defer { provider.releaseAll() }
+    let feature = self.feature(provider)
+    var values: [Comment] = []
+    let task = feature.beginPresentedPost(project: .template, commentableID: "project", parentID: nil, user: .template, body: "hello") { value, _ in
+      values.append(value)
+    }
+    await provider.waitForPosts(1)
+    task.cancel()
+    provider.finishAllPosts()
+    await task.value
+    XCTAssertEqual(provider.postInputs.count, 1)
+    XCTAssertEqual(values.count, 1, "A dismissed presentation must not receive the completed write")
+  }
+
   func testNativeRetryPublishesStatusAndSuccessfulComment() async {
     let provider = ControlledDiscussionProvider()
     var delays: [TimeInterval] = []

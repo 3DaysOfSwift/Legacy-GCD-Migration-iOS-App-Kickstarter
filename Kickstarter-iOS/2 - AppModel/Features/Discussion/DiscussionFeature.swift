@@ -1,7 +1,6 @@
 import Foundation
 import KsApi
 import Prelude
-import ReactiveSwift
 
 /// Read boundary shared by project comments, update comments and reply threads.
 @MainActor
@@ -145,6 +144,42 @@ public final class DiscussionFeature {
       operationID: UUID().uuidString, body: body, commentableID: commentableID, parentID: parentID
     )
     return OptimisticPost(comment: comment, result: result)
+  }
+
+  /// The write is admitted before the optimistic value is delivered. Cancelling
+  /// the presentation stops delivery but does not cancel the server operation.
+  @discardableResult
+  func beginPresentedPost(
+    project: Project, commentableID: String, parentID: String?, user: User, body: String,
+    receive: @escaping (Comment, String) -> Void
+  ) -> Task<Void, Never> {
+    let userID = AppEnvironment.current.currentUser?.id
+    let generation = self.sessionFeature.generation
+    let submission = self.beginPost(
+      project: project, commentableID: commentableID, parentID: parentID, user: user, body: body
+    )
+    receive(submission.comment, submission.comment.id)
+    return Task { [self] in
+      let result = await submission.result.result
+      do {
+        try await self.sleep(1)
+        try Task.checkCancellation()
+        guard self.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+        switch result {
+        case let .success(comment):
+          receive(comment, submission.comment.id)
+        case .failure(is CancellationError):
+          return
+        case .failure:
+          try await self.sleep(1)
+          try Task.checkCancellation()
+          guard self.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+          receive(submission.comment.updatingStatus(to: .failed), submission.comment.id)
+        }
+      } catch {
+        // The independently owned write continues if its presentation disappears.
+      }
+    }
   }
 
   @discardableResult
@@ -517,62 +552,5 @@ public final class DiscussionFeature {
 
   public func cancelProject(route: UUID) {
     self.projects.removeValue(forKey: route)?.task.cancel()
-  }
-}
-
-extension DiscussionFeature {
-  // MARK: Properties
-
-  static let concurrentCommentLimit: UInt = 5
-
-  // MARK: Helpers
-
-  func postCommentProducer(
-    project: Project,
-    commentableId: String,
-    parentId: String?,
-    user: User,
-    body: String
-  ) -> SignalProducer<(Comment, String), Never> {
-    let userID = AppEnvironment.current.currentUser?.id
-    let generation = self.sessionFeature.generation
-    return SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        guard self.sessionFeature.isCurrent(userID: userID, generation: generation) else {
-          observer.sendCompleted()
-          return
-        }
-        let submission = self.beginPost(
-          project: project, commentableID: commentableId, parentID: parentId, user: user, body: body
-        )
-        let request = SignalProducer<Comment, ErrorEnvelope> { requestObserver, requestLifetime in
-          let task = Task { @MainActor in
-            do {
-              let value = try await submission.result.value
-              guard !Task.isCancelled else { return }
-              requestObserver.send(value: value)
-              requestObserver.sendCompleted()
-            } catch is CancellationError {
-              requestObserver.sendInterrupted()
-            } catch {
-              guard !Task.isCancelled else { return }
-              requestObserver.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
-            }
-          }
-          requestLifetime.observeEnded { task.cancel() }
-        }
-        let events = request
-          .ksr_delay(.seconds(1), on: AppEnvironment.current.scheduler)
-          .prefix(value: submission.comment)
-          .flatMapError { _ in
-            SignalProducer(value: submission.comment.updatingStatus(to: .failed))
-              .ksr_delay(.seconds(1), on: AppEnvironment.current.scheduler)
-          }
-          .filter { _ in self.sessionFeature.isCurrent(userID: userID, generation: generation) }
-          .map { ($0, submission.comment.id) }
-        let disposable = events.start(observer)
-        lifetime.observeEnded { disposable.dispose() }
-      }
-    }
   }
 }

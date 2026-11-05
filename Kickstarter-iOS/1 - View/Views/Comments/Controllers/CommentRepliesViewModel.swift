@@ -99,6 +99,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   private var latestReplies: ([Comment], Int)?
   private var latestFailableReply: (Comment, String)?
   private var retryTasks: [String: Task<Void, Never>] = [:]
+  private var postTasks: [UUID: Task<Void, Never>] = [:]
   private var pageObservation: MainActorObservation?
   private let route = UUID()
   private let disposables = ScopedDisposable(CompositeDisposable())
@@ -119,45 +120,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
 
     let project = rootCommentProject.map(second)
 
-
-    let currentUser = self.viewDidLoadProperty.signal
-      .map { _ in AppEnvironment.current.currentUser }
-
-
-    let commentComposerDidSubmitText = self.commentComposerDidSubmitTextProperty.signal.skipNil()
-
-    // If the Update is non-nil we send the FreeformPost format, otherwise we send the Project graphID
-    let commentableId = self.updateProperty.signal.combineLatest(with: project)
-      .map { update, project -> String in
-        guard let update = update else {
-          return project.graphID
-        }
-        return encodeToBase64("FreeformPost-\(update.id)")
-      }
-
-    let parentId = rootComment.map(\.id)
-
-    let failablePostReplyCommentConfigData:
-      Signal<(project: Project, commentableId: String, parentId: String, user: User), Never> = Signal
-      .combineLatest(
-        project,
-        commentableId,
-        parentId,
-        currentUser.skipNil()
-      ).map { project, commentableId, parentId, user in
-        (project, commentableId, parentId, user)
-      }
-
-    let failableCommentWithReplacementId = failablePostReplyCommentConfigData
-      .takePairWhen(commentComposerDidSubmitText)
-      .map { data in
-        let ((project, commentableId, parentId, user), text) = data
-        return (project, commentableId, parentId, user, text)
-      }
-      .flatMap(
-        .concurrent(limit: DiscussionFeature.concurrentCommentLimit),
-        feature.postCommentProducer
-      )
 
     // MARK: User Blocking Analytics
 
@@ -183,11 +145,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
       self.updateComposer()
       if let replies = self.latestReplies { self.onLoadReplies?(replies, project) }
       if let (comment, id) = self.latestFailableReply { self.onLoadFailableReply?(comment, id, project) }
-    }
-    self.disposables += failableCommentWithReplacementId.observeValues { [weak self] comment, id in
-      guard let self else { return }
-      self.latestFailableReply = (comment, id)
-      if let project = self.latestProject { self.onLoadFailableReply?(comment, id, project) }
     }
     self.disposables += rootComment.observeValues { [weak self] comment in
       guard let self else { return }
@@ -250,10 +207,22 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     }
   }
 
-  fileprivate let commentComposerDidSubmitTextProperty = MutableProperty<String?>(nil)
   public func commentComposerDidSubmitText(_ text: String) {
     self.onResetCommentComposer?()
-    self.commentComposerDidSubmitTextProperty.value = text
+    guard let project = self.latestProject, let root = self.latestRootComment,
+          let user = self.composerUser else { return }
+    let commentableID = self.updateProperty.value.map { encodeToBase64("FreeformPost-\($0.id)") } ?? project.graphID
+    let id = UUID()
+    let task = self.feature.beginPresentedPost(project: project, commentableID: commentableID, parentID: root.id, user: user, body: text) { [weak self] comment, replacementID in
+      guard let self else { return }
+      self.latestFailableReply = (comment, replacementID)
+      if let project = self.latestProject { self.onLoadFailableReply?(comment, replacementID, project) }
+    }
+    self.postTasks[id] = task
+    Task { [weak self] in
+      await task.value
+      self?.postTasks[id] = nil
+    }
   }
 
   fileprivate let commentProjectProperty = MutableProperty<(Comment, Project, Bool)?>(nil)
@@ -325,6 +294,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     self.loadingTask?.cancel()
     self.contextTask?.cancel()
     self.retryTasks.values.forEach { $0.cancel() }
+    self.postTasks.values.forEach { $0.cancel() }
 
     let feature = self.feature
     let route = self.route
@@ -338,6 +308,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     await self.loadingTask?.value
     await self.feature.waitForMutations()
     for task in self.retryTasks.values { await task.value }
+    for task in self.postTasks.values { await task.value }
     await self.blockPresentation.wait()
   }
 
