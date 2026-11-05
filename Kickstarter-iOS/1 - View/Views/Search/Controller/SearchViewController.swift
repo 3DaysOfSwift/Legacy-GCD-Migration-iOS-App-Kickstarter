@@ -124,9 +124,7 @@ internal final class SearchViewController: UITableViewController,
 
     self.searchLoaderIndicator.rac.animating = self.viewModel.outputs.searchLoaderIndicatorIsAnimating
 
-    self.viewModel.outputs.showFilters
-      .observeForControllerAction()
-      .observeValues { [weak self] type in
+    self.viewModel.outputs.onShowFilters = { [weak self] type in
         if type == .sort {
           self?.showSort()
           return

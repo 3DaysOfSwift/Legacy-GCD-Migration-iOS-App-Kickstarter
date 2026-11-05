@@ -1,5 +1,4 @@
 import KsApi
-import ReactiveSwift
 import UIKit
 
 @MainActor
@@ -21,9 +20,9 @@ public protocol SearchFiltersUseCaseInputs {
 }
 
 @MainActor
-public protocol SearchFiltersUseCaseUIOutputs {
+public protocol SearchFiltersUseCaseUIOutputs: AnyObject {
   /// Sends a model object which can be used to display all filter options, and a type describing which filters to display.
-  var showFilters: Signal<SearchFilterModalType, Never> { get }
+  var onShowFilters: ((SearchFilterModalType) -> Void)? { get set }
 
   /// An @ObservableObject model which SwiftUI can use to display the search filters modals and header.
   /// Owned and automatically updated by this `SearchFiltersUseCase`.
@@ -73,7 +72,6 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
       )
     )
 
-    self.showFilters = self.showFiltersPipe.output
 
     self.lookupObservation = searchFeature.observeLookups { [weak self] update in
       switch update {
@@ -100,13 +98,12 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
   }
 
 
-  private let showFiltersPipe = Signal<SearchFilterModalType, Never>.pipe()
 
   public func tappedButton(forFilterType type: SearchFilterPill.FilterType) {
     if type.isToggle {
       self.toggleFilter(ofType: type)
     } else {
-      self.showFiltersPipe.input.send(value: filterModal(toShowForPill: type))
+      self.onShowFilters?(filterModal(toShowForPill: type))
     }
   }
 
@@ -136,7 +133,7 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
     DiscoveryParams.State.successful
   ]
 
-  public let showFilters: Signal<SearchFilterModalType, Never>
+  public var onShowFilters: ((SearchFilterModalType) -> Void)?
 
   public private(set) var searchFilters: SearchFilters
 

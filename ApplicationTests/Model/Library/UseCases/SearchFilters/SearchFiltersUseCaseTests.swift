@@ -50,7 +50,7 @@ final class SearchFiltersUseCaseTests: TestCase {
       case let .toggles(value): self.selectedToggles.observer.send(value: value)
       }
     }
-    self.useCase.uiOutputs.showFilters.observe(self.showFilters.observer)
+    self.useCase.uiOutputs.onShowFilters = { [weak self] in self?.showFilters.observer.send(value: $0) }
     }
   }
 

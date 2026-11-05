@@ -86,7 +86,7 @@ internal final class SearchViewModelTests: TestCase {
         .map { prev, next in next > prev }
         .observe(self.hasAddedProjects.observer)
 
-      self.vm.outputs.showFilters.observe(self.showFilters.observer)
+      self.vm.outputs.onShowFilters = { [weak self] in self?.showFilters.observer.send(value: $0) }
     }
   }
 

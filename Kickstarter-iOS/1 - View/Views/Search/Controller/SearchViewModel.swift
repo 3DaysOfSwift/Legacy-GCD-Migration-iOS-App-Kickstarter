@@ -57,7 +57,7 @@ public protocol SearchViewModelInputs {
 }
 
 @MainActor
-public protocol SearchViewModelOutputs {
+public protocol SearchViewModelOutputs: AnyObject {
   /// Emits a project ID  and ref tag when the project page should be opened.
   var goToProject: Signal<(ProjectPageParam, RefTag), Never> { get }
 
@@ -71,7 +71,7 @@ public protocol SearchViewModelOutputs {
   var showEmptyState: Signal<(DiscoveryParams, Bool), Never> { get }
 
   /// Sends a model object which can be used to display all filter options, and a type describing which filters to display.
-  var showFilters: Signal<SearchFilterModalType, Never> { get }
+  var onShowFilters: ((SearchFilterModalType) -> Void)? { get set }
 
   /// Emits to show the video feed banner
   var showVideoFeedBanner: Signal<Bool, Never> { get }
@@ -330,8 +330,9 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   public let showVideoFeedBanner: Signal<Bool, Never>
   public let searchResults: Signal<SearchResults, Never>
 
-  public var showFilters: Signal<SearchFilterModalType, Never> {
-    return self.searchFiltersUseCase.showFilters
+  public var onShowFilters: ((SearchFilterModalType) -> Void)? {
+    get { self.searchFiltersUseCase.onShowFilters }
+    set { self.searchFiltersUseCase.onShowFilters = newValue }
   }
 
   public func selectedFilter(_ event: SearchFilterEvent) {
