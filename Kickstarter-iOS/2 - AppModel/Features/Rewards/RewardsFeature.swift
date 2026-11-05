@@ -406,6 +406,33 @@ public final class RewardsFeature {
     }
   }
 
+  /// Admits the request immediately and owns its delivery until completion or cancellation.
+  public func startAddOns(
+    route: UUID, slug: String, baseReward: Reward?, shippingRule: ShippingRule?,
+    completion: @escaping @MainActor (Result<[Reward]?, Error>) -> Void
+  ) -> Task<Void, Never> {
+    let request = self.requestAddOns(
+      route: route, slug: slug, baseReward: baseReward, shippingRule: shippingRule
+    )
+    let id = UUID()
+    let task = Task { @MainActor [self] in
+      defer { self.addOnsObservers[id] = nil }
+      do {
+        let value = try await request.task.value
+        try self.requireCurrentAddOns(request.identity, route: route, version: request.id)
+        completion(.success(value))
+      } catch {
+        guard !Task.isCancelled, !(error is CancellationError),
+              self.addOnsVersions[route] == request.id,
+              self.sessionFeature.isCurrent(userID: request.identity.userID, generation: request.identity.generation)
+        else { return }
+        completion(.failure(error))
+      }
+    }
+    self.addOnsObservers[id] = task
+    return task
+  }
+
   /// Compatibility for the existing presentation graph; request execution is owned above.
   public func addOnsResult(
     route: UUID, slug: String, baseReward: Reward?, shippingRule: ShippingRule?

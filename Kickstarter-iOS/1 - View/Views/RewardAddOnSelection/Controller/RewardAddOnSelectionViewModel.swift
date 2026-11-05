@@ -118,14 +118,22 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       let baseReward = data.rewards.first
       let shippingRule = data.selectedShippingRule
 
-      return feature.addOnsResult(
-        route: route,
-        slug: slug,
-        baseReward: baseReward,
-        shippingRule: shippingRule
-      )
-      .map { ($0, data) }
-      .materialize()
+      // Bridge the remaining presentation graph to the Feature's native request task.
+      let request = SignalProducer<([Reward]?, PledgeViewData), ErrorEnvelope> { observer, lifetime in
+        let task = MainActor.assumeIsolated {
+          feature.startAddOns(route: route, slug: slug, baseReward: baseReward, shippingRule: shippingRule) { result in
+            switch result {
+            case let .success(rewards):
+              observer.send(value: (rewards, data))
+              observer.sendCompleted()
+            case let .failure(error):
+              observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
+            }
+          }
+        }
+        lifetime.observeEnded { task.cancel() }
+      }
+      return request.materialize()
     }
 
     self.startRefreshing = self.beginRefreshSignal
