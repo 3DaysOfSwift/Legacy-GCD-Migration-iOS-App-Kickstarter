@@ -167,9 +167,9 @@ public final class SettingsFeature {
 
   /// Notification URLs carry wire names. Convert only the requested field into
   /// an edit; never enqueue the whole user snapshot supplied by a deep link.
-  public func notificationResult(named parameter: String, enabled: Bool)
-    -> SignalProducer<User, ErrorEnvelope> {
-    guard let user = self.session.currentUser else { return .empty }
+  @discardableResult
+  public func requestNotification(named parameter: String, enabled: Bool) -> Task<User, Error>? {
+    guard let user = self.session.currentUser else { return nil }
     let names: [String: UserAttribute.Notification] = [
       "notify_of_backings": .pledgeActivity,
       "notify_of_comment_replies": .commentReplies,
@@ -192,7 +192,7 @@ public final class SettingsFeature {
     ]
     // Legacy decoding ignored unknown keys but still saved the unchanged user.
     let changes = names[parameter].map { [Change(.notification($0), enabled)] } ?? []
-    return self.saveResult(changes, from: user)
+    return self.request(changes, from: user).task
   }
 
   private func identity(for user: User) -> Account {

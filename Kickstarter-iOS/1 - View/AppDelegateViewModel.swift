@@ -426,7 +426,8 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     }
     .flatMap { navigation -> SignalProducer<User, Never> in
       guard case let .settings(.notifications(notification, enabled)) = navigation else { return .empty }
-      return settingsFeature.notificationResult(named: notification, enabled: enabled)
+      guard let request = settingsFeature.requestNotification(named: notification, enabled: enabled) else { return .empty }
+      return lifecycleResult(feature: lifecycleFeature) { try await request.value }
         .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
         .demoteErrors()
     }

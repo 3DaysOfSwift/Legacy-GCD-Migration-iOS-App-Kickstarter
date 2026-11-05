@@ -22,14 +22,13 @@ final class SettingsFeatureTests: XCTestCase {
         let before = try XCTUnwrap(fixture.user)
         var expected = try XCTUnwrap(before.notifications.encode() as? [String: Bool])
         expected[parameter] = enabled
-        let observation = fixture.feature.notificationResult(named: parameter, enabled: enabled).start()
-        defer { observation.dispose() }
+        let request = try XCTUnwrap(fixture.feature.requestNotification(named: parameter, enabled: enabled))
         await fixture.provider.gate.waitFor(index + 1)
         let sent = try XCTUnwrap(fixture.provider.sent.last)
         XCTAssertEqual(sent.notifications.encode() as? [String: Bool], expected, parameter)
         XCTAssertEqual(sent.newsletters.games, before.newsletters.games, parameter)
         try fixture.provider.succeed(index)
-        await fixture.feature.waitForOperations()
+        _ = try await request.value
         XCTAssertEqual(fixture.user?.notifications.encode() as? [String: Bool], expected, parameter)
       }
     }
@@ -40,10 +39,9 @@ final class SettingsFeatureTests: XCTestCase {
     defer { fixture.provider.gate.releaseAll() }
     let user = try XCTUnwrap(fixture.user)
     let newsletter = fixture.feature.saveResult([.init(.newsletter(.games), true)], from: user).start()
-    let notification = fixture.feature.notificationResult(named: "notify_mobile_of_messages", enabled: true)
-      .start()
+    let notification = try XCTUnwrap(fixture.feature.requestNotification(named: "notify_mobile_of_messages", enabled: true))
     let laterNewsletter = fixture.feature.saveResult([.init(.newsletter(.games), false)], from: user).start()
-    defer { newsletter.dispose(); notification.dispose(); laterNewsletter.dispose() }
+    defer { newsletter.dispose(); laterNewsletter.dispose() }
     await fixture.provider.gate.waitFor(1)
     try fixture.provider.succeed(0)
     await fixture.provider.gate.waitFor(2)
@@ -54,6 +52,7 @@ final class SettingsFeatureTests: XCTestCase {
     XCTAssertEqual(fixture.provider.sent[2].newsletters.games, false)
     XCTAssertEqual(fixture.provider.sent[2].notifications.mobileMessages, true)
     try fixture.provider.succeed(2)
+    _ = try await notification.value
     await fixture.feature.waitForOperations()
     XCTAssertEqual(fixture.commits, 3)
   }
@@ -62,15 +61,14 @@ final class SettingsFeatureTests: XCTestCase {
     let fixture = PreferencesFixture()
     defer { fixture.provider.gate.releaseAll() }
     let original = try XCTUnwrap(fixture.user)
-    let observation = fixture.feature.notificationResult(named: "unrecognized", enabled: true).start()
-    defer { observation.dispose() }
+    let request = try XCTUnwrap(fixture.feature.requestNotification(named: "unrecognized", enabled: true))
     await fixture.provider.gate.waitFor(1)
     XCTAssertEqual(fixture.provider.sent[0].notifications, original.notifications)
     try fixture.provider.succeed(0)
-    await fixture.feature.waitForOperations()
+    _ = try await request.value
     fixture.user = nil
-    let signedOut = fixture.feature.notificationResult(named: "notify_of_messages", enabled: true).start()
-    defer { signedOut.dispose() }
+    let signedOut = fixture.feature.requestNotification(named: "notify_of_messages", enabled: true)
+    XCTAssertNil(signedOut)
     await fixture.feature.waitForOperations()
     XCTAssertEqual(fixture.provider.sent.count, 1)
   }
