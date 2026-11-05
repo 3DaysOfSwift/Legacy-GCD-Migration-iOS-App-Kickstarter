@@ -77,9 +77,6 @@ public struct Service: ServiceType {
     )
   }
 
-  public func facebookConnect(facebookAccessToken token: String) -> SignalProducer<User, ErrorEnvelope> {
-    return request(.facebookConnect(facebookAccessToken: token))
-  }
 
   public func addImage(file fileURL: URL, toDraft draft: UpdateDraft)
     -> SignalProducer<UpdateDraft.Image, ErrorEnvelope> {
@@ -140,61 +137,6 @@ public struct Service: ServiceType {
       }
   }
 
-  public func buildPaymentPlan(
-    projectSlug: String,
-    pledgeAmount: String
-  ) -> SignalProducer<GraphAPI.BuildPaymentPlanQuery.Data, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .fetch(query: GraphAPI.BuildPaymentPlanQuery(
-        slug: projectSlug,
-        amount: pledgeAmount
-      ))
-  }
-
-  public func cancelBacking(input: CancelBackingInput)
-    -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(
-        mutation: GraphAPI
-          .CancelBackingMutation(input: GraphAPI.CancelBackingInput(id: input.backingId))
-      )
-      .flatMap { _ in
-        SignalProducer(value: EmptyResponseEnvelope())
-      }
-  }
-
-  public func changeEmail(input: ChangeEmailInput) ->
-    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(
-        mutation: GraphAPI
-          .UpdateUserAccountMutation(input: GraphAPI.UpdateUserAccountInput.from(input))
-      )
-      .flatMap { _ in
-        SignalProducer(value: EmptyResponseEnvelope())
-      }
-  }
-
-  public func changePassword(input: ChangePasswordInput) ->
-    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(
-        mutation: GraphAPI
-          .UpdateUserAccountMutation(input: GraphAPI.UpdateUserAccountInput.from(input))
-      )
-      .flatMap { _ in
-        SignalProducer(value: EmptyResponseEnvelope())
-      }
-  }
-
-  public func createAttributionEvent(input: GraphAPI.CreateAttributionEventInput) ->
-    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(mutation: GraphAPI.CreateAttributionEventMutation(input: input))
-      .flatMap { _ in
-        SignalProducer(value: EmptyResponseEnvelope())
-      }
-  }
 
   public func createFlaggingInput(input: CreateFlaggingInput)
     -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
@@ -228,42 +170,6 @@ public struct Service: ServiceType {
     )
   }
 
-
-  public func createPassword(input: CreatePasswordInput)
-    -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(
-        mutation: GraphAPI
-          .UpdateUserAccountMutation(input: GraphAPI.UpdateUserAccountInput.from(input))
-      )
-      .flatMap { _ in
-        SignalProducer(value: EmptyResponseEnvelope())
-      }
-  }
-
-
-  public func clearUserUnseenActivity(input _: EmptyInput)
-    -> SignalProducer<ClearUserUnseenActivityEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(
-        mutation: GraphAPI
-          .ClearUserUnseenActivityMutation(input: GraphAPI.ClearUserUnseenActivityInput())
-      )
-      .flatMap(ClearUserUnseenActivityEnvelope.producer(from:))
-  }
-
-
-  public func changeCurrency(input: ChangeCurrencyInput) ->
-    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(
-        mutation: GraphAPI
-          .UpdateUserProfileMutation(input: GraphAPI.UpdateUserProfileInput.from(input))
-      )
-      .flatMap { _ in
-        SignalProducer(value: EmptyResponseEnvelope())
-      }
-  }
 
   public func delete(image: UpdateDraft.Image, fromDraft draft: UpdateDraft)
     -> SignalProducer<UpdateDraft.Image, ErrorEnvelope> {

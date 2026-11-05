@@ -88,8 +88,6 @@ public protocol ServiceType {
   /// Returns a new service with the oauth token set to `nil`.
   func logout() -> Self
 
-  /// Request to connect user to Facebook with access token.
-  func facebookConnect(facebookAccessToken token: String) -> SignalProducer<User, ErrorEnvelope>
 
   /// Uploads and attaches an image to the draft of a project update.
   func addImage(file fileURL: URL, toDraft draft: UpdateDraft)
@@ -99,34 +97,14 @@ public protocol ServiceType {
   func triggerThirdPartyEventInput(input: TriggerThirdPartyEventInput)
     -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
-  /// Returns Pledge Over Time payment plan data.
-  func buildPaymentPlan(projectSlug: String, pledgeAmount: String)
-    -> SignalProducer<GraphAPI.BuildPaymentPlanQuery.Data, ErrorEnvelope>
 
-  /// Cancels a backing
-  func cancelBacking(input: CancelBackingInput)
-    -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
-  /// Changes the email on a user account
-  func changeEmail(input: ChangeEmailInput) ->
-    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
-  /// Changes the password on a user account
-  func changePassword(input: ChangePasswordInput) ->
-    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
-  /// Changes the currency code on a user profile
-  func changeCurrency(input: ChangeCurrencyInput) ->
-    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
-  /// Clears the user's unseen activity count.
-  func clearUserUnseenActivity(input: EmptyInput)
-    -> SignalProducer<ClearUserUnseenActivityEnvelope, ErrorEnvelope>
 
   /// Let the server know to create/track an attribution event.
   @MainActor func recordProjectAttribution(input: GraphAPI.CreateAttributionEventInput) async throws
-  func createAttributionEvent(input: GraphAPI.CreateAttributionEventInput) ->
-    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
   /// Sends report project data for a specific project
   func createFlaggingInput(input: CreateFlaggingInput)
@@ -142,9 +120,6 @@ public protocol ServiceType {
   @MainActor func fetchProjectFlaggingOptions() async throws -> [ReportProjectInfoListItem]
 
 
-  /// Creates the password on a user account
-  func createPassword(input: CreatePasswordInput) ->
-    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
 
 

@@ -639,73 +639,6 @@
       return client.performWithResult(mutation: mutation, result: self.blockUserResult)
     }
 
-    func buildPaymentPlan(
-      projectSlug: String,
-      pledgeAmount: String
-    ) -> SignalProducer<GraphAPI.BuildPaymentPlanQuery.Data, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let query = GraphAPI.BuildPaymentPlanQuery(
-        slug: projectSlug,
-        amount: pledgeAmount
-      )
-
-      return client.fetchWithResult(query: query, result: self.buildPaymentPlanResult)
-    }
-
-    public func cancelBacking(input: CancelBackingInput)
-      -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI
-        .CancelBackingMutation(input: GraphAPI.CancelBackingInput(id: input.backingId))
-
-      return client.performWithResult(mutation: mutation, result: self.cancelBackingResult)
-    }
-
-    internal func changeEmail(input: ChangeEmailInput)
-      -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI
-        .UpdateUserAccountMutation(input: GraphAPI.UpdateUserAccountInput.from(input))
-
-      return client.performWithResult(mutation: mutation, result: self.changeEmailResult)
-    }
-
-    internal func facebookConnect(facebookAccessToken _: String)
-      -> SignalProducer<User, ErrorEnvelope> {
-      if let response = facebookConnectResponse {
-        return SignalProducer(value: response)
-      } else if let error = facebookConnectError {
-        return SignalProducer(error: error)
-      }
-
-      return SignalProducer(
-        value:
-        User.template
-          |> \.id .~ 1
-          |> \.facebookConnected .~ true
-      )
-    }
-
-    internal func changePassword(input: ChangePasswordInput)
-      -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI
-        .UpdateUserAccountMutation(input: GraphAPI.UpdateUserAccountInput.from(input))
-
-      return client.performWithResult(mutation: mutation, result: self.changePasswordResult)
-    }
 
     @MainActor public func recordProjectAttribution(input: GraphAPI.CreateAttributionEventInput) async throws {
       try Task.checkCancellation()
@@ -713,16 +646,6 @@
       _ = try result.get()
     }
 
-    public func createAttributionEvent(input: GraphAPI.CreateAttributionEventInput) ->
-      SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI.CreateAttributionEventMutation(input: input)
-
-      return client.performWithResult(mutation: mutation, result: self.createAttributionEventResult)
-    }
 
     internal func createFlaggingInput(input: CreateFlaggingInput) -> ReactiveSwift
       .SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
@@ -748,43 +671,6 @@
       return client.performWithResult(mutation: mutation, result: self.createFlaggingResult)
     }
 
-
-    internal func createPassword(input: CreatePasswordInput)
-      -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI
-        .UpdateUserAccountMutation(input: GraphAPI.UpdateUserAccountInput.from(input))
-
-      return client.performWithResult(mutation: mutation, result: self.createPasswordResult)
-    }
-
-
-    internal func changeCurrency(input: ChangeCurrencyInput)
-      -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI
-        .UpdateUserProfileMutation(input: GraphAPI.UpdateUserProfileInput.from(input))
-
-      return client.performWithResult(mutation: mutation, result: self.changeCurrencyResult)
-    }
-
-    internal func clearUserUnseenActivity(input _: EmptyInput)
-      -> SignalProducer<ClearUserUnseenActivityEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI
-        .ClearUserUnseenActivityMutation(input: GraphAPI.ClearUserUnseenActivityInput())
-
-      return client.performWithResult(mutation: mutation, result: self.clearUserUnseenActivityResult)
-    }
 
     @MainActor public func discussionComments(slug: String?, updateID: String?, cursor: String?) async throws -> CommentsEnvelope {
       try Task.checkCancellation()
