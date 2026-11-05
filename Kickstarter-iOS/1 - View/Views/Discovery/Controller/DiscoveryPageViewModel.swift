@@ -1,7 +1,5 @@
 import KsApi
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 import UIKit
 
 @MainActor
@@ -138,108 +136,19 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   DiscoveryPageViewModelOutputs {
   private let discoveryFeature: DiscoveryFeature
   private var discoveryObservation: MainActorObservation?
-  private let featureBindings = ScopedDisposable(CompositeDisposable())
   internal private(set) var pageTask: Task<Void, Never>?
   internal private(set) var activityTask: Task<Void, Never>?
 
   public init(discoveryFeature: DiscoveryFeature? = nil) {
     let discoveryFeature = discoveryFeature ?? AppModel.shared.discoveryFeature
     self.discoveryFeature = discoveryFeature
-    let currentUser = Signal.merge(
-      self.userSessionStartedProperty.signal,
-      self.userSessionEndedProperty.signal,
-      self.viewWillAppearProperty.signal
-    )
-    .map { AppEnvironment.current.currentUser }
-    .skipRepeats(==)
-
-    let paramsChanged = Signal.combineLatest(
-      self.sortProperty.signal.skipNil(),
-      self.selectedFilterProperty.signal.skipNil()
-    )
-    .map(DiscoveryParams.lens.sort.set)
-
-    let isVisible = Signal.merge(
-      self.viewDidAppearProperty.signal.mapConst(true),
-      self.viewDidDisappearProperty.signal.mapConst(false)
-    ).skipRepeats()
-
-    let environmentChanged = self.currentEnvironmentChangedProperty.signal
-      .skipNil()
-      .skipRepeats()
-
-    let firstPageParams = Signal.combineLatest(
-      currentUser,
-      paramsChanged,
-      isVisible
-    )
-    .filter { _, _, visible in
-      visible
-    }
-    .skipRepeats { lhs, rhs in
-      lhs.0 == rhs.0 && lhs.1 == rhs.1
-    }
-    .map { $0.1 }
-
-    let requestFirstPageWith = Signal.merge(
-      firstPageParams,
-      firstPageParams.takeWhen(environmentChanged),
-      firstPageParams.takeWhen(self.pulledToRefreshProperty.signal),
-      firstPageParams.takeWhen(self.blockedUserProperty.signal)
-    )
-
-    // These observers only admit commands. The Feature owns and retains the work.
-    self.featureBindings += requestFirstPageWith.observeValues { [weak self] parameters in
-      guard let self, let sort = self.sortProperty.value else { return }
-      self.pageTask = discoveryFeature.requestRefresh(sort: sort, parameters: parameters, force: true)
-    }
-    self.featureBindings += self.viewDidAppearProperty.signal.observeValues { [weak self] in
-      guard let self, let sort = self.sortProperty.value,
-            AppEnvironment.current.currentUser != nil else { return }
-      self.activityTask = discoveryFeature.requestActivitySample(sort: sort)
-    }
-
-    // MARK: - Tracking
-
-    self.featureBindings += Signal.combineLatest(requestFirstPageWith, self.viewWillAppearProperty.signal)
-      .observeValues { params, _ in
-        AppEnvironment.current.ksrAnalytics.trackDiscovery(params: params)
-      }
-
-    self.featureBindings += paramsChanged
-      .takePairWhen(self.tappedProject.signal.skipNil())
-      .observeValues { params, project in
-
-        AppEnvironment.current.ksrAnalytics.trackProjectCardClicked(
-          page: .discovery,
-          project: project,
-          typeContext: .init(params: params),
-          location: .discoverAdvanced,
-          params: params
-        )
-      }
-    self.featureBindings += currentUser.observeValues { [weak self] user in
-      self?.hasCurrentUserValue = true
-      self?.onboardingUser = user
-      self?.updateOnboarding()
-    }
-    self.featureBindings += paramsChanged.observeValues { [weak self] parameters in
-      guard let self else { return }
-      let hadParameters = self.currentNavigationParameters != nil
-      self.currentNavigationParameters = parameters
-      self.clearActivityOnDisappear = true
-      self.updateOnboarding()
-      self.updateEmptyState()
-      if hadParameters { self.onHideEmptyState?() }
-    }
-
     self.discoveryObservation = discoveryFeature.observe { [weak self] update in
       guard let self else { return }
       switch update {
       case let .projects(sort, projects):
-        if sort == self.sortProperty.value { self.receiveProjects(projects) }
+        if sort == self.currentSort { self.receiveProjects(projects) }
       case let .loading(sort, loading):
-        if sort == self.sortProperty.value { self.receiveLoading(loading) }
+        if sort == self.currentSort { self.receiveLoading(loading) }
       case let .activities(sort, activities): self.receiveActivities(activities, sort: sort)
       }
     }
@@ -256,15 +165,14 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.updateVideoFeedBanner()
   }
 
-  fileprivate let currentEnvironmentChangedProperty = MutableProperty<EnvironmentType?>(nil)
+  private var previousEnvironment: EnvironmentType?
   public func currentEnvironmentChanged(environment: EnvironmentType) {
-    self.currentEnvironmentChangedProperty.value = environment
+    guard self.previousEnvironment != environment else { return }
+    self.previousEnvironment = environment
+    self.refreshLastReadyFeed()
   }
 
-  fileprivate let blockedUserProperty = MutableProperty(())
-  public func blockedUser() {
-    self.blockedUserProperty.value = ()
-  }
+  public func blockedUser() { self.refreshLastReadyFeed() }
 
   public func onboardingCompleted() {
     if self.hasAppeared, self.hasReadyPersonalizationFilters { self.onShowPersonalization?(shouldShowPersonalization()) }
@@ -280,15 +188,58 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.onDismissPersonalizationCell?()
   }
 
-  fileprivate let pulledToRefreshProperty = MutableProperty(())
   public func pulledToRefresh() {
     self.hasPulledToRefresh = true
-    self.pulledToRefreshProperty.value = ()
+    self.refreshLastReadyFeed()
   }
 
-  fileprivate let sortProperty = MutableProperty<DiscoveryParams.Sort?>(nil)
+  private var currentSort: DiscoveryParams.Sort?
   public func configureWith(sort: DiscoveryParams.Sort) {
-    self.sortProperty.value = sort
+    self.currentSort = sort
+    self.publishParametersIfReady()
+  }
+
+  private var visible: Bool?
+  private var hasWillAppeared = false
+  private var lastReadyParameters: DiscoveryParams?
+  private var lastReadyUser: User?
+  private var hasReadyUser = false
+
+  private func refreshCurrentUser() {
+    let user = AppEnvironment.current.currentUser
+    guard !self.hasCurrentUserValue || self.onboardingUser != user else { return }
+    self.hasCurrentUserValue = true
+    self.onboardingUser = user
+    self.refreshIfInputsChanged()
+    self.updateOnboarding()
+  }
+  private func publishParametersIfReady() {
+    guard let sort = self.currentSort, let filter = self.selectedFilterValue else { return }
+    let parameters = DiscoveryParams.lens.sort.set(sort, filter)
+    let hadParameters = self.currentNavigationParameters != nil
+    self.currentNavigationParameters = parameters
+    self.clearActivityOnDisappear = true
+    self.refreshIfInputsChanged()
+    self.updateOnboarding()
+    self.updateEmptyState()
+    if hadParameters { self.onHideEmptyState?() }
+  }
+  private func refreshIfInputsChanged() {
+    guard self.visible == true, self.hasCurrentUserValue, let parameters = self.currentNavigationParameters else { return }
+    guard !self.hasReadyUser || self.lastReadyUser != self.onboardingUser || self.lastReadyParameters != parameters else { return }
+    self.hasReadyUser = true
+    self.lastReadyUser = self.onboardingUser
+    self.lastReadyParameters = parameters
+    self.requestFirstPage(parameters)
+  }
+  private func refreshLastReadyFeed() {
+    guard let parameters = self.lastReadyParameters else { return }
+    self.requestFirstPage(parameters)
+  }
+  private func requestFirstPage(_ parameters: DiscoveryParams) {
+    guard let sort = self.currentSort else { return }
+    self.pageTask = self.discoveryFeature.requestRefresh(sort: sort, parameters: parameters, force: true)
+    if self.hasWillAppeared { AppEnvironment.current.ksrAnalytics.trackDiscovery(params: parameters) }
   }
 
   private var hasPulledToRefresh = false
@@ -343,13 +294,14 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.onContentOffsetChanged?(offset)
   }
 
-  fileprivate let selectedFilterProperty = MutableProperty<DiscoveryParams?>(nil)
+  private var selectedFilterValue: DiscoveryParams?
   public func selectedFilter(_ params: DiscoveryParams) {
     let changed = self.lastPersonalizationFilter != params
     self.lastPersonalizationFilter = params
-    self.selectedFilterProperty.value = params
+    self.selectedFilterValue = params
+    self.publishParametersIfReady()
     if changed { self.publishProjectList([]) }
-    if changed, self.sortProperty.value != nil {
+    if changed, self.currentSort != nil {
       self.hasReadyPersonalizationFilters = true
       if self.hasAppeared { self.onShowPersonalization?(shouldShowPersonalization()) }
     }
@@ -370,7 +322,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   }
 
   private func receiveActivities(_ activities: [Activity], sort: DiscoveryParams.Sort) {
-    guard self.sortProperty.value == sort, self.lastRawActivities != activities else { return }
+    guard self.currentSort == sort, self.lastRawActivities != activities else { return }
     self.lastRawActivities = activities
     let unseen = activities.filter { hasNotSeen(activity: $0) }
     saveSeen(activities: unseen)
@@ -414,44 +366,45 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     }
   }
 
-  fileprivate let tappedProject = MutableProperty<Project?>(nil)
   public func tapped(project: Project) {
     if let parameters = self.currentNavigationParameters, let projects = self.currentNavigationProjects {
       self.onGoToProjectPlaylist?(project, projects, .fromParams(parameters))
     }
-    self.tappedProject.value = project
+    if let parameters = self.currentNavigationParameters {
+      AppEnvironment.current.ksrAnalytics.trackProjectCardClicked(
+        page: .discovery, project: project, typeContext: .init(params: parameters),
+        location: .discoverAdvanced, params: parameters
+      )
+    }
   }
 
-  fileprivate let userSessionStartedProperty = MutableProperty(())
-  public func userSessionStarted() {
-    self.userSessionStartedProperty.value = ()
-  }
+  public func userSessionStarted() { self.refreshCurrentUser() }
+  public func userSessionEnded() { self.refreshCurrentUser() }
 
-  fileprivate let userSessionEndedProperty = MutableProperty(())
-  public func userSessionEnded() {
-    self.userSessionEndedProperty.value = ()
-  }
-
-  fileprivate let viewDidAppearProperty = MutableProperty(())
   public func viewDidAppear() {
     self.clearActivityOnDisappear = true
     self.hasAppeared = true
-    self.viewDidAppearProperty.value = ()
+    if self.visible != true { self.visible = true; self.refreshIfInputsChanged() }
+    if let sort = self.currentSort, AppEnvironment.current.currentUser != nil {
+      self.activityTask = self.discoveryFeature.requestActivitySample(sort: sort)
+    }
     if self.hasReadyPersonalizationFilters { self.onShowPersonalization?(shouldShowPersonalization()) }
     self.onScrollsToTopChanged?(true)
   }
 
-  fileprivate let viewDidDisappearProperty = MutableProperty(false)
   public func viewDidDisappear(animated: Bool) {
     if animated, self.clearActivityOnDisappear == true { self.publishActivities([]) }
     if !animated { self.clearActivityOnDisappear = true }
-    self.viewDidDisappearProperty.value = animated
+    self.visible = false
     self.onScrollsToTopChanged?(false)
   }
 
-  fileprivate let viewWillAppearProperty = MutableProperty(())
   public func viewWillAppear() {
-    self.viewWillAppearProperty.value = ()
+    self.refreshCurrentUser()
+    self.hasWillAppeared = true
+    if let parameters = self.lastReadyParameters {
+      AppEnvironment.current.ksrAnalytics.trackDiscovery(params: parameters)
+    }
     if !self.hasAppearedForLoading {
       self.hasAppearedForLoading = true
       self.onHideEmptyState?()
@@ -467,7 +420,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     let closeToBottom = row >= totalRows - 3 && row > 0
     guard self.wasCloseToBottom != closeToBottom else { return }
     self.wasCloseToBottom = closeToBottom
-    guard closeToBottom, let sort = self.sortProperty.value else { return }
+    guard closeToBottom, let sort = self.currentSort else { return }
     self.pageTask = self.discoveryFeature.requestNextPage(sort: sort)
   }
 
