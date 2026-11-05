@@ -119,9 +119,7 @@ final class CommentRepliesViewController: UITableViewController, MessageBannerVi
         self?.tableView.reloadData()
       }
 
-    self.viewModel.outputs.loadRepliesAndProjectIntoDataSource
-      .observeForUI()
-      .observeValues { [weak self] repliesAndTotalCount, project in
+    self.viewModel.outputs.onLoadReplies = { [weak self] repliesAndTotalCount, project in
         guard let self = self else { return }
         self.dataSource.load(repliesAndTotalCount: repliesAndTotalCount, project: project)
         self.tableView.reloadData()

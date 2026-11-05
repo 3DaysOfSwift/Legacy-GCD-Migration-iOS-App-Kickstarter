@@ -52,16 +52,11 @@ internal final class CommentRepliesViewModelTests: TestCase {
       self.vm.outputs.loadFailableReplyIntoDataSource.map(third)
         .observe(self.loadFailableProjectIntoDataSource.observer)
 
-      self.vm.outputs.loadRepliesAndProjectIntoDataSource.map(second)
-        .observe(self.loadRepliesAndProjectIntoDataSourceProject.observer)
-      self.vm.outputs.loadRepliesAndProjectIntoDataSource
-        .map(first)
-        .map { replies, _ in replies }
-        .observe(self.loadRepliesAndProjectIntoDataSourceReplies.observer)
-      self.vm.outputs.loadRepliesAndProjectIntoDataSource
-        .map(first)
-        .map { _, totalCount in totalCount }
-        .observe(self.loadRepliesAndProjectIntoDataSourceTotalCount.observer)
+      self.vm.outputs.onLoadReplies = { [weak self] repliesAndCount, project in
+        self?.loadRepliesAndProjectIntoDataSourceProject.observer.send(value: project)
+        self?.loadRepliesAndProjectIntoDataSourceReplies.observer.send(value: repliesAndCount.0)
+        self?.loadRepliesAndProjectIntoDataSourceTotalCount.observer.send(value: repliesAndCount.1)
+      }
       self.vm.outputs.onResetCommentComposer = { [weak self] in self?.resetCommentComposer.observer.send(value: ()) }
       self.vm.outputs.onScrollToReply = { [weak self] id in self?.scrollToReply.observer.send(value: id) }
       self.vm.outputs.onPaginationError = { [weak self] in self?.showPaginationErrorState.observer.send(value: ()) }

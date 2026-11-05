@@ -58,7 +58,7 @@ public protocol CommentRepliesViewModelOutputs: AnyObject {
   var loadCommentIntoDataSource: Signal<Comment, Never> { get }
 
   /// Emits a tuple of (`Comment`,`Int`) and a `Project` to load into the data source
-  var loadRepliesAndProjectIntoDataSource: Signal<(([Comment], Int), Project), Never> { get }
+  var onLoadReplies: ((([Comment], Int), Project) -> Void)? { get set }
 
   /// Emits a `Comment`, `String` and `Project` to replace an optimistically posted comment after a network request completes.
   var loadFailableReplyIntoDataSource: Signal<(Comment, String, Project), Never> { get }
@@ -90,7 +90,8 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   CommentRepliesViewModelInputs,
   CommentRepliesViewModelOutputs {
   private let feature: DiscussionFeature
-  private let pagePipe = Signal<(UUID, [Comment], Int), Never>.pipe()
+  private var latestProject: Project?
+  private var latestReplies: ([Comment], Int)?
   private var pageObservation: MainActorObservation?
   private let route = UUID()
   private let disposables = ScopedDisposable(CompositeDisposable())
@@ -157,7 +158,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
       rootComment.takeWhen(self.retryFirstPageProperty.signal)
     )
 
-    let replyPages = self.pagePipe.output.filter { $0.0 == route }
 
     let commentComposerDidSubmitText = self.commentComposerDidSubmitTextProperty.signal.skipNil()
 
@@ -222,9 +222,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
         }
       })
 
-    self.loadRepliesAndProjectIntoDataSource = replyPages.map { ($0.1, $0.2) }.skipRepeats { $0.0 == $1.0 }
-      .combineLatest(with: project)
-
     let failableOrRetriedComment = Signal.merge(retryingComment, failableCommentWithReplacementId)
 
     self.loadFailableReplyIntoDataSource = Signal.combineLatest(failableOrRetriedComment, project)
@@ -249,13 +246,21 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     }
 
 
+    self.disposables += project.observeValues { [weak self] project in
+      guard let self else { return }
+      self.latestProject = project
+      if let replies = self.latestReplies { self.onLoadReplies?(replies, project) }
+    }
     self.disposables += requestFirstPageWith.observeValues { [weak self] comment in
       self?.loadingTask = feature.requestFirstPage(route: route, source: .replies(comment.id), refresh: true)
     }
     self.pageObservation = feature.observePages { [weak self] update in
       guard let self else { return }
       switch update {
-      case let .page(route, comments, count): self.pagePipe.input.send(value: (route, comments, count))
+      case let .page(eventRoute, comments, count):
+        guard eventRoute == route, self.latestReplies?.0 != comments else { return }
+        self.latestReplies = (comments, count)
+        if let project = self.latestProject { self.onLoadReplies?((comments, count), project) }
       case .loading: break
       case let .error(eventRoute, _):
         if eventRoute == route { self.onPaginationError?() }
@@ -339,7 +344,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
 
   public let configureCommentComposerViewWithData: Signal<CommentComposerViewData, Never>
   public let loadCommentIntoDataSource: Signal<Comment, Never>
-  public var loadRepliesAndProjectIntoDataSource: Signal<(([Comment], Int), Project), Never>
+  public var onLoadReplies: ((([Comment], Int), Project) -> Void)?
   public let loadFailableReplyIntoDataSource: Signal<(Comment, String, Project), Never>
   public var onResetCommentComposer: (() -> Void)?
   public var onScrollToReply: ((String) -> Void)?
