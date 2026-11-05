@@ -39,6 +39,7 @@ final class RewardsFeatureTests: TestCase {
       Reward.shipsToUSAReward.shippingRulesExpanded
     )
     XCTAssertFalse(feature.snapshot(for: route).isLoading)
+    XCTAssertTrue(feature.snapshot(for: route).hasResult)
     XCTAssertNil(feature.snapshot(for: route).error)
   }
 
@@ -92,6 +93,7 @@ final class RewardsFeatureTests: TestCase {
     await feature.load(route: route, project: .template, location: .usa)
     XCTAssertEqual(feature.snapshot(for: route).rewards, cached)
     XCTAssertNotNil(feature.snapshot(for: route).error)
+    XCTAssertFalse(feature.snapshot(for: route).hasResult)
     XCTAssertFalse(feature.snapshot(for: route).isLoading)
     provider.fail = false
     await feature.load(route: route, project: .template, location: .usa)
@@ -133,6 +135,7 @@ final class RewardsFeatureTests: TestCase {
       try provider.finish(0, rewards: [Reward.shipsToUSAReward])
       await first.value
       XCTAssertTrue(feature.snapshot(for: route).rewards.isEmpty)
+      XCTAssertFalse(feature.snapshot(for: route).hasResult)
       let signedIn = feature.requestLoad(route: route, project: .template, location: nil)
       await provider.waitForRequests(2)
       try provider.finish(1, rewards: [Reward.digitalReward])

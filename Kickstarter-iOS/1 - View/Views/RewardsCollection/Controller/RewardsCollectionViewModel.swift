@@ -54,6 +54,8 @@ public enum RewardsCollectionViewContext {
   private let route = UUID()
   private let observations = ScopedDisposable(CompositeDisposable())
   internal private(set) var loadingTask: Task<Void, Never>?
+  private var loadingGeneration = UUID()
+  private let (fetchedRewardsSignal, fetchedRewardsObserver) = Signal<[Reward], Never>.pipe()
 
   public init(rewardsFeature: RewardsFeature? = nil) {
     let feature = rewardsFeature ?? AppModel.shared.rewardsFeature
@@ -84,10 +86,8 @@ public enum RewardsCollectionViewContext {
       .skipRepeats()
       .on(value: { _ in isLoadingProperty.value = true })
 
-    // Output-only adapter; the Feature owns requests, visibility and cancellation.
-    let fetchedRewards = feature.completions
-      .filter { [route = self.route] in $0.0 == route }
-      .map { $0.1 }
+    // The Feature owns requests; this signal feeds the remaining presentation bindings.
+    let fetchedRewards = self.fetchedRewardsSignal
 
     self.scrollToRewardIndexPath = Signal.combineLatest(
       project,
@@ -357,15 +357,21 @@ public enum RewardsCollectionViewContext {
           )
       }
 
-    self.observations += feature.loading.observeValues { [weak self] route, isLoading in
-      guard let self, route == self.route else { return }
-      if !isLoading { self.loadingTask = nil }
-      isLoadingProperty.value = isLoading
-    }
     self.observations += project.combineLatest(with: selectedShippingLocation)
       .observeValues { [weak self] project, location in
         guard let self else { return }
-        self.loadingTask = feature.requestLoad(route: self.route, project: project, location: location)
+        let generation = UUID()
+        self.loadingGeneration = generation
+        let request = feature.requestLoad(route: self.route, project: project, location: location)
+        self.loadingTask = Task { [weak self] in
+          await request.value
+          guard let self, !Task.isCancelled, !request.isCancelled,
+                self.loadingGeneration == generation else { return }
+          let snapshot = feature.snapshot(for: self.route)
+          if snapshot.hasResult { self.fetchedRewardsObserver.send(value: snapshot.rewards) }
+          isLoadingProperty.value = false
+          self.loadingTask = nil
+        }
       }
   }
 

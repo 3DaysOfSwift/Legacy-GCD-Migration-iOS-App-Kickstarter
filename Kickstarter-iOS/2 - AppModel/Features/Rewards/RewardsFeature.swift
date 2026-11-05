@@ -1,7 +1,6 @@
 import Experimentation
 import Foundation
 import KsApi
-import ReactiveSwift
 
 /// A substitution boundary for the shipping-sorted rewards API.
 @MainActor
@@ -155,6 +154,7 @@ public final class RewardsFeature {
     public fileprivate(set) var rewards: [Reward] = []
     public fileprivate(set) var isLoading = false
     public fileprivate(set) var error: ErrorEnvelope?
+    public fileprivate(set) var hasResult = false
   }
 
   private struct Identity: Equatable {
@@ -180,10 +180,6 @@ public final class RewardsFeature {
   private let fastCheckout: @MainActor () -> Bool
   private let moveNoReward: @MainActor () -> Bool
   private let sleep: @MainActor (TimeInterval) async throws -> Void
-  private let completionPipe = Signal<(UUID, [Reward]), Never>.pipe()
-  private let loadingPipe = Signal<(UUID, Bool), Never>.pipe()
-  public var completions: Signal<(UUID, [Reward]), Never> { self.completionPipe.output }
-  public var loading: Signal<(UUID, Bool), Never> { self.loadingPipe.output }
 
   public init(
     sessionFeature: SessionFeature,
@@ -240,12 +236,12 @@ public final class RewardsFeature {
     let sleep = self.sleep
     entry.snapshot.isLoading = true
     entry.snapshot.error = nil
+    entry.snapshot.hasResult = false
     let task = Task { [weak self] in
       defer {
         if let self, entry.request?.id == requestID {
           entry.request = nil
           entry.snapshot.isLoading = false
-          self.loadingPipe.input.send(value: (route, false))
         }
       }
       do {
@@ -265,7 +261,7 @@ public final class RewardsFeature {
         else { return }
         let visibleRewards = rewards.filter { isStartDateBeforeToday(for: $0) }
         entry.snapshot.rewards = visibleRewards
-        self.completionPipe.input.send(value: (route, visibleRewards))
+        entry.snapshot.hasResult = true
       } catch is CancellationError {
         // Superseded reads do not produce product errors or empty success.
       } catch {
@@ -276,7 +272,6 @@ public final class RewardsFeature {
       }
     }
     entry.request = (requestID, identity, task)
-    self.loadingPipe.input.send(value: (route, true))
     return task
   }
 
@@ -286,7 +281,6 @@ public final class RewardsFeature {
     entry.request = nil
     entry.snapshot.isLoading = false
     task?.cancel()
-    self.loadingPipe.input.send(value: (route, false))
   }
 
   public func release(route: UUID) {
