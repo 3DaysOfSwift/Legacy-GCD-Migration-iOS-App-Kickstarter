@@ -296,24 +296,19 @@ public final class SettingsFeature {
     }
   }
 
-  public func updateAccount(_ change: AccountChange) async throws -> User {
+  /// Admit the write synchronously so equivalent requests share and distinct
+  /// requests enter the account queue in caller order. The feature owns the task.
+  @discardableResult
+  public func requestAccount(_ change: AccountChange) throws -> Task<User, Error> {
     try Task.checkCancellation()
     guard let user = self.session.currentUser else { throw CancellationError() }
-    let result = try await self.request(.account(change), from: user).task.value
-    try Task.checkCancellation()
-    return result
+    return self.request(.account(change), from: user).task
   }
 
-  public func accountResult(_ change: AccountChange) -> SignalProducer<User, ErrorEnvelope> {
-    SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        guard let user = self.session.currentUser else { observer.sendInterrupted(); return }
-        let pending = self.request(.account(change), from: user)
-        let subscription = self.results.output.filter { $0.0 == pending.id }.take(first: 1)
-          .observeValues { _, result in Self.deliver(result, to: observer) }
-        lifetime.observeEnded { subscription?.dispose() }
-      }
-    }
+  public func updateAccount(_ change: AccountChange) async throws -> User {
+    let result = try await self.requestAccount(change).value
+    try Task.checkCancellation()
+    return result
   }
 
   /// Verification links carry their own token and may be opened while signed out.

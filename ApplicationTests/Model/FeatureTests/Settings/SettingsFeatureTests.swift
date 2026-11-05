@@ -369,11 +369,10 @@ extension SettingsFeatureTests {
     let first = Task { try await fixture.feature.emailUser() }
     let second = Task { try await fixture.feature.emailUser() }
     await fixture.provider.emails.waitFor(1)
-    let write = fixture.feature.accountResult(.email(.init(
+    _ = try fixture.feature.requestAccount(.email(.init(
       email: "new@example.invalid",
       currentPassword: "fixture"
-    ))).start()
-    defer { write.dispose() }
+    )))
     await fixture.provider.gate.waitFor(1)
     try fixture.provider.gate.finish(0, .success(nil))
     try fixture.provider.emails.finish(0, .success(.template))
@@ -424,10 +423,9 @@ extension SettingsFeatureTests {
   func testEquivalentAccountWritesShareAndDistinctCommandsRemainOrdered() async throws {
     let fixture = AccountWritesFixture()
     defer { fixture.provider.gate.releaseAll() }
-    let first = fixture.feature.accountResult(.currency("GBP")).start()
-    let duplicate = fixture.feature.accountResult(.currency("GBP")).start()
-    let next = fixture.feature.accountResult(.currency("EUR")).start()
-    defer { first.dispose(); duplicate.dispose(); next.dispose() }
+    let first = try fixture.feature.requestAccount(.currency("GBP"))
+    let duplicate = try fixture.feature.requestAccount(.currency("GBP"))
+    let next = try fixture.feature.requestAccount(.currency("EUR"))
     await fixture.provider.gate.waitFor(1)
     XCTAssertEqual(fixture.provider.commands, [.currency("GBP")])
     try fixture.provider.gate.finish(0, .success(nil))
@@ -437,15 +435,21 @@ extension SettingsFeatureTests {
     await fixture.feature.waitForOperations()
     XCTAssertEqual(fixture.user?.chosenCurrency, "EUR")
     XCTAssertEqual(fixture.commits, 2)
+    let firstUser = try await first.value
+    let duplicateUser = try await duplicate.value
+    let nextUser = try await next.value
+    XCTAssertEqual(firstUser.chosenCurrency, "GBP")
+    XCTAssertEqual(duplicateUser.chosenCurrency, "GBP")
+    XCTAssertEqual(nextUser.chosenCurrency, "EUR")
   }
 
   func testAccountAndPreferenceWritesUseOneQueue() async throws {
     let fixture = AccountWritesFixture()
     defer { fixture.provider.gate.releaseAll() }
     let source = try XCTUnwrap(fixture.user)
-    let currency = fixture.feature.accountResult(.currency("GBP")).start()
+    _ = try fixture.feature.requestAccount(.currency("GBP"))
     let preference = fixture.feature.saveResult([.init(.newsletter(.arts), true)], from: source).start()
-    defer { currency.dispose(); preference.dispose() }
+    defer { preference.dispose() }
     await fixture.provider.gate.waitFor(1)
     XCTAssertEqual(fixture.provider.preferences.count, 0)
     try fixture.provider.gate.finish(0, .success(nil))
@@ -459,15 +463,18 @@ extension SettingsFeatureTests {
     let fixture = AccountWritesFixture()
     defer { fixture.provider.gate.releaseAll() }
     let original = fixture.user?.chosenCurrency
-    let failure = fixture.feature.accountResult(.currency("GBP")).start()
-    let next = fixture.feature.accountResult(.currency("EUR")).start()
-    defer { failure.dispose(); next.dispose() }
+    let failure = try fixture.feature.requestAccount(.currency("GBP"))
+    let next = try fixture.feature.requestAccount(.currency("EUR"))
     await fixture.provider.gate.waitFor(1)
     try fixture.provider.gate.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
     await fixture.provider.gate.waitFor(2)
     XCTAssertEqual(fixture.user?.chosenCurrency, original)
     try fixture.provider.gate.finish(1, .success(nil))
     await fixture.feature.waitForOperations()
+    do { _ = try await failure.value; XCTFail("Expected account write failure") }
+    catch { XCTAssertTrue(error is ErrorEnvelope) }
+    let nextUser = try await next.value
+    XCTAssertEqual(nextUser.chosenCurrency, "EUR")
     let retry = Task { try await fixture.feature.updateAccount(.currency("GBP")) }
     await fixture.provider.gate.waitFor(3)
     try fixture.provider.gate.finish(2, .success(nil))
@@ -479,29 +486,32 @@ extension SettingsFeatureTests {
   func testDisposedObserverDoesNotAbandonAdmittedAccountWrite() async throws {
     let fixture = AccountWritesFixture()
     defer { fixture.provider.gate.releaseAll() }
-    var delivered = false
-    let observation = fixture.feature.accountResult(.currency("GBP"))
-      .startWithResult { _ in delivered = true }
+    let admitted = try fixture.feature.requestAccount(.currency("GBP"))
+    let waiter = Task { _ = try await admitted.value; try Task.checkCancellation() }
     await fixture.provider.gate.waitFor(1)
-    observation.dispose()
+    waiter.cancel()
     try fixture.provider.gate.finish(0, .success(nil))
     await fixture.feature.waitForOperations()
     XCTAssertEqual(fixture.user?.chosenCurrency, "GBP")
-    XCTAssertFalse(delivered)
+    do { _ = try await waiter.value; XCTFail("Cancelled waiter returned a value") }
+    catch { XCTAssertTrue(error is CancellationError) }
   }
 
   func testReplacedSessionSuppressesAcceptedWriteAndDoesNotDispatchQueuedWrite() async throws {
     let fixture = AccountWritesFixture()
     defer { fixture.provider.gate.releaseAll() }
-    let first = fixture.feature.accountResult(.currency("GBP")).start()
-    let queued = fixture.feature.accountResult(.currency("EUR")).start()
-    defer { first.dispose(); queued.dispose() }
+    let first = try fixture.feature.requestAccount(.currency("GBP"))
+    let queued = try fixture.feature.requestAccount(.currency("EUR"))
     await fixture.provider.gate.waitFor(1)
     fixture.session.sessionChanged() // Even re-login as the same account is a new identity.
     try fixture.provider.gate.finish(0, .success(nil))
     await fixture.feature.waitForOperations()
     XCTAssertEqual(fixture.provider.commands.count, 1)
     XCTAssertEqual(fixture.commits, 0)
+    for task in [first, queued] {
+      do { _ = try await task.value; XCTFail("Stale account write completed") }
+      catch { XCTAssertTrue(error is CancellationError) }
+    }
   }
 
   func testSignedOutAccountWriteNeverReachesTransport() async {
@@ -533,9 +543,9 @@ extension SettingsFeatureTests {
   func testRefreshWaitsForAccountWriteBeforeFetchingAndCommitting() async throws {
     let fixture = AccountWritesFixture()
     defer { fixture.provider.gate.releaseAll(); fixture.readProvider.gate.releaseAll() }
-    let write = fixture.feature.accountResult(.currency("GBP")).start()
+    _ = try fixture.feature.requestAccount(.currency("GBP"))
     let refresh = fixture.feature.refreshResult().start()
-    defer { write.dispose(); refresh.dispose() }
+    defer { refresh.dispose() }
     await fixture.provider.gate.waitFor(1)
     XCTAssertEqual(fixture.readProvider.gate.count, 0)
     try fixture.provider.gate.finish(0, .success(nil))
@@ -554,8 +564,8 @@ extension SettingsFeatureTests {
     let stale = try XCTUnwrap(fixture.user)
     let refresh = fixture.feature.refreshResult().start()
     await fixture.readProvider.gate.waitFor(1)
-    let write = fixture.feature.accountResult(.currency("GBP")).start()
-    defer { refresh.dispose(); write.dispose() }
+    _ = try fixture.feature.requestAccount(.currency("GBP"))
+    defer { refresh.dispose() }
     await fixture.provider.gate.waitFor(1)
     try fixture.provider.gate.finish(0, .success(nil))
     try fixture.readProvider.gate.finish(0, .success(stale)) // Transport ignores cancellation.
