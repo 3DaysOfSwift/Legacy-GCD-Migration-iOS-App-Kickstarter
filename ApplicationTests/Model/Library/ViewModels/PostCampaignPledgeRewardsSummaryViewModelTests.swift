@@ -3,26 +3,22 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class PostCampaignPledgeRewardsSummaryViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  internal let vm: PostCampaignPledgeRewardsSummaryViewModelType =
-    PostCampaignPledgeRewardsSummaryViewModel()
+  internal let vm = PostCampaignPledgeRewardsSummaryViewModel()
 
-  private let loadRewardsIntoDataSource = TestObserver<
-    (headerData: PledgeSummaryRewardCellData?, rewards: [PledgeSummaryRewardCellData]),
-    Never
-  >()
+  private let loadRewardsIntoDataSource = Recorder<(headerData: PledgeSummaryRewardCellData?, rewards: [PledgeSummaryRewardCellData])>()
 
   override func setUp() async throws {
     try await super.setUp()
 
-    self.vm.outputs.loadRewardsIntoDataSource.observe(self.loadRewardsIntoDataSource.observer)
+    self.vm.onRewards = { [weak self] header, rewards in
+      self?.loadRewardsIntoDataSource.record((header, rewards))
+    }
   }
 
   func testLoadRewardsIntoDataSource_latePledge() {
@@ -30,13 +26,13 @@ final class PostCampaignPledgeRewardsSummaryViewModelTests: TestCase {
 
     let (rewardsData, bonus, pledgeData) = self.getTestData(useLatePledgeCosts: true)
 
-    self.vm.inputs.configureWith(
+    self.vm.configureWith(
       rewardsData: rewardsData,
       bonusAmount: bonus,
       pledgeData: pledgeData
     )
 
-    self.vm.inputs.viewDidLoad()
+    self.vm.viewDidLoad()
 
     self.loadRewardsIntoDataSource.assertValueCount(1)
 
@@ -80,13 +76,13 @@ final class PostCampaignPledgeRewardsSummaryViewModelTests: TestCase {
 
     let (rewardsData, bonus, pledgeData) = self.getTestData(useLatePledgeCosts: false)
 
-    self.vm.inputs.configureWith(
+    self.vm.configureWith(
       rewardsData: rewardsData,
       bonusAmount: bonus,
       pledgeData: pledgeData
     )
 
-    self.vm.inputs.viewDidLoad()
+    self.vm.viewDidLoad()
 
     self.loadRewardsIntoDataSource.assertValueCount(1)
 
@@ -175,5 +171,17 @@ final class PostCampaignPledgeRewardsSummaryViewModelTests: TestCase {
     )
 
     return (rewardsData, bonus, pledgeData)
+  }
+}
+
+private final class Recorder<Value> {
+  private var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func record(_ value: Value) { self.values.append(value) }
+  func assertDidNotEmitValue(file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, file: file, line: line)
+  }
+  func assertValueCount(_ count: Int, file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, file: file, line: line)
   }
 }

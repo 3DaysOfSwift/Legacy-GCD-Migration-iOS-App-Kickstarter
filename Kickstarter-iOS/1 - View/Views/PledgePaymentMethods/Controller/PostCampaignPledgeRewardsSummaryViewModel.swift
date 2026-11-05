@@ -1,7 +1,6 @@
 import KDS
 import KsApi
 import Prelude
-import ReactiveSwift
 import UIKit
 
 public enum PostCampaignRewardsSummaryItem {
@@ -40,130 +39,51 @@ public struct PostCampaignRewardsSummaryViewData {
 }
 
 @MainActor
-public protocol PostCampaignPledgeRewardsSummaryViewModelInputs {
-  func configureWith(
-    rewardsData: PostCampaignRewardsSummaryViewData,
-    bonusAmount: Double?,
-    pledgeData: PledgeSummaryViewData
-  )
-  func viewDidLoad()
-}
+public final class PostCampaignPledgeRewardsSummaryViewModel {
+  public var onRewards: ((PledgeSummaryRewardCellData?, [PledgeSummaryRewardCellData]) -> Void)?
+  public var onPledgeTotal: ((PledgeSummaryViewData) -> Void)?
+  private var configuration: (PostCampaignRewardsSummaryViewData, Double?, PledgeSummaryViewData)?
+  private var loaded = false
 
-@MainActor
-public protocol PostCampaignPledgeRewardsSummaryViewModelOutputs {
-  var configurePledgeTotalViewWithData: Signal<PledgeSummaryViewData, Never> { get }
-  var loadRewardsIntoDataSource: Signal<
-    (headerData: PledgeSummaryRewardCellData?, rewards: [PledgeSummaryRewardCellData]),
-    Never
-  > { get }
-}
+  public init() {}
 
-@MainActor
-public protocol PostCampaignPledgeRewardsSummaryViewModelType {
-  var inputs: PostCampaignPledgeRewardsSummaryViewModelInputs { get }
-  var outputs: PostCampaignPledgeRewardsSummaryViewModelOutputs { get }
-}
-
-@MainActor
-public final class PostCampaignPledgeRewardsSummaryViewModel: PostCampaignPledgeRewardsSummaryViewModelType,
-  PostCampaignPledgeRewardsSummaryViewModelInputs, PostCampaignPledgeRewardsSummaryViewModelOutputs {
-  public init() {
-    let data = Signal.combineLatest(
-      self.configureWithDataProperty.signal.skipNil(),
-      self.viewDidLoadProperty.signal
-    )
-    .map(first)
-
-    let rewardData = data.map { $0.0 }
-    let rewards = data.map(\.0.rewards)
-    let selectedQuantities = data.map(\.0.selectedQuantities)
-    let useLatePledgeCosts = data.map(\.0.useLatePledgeCosts)
-    let bonusAmount = data.map(\.1)
-
-    let latestRewardDeliveryDate = rewards.map { rewards in
-      rewards
-        .compactMap { $0.estimatedDeliveryOn }
-        .reduce(0) { accum, value in max(accum, value) }
-    }
-
-    let estimatedDeliveryString = latestRewardDeliveryDate.map { date -> String? in
-      guard date > 0 else { return nil }
-
-      let dateString = Format.date(
-        secondsInUTC: date,
-        template: DateFormatter.monthYear,
-        timeZone: UTCTimeZone
-      )
-
-      return Strings.backing_info_estimated_delivery_date(delivery_date: dateString)
-    }
-
-    let total: Signal<Double, Never> = Signal.combineLatest(
-      rewards,
-      selectedQuantities,
-      useLatePledgeCosts
-    )
-    .map { rewards, selectedQuantities, isLatePledge in
-      rewards.reduce(0.0) { total, reward in
-        let totalForReward = isLatePledge ? reward.latePledgeAmount : reward.pledgeAmount
-          .multiplyingCurrency(Double(selectedQuantities[reward.id] ?? 0))
-
-        return total.addingCurrency(totalForReward)
-      }
-    }
-
-    self.loadRewardsIntoDataSource = Signal.zip(
-      rewardData,
-      selectedQuantities,
-      estimatedDeliveryString,
-      bonusAmount,
-      total
-    )
-    .map(items)
-    .map { data in
-      /// Decipher header vs reward objects from the `[PostCampaignRewardsSummaryItem]` data object.
-      let header = data.compactMap { item -> PledgeSummaryRewardCellData? in
-        guard case let .header(data) = item else { return nil }
-        return data
-      }
-
-      let allRewards = data.compactMap { item -> PledgeSummaryRewardCellData? in
-        guard case let .reward(data) = item else { return nil }
-        return data
-      }
-
-      return (header.first, allRewards)
-    }
-
-    self.configurePledgeTotalViewWithData = data.map { data in
-      let (_, _, pledgeSummaryData) = data
-      return pledgeSummaryData
-    }
-  }
-
-  private let configureWithDataProperty =
-    MutableProperty<(PostCampaignRewardsSummaryViewData, Double?, PledgeSummaryViewData)?>(nil)
   public func configureWith(
     rewardsData: PostCampaignRewardsSummaryViewData,
     bonusAmount: Double?,
     pledgeData: PledgeSummaryViewData
   ) {
-    self.configureWithDataProperty.value = (rewardsData, bonusAmount, pledgeData)
+    self.configuration = (rewardsData, bonusAmount, pledgeData)
+    self.publishIfReady()
   }
 
-  private let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    self.loaded = true
+    self.publishIfReady()
   }
 
-  public let configurePledgeTotalViewWithData: Signal<PledgeSummaryViewData, Never>
-  public let loadRewardsIntoDataSource: Signal<
-    (headerData: PledgeSummaryRewardCellData?, rewards: [PledgeSummaryRewardCellData]),
-    Never
-  >
-
-  public var inputs: PostCampaignPledgeRewardsSummaryViewModelInputs { return self }
-  public var outputs: PostCampaignPledgeRewardsSummaryViewModelOutputs { return self }
+  private func publishIfReady() {
+    guard self.loaded, let (data, bonus, pledge) = self.configuration else { return }
+    let date = data.rewards.compactMap(\.estimatedDeliveryOn).max() ?? 0
+    let delivery: String?
+    if date > 0 {
+      let formatted = Format.date(secondsInUTC: date, template: DateFormatter.monthYear, timeZone: UTCTimeZone)
+      delivery = Strings.backing_info_estimated_delivery_date(delivery_date: formatted)
+    } else {
+      delivery = nil
+    }
+    let rows = items(with: data, selectedQuantities: data.selectedQuantities,
+                     estimatedDeliveryString: delivery, bonusAmount: bonus)
+    let header = rows.compactMap { item -> PledgeSummaryRewardCellData? in
+      guard case let .header(value) = item else { return nil }
+      return value
+    }.first
+    let rewards = rows.compactMap { item -> PledgeSummaryRewardCellData? in
+      guard case let .reward(value) = item else { return nil }
+      return value
+    }
+    self.onRewards?(header, rewards)
+    self.onPledgeTotal?(pledge)
+  }
 }
 
 // MARK: - Functions
@@ -173,8 +93,7 @@ private func items(
   with data: PostCampaignRewardsSummaryViewData,
   selectedQuantities: SelectedRewardQuantities,
   estimatedDeliveryString: String?,
-  bonusAmount: Double?,
-  total _: Double
+  bonusAmount: Double?
 ) -> [PostCampaignRewardsSummaryItem] {
   // MARK: Header
 

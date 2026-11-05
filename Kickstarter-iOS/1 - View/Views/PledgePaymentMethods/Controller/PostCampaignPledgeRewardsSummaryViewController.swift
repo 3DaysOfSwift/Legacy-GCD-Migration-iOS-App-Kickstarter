@@ -30,8 +30,7 @@ final class PostCampaignPledgeRewardsSummaryViewController: UIViewController {
     PledgeRewardsSummaryTotalViewController.instantiate()
   }()
 
-  private let viewModel: PostCampaignPledgeRewardsSummaryViewModelType =
-    PostCampaignPledgeRewardsSummaryViewModel()
+  private let viewModel = PostCampaignPledgeRewardsSummaryViewModel()
 
   // MARK: - Lifecycle
 
@@ -42,7 +41,7 @@ final class PostCampaignPledgeRewardsSummaryViewController: UIViewController {
     self.setupConstraints()
     self.setEntireViewToIsHidden(true)
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   private func configureSubviews() {
@@ -117,25 +116,15 @@ final class PostCampaignPledgeRewardsSummaryViewController: UIViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.loadRewardsIntoDataSource
-      .observeForUI()
-      .observeValues { [weak self] headerData, rewards in
-        guard let self else { return }
-
-        /// Applies a snapshot of all of the data needed to render the table view.
-        self.dataSource.apply(header: headerData, rewards: rewards)
-
-        self.setEntireViewToIsHidden(false)
-        self.tableViewContainerHeightConstraint?.constant = self.tableView.intrinsicContentSize.height
-      }
-
-    self.viewModel.outputs.configurePledgeTotalViewWithData
-      .observeForUI()
-      .observeValues { [weak self] pledgeSummaryData in
-        guard let self else { return }
-
-        self.pledgeTotalViewController.configure(with: pledgeSummaryData)
-      }
+    self.viewModel.onRewards = { [weak self] header, rewards in
+      guard let self else { return }
+      self.dataSource.apply(header: header, rewards: rewards)
+      self.setEntireViewToIsHidden(false)
+      self.tableViewContainerHeightConstraint?.constant = self.tableView.intrinsicContentSize.height
+    }
+    self.viewModel.onPledgeTotal = { [weak self] data in
+      self?.pledgeTotalViewController.configure(with: data)
+    }
   }
 
   // MARK: - Configuration
@@ -145,7 +134,7 @@ final class PostCampaignPledgeRewardsSummaryViewController: UIViewController {
     bonusAmount: Double?,
     pledgeData: PledgeSummaryViewData
   ) {
-    self.viewModel.inputs
+    self.viewModel
       .configureWith(rewardsData: rewardsData, bonusAmount: bonusAmount, pledgeData: pledgeData)
 
     self.view.setNeedsLayout()
