@@ -193,18 +193,16 @@ final class SettingsFeatureTests: XCTestCase {
     let fixture = PreferencesFixture()
     defer { fixture.provider.gate.releaseAll() }
     let user = try XCTUnwrap(fixture.user)
-    var values = 0
-    let a = fixture.feature.saveResult([.init(.newsletter(.arts), true)], from: user)
-      .start { if case .value = $0 { values += 1 } }
-    let b = fixture.feature.saveResult([.init(.notification(.messages), true)], from: user)
-      .start { if case .value = $0 { values += 1 } }
-    defer { a.dispose(); b.dispose() }
+    let a = fixture.feature.requestPreferences([.init(.newsletter(.arts), true)], from: user)
+    let b = fixture.feature.requestPreferences([.init(.notification(.messages), true)], from: user)
     await fixture.provider.gate.waitFor(1)
     fixture.user = nil
     fixture.session.sessionChanged()
     try fixture.provider.succeed(0)
-    await fixture.feature.waitForOperations()
-    XCTAssertEqual(values, 0)
+    do { _ = try await a.value; XCTFail("Old write must not return a user") }
+    catch { XCTAssertTrue(error is CancellationError) }
+    do { _ = try await b.value; XCTFail("Queued old write must not return a user") }
+    catch { XCTAssertTrue(error is CancellationError) }
     XCTAssertEqual(fixture.provider.sent.count, 1)
     XCTAssertEqual(fixture.commits, 0)
     XCTAssertNil(fixture.user)
@@ -214,19 +212,16 @@ final class SettingsFeatureTests: XCTestCase {
     let fixture = PreferencesFixture()
     defer { fixture.provider.gate.releaseAll() }
     let user = try XCTUnwrap(fixture.user)
-    var failures = 0
-    let old = fixture.feature.saveResult([.init(.newsletter(.arts), true)], from: user)
-      .startWithFailed { _ in failures += 1 }
-    defer { old.dispose() }
+    let old = fixture.feature.requestPreferences([.init(.newsletter(.arts), true)], from: user)
     await fixture.provider.gate.waitFor(1)
     fixture.session.sessionChanged()
-    let new = fixture.feature.saveResult([.init(.notification(.messages), true)], from: user).start()
-    defer { new.dispose() }
+    let new = fixture.feature.requestPreferences([.init(.notification(.messages), true)], from: user)
     await fixture.provider.gate.waitFor(2)
     try fixture.provider.succeed(1)
     try fixture.provider.gate.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
-    await fixture.feature.waitForOperations()
-    XCTAssertEqual(failures, 0)
+    _ = try await new.value
+    do { _ = try await old.value; XCTFail("Old-session error must not be delivered") }
+    catch { XCTAssertTrue(error is CancellationError) }
     XCTAssertEqual(fixture.commits, 1)
     XCTAssertNil(fixture.feature.lastError)
   }
@@ -260,8 +255,8 @@ final class SettingsFeatureTests: XCTestCase {
     let user = try XCTUnwrap(fixture.user)
     let read = Task { try await feature.refresh() }
     await users.gate.waitFor(1)
-    let write = feature.saveResult([.init(.newsletter(.arts), true)], from: user).start()
-    defer { read.cancel(); write.dispose() }
+    let write = feature.requestPreferences([.init(.newsletter(.arts), true)], from: user)
+    defer { read.cancel() }
     await fixture.provider.gate.waitFor(1)
     try fixture.provider.succeed(0)
     try users.gate.finish(0, .success(user))
@@ -271,7 +266,7 @@ final class SettingsFeatureTests: XCTestCase {
     } catch is CancellationError {
       // Expected.
     }
-    await feature.waitForOperations()
+    _ = try await write.value
     XCTAssertEqual(fixture.user?.newsletters.arts, true)
   }
 
@@ -291,19 +286,21 @@ final class SettingsFeatureTests: XCTestCase {
     let fixture = PreferencesFixture()
     defer { fixture.provider.gate.releaseAll() }
     let user = try XCTUnwrap(fixture.user)
-    let first = fixture.feature.saveResult([.init(.newsletter(.arts), true)], from: user).start()
+    let first = fixture.feature.requestPreferences([.init(.newsletter(.arts), true)], from: user)
     await fixture.provider.gate.waitFor(1)
     var wrong = user
     wrong.id += 1
-    let rejected = fixture.feature.saveResult([.init(.newsletter(.weekly), true)], from: wrong).start()
-    let next = fixture.feature.saveResult([.init(.notification(.messages), true)], from: user).start()
-    defer { first.dispose(); rejected.dispose(); next.dispose() }
+    let rejected = fixture.feature.requestPreferences([.init(.newsletter(.weekly), true)], from: wrong)
+    let next = fixture.feature.requestPreferences([.init(.notification(.messages), true)], from: user)
     try fixture.provider.succeed(0)
     await fixture.provider.gate.waitFor(2)
     XCTAssertEqual(fixture.provider.sent[1].newsletters.arts, true)
     XCTAssertEqual(fixture.provider.sent[1].newsletters.weekly, user.newsletters.weekly)
     try fixture.provider.succeed(1)
-    await fixture.feature.waitForOperations()
+    _ = try await first.value
+    _ = try await next.value
+    do { _ = try await rejected.value; XCTFail("Wrong-account write must fail") }
+    catch { XCTAssertTrue(error is CancellationError) }
     XCTAssertEqual(fixture.provider.sent.count, 2)
     XCTAssertEqual(fixture.commits, 2)
   }
@@ -445,12 +442,11 @@ extension SettingsFeatureTests {
     defer { fixture.provider.gate.releaseAll() }
     let source = try XCTUnwrap(fixture.user)
     _ = try fixture.feature.requestAccount(.currency("GBP"))
-    let preference = fixture.feature.saveResult([.init(.newsletter(.arts), true)], from: source).start()
-    defer { preference.dispose() }
+    let preference = fixture.feature.requestPreferences([.init(.newsletter(.arts), true)], from: source)
     await fixture.provider.gate.waitFor(1)
     XCTAssertEqual(fixture.provider.preferences.count, 0)
     try fixture.provider.gate.finish(0, .success(nil))
-    await fixture.feature.waitForOperations()
+    _ = try await preference.value
     XCTAssertEqual(fixture.provider.preferences.first?.chosenCurrency, "GBP")
     XCTAssertEqual(fixture.user?.newsletters.arts, true)
     XCTAssertEqual(fixture.user?.chosenCurrency, "GBP")

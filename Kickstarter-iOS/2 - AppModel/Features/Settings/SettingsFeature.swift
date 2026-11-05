@@ -148,7 +148,6 @@ public final class SettingsFeature {
   private var verificationTail: Verification?
   private var verificationWrites: [UUID: Task<EmailVerificationResponseEnvelope, Error>] = [:]
   private var editRevision = 0
-  private let results = Signal<(UUID, Result<User, Error>), Never>.pipe()
   public var sessionFeature: SessionFeature { self.session }
   public private(set) var lastError: Error?
 
@@ -278,28 +277,12 @@ public final class SettingsFeature {
       }
       self.writes[id] = nil
       if self.tail?.id == id { self.tail = nil }
-      self.results.input.send(value: (id, result))
       return try result.get()
     }
     let pending = Pending(id: id, account: account, edit: edit, task: task)
     if valid { self.tail = pending }
     self.writes[id] = task
     return pending
-  }
-
-  /// Output-only bridge for existing UIKit adapters. Disposing observation does
-  /// not abandon a durable command; async callers use save directly.
-  public func saveResult(_ changes: [Change], from user: User) -> SignalProducer<User, ErrorEnvelope> {
-    SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        let pending = self.request(changes, from: user)
-        let subscription = self.results.output.filter { $0.0 == pending.id }.take(first: 1)
-          .observeValues { _, result in
-            Self.deliver(result, to: observer)
-          }
-        lifetime.observeEnded { subscription?.dispose() }
-      }
-    }
   }
 
   /// Admit the write synchronously so equivalent requests share and distinct
