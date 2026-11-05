@@ -55,10 +55,6 @@ public protocol ServiceType {
     apolloClient: ApolloClientType?
   )
 
-  /// Adds a user to a secret reward user group
-  func addUserToSecretRewardGroup(token: String, forProject param: Param) ->
-    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
-
   /// Fetches a GraphQL query and returns the data.
   func fetch<Q: GraphQLQuery>(query: Q) -> SignalProducer<Q.Data, ErrorEnvelope>
 
@@ -95,10 +91,6 @@ public protocol ServiceType {
   /// Let the server know to create/track an attribution event.
   @MainActor func recordProjectAttribution(input: GraphAPI.CreateAttributionEventInput) async throws
 
-  /// Sends report project data for a specific project
-  func createFlaggingInput(input: CreateFlaggingInput)
-    -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
-
   func createFlaggingInputCombine(input: CreateFlaggingInput)
     -> AnyPublisher<EmptyResponseEnvelope, ErrorEnvelope>
 
@@ -107,10 +99,6 @@ public protocol ServiceType {
   @MainActor func reportingEmail() async throws -> String?
   @MainActor func submitProjectReport(input: CreateFlaggingInput) async throws
   @MainActor func fetchProjectFlaggingOptions() async throws -> [ReportProjectInfoListItem]
-
-  /// Fetches the current user's backing for the project, if it exists.
-  func fetchBacking(forProject project: Project, forUser user: User)
-    -> SignalProducer<Backing, ErrorEnvelope>
 
   /// Native discussion reads and independent playback-counter events.
   @MainActor func discussionComments(

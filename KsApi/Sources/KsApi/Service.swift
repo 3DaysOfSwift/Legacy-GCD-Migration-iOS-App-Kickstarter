@@ -106,36 +106,12 @@ public struct Service: ServiceType {
       map: { Location.locations(from: $0) })
   }
 
-  public func addUserToSecretRewardGroup(token: String, forProject param: Param)
-    -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-    let input = GraphAPI.AddUserToSecretRewardGroupInput.from(token: token, forProject: param)
-    return GraphQL.shared.client
-      .perform(
-        mutation: GraphAPI.AddUserToSecretRewardGroupMutation(input: input)
-      )
-      .flatMap { _ in
-        SignalProducer(value: EmptyResponseEnvelope())
-      }
-  }
-
   public func triggerThirdPartyEventInput(input: TriggerThirdPartyEventInput)
     -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
     return GraphQL.shared.client
       .perform(
         mutation: GraphAPI
           .TriggerThirdPartyEventMutation(input: GraphAPI.TriggerThirdPartyEventInput.from(input))
-      )
-      .flatMap { _ in
-        SignalProducer(value: EmptyResponseEnvelope())
-      }
-  }
-
-  public func createFlaggingInput(input: CreateFlaggingInput)
-    -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(
-        mutation: GraphAPI
-          .CreateFlaggingMutation(input: GraphAPI.CreateFlaggingInput.from(input))
       )
       .flatMap { _ in
         SignalProducer(value: EmptyResponseEnvelope())
@@ -165,12 +141,6 @@ public struct Service: ServiceType {
   public func previewUrl(forDraft draft: UpdateDraft) -> URL? {
     return self.serverConfig.apiBaseUrl
       .appendingPathComponent("/v1/projects/\(draft.update.projectId)/updates/draft/preview")
-  }
-
-  // FIXME: Should be able to convert this to Apollo as it uses /v1 but check its' use cases first.
-  public func fetchBacking(forProject project: Project, forUser user: User)
-    -> SignalProducer<Backing, ErrorEnvelope> {
-    return request(.backing(projectId: project.id, backerId: user.id))
   }
 
   public func fetchDiscovery_combine(paginationUrl: String)

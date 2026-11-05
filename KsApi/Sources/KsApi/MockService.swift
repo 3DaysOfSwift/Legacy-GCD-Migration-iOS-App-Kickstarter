@@ -614,34 +614,10 @@
       self.tokenExchangeResponse = tokenExchangeResponse
     }
 
-    public func addUserToSecretRewardGroup(token: String, forProject param: Param)
-      -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let input = GraphAPI.AddUserToSecretRewardGroupInput.from(token: token, forProject: param)
-
-      let mutation = GraphAPI.AddUserToSecretRewardGroupMutation(input: input)
-      return client.performWithResult(mutation: mutation, result: self.addUserToSecretRewardGroup)
-    }
-
     @MainActor public func recordProjectAttribution(input: GraphAPI.CreateAttributionEventInput) async throws {
       try Task.checkCancellation()
       guard let result = self.createAttributionEventResult else { throw ErrorEnvelope.couldNotParseJSON }
       _ = try result.get()
-    }
-
-    internal func createFlaggingInput(input: CreateFlaggingInput) -> ReactiveSwift
-      .SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI
-        .CreateFlaggingMutation(input: GraphAPI.CreateFlaggingInput.from(input))
-
-      return client.performWithResult(mutation: mutation, result: self.createFlaggingResult)
     }
 
     internal func createFlaggingInputCombine(input: CreateFlaggingInput)
@@ -1086,16 +1062,6 @@
 
     internal func logout() -> MockService {
       return self |> MockService.lens.oauthToken .~ nil
-    }
-
-    func fetchBacking(forProject project: Project, forUser user: User)
-      -> SignalProducer<Backing, ErrorEnvelope> {
-      return SignalProducer(
-        value: self.fetchBackingResponse
-          |> Backing.lens.backer .~ user
-          |> Backing.lens.backerId .~ user.id
-          |> Backing.lens.projectId .~ project.id
-      )
     }
 
     func updateRewardReceived(
