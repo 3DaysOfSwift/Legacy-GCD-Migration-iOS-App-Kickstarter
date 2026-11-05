@@ -4717,12 +4717,6 @@
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
 		};
-		"AAF548112F2445C0001DB5AC" = {
-			"path" = "ApplePayTokenUseCaseTests.swift";
-			"isa" = "PBXFileReference";
-			"lastKnownFileType" = "sourcecode.swift";
-			"sourceTree" = "<group>";
-		};
 		"F6FC77FCEBDCEF0BE0D70BB6" = {
 			"name" = "MessagesEmptyStateCell.swift";
 			"path" = "Kickstarter-iOS/1 - View/Views/Messages/Views/Cells/MessagesEmptyStateCell.swift";
@@ -4793,7 +4787,6 @@
 				"AAF548F02F2445C0001DB5AC",
 				"AAF548F12F2445C0001DB5AC",
 				"AAF548F22F2445C0001DB5AC",
-				"AAF548F32F2445C0001DB5AC",
 				"AAF548F42F2445C0001DB5AC",
 				"AAF548F52F2445C0001DB5AC",
 				"AAF548F62F2445C0001DB5AC",
@@ -8388,7 +8381,6 @@
 				"7DCE5C0DE2ADF5E9475A1FCF",
 				"43A8361D36E12BB9CF819F46",
 				"0D4DD2B8392AB43D756EE1FA",
-				"E56576925ED0F6B2B0C78EE6",
 				"8B285E1216748B89C7C272EA",
 				"7E41DB4C3DEFB6CA2D3F0875",
 				"DD5D90BD6CCFBE69467255B1",
@@ -13737,13 +13729,6 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "DB354B21864E02FF2E18959F";
 		};
-		"3232E19D0808B463ACBD82E4" = {
-			"name" = "ApplePayTokenUseCase.swift";
-			"path" = "Kickstarter-iOS/2 - AppModel/Features/Payments/ApplePayTokenUseCase.swift";
-			"isa" = "PBXFileReference";
-			"sourceTree" = "SOURCE_ROOT";
-			"lastKnownFileType" = "sourcecode.swift";
-		};
 		"AAF5496A2F2445C0001DB5AC" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "AAF548882F2445C0001DB5AC";
@@ -17595,7 +17580,6 @@
 				"AAF5480E2F2445C0001DB5AC",
 				"AAF5480F2F2445C0001DB5AC",
 				"AAF548102F2445C0001DB5AC",
-				"AAF548112F2445C0001DB5AC",
 				"AAF548122F2445C0001DB5AC",
 				"AAF548132F2445C0001DB5AC",
 				"AAF548142F2445C0001DB5AC",
@@ -20186,10 +20170,6 @@
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
 		};
-		"AAF548F32F2445C0001DB5AC" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "AAF548112F2445C0001DB5AC";
-		};
 		"78B08DAD0DA2812DBDF98D03" = {
 			"path" = "ApplicationTests/Presentation/Kickstarter-iOS/Features/Settings/Controller/SettingsViewControllerTests.swift";
 			"isa" = "PBXFileReference";
@@ -21070,10 +21050,6 @@
 				"C2C111083581598934B8C1E7",
 			);
 		};
-		"E56576925ED0F6B2B0C78EE6" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "3232E19D0808B463ACBD82E4";
-		};
 		"A2D8BBF7739A7DB64A9F341E" = {
 			"path" = "GraphAPI/GraphAPITestMocks/UpdateUserAccountPayload+Mock.graphql.swift";
 			"isa" = "PBXFileReference";
@@ -21196,7 +21172,6 @@
 			"children" = (
 				"85253C092905CA4D8040A6C4",
 				"6043D85A5B75F4C4C09CD37C",
-				"3232E19D0808B463ACBD82E4",
 				"C374749FD04EA08C49438BBB",
 				"717CE1DAD330BA48623425F8",
 				"3A4D227605735A10A87D64EC",
