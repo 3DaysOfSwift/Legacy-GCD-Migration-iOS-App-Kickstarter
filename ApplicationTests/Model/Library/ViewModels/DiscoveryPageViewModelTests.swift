@@ -91,8 +91,8 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.vm.outputs.projectsLoaded.map(second).observe(self.projectsLoadedDiscoveryParams.observer)
     self.vm.outputs.onScrollsToTopChanged = { [weak self] in self?.setScrollsToTop.observer.send(value: $0) }
     self.vm.outputs.showEmptyState.observe(self.showEmptyState.observer)
-    self.vm.outputs.showOnboarding.observe(self.showOnboarding.observer)
-    self.vm.outputs.showPersonalization.observe(self.showPersonalization.observer)
+    self.vm.outputs.onShowOnboarding = { [weak self] in self?.showOnboarding.observer.send(value: $0) }
+    self.vm.outputs.onShowPersonalization = { [weak self] in self?.showPersonalization.observer.send(value: $0) }
     self.vm.outputs.onVideoFeedBannerChanged = { [weak self] in self?.showVideoFeedBanner.observer.send(value: $0) }
 
     self.vm.outputs.projectsLoaded

@@ -205,16 +205,12 @@ internal final class DiscoveryPageViewController: UITableViewController,
         self?.tableView.reloadData()
       }
 
-    self.viewModel.outputs.showOnboarding
-      .observeForUI()
-      .observeValues { [weak self] in
+    self.viewModel.outputs.onShowOnboarding = { [weak self] in
         self?.dataSource.show(onboarding: $0)
         self?.tableView.reloadData()
       }
 
-    self.viewModel.outputs.showPersonalization
-      .observeForUI()
-      .observeValues { [weak self] shouldShow in
+    self.viewModel.outputs.onShowPersonalization = { [weak self] shouldShow in
         self?.dataSource.showPersonalization(shouldShow)
 
         self?.tableView.reloadData()

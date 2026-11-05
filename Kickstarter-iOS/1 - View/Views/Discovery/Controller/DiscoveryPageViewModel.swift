@@ -118,10 +118,10 @@ public protocol DiscoveryPageViewModelOutputs: AnyObject {
   var showEmptyState: Signal<EmptyState, Never> { get }
 
   /// Emits a boolean that determines of the onboarding should be shown.
-  var showOnboarding: Signal<Bool, Never> { get }
+  var onShowOnboarding: ((Bool) -> Void)? { get set }
 
   /// Emits to show the personalization section
-  var showPersonalization: Signal<Bool, Never> { get }
+  var onShowPersonalization: ((Bool) -> Void)? { get set }
 
   /// Emits to show the video feed banner
   var onVideoFeedBannerChanged: ((Bool) -> Void)? { get set }
@@ -258,30 +258,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     )
 
 
-    self.showOnboarding = Signal.combineLatest(currentUser, paramsChanged)
-      .map { user, params in user == nil && params.sort == .magic }
-      .skipRepeats()
-
-
-    // MARK: Personalization Callout Card
-
-    let filtersUpdated = self.sortProperty.signal.skipNil()
-      .takePairWhen(self.selectedFilterProperty.signal.skipNil().skipRepeats())
-
-    let viewReady = Signal.combineLatest(
-      self.viewDidAppearProperty.signal,
-      filtersUpdated
-    )
-
-    self.showPersonalization = Signal.merge(
-      viewReady,
-      viewReady.takeWhen(self.onboardingCompletedProperty.signal)
-    )
-    .ignoreValues()
-    .map(shouldShowPersonalization)
-
-
-
     self.featureBindings += self.projectsAreLoadingAnimated.observeValues { [weak self] loading, _ in
       guard let self else { return }
       self.currentProjectsLoading = loading
@@ -322,9 +298,15 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
           params: params
         )
       }
+    self.featureBindings += currentUser.observeValues { [weak self] user in
+      self?.hasCurrentUserValue = true
+      self?.onboardingUser = user
+      self?.updateOnboarding()
+    }
     self.featureBindings += paramsChanged.observeValues { [weak self] parameters in
       self?.currentNavigationParameters = parameters
       self?.clearActivityOnDisappear = true
+      self?.updateOnboarding()
     }
     self.featureBindings += projects.observeValues { [weak self] in self?.currentNavigationProjects = $0 }
 
@@ -359,9 +341,8 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.blockedUserProperty.value = ()
   }
 
-  fileprivate let onboardingCompletedProperty = MutableProperty(())
   public func onboardingCompleted() {
-    self.onboardingCompletedProperty.value = ()
+    if self.hasAppeared, self.hasReadyPersonalizationFilters { self.onShowPersonalization?(shouldShowPersonalization()) }
   }
 
   public func personalizationCellTapped() {
@@ -397,7 +378,13 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
 
   fileprivate let selectedFilterProperty = MutableProperty<DiscoveryParams?>(nil)
   public func selectedFilter(_ params: DiscoveryParams) {
+    let changed = self.lastPersonalizationFilter != params
+    self.lastPersonalizationFilter = params
     self.selectedFilterProperty.value = params
+    if changed, self.sortProperty.value != nil {
+      self.hasReadyPersonalizationFilters = true
+      if self.hasAppeared { self.onShowPersonalization?(shouldShowPersonalization()) }
+    }
   }
 
   public func signupLoginButtonTapped() {
@@ -456,7 +443,9 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   fileprivate let viewDidAppearProperty = MutableProperty(())
   public func viewDidAppear() {
     self.clearActivityOnDisappear = true
+    self.hasAppeared = true
     self.viewDidAppearProperty.value = ()
+    if self.hasReadyPersonalizationFilters { self.onShowPersonalization?(shouldShowPersonalization()) }
     self.onScrollsToTopChanged?(true)
   }
 
@@ -501,8 +490,21 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   public let projectsAreLoadingAnimated: Signal<(Bool, Bool), Never>
   public var onScrollsToTopChanged: ((Bool) -> Void)?
   public let showEmptyState: Signal<EmptyState, Never>
-  public let showOnboarding: Signal<Bool, Never>
-  public let showPersonalization: Signal<Bool, Never>
+  public var onShowOnboarding: ((Bool) -> Void)?
+  public var onShowPersonalization: ((Bool) -> Void)?
+  private var hasCurrentUserValue = false
+  private var onboardingUser: User?
+  private var lastOnboarding: Bool?
+  private var hasAppeared = false
+  private var hasReadyPersonalizationFilters = false
+  private var lastPersonalizationFilter: DiscoveryParams?
+  private func updateOnboarding() {
+    guard self.hasCurrentUserValue, let parameters = self.currentNavigationParameters else { return }
+    let visible = self.onboardingUser == nil && parameters.sort == .magic
+    guard self.lastOnboarding != visible else { return }
+    self.lastOnboarding = visible
+    self.onShowOnboarding?(visible)
+  }
   public var onVideoFeedBannerChanged: ((Bool) -> Void)?
 
   private func updateVideoFeedBanner() {
