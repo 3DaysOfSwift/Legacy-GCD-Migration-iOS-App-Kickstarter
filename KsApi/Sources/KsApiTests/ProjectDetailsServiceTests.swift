@@ -5,8 +5,9 @@ import GraphAPITestMocks
 import KsApiTestHelpers
 import XCTest
 
-public final class ProjectPageFetcherTests: XCTestCase {
-  func test_oldProjectFetch_fetchesProjectBackingAndRewards() {
+@MainActor
+public final class ProjectDetailsServiceTests: XCTestCase {
+  func test_projectDetails_fetchesProjectBackingAndRewards() async throws {
     let projectResponseURL = Bundle.module.url(
       forResource: "FetchProjectByParamQuery_Backing",
       withExtension: "json"
@@ -35,8 +36,13 @@ public final class ProjectPageFetcherTests: XCTestCase {
     // This mimicks what Service does internally to map the GraphAPI objects to V1 model objects.
     // MockService requires V1 objects, so this is a best effort
     // to duplicate the actual GraphQL mapping behavior.
-    let projectResult = Project.projectProducer(from: fetchProjectResponse).first()
-    let backingResult = ProjectAndBackingEnvelope.envelopeProducer(from: fetchBackingResponse).first()
+    let (mappedProject, backingID) = Project.project(from: fetchProjectResponse)
+    let projectResult: Result<KsApi.Project.ProjectPamphletData, ErrorEnvelope>? = .success(
+      .init(project: try XCTUnwrap(mappedProject), backingId: backingID)
+    )
+    let backingResult: Result<ProjectAndBackingEnvelope, ErrorEnvelope>? = .success(
+      try XCTUnwrap(ProjectAndBackingEnvelope.envelope(from: fetchBackingResponse))
+    )
     let rewardsResult: Result<[KsApi.Reward], ErrorEnvelope>? = .success(Project.projectRewards(from: fetchRewardsResponse))
 
     let mockService = MockService(
@@ -45,10 +51,7 @@ public final class ProjectPageFetcherTests: XCTestCase {
       fetchProjectRewardsResult: rewardsResult
     )
 
-    let fetcher = ProjectPageFetcher(withService: mockService)
-
-    let producer = fetcher.fetchProjectPage(projectParam: .id(0), includeStoryRichText: false)
-    let project = producer.allValues().first
+    let project: KsApi.Project? = try await self.loadProject(using: mockService)
 
     XCTAssertNotNil(project)
     XCTAssertEqual(project?.personalization.isBacking, true)
@@ -69,7 +72,7 @@ public final class ProjectPageFetcherTests: XCTestCase {
     XCTAssertEqual(project?.flagging, true)
   }
 
-  func test_oldProjectFetch_fetchesProjectAndRewards() {
+  func test_projectDetails_fetchesProjectAndRewards() async throws {
     let projectResponseURL = Bundle.module.url(
       forResource: "FetchProjectByParamQuery_NoBacking",
       withExtension: "json"
@@ -91,7 +94,10 @@ public final class ProjectPageFetcherTests: XCTestCase {
     // This mimicks what Service does internally to map the GraphAPI objects to V1 model objects.
     // MockService requires V1 objects, so this is a best effort
     // to duplicate the actual GraphQL mapping behavior.
-    let projectResult = Project.projectProducer(from: fetchProjectResponse).first()
+    let (mappedProject, backingID) = Project.project(from: fetchProjectResponse)
+    let projectResult: Result<KsApi.Project.ProjectPamphletData, ErrorEnvelope>? = .success(
+      .init(project: try XCTUnwrap(mappedProject), backingId: backingID)
+    )
     let rewardsResult: Result<[KsApi.Reward], ErrorEnvelope>? = .success(Project.projectRewards(from: fetchRewardsResponse))
 
     let mockService = MockService(
@@ -99,10 +105,7 @@ public final class ProjectPageFetcherTests: XCTestCase {
       fetchProjectRewardsResult: rewardsResult
     )
 
-    let fetcher = ProjectPageFetcher(withService: mockService)
-
-    let producer = fetcher.fetchProjectPage(projectParam: .id(0), includeStoryRichText: false)
-    let project = producer.allValues().first
+    let project: KsApi.Project? = try await self.loadProject(using: mockService)
 
     XCTAssertNotNil(project)
     XCTAssertEqual(project?.personalization.isBacking, false)
@@ -122,7 +125,7 @@ public final class ProjectPageFetcherTests: XCTestCase {
     XCTAssertEqual(project?.flagging, true)
   }
 
-  func test_newProjectFetch_returnsAllData() {
+  func test_fastProjectDetails_returnsAllData() async throws {
     let mockService = MockService(
       fetchGraphQLResponses: [
         (
@@ -136,13 +139,7 @@ public final class ProjectPageFetcherTests: XCTestCase {
       ]
     )
 
-    let fetcher = ProjectPageFetcher(withService: mockService)
-
-    let producer = fetcher.fastFetchProjectPage(projectParam: .id(0), includeStoryRichText: false)
-    guard let project = producer.allValues().first else {
-      XCTFail("Fetcher should have produced a project")
-      return
-    }
+    let project = try await self.loadFastProject(using: mockService)
 
     XCTAssertEqual(project.id, 987)
     XCTAssertEqual(project.name, "The project")
@@ -161,7 +158,7 @@ public final class ProjectPageFetcherTests: XCTestCase {
     XCTAssertEqual(project.flagging, true)
   }
 
-  func test_newProjectFetch_returnsErrorIfFirstFetchHasErrors() {
+  func test_fastProjectDetails_returnsErrorIfFirstFetchHasErrors() async throws {
     let mockService = MockService(
       fetchGraphQLResponses: [
         // Intentionally missing the first mock to trigger an error
@@ -172,20 +169,19 @@ public final class ProjectPageFetcherTests: XCTestCase {
       ]
     )
 
-    let fetcher = ProjectPageFetcher(withService: mockService)
-    let producer = fetcher.fastFetchProjectPage(projectParam: .id(0), includeStoryRichText: false)
-
-    XCTAssertEqual(producer.allValues().count, 0)
-    guard let errorResult = producer.collect().last(),
-          case let .failure(errorEnvelope) = errorResult else {
+    let errorEnvelope: ErrorEnvelope
+    do {
+      _ = try await self.loadFastProject(using: mockService)
       XCTFail("Expected error")
       return
+    } catch let error as ErrorEnvelope {
+      errorEnvelope = error
     }
 
     XCTAssertEqual(errorEnvelope.errorMessages, ["Unimplemented mock"])
   }
 
-  func test_newProjectFetch_returnsErrorIfSecondFetchHasErrors() {
+  func test_fastProjectDetails_returnsErrorIfSecondFetchHasErrors() async throws {
     let mockService = MockService(
       fetchGraphQLResponses: [
         (
@@ -196,20 +192,19 @@ public final class ProjectPageFetcherTests: XCTestCase {
       ]
     )
 
-    let fetcher = ProjectPageFetcher(withService: mockService)
-    let producer = fetcher.fastFetchProjectPage(projectParam: .id(0), includeStoryRichText: false)
-
-    XCTAssertEqual(producer.allValues().count, 0)
-    guard let errorResult = producer.collect().last(),
-          case let .failure(errorEnvelope) = errorResult else {
+    let errorEnvelope: ErrorEnvelope
+    do {
+      _ = try await self.loadFastProject(using: mockService)
       XCTFail("Expected error")
       return
+    } catch let error as ErrorEnvelope {
+      errorEnvelope = error
     }
 
     XCTAssertEqual(errorEnvelope.errorMessages, ["Unimplemented mock"])
   }
 
-  func test_newProjectFetch_returnsErrorIfBaseParsingFails() {
+  func test_fastProjectDetails_returnsErrorIfBaseParsingFails() async throws {
     let mockService = MockService(
       fetchGraphQLResponses: [
         (
@@ -224,20 +219,19 @@ public final class ProjectPageFetcherTests: XCTestCase {
       ]
     )
 
-    let fetcher = ProjectPageFetcher(withService: mockService)
-    let producer = fetcher.fastFetchProjectPage(projectParam: .id(0), includeStoryRichText: false)
-
-    XCTAssertEqual(producer.allValues().count, 0)
-    guard let errorResult = producer.collect().last(),
-          case let .failure(errorEnvelope) = errorResult else {
+    let errorEnvelope: ErrorEnvelope
+    do {
+      _ = try await self.loadFastProject(using: mockService)
       XCTFail("Expected error")
       return
+    } catch let error as ErrorEnvelope {
+      errorEnvelope = error
     }
 
     XCTAssertEqual(errorEnvelope.ksrCode, .JSONParsingFailed)
   }
 
-  func test_newProjectFetch_returnsErrorIfExtendedParsingFails() {
+  func test_fastProjectDetails_returnsErrorIfExtendedParsingFails() async throws {
     let mockService = MockService(
       fetchGraphQLResponses: [
         (
@@ -252,18 +246,37 @@ public final class ProjectPageFetcherTests: XCTestCase {
       ]
     )
 
-    let fetcher = ProjectPageFetcher(withService: mockService)
-    let producer = fetcher.fastFetchProjectPage(projectParam: .id(0), includeStoryRichText: false)
-
-    XCTAssertEqual(producer.allValues().count, 0)
-    guard let errorResult = producer.collect().last(),
-          case let .failure(errorEnvelope) = errorResult else {
+    let errorEnvelope: ErrorEnvelope
+    do {
+      _ = try await self.loadFastProject(using: mockService)
       XCTFail("Expected error")
       return
+    } catch let error as ErrorEnvelope {
+      errorEnvelope = error
     }
 
     XCTAssertEqual(errorEnvelope.ksrCode, .JSONParsingFailed)
   }
+  // Composition is exercised independently in ProjectDetailsFeatureTests.
+  private func loadProject(using service: MockService) async throws -> KsApi.Project {
+    let data = try await service.projectDetails(param: .id(0), includeStoryRichText: false)
+    var project = data.project
+    if let backingID = data.backingId {
+      let envelope = try await service.projectDetailsBacking(id: backingID)
+      project.personalization.backing = envelope.backing
+      project.personalization.isBacking = true
+    }
+    let rewards = try await service.projectDetailsRewards(projectID: project.id)
+    project.rewardData.rewards = Array(project.rewardData.rewards.prefix(1)) + rewards
+    return project
+  }
+
+  private func loadFastProject(using service: MockService) async throws -> KsApi.Project {
+    async let base = service.projectDetailsBase(param: .id(0))
+    async let extras = service.projectDetailsExtras(param: .id(0), includeStoryRichText: false)
+    return try await extras.addExtraProperties(toProject: base)
+  }
+
 }
 
 private extension GraphAPI.FastFetchProjectPageExtendedPropertiesQuery.Data {

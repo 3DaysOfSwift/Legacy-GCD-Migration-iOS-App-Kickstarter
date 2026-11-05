@@ -1,5 +1,4 @@
 import GraphAPI
-import ReactiveSwift
 
 public struct ProjectPageExtraProperties: Sendable {
   let extendedProjectProperties: ExtendedProjectProperties
@@ -13,18 +12,6 @@ public struct ProjectPageExtraProperties: Sendable {
     updatedProject.video = self.video
 
     return updatedProject
-  }
-
-  internal static func extraPropertiesProducer(
-    from data: GraphAPI.FastFetchProjectPageExtendedPropertiesQuery.Data
-  ) -> SignalProducer<ProjectPageExtraProperties, ErrorEnvelope> {
-    let properties = ProjectPageExtraProperties.extraProperties(from: data)
-
-    guard let properties else {
-      return SignalProducer(error: ErrorEnvelope.couldNotParseJSON)
-    }
-
-    return SignalProducer(value: properties)
   }
 
   internal static func extraProperties(
@@ -49,16 +36,6 @@ public struct ProjectPageExtraProperties: Sendable {
 }
 
 extension Project {
-  static func projectProducer(
-    from data: GraphAPI.FastFetchProjectPageBaseQuery.Data
-  ) -> SignalProducer<Project, ErrorEnvelope> {
-    guard let project = Project.project(from: data) else {
-      return SignalProducer(error: ErrorEnvelope.couldNotParseJSON)
-    }
-
-    return SignalProducer(value: project)
-  }
-
   internal static func project(
     from data: GraphAPI.FastFetchProjectPageBaseQuery.Data
   ) -> Project? {

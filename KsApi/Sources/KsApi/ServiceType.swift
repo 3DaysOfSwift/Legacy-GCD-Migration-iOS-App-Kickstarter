@@ -193,31 +193,6 @@ public protocol ServiceType {
   func fetchGraphUserSetupCombine()
     -> AnyPublisher<UserEnvelope<GraphUserSetup>, ErrorEnvelope>
 
-  /// Fetch `Backing` data, and the backing's `Project`, using a `Backing` ID.
-  /// - Parameters:
-  ///    - id: backing ID
-  func fetchBacking(id: Int)
-    -> SignalProducer<ProjectAndBackingEnvelope, ErrorEnvelope>
-
-  /// Fetch the newest data for a particular project from its id or slug. Includes backings and rewards.
-  /// Does not included extended project properties, shipping, or project video.
-  /// Used by `ProjectPageFetcher` to run an optimized project page fetch.
-  func fastFetchProjectPageBase(projectParam: Param)
-    -> SignalProducer<Project, ErrorEnvelope>
-
-  /// Fetch the newest data for a particular project from its id or slug. Includes extended project properties.
-  /// Used by `ProjectPageFetcher` to run an optimized project page fetch.
-  func fastFetchProjectPageExtendedProperties(projectParam: Param, includeStoryRichText: Bool)
-    -> SignalProducer<ProjectPageExtraProperties, ErrorEnvelope>
-
-  /// Fetch the newest data for a particular project from its id or slug, including an optional backing id if current user is backing project
-  /// (currently only used on `ProjectPamphetViewModel`and `ProjectPageViewModel`  because it's a GQL query)
-  func fetchProject(projectParam: Param, includeStoryRichText: Bool)
-    -> SignalProducer<Project.ProjectPamphletData, ErrorEnvelope>
-
-  /// Fetch the project's rewards only, without shipping rules
-  func fetchProjectRewards(projectId: Int) -> SignalProducer<[Reward], ErrorEnvelope>
-
   /// Fetch the newest data for a particular project from its project value.
   func fetchProject_combine(project: Project) -> AnyPublisher<Project, ErrorEnvelope>
 

@@ -1149,10 +1149,7 @@
       )))
     }
 
-    func fetchBacking(id _: Int)
-      -> SignalProducer<ProjectAndBackingEnvelope, ErrorEnvelope> {
-      return producer(for: self.fetchProjectAndBackingResult)
-    }
+
 
     @MainActor public func rewardAddOns(slug _: String, locationID _: String?) async throws -> [Reward]? {
       try Task.checkCancellation()
@@ -1298,103 +1295,7 @@
       _ = try result.get()
     }
 
-    internal func fastFetchProjectPageBase(projectParam: Param)
-      -> SignalProducer<Project, ErrorEnvelope> {
-      if let demoCatalog { return demoResponse { try demoCatalog.project(projectParam) } }
-      // If a result was set, use the result for mocking.
-      if let result = self.fastFetchProjectPageResult {
-        let baseProjectResult = result.0
-        switch baseProjectResult {
-        case let .success(project):
-          return SignalProducer(value: project)
-        case let .failure(error):
-          return SignalProducer(error: error)
-        }
-      }
 
-      // Otherwise, fall back to the GraphQL mocking code.
-      let query = GraphAPI.FastFetchProjectPageBaseQuery(
-        projectId: .someOrNil(projectParam.id),
-        slug: .someOrNil(projectParam.slug)
-      )
-
-      return self
-        .fetch(query: query)
-        .flatMap { Project.projectProducer(from: $0) }
-    }
-
-    internal func fastFetchProjectPageExtendedProperties(
-      projectParam: Param,
-      includeStoryRichText: Bool
-    )
-      -> SignalProducer<ProjectPageExtraProperties, ErrorEnvelope> {
-      if let demoCatalog { return demoResponse { try demoCatalog.extraProperties(projectParam) } }
-      // If a result was set, use the result for mocking.
-      if let result = self.fastFetchProjectPageResult {
-        let extraPropertiesResult = result.1
-        switch extraPropertiesResult {
-        case let .success(project):
-          return SignalProducer(value: project)
-        case let .failure(error):
-          return SignalProducer(error: error)
-        }
-      }
-
-      let query = GraphAPI.FastFetchProjectPageExtendedPropertiesQuery(
-        projectId: .someOrNil(projectParam.id),
-        slug: .someOrNil(projectParam.slug),
-        storyRichText: includeStoryRichText
-      )
-
-      // Otherwise, fall back to the GraphQL mocking code.
-      return self
-        .fetch(query: query)
-        .flatMap { ProjectPageExtraProperties.extraPropertiesProducer(from: $0) }
-    }
-
-    internal func fetchProject(projectParam: Param, includeStoryRichText: Bool)
-      -> SignalProducer<Project.ProjectPamphletData, ErrorEnvelope> {
-      if let demoCatalog {
-        return demoResponse {
-          let project = try demoCatalog.project(projectParam)
-          let details = try demoCatalog.extraProperties(projectParam)
-          return Project.ProjectPamphletData(project: details.addExtraProperties(toProject: project), backingId: nil)
-        }
-      }
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-      let query = GraphAPI.FetchProjectByParamQuery(
-        projectId: .someOrNil(projectParam.id),
-        slug: .someOrNil(projectParam.slug),
-        storyRichText: includeStoryRichText
-      )
-
-      return client.fetchWithResult(
-        query: query,
-        result: self.fetchProjectPamphletEnvelopeResult
-      )
-    }
-
-    internal func fetchProjectRewards(projectId: Int) -> SignalProducer<[Reward], ErrorEnvelope> {
-      if let demoCatalog { return demoResponse { try demoCatalog.project(.id(projectId)).rewards } }
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let fetchProjectRewardsQuery = GraphAPI
-        .FetchProjectRewardsByIdQuery(
-          projectId: projectId,
-          includeShippingRules: false,
-          includePledgeOverTime: false
-        )
-
-      return client
-        .fetchWithResult(
-          query: fetchProjectRewardsQuery,
-          result: self.fetchProjectRewardsEnvelopeResult
-        )
-    }
 
     internal func fetchProject_combine(project: Project) -> AnyPublisher<Project, ErrorEnvelope> {
       if let demoCatalog { return demoPublisher { try demoCatalog.project(.id(project.id)) } }
