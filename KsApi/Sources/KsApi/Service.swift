@@ -420,7 +420,7 @@ public struct Service: ServiceType {
         cursor: GraphQLNullable.someOrNil(cursor),
         limit: limit
       ))
-      .flatMap(CommentRepliesEnvelope.envelopeProducer(from:))
+      .compactMap(CommentRepliesEnvelope.commentRepliesEnvelope(from:))
   }
 
   public func fetchConfig() -> SignalProducer<Config, ErrorEnvelope> {
@@ -470,7 +470,7 @@ public struct Service: ServiceType {
     -> SignalProducer<RootCategoriesEnvelope, ErrorEnvelope> {
     return GraphQL.shared.client
       .fetch(query: GraphAPI.FetchRootCategoriesQuery())
-      .flatMap(RootCategoriesEnvelope.envelopeProducer(from:))
+      .map(RootCategoriesEnvelope.envelope(from:))
   }
 
   public func fetchGraphCategory(id: String)

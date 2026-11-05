@@ -1,18 +1,6 @@
 import GraphAPI
-import ReactiveSwift
 
 extension RootCategoriesEnvelope {
-  /**
-   Returns a minimal `RootCategoriesEnvelope` from a `FetchRootCategoriesQuery.Data`
-   */
-  static func envelopeProducer(
-    from data: GraphAPI.FetchRootCategoriesQuery
-      .Data
-  ) -> SignalProducer<RootCategoriesEnvelope, ErrorEnvelope> {
-    SignalProducer(value: Self.envelope(from: data))
-  }
-
-  /// Shared value mapping for reactive legacy callers and native Search lookups.
   public static func envelope(from data: GraphAPI.FetchRootCategoriesQuery.Data) -> RootCategoriesEnvelope {
     let allCategories = data.rootCategories.map { rootCategory -> Category in
       Category(

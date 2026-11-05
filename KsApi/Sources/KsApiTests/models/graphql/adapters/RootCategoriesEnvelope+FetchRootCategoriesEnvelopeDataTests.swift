@@ -51,12 +51,7 @@ final class RootCategoryEnvelope_FetchRootCategoriesEnvelopeQueryDataTests: XCTe
 
     let data = GraphAPI.FetchRootCategoriesQuery.Data.from(mock)
 
-    let producer = RootCategoriesEnvelope.envelopeProducer(from: data)
-    guard let rootCategories = MockGraphQLClient.shared.client.data(from: producer)?.rootCategories else {
-      XCTFail()
-
-      return
-    }
+    let rootCategories = RootCategoriesEnvelope.envelope(from: data).rootCategories
 
     XCTAssertEqual(rootCategories.count, 2)
 

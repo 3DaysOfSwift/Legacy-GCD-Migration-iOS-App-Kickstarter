@@ -1,6 +1,5 @@
 import Foundation
 import GraphAPI
-import ReactiveSwift
 
 extension CommentRepliesEnvelope {
   /**
@@ -32,12 +31,4 @@ extension CommentRepliesEnvelope {
     )
   }
 
-  static func envelopeProducer(
-    from data: GraphAPI.FetchCommentRepliesQuery
-      .Data
-  ) -> SignalProducer<CommentRepliesEnvelope, ErrorEnvelope> {
-    guard let envelope = CommentRepliesEnvelope.commentRepliesEnvelope(from: data) else { return .empty }
-
-    return SignalProducer(value: envelope)
-  }
 }
