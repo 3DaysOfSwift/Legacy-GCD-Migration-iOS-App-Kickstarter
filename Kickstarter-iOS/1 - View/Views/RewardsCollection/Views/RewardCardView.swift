@@ -1,7 +1,6 @@
 import KDS
 import KsApi
 
-import ReactiveSwift
 import UIKit
 
 @MainActor
@@ -13,7 +12,7 @@ public final class RewardCardView: UIView {
   // MARK: - Properties
 
   weak var delegate: RewardCardViewDelegate?
-  private let viewModel: RewardCardViewModelType = RewardCardViewModel()
+  private let viewModel = RewardCardViewModel()
 
   private let rootStackView: UIStackView = UIStackView(frame: .zero)
 
@@ -144,81 +143,45 @@ public final class RewardCardView: UIView {
   public override func bindViewModel() {
     super.bindViewModel()
 
-    self.minimumPriceConversionLabel.rac.hidden = self.viewModel.outputs.conversionLabelHidden
-    self.minimumPriceConversionLabel.rac.text = self.viewModel.outputs.conversionLabelText
-    self.descriptionLabel.rac.text = self.viewModel.outputs.descriptionLabelText
-    self.estimatedShippingStackView.rac.hidden = self.viewModel.outputs.estimatedShippingStackViewHidden
-    self.estimatedDeliveryStackView.rac.hidden = self.viewModel.outputs.estimatedDeliveryStackViewHidden
-    self.estimatedDeliveryDateLabel.rac.text = self.viewModel.outputs.estimatedDeliveryDateLabelText
-    self.rewardLocationStackView.rac.hidden = self.viewModel.outputs.rewardLocationStackViewHidden
-    self.rewardLocationPickupLabel.rac.text = self.viewModel.outputs.rewardLocationPickupLabelText
-    self.includedItemsStackView.rac.hidden = self.viewModel.outputs.includedItemsStackViewHidden
-    self.minimumPriceLabel.rac.text = self.viewModel.outputs.rewardMinimumLabelText
-    self.pillsView.rac.hidden = self.viewModel.outputs.pillCollectionViewHidden
-    self.rewardTitleLabel.rac.hidden = self.viewModel.outputs.rewardTitleLabelHidden
-    self.rewardTitleLabel.rac.attributedText = self.viewModel.outputs.rewardTitleLabelAttributedText
-    self.rewardImageView.rac.hidden = self.viewModel.outputs.rewardImageHidden
-
-    self.viewModel.outputs.items
-      .observeForUI()
-      .observeValues { [weak self] in self?.load(items: $0) }
-
-    self.viewModel.outputs.rewardSelected
-      .observeForUI()
-      .observeValues { [weak self] rewardId in
-        guard let self = self else { return }
-
-        self.delegate?.rewardCardView(self, didTapWithRewardId: rewardId)
-      }
-
-    self.viewModel.outputs.cardUserInteractionIsEnabled
-      .observeForUI()
-      .observeValues { [weak self] isUserInteractionEnabled in
-        self?.isUserInteractionEnabled = isUserInteractionEnabled
-      }
-
-    self.viewModel.outputs.reloadPills
-      .observeForUI()
-      .observeValues { [weak self] values in
-        self?.configurePillsView(values)
-      }
-
-    self.viewModel.outputs.estimatedShippingLabelText
-      .observeForUI()
-      .observeValues { [weak self] text in
-        guard let labelText = text else { return }
-
-        self?.estimatedShippingLabel.text = labelText
-      }
-
-    self.viewModel.outputs.rewardImage
-      .observeForUI()
-      .on(event: { [weak rewardImageView] _ in
-        rewardImageView?.af.cancelImageRequest()
-        rewardImageView?.image = nil
-      })
-      .observeValues { [weak rewardImageView] image in
-        rewardImageView?.accessibilityLabel = image.altText
-
-        guard let url = image.url, let imageURL = URL(string: url) else { return }
-        rewardImageView?.ksr_setImageWithURL(imageURL)
-      }
-
-    self.viewModel.outputs.rewardBadge
-      .observeForUI()
-      .observeValues { [weak rewardBadgeView] data in
-        guard let data else {
-          rewardBadgeView?.isHidden = true
-          return
+    self.viewModel.onDisplay = { [weak self] display in
+      guard let self else { return }
+      self.minimumPriceConversionLabel.isHidden = display.conversionText == nil
+      if let text = display.conversionText { self.minimumPriceConversionLabel.text = text }
+      self.descriptionLabel.text = display.description
+      self.estimatedShippingStackView.isHidden = display.shippingHidden
+      if let text = display.shippingText { self.estimatedShippingLabel.text = text }
+      self.estimatedDeliveryStackView.isHidden = display.deliveryHidden
+      if let text = display.deliveryText { self.estimatedDeliveryDateLabel.text = text }
+      self.rewardLocationStackView.isHidden = display.pickupHidden
+      if let text = display.pickupText { self.rewardLocationPickupLabel.text = text }
+      self.includedItemsStackView.isHidden = display.items.isEmpty
+      self.minimumPriceLabel.text = display.minimumText
+      self.pillsView.isHidden = display.pills.isEmpty
+      self.rewardTitleLabel.isHidden = display.titleHidden
+      self.rewardTitleLabel.attributedText = display.title
+      self.rewardImageView.isHidden = display.image == nil
+      self.load(items: display.items)
+      self.isUserInteractionEnabled = display.interactionEnabled
+      self.configurePillsView(display.pills)
+      if let image = display.image {
+        self.rewardImageView.af.cancelImageRequest()
+        self.rewardImageView.image = nil
+        self.rewardImageView.accessibilityLabel = image.altText
+        if let url = image.url, let imageURL = URL(string: url) {
+          self.rewardImageView.ksr_setImageWithURL(imageURL)
         }
-
-        rewardBadgeView?.configure(
-          with: data.text,
-          image: data.image,
-          style: data.badgeStyle
-        )
-        rewardBadgeView?.isHidden = false
       }
+      if let badge = display.badge {
+        self.rewardBadgeView.configure(with: badge.text, image: badge.image, style: badge.badgeStyle)
+        self.rewardBadgeView.isHidden = false
+      } else {
+        self.rewardBadgeView.isHidden = true
+      }
+    }
+    self.viewModel.onRewardSelected = { [weak self] rewardID in
+      guard let self else { return }
+      self.delegate?.rewardCardView(self, didTapWithRewardId: rewardID)
+    }
   }
 
   // MARK: - Private Helpers
@@ -355,13 +318,13 @@ public final class RewardCardView: UIView {
   // MARK: - Configuration
 
   internal func configure(with data: RewardCardViewData) {
-    self.viewModel.inputs.configure(with: data)
+    self.viewModel.configure(with: data)
   }
 
   // MARK: - Selectors
 
   @objc func rewardCardTapped() {
-    self.viewModel.inputs.rewardCardTapped()
+    self.viewModel.rewardCardTapped()
   }
 }
 

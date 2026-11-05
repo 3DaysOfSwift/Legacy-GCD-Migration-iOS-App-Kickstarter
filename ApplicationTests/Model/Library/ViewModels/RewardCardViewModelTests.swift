@@ -5,54 +5,56 @@ import KDS
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class RewardCardViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  fileprivate let vm: RewardCardViewModelType = RewardCardViewModel()
+  fileprivate let vm = RewardCardViewModel()
 
-  private let cardUserInteractionIsEnabled = TestObserver<Bool, Never>()
-  private let conversionLabelHidden = TestObserver<Bool, Never>()
-  private let conversionLabelText = TestObserver<String, Never>()
-  private let descriptionLabelText = TestObserver<String, Never>()
-  private let estimatedDeliveryDateLabelHidden = TestObserver<Bool, Never>()
-  private let estimatedDeliveryDateLabelText = TestObserver<String, Never>()
-  private let includedItemsStackViewHidden = TestObserver<Bool, Never>()
-  private let items = TestObserver<[String], Never>()
-  private let pillCollectionViewHidden = TestObserver<Bool, Never>()
-  private let reloadPills = TestObserver<[RewardCardPillData], Never>()
-  private let rewardMinimumLabelText = TestObserver<String, Never>()
-  private let rewardSelected = TestObserver<Int, Never>()
-  private let rewardTitleLabelHidden = TestObserver<Bool, Never>()
-  private let rewardTitleLabelAttributedText = TestObserver<NSAttributedString, Never>()
-  private let rewardLocationPickupLabelText = TestObserver<String, Never>()
-  private let rewardLocationStackViewHidden = TestObserver<Bool, Never>()
-  private let rewardBadge = TestObserver<RewardCardBadgeData?, Never>()
+  private let cardUserInteractionIsEnabled = RewardCardRecording<Bool>()
+  private let conversionLabelHidden = RewardCardRecording<Bool>()
+  private let conversionLabelText = RewardCardRecording<String>()
+  private let descriptionLabelText = RewardCardRecording<String>()
+  private let estimatedDeliveryDateLabelHidden = RewardCardRecording<Bool>()
+  private let estimatedDeliveryDateLabelText = RewardCardRecording<String>()
+  private let includedItemsStackViewHidden = RewardCardRecording<Bool>()
+  private let items = RewardCardRecording<[String]>()
+  private let pillCollectionViewHidden = RewardCardRecording<Bool>()
+  private let reloadPills = RewardCardRecording<[RewardCardPillData]>()
+  private let rewardMinimumLabelText = RewardCardRecording<String>()
+  private let rewardSelected = RewardCardRecording<Int>()
+  private let rewardTitleLabelHidden = RewardCardRecording<Bool>()
+  private let rewardTitleLabelAttributedText = RewardCardRecording<NSAttributedString>()
+  private let rewardLocationPickupLabelText = RewardCardRecording<String>()
+  private let rewardLocationStackViewHidden = RewardCardRecording<Bool>()
+  private let rewardBadge = RewardCardRecording<RewardCardBadgeData?>()
 
   override func setUp() async throws {
     try await super.setUp()
 
-    self.vm.outputs.cardUserInteractionIsEnabled.observe(self.cardUserInteractionIsEnabled.observer)
-    self.vm.outputs.conversionLabelHidden.observe(self.conversionLabelHidden.observer)
-    self.vm.outputs.conversionLabelText.observe(self.conversionLabelText.observer)
-    self.vm.outputs.descriptionLabelText.observe(self.descriptionLabelText.observer)
-    self.vm.outputs.estimatedDeliveryStackViewHidden.observe(self.estimatedDeliveryDateLabelHidden.observer)
-    self.vm.outputs.estimatedDeliveryDateLabelText.observe(self.estimatedDeliveryDateLabelText.observer)
-    self.vm.outputs.includedItemsStackViewHidden.observe(self.includedItemsStackViewHidden.observer)
-    self.vm.outputs.items.observe(self.items.observer)
-    self.vm.outputs.pillCollectionViewHidden.observe(self.pillCollectionViewHidden.observer)
-    self.vm.outputs.reloadPills.observe(self.reloadPills.observer)
-    self.vm.outputs.rewardMinimumLabelText.observe(self.rewardMinimumLabelText.observer)
-    self.vm.outputs.rewardSelected.observe(self.rewardSelected.observer)
-    self.vm.outputs.rewardTitleLabelHidden.observe(self.rewardTitleLabelHidden.observer)
-    self.vm.outputs.rewardTitleLabelAttributedText.observe(self.rewardTitleLabelAttributedText.observer)
-    self.vm.outputs.rewardLocationStackViewHidden.observe(self.rewardLocationStackViewHidden.observer)
-    self.vm.outputs.rewardLocationPickupLabelText.observe(self.rewardLocationPickupLabelText.observer)
-    self.vm.outputs.rewardBadge.observe(self.rewardBadge.observer)
+    self.vm.onDisplay = { [weak self] display in
+      guard let self else { return }
+      self.cardUserInteractionIsEnabled.append(display.interactionEnabled)
+      self.conversionLabelHidden.append(display.conversionText == nil)
+      if let value = display.conversionText { self.conversionLabelText.append(value) }
+      self.descriptionLabelText.append(display.description)
+      self.estimatedDeliveryDateLabelHidden.append(display.deliveryHidden)
+      if let value = display.deliveryText { self.estimatedDeliveryDateLabelText.append(value) }
+      if self.includedItemsStackViewHidden.values.last != display.items.isEmpty {
+        self.includedItemsStackViewHidden.append(display.items.isEmpty)
+      }
+      self.items.append(display.items)
+      self.pillCollectionViewHidden.append(display.pills.isEmpty)
+      self.reloadPills.append(display.pills)
+      self.rewardMinimumLabelText.append(display.minimumText)
+      self.rewardTitleLabelHidden.append(display.titleHidden)
+      self.rewardTitleLabelAttributedText.append(display.title)
+      self.rewardLocationStackViewHidden.append(display.pickupHidden)
+      if let value = display.pickupText { self.rewardLocationPickupLabelText.append(value) }
+      self.rewardBadge.append(display.badge)
+    }
+    self.vm.onRewardSelected = { [weak self] in self?.rewardSelected.append($0) }
   }
 
   // MARK: - Reward Title
@@ -62,7 +64,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Reward.lens.title .~ "The thing"
       |> Reward.lens.remaining .~ nil
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -78,7 +80,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Reward.lens.title .~ nil
       |> Reward.lens.remaining .~ nil
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -92,7 +94,7 @@ final class RewardCardViewModelTests: TestCase {
   func testTitleLabel_NoTitle_NoReward() {
     let reward = Reward.noReward
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -116,7 +118,7 @@ final class RewardCardViewModelTests: TestCase {
           |> Backing.lens.amount .~ 700
       )
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .pledge,
@@ -143,7 +145,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Project.lens.personalization.isBacking .~ true
       |> Project.lens.personalization.backing .~ backing
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .pledge,
@@ -167,7 +169,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Project.lens.personalization.isBacking .~ true
       |> Project.lens.personalization.backing .~ backing
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .pledge,
@@ -186,7 +188,7 @@ final class RewardCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -207,7 +209,7 @@ final class RewardCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "MX") {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -230,7 +232,7 @@ final class RewardCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -253,7 +255,7 @@ final class RewardCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "MX") {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -276,7 +278,7 @@ final class RewardCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "MX") {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -297,7 +299,7 @@ final class RewardCardViewModelTests: TestCase {
     let reward = Reward.noReward
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -318,7 +320,7 @@ final class RewardCardViewModelTests: TestCase {
     let reward = Reward.noReward
 
     withEnvironment(countryCode: "MX") {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -339,7 +341,7 @@ final class RewardCardViewModelTests: TestCase {
     let reward = Reward.noReward
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -363,7 +365,7 @@ final class RewardCardViewModelTests: TestCase {
     let reward = Reward.noReward
 
     withEnvironment(countryCode: "CA") {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -388,7 +390,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Reward.lens.convertedMinimum .~ 0.6
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -420,7 +422,7 @@ final class RewardCardViewModelTests: TestCase {
           )
       ]
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -432,7 +434,7 @@ final class RewardCardViewModelTests: TestCase {
   }
 
   func testItemsContainerHidden_WithNoItems() {
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: .template |> Reward.lens.rewardsItems .~ [],
       context: .pledge,
@@ -448,7 +450,7 @@ final class RewardCardViewModelTests: TestCase {
     let project = Project.template
     let reward = Reward.template
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .pledge,
@@ -462,7 +464,7 @@ final class RewardCardViewModelTests: TestCase {
     let project = Project.template
     let reward = Reward.noReward
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .pledge,
@@ -482,7 +484,7 @@ final class RewardCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.convertedMinimum .~ 1_000
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -505,7 +507,7 @@ final class RewardCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.convertedMinimum .~ 2
 
     withEnvironment(countryCode: "US") {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -531,7 +533,7 @@ final class RewardCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.convertedMinimum .~ 2
 
     withEnvironment(countryCode: "MX") {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -558,7 +560,7 @@ final class RewardCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.convertedMinimum .~ 1
 
     withEnvironment(countryCode: "XX") {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -581,7 +583,7 @@ final class RewardCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.convertedMinimum .~ 2
 
     withEnvironment(countryCode: "XX") {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -606,7 +608,7 @@ final class RewardCardViewModelTests: TestCase {
     withEnvironment(
       apiService: MockService(currency: "MXN"), countryCode: "MX"
     ) {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -629,7 +631,7 @@ final class RewardCardViewModelTests: TestCase {
     let reward = .template |> Reward.lens.convertedMinimum .~ 1_000
 
     withEnvironment(countryCode: "GB") {
-      self.vm.inputs.configure(with: RewardCardViewData(
+      self.vm.configure(with: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -647,14 +649,14 @@ final class RewardCardViewModelTests: TestCase {
   // MARK: - Card View
 
   func testRewardCardTapped() {
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: .template,
       context: .pledge,
       currentShippingLocation: nil
     ))
 
-    self.vm.inputs.rewardCardTapped()
+    self.vm.rewardCardTapped()
 
     self.rewardSelected.assertValues([Reward.template.id])
   }
@@ -666,7 +668,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Reward.lens.minimum .~ 1_000
       |> Reward.lens.isAvailable .~ true
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .pledge,
@@ -683,7 +685,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Reward.lens.minimum .~ 1_000.0
       |> Reward.lens.isAvailable .~ true
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .pledge,
@@ -699,7 +701,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Reward.lens.remaining .~ 0
       |> Reward.lens.minimum .~ 1_000.0
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .pledge,
@@ -721,7 +723,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Reward.lens.remaining .~ nil
       |> Reward.lens.hasAddOns .~ true
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -746,7 +748,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Reward.lens.limit .~ 100
       |> Reward.lens.remaining .~ 25
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -772,7 +774,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Reward.lens.backersCount .~ 25
       |> Reward.lens.remaining .~ 25
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -797,7 +799,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Reward.lens.limit .~ nil
       |> Reward.lens.backersCount .~ 25
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -824,7 +826,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Reward.lens.remaining .~ nil
       |> Reward.lens.endsAt .~ (MockDate().timeIntervalSince1970 + 60.0 * 60.0 * 24.0)
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -853,7 +855,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Reward.lens.remaining .~ nil
       |> Reward.lens.endsAt .~ date?.timeIntervalSince1970
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -882,7 +884,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Reward.lens.remaining .~ 75
       |> Reward.lens.endsAt .~ date?.timeIntervalSince1970
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -924,7 +926,7 @@ final class RewardCardViewModelTests: TestCase {
           |> Reward.Shipping.lens.preference .~ .unrestricted
       )
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -972,7 +974,7 @@ final class RewardCardViewModelTests: TestCase {
           |> Reward.Shipping.lens.preference .~ .restricted
       )
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -1019,7 +1021,7 @@ final class RewardCardViewModelTests: TestCase {
           |> Reward.Shipping.lens.preference .~ .restricted
       )
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -1069,7 +1071,7 @@ final class RewardCardViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.state .~ .live
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .pledge,
@@ -1119,7 +1121,7 @@ final class RewardCardViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.state .~ .live
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .pledge,
@@ -1164,7 +1166,7 @@ final class RewardCardViewModelTests: TestCase {
           |> Reward.Shipping.lens.preference .~ .unrestricted
       )
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .pledge,
@@ -1190,7 +1192,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Reward.lens.remaining .~ 75
       |> Reward.lens.endsAt .~ date?.timeIntervalSince1970
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .pledge,
@@ -1211,7 +1213,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Reward.lens.remaining .~ 0
       |> Reward.lens.endsAt .~ (MockDate().date.timeIntervalSince1970 - 1)
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -1231,7 +1233,7 @@ final class RewardCardViewModelTests: TestCase {
       |> Reward.lens.backersCount .~ nil
       |> Reward.lens.endsAt .~ nil
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: .template,
       reward: reward,
       context: .pledge,
@@ -1254,7 +1256,7 @@ final class RewardCardViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.state .~ .live
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .pledge,
@@ -1282,7 +1284,7 @@ final class RewardCardViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.state .~ .successful
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .pledge,
@@ -1310,7 +1312,7 @@ final class RewardCardViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.state .~ .successful
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .pledge,
@@ -1333,7 +1335,7 @@ final class RewardCardViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.state .~ .successful
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .manage,
@@ -1357,7 +1359,7 @@ final class RewardCardViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.state .~ .successful
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .manage,
@@ -1381,7 +1383,7 @@ final class RewardCardViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.state .~ .successful
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .manage,
@@ -1406,7 +1408,7 @@ final class RewardCardViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.state .~ .successful
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .manage,
@@ -1421,7 +1423,7 @@ final class RewardCardViewModelTests: TestCase {
     let reward = Reward.secretRewardTemplate
     let project = Project.template
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .manage,
@@ -1443,7 +1445,7 @@ final class RewardCardViewModelTests: TestCase {
 
     let project = Project.template
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .manage,
@@ -1465,7 +1467,7 @@ final class RewardCardViewModelTests: TestCase {
 
     let project = Project.template
 
-    self.vm.inputs.configure(with: RewardCardViewData(
+    self.vm.configure(with: RewardCardViewData(
       project: project,
       reward: reward,
       context: .manage,
@@ -1480,5 +1482,28 @@ final class RewardCardViewModelTests: TestCase {
     }
 
     XCTAssertNil(badge)
+  }
+}
+
+private final class RewardCardRecording<Value> {
+  private(set) var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func append(_ value: Value) { self.values.append(value) }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, message, file: file, line: line)
+  }
+  func assertDidEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertFalse(self.values.isEmpty, message, file: file, line: line)
+  }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+}
+private extension RewardCardRecording where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
+  }
+  func assertValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, [expected], message, file: file, line: line)
   }
 }
