@@ -1,6 +1,5 @@
 import Foundation
 import GraphAPI
-import ReactiveSwift
 
 extension ClearUserUnseenActivityEnvelope {
   /**
@@ -14,17 +13,4 @@ extension ClearUserUnseenActivityEnvelope {
     return ClearUserUnseenActivityEnvelope(activityIndicatorCount: count)
   }
 
-  /**
-   Return a signal producer containing `ClearUserUnseenActivityEnvelope` or `ErrorEnvelope`
-   */
-  static func producer(
-    from data: GraphAPI.ClearUserUnseenActivityMutation
-      .Data
-  ) -> SignalProducer<ClearUserUnseenActivityEnvelope, ErrorEnvelope> {
-    guard let envelope = ClearUserUnseenActivityEnvelope.from(data) else {
-      return SignalProducer(error: ErrorEnvelope.couldNotParseJSON)
-    }
-
-    return SignalProducer(value: envelope)
-  }
 }

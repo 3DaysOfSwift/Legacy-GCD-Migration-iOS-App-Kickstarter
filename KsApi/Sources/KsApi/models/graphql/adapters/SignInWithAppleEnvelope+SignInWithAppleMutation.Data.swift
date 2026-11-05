@@ -1,6 +1,5 @@
 import Foundation
 import GraphAPI
-import ReactiveSwift
 
 extension SignInWithAppleEnvelope {
   /**
@@ -19,17 +18,4 @@ extension SignInWithAppleEnvelope {
     ))
   }
 
-  /**
-   Return a signal producer containing `SignInWithAppleEnvelope` or `ErrorEnvelope`
-   */
-  static func producer(
-    from data: GraphAPI.SignInWithAppleMutation
-      .Data
-  ) -> SignalProducer<SignInWithAppleEnvelope, ErrorEnvelope> {
-    guard let envelope = SignInWithAppleEnvelope.from(data) else {
-      return SignalProducer(error: ErrorEnvelope.couldNotParseJSON)
-    }
-
-    return SignalProducer(value: envelope)
-  }
 }

@@ -1,6 +1,5 @@
 import Foundation
 import GraphAPI
-import ReactiveSwift
 
 extension WatchProjectResponseEnvelope {
   /**
@@ -19,17 +18,4 @@ extension WatchProjectResponseEnvelope {
     return WatchProjectResponseEnvelope(watchProject: WatchProject(project: project))
   }
 
-  /**
-   Return a signal producer containing `WatchProjectResponseEnvelope` or `ErrorEnvelope`
-   */
-  static func producer(
-    from data: GraphAPI.WatchProjectMutation
-      .Data
-  ) -> SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope> {
-    guard let envelope = WatchProjectResponseEnvelope.from(data) else {
-      return SignalProducer(error: ErrorEnvelope.couldNotParseJSON)
-    }
-
-    return SignalProducer(value: envelope)
-  }
 }

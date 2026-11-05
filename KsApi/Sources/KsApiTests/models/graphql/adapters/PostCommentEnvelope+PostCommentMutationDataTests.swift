@@ -6,7 +6,7 @@ import GraphAPITestMocks
 import XCTest
 
 final class PostCommentEnvelope_PostCommentMutationDataTests: XCTestCase {
-  func testPostCommentEnvelope_Success() {
+  func testPostCommentEnvelope_Success() throws {
     let mock = Mock<GraphAPITestMocks.Mutation>()
     mock.createComment = Mock<GraphAPITestMocks.PostCommentPayload>()
     mock.createComment?.comment = Mock<GraphAPITestMocks.Comment>()
@@ -33,13 +33,7 @@ final class PostCommentEnvelope_PostCommentMutationDataTests: XCTestCase {
 
     let data = GraphAPI.PostCommentMutation.Data.from(mock)
 
-    let producer = PostCommentEnvelope.producer(from: data)
-
-    guard let createCommentEnvelope = MockGraphQLClient.shared.client.data(from: producer) else {
-      XCTFail()
-
-      return
-    }
+    let createCommentEnvelope = try PostCommentEnvelope.comment(from: data)
 
     XCTAssertEqual(
       createCommentEnvelope.author.id,

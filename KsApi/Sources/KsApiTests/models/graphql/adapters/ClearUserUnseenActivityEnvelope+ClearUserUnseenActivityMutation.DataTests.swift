@@ -12,11 +12,6 @@ final class ClearUserUnseenActivityEnvelope_ClearUserUnseenActivityMutationTests
     }
 
     XCTAssertEqual(env.activityIndicatorCount, 3)
-    XCTAssertEqual(
-      ClearUserUnseenActivityEnvelope
-        .producer(from: ClearUserUnseenActivityMutationTemplate.valid.data).allValues().count,
-      1
-    )
   }
 
   func testClearUserUnseenActivity_Failure() {

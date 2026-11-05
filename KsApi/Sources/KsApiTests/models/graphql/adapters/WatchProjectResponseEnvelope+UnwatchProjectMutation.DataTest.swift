@@ -15,9 +15,7 @@ final class WatchProjectResponseEnvelope_UnwatchProjectMutationTests: XCTestCase
     mock.watchProject?.project?.watchesCount = 100
 
     let data = GraphAPI.UnwatchProjectMutation.Data.from(mock)
-    let envelopeProducer = WatchProjectResponseEnvelope
-      .producer(from: data)
-    let envelope = MockGraphQLClient.shared.client.data(from: envelopeProducer)
+    let envelope = WatchProjectResponseEnvelope.from(data)
 
     XCTAssertEqual(envelope?.watchProject.project.id, "id")
     XCTAssertEqual(envelope?.watchProject.project.isWatched, false)
@@ -26,11 +24,6 @@ final class WatchProjectResponseEnvelope_UnwatchProjectMutationTests: XCTestCase
 
   func test_envelopeFrom_ReturnsNil() {
     let erroredData: GraphAPI.UnwatchProjectMutation.Data = try! testGraphObject(jsonString: "{}")
-    let errorProducer = WatchProjectResponseEnvelope
-      .producer(from: erroredData)
-
-    let error = MockGraphQLClient.shared.client.error(from: errorProducer)
-
-    XCTAssertNotNil(error?.ksrCode)
+    XCTAssertNil(WatchProjectResponseEnvelope.from(erroredData))
   }
 }
