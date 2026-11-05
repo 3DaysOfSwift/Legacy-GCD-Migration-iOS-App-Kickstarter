@@ -22,50 +22,39 @@ final class PaymentsFeatureTests: TestCase {
     try await super.tearDown()
   }
 
-  func testDuplicateSetupSharesRequestAndDisposedObserverDoesNotCancelWrite() async throws {
-    var first: [String] = [], second: [String] = []
-    let subscription = self.feature.setupResult(projectID: nil, context: .profileSettings)
-      .startWithResult { result in
-        switch result { case let .success(value): first.append(value.clientSecret); case .failure: XCTFail("Unexpected payment error") }
-      }
-    let duplicate = self.feature.setupResult(projectID: nil, context: .profileSettings)
-      .startWithResult { result in
-        switch result { case let .success(value): second.append(value.clientSecret); case .failure: XCTFail("Unexpected payment error") }
-      }
-    defer { duplicate.dispose() }
+  func testDuplicateSetupSharesRequestAndCanceledWaiterDoesNotCancelWrite() async throws {
+    let first = Task { try await self.feature.setup(projectID: nil, context: .profileSettings) }
+    let second = Task { try await self.feature.setup(projectID: nil, context: .profileSettings) }
     await self.provider.setups.waitFor(1)
-    subscription.dispose()
+    await Task.yield()
+    first.cancel()
     try self.provider.setups.finish(0, .success(ClientSecretEnvelope(clientSecret: "fixture")))
-    await self.feature.waitForOperations()
+    do { _ = try await first.value; XCTFail("Canceled waiter must not receive a secret") }
+    catch { XCTAssertTrue(error is CancellationError) }
+    let secondSecret = try await second.value.clientSecret
+    XCTAssertEqual(secondSecret, "fixture")
     XCTAssertEqual(self.provider.setups.count, 1)
-    XCTAssertEqual(first, [])
-    XCTAssertEqual(second, ["fixture"])
   }
 
   func testDistinctSetupContextsRemainIndependent() async throws {
-    let first = self.feature.setupResult(projectID: "project", context: .crowdfundingCheckout).start()
-    let second = self.feature.setupResult(projectID: "project", context: .postCampaignCheckout).start()
-    defer { first.dispose(); second.dispose() }
+    let first = Task { try await self.feature.setup(projectID: "project", context: .crowdfundingCheckout) }
+    let second = Task { try await self.feature.setup(projectID: "project", context: .postCampaignCheckout) }
     await self.provider.setups.waitFor(2)
     XCTAssertEqual(self.provider.setupInputs.map { $0.setupIntentContext }, [.crowdfundingCheckout, .postCampaignCheckout])
     XCTAssertEqual(self.provider.setupInputs.map { $0.projectId }, ["project", "project"])
     try self.provider.setups.finish(1, .success(ClientSecretEnvelope(clientSecret: "second")))
     try self.provider.setups.finish(0, .success(ClientSecretEnvelope(clientSecret: "first")))
-    await self.feature.waitForOperations()
+    let firstSecret = try await first.value.clientSecret
+    let secondSecret = try await second.value.clientSecret
+    XCTAssertEqual(firstSecret, "first")
+    XCTAssertEqual(secondSecret, "second")
   }
 
   func testIntentPreservesAmountCheckoutEncodingAndSharesPendingRequest() async throws {
-    var secrets: [String] = []
-    let a = self.feature.intentResult(projectID: "project", backingID: "backing", checkoutID: "19", total: 12.5)
-      .startWithResult { result in
-        switch result { case let .success(value): secrets.append(value.clientSecret); case .failure: XCTFail("Unexpected payment error") }
-      }
-    let b = self.feature.intentResult(projectID: "project", backingID: "backing", checkoutID: "19", total: 12.5)
-      .startWithResult { result in
-        switch result { case let .success(value): secrets.append(value.clientSecret); case .failure: XCTFail("Unexpected payment error") }
-      }
-    defer { a.dispose(); b.dispose() }
+    let a = Task { try await self.feature.intent(projectID: "project", backingID: "backing", checkoutID: "19", total: 12.5) }
+    let b = Task { try await self.feature.intent(projectID: "project", backingID: "backing", checkoutID: "19", total: 12.5) }
     await self.provider.intents.waitFor(1)
+    await Task.yield()
     let input = try XCTUnwrap(self.provider.intentInputs.first)
     XCTAssertEqual(input.projectId, "project")
     XCTAssertEqual(input.backingId, "backing")
@@ -74,9 +63,11 @@ final class PaymentsFeatureTests: TestCase {
     XCTAssertEqual(input.paymentIntentContext, .postCampaignCheckout)
     XCTAssertNil(input.digitalMarketingAttributed)
     try self.provider.intents.finish(0, .success(PaymentIntentEnvelope(clientSecret: "fixture")))
-    await self.feature.waitForOperations()
+    let firstSecret = try await a.value.clientSecret
+    let secondSecret = try await b.value.clientSecret
+    XCTAssertEqual(firstSecret, "fixture")
+    XCTAssertEqual(secondSecret, "fixture")
     XCTAssertEqual(self.provider.intents.count, 1)
-    XCTAssertEqual(secrets, ["fixture", "fixture"])
   }
 
   func testCardWritesStayOrderedAndFailureDoesNotBlockNextCommand() async throws {
