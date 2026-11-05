@@ -74,7 +74,7 @@ public protocol SearchViewModelOutputs: AnyObject {
   var onShowFilters: ((SearchFilterModalType) -> Void)? { get set }
 
   /// Emits to show the video feed banner
-  var showVideoFeedBanner: Signal<Bool, Never> { get }
+  var onVideoFeedBannerChanged: ((Bool) -> Void)? { get set }
 
   /// An @ObservableObject model which SwiftUI can use to display the search filters modals and header.
   /// Owned and automatically updated by the `SearchFiltersUseCase`.
@@ -141,19 +141,6 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
 
 
 
-    self.connectivityObservation = AppEnvironment.current.reachability.observe { [reachability = self.reachabilityProperty] value in
-      reachability.value = value
-    }
-
-    self.showVideoFeedBanner = Signal.merge(
-      self.appearancePipe.output,
-      self.reachabilityProperty.signal.ignoreValues()
-    )
-    .map { [reachability = self.reachabilityProperty] in
-      featureVideoFeedEnabled() && reachability.value != .none
-    }
-    .skipRepeats()
-
     self.goToProject = self.projectNavigationPipe.output
 
     // Register analytics before presentation: a zero count or buffered page
@@ -212,6 +199,12 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       case let .pageCount(value): self.completionAnalytics.recordPage(value)
       }
     }
+    self.connectivityObservation = AppEnvironment.current.reachability.observe { [weak self] value in
+      guard let self else { return }
+      self.connectivity = value
+      if self.receivedInitialConnectivity { self.updateVideoFeedBanner() }
+      self.receivedInitialConnectivity = true
+    }
   }
 
 
@@ -228,7 +221,6 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   private var wasCloseToBottom: Bool?
   private let queryTextPipe = Signal<String, Never>.pipe()
   private let queryParametersPipe = Signal<DiscoveryParams, Never>.pipe()
-  private let appearancePipe = Signal<Void, Never>.pipe()
   private let initialResultsPipe = Signal<SearchResults, Never>.pipe()
   private let projectNavigationPipe = Signal<(ProjectPageParam, RefTag), Never>.pipe()
 
@@ -294,7 +286,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       self.publishQueryText("")
     }
 
-    self.appearancePipe.input.send(value: ())
+    self.updateVideoFeedBanner()
     if isFirstAnimatedAppearance {
       self.appearanceResultsCount = 0
       self.completionAnalytics.recordCount(0)
@@ -338,14 +330,23 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   }
 
   private let searchFiltersUseCase: SearchFiltersUseCase
-  private let reachabilityProperty = MutableProperty<Reachability>(.none)
+  private var connectivity: Reachability = .none
+  private var receivedInitialConnectivity = false
+  private var lastVideoFeedBanner: Bool?
   private var connectivityObservation: MainActorObservation?
 
   public let goToProject: Signal<(ProjectPageParam, RefTag), Never>
   public let projects: Signal<[SearchResultCard], Never>
   public let searchLoaderIndicatorIsAnimating: Signal<Bool, Never>
   public let showEmptyState: Signal<(DiscoveryParams, Bool), Never>
-  public let showVideoFeedBanner: Signal<Bool, Never>
+  public var onVideoFeedBannerChanged: ((Bool) -> Void)?
+
+  private func updateVideoFeedBanner() {
+    let shouldShow = featureVideoFeedEnabled() && self.connectivity != .none
+    guard self.lastVideoFeedBanner != shouldShow else { return }
+    self.lastVideoFeedBanner = shouldShow
+    self.onVideoFeedBannerChanged?(shouldShow)
+  }
   public let searchResults: Signal<SearchResults, Never>
 
   public var onShowFilters: ((SearchFilterModalType) -> Void)? {

@@ -78,7 +78,7 @@ internal final class SearchViewModelTests: TestCase {
       self.vm.outputs.searchLoaderIndicatorIsAnimating.observe(self.searchLoaderIndicatorIsAnimating.observer)
       self.vm.outputs.showEmptyState.map(second).observe(self.showEmptyState.observer)
       self.vm.outputs.showEmptyState.map(first).observe(self.showEmptyStateParams.observer)
-      self.vm.outputs.showVideoFeedBanner.observe(self.showVideoFeedBanner.observer)
+      self.vm.outputs.onVideoFeedBannerChanged = { [weak self] in self?.showVideoFeedBanner.observer.send(value: $0) }
 
       self.vm.outputs.searchResults
         .map { $0.projects.count }

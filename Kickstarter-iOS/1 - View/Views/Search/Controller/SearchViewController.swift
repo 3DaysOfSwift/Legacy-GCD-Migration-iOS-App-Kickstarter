@@ -83,9 +83,7 @@ internal final class SearchViewController: UITableViewController,
         self?.tableView.reloadData()
       }
 
-    self.viewModel.outputs.showVideoFeedBanner
-      .observeForUI()
-      .observeValues { [weak self] shouldShow in
+    self.viewModel.outputs.onVideoFeedBannerChanged = { [weak self] shouldShow in
         self?.dataSource.showVideoFeedBanner(shouldShow)
         self?.tableView.reloadData()
       }
