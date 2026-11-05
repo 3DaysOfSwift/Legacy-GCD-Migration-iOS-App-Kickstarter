@@ -1062,17 +1062,6 @@
       }
     }
 
-    internal func fetchGraphUser(withStoredCards: Bool)
-      -> SignalProducer<UserEnvelope<GraphUser>, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let fetchGraphUserQuery = GraphAPI.FetchUserQuery(withStoredCards: withStoredCards)
-
-      return client.fetchWithResult(query: fetchGraphUserQuery, result: self.fetchGraphUserResult)
-    }
-
     func fetchGraphUserEmailCombine() -> AnyPublisher<UserEnvelope<GraphUserEmail>, ErrorEnvelope> {
       guard let client = self.apolloClient else {
         return Empty(completeImmediately: false).eraseToAnyPublisher()
@@ -1226,20 +1215,6 @@
     @MainActor public func submitMessage(body: String, subject _: MessageSubject) async throws -> Message {
       _ = try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
       return .template |> Message.lens.id .~ body.hashValue |> Message.lens.body .~ body
-    }
-
-    internal func fetchProject(param: Param) -> SignalProducer<Project, ErrorEnvelope> {
-      if let demoCatalog { return demoResponse { try demoCatalog.project(param) } }
-      guard let result = self.fetchProjectEnvelopeResult else {
-        return .empty
-      }
-
-      switch result {
-      case let .success(project):
-        return SignalProducer(value: project)
-      case let .failure(error):
-        return SignalProducer(error: error)
-      }
     }
 
     // Async fixture access mirrors the legacy project-detail results without
@@ -1401,37 +1376,6 @@
       )
     }
 
-    func fetchProjectRewardsAndPledgeOverTimeData(projectId: Int)
-      -> SignalProducer<
-        RewardsAndPledgeOverTimeEnvelope,
-        ErrorEnvelope
-      > {
-      if let demoCatalog {
-        return demoResponse {
-          RewardsAndPledgeOverTimeEnvelope(rewards: try demoCatalog.project(.id(projectId)).rewards,
-            isPledgeOverTimeAllowed: false, pledgeOverTimeCollectionPlanChargeExplanation: nil,
-            pledgeOverTimeCollectionPlanChargedAsNPayments: nil, pledgeOverTimeCollectionPlanShortPitch: nil,
-            pledgeOverTimeMinimumExplanation: nil)
-        }
-      }
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let query = GraphAPI
-        .FetchProjectRewardsByIdQuery(
-          projectId: projectId,
-          includeShippingRules: false,
-          includePledgeOverTime: true
-        )
-
-      return client
-        .fetchWithResult(
-          query: query,
-          result: self.fetchProjectRewardsAndPledgeOverTimeDataResult
-        )
-    }
-
     internal func fetchProjectRewards(projectId: Int) -> SignalProducer<[Reward], ErrorEnvelope> {
       if let demoCatalog { return demoResponse { try demoCatalog.project(.id(projectId)).rewards } }
       guard let client = self.apolloClient else {
@@ -1450,43 +1394,6 @@
           query: fetchProjectRewardsQuery,
           result: self.fetchProjectRewardsEnvelopeResult
         )
-    }
-
-    func fetchProjectRewards(
-      projectId: Int,
-      sortedForShippingCountryCode _: String?,
-      withNoReward _: NoRewardInserter
-    ) -> SignalProducer<[Reward], ErrorEnvelope> {
-      if let demoCatalog { return demoResponse { try demoCatalog.project(.id(projectId)).rewards } }
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let fetchProjectRewardsQuery = GraphAPI
-        .FetchSortedProjectRewardsByIdQuery(
-          projectId: projectId,
-          location: nil
-        )
-
-      return client
-        .fetchWithResult(
-          query: fetchProjectRewardsQuery,
-          result: self.fetchProjectRewardsEnvelopeResult
-        )
-    }
-
-    internal func fetchProject(
-      _ params: DiscoveryParams
-    ) -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope> {
-      if let demoCatalog { return demoResponse { try demoCatalog.discovery(params) } }
-      if let envelope = self.fetchDiscoveryResponse {
-        return SignalProducer(value: envelope)
-      }
-      let envelope = .template
-        |> DiscoveryEnvelope.lens.projects .~ [
-          .template |> Project.lens.id .~ params.hashValue
-        ]
-      return SignalProducer(value: envelope)
     }
 
     internal func fetchProject_combine(project: Project) -> AnyPublisher<Project, ErrorEnvelope> {

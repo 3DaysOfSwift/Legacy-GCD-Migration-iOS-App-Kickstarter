@@ -193,13 +193,6 @@ public struct Service: ServiceType {
     return request(.discover(params))
   }
 
-  public func fetchGraphUser(withStoredCards: Bool)
-    -> SignalProducer<UserEnvelope<GraphUser>, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .fetch(query: GraphAPI.FetchUserQuery(withStoredCards: withStoredCards))
-      .flatMap(UserEnvelope<GraphUser>.envelopeProducer(from:))
-  }
-
   public func fetchGraphUserEmailCombine()
     -> AnyPublisher<UserEnvelope<GraphUserEmail>, ErrorEnvelope> {
     GraphQL.shared.client
@@ -297,9 +290,6 @@ public struct Service: ServiceType {
 
    Eventually this v1 network request can be replaced with `fetchProject(projectParam:)` if we refactor the use cases above in the future.
    */
-  public func fetchProject(param: Param) -> SignalProducer<Project, ErrorEnvelope> {
-    return request(.project(param))
-  }
 
   public func fetchProjectRewards(projectId: Int)
     -> SignalProducer<[Reward], ErrorEnvelope> {
@@ -313,48 +303,6 @@ public struct Service: ServiceType {
     return GraphQL.shared.client
       .fetch(query: query)
       .map(Project.projectRewards(from:))
-  }
-
-  public func fetchProjectRewards(
-    projectId: Int,
-    sortedForShippingCountryCode code: String?,
-    withNoReward inserter: NoRewardInserter
-  ) -> SignalProducer<[Reward], ErrorEnvelope> {
-    let graphCountryCode: GraphAPI.CountryCode?
-    if let code {
-      graphCountryCode = GraphAPI.CountryCode(rawValue: code)
-    } else {
-      graphCountryCode = nil
-    }
-
-    let query = GraphAPI.FetchSortedProjectRewardsByIdQuery(
-      projectId: projectId,
-      location: GraphQLEnum.caseOrNil(graphCountryCode)
-    )
-
-    return GraphQL.shared.client
-      .fetch(query: query)
-      .map { results in
-        Project.projectRewards(from: results, withNoReward: inserter)
-      }
-  }
-
-  public func fetchProjectRewardsAndPledgeOverTimeData(projectId: Int)
-    -> SignalProducer<RewardsAndPledgeOverTimeEnvelope, ErrorEnvelope> {
-    let query = GraphAPI
-      .FetchProjectRewardsByIdQuery(
-        projectId: projectId,
-        includeShippingRules: true,
-        includePledgeOverTime: true
-      )
-
-    return GraphQL.shared.client
-      .fetch(query: query)
-      .map(Project.projectRewardsAndPledgeOverTimeData(from:))
-  }
-
-  public func fetchProject(_ params: DiscoveryParams) -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope> {
-    return request(.discover(params |> DiscoveryParams.lens.perPage .~ 1))
   }
 
   public func fetchProject_combine(project: Project) -> AnyPublisher<Project, ErrorEnvelope> {

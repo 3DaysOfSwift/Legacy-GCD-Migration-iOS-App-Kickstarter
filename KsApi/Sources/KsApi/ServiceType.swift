@@ -187,10 +187,6 @@ public protocol ServiceType {
   @MainActor func unfollowUser(id: Int) async throws
   @MainActor func followEveryFriend() async throws
 
-  /// Fetches various fields of a given User using graphQL.
-  func fetchGraphUser(withStoredCards: Bool)
-    -> SignalProducer<UserEnvelope<GraphUser>, ErrorEnvelope>
-
   func fetchGraphUserEmailCombine()
     -> AnyPublisher<UserEnvelope<GraphUserEmail>, ErrorEnvelope>
 
@@ -202,9 +198,6 @@ public protocol ServiceType {
   ///    - id: backing ID
   func fetchBacking(id: Int)
     -> SignalProducer<ProjectAndBackingEnvelope, ErrorEnvelope>
-
-  /// Fetch the newest data for a particular project from its id or slug. (v1)
-  func fetchProject(param: Param) -> SignalProducer<Project, ErrorEnvelope>
 
   /// Fetch the newest data for a particular project from its id or slug. Includes backings and rewards.
   /// Does not included extended project properties, shipping, or project video.
@@ -222,24 +215,8 @@ public protocol ServiceType {
   func fetchProject(projectParam: Param, includeStoryRichText: Bool)
     -> SignalProducer<Project.ProjectPamphletData, ErrorEnvelope>
 
-  /// Fetch the project's rewards and pledge over time data
-  func fetchProjectRewardsAndPledgeOverTimeData(projectId: Int)
-    -> SignalProducer<RewardsAndPledgeOverTimeEnvelope, ErrorEnvelope>
-
   /// Fetch the project's rewards only, without shipping rules
   func fetchProjectRewards(projectId: Int) -> SignalProducer<[Reward], ErrorEnvelope>
-
-  /// Fetch the project's rewards, including 'No Reward'. Includes all shipping rules.
-  /// Uses the included `NoRewardInserter` to decide where 'No Reward' should live in the list.
-  func fetchProjectRewards(
-    projectId: Int,
-    sortedForShippingCountryCode: String?,
-    withNoReward: NoRewardInserter
-  )
-    -> SignalProducer<[Reward], ErrorEnvelope>
-
-  /// Fetch a single project with the specified discovery params.
-  func fetchProject(_ params: DiscoveryParams) -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope>
 
   /// Fetch the newest data for a particular project from its project value.
   func fetchProject_combine(project: Project) -> AnyPublisher<Project, ErrorEnvelope>
