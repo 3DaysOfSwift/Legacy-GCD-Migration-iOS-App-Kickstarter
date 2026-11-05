@@ -70,7 +70,7 @@ public protocol DiscoveryPageViewModelInputs {
 }
 
 @MainActor
-public protocol DiscoveryPageViewModelOutputs {
+public protocol DiscoveryPageViewModelOutputs: AnyObject {
   /// Emits a list of activities to be displayed in the sample.
   var activitiesForSample: Signal<[Activity], Never> { get }
 
@@ -124,7 +124,7 @@ public protocol DiscoveryPageViewModelOutputs {
   var showPersonalization: Signal<Bool, Never> { get }
 
   /// Emits to show the video feed banner
-  var showVideoFeedBanner: Signal<Bool, Never> { get }
+  var onVideoFeedBannerChanged: ((Bool) -> Void)? { get set }
 }
 
 @MainActor
@@ -342,21 +342,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
 
 
 
-    self.connectivityObservation = AppEnvironment.current.reachability.observe { [reachability = self.reachabilityProperty] value in
-      reachability.value = value
-    }
-
-    self.showVideoFeedBanner = Signal.merge(
-      self.viewWillAppearProperty.signal,
-      /// Because the Discover page is the first page we see, it might appear before config values load.
-      self.configUpdatedSignal,
-      self.reachabilityProperty.signal.ignoreValues()
-    )
-    .map { [reachability = self.reachabilityProperty] in
-      featureVideoFeedEnabled() && reachability.value != .none
-    }
-    .skipRepeats()
-
     self.goToCuratedProjects = self.personalizationCellTappedProperty.signal
       .map { cachedCategories() }
       .skipNil()
@@ -416,12 +401,17 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
       case let .activities(sort, activities): self.activitiesPipe.input.send(value: (sort, activities))
       }
     }
+    self.connectivityObservation = AppEnvironment.current.reachability.observe { [weak self] value in
+      guard let self else { return }
+      self.connectivity = value
+      if self.receivedInitialConnectivity { self.updateVideoFeedBanner() }
+      self.receivedInitialConnectivity = true
+    }
   }
 
 
-  fileprivate let (configUpdatedSignal, configUpdatedObserver) = Signal<Void, Never>.pipe()
   public func configUpdated() {
-    self.configUpdatedObserver.send(value: ())
+    self.updateVideoFeedBanner()
   }
 
   fileprivate let currentEnvironmentChangedProperty = MutableProperty<EnvironmentType?>(nil)
@@ -507,6 +497,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   fileprivate let viewWillAppearProperty = MutableProperty(())
   public func viewWillAppear() {
     self.viewWillAppearProperty.value = ()
+    self.updateVideoFeedBanner()
   }
 
   fileprivate let willDisplayRowProperty = MutableProperty<(row: Int, total: Int)?>(nil)
@@ -514,7 +505,9 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.willDisplayRowProperty.value = (row, totalRows)
   }
 
-  private let reachabilityProperty = MutableProperty<Reachability>(.none)
+  private var connectivity: Reachability = .none
+  private var receivedInitialConnectivity = false
+  private var lastVideoFeedBanner: Bool?
   private var connectivityObservation: MainActorObservation?
 
   public let activitiesForSample: Signal<[Activity], Never>
@@ -534,7 +527,14 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   public let showEmptyState: Signal<EmptyState, Never>
   public let showOnboarding: Signal<Bool, Never>
   public let showPersonalization: Signal<Bool, Never>
-  public let showVideoFeedBanner: Signal<Bool, Never>
+  public var onVideoFeedBannerChanged: ((Bool) -> Void)?
+
+  private func updateVideoFeedBanner() {
+    let visible = featureVideoFeedEnabled() && self.connectivity != .none
+    guard self.lastVideoFeedBanner != visible else { return }
+    self.lastVideoFeedBanner = visible
+    self.onVideoFeedBannerChanged?(visible)
+  }
 
   public var inputs: DiscoveryPageViewModelInputs { return self }
   public var outputs: DiscoveryPageViewModelOutputs { return self }

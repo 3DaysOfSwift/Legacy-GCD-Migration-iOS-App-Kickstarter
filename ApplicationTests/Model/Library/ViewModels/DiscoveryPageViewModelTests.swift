@@ -83,7 +83,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.vm.outputs.showEmptyState.observe(self.showEmptyState.observer)
     self.vm.outputs.showOnboarding.observe(self.showOnboarding.observer)
     self.vm.outputs.showPersonalization.observe(self.showPersonalization.observer)
-    self.vm.outputs.showVideoFeedBanner.observe(self.showVideoFeedBanner.observer)
+    self.vm.outputs.onVideoFeedBannerChanged = { [weak self] in self?.showVideoFeedBanner.observer.send(value: $0) }
 
     self.vm.outputs.projectsLoaded
       .map { $0.0.count }
