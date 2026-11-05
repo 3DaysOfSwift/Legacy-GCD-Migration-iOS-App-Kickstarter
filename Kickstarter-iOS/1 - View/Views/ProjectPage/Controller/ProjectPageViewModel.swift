@@ -307,6 +307,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   }
 
   private let projectDetailsFeature: ProjectDetailsFeature
+  private var projectDetailsObservation: MainActorObservation?
   private let projectRoute = UUID()
   private let featureBindings = ScopedDisposable(CompositeDisposable())
   internal private(set) var loadingTask: Task<Void, Never>?
@@ -769,17 +770,19 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
     let route = self.projectRoute
     var requestRefTag: RefTag?
-    self.featureBindings += projectDetailsFeature.loading
-      .filter { $0.0 == route }
-      .observeValues { isLoading.value = $0.1 }
-    self.featureBindings += projectDetailsFeature.completions
-      .filter { $0.0 == route }
-      .observeValues { _, result in
+    self.projectDetailsObservation = projectDetailsFeature.observe { [weak self] update in
+      guard self != nil else { return }
+      switch update {
+      case let .loading(updateRoute, loading) where updateRoute == route:
+        isLoading.value = loading
+      case let .completion(updateRoute, result) where updateRoute == route:
         switch result {
         case let .success(project): completion.input.send(value: .value((project, requestRefTag)))
         case let .failure(error): completion.input.send(value: .failed(error))
         }
+      default: break
       }
+    }
     let loadRequests = Signal.merge(
       self.viewDidLoadProperty.signal.mapConst(false),
       self.userSessionStartedProperty.signal.mapConst(true),

@@ -192,6 +192,25 @@ final class ProjectDetailsFeatureTests: TestCase {
     )
   }
 
+  func testNativeUpdatesKeepRouteAndStopOnCancellation() async {
+    let feature = self.feature(ControlledProjectDetailsProvider())
+    let route = UUID()
+    var events: [String] = []
+    let observation = feature.observe { update in
+      switch update {
+      case let .loading(id, loading):
+        if id == route { events.append(loading ? "loading" : "finished") }
+      case let .completion(id, result):
+        if id == route, case .success = result { events.append("project") }
+      }
+    }
+    await feature.load(route: route, param: .id(1))
+    XCTAssertEqual(events, ["loading", "project", "finished"])
+    observation.stop()
+    await feature.load(route: UUID(), param: .id(2))
+    XCTAssertEqual(events, ["loading", "project", "finished"])
+  }
+
   func testStandardLoadOrdersBackingBeforeRewardsAndPreservesProjectFields() async throws {
     let provider = ControlledProjectDetailsProvider()
     provider.backingID = 42

@@ -2,7 +2,6 @@ import Experimentation
 import Foundation
 import GraphAPI
 import KsApi
-import ReactiveSwift
 
 /// The API substitution boundary; one instance captures the service for a whole load.
 @MainActor
@@ -198,10 +197,19 @@ public final class ProjectDetailsFeature {
   private let useFastLoading: @MainActor () -> Bool
   private let includeRichText: @MainActor () -> Bool
   private let sleep: @MainActor (TimeInterval) async throws -> Void
-  private let completionPipe = Signal<(UUID, Result<Project, ErrorEnvelope>), Never>.pipe()
-  private let loadingPipe = Signal<(UUID, Bool), Never>.pipe()
-  public var completions: Signal<(UUID, Result<Project, ErrorEnvelope>), Never> { self.completionPipe.output }
-  public var loading: Signal<(UUID, Bool), Never> { self.loadingPipe.output }
+  internal enum Update {
+    case loading(UUID, Bool)
+    case completion(UUID, Result<Project, ErrorEnvelope>)
+  }
+  private var observers: [(id: UUID, callback: (Update) -> Void)] = []
+  internal func observe(_ callback: @escaping (Update) -> Void) -> MainActorObservation {
+    let id = UUID()
+    self.observers.append((id, callback))
+    return MainActorObservation { [weak self] in self?.observers.removeAll { $0.id == id } }
+  }
+  private func emit(_ update: Update) {
+    for observer in self.observers { observer.callback(update) }
+  }
 
   public init(
     sessionFeature: SessionFeature,
@@ -256,7 +264,7 @@ public final class ProjectDetailsFeature {
         if let self, self.pages[route]?.request?.id == requestID {
           page.request = nil
           page.snapshot.isLoading = false
-          self.loadingPipe.input.send(value: (route, false))
+          self.emit(.loading(route, false))
         }
       }
       do {
@@ -305,7 +313,7 @@ public final class ProjectDetailsFeature {
         try Self.checkSession(identity.userID)
         guard let self, self.pages[route]?.request?.id == requestID else { return }
         page.snapshot.project = project
-        self.completionPipe.input.send(value: (route, .success(project)))
+        self.emit(.completion(route, .success(project)))
       } catch is CancellationError {
         // Cancellation is not a product failure and never publishes stale data.
       } catch {
@@ -313,11 +321,11 @@ public final class ProjectDetailsFeature {
               let self, self.pages[route]?.request?.id == requestID else { return }
         let failure = (error as? ErrorEnvelope) ?? ErrorEnvelope.couldNotParseJSON
         page.snapshot.error = failure
-        self.completionPipe.input.send(value: (route, .failure(failure)))
+        self.emit(.completion(route, .failure(failure)))
       }
     }
     page.request = (requestID, identity, task)
-    self.loadingPipe.input.send(value: (route, true))
+    self.emit(.loading(route, true))
     return task
   }
 
@@ -327,7 +335,7 @@ public final class ProjectDetailsFeature {
     page.request = nil
     page.snapshot.isLoading = false
     task?.cancel()
-    self.loadingPipe.input.send(value: (route, false))
+    self.emit(.loading(route, false))
   }
 
   public func release(route: UUID) {
