@@ -115,25 +115,6 @@ public struct Service: ServiceType {
       map: { Location.locations(from: $0) })
   }
 
-  public func addNewCreditCard(input: CreatePaymentSourceInput)
-    -> SignalProducer<CreatePaymentSourceEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(
-        mutation: GraphAPI
-          .CreatePaymentSourceMutation(input: GraphAPI.CreatePaymentSourceInput.from(input))
-      )
-      .flatMap(CreatePaymentSourceEnvelope.producer(from:))
-  }
-
-  public func addPaymentSheetPaymentSource(input: CreatePaymentSourceSetupIntentInput)
-    -> SignalProducer<CreatePaymentSourceEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(
-        mutation: GraphAPI
-          .CreatePaymentSourceMutation(input: GraphAPI.CreatePaymentSourceInput.from(input))
-      )
-      .flatMap(CreatePaymentSourceEnvelope.producer(from:))
-  }
 
   public func addUserToSecretRewardGroup(token: String, forProject param: Param)
     -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
@@ -247,21 +228,6 @@ public struct Service: ServiceType {
     )
   }
 
-  public func createPaymentIntentInput(input: CreatePaymentIntentInput) -> ReactiveSwift
-    .SignalProducer<PaymentIntentEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(
-        mutation: GraphAPI
-          .CreatePaymentIntentMutation(input: GraphAPI.CreatePaymentIntentInput(
-            projectId: input.projectId,
-            amount: input.amountDollars,
-            paymentIntentContext: GraphQLEnum.caseOrNil(input.paymentIntentContext),
-            digitalMarketingAttributed: GraphQLNullable.someOrNil(input.digitalMarketingAttributed),
-            checkoutId: GraphQLNullable.someOrNil(input.checkoutId)
-          ))
-      )
-      .flatMap(PaymentIntentEnvelope.envelopeProducer(from:))
-  }
 
   public func createPassword(input: CreatePasswordInput)
     -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
@@ -275,15 +241,6 @@ public struct Service: ServiceType {
       }
   }
 
-  public func createStripeSetupIntent(input: CreateSetupIntentInput) ->
-    SignalProducer<ClientSecretEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(
-        mutation: GraphAPI
-          .CreateSetupIntentMutation(input: GraphAPI.CreateSetupIntentInput.from(input))
-      )
-      .flatMap(ClientSecretEnvelope.envelopeProducer(from:))
-  }
 
   public func clearUserUnseenActivity(input _: EmptyInput)
     -> SignalProducer<ClearUserUnseenActivityEnvelope, ErrorEnvelope> {
@@ -295,15 +252,6 @@ public struct Service: ServiceType {
       .flatMap(ClearUserUnseenActivityEnvelope.producer(from:))
   }
 
-  public func deletePaymentMethod(input: PaymentSourceDeleteInput)
-    -> SignalProducer<DeletePaymentMethodEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(
-        mutation: GraphAPI
-          .DeletePaymentSourceMutation(input: GraphAPI.PaymentSourceDeleteInput.from(input))
-      )
-      .flatMap(DeletePaymentMethodEnvelope.producer(from:))
-  }
 
   public func changeCurrency(input: ChangeCurrencyInput) ->
     SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
@@ -933,12 +881,6 @@ public struct Service: ServiceType {
     return request(.unfollowFriend(userId: id))
   }
 
-  public func updateBacking(input: UpdateBackingInput)
-    -> SignalProducer<UpdateBackingEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(mutation: GraphAPI.UpdateBackingMutation(input: GraphAPI.UpdateBackingInput.from(input)))
-      .flatMap(UpdateBackingEnvelope.producer(from:))
-  }
 
   public func update(draft: UpdateDraft, title: String, body: String, isPublic: Bool)
     -> SignalProducer<UpdateDraft, ErrorEnvelope> {
@@ -988,19 +930,7 @@ public struct Service: ServiceType {
    - parameter paymentSourceId: The id of the payment source.
    - parameter paymentIntentClientSecret: The client secret returned from our CreatePaymentIntent Mutation.
    */
-  public func validateCheckout(
-    checkoutId: String,
-    paymentSourceId: String,
-    paymentIntentClientSecret: String
-  ) -> SignalProducer<ValidateCheckoutEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .fetch(query: GraphAPI.ValidateCheckoutQuery(
-        checkoutId: checkoutId,
-        paymentSourceId: paymentSourceId,
-        paymentIntentClientSecret: paymentIntentClientSecret
-      ))
-      .flatMap(ValidateCheckoutEnvelope.envelopeProducer(from:))
-  }
+
 
   public func confirmBackingAddress(
     backingId: String,

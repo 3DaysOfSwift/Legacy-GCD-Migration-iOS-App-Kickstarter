@@ -614,29 +614,6 @@
       self.tokenExchangeResponse = tokenExchangeResponse
     }
 
-    public func addNewCreditCard(input: CreatePaymentSourceInput)
-      -> SignalProducer<CreatePaymentSourceEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI
-        .CreatePaymentSourceMutation(input: GraphAPI.CreatePaymentSourceInput.from(input))
-
-      return client.performWithResult(mutation: mutation, result: self.addNewCreditCardResult)
-    }
-
-    public func addPaymentSheetPaymentSource(input: CreatePaymentSourceSetupIntentInput)
-      -> SignalProducer<CreatePaymentSourceEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI
-        .CreatePaymentSourceMutation(input: GraphAPI.CreatePaymentSourceInput.from(input))
-
-      return client.performWithResult(mutation: mutation, result: self.addPaymentSheetPaymentSourceResult)
-    }
 
     public func addUserToSecretRewardGroup(token: String, forProject param: Param)
       -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
@@ -771,21 +748,6 @@
       return client.performWithResult(mutation: mutation, result: self.createFlaggingResult)
     }
 
-    internal func createPaymentIntentInput(input: CreatePaymentIntentInput) -> ReactiveSwift
-      .SignalProducer<PaymentIntentEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI
-        .CreatePaymentIntentMutation(input: GraphAPI.CreatePaymentIntentInput(
-          projectId: input.projectId,
-          amount: input.amountDollars,
-          digitalMarketingAttributed: GraphQLNullable.someOrNil(input.digitalMarketingAttributed)
-        ))
-
-      return client.performWithResult(mutation: mutation, result: self.createPaymentIntentResult)
-    }
 
     internal func createPassword(input: CreatePasswordInput)
       -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
@@ -799,17 +761,6 @@
       return client.performWithResult(mutation: mutation, result: self.createPasswordResult)
     }
 
-    internal func createStripeSetupIntent(input: CreateSetupIntentInput)
-      -> SignalProducer<ClientSecretEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI
-        .CreateSetupIntentMutation(input: GraphAPI.CreateSetupIntentInput.from(input))
-
-      return client.performWithResult(mutation: mutation, result: self.createStripeSetupIntentResult)
-    }
 
     internal func changeCurrency(input: ChangeCurrencyInput)
       -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
@@ -2432,18 +2383,6 @@
       return SignalProducer(value: updatedDraft)
     }
 
-    internal func updateBacking(input: UpdateBackingInput)
-      -> SignalProducer<UpdateBackingEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutationUpdateBacking = GraphAPI
-        .UpdateBackingMutation(input: GraphAPI.UpdateBackingInput.from(input))
-
-      return client
-        .performWithResult(mutation: mutationUpdateBacking, result: self.updateBackingResult)
-    }
 
     internal func unwatchProject(input: WatchProjectInput)
       -> SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope> {
@@ -2458,13 +2397,6 @@
         .performWithResult(mutation: mutationUnwatchProject, result: self.unwatchProjectMutationResult)
     }
 
-    internal func validateCheckout(
-      checkoutId _: String,
-      paymentSourceId _: String,
-      paymentIntentClientSecret _: String
-    ) -> SignalProducer<ValidateCheckoutEnvelope, ErrorEnvelope> {
-      return producer(for: self.validateCheckoutResult)
-    }
 
     internal func verifyEmail(withToken _: String)
       -> SignalProducer<EmailVerificationResponseEnvelope, ErrorEnvelope> {
@@ -2501,18 +2433,6 @@
       return SignalProducer(value: self.removeAttachmentResponse ?? .template)
     }
 
-    internal func deletePaymentMethod(input: PaymentSourceDeleteInput) -> SignalProducer<
-      DeletePaymentMethodEnvelope, ErrorEnvelope
-    > {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI
-        .DeletePaymentSourceMutation(input: GraphAPI.PaymentSourceDeleteInput.from(input))
-
-      return client.performWithResult(mutation: mutation, result: self.deletePaymentMethodResult)
-    }
 
     internal func triggerThirdPartyEventInput(input: TriggerThirdPartyEventInput) -> ReactiveSwift
       .SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {

@@ -1,6 +1,5 @@
 import Foundation
 import GraphAPI
-import ReactiveSwift
 
 extension CreatePaymentSourceEnvelope {
   static func from(_ data: GraphAPI.CreatePaymentSourceMutation.Data) -> CreatePaymentSourceEnvelope? {
@@ -27,14 +26,4 @@ extension CreatePaymentSourceEnvelope {
     return CreatePaymentSourceEnvelope(createPaymentSource: paymentSource)
   }
 
-  static func producer(
-    from data: GraphAPI.CreatePaymentSourceMutation
-      .Data
-  ) -> SignalProducer<CreatePaymentSourceEnvelope, ErrorEnvelope> {
-    guard let envelope = CreatePaymentSourceEnvelope.from(data) else {
-      return SignalProducer(error: ErrorEnvelope.couldNotParseJSON)
-    }
-
-    return SignalProducer(value: envelope)
-  }
 }

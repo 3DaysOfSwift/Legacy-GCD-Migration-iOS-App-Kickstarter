@@ -1,6 +1,5 @@
 import Foundation
 import GraphAPI
-import ReactiveSwift
 
 public struct ValidateCheckoutEnvelope: Decodable, Sendable {
   public let messages: [String]
@@ -17,19 +16,6 @@ extension ValidateCheckoutEnvelope {
       throw ErrorEnvelope.validateCheckoutError(envelope.messages)
     }
     return envelope
-  }
-
-  static func envelopeProducer(from data: GraphAPI.ValidateCheckoutQuery.Data)
-    -> SignalProducer<ValidateCheckoutEnvelope, ErrorEnvelope> {
-    guard let envelope = ValidateCheckoutEnvelope.validateCheckoutEnvelope(from: data) else {
-      return SignalProducer(error: .couldNotParseJSON)
-    }
-
-    guard data.checkout?.isValidForOnSessionCheckout.valid == true else {
-      return SignalProducer(error: .validateCheckoutError(envelope.messages))
-    }
-
-    return SignalProducer(value: envelope)
   }
 
   /**

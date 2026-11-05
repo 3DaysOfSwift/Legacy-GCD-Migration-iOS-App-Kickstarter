@@ -1,6 +1,5 @@
 import Foundation
 import GraphAPI
-import ReactiveSwift
 
 extension UpdateBackingEnvelope {
   /**
@@ -14,17 +13,4 @@ extension UpdateBackingEnvelope {
     return UpdateBackingEnvelope(updateBacking: UpdateBacking(checkout: checkout))
   }
 
-  /**
-   Return a signal producer containing `UpdateBackingEnvelope` or `ErrorEnvelope`
-   */
-  static func producer(
-    from data: GraphAPI.UpdateBackingMutation
-      .Data
-  ) -> SignalProducer<UpdateBackingEnvelope, ErrorEnvelope> {
-    guard let envelope = UpdateBackingEnvelope.from(data) else {
-      return SignalProducer(error: ErrorEnvelope.couldNotParseJSON)
-    }
-
-    return SignalProducer(value: envelope)
-  }
 }

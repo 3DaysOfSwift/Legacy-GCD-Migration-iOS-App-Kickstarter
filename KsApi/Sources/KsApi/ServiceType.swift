@@ -141,29 +141,14 @@ public protocol ServiceType {
   @MainActor func submitProjectReport(input: CreateFlaggingInput) async throws
   @MainActor func fetchProjectFlaggingOptions() async throws -> [ReportProjectInfoListItem]
 
-  /// Sends report project data for a specific project
-  func createPaymentIntentInput(input: CreatePaymentIntentInput)
-    -> SignalProducer<PaymentIntentEnvelope, ErrorEnvelope>
 
   /// Creates the password on a user account
   func createPassword(input: CreatePasswordInput) ->
     SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
-  /// Create Stripe setup intent for use with Stripe payment sheet
-  func createStripeSetupIntent(input: CreateSetupIntentInput) ->
-    SignalProducer<ClientSecretEnvelope, ErrorEnvelope>
 
-  /// Adds a new credit card to users' payment methods
-  func addNewCreditCard(input: CreatePaymentSourceInput) ->
-    SignalProducer<CreatePaymentSourceEnvelope, ErrorEnvelope>
 
-  /// Adds a new Stripe payment source to users' payment methods
-  func addPaymentSheetPaymentSource(input: CreatePaymentSourceSetupIntentInput) ->
-    SignalProducer<CreatePaymentSourceEnvelope, ErrorEnvelope>
 
-  /// Deletes a payment method
-  func deletePaymentMethod(input: PaymentSourceDeleteInput) ->
-    SignalProducer<DeletePaymentMethodEnvelope, ErrorEnvelope>
 
   /// Removes an image from a project update draft.
   func delete(image: UpdateDraft.Image, fromDraft draft: UpdateDraft)
@@ -518,8 +503,6 @@ public protocol ServiceType {
   /// Unfollow a user with their id.
   func unfollowFriend(userId id: Int) -> SignalProducer<VoidEnvelope, ErrorEnvelope>
 
-  /// Updates a backing
-  func updateBacking(input: UpdateBackingInput) -> SignalProducer<UpdateBackingEnvelope, ErrorEnvelope>
 
   /// Update the project notification setting.
   func updateProjectNotification(_ notification: ProjectNotification)
@@ -536,12 +519,6 @@ public protocol ServiceType {
   func unwatchProject(input: WatchProjectInput) ->
     SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope>
 
-  /// Validates a Post Campaign Pledge
-  func validateCheckout(
-    checkoutId: String,
-    paymentSourceId: String,
-    paymentIntentClientSecret: String
-  ) -> SignalProducer<ValidateCheckoutEnvelope, ErrorEnvelope>
 
   /// Verifies an email address with a given access token.
   func verifyEmail(withToken token: String)

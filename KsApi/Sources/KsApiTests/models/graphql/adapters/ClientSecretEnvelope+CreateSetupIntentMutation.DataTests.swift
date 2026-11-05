@@ -13,10 +13,7 @@ final class ClientSecretEnvelope_ClientSecretIntentMutationTests: XCTestCase {
     }
 
     XCTAssertEqual(env.clientSecret, "seti_1LO1Om4VvJ2PtfhKrNizQefl_secret_M6DqtRtur5tF3z0LRyh15x5VuHjFPQK")
-    XCTAssertEqual(
-      ClientSecretEnvelope.envelopeProducer(from: CreateSetupIntentMutationTemplate.valid.data).allValues()
-        .count, 1
-    )
+
   }
 
   func testClearUserUnseenActivity_Failure() {

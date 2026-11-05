@@ -1,6 +1,5 @@
 import Foundation
 import GraphAPI
-import ReactiveSwift
 
 public struct PaymentIntentEnvelope: Decodable, Sendable {
   public let clientSecret: String
@@ -9,14 +8,6 @@ public struct PaymentIntentEnvelope: Decodable, Sendable {
 // MARK: - GraphQL Adapters
 
 extension PaymentIntentEnvelope {
-  static func envelopeProducer(from data: GraphAPI.CreatePaymentIntentMutation.Data)
-    -> SignalProducer<PaymentIntentEnvelope, ErrorEnvelope> {
-    guard let envelope = PaymentIntentEnvelope.clientSecretEnvelope(from: data) else {
-      return SignalProducer(error: .couldNotParseJSON)
-    }
-    return SignalProducer(value: envelope)
-  }
-
   /**
    Returns a minimal `PaymentIntentEnvelope` from a `CreatePaymentIntentMutation.Data`
    */
