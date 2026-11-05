@@ -74,13 +74,17 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.vm.outputs.onContentInset = { [weak self] in self?.contentInset.observer.send(value: $0) }
     self.vm.outputs.onDismissPersonalizationCell = { [weak self] in self?.dismissPersonalizationCell.observer.send(value: ()) }
     self.vm.outputs.hideEmptyState.observe(self.hideEmptyState.observer)
-    self.vm.outputs.goToActivityProject.map(first).observe(self.goToActivityProject.observer)
-    self.vm.outputs.goToActivityProject.map(second).observe(self.goToActivityProjectRefTag.observer)
+    self.vm.outputs.onGoToActivityProject = { [weak self] project, tag in
+      self?.goToActivityProject.observer.send(value: project)
+      self?.goToActivityProjectRefTag.observer.send(value: tag)
+    }
     self.vm.outputs.onGoToCuratedProjects = { [weak self] in self?.goToCuratedProjects.observer.send(value: $0) }
-    self.vm.outputs.goToProjectPlaylist.map(first).observe(self.goToPlaylistProject.observer)
-    self.vm.outputs.goToProjectPlaylist.map(second).observe(self.goToPlaylist.observer)
-    self.vm.outputs.goToProjectPlaylist.map(third).observe(self.goToPlaylistRefTag.observer)
-    self.vm.outputs.goToProjectUpdate.map { $0.1 }.observe(self.goToProjectUpdate.observer)
+    self.vm.outputs.onGoToProjectPlaylist = { [weak self] project, projects, tag in
+      self?.goToPlaylistProject.observer.send(value: project)
+      self?.goToPlaylist.observer.send(value: projects)
+      self?.goToPlaylistRefTag.observer.send(value: tag)
+    }
+    self.vm.outputs.onGoToProjectUpdate = { [weak self] _, update in self?.goToProjectUpdate.observer.send(value: update) }
     self.vm.outputs.onContentOffsetChanged = { [weak self] in self?.notifyDelegateContentOffsetChanged.observer.send(value: $0) }
     self.vm.outputs.projectsAreLoadingAnimated.observe(self.projectsAreLoadingAnimated.observer)
     self.vm.outputs.projectsLoaded.ignoreValues().observe(self.hasLoadedProjects.observer)

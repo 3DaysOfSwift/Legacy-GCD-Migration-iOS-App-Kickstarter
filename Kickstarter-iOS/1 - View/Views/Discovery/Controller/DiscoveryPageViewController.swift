@@ -192,19 +192,13 @@ internal final class DiscoveryPageViewController: UITableViewController,
         self?.view.setNeedsLayout()
       }
 
-    self.viewModel.outputs.goToActivityProject
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.goTo(project: $0, refTag: $1) }
+    self.viewModel.outputs.onGoToActivityProject = { [weak self] in self?.goTo(project: $0, refTag: $1) }
 
-    self.viewModel.outputs.goToProjectPlaylist
-      .observeForControllerAction()
-      .observeValues { [weak self] in
+    self.viewModel.outputs.onGoToProjectPlaylist = { [weak self] in
         self?.goTo(project: $0, initialPlaylist: $1, refTag: $2)
       }
 
-    self.viewModel.outputs.goToProjectUpdate
-      .observeForControllerAction()
-      .observeValues { [weak self] project, update in self?.goTo(project: project, update: update) }
+    self.viewModel.outputs.onGoToProjectUpdate = { [weak self] project, update in self?.goTo(project: project, update: update) }
 
     self.viewModel.outputs.projectsLoaded
       .observeForUI()

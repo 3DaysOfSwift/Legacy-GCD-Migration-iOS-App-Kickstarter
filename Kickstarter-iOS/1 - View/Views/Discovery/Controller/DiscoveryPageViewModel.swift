@@ -85,7 +85,7 @@ public protocol DiscoveryPageViewModelOutputs: AnyObject {
   var onDismissPersonalizationCell: (() -> Void)? { get set }
 
   /// Emits a project and ref tag that we should go to from the activity sample.
-  var goToActivityProject: Signal<(Project, RefTag), Never> { get }
+  var onGoToActivityProject: ((Project, RefTag) -> Void)? { get set }
 
   /// Emits an array of KsApi.Category objects used to generate a curated list of projects
   var onGoToCuratedProjects: (([KsApi.Category]) -> Void)? { get set }
@@ -94,10 +94,10 @@ public protocol DiscoveryPageViewModelOutputs: AnyObject {
   var onGoToLoginSignup: ((LoginIntent) -> Void)? { get set }
 
   /// Emits a project, playlist, ref tag that we should go to from discovery.
-  var goToProjectPlaylist: Signal<(Project, [Project], RefTag), Never> { get }
+  var onGoToProjectPlaylist: ((Project, [Project], RefTag) -> Void)? { get set }
 
   /// Emits a project and update when should go to update.
-  var goToProjectUpdate: Signal<(Project, Update), Never> { get }
+  var onGoToProjectUpdate: ((Project, Update) -> Void)? { get set }
 
   /// Emits when we should dismiss the empty state controller.
   var hideEmptyState: Signal<(), Never> { get }
@@ -259,32 +259,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     )
 
 
-    let activitySampleTapped = self.tappedActivity.signal.skipNil()
-      .filter { $0.category != .update }
-      .map { $0.project }
-      .skipNil()
-      .map { ($0, RefTag.activitySample) }
-
-    let projectCardTapped = paramsChanged
-      .takePairWhen(self.tappedProject.signal.skipNil())
-      .map { params, project in (project, RefTag.fromParams(params)) }
-
-    self.goToActivityProject = activitySampleTapped
-
-    self.goToProjectPlaylist = projects
-      .takePairWhen(projectCardTapped)
-      .map(unpack)
-      .map { projects, project, refTag in (project, projects, refTag) }
-
-    self.goToProjectUpdate = self.tappedActivity.signal.skipNil()
-      .filter { $0.category == .update }
-      .flatMap { activity -> SignalProducer<(Project, Update), Never> in
-        guard let project = activity.project, let update = activity.update else {
-          return .empty
-        }
-        return SignalProducer(value: (project, update))
-      }
-
     let activities = self.activitiesPipe.output
       .filter { $0.0 == selectedSort.value }
       .map { $0.1 }
@@ -297,8 +271,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
 
     let clearActivitySampleOnNavigate = Signal.merge(
       paramsChanged.mapConst(true),
-      self.goToActivityProject.mapConst(false),
-      self.goToProjectUpdate.mapConst(false),
+      self.activityNavigationPipe.output.mapConst(false),
       self.viewDidDisappearProperty.signal.filter(isFalse),
       self.viewDidAppearProperty.signal.mapConst(true)
     )
@@ -376,6 +349,9 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
           params: params
         )
       }
+    self.featureBindings += paramsChanged.observeValues { [weak self] in self?.currentNavigationParameters = $0 }
+    self.featureBindings += projects.observeValues { [weak self] in self?.currentNavigationProjects = $0 }
+
     self.discoveryObservation = discoveryFeature.observe { [weak self] update in
       guard let self else { return }
       switch update {
@@ -452,13 +428,26 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.onGoToLoginSignup?(.discoveryOnboarding)
   }
 
-  fileprivate let tappedActivity = MutableProperty<Activity?>(nil)
+  private let activityNavigationPipe = Signal<Void, Never>.pipe()
+  private var currentNavigationParameters: DiscoveryParams?
+  private var currentNavigationProjects: [Project]?
   public func tapped(activity: Activity) {
-    self.tappedActivity.value = activity
+    guard let project = activity.project else { return }
+    if activity.category == .update {
+      guard let update = activity.update else { return }
+      self.activityNavigationPipe.input.send(value: ())
+      self.onGoToProjectUpdate?(project, update)
+    } else {
+      self.activityNavigationPipe.input.send(value: ())
+      self.onGoToActivityProject?(project, .activitySample)
+    }
   }
 
   fileprivate let tappedProject = MutableProperty<Project?>(nil)
   public func tapped(project: Project) {
+    if let parameters = self.currentNavigationParameters, let projects = self.currentNavigationProjects {
+      self.onGoToProjectPlaylist?(project, projects, .fromParams(parameters))
+    }
     self.tappedProject.value = project
   }
 
@@ -505,11 +494,11 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   public let asyncReloadData: Signal<Void, Never>
   public var onContentInset: ((UIEdgeInsets) -> Void)?
   public var onDismissPersonalizationCell: (() -> Void)?
-  public let goToActivityProject: Signal<(Project, RefTag), Never>
+  public var onGoToActivityProject: ((Project, RefTag) -> Void)?
   public var onGoToCuratedProjects: (([KsApi.Category]) -> Void)?
   public var onGoToLoginSignup: ((LoginIntent) -> Void)?
-  public let goToProjectPlaylist: Signal<(Project, [Project], RefTag), Never>
-  public let goToProjectUpdate: Signal<(Project, Update), Never>
+  public var onGoToProjectPlaylist: ((Project, [Project], RefTag) -> Void)?
+  public var onGoToProjectUpdate: ((Project, Update) -> Void)?
   public let hideEmptyState: Signal<Void, Never>
   public var onContentOffsetChanged: ((CGPoint) -> Void)?
   public let projectsLoaded: Signal<([Project], DiscoveryParams?), Never>
