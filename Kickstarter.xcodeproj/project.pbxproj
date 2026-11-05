@@ -1758,7 +1758,6 @@
 				"274B63D192EEC81F4D99848B",
 				"A08A5E03F3831855CB0AC93B",
 				"B09639F672D0B3A463A5F6F5",
-				"E6CB7A89A9C3074B9705547D",
 				"152A97C64D42FC1DF635D920",
 				"5F2EBA09F812161689F8E3FF",
 				"7CAD0E5C29CB2201FF406A66",
@@ -8422,7 +8421,6 @@
 				"17A250CA133D6B06C729B0A9",
 				"014DF184DB8D3E78FAA2EAEE",
 				"2D79EB4C96352EE0174EA28A",
-				"347590036906B5253DD9554C",
 				"3AD2CAB6F6551C6AFAA672A7",
 				"D46CC924FF56254CE45D3D0E",
 				"B91C400171F566711BDA3D4F",
@@ -17003,13 +17001,6 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "CFA030900000000000000002";
 		};
-		"E6CB7A89A9C3074B9705547D" = {
-			"name" = "MutableProperty+Helpers.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/MutableProperty+Helpers.swift";
-			"isa" = "PBXFileReference";
-			"sourceTree" = "SOURCE_ROOT";
-			"lastKnownFileType" = "sourcecode.swift";
-		};
 		"9511355CB070A24E8BCE1E18" = {
 			"name" = "RewardsCollectionViewHeaderView.swift";
 			"path" = "Kickstarter-iOS/1 - View/Shared Views/HeaderFooterViews/RewardsCollectionViewHeaderView.swift";
@@ -20261,10 +20252,6 @@
 		"45BACA41E505ADA2EC2D9871" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "D59471B0ABDD7582F89FE200";
-		};
-		"347590036906B5253DD9554C" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "E6CB7A89A9C3074B9705547D";
 		};
 		"35EF939BA394E795A6B57E98" = {
 			"isa" = "PBXGroup";
