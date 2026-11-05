@@ -155,12 +155,16 @@ final class SearchLookupTests: TestCase {
     var defaults: [[Location]] = []
     var suggestions: [[Location]] = []
     let defaultsPublished = expectation(description: "defaults published independently")
-    let firstObservation = self.feature.defaultLocations.observeValues {
-      defaults.append($0)
-      if $0 == [.template] { defaultsPublished.fulfill() }
+    let observation = self.feature.observeLookups { update in
+      switch update {
+      case let .defaults(values):
+        defaults.append(values)
+        if values == [.template] { defaultsPublished.fulfill() }
+      case let .suggestions(values): suggestions.append(values)
+      case .categories: break
+      }
     }
-    let secondObservation = self.feature.suggestedLocations.observeValues { suggestions.append($0) }
-    defer { firstObservation?.dispose(); secondObservation?.dispose() }
+    defer { observation.stop() }
     let first = self.feature.requestFilterOptions()
     let duplicate = self.feature.requestFilterOptions()
     XCTAssertEqual(defaults, [[]])

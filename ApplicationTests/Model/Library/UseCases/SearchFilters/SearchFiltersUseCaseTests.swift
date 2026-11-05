@@ -27,9 +27,6 @@ final class SearchFiltersUseCaseTests: TestCase {
   private let showFilters = TestObserver<SearchFilterModalType, Never>()
 
   private let (initialSignal, initialObserver) = Signal<Void, Never>.pipe()
-  private let (categoriesSignal, categoriesObserver) = Signal<[KsApi.Category], Never>.pipe()
-  private let (defaultLocationsSignal, defaultLocationsObserver) = Signal<[KsApi.Location], Never>.pipe()
-  private let (suggestedLocationsSignal, suggestedLocationsObserver) = Signal<[KsApi.Location], Never>.pipe()
 
   override func setUp() async throws {
     try await super.setUp()
@@ -38,12 +35,7 @@ final class SearchFiltersUseCaseTests: TestCase {
     self.initialBinding = self.initialSignal.observeValues { [searchFeature] in
       searchFeature.filterSelection.publishInitialSelection()
     }
-    self.useCase = SearchFiltersUseCase(
-      searchFeature: self.searchFeature,
-      categories: self.categoriesSignal,
-      defaultLocations: self.defaultLocationsSignal,
-      suggestedLocations: self.suggestedLocationsSignal
-    )
+    self.useCase = SearchFiltersUseCase(searchFeature: self.searchFeature)
 
     self.selectionObservation = self.searchFeature.filterSelection.observe { [weak self] change in
       guard let self else { return }
@@ -142,7 +134,7 @@ final class SearchFiltersUseCaseTests: TestCase {
 
   func test_tappedCategories_showsCategoryFilters() {
     self.initialObserver.send(value: ())
-    self.categoriesObserver.send(value: [
+    self.searchFeature.publishCategories([
       .art,
       .illustration,
       .documentary,
@@ -238,8 +230,8 @@ final class SearchFiltersUseCaseTests: TestCase {
   func test_tappedLocation_showsLocation() {
     self.initialObserver.send(value: ())
 
-    self.defaultLocationsObserver.send(value: threeLocations)
-    self.suggestedLocationsObserver.send(value: threeLocations)
+    self.searchFeature.publishDefaultLocations(threeLocations)
+    self.searchFeature.publishSuggestedLocations(threeLocations)
 
     self.showFilters.assertDidNotEmitValue()
 
@@ -271,15 +263,15 @@ final class SearchFiltersUseCaseTests: TestCase {
     self.useCase.inputs.selectedFilter(.location(location))
     let filters = self.useCase.uiOutputs.searchFilters
 
-    self.categoriesObserver.send(value: [.art, .illustration])
-    self.defaultLocationsObserver.send(value: threeLocations)
-    self.suggestedLocationsObserver.send(value: [location])
+    self.searchFeature.publishCategories([.art, .illustration])
+    self.searchFeature.publishDefaultLocations(threeLocations)
+    self.searchFeature.publishSuggestedLocations([location])
     XCTAssertEqual(filters.category.categories, [.art, .illustration])
     XCTAssertEqual(filters.location.defaultLocations, threeLocations)
     XCTAssertEqual(filters.location.suggestedLocations, [location])
 
-    self.categoriesObserver.send(value: [])
-    self.suggestedLocationsObserver.send(value: [])
+    self.searchFeature.publishCategories([])
+    self.searchFeature.publishSuggestedLocations([])
     XCTAssertTrue(filters.category.categories.isEmpty)
     XCTAssertTrue(filters.location.suggestedLocations.isEmpty)
     XCTAssertEqual(filters.location.defaultLocations, threeLocations)
@@ -295,10 +287,10 @@ final class SearchFiltersUseCaseTests: TestCase {
     let observation = filters.objectWillChange.sink { notifications += 1 }
     defer { observation.cancel() }
 
-    self.categoriesObserver.send(value: [.art])
-    self.categoriesObserver.send(value: [.art])
-    self.defaultLocationsObserver.send(value: [])
-    self.suggestedLocationsObserver.send(value: [])
+    self.searchFeature.publishCategories([.art])
+    self.searchFeature.publishCategories([.art])
+    self.searchFeature.publishDefaultLocations([])
+    self.searchFeature.publishSuggestedLocations([])
 
     XCTAssertEqual(notifications, 4, "Do not silently deduplicate legacy presentation updates")
     XCTAssertEqual(filters.category.categories, [.art])
@@ -311,9 +303,9 @@ final class SearchFiltersUseCaseTests: TestCase {
     self.useCase = nil
     XCTAssertNil(weakAdapter)
 
-    self.categoriesObserver.send(value: [.art])
-    self.defaultLocationsObserver.send(value: threeLocations)
-    self.suggestedLocationsObserver.send(value: threeLocations)
+    self.searchFeature.publishCategories([.art])
+    self.searchFeature.publishDefaultLocations(threeLocations)
+    self.searchFeature.publishSuggestedLocations(threeLocations)
     self.searchFeature.selectFilter(.category(.rootCategory(.art)))
 
     XCTAssertTrue(filters.category.categories.isEmpty)
@@ -383,7 +375,7 @@ final class SearchFiltersUseCaseTests: TestCase {
       .tabletopGames
     ]
 
-    self.categoriesObserver.send(value: categories)
+    self.searchFeature.publishCategories(categories)
 
     self.showFilters.assertDidNotEmitValue()
     self.assert_selectedCategory_isDefault()
@@ -562,7 +554,7 @@ final class SearchFiltersUseCaseTests: TestCase {
 
   func test_selectingCategory_updatesCategoryPill() {
     self.initialObserver.send(value: ())
-    self.categoriesObserver.send(value: [
+    self.searchFeature.publishCategories([
       .art,
       .illustration,
       .documentary,
@@ -844,7 +836,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func setAllFilters_toNonDefault_andAssert() {
-    self.categoriesObserver.send(value: [
+    self.searchFeature.publishCategories([
       .art,
       .documentary,
       .documentarySpanish
@@ -898,7 +890,7 @@ final class SearchFiltersUseCaseTests: TestCase {
 
   func test_clearQueryText_resetsSort_andClearsFilters() {
     self.initialObserver.send(value: ())
-    self.categoriesObserver.send(value: [
+    self.searchFeature.publishCategories([
       .art
     ])
 
@@ -916,7 +908,7 @@ final class SearchFiltersUseCaseTests: TestCase {
 
   func test_resetAllFilters_resetsAllFilters() {
     self.initialObserver.send(value: ())
-    self.categoriesObserver.send(value: [
+    self.searchFeature.publishCategories([
       .art,
       .documentary,
       .documentarySpanish

@@ -35,12 +35,7 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
   SearchFiltersUseCaseUIOutputs {
   /// Adapts Feature selection and lookup outputs for the existing filter UI.
   /// Initial selection publication remains an explicit Feature command.
-  public init(
-    searchFeature: SearchFeature,
-    categories: Signal<[KsApi.Category], Never>,
-    defaultLocations: Signal<[KsApi.Location], Never>,
-    suggestedLocations: Signal<[KsApi.Location], Never>
-  ) {
+  public init(searchFeature: SearchFeature) {
     self.searchFeature = searchFeature
     let selection = searchFeature.filterSelection
 
@@ -80,23 +75,13 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
 
     self.showFilters = self.showFiltersPipe.output
 
-    self.bindings += categories
-      .observeForUI()
-      .observeValues { [weak searchFilters] categories in
-        searchFilters?.update(withCategories: categories)
+    self.lookupObservation = searchFeature.observeLookups { [weak self] update in
+      switch update {
+      case let .categories(values): self?.searchFilters.update(withCategories: values)
+      case let .defaults(values): self?.searchFilters.update(withDefaultSearchLocations: values)
+      case let .suggestions(values): self?.searchFilters.update(withSuggestedLocations: values)
       }
-
-    self.bindings += defaultLocations
-      .observeForUI()
-      .observeValues { [weak searchFilters] locations in
-        searchFilters?.update(withDefaultSearchLocations: locations)
-      }
-
-    self.bindings += suggestedLocations
-      .observeForUI()
-      .observeValues { [weak searchFilters] locations in
-        searchFilters?.update(withSuggestedLocations: locations)
-      }
+    }
     self.selectionObservation = selection.observe { [weak self, weak selection] change in
       guard let self, let selection else { return }
       self.selectionFieldsSeen.insert(change.field)
@@ -126,7 +111,7 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
   }
 
   private let searchFeature: SearchFeature
-  private let bindings = ScopedDisposable(CompositeDisposable())
+  private var lookupObservation: MainActorObservation?
   private var selectionObservation: MainActorObservation?
   private var selectionFieldsSeen = Set<Int>()
 

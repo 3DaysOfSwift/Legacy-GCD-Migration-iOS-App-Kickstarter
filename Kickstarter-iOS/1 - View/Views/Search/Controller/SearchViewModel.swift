@@ -102,12 +102,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     // Resolve the live default inside MainActor, not in a Swift 5 default argument.
     let searchFeature = searchFeature ?? AppModel.shared.searchFeature
     self.searchFeature = searchFeature
-    self.searchFiltersUseCase = SearchFiltersUseCase(
-      searchFeature: searchFeature,
-      categories: searchFeature.categories,
-      defaultLocations: searchFeature.defaultLocations,
-      suggestedLocations: searchFeature.suggestedLocations
-    )
+    self.searchFiltersUseCase = SearchFiltersUseCase(searchFeature: searchFeature)
     // Output notification only: query input and first appearance are explicit commands.
     let queryText = self.queryTextPipe.output
     let paginatedProjects = searchFeature.paginatedResults

@@ -29,12 +29,32 @@ public final class SearchFeature {
   public var pageCount: Signal<Int, Never> { self.pageCountPipe.output }
 
   internal let filterSelection: SearchFilterSelection
-  private let categoriesPipe = Signal<[KsApi.Category], Never>.pipe()
-  private let defaultLocationsPipe = Signal<[Location], Never>.pipe()
-  private let suggestedLocationsPipe = Signal<[Location], Never>.pipe()
-  public var categories: Signal<[KsApi.Category], Never> { self.categoriesPipe.output }
-  public var defaultLocations: Signal<[Location], Never> { self.defaultLocationsPipe.output }
-  public var suggestedLocations: Signal<[Location], Never> { self.suggestedLocationsPipe.output }
+  internal enum LookupUpdate {
+    case categories([KsApi.Category])
+    case defaults([Location])
+    case suggestions([Location])
+  }
+  private var lookupObservers: [(id: UUID, callback: (LookupUpdate) -> Void)] = []
+  internal func observeLookups(_ observer: @escaping (LookupUpdate) -> Void) -> MainActorObservation {
+    let id = UUID()
+    self.lookupObservers.append((id, observer))
+    return MainActorObservation { [weak self] in self?.lookupObservers.removeAll { $0.id == id } }
+  }
+  private func emitLookup(_ update: LookupUpdate) {
+    for observer in self.lookupObservers { observer.callback(update) }
+  }
+  internal func publishCategories(_ categories: [KsApi.Category]) {
+    self.categoryOptions = categories
+    self.emitLookup(.categories(categories))
+  }
+  internal func publishDefaultLocations(_ locations: [Location]) {
+    self.defaultLocationOptions = locations
+    self.emitLookup(.defaults(locations))
+  }
+  internal func publishSuggestedLocations(_ locations: [Location]) {
+    self.suggestedLocationOptions = locations
+    self.emitLookup(.suggestions(locations))
+  }
 
   public private(set) var categoryOptions: [KsApi.Category] = []
   public private(set) var defaultLocationOptions: [Location] = []
@@ -165,8 +185,7 @@ public final class SearchFeature {
     self.locationQuery = query
     self.suggestedLocationsError = nil
     guard !query.isEmpty else {
-      self.suggestedLocationOptions = []
-      self.suggestedLocationsPipe.input.send(value: [])
+      self.publishSuggestedLocations([])
       return nil
     }
     let id = UUID()
@@ -183,8 +202,7 @@ public final class SearchFeature {
         let locations = try await lookupProvider.fetchLocations(query: query)
         try Task.checkCancellation()
         guard let self, self.suggestionsRequest?.id == id else { return }
-        self.suggestedLocationOptions = locations
-        self.suggestedLocationsPipe.input.send(value: locations)
+        self.publishSuggestedLocations(locations)
       } catch {
         guard !Task.isCancelled, !(error is CancellationError),
           let self, self.suggestionsRequest?.id == id else { return }
@@ -220,8 +238,7 @@ public final class SearchFeature {
     if let request = self.categoryRequest { return request.task }
     self.categoryError = nil
     if let cached = self.lookupProvider.cachedCategories {
-      self.categoryOptions = cached
-      self.categoriesPipe.input.send(value: cached)
+      self.publishCategories(cached)
       if !cached.isEmpty { return Task {} }
     }
     let id = UUID()
@@ -246,8 +263,7 @@ public final class SearchFeature {
         switch response {
         case let .success(categories):
           lookupProvider.cache(categories: categories)
-          self.categoryOptions = categories
-          self.categoriesPipe.input.send(value: categories)
+          self.publishCategories(categories)
         case let .failure(error):
           if !(error is CancellationError) {
             self.categoryError = (error as? ErrorEnvelope) ?? .couldNotParseJSON
@@ -267,8 +283,7 @@ public final class SearchFeature {
     if let request = self.defaultLocationsRequest { return request.task }
     let id = UUID()
     self.defaultLocationsError = nil
-    self.defaultLocationOptions = []
-    self.defaultLocationsPipe.input.send(value: [])
+    self.publishDefaultLocations([])
     self.requestLocations("")
     self.isLoadingDefaultLocations = true
     let task = Task { @MainActor [weak self, lookupProvider] in
@@ -283,8 +298,7 @@ public final class SearchFeature {
         let locations = try await lookupProvider.fetchDefaultLocations()
         try Task.checkCancellation()
         guard let self, self.defaultLocationsRequest?.id == id else { return }
-        self.defaultLocationOptions = locations
-        self.defaultLocationsPipe.input.send(value: locations)
+        self.publishDefaultLocations(locations)
       } catch {
         guard !Task.isCancelled, !(error is CancellationError),
           let self, self.defaultLocationsRequest?.id == id else { return }
