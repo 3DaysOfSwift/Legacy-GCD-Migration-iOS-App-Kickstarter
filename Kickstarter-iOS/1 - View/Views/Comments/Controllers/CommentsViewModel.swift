@@ -56,13 +56,10 @@ public protocol CommentsViewModelOutputs: AnyObject {
   var onFooterState: ((CommentTableViewFooterViewState) -> Void)? { get set }
 
   /// Emits the selected `Comment`, `Project`, `Update?` and a `Bool` to determine if keyboard should show when user to navigate to replies.
-  var goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder: Signal<
-    (Comment, Project, Update?, Bool),
-    Never
-  > { get }
+  var onShowReplies: ((Comment, Project, Update?, Bool) -> Void)? { get set }
 
   /// Emits a list of `Comments`, the `Project` to load into the data source and whether an error state should be displayed.
-  var loadCommentsAndProjectIntoDataSource: Signal<([Comment], Project, Bool), Never> { get }
+  var onLoadComments: (([Comment], Project, Bool) -> Void)? { get set }
 
   /// Emits a HelpType to use when presenting a HelpWebViewController.
   var onShowHelp: ((HelpType) -> Void)? { get set }
@@ -225,7 +222,7 @@ public final class CommentsViewModel: CommentsViewModelType,
       .map(first)
       .withLatestFrom(initialProject).map { ([], $1, true) }
 
-    self.loadCommentsAndProjectIntoDataSource = Signal.merge(
+    let commentsToDisplay = Signal.merge(
       emptyCommentsWithInitialProject,
       paginatedCommentsAndProject,
       errorsAndHasRequestedNextPage
@@ -255,8 +252,7 @@ public final class CommentsViewModel: CommentsViewModelType,
       update
     )
 
-    self.goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder =
-      Signal.merge(
+    let showReplies = Signal.merge(
         commentsWithRepliesAndProject.map { ($0, $1, $2, false) },
         replyCommentWithProject.map { ($0, $1, $2, true) }
       )
@@ -277,7 +273,7 @@ public final class CommentsViewModel: CommentsViewModelType,
 
     let initialLoadOrReload = Signal.merge(
       projectOrUpdate.ignoreValues(),
-      self.loadCommentsAndProjectIntoDataSource.ignoreValues()
+      commentsToDisplay.ignoreValues()
     )
 
     // Footer view would be hidden if there is an error at
@@ -322,6 +318,12 @@ public final class CommentsViewModel: CommentsViewModelType,
     }
 
 
+    self.disposables += commentsToDisplay.observeValues { [weak self] comments, project, error in
+      self?.onLoadComments?(comments, project, error)
+    }
+    self.disposables += showReplies.observeValues { [weak self] comment, project, update, firstResponder in
+      self?.onShowReplies?(comment, project, update, firstResponder)
+    }
     self.disposables += footerState.observeValues { [weak self] state in
       self?.onFooterState?(state)
     }
@@ -483,11 +485,8 @@ public final class CommentsViewModel: CommentsViewModelType,
   public var onSeparatorHidden: ((Bool) -> Void)?
   public var onConfigureComposer: ((CommentComposerViewData) -> Void)?
   public var onFooterState: ((CommentTableViewFooterViewState) -> Void)?
-  public let goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder: Signal<
-    (Comment, Project, Update?, Bool),
-    Never
-  >
-  public let loadCommentsAndProjectIntoDataSource: Signal<([Comment], Project, Bool), Never>
+  public var onShowReplies: ((Comment, Project, Update?, Bool) -> Void)?
+  public var onLoadComments: (([Comment], Project, Bool) -> Void)?
   public var onShowHelp: ((HelpType) -> Void)?
   public var onResetComposerAndScrollToTop: (() -> Void)?
   public var onDidBlockUser: (() -> Void)?

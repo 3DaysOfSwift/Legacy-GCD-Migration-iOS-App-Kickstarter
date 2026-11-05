@@ -45,20 +45,17 @@ internal final class CommentsViewModelTests: TestCase {
       self.vm.outputs.onDidBlockUser = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
       self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }
       self.vm.outputs.onFooterState = { [weak self] in self?.configureFooterViewWithState.observer.send(value: $0) }
-      self.vm.outputs.goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder.map { $0.0 }
-        .observe(self.goToCommentRepliesComment.observer)
-      self.vm.outputs.goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder.map { $0.1 }
-        .observe(self.goToCommentRepliesProject.observer)
-      self.vm.outputs.goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder.map { $0.2 }
-        .observe(self.goToCommentRepliesUpdate.observer)
-      self.vm.outputs.goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder.map { $0.3 }
-        .observe(self.goToCommentRepliesShowKeyboard.observer)
-      self.vm.outputs.loadCommentsAndProjectIntoDataSource.map(first)
-        .observe(self.loadCommentsAndProjectIntoDataSourceComments.observer)
-      self.vm.outputs.loadCommentsAndProjectIntoDataSource.map(second)
-        .observe(self.loadCommentsAndProjectIntoDataSourceProject.observer)
-      self.vm.outputs.loadCommentsAndProjectIntoDataSource.map(third)
-        .observe(self.loadCommentsAndProjectIntoDataSourceShouldShowErrorState.observer)
+      self.vm.outputs.onShowReplies = { [weak self] comment, project, update, firstResponder in
+        self?.goToCommentRepliesComment.observer.send(value: comment)
+        self?.goToCommentRepliesProject.observer.send(value: project)
+        self?.goToCommentRepliesUpdate.observer.send(value: update)
+        self?.goToCommentRepliesShowKeyboard.observer.send(value: firstResponder)
+      }
+      self.vm.outputs.onLoadComments = { [weak self] comments, project, error in
+        self?.loadCommentsAndProjectIntoDataSourceComments.observer.send(value: comments)
+        self?.loadCommentsAndProjectIntoDataSourceProject.observer.send(value: project)
+        self?.loadCommentsAndProjectIntoDataSourceShouldShowErrorState.observer.send(value: error)
+      }
       self.vm.outputs.onShowHelp = { [weak self] in self?.showHelpWebViewController.observer.send(value: $0) }
     }
   }

@@ -132,30 +132,22 @@ internal final class CommentsViewController: UITableViewController, MessageBanne
       self?.commentComposer.configure(with: data)
     }
 
-    self.viewModel.outputs.loadCommentsAndProjectIntoDataSource
-      .observeForUI()
-      .observeValues { [weak self] comments, project, shouldShow in
-        self?.dataSource.load(
-          comments: comments,
-          project: project,
-          shouldShowErrorState: shouldShow
-        )
-        self?.tableView.reloadData()
-      }
+    self.viewModel.outputs.onLoadComments = { [weak self] comments, project, shouldShow in
+      self?.dataSource.load(comments: comments, project: project, shouldShowErrorState: shouldShow)
+      self?.tableView.reloadData()
+    }
 
-    self.viewModel.outputs.goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder
-      .observeForControllerAction()
-      .observeValues { [weak self] comment, project, update, becomeFirstResponder in
-        let vc = CommentRepliesViewController.configuredWith(
-          comment: comment,
-          project: project,
-          update: update,
-          inputAreaBecomeFirstResponder: becomeFirstResponder,
-          replyId: nil
-        )
-        vc.delegate = self
-        self?.navigationController?.pushViewController(vc, animated: true)
-      }
+    self.viewModel.outputs.onShowReplies = { [weak self] comment, project, update, becomeFirstResponder in
+      let vc = CommentRepliesViewController.configuredWith(
+        comment: comment,
+        project: project,
+        update: update,
+        inputAreaBecomeFirstResponder: becomeFirstResponder,
+        replyId: nil
+      )
+      vc.delegate = self
+      self?.navigationController?.pushViewController(vc, animated: true)
+    }
 
     self.viewModel.outputs.onRefreshing = { [weak self] in
       $0 ? self?.refreshControl?.beginRefreshing() : self?.refreshControl?.endRefreshing()
