@@ -72,7 +72,7 @@ public protocol DiscoveryPageViewModelInputs {
 @MainActor
 public protocol DiscoveryPageViewModelOutputs: AnyObject {
   /// Emits a list of activities to be displayed in the sample.
-  var activitiesForSample: Signal<[Activity], Never> { get }
+  var onActivitiesForSample: (([Activity]) -> Void)? { get set }
 
   /// Hack to emit when we should asynchronously reload the table view's data to properly display postcards.
   /// Hopefully in the future we can remove this when we can resolve postcard display issues.
@@ -139,7 +139,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   private let discoveryFeature: DiscoveryFeature
   private let projectsPipe = Signal<(DiscoveryParams.Sort, [Project]), Never>.pipe()
   private let loadingPipe = Signal<(DiscoveryParams.Sort, Bool), Never>.pipe()
-  private let activitiesPipe = Signal<(DiscoveryParams.Sort, [Activity]), Never>.pipe()
   private var discoveryObservation: MainActorObservation?
   private let featureBindings = ScopedDisposable(CompositeDisposable())
   internal private(set) var pageTask: Task<Void, Never>?
@@ -259,32 +258,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     )
 
 
-    let activities = self.activitiesPipe.output
-      .filter { $0.0 == selectedSort.value }
-      .map { $0.1 }
-      .skipRepeats(==)
-      .map { $0.filter { activity in hasNotSeen(activity: activity) } }
-      .on(value: { activities in saveSeen(activities: activities) })
-
-    let clearActivitySampleOnLogout = self.viewWillAppearProperty.signal
-      .filter { _ in AppEnvironment.current.currentUser == nil }
-
-    let clearActivitySampleOnNavigate = Signal.merge(
-      paramsChanged.mapConst(true),
-      self.activityNavigationPipe.output.mapConst(false),
-      self.viewDidDisappearProperty.signal.filter(isFalse),
-      self.viewDidAppearProperty.signal.mapConst(true)
-    )
-    .takeWhen(self.viewDidDisappearProperty.signal)
-    .filter(isTrue)
-
-    self.activitiesForSample = Signal.merge(
-      activities,
-      clearActivitySampleOnLogout.mapConst([]),
-      clearActivitySampleOnNavigate.mapConst([])
-    )
-    .skipRepeats(==)
-
     self.showOnboarding = Signal.combineLatest(currentUser, paramsChanged)
       .map { user, params in user == nil && params.sort == .magic }
       .skipRepeats()
@@ -349,7 +322,10 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
           params: params
         )
       }
-    self.featureBindings += paramsChanged.observeValues { [weak self] in self?.currentNavigationParameters = $0 }
+    self.featureBindings += paramsChanged.observeValues { [weak self] parameters in
+      self?.currentNavigationParameters = parameters
+      self?.clearActivityOnDisappear = true
+    }
     self.featureBindings += projects.observeValues { [weak self] in self?.currentNavigationProjects = $0 }
 
     self.discoveryObservation = discoveryFeature.observe { [weak self] update in
@@ -357,7 +333,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
       switch update {
       case let .projects(sort, projects): self.projectsPipe.input.send(value: (sort, projects))
       case let .loading(sort, loading): self.loadingPipe.input.send(value: (sort, loading))
-      case let .activities(sort, activities): self.activitiesPipe.input.send(value: (sort, activities))
+      case let .activities(sort, activities): self.receiveActivities(activities, sort: sort)
       }
     }
     self.connectivityObservation = AppEnvironment.current.reachability.observe { [weak self] value in
@@ -428,17 +404,33 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.onGoToLoginSignup?(.discoveryOnboarding)
   }
 
-  private let activityNavigationPipe = Signal<Void, Never>.pipe()
+  private var clearActivityOnDisappear: Bool?
+  private var lastRawActivities: [Activity]?
+  private var lastVisibleActivities: [Activity]?
+
+  private func publishActivities(_ activities: [Activity]) {
+    guard self.lastVisibleActivities != activities else { return }
+    self.lastVisibleActivities = activities
+    self.onActivitiesForSample?(activities)
+  }
+
+  private func receiveActivities(_ activities: [Activity], sort: DiscoveryParams.Sort) {
+    guard self.sortProperty.value == sort, self.lastRawActivities != activities else { return }
+    self.lastRawActivities = activities
+    let unseen = activities.filter { hasNotSeen(activity: $0) }
+    saveSeen(activities: unseen)
+    self.publishActivities(unseen)
+  }
   private var currentNavigationParameters: DiscoveryParams?
   private var currentNavigationProjects: [Project]?
   public func tapped(activity: Activity) {
     guard let project = activity.project else { return }
     if activity.category == .update {
       guard let update = activity.update else { return }
-      self.activityNavigationPipe.input.send(value: ())
+      self.clearActivityOnDisappear = false
       self.onGoToProjectUpdate?(project, update)
     } else {
-      self.activityNavigationPipe.input.send(value: ())
+      self.clearActivityOnDisappear = false
       self.onGoToActivityProject?(project, .activitySample)
     }
   }
@@ -463,12 +455,15 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
 
   fileprivate let viewDidAppearProperty = MutableProperty(())
   public func viewDidAppear() {
+    self.clearActivityOnDisappear = true
     self.viewDidAppearProperty.value = ()
     self.onScrollsToTopChanged?(true)
   }
 
   fileprivate let viewDidDisappearProperty = MutableProperty(false)
   public func viewDidDisappear(animated: Bool) {
+    if animated, self.clearActivityOnDisappear == true { self.publishActivities([]) }
+    if !animated { self.clearActivityOnDisappear = true }
     self.viewDidDisappearProperty.value = animated
     self.onScrollsToTopChanged?(false)
   }
@@ -476,6 +471,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   fileprivate let viewWillAppearProperty = MutableProperty(())
   public func viewWillAppear() {
     self.viewWillAppearProperty.value = ()
+    if AppEnvironment.current.currentUser == nil { self.publishActivities([]) }
     self.onContentInset?(.zero)
     self.updateVideoFeedBanner()
   }
@@ -490,7 +486,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   private var lastVideoFeedBanner: Bool?
   private var connectivityObservation: MainActorObservation?
 
-  public let activitiesForSample: Signal<[Activity], Never>
+  public var onActivitiesForSample: (([Activity]) -> Void)?
   public let asyncReloadData: Signal<Void, Never>
   public var onContentInset: ((UIEdgeInsets) -> Void)?
   public var onDismissPersonalizationCell: (() -> Void)?

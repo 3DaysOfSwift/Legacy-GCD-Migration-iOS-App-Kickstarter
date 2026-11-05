@@ -178,9 +178,7 @@ internal final class DiscoveryPageViewController: UITableViewController,
         self?.view.setNeedsLayout()
       }
 
-    self.viewModel.outputs.activitiesForSample
-      .observeForUI()
-      .observeValues { [weak self] activities in
+    self.viewModel.outputs.onActivitiesForSample = { [weak self] activities in
         self?.dataSource.load(activities: activities)
         self?.tableView.reloadData()
       }

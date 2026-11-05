@@ -69,7 +69,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     try await super.setUp()
 
     MainActor.assumeIsolated {
-    self.vm.outputs.activitiesForSample.observe(self.activitiesForSample.observer)
+    self.vm.outputs.onActivitiesForSample = { [weak self] in self?.activitiesForSample.observer.send(value: $0) }
     self.vm.outputs.asyncReloadData.observe(self.asyncReloadData.observer)
     self.vm.outputs.onContentInset = { [weak self] in self?.contentInset.observer.send(value: $0) }
     self.vm.outputs.onDismissPersonalizationCell = { [weak self] in self?.dismissPersonalizationCell.observer.send(value: ()) }
