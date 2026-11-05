@@ -68,14 +68,14 @@ internal final class SearchViewModelTests: TestCase {
     try await super.setUp()
 
     MainActor.assumeIsolated {
-      self.vm.outputs.goToProject.map { _, refTag in refTag }.observe(self.goToRefTag.observer)
+      self.vm.outputs.onGoToProject = { [weak self] _, refTag in self?.goToRefTag.observer.send(value: refTag) }
       self.vm.outputs.searchResults.map { $0.isProjectsTitleVisible }
         .observe(self.isPopularTitleVisible.observer)
       self.vm.outputs.searchResults.map { !$0.projects.isEmpty }.skipRepeats(==)
         .observe(self.hasProjects.observer)
       self.vm.outputs.searchResults.map { $0.projects.isEmpty }.skipRepeats(==)
         .observe(self.noProjects.observer)
-      self.vm.outputs.searchLoaderIndicatorIsAnimating.observe(self.searchLoaderIndicatorIsAnimating.observer)
+      self.vm.outputs.onLoadingChanged = { [weak self] in self?.searchLoaderIndicatorIsAnimating.observer.send(value: $0) }
       self.vm.outputs.showEmptyState.map(second).observe(self.showEmptyState.observer)
       self.vm.outputs.showEmptyState.map(first).observe(self.showEmptyStateParams.observer)
       self.vm.outputs.onVideoFeedBannerChanged = { [weak self] in self?.showVideoFeedBanner.observer.send(value: $0) }

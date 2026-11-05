@@ -59,13 +59,13 @@ public protocol SearchViewModelInputs {
 @MainActor
 public protocol SearchViewModelOutputs: AnyObject {
   /// Emits a project ID  and ref tag when the project page should be opened.
-  var goToProject: Signal<(ProjectPageParam, RefTag), Never> { get }
+  var onGoToProject: ((ProjectPageParam, RefTag) -> Void)? { get set }
 
   /// Used to power the datasource. Emits projects, whether or not to show the "Popular" title, and the results count. May emit an array of empty projects if the page was cleared and new results are loading.
   var searchResults: Signal<SearchResults, Never> { get }
 
   /// Emits when loading indicator should be hidden.
-  var searchLoaderIndicatorIsAnimating: Signal<Bool, Never> { get }
+  var onLoadingChanged: ((Bool) -> Void)? { get set }
 
   /// Emits true when no search results should be shown, and false otherwise.
   var showEmptyState: Signal<(DiscoveryParams, Bool), Never> { get }
@@ -115,7 +115,6 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     let stats = self.countPipe.output
     let searchResults = self.resultsPipe.output.skipRepeats(==)
 
-    self.searchLoaderIndicatorIsAnimating = isLoading
 
     // Show the 'Discover projects' title if we're showing 'Discover' results (i.e. no query)
     let isProjectsTitleVisible = Signal.combineLatest(queryText, searchResults)
@@ -141,7 +140,6 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
 
 
 
-    self.goToProject = self.projectNavigationPipe.output
 
     // Register analytics before presentation: a zero count or buffered page
     // settlement can track before the corresponding cards are published.
@@ -196,6 +194,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       case let .loading(value):
         self.completionAnalytics.recordLoading(value)
         self.loadingPipe.input.send(value: value)
+        self.onLoadingChanged?(value)
       case let .pageCount(value): self.completionAnalytics.recordPage(value)
       }
     }
@@ -222,7 +221,6 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   private let queryTextPipe = Signal<String, Never>.pipe()
   private let queryParametersPipe = Signal<DiscoveryParams, Never>.pipe()
   private let initialResultsPipe = Signal<SearchResults, Never>.pipe()
-  private let projectNavigationPipe = Signal<(ProjectPageParam, RefTag), Never>.pipe()
 
   public func searchTextChanged(_ searchText: String) {
     self.publishQueryText(searchText)
@@ -258,9 +256,9 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     let graphQLID = project.id
     if decompose(id: graphQLID) != nil,
        let card = ProjectCardProperties(project.card) {
-      self.projectNavigationPipe.input.send(value: (
+      self.onGoToProject?(
         card.projectPageParam, refTag(query: query, projects: projects, project: project)
-      ))
+      )
     }
 
     // A malformed navigation ID did not suppress legacy click analytics.
@@ -335,9 +333,9 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   private var lastVideoFeedBanner: Bool?
   private var connectivityObservation: MainActorObservation?
 
-  public let goToProject: Signal<(ProjectPageParam, RefTag), Never>
+  public var onGoToProject: ((ProjectPageParam, RefTag) -> Void)?
   public let projects: Signal<[SearchResultCard], Never>
-  public let searchLoaderIndicatorIsAnimating: Signal<Bool, Never>
+  public var onLoadingChanged: ((Bool) -> Void)?
   public let showEmptyState: Signal<(DiscoveryParams, Bool), Never>
   public var onVideoFeedBannerChanged: ((Bool) -> Void)?
 

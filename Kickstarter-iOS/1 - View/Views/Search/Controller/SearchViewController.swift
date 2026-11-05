@@ -88,10 +88,10 @@ internal final class SearchViewController: UITableViewController,
         self?.tableView.reloadData()
       }
 
-    self.viewModel.outputs.searchLoaderIndicatorIsAnimating
-      .observeForUI()
-      .observeValues { [weak self] isAnimating in
+    self.viewModel.outputs.onLoadingChanged = { [weak self] isAnimating in
         guard let _self = self else { return }
+        if isAnimating { _self.searchLoaderIndicator.startAnimating() }
+        else { _self.searchLoaderIndicator.stopAnimating() }
         _self.tableView.tableFooterView = isAnimating ? _self.searchLoaderIndicator : nil
         if let footerView = _self.tableView.tableFooterView {
           footerView.frame = CGRect(
@@ -114,13 +114,10 @@ internal final class SearchViewController: UITableViewController,
         self?.tableView.reloadData()
       }
 
-    self.viewModel.outputs.goToProject
-      .observeForControllerAction()
-      .observeValues { [weak self] param, refTag in
+    self.viewModel.outputs.onGoToProject = { [weak self] param, refTag in
         self?.goTo(project: param, refTag: refTag)
       }
 
-    self.searchLoaderIndicator.rac.animating = self.viewModel.outputs.searchLoaderIndicatorIsAnimating
 
     self.viewModel.outputs.onShowFilters = { [weak self] type in
         if type == .sort {
