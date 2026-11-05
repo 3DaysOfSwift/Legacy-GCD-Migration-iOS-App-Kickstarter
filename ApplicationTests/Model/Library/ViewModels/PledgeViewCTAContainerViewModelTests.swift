@@ -4,35 +4,38 @@ import Foundation
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
+@MainActor
 internal final class PledgeViewCTAContainerViewModelTests: TestCase {
-  let vm: PledgeViewCTAContainerViewModelType = PledgeViewCTAContainerViewModel()
-  private let applePayButtonIsHidden = TestObserver<Bool, Never>()
-  private let continueButtonIsHidden = TestObserver<Bool, Never>()
-  private let notifyDelegateApplePayButtonTapped = TestObserver<Void, Never>()
-  private let notifyDelegateOpenHelpType = TestObserver<HelpType, Never>()
-  private let notifyDelegateSubmitButtonTapped = TestObserver<Void, Never>()
-  private let notifyDelegateToGoToLoginSignup = TestObserver<Void, Never>()
-  private let submitButtonIsEnabled = TestObserver<Bool, Never>()
-  private let submitButtonIsHidden = TestObserver<Bool, Never>()
-  private let submitButtonTitle = TestObserver<String, Never>()
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  let vm = PledgeViewCTAContainerViewModel()
+  private let applePayButtonIsHidden = Recorder<Bool>()
+  private let continueButtonIsHidden = Recorder<Bool>()
+  private let notifyDelegateApplePayButtonTapped = Recorder<Void>()
+  private let notifyDelegateOpenHelpType = Recorder<HelpType>()
+  private let notifyDelegateSubmitButtonTapped = Recorder<Void>()
+  private let notifyDelegateToGoToLoginSignup = Recorder<Void>()
+  private let submitButtonIsEnabled = Recorder<Bool>()
+  private let submitButtonIsHidden = Recorder<Bool>()
+  private let submitButtonTitle = Recorder<String>()
 
   internal override func setUp() async throws {
     try await super.setUp()
 
-    self.vm.outputs.applePayButtonIsHidden.observe(self.applePayButtonIsHidden.observer)
-    self.vm.outputs.continueButtonIsHidden.observe(self.continueButtonIsHidden.observer)
-    self.vm.outputs.notifyDelegateApplePayButtonTapped
-      .observe(self.notifyDelegateApplePayButtonTapped.observer)
-    self.vm.outputs.notifyDelegateOpenHelpType.observe(self.notifyDelegateOpenHelpType.observer)
-    self.vm.outputs.notifyDelegateSubmitButtonTapped.observe(self.notifyDelegateSubmitButtonTapped.observer)
-    self.vm.outputs.notifyDelegateToGoToLoginSignup.observe(self.notifyDelegateToGoToLoginSignup.observer)
-    self.vm.outputs.submitButtonIsEnabled.observe(self.submitButtonIsEnabled.observer)
-    self.vm.outputs.submitButtonIsHidden.observe(self.submitButtonIsHidden.observer)
-    self.vm.outputs.submitButtonTitle.observe(self.submitButtonTitle.observer)
+    self.vm.onApplePay = { [weak self] in self?.notifyDelegateApplePayButtonTapped.record(()) }
+    self.vm.onContinue = { [weak self] in self?.notifyDelegateToGoToLoginSignup.record(()) }
+    self.vm.onSubmit = { [weak self] in self?.notifyDelegateSubmitButtonTapped.record(()) }
+    self.vm.onHelp = { [weak self] in self?.notifyDelegateOpenHelpType.record($0) }
+  }
+
+  private func configureWith(value: PledgeViewCTAContainerViewData) {
+    let display = self.vm.configureWith(value: value)
+    self.applePayButtonIsHidden.record(display.applePayButtonIsHidden)
+    self.continueButtonIsHidden.record(display.continueButtonIsHidden)
+    self.submitButtonIsHidden.record(display.submitButtonIsHidden)
+    self.submitButtonIsEnabled.record(display.submitButtonIsEnabled)
+    self.submitButtonTitle.record(display.submitButtonTitle)
   }
 
   func testPledgeView_UserLoggedOut() {
@@ -52,7 +55,7 @@ internal final class PledgeViewCTAContainerViewModelTests: TestCase {
     self.continueButtonIsHidden.assertDidNotEmitValue()
     self.submitButtonIsEnabled.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(value: pledgeData)
+    self.configureWith(value: pledgeData)
 
     self.submitButtonIsHidden.assertValues([true])
     self.applePayButtonIsHidden.assertValues([true])
@@ -77,7 +80,7 @@ internal final class PledgeViewCTAContainerViewModelTests: TestCase {
     self.continueButtonIsHidden.assertDidNotEmitValue()
     self.submitButtonIsEnabled.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(value: pledgeData)
+    self.configureWith(value: pledgeData)
 
     self.submitButtonIsHidden.assertValues([false])
     self.applePayButtonIsHidden.assertValues([false])
@@ -103,7 +106,7 @@ internal final class PledgeViewCTAContainerViewModelTests: TestCase {
     self.continueButtonIsHidden.assertDidNotEmitValue()
     self.submitButtonIsEnabled.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(value: pledgeData)
+    self.configureWith(value: pledgeData)
 
     self.submitButtonIsHidden.assertValues([false])
     self.applePayButtonIsHidden.assertValues([true])
@@ -129,7 +132,7 @@ internal final class PledgeViewCTAContainerViewModelTests: TestCase {
     self.continueButtonIsHidden.assertDidNotEmitValue()
     self.submitButtonIsEnabled.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(value: pledgeData)
+    self.configureWith(value: pledgeData)
 
     self.submitButtonIsHidden.assertValues([false])
     self.applePayButtonIsHidden.assertValues([false])
@@ -155,7 +158,7 @@ internal final class PledgeViewCTAContainerViewModelTests: TestCase {
     self.continueButtonIsHidden.assertDidNotEmitValue()
     self.submitButtonIsEnabled.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(value: pledgeData)
+    self.configureWith(value: pledgeData)
 
     self.submitButtonIsHidden.assertValues([false])
     self.applePayButtonIsHidden.assertValues([false])
@@ -174,11 +177,11 @@ internal final class PledgeViewCTAContainerViewModelTests: TestCase {
       willRetryPaymentMethod: false
     )
 
-    self.vm.inputs.configureWith(value: pledgeData)
+    self.configureWith(value: pledgeData)
 
     self.notifyDelegateToGoToLoginSignup.assertDidNotEmitValue()
 
-    self.vm.inputs.continueButtonTapped()
+    self.vm.continueButtonTapped()
 
     self.notifyDelegateToGoToLoginSignup.assertValueCount(1)
   }
@@ -186,7 +189,7 @@ internal final class PledgeViewCTAContainerViewModelTests: TestCase {
   func testApplePayButtonTapped() {
     self.notifyDelegateApplePayButtonTapped.assertDidNotEmitValue()
 
-    self.vm.inputs.applePayButtonTapped()
+    self.vm.applePayButtonTapped()
 
     self.notifyDelegateApplePayButtonTapped.assertValueCount(1)
   }
@@ -197,7 +200,7 @@ internal final class PledgeViewCTAContainerViewModelTests: TestCase {
 
     let allHelpTypeUrls = allCases.map { $0.url(withBaseUrl: baseUrl) }.compact()
 
-    allHelpTypeUrls.forEach { self.vm.inputs.tapped($0) }
+    allHelpTypeUrls.forEach { self.vm.tapped($0) }
 
     self.notifyDelegateOpenHelpType.assertValues(allCases)
   }
@@ -205,8 +208,22 @@ internal final class PledgeViewCTAContainerViewModelTests: TestCase {
   func testSubmitButtonTapped() {
     self.notifyDelegateSubmitButtonTapped.assertDidNotEmitValue()
 
-    self.vm.inputs.submitButtonTapped()
+    self.vm.submitButtonTapped()
 
     self.notifyDelegateSubmitButtonTapped.assertValueCount(1)
+  }
+}
+
+private final class Recorder<Value> {
+  private var values: [Value] = []
+  func record(_ value: Value) { self.values.append(value) }
+  func assertDidNotEmitValue(file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, file: file, line: line)
+  }
+  func assertValueCount(_ count: Int, file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, file: file, line: line)
+  }
+  func assertValues(_ expected: [Value], file: StaticString = #filePath, line: UInt = #line) where Value: Equatable {
+    XCTAssertEqual(self.values, expected, file: file, line: line)
   }
 }

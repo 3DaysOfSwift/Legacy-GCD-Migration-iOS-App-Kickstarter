@@ -45,8 +45,6 @@ final class DemoCTAContainerView: UIView {
       |> \.translatesAutoresizingMaskIntoConstraints .~ false
   }()
 
-  private let viewModel: PledgeViewCTAContainerViewModelType = PledgeViewCTAContainerViewModel()
-
   // MARK: - Lifecycle
 
   override init(frame: CGRect) {
@@ -54,7 +52,6 @@ final class DemoCTAContainerView: UIView {
 
     self.configureSubviews()
     self.setupConstraints()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -92,14 +89,6 @@ final class DemoCTAContainerView: UIView {
 
     _ = self.rootStackView
       |> rootStackViewStyle
-  }
-
-  // MARK: - View Model
-
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.submitButton.rac.title = self.viewModel.outputs.submitButtonTitle
   }
 
   // MARK: Functions

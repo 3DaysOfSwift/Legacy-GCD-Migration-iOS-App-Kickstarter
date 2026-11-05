@@ -65,7 +65,7 @@ final class PledgeViewCTAContainerView: UIView {
 
   weak var delegate: PledgeViewCTAContainerViewDelegate?
 
-  private let viewModel: PledgeViewCTAContainerViewModelType = PledgeViewCTAContainerViewModel()
+  private let viewModel = PledgeViewCTAContainerViewModel()
 
   // MARK: - Lifecycle
 
@@ -131,41 +131,10 @@ final class PledgeViewCTAContainerView: UIView {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.notifyDelegateToGoToLoginSignup
-      .observeForUI()
-      .observeValues { [weak self] in
-        guard let self = self else { return }
-        self.delegate?.goToLoginSignup()
-      }
-
-    self.viewModel.outputs.notifyDelegateSubmitButtonTapped
-      .observeForUI()
-      .observeValues { [weak self] in
-        guard let self = self else { return }
-        self.delegate?.submitButtonTapped()
-      }
-
-    self.viewModel.outputs.notifyDelegateApplePayButtonTapped
-      .observeForUI()
-      .observeValues { [weak self] in
-        guard let self = self else { return }
-        self.delegate?.applePayButtonTapped()
-      }
-
-    self.viewModel.outputs.notifyDelegateOpenHelpType
-      .observeForUI()
-      .observeValues { [weak self] helpType in
-        guard let self = self else { return }
-        self.delegate?.termsOfUseTapped(with: helpType)
-      }
-
-    self.applePayButton.rac.hidden = self.viewModel.outputs.applePayButtonIsHidden
-    self.continueButton.rac.hidden = self.viewModel.outputs.continueButtonIsHidden
-    self.submitButton.rac.hidden = self.viewModel.outputs.submitButtonIsHidden
-    self.submitButton.rac.title = self.viewModel.outputs.submitButtonTitle
-    self.submitButton.rac.enabled = self.viewModel.outputs.submitButtonIsEnabled
-
-    self.pledgeImmediatelyLabel.rac.hidden = self.viewModel.outputs.pledgeImmediatelyLabelIsHidden
+    self.viewModel.onContinue = { [weak self] in self?.delegate?.goToLoginSignup() }
+    self.viewModel.onSubmit = { [weak self] in self?.delegate?.submitButtonTapped() }
+    self.viewModel.onApplePay = { [weak self] in self?.delegate?.applePayButtonTapped() }
+    self.viewModel.onHelp = { [weak self] helpType in self?.delegate?.termsOfUseTapped(with: helpType) }
   }
 
   // MARK: - Configuration
@@ -179,7 +148,13 @@ final class PledgeViewCTAContainerView: UIView {
       context: value.context,
       willRetryPaymentMethod: value.willRetryPaymentMethod
     )
-    self.viewModel.inputs.configureWith(value: viewModelData)
+    let display = self.viewModel.configureWith(value: viewModelData)
+    self.applePayButton.isHidden = display.applePayButtonIsHidden
+    self.continueButton.isHidden = display.continueButtonIsHidden
+    self.submitButton.isHidden = display.submitButtonIsHidden
+    self.submitButton.setTitle(display.submitButtonTitle, for: .normal)
+    self.submitButton.isEnabled = display.submitButtonIsEnabled
+    self.pledgeImmediatelyLabel.isHidden = display.pledgeImmediatelyLabelIsHidden
 
     if let attributedAmount = attributedCurrency(withProject: value.project, total: value.total) {
       self.amountLabel.attributedText = attributedAmount
@@ -228,15 +203,15 @@ final class PledgeViewCTAContainerView: UIView {
   }
 
   @objc func submitButtonTapped() {
-    self.viewModel.inputs.submitButtonTapped()
+    self.viewModel.submitButtonTapped()
   }
 
   @objc func continueButtonTapped() {
-    self.viewModel.inputs.continueButtonTapped()
+    self.viewModel.continueButtonTapped()
   }
 
   @objc func applePayButtonTapped() {
-    self.viewModel.inputs.applePayButtonTapped()
+    self.viewModel.applePayButtonTapped()
   }
 }
 
@@ -252,7 +227,7 @@ extension PledgeViewCTAContainerView: UITextViewDelegate {
     _: UITextView, shouldInteractWith url: URL, in _: NSRange,
     interaction _: UITextItemInteraction
   ) -> Bool {
-    self.viewModel.inputs.tapped(url)
+    self.viewModel.tapped(url)
     return false
   }
 }
