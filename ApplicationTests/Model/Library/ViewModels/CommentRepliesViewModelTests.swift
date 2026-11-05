@@ -3,9 +3,6 @@
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -15,47 +12,47 @@ internal final class CommentRepliesViewModelTests: TestCase {
     AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
   }, sleep: { _ in try Task.checkCancellation() }))
 
-  private let configureCommentComposerBecomeFirstResponder = TestObserver<Bool, Never>()
-  private let configureCommentComposerViewURL = TestObserver<URL?, Never>()
-  private let configureCommentComposerViewCanPostComment = TestObserver<Bool, Never>()
-  private let didBlockUser = TestObserver<(), Never>()
-  private let didBlockUserError = TestObserver<(), Never>()
-  private let loadCommentIntoDataSourceComment = TestObserver<Comment, Never>()
-  private let loadFailableReplyIntoDataSource = TestObserver<Comment, Never>()
-  private let loadFailableCommentIDIntoDataSource = TestObserver<String, Never>()
-  private let loadFailableProjectIntoDataSource = TestObserver<Project, Never>()
-  private let loadRepliesAndProjectIntoDataSourceProject = TestObserver<Project, Never>()
-  private let loadRepliesAndProjectIntoDataSourceReplies = TestObserver<[Comment], Never>()
-  private let loadRepliesAndProjectIntoDataSourceTotalCount = TestObserver<Int, Never>()
-  private let resetCommentComposer = TestObserver<(), Never>()
-  private let scrollToReply = TestObserver<String, Never>()
-  private let showPaginationErrorState = TestObserver<(), Never>()
+  private let configureCommentComposerBecomeFirstResponder = ReplyRecorder<Bool>()
+  private let configureCommentComposerViewURL = ReplyRecorder<URL?>()
+  private let configureCommentComposerViewCanPostComment = ReplyRecorder<Bool>()
+  private let didBlockUser = ReplyRecorder<()>()
+  private let didBlockUserError = ReplyRecorder<()>()
+  private let loadCommentIntoDataSourceComment = ReplyRecorder<Comment>()
+  private let loadFailableReplyIntoDataSource = ReplyRecorder<Comment>()
+  private let loadFailableCommentIDIntoDataSource = ReplyRecorder<String>()
+  private let loadFailableProjectIntoDataSource = ReplyRecorder<Project>()
+  private let loadRepliesAndProjectIntoDataSourceProject = ReplyRecorder<Project>()
+  private let loadRepliesAndProjectIntoDataSourceReplies = ReplyRecorder<[Comment]>()
+  private let loadRepliesAndProjectIntoDataSourceTotalCount = ReplyRecorder<Int>()
+  private let resetCommentComposer = ReplyRecorder<()>()
+  private let scrollToReply = ReplyRecorder<String>()
+  private let showPaginationErrorState = ReplyRecorder<()>()
 
   override func setUp() async throws {
     try await super.setUp()
     MainActor.assumeIsolated {
       self.vm.outputs.onConfigureComposer = { [weak self] data in
-        self?.configureCommentComposerBecomeFirstResponder.observer.send(value: data.becomeFirstResponder)
-        self?.configureCommentComposerViewURL.observer.send(value: data.avatarURL)
-        self?.configureCommentComposerViewCanPostComment.observer.send(value: data.canPostComment)
+        self?.configureCommentComposerBecomeFirstResponder.record(data.becomeFirstResponder)
+        self?.configureCommentComposerViewURL.record(data.avatarURL)
+        self?.configureCommentComposerViewCanPostComment.record(data.canPostComment)
       }
-      self.vm.outputs.onLoadRootComment = { [weak self] comment in self?.loadCommentIntoDataSourceComment.observer.send(value: comment) }
-      self.vm.outputs.onDidBlockUser = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
-      self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }
+      self.vm.outputs.onLoadRootComment = { [weak self] comment in self?.loadCommentIntoDataSourceComment.record(comment) }
+      self.vm.outputs.onDidBlockUser = { [weak self] in self?.didBlockUser.record(()) }
+      self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.record(()) }
       self.vm.outputs.onLoadFailableReply = { [weak self] comment, id, project in
-        self?.loadFailableReplyIntoDataSource.observer.send(value: comment)
-        self?.loadFailableCommentIDIntoDataSource.observer.send(value: id)
-        self?.loadFailableProjectIntoDataSource.observer.send(value: project)
+        self?.loadFailableReplyIntoDataSource.record(comment)
+        self?.loadFailableCommentIDIntoDataSource.record(id)
+        self?.loadFailableProjectIntoDataSource.record(project)
       }
 
       self.vm.outputs.onLoadReplies = { [weak self] repliesAndCount, project in
-        self?.loadRepliesAndProjectIntoDataSourceProject.observer.send(value: project)
-        self?.loadRepliesAndProjectIntoDataSourceReplies.observer.send(value: repliesAndCount.0)
-        self?.loadRepliesAndProjectIntoDataSourceTotalCount.observer.send(value: repliesAndCount.1)
+        self?.loadRepliesAndProjectIntoDataSourceProject.record(project)
+        self?.loadRepliesAndProjectIntoDataSourceReplies.record(repliesAndCount.0)
+        self?.loadRepliesAndProjectIntoDataSourceTotalCount.record(repliesAndCount.1)
       }
-      self.vm.outputs.onResetCommentComposer = { [weak self] in self?.resetCommentComposer.observer.send(value: ()) }
-      self.vm.outputs.onScrollToReply = { [weak self] id in self?.scrollToReply.observer.send(value: id) }
-      self.vm.outputs.onPaginationError = { [weak self] in self?.showPaginationErrorState.observer.send(value: ()) }
+      self.vm.outputs.onResetCommentComposer = { [weak self] in self?.resetCommentComposer.record(()) }
+      self.vm.outputs.onScrollToReply = { [weak self] id in self?.scrollToReply.record(id) }
+      self.vm.outputs.onPaginationError = { [weak self] in self?.showPaginationErrorState.record(()) }
     }
   }
 
@@ -148,10 +145,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.didBlockUser.assertValueCount(1)
       self.didBlockUserError.assertValueCount(0)
@@ -186,10 +182,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.didBlockUser.assertValueCount(0)
       self.didBlockUserError.assertValueCount(1)
@@ -228,10 +223,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       XCTAssertEqual(segmentClient.events, ["CTA Clicked", "CTA Clicked"])
 
@@ -439,10 +433,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadRepliesAndProjectIntoDataSourceProject.assertValues([project])
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([envelope.replies])
@@ -455,10 +448,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
         await self.vm.waitForLoads()
 
-        await self.scheduler.advance()
         await self.vm.waitForLoads()
         await self.vm.waitForLoads()
-        await self.scheduler.advance()
+
 
         self.loadRepliesAndProjectIntoDataSourceProject.assertValues([project, project])
         self.loadRepliesAndProjectIntoDataSourceReplies
@@ -506,10 +498,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadRepliesAndProjectIntoDataSourceProject.assertValues([project])
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([envelope.replies])
@@ -524,10 +515,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
         await self.vm.waitForLoads()
 
-        await self.scheduler.advance()
         await self.vm.waitForLoads()
         await self.vm.waitForLoads()
-        await self.scheduler.advance()
+
 
         self.loadRepliesAndProjectIntoDataSourceProject.assertValues([project])
         self.loadRepliesAndProjectIntoDataSourceReplies
@@ -544,10 +534,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
           await self.vm.waitForLoads()
 
-          await self.scheduler.advance()
           await self.vm.waitForLoads()
           await self.vm.waitForLoads()
-          await self.scheduler.advance()
+
 
           self.loadRepliesAndProjectIntoDataSourceProject.assertValues([project, project])
           self.loadRepliesAndProjectIntoDataSourceReplies
@@ -582,20 +571,18 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([envelope.replies])
       self.vm.inputs.dataSourceLoaded()
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.scrollToReply.assertValue(envelope.replies[0].id)
     }
@@ -623,20 +610,18 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([envelope.replies])
       self.vm.inputs.dataSourceLoaded()
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.scrollToReply.assertDidNotEmitValue()
     }
@@ -710,10 +695,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance(by: .seconds(1))
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadFailableReplyIntoDataSource.assertValueCount(2)
       self.loadFailableReplyIntoDataSource.assertLastValue(.replyTemplate)
@@ -743,10 +727,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance(by: .seconds(1))
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([envelope.replies])
 
@@ -772,10 +755,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance(by: .seconds(1))
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       let expectedFailedComment = expectedFailableReply
         |> \.status .~ .failed
@@ -816,10 +798,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
         await self.vm.waitForLoads()
 
-        await self.scheduler.advance(by: .seconds(1))
         await self.vm.waitForLoads()
         await self.vm.waitForLoads()
-        await self.scheduler.advance()
+
 
         let expectedRetryingSuccessComment = expectedFailedComment
           |> \.status .~ .retrySuccess
@@ -831,10 +812,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
         await self.vm.waitForLoads()
 
-        await self.scheduler.advance(by: .seconds(3))
         await self.vm.waitForLoads()
         await self.vm.waitForLoads()
-        await self.scheduler.advance()
+
 
         // comment posts and is successful
         XCTAssertEqual(
@@ -867,10 +847,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance(by: .seconds(1))
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([envelope.replies])
 
@@ -896,10 +875,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance(by: .seconds(1))
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       let expectedFailedReply = expectedFailableReply
         |> \.status .~ .failed
@@ -932,10 +910,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
         await self.vm.waitForLoads()
 
-        await self.scheduler.advance(by: .seconds(1))
         await self.vm.waitForLoads()
         await self.vm.waitForLoads()
-        await self.scheduler.advance()
+
 
         // retry fails so original failed comment placed back
         XCTAssertEqual(
@@ -967,10 +944,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadRepliesAndProjectIntoDataSourceProject.assertValues([])
       self.loadRepliesAndProjectIntoDataSourceReplies.assertValues([])
@@ -980,10 +956,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       let mockService2 = MockService(
         fetchCommentRepliesEnvelopeResult: .success(envelope)
@@ -994,10 +969,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
 
         await self.vm.waitForLoads()
 
-        await self.scheduler.advance()
         await self.vm.waitForLoads()
         await self.vm.waitForLoads()
-        await self.scheduler.advance()
+
 
         self.loadRepliesAndProjectIntoDataSourceProject.assertValues([.template])
         self.loadRepliesAndProjectIntoDataSourceReplies
@@ -1007,5 +981,33 @@ internal final class CommentRepliesViewModelTests: TestCase {
         self.showPaginationErrorState.assertValueCount(1)
       }
     }
+  }
+}
+
+@MainActor
+private final class ReplyRecorder<Value> {
+  private(set) var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, message, file: file, line: line)
+  }
+  func assertDidEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertFalse(self.values.isEmpty, message, file: file, line: line)
+  }
+}
+
+private extension ReplyRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
+  }
+  func assertValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, [expected], message, file: file, line: line)
+  }
+  func assertLastValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.last, expected, message, file: file, line: line)
   }
 }
