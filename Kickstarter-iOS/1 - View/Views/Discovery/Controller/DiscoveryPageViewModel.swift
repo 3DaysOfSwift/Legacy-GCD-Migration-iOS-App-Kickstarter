@@ -76,7 +76,7 @@ public protocol DiscoveryPageViewModelOutputs: AnyObject {
 
   /// Hack to emit when we should asynchronously reload the table view's data to properly display postcards.
   /// Hopefully in the future we can remove this when we can resolve postcard display issues.
-  var asyncReloadData: Signal<Void, Never> { get }
+  var onAsyncReloadData: (() -> Void)? { get set }
 
   /// Emits the contentInset for the UITableView
   var onContentInset: ((UIEdgeInsets) -> Void)? { get set }
@@ -106,7 +106,7 @@ public protocol DiscoveryPageViewModelOutputs: AnyObject {
   var onContentOffsetChanged: ((CGPoint) -> Void)? { get set }
 
   /// Emits a list of projects that should be shown, and the corresponding filter request params
-  var projectsLoaded: Signal<([Project], DiscoveryParams?), Never> { get }
+  var onProjectsLoaded: (([Project], DiscoveryParams?) -> Void)? { get set }
 
   /// Emits a boolean that determines if projects are currently loading or not.
   var onProjectsLoadingChanged: ((Bool, Bool) -> Void)? { get set }
@@ -137,7 +137,6 @@ public protocol DiscoveryPageViewModelType {
 public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, DiscoveryPageViewModelInputs,
   DiscoveryPageViewModelOutputs {
   private let discoveryFeature: DiscoveryFeature
-  private let projectsPipe = Signal<(DiscoveryParams.Sort, [Project]), Never>.pipe()
   private var discoveryObservation: MainActorObservation?
   private let featureBindings = ScopedDisposable(CompositeDisposable())
   internal private(set) var pageTask: Task<Void, Never>?
@@ -189,34 +188,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
       firstPageParams.takeWhen(self.blockedUserProperty.signal)
     )
 
-    let selectedSort = self.sortProperty
-    let paginatedProjects = self.projectsPipe.output
-      .filter { $0.0 == selectedSort.value }
-      .map { $0.1 }
-
-    let projects = Signal.merge(
-      paginatedProjects,
-      self.selectedFilterProperty.signal.skipNil().skipRepeats().mapConst([])
-    )
-    .skip { $0.isEmpty }
-    .skipRepeats(==)
-
-    self.projectsLoaded = paramsChanged.takePairWhen(projects)
-      .map { paramsValue, projects in
-        (projects, paramsValue)
-      }
-
-    self.asyncReloadData = self.projectsLoaded.take(first: 1).ignoreValues()
-
-
-    self.featureBindings += paginatedProjects.observeValues { [weak self] projects in
-      guard let self else { return }
-      self.lastPaginatedProjects = projects
-      self.updateEmptyState()
-      if !projects.isEmpty { self.onHideEmptyState?() }
-    }
-    self.featureBindings += self.asyncReloadData.observeValues { [weak self] in self?.onHideEmptyState?() }
-
     // These observers only admit commands. The Feature owns and retains the work.
     self.featureBindings += requestFirstPageWith.observeValues { [weak self] parameters in
       guard let self, let sort = self.sortProperty.value else { return }
@@ -261,12 +232,12 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
       self.updateEmptyState()
       if hadParameters { self.onHideEmptyState?() }
     }
-    self.featureBindings += projects.observeValues { [weak self] in self?.currentNavigationProjects = $0 }
 
     self.discoveryObservation = discoveryFeature.observe { [weak self] update in
       guard let self else { return }
       switch update {
-      case let .projects(sort, projects): self.projectsPipe.input.send(value: (sort, projects))
+      case let .projects(sort, projects):
+        if sort == self.sortProperty.value { self.receiveProjects(projects) }
       case let .loading(sort, loading):
         if sort == self.sortProperty.value { self.receiveLoading(loading) }
       case let .activities(sort, activities): self.receiveActivities(activities, sort: sort)
@@ -377,6 +348,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     let changed = self.lastPersonalizationFilter != params
     self.lastPersonalizationFilter = params
     self.selectedFilterProperty.value = params
+    if changed { self.publishProjectList([]) }
     if changed, self.sortProperty.value != nil {
       self.hasReadyPersonalizationFilters = true
       if self.hasAppeared { self.onShowPersonalization?(shouldShowPersonalization()) }
@@ -406,6 +378,30 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   }
   private var currentNavigationParameters: DiscoveryParams?
   private var currentNavigationProjects: [Project]?
+  private var hasReceivedNonemptyProjects = false
+  private var hasPublishedFirstProjectList = false
+  private func publishProjectList(_ projects: [Project]) {
+    if !self.hasReceivedNonemptyProjects {
+      guard !projects.isEmpty else { return }
+      self.hasReceivedNonemptyProjects = true
+    }
+    guard self.currentNavigationProjects != projects else { return }
+    if let parameters = self.currentNavigationParameters {
+      if !self.hasPublishedFirstProjectList {
+        self.hasPublishedFirstProjectList = true
+        self.onAsyncReloadData?()
+        self.onHideEmptyState?()
+      }
+      self.onProjectsLoaded?(projects, parameters)
+    }
+    self.currentNavigationProjects = projects
+  }
+  private func receiveProjects(_ projects: [Project]) {
+    self.publishProjectList(projects)
+    self.lastPaginatedProjects = projects
+    self.updateEmptyState()
+    if !projects.isEmpty { self.onHideEmptyState?() }
+  }
   public func tapped(activity: Activity) {
     guard let project = activity.project else { return }
     if activity.category == .update {
@@ -481,7 +477,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   private var connectivityObservation: MainActorObservation?
 
   public var onActivitiesForSample: (([Activity]) -> Void)?
-  public let asyncReloadData: Signal<Void, Never>
+  public var onAsyncReloadData: (() -> Void)?
   public var onContentInset: ((UIEdgeInsets) -> Void)?
   public var onDismissPersonalizationCell: (() -> Void)?
   public var onGoToActivityProject: ((Project, RefTag) -> Void)?
@@ -491,7 +487,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   public var onGoToProjectUpdate: ((Project, Update) -> Void)?
   public var onHideEmptyState: (() -> Void)?
   public var onContentOffsetChanged: ((CGPoint) -> Void)?
-  public let projectsLoaded: Signal<([Project], DiscoveryParams?), Never>
+  public var onProjectsLoaded: (([Project], DiscoveryParams?) -> Void)?
   public var onProjectsLoadingChanged: ((Bool, Bool) -> Void)?
   public var onScrollsToTopChanged: ((Bool) -> Void)?
   public var onShowEmptyState: ((EmptyState) -> Void)?

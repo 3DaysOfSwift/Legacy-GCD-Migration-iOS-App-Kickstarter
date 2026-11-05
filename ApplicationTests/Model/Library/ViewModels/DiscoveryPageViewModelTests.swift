@@ -42,6 +42,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
   fileprivate let activitiesForSample = TestObserver<[Activity], Never>()
   fileprivate let asyncReloadData = TestObserver<(), Never>()
+  private let (projectsLoadedSignal, projectsLoadedObserver) = Signal<([Project], DiscoveryParams?), Never>.pipe()
   fileprivate let contentInset = TestObserver<UIEdgeInsets, Never>()
   fileprivate let dismissPersonalizationCell = TestObserver<Void, Never>()
   fileprivate let goToActivityProject = TestObserver<Project, Never>()
@@ -70,7 +71,10 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
     MainActor.assumeIsolated {
     self.vm.outputs.onActivitiesForSample = { [weak self] in self?.activitiesForSample.observer.send(value: $0) }
-    self.vm.outputs.asyncReloadData.observe(self.asyncReloadData.observer)
+    self.vm.outputs.onAsyncReloadData = { [weak self] in self?.asyncReloadData.observer.send(value: ()) }
+    self.vm.outputs.onProjectsLoaded = { [weak self] projects, parameters in
+      self?.projectsLoadedObserver.send(value: (projects, parameters))
+    }
     self.vm.outputs.onContentInset = { [weak self] in self?.contentInset.observer.send(value: $0) }
     self.vm.outputs.onDismissPersonalizationCell = { [weak self] in self?.dismissPersonalizationCell.observer.send(value: ()) }
     self.vm.outputs.onHideEmptyState = { [weak self] in self?.hideEmptyState.observer.send(value: ()) }
@@ -90,20 +94,20 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       self?.projectsAreLoadingAnimated.observer.send(value: (loading, animated))
       self?.projectsAreLoading.observer.send(value: loading)
     }
-    self.vm.outputs.projectsLoaded.ignoreValues().observe(self.hasLoadedProjects.observer)
-    self.vm.outputs.projectsLoaded.map(second).observe(self.projectsLoadedDiscoveryParams.observer)
+    self.projectsLoadedSignal.ignoreValues().observe(self.hasLoadedProjects.observer)
+    self.projectsLoadedSignal.map(second).observe(self.projectsLoadedDiscoveryParams.observer)
     self.vm.outputs.onScrollsToTopChanged = { [weak self] in self?.setScrollsToTop.observer.send(value: $0) }
     self.vm.outputs.onShowEmptyState = { [weak self] in self?.showEmptyState.observer.send(value: $0) }
     self.vm.outputs.onShowOnboarding = { [weak self] in self?.showOnboarding.observer.send(value: $0) }
     self.vm.outputs.onShowPersonalization = { [weak self] in self?.showPersonalization.observer.send(value: $0) }
     self.vm.outputs.onVideoFeedBannerChanged = { [weak self] in self?.showVideoFeedBanner.observer.send(value: $0) }
 
-    self.vm.outputs.projectsLoaded
+    self.projectsLoadedSignal
       .map { $0.0.count }
       .combinePrevious(0)
       .map { prev, next in next > prev }
       .observe(self.hasAddedProjects.observer)
-    self.vm.outputs.projectsLoaded
+    self.projectsLoadedSignal
       .map { $0.0.count }
       .combinePrevious(0)
       .map { prev, next in next < prev }

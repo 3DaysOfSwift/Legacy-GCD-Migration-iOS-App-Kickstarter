@@ -181,9 +181,7 @@ internal final class DiscoveryPageViewController: UITableViewController,
         self?.tableView.reloadData()
       }
 
-    self.viewModel.outputs.asyncReloadData
-      .observeForUI()
-      .observeValues { [weak self] in
+    self.viewModel.outputs.onAsyncReloadData = { [weak self] in
         self?.needsDeferredReload = true
         self?.view.setNeedsLayout()
       }
@@ -196,9 +194,7 @@ internal final class DiscoveryPageViewController: UITableViewController,
 
     self.viewModel.outputs.onGoToProjectUpdate = { [weak self] project, update in self?.goTo(project: project, update: update) }
 
-    self.viewModel.outputs.projectsLoaded
-      .observeForUI()
-      .observeValues { [weak self] projects, params in
+    self.viewModel.outputs.onProjectsLoaded = { [weak self] projects, params in
         self?.dataSource.load(projects: projects, params: params)
         self?.tableView.reloadData()
       }
