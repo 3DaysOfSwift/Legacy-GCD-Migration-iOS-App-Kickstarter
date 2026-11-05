@@ -55,6 +55,26 @@ final class DiscussionFeatureTests: TestCase {
     }
   }
 
+  func testNativeOptimisticPostsAdmitDistinctAttempts() async throws {
+    let provider = ControlledDiscussionProvider()
+    provider.pauseWrites = true
+    defer { provider.releaseAll() }
+    let feature = self.feature(provider)
+    await withEnvironment(currentUser: .template) {
+      let first = feature.beginPost(project: .template, commentableID: "project", parentID: "parent", user: .template, body: "hello")
+      let second = feature.beginPost(project: .template, commentableID: "project", parentID: "parent", user: .template, body: "hello")
+      XCTAssertEqual(first.comment.body, "hello")
+      XCTAssertEqual(first.comment.parentId, "parent")
+      await provider.waitForPosts(2)
+      XCTAssertEqual(provider.postInputs.count, 2)
+      provider.finishAllPosts()
+      do {
+        _ = try await first.result.value
+        _ = try await second.result.value
+      } catch { XCTFail("Unexpected post failure: \(error)") }
+    }
+  }
+
   func testCancelledWaiterDoesNotCancelSharedPost() async throws {
     let provider = ControlledDiscussionProvider()
     provider.pauseWrites = true

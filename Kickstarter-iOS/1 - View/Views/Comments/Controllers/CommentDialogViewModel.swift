@@ -70,19 +70,16 @@ final class CommentDialogViewModel {
     let sessionID = feature.sessionFeature.generation
     let userID = AppEnvironment.current.currentUser?.id
     let commentableID = data.update.map { encodeToBase64("FreeformPost-\($0.id)") } ?? data.project.graphID
-    let optimistic = Comment.failableComment(
-      withId: AppEnvironment.current.uuidType.init().uuidString,
-      date: AppEnvironment.current.dateType.init().date,
-      project: data.project, parentId: nil, user: user, body: body
+    let submission = feature.beginPost(
+      project: data.project, commentableID: commentableID, parentID: nil, user: user, body: body
     )
-    let request = feature.requestPost(operationID: UUID().uuidString, body: body, commentableID: commentableID, parentID: nil)
     self.onEvent?(.loadingHidden(false))
     self.publishEnabled(false)
     let sleep = self.sleep
     self.postTask = Task { [weak self] in
       let result: Result<Comment, Error>
       do {
-        result = .success(try await request.value)
+        result = .success(try await submission.result.value)
       } catch { result = .failure(error) }
       do { try await sleep() } catch { return }
       guard !Task.isCancelled, let self,
@@ -97,7 +94,7 @@ final class CommentDialogViewModel {
       self.onEvent?(.loadingHidden(true))
       self.publishEnabled(true)
     }
-    self.onEvent?(.posted(optimistic))
+    self.onEvent?(.posted(submission.comment))
     self.onEvent?(.dismiss)
   }
 

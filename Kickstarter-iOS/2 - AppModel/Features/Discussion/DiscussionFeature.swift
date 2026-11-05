@@ -130,6 +130,25 @@ public final class DiscussionFeature {
     return comment
   }
 
+  struct OptimisticPost {
+    let comment: Comment
+    let result: Task<Comment, Error>
+  }
+
+  /// Admit the write before publishing an optimistic comment, so a dismissed
+  /// presentation cannot prevent the server operation from starting.
+  func beginPost(project: Project, commentableID: String, parentID: String?, user: User, body: String) -> OptimisticPost {
+    let comment = Comment.failableComment(
+      withId: AppEnvironment.current.uuidType.init().uuidString,
+      date: AppEnvironment.current.dateType.init().date,
+      project: project, parentId: parentID, user: user, body: body
+    )
+    let result = self.requestPost(
+      operationID: UUID().uuidString, body: body, commentableID: commentableID, parentID: parentID
+    )
+    return OptimisticPost(comment: comment, result: result)
+  }
+
   @discardableResult
   public func requestPost(
     operationID: String, body: String, commentableID: String, parentID: String?
