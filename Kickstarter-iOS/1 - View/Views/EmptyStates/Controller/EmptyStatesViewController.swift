@@ -24,11 +24,11 @@ internal final class EmptyStatesViewController: UIViewController {
 
   internal weak var delegate: EmptyStatesViewControllerDelegate?
 
-  fileprivate let viewModel: EmptyStatesViewModelType = EmptyStatesViewModel()
+  fileprivate let viewModel = EmptyStatesViewModel()
 
   internal static func configuredWith(emptyState: EmptyState?) -> EmptyStatesViewController {
     let vc = Storyboard.EmptyStates.instantiate(EmptyStatesViewController.self)
-    vc.viewModel.inputs.configureWith(emptyState: emptyState)
+    vc.viewModel.configureWith(emptyState: emptyState)
     return vc
   }
 
@@ -45,33 +45,15 @@ internal final class EmptyStatesViewController: UIViewController {
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
 
-    self.viewModel.inputs.viewWillAppear()
+    self.render(self.viewModel.viewWillAppear())
   }
 
-  override func bindViewModel() {
-    super.bindViewModel()
-
-    self.viewModel.outputs.bottomLayoutConstraintConstant.observeValues { [weak self] constant in
-      self?.mainButtonBottomLayoutConstraint
-        .constant = constant + (self?.view.layoutMargins.bottom ?? 0)
-    }
-
-    self.titleLabel.rac.text = self.viewModel.outputs.titleLabelText
-    self.subtitleLabel.rac.text = self.viewModel.outputs.subtitleLabelText
-    self.mainButton.rac.title = self.viewModel.outputs.mainButtonText
-
-    self.viewModel.outputs.notifyDelegateToGoToDiscovery
-      .observeForControllerAction()
-      .observeValues { [weak self] params in
-        guard let _self = self else { return }
-        _self.delegate?.emptyStatesViewController(_self, goToDiscoveryWithParams: params)
-      }
-
-    self.viewModel.outputs.notifyDelegateToGoToFriends
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.delegate?.emptyStatesViewControllerGoToFriends()
-      }
+  private func render(_ presentation: EmptyStatePresentation?) {
+    guard let presentation else { return }
+    self.mainButtonBottomLayoutConstraint.constant = presentation.bottomInset + self.view.layoutMargins.bottom
+    self.titleLabel.text = presentation.title
+    self.subtitleLabel.text = presentation.subtitle
+    self.mainButton.setTitle(presentation.buttonTitle, for: .normal)
   }
 
   override func bindStyles() {
@@ -127,10 +109,18 @@ internal final class EmptyStatesViewController: UIViewController {
   }
 
   internal func setEmptyState(_ emptyState: EmptyState) {
-    self.viewModel.inputs.setEmptyState(emptyState)
+    let presentation = self.viewModel.setEmptyState(emptyState)
+    if self.isViewLoaded { self.render(presentation) }
   }
 
   @objc func mainButtonTapped() {
-    self.viewModel.inputs.mainButtonTapped()
+    switch self.viewModel.mainButtonTapped() {
+    case let .discovery(params):
+      self.delegate?.emptyStatesViewController(self, goToDiscoveryWithParams: params)
+    case .friends:
+      self.delegate?.emptyStatesViewControllerGoToFriends()
+    case nil:
+      break
+    }
   }
 }

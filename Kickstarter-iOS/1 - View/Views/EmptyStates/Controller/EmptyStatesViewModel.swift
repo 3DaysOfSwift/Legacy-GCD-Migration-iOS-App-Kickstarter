@@ -1,6 +1,5 @@
 import KsApi
 import Prelude
-import ReactiveSwift
 import UIKit
 
 public enum EmptyState: String {
@@ -12,114 +11,62 @@ public enum EmptyState: String {
 }
 
 @MainActor
-public protocol EmptyStatesViewModelInputs {
-  /// Call to configure with the view controller that needs an empty state.
-  func configureWith(emptyState: EmptyState?)
+struct EmptyStatePresentation {
+  let title: String
+  let subtitle: String
+  let buttonTitle: String
+  let bottomInset: CGFloat
 
-  /// Call when main button is tapped.
-  func mainButtonTapped()
+  init(state: EmptyState) {
+    self.title = textForTitle(emptyState: state)
+    self.subtitle = textForSubtitle(emptyState: state)
+    self.buttonTitle = buttonText(emptyState: state)
+    self.bottomInset = Styles.grid(5)
+  }
+}
 
-  /// Call to set the empty state if it is not known at the time of instanciation.
-  func setEmptyState(_ emptyState: EmptyState)
-
-  /// Call when the view controller's viewWillAppear method is called.
-  func viewWillAppear()
+enum EmptyStateDestination {
+  case discovery(DiscoveryParams?)
+  case friends
 }
 
 @MainActor
-public protocol EmptyStatesViewModelOutputs {
-  /// Emits a constant float value for the bottom layout constraint.
-  var bottomLayoutConstraintConstant: Signal<CGFloat, Never> { get }
+final class EmptyStatesViewModel {
+  private var emptyState: EmptyState?
+  private var hasAppeared = false
 
-  /// Emits the button text.
-  var mainButtonText: Signal<String, Never> { get }
+  func configureWith(emptyState: EmptyState?) {
+    if let emptyState { self.emptyState = emptyState }
+  }
 
-  /// Emits to notify the delegate to go to Discovery with params.
-  var notifyDelegateToGoToDiscovery: Signal<DiscoveryParams?, Never> { get }
+  func setEmptyState(_ emptyState: EmptyState) -> EmptyStatePresentation? {
+    self.emptyState = emptyState
+    return self.presentation
+  }
 
-  /// Emits to notify the delegate to go to Friends.
-  var notifyDelegateToGoToFriends: Signal<(), Never> { get }
+  func viewWillAppear() -> EmptyStatePresentation? {
+    guard !self.hasAppeared else { return nil }
+    self.hasAppeared = true
+    return self.presentation
+  }
 
-  /// Emits the subtitle label text.
-  var subtitleLabelText: Signal<String, Never> { get }
-
-  /// Emits the title label text.
-  var titleLabelText: Signal<String, Never> { get }
-}
-
-@MainActor
-public protocol EmptyStatesViewModelType {
-  var inputs: EmptyStatesViewModelInputs { get }
-  var outputs: EmptyStatesViewModelOutputs { get }
-}
-
-@MainActor
-public final class EmptyStatesViewModel: EmptyStatesViewModelType, EmptyStatesViewModelInputs,
-  EmptyStatesViewModelOutputs {
-  public init() {
-    let emptyState = Signal.combineLatest(
-      self.emptyStateProperty.signal.skipNil(),
-      self.viewWillAppearProperty.signal.take(first: 1)
-    )
-    .map(first)
-
-    self.mainButtonText = emptyState.map(buttonText(emptyState:))
-
-    self.subtitleLabelText = emptyState.map(textForSubtitle(emptyState:))
-
-    self.titleLabelText = emptyState.map(textForTitle(emptyState:))
-
-    self.notifyDelegateToGoToDiscovery = emptyState
-      .takeWhen(self.mainButtonTappedProperty.signal)
-      .filter { $0 != .socialDisabled && $0 != .socialNoPledges }
-      .map { emptyState -> DiscoveryParams? in
-        guard emptyState != .activity else { return nil }
-        return DiscoveryParams.defaults |> DiscoveryParams.lens.sort .~ .magic
-      }
-
-    self.notifyDelegateToGoToFriends = emptyState
-      .takeWhen(self.mainButtonTappedProperty.signal)
-      .filter { $0 == .socialDisabled || $0 == .socialNoPledges }
-      .ignoreValues()
-
-    self.bottomLayoutConstraintConstant = emptyState
-      .map { _ in Styles.grid(5) }
-
-    // Tracking
-
-    self.mainButtonTappedProperty.signal.observeValues { _ in
-      AppEnvironment.current.ksrAnalytics.trackExploreButtonClicked()
+  func mainButtonTapped() -> EmptyStateDestination? {
+    AppEnvironment.current.ksrAnalytics.trackExploreButtonClicked()
+    guard self.hasAppeared, let emptyState = self.emptyState else { return nil }
+    switch emptyState {
+    case .socialDisabled, .socialNoPledges:
+      return .friends
+    case .activity:
+      return .discovery(nil)
+    case .recommended, .starred:
+      return .discovery(DiscoveryParams.defaults |> DiscoveryParams.lens.sort .~ .magic)
     }
   }
 
-  fileprivate let emptyStateProperty = MutableProperty<EmptyState?>(nil)
-  public func configureWith(emptyState: EmptyState?) {
-    self.emptyStateProperty.value = emptyState
+  private var presentation: EmptyStatePresentation? {
+    guard self.hasAppeared, let emptyState = self.emptyState else { return nil }
+    return EmptyStatePresentation(state: emptyState)
   }
-
-  fileprivate let mainButtonTappedProperty = MutableProperty(())
-  public func mainButtonTapped() {
-    self.mainButtonTappedProperty.value = ()
-  }
-
-  public func setEmptyState(_ emptyState: EmptyState) {
-    self.emptyStateProperty.value = emptyState
-  }
-
-  fileprivate let viewWillAppearProperty = MutableProperty(())
-  public func viewWillAppear() {
-    self.viewWillAppearProperty.value = ()
-  }
-
-  public let bottomLayoutConstraintConstant: Signal<CGFloat, Never>
-  public let mainButtonText: Signal<String, Never>
-  public let notifyDelegateToGoToDiscovery: Signal<DiscoveryParams?, Never>
-  public let notifyDelegateToGoToFriends: Signal<(), Never>
-  public let subtitleLabelText: Signal<String, Never>
-  public let titleLabelText: Signal<String, Never>
-
-  public var inputs: EmptyStatesViewModelInputs { return self }
-  public var outputs: EmptyStatesViewModelOutputs { return self }
 }
 
 private func textForSubtitle(emptyState: EmptyState) -> String {

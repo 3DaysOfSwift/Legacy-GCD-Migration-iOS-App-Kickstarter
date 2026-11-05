@@ -1,71 +1,56 @@
 @testable import Kickstarter_iOS
 @testable import KsApi
 
-
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 internal final class EmptyStatesViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  internal let vm: EmptyStatesViewModelType = EmptyStatesViewModel()
-  internal let notifyDelegateToGoToDiscovery = TestObserver<DiscoveryParams?, Never>()
-  internal let notifyDelegateToGoToFriends = TestObserver<(), Never>()
-
-  internal override func setUp() async throws {
-    try await super.setUp()
-    self.vm.outputs.notifyDelegateToGoToDiscovery.observe(self.notifyDelegateToGoToDiscovery.observer)
-    self.vm.outputs.notifyDelegateToGoToFriends.observe(self.notifyDelegateToGoToFriends.observer)
-  }
+  private let vm = EmptyStatesViewModel()
 
   func testGoToDiscovery_Non_Activity() {
-    let params = DiscoveryParams.defaults |> DiscoveryParams.lens.sort .~ .magic
-    self.vm.inputs.configureWith(emptyState: .starred)
-    self.vm.inputs.viewWillAppear()
-    self.vm.inputs.mainButtonTapped()
-
-    self.notifyDelegateToGoToFriends.assertValueCount(0)
-    self.notifyDelegateToGoToDiscovery.assertValues([params])
+    self.vm.configureWith(emptyState: .starred)
+    _ = self.vm.viewWillAppear()
+    guard case let .discovery(params) = self.vm.mainButtonTapped() else {
+      return XCTFail("Expected discovery")
+    }
+    XCTAssertEqual(params, DiscoveryParams.defaults |> DiscoveryParams.lens.sort .~ .magic)
   }
 
   func testGoToDiscovery_Activity() {
-    self.vm.inputs.configureWith(emptyState: .activity)
-    self.vm.inputs.viewWillAppear()
-    self.vm.inputs.mainButtonTapped()
-
-    self.notifyDelegateToGoToFriends.assertValueCount(0)
-    self.notifyDelegateToGoToDiscovery.assertValues([nil])
+    self.vm.configureWith(emptyState: .activity)
+    _ = self.vm.viewWillAppear()
+    guard case let .discovery(params) = self.vm.mainButtonTapped() else {
+      return XCTFail("Expected discovery")
+    }
+    XCTAssertNil(params)
   }
 
-  func testGoToFriends_SocialNoPledges() {
-    self.vm.inputs.configureWith(emptyState: .socialNoPledges)
-    self.vm.inputs.viewWillAppear()
-    self.vm.inputs.mainButtonTapped()
-
-    self.notifyDelegateToGoToFriends.assertValueCount(1)
-    self.notifyDelegateToGoToDiscovery.assertValueCount(0)
+  func testGoToFriends_SocialStates() {
+    for state in [EmptyState.socialNoPledges, .socialDisabled] {
+      self.vm.configureWith(emptyState: state)
+      _ = self.vm.viewWillAppear()
+      guard case .friends = self.vm.mainButtonTapped() else {
+        return XCTFail("Expected friends for \(state)")
+      }
+    }
   }
 
-  func testGoToFriends_SocialDisabled() {
-    self.vm.inputs.configureWith(emptyState: .socialDisabled)
-    self.vm.inputs.viewWillAppear()
-    self.vm.inputs.mainButtonTapped()
-
-    self.notifyDelegateToGoToFriends.assertValueCount(1)
-    self.notifyDelegateToGoToDiscovery.assertValueCount(0)
+  func testLateStateOnlyPresentsAfterAppearance() {
+    XCTAssertNil(self.vm.setEmptyState(.starred))
+    XCTAssertNotNil(self.vm.viewWillAppear())
+    XCTAssertEqual(self.vm.setEmptyState(.socialDisabled)?.title, Strings.Its_better_with_friends())
+    XCTAssertNil(self.vm.viewWillAppear())
   }
 
   func testMainButtonTapped_TrackingEvents() {
-    self.vm.inputs.configureWith(emptyState: .activity)
-    self.vm.inputs.viewWillAppear()
-    self.vm.inputs.mainButtonTapped()
+    self.vm.configureWith(emptyState: .activity)
+    _ = self.vm.viewWillAppear()
+    _ = self.vm.mainButtonTapped()
 
     XCTAssertEqual(["CTA Clicked"], self.segmentTrackingClient.events)
-
     XCTAssertEqual(self.segmentTrackingClient.properties(forKey: "context_page"), ["activity_feed"])
-
     XCTAssertEqual(self.segmentTrackingClient.properties(forKey: "context_cta"), ["discover"])
   }
 }
