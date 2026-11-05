@@ -1,11 +1,10 @@
 import KsApi
 
 import Prelude
-import ReactiveSwift
 import UIKit
 
 internal final class ActivitiesViewController: UITableViewController {
-  fileprivate let viewModel: ActivitiesViewModelType = ActivitiesViewModel()
+  fileprivate let viewModel = ActivitiesViewModel()
   fileprivate let dataSource = ActivitiesDataSource()
   private var sessionEndedObserver: MainActorNotificationObservation?
   private var sessionStartedObserver: MainActorNotificationObservation?
@@ -23,15 +22,15 @@ internal final class ActivitiesViewController: UITableViewController {
     super.init(coder: aDecoder)
 
     self.sessionStartedObserver = MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
-        self?.viewModel.inputs.userSessionStarted()
+        self?.viewModel.userSessionStarted()
       }
 
     self.sessionEndedObserver = MainActorNotificationObservation(name: .ksr_sessionEnded) { [weak self] _ in
-        self?.viewModel.inputs.userSessionEnded()
+        self?.viewModel.userSessionEnded()
       }
 
     self.userUpdatedObserver = MainActorNotificationObservation(name: .ksr_userUpdated) { [weak self] _ in
-        self?.viewModel.inputs.currentUserUpdated()
+        self?.viewModel.currentUserUpdated()
       }
   }
 
@@ -75,13 +74,13 @@ internal final class ActivitiesViewController: UITableViewController {
     self.view.addSubview(emptyVC.view)
     emptyVC.didMove(toParent: self)
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   internal override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
 
-    self.viewModel.inputs.viewWillAppear(animated: animated)
+    self.viewModel.viewWillAppear(animated: animated)
   }
 
   internal override func bindStyles() {
@@ -97,81 +96,26 @@ internal final class ActivitiesViewController: UITableViewController {
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.activities
-      .observeForUI()
-      .observeValues { [weak self] activities in
-        self?.dataSource.load(activities: activities)
-        self?.tableView.reloadData()
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .activities(activities): self.dataSource.load(activities: activities); self.tableView.reloadData()
+      case let .erroredBackings(backings): self.dataSource.load(erroredBackings: backings); self.tableView.reloadData()
+      case .showEmptyStateIsLoggedIn:
+        self.tableView.bounces = false
+        if let empty = self.emptyStatesController { empty.view.isHidden = false; self.view.bringSubviewToFront(empty.view) }
+      case .hideEmptyState: self.tableView.bounces = true; self.emptyStatesController?.view.isHidden = true
+      case let .isRefreshing(refreshing):
+        if refreshing { self.refreshControl?.beginRefreshing() } else { self.refreshControl?.endRefreshing() }
+      case let .goToProject(project, refTag): self.present(project: project, refTag: refTag)
+      case let .unansweredSurveys(surveys): self.dataSource.load(surveys: surveys); self.tableView.reloadData()
+      case let .goToSurveyResponse(response): self.goToSurveyResponse(surveyResponse: response)
+      case let .goToUpdate(project, update): self.goToUpdate(project: project, update: update)
+      case let .goToManagePledge(params): self.goToManagePledge(params: params)
+      case .clearBadgeValue: self.parent?.tabBarItem.badgeValue = nil
+      case .updateUserInEnvironment: NotificationCenter.default.post(.init(name: .ksr_userUpdated))
       }
-
-    self.viewModel.outputs.erroredBackings
-      .observeForUI()
-      .observeValues { [weak self] backings in
-        self?.dataSource.load(erroredBackings: backings)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.showEmptyStateIsLoggedIn
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        self?.tableView.bounces = false
-        if let emptyVC = self?.emptyStatesController {
-          self?.emptyStatesController?.view.isHidden = false
-          self?.view.bringSubviewToFront(emptyVC.view)
-        }
-      }
-
-    self.viewModel.outputs.hideEmptyState
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.tableView.bounces = true
-        self?.emptyStatesController?.view.isHidden = true
-      }
-
-    self.refreshControl?.rac.refreshing = self.viewModel.outputs.isRefreshing
-
-    self.viewModel.outputs.goToProject
-      .observeForControllerAction()
-      .observeValues { [weak self] project, refTag in
-        self?.present(project: project, refTag: refTag)
-      }
-
-    self.viewModel.outputs.unansweredSurveys
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.dataSource.load(surveys: $0)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.goToSurveyResponse
-      .observeForControllerAction()
-      .observeValues { [weak self] surveyResponse in
-        self?.goToSurveyResponse(surveyResponse: surveyResponse)
-      }
-
-    self.viewModel.outputs.goToUpdate
-      .observeForControllerAction()
-      .observeValues { [weak self] project, update in
-        self?.goToUpdate(project: project, update: update)
-      }
-
-    self.viewModel.outputs.goToManagePledge
-      .observeForControllerAction()
-      .observeValues { [weak self] params in
-        self?.goToManagePledge(params: params)
-      }
-
-    self.viewModel.outputs.clearBadgeValue
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.parent?.tabBarItem.badgeValue = nil
-      }
-
-    self.viewModel.outputs.updateUserInEnvironment
-      .observeValues { _ in
-        NotificationCenter.default.post(.init(name: .ksr_userUpdated))
-      }
-
+    }
   }
 
   internal override func tableView(
@@ -192,7 +136,7 @@ internal final class ActivitiesViewController: UITableViewController {
       break
     }
 
-    self.viewModel.inputs.willDisplayRow(
+    self.viewModel.willDisplayRow(
       self.dataSource.itemIndexAt(indexPath),
       outOf: self.dataSource.numberOfItems()
     )
@@ -203,11 +147,11 @@ internal final class ActivitiesViewController: UITableViewController {
       return
     }
 
-    self.viewModel.inputs.tappedActivity(activity)
+    self.viewModel.tappedActivity(activity)
   }
 
   @IBAction internal func refresh() {
-    self.viewModel.inputs.refresh()
+    self.viewModel.refresh()
   }
 
   fileprivate func present(project: Project, refTag: RefTag) {
@@ -246,7 +190,7 @@ internal final class ActivitiesViewController: UITableViewController {
 
 extension ActivitiesViewController: ActivityUpdateCellDelegate {
   internal func activityUpdateCellTappedProjectImage(activity: Activity) {
-    self.viewModel.inputs.activityUpdateCellTappedProjectImage(activity: activity)
+    self.viewModel.activityUpdateCellTappedProjectImage(activity: activity)
   }
 }
 
@@ -254,7 +198,7 @@ extension ActivitiesViewController: ActivityUpdateCellDelegate {
 
 extension ActivitiesViewController: ActivitySurveyResponseCellDelegate {
   func activityTappedRespondNow(forSurveyResponse surveyResponse: SurveyResponse) {
-    self.viewModel.inputs.tappedRespondNow(forSurveyResponse: surveyResponse)
+    self.viewModel.tappedRespondNow(forSurveyResponse: surveyResponse)
   }
 }
 
@@ -274,7 +218,7 @@ extension ActivitiesViewController: EmptyStatesViewControllerDelegate {
 
 extension ActivitiesViewController: PledgeManagerWebViewControllerDelegate {
   func pledgeManagerWebViewControllerDismissed() {
-    self.viewModel.inputs.surveyResponseViewControllerDismissed()
+    self.viewModel.surveyResponseViewControllerDismissed()
   }
 }
 
@@ -284,7 +228,7 @@ extension ActivitiesViewController: TabBarControllerScrollable {}
 
 extension ActivitiesViewController: ErroredBackingViewDelegate {
   func erroredBackingViewDidTapManage(_: ErroredBackingView, backing: ProjectAndBackingEnvelope) {
-    self.viewModel.inputs.erroredBackingViewDidTapManage(with: backing)
+    self.viewModel.erroredBackingViewDidTapManage(with: backing)
   }
 }
 
@@ -295,7 +239,7 @@ extension ActivitiesViewController: ManagePledgeViewControllerDelegate {
     _: ManagePledgeViewController,
     managePledgeViewControllerFinishedWithMessage _: String?
   ) {
-    self.viewModel.inputs.managePledgeViewControllerDidFinish()
+    self.viewModel.managePledgeViewControllerDidFinish()
   }
 
   func managePledgeViewControllerDidDismiss(_: ManagePledgeViewController) {}

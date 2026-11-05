@@ -2,7 +2,6 @@ import Foundation
 import KsApi
 import Prelude
 import Observation
-import ReactiveSwift
 
 @MainActor
 public protocol ActivityProvider {
@@ -39,12 +38,21 @@ public final class ActivityFeature {
   private var pageItems: [Activity] = []
   private var request: (token: UUID, cursor: String?, task: Task<Void, Never>)?
   private var surveyRequest: (token: UUID, task: Task<Void, Never>)?
-  private let activityPipe = Signal<[Activity], Never>.pipe()
-  private let loadingPipe = Signal<Bool, Never>.pipe()
-  private let surveyPipe = Signal<[SurveyResponse], Never>.pipe()
-  public var activityValues: Signal<[Activity], Never> { self.activityPipe.output }
-  public var loadingValues: Signal<Bool, Never> { self.loadingPipe.output }
-  public var surveyValues: Signal<[SurveyResponse], Never> { self.surveyPipe.output }
+  public enum Event {
+    case activities([Activity])
+    case loading(Bool)
+    case surveys([SurveyResponse])
+  }
+  private var listeners: [UUID: @MainActor (Event) -> Void] = [:]
+  public func observe(onEvent: @escaping @MainActor (Event) -> Void) -> UUID {
+    let id = UUID()
+    self.listeners[id] = onEvent
+    return id
+  }
+  public func stopObserving(_ id: UUID) { self.listeners[id] = nil }
+  private func publish(_ event: Event) {
+    for listener in Array(self.listeners.values) { listener(event) }
+  }
 
   public init(
     sessionFeature: SessionFeature, makeProvider: @escaping () -> any ActivityProvider,
@@ -77,7 +85,7 @@ public final class ActivityFeature {
     self.cursor = nil
     self.error = nil
     self.surveyError = nil
-    if self.isLoading { self.isLoading = false; self.loadingPipe.input.send(value: false) }
+    if self.isLoading { self.isLoading = false; self.publish(.loading(false)) }
   }
 
   public func refresh() async { await self.requestPage()?.value }
@@ -105,7 +113,7 @@ public final class ActivityFeature {
         if self.request?.token == token {
           self.request = nil
           self.isLoading = false
-          self.loadingPipe.input.send(value: false)
+          self.publish(.loading(false))
         }
       }
       do {
@@ -120,7 +128,7 @@ public final class ActivityFeature {
         self.pageItems += envelope.activities
         self.activities = self.pageItems.isEmpty ? [] : (self.activities + self.pageItems).distincts()
           .sorted { $0.id > $1.id }
-        self.activityPipe.input.send(value: self.activities)
+        self.publish(.activities(self.activities))
       } catch {
         guard !Task.isCancelled, !(error is CancellationError), self.request?.token == token,
               self.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
@@ -128,7 +136,7 @@ public final class ActivityFeature {
       }
     }
     self.request = (token, cursor, task)
-    self.loadingPipe.input.send(value: true)
+    self.publish(.loading(true))
     return task
   }
 
@@ -152,7 +160,7 @@ public final class ActivityFeature {
         guard self.surveyRequest?.token == token,
               self.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
         self.surveys = surveys
-        self.surveyPipe.input.send(value: surveys)
+        self.publish(.surveys(surveys))
       } catch {
         guard !Task.isCancelled, !(error is CancellationError), self.surveyRequest?.token == token,
               self.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }

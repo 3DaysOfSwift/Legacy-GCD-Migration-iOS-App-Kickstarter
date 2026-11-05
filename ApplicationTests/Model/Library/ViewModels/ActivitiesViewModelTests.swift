@@ -3,8 +3,6 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -19,7 +17,6 @@ final class ActivitiesViewModelTests: TestCase {
   )
   private lazy var vm = ActivitiesViewModel(activityFeature: self.feature)
   private func advanceRequests() async {
-    await self.scheduler.advance()
     await self.vm.pageTask?.value
     await self.vm.surveyTask?.value
     await self.vm.userTask?.value
@@ -31,59 +28,62 @@ final class ActivitiesViewModelTests: TestCase {
     try await super.tearDown()
   }
 
-  fileprivate let activities = TestObserver<[Activity], Never>()
-  fileprivate let activitiesPresent = TestObserver<Bool, Never>()
-  fileprivate let clearBadgeValue = TestObserver<(), Never>()
-  fileprivate let erroredBackings = TestObserver<[ProjectAndBackingEnvelope], Never>()
-  fileprivate let isRefreshing = TestObserver<Bool, Never>()
-  fileprivate let goToProject = TestObserver<Project, Never>()
-  fileprivate let goToSurveyResponse = TestObserver<SurveyResponse, Never>()
-  fileprivate let showRefTag = TestObserver<RefTag, Never>()
-  fileprivate let deleteFacebookConnectSection = TestObserver<(), Never>()
-  fileprivate let deleteFindFriendsSection = TestObserver<(), Never>()
-  fileprivate let hideEmptyState = TestObserver<(), Never>()
-  fileprivate let goToFriends = TestObserver<FriendsSource, Never>()
-  fileprivate let goToManagePledgeProjectParam = TestObserver<Param, Never>()
-  fileprivate let goToManagePledgeBackingParam = TestObserver<Param?, Never>()
-  fileprivate let showEmptyStateIsLoggedIn = TestObserver<Bool, Never>()
-  fileprivate let showFacebookConnectSection = TestObserver<Bool, Never>()
-  fileprivate let showFacebookConnectSectionSource = TestObserver<FriendsSource, Never>()
-  fileprivate let showFindFriendsSection = TestObserver<Bool, Never>()
-  fileprivate let showFindFriendsSectionSource = TestObserver<FriendsSource, Never>()
-  fileprivate let showFacebookConnectErrorAlert = TestObserver<AlertError, Never>()
-  fileprivate let unansweredSurveyResponse = TestObserver<[SurveyResponse], Never>()
-  fileprivate let updateUserInEnvironment = TestObserver<User, Never>()
+  fileprivate let activities = ActivityRecorder<[Activity]>()
+  fileprivate let activitiesPresent = ActivityRecorder<Bool>()
+  fileprivate let clearBadgeValue = ActivityRecorder<()>()
+  fileprivate let erroredBackings = ActivityRecorder<[ProjectAndBackingEnvelope]>()
+  fileprivate let isRefreshing = ActivityRecorder<Bool>()
+  fileprivate let goToProject = ActivityRecorder<Project>()
+  fileprivate let goToSurveyResponse = ActivityRecorder<SurveyResponse>()
+  fileprivate let showRefTag = ActivityRecorder<RefTag>()
+  fileprivate let deleteFacebookConnectSection = ActivityRecorder<()>()
+  fileprivate let deleteFindFriendsSection = ActivityRecorder<()>()
+  fileprivate let hideEmptyState = ActivityRecorder<()>()
+  fileprivate let goToFriends = ActivityRecorder<FriendsSource>()
+  fileprivate let goToManagePledgeProjectParam = ActivityRecorder<Param>()
+  fileprivate let goToManagePledgeBackingParam = ActivityRecorder<Param?>()
+  fileprivate let showEmptyStateIsLoggedIn = ActivityRecorder<Bool>()
+  fileprivate let showFacebookConnectSection = ActivityRecorder<Bool>()
+  fileprivate let showFacebookConnectSectionSource = ActivityRecorder<FriendsSource>()
+  fileprivate let showFindFriendsSection = ActivityRecorder<Bool>()
+  fileprivate let showFindFriendsSectionSource = ActivityRecorder<FriendsSource>()
+  fileprivate let showFacebookConnectErrorAlert = ActivityRecorder<AlertError>()
+  fileprivate let unansweredSurveyResponse = ActivityRecorder<[SurveyResponse]>()
+  fileprivate let updateUserInEnvironment = ActivityRecorder<User>()
 
   override func setUp() async throws {
     try await super.setUp()
 
-    MainActor.assumeIsolated {
-      self.vm.outputs.activities.observe(self.activities.observer)
-      self.vm.outputs.activities.map { !$0.isEmpty }.observe(self.activitiesPresent.observer)
-      self.vm.outputs.clearBadgeValue.observe(self.clearBadgeValue.observer)
-      self.vm.outputs.erroredBackings.observe(self.erroredBackings.observer)
-      self.vm.outputs.hideEmptyState.observe(self.hideEmptyState.observer)
-      self.vm.outputs.isRefreshing.observe(self.isRefreshing.observer)
-      self.vm.outputs.goToProject.map { $0.0 }.observe(self.goToProject.observer)
-      self.vm.outputs.goToProject.map { $0.1 }.observe(self.showRefTag.observer)
-      self.vm.outputs.goToSurveyResponse.observe(self.goToSurveyResponse.observer)
-      self.vm.outputs.goToManagePledge.map(first).observe(self.goToManagePledgeProjectParam.observer)
-      self.vm.outputs.goToManagePledge.map(second).observe(self.goToManagePledgeBackingParam.observer)
-      self.vm.outputs.showEmptyStateIsLoggedIn.observe(self.showEmptyStateIsLoggedIn.observer)
-      self.vm.outputs.unansweredSurveys.observe(self.unansweredSurveyResponse.observer)
-      self.vm.outputs.updateUserInEnvironment.observe(self.updateUserInEnvironment.observer)
+    self.vm.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .activities(activities): self.activities.record(activities); self.activitiesPresent.record(!activities.isEmpty)
+      case .clearBadgeValue: self.clearBadgeValue.record(())
+      case let .erroredBackings(backings): self.erroredBackings.record(backings)
+      case .hideEmptyState: self.hideEmptyState.record(())
+      case let .isRefreshing(value): self.isRefreshing.record(value)
+      case let .goToProject(project, refTag): self.goToProject.record(project); self.showRefTag.record(refTag)
+      case let .goToSurveyResponse(survey): self.goToSurveyResponse.record(survey)
+      case let .goToManagePledge(params):
+        self.goToManagePledgeProjectParam.record(params.projectParam)
+        self.goToManagePledgeBackingParam.record(params.backingParam)
+      case let .showEmptyStateIsLoggedIn(value): self.showEmptyStateIsLoggedIn.record(value)
+      case let .unansweredSurveys(surveys): self.unansweredSurveyResponse.record(surveys)
+      case let .updateUserInEnvironment(user): self.updateUserInEnvironment.record(user)
+      case .goToUpdate: break
+      }
     }
   }
 
   // Tests the flow of logging in with a user that has activities.
   func testLoginFlow_ForUserWithActivities() async {
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewWillAppear(animated: false)
+    self.vm.viewDidLoad()
+    self.vm.viewWillAppear(animated: false)
 
     self.activitiesPresent.assertValues([], "No activities shown for logged-out user.")
     self.showEmptyStateIsLoggedIn.assertValues([false], "Logged-out empty state emits.")
 
-    self.vm.inputs.viewWillAppear(animated: false)
+    self.vm.viewWillAppear(animated: false)
 
     self.activitiesPresent.assertValues([], "No activities shown for logged-out user.")
     self.showEmptyStateIsLoggedIn.assertValues([false], "Logged-out empty state does not emit again.")
@@ -94,8 +94,8 @@ final class ActivitiesViewModelTests: TestCase {
       self.activity1,
       self.activity2
     ])) {
-      self.vm.inputs.userSessionStarted()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.userSessionStarted()
+      self.vm.viewWillAppear(animated: false)
 
       await self.advanceRequests()
 
@@ -103,7 +103,7 @@ final class ActivitiesViewModelTests: TestCase {
       self.showEmptyStateIsLoggedIn.assertValues([false], "Empty state does not emit.")
       self.hideEmptyState.assertValueCount(2, "Dismiss empty state emits.")
 
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.viewWillAppear(animated: false)
 
       self.activitiesPresent.assertValues([true], "Same activities do not emit again.")
       self.showEmptyStateIsLoggedIn.assertValues([false], "Empty state does not emit.")
@@ -111,13 +111,13 @@ final class ActivitiesViewModelTests: TestCase {
     }
 
     AppEnvironment.logout()
-    self.vm.inputs.userSessionEnded()
+    self.vm.userSessionEnded()
 
     self.activitiesPresent.assertValues([true, false], "Activities are cleared.")
     self.showEmptyStateIsLoggedIn.assertValues([false], "Empty logged-in state does not emit.")
     self.hideEmptyState.assertValueCount(2, "Dismiss empty state does not emit.")
 
-    self.vm.inputs.viewWillAppear(animated: false)
+    self.vm.viewWillAppear(animated: false)
 
     self.activitiesPresent.assertValues([true, false], "Activities are still cleared.")
     self.showEmptyStateIsLoggedIn.assertValues([false, false], "Logged-out empty state emits again.")
@@ -125,8 +125,8 @@ final class ActivitiesViewModelTests: TestCase {
 
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeefffffff", user: User.brando))
     await withEnvironment(apiService: MockService(fetchActivitiesResponse: [])) {
-      self.vm.inputs.userSessionStarted()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.userSessionStarted()
+      self.vm.viewWillAppear(animated: false)
 
       await self.advanceRequests()
 
@@ -140,16 +140,16 @@ final class ActivitiesViewModelTests: TestCase {
   // empty state shows.
   func testLoginFlow_ForUserWithNoActivities() async {
     await withEnvironment(apiService: MockService(fetchActivitiesResponse: [])) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear(animated: false)
       await self.advanceRequests()
 
       self.activitiesPresent.assertValues([], "Activities didn't emit.")
       self.showEmptyStateIsLoggedIn.assertValues([false], "Logged out empty state emits.")
 
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
-      self.vm.inputs.userSessionStarted()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.userSessionStarted()
+      self.vm.viewWillAppear(animated: false)
 
       await self.advanceRequests()
 
@@ -160,7 +160,7 @@ final class ActivitiesViewModelTests: TestCase {
       self.showEmptyStateIsLoggedIn.assertValues([false, true], "Logged in empty state emits.")
       self.hideEmptyState.assertValueCount(1, "Dismiss empty state emits on view load.")
 
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.viewWillAppear(animated: false)
 
       self.activitiesPresent.assertValues([false], "Activities does not emit.")
       self.showEmptyStateIsLoggedIn.assertValues([false, true], "Logged in empty state does not emit again.")
@@ -170,13 +170,13 @@ final class ActivitiesViewModelTests: TestCase {
 
   // Tests that activities are cleared if the user is logged out for any reason.
   func testInvalidatedTokenFlow_ActivitiesClearAfterSessionCleared() async {
-    self.vm.inputs.viewDidLoad()
+    self.vm.viewDidLoad()
 
     self.hideEmptyState.assertValueCount(1, "Dismiss empty state emits.")
 
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
-    self.vm.inputs.userSessionStarted()
-    self.vm.inputs.viewWillAppear(animated: false)
+    self.vm.userSessionStarted()
+    self.vm.viewWillAppear(animated: false)
 
     await self.advanceRequests()
 
@@ -185,11 +185,11 @@ final class ActivitiesViewModelTests: TestCase {
     self.hideEmptyState.assertValueCount(2, "Dismiss empty state emits.")
 
     AppEnvironment.logout()
-    self.vm.inputs.userSessionEnded()
+    self.vm.userSessionEnded()
 
     self.showEmptyStateIsLoggedIn.assertValueCount(0, "Empty state does not emit.")
 
-    self.vm.inputs.viewWillAppear(animated: false)
+    self.vm.viewWillAppear(animated: false)
 
     await self.advanceRequests()
 
@@ -197,7 +197,7 @@ final class ActivitiesViewModelTests: TestCase {
     self.showEmptyStateIsLoggedIn.assertValues([false], "Logged out empty state emits.")
     self.hideEmptyState.assertValueCount(2, "Dismiss empty state does not emit.")
 
-    self.vm.inputs.viewWillAppear(animated: false)
+    self.vm.viewWillAppear(animated: false)
 
     self.activitiesPresent.assertValues([true, false], "Activities does not emit again.")
     self.showEmptyStateIsLoggedIn.assertValues([false], "Logged out empty state does not emit again.")
@@ -208,17 +208,31 @@ final class ActivitiesViewModelTests: TestCase {
   //   * user logs in before ever view activities
   //   * user navigates to activities
   func testLogin_BeforeActivityViewAppeared() async {
-    self.vm.inputs.viewDidLoad()
+    self.vm.viewDidLoad()
 
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
-    self.vm.inputs.userSessionStarted()
+    self.vm.userSessionStarted()
     await self.advanceRequests()
 
     self.activitiesPresent.assertValues([], "Activities don't load after session starts.")
 
-    self.vm.inputs.viewWillAppear(animated: false)
+    self.vm.viewWillAppear(animated: false)
 
     self.activitiesPresent.assertValues([true], "Activities load once view appears.")
+  }
+
+  func testLogoutBeforeFirstAppearanceDoesNotShowBufferedActivities() async {
+    await withEnvironment(apiService: MockService(fetchActivitiesResponse: [self.activity1])) {
+      self.vm.viewDidLoad()
+      AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture", user: .template))
+      self.vm.userSessionStarted()
+      await self.advanceRequests()
+      AppEnvironment.logout()
+      self.vm.userSessionEnded()
+      self.vm.viewWillAppear(animated: false)
+      self.activitiesPresent.assertValues([false])
+      self.showEmptyStateIsLoggedIn.assertValues([false])
+    }
   }
 
   func testRefreshActivities() async {
@@ -226,14 +240,14 @@ final class ActivitiesViewModelTests: TestCase {
       apiService: MockService(fetchActivitiesResponse: [self.activity1, self.activity2]),
       currentUser: .template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.userSessionStarted()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.viewDidLoad()
+      self.vm.userSessionStarted()
+      self.vm.viewWillAppear(animated: false)
       await self.advanceRequests()
 
       self.activitiesPresent.assertValues([true], "Activities load immediately after session starts.")
 
-      self.vm.inputs.willDisplayRow(9, outOf: 10)
+      self.vm.willDisplayRow(9, outOf: 10)
       await self.advanceRequests()
 
       self.activitiesPresent.assertValues([true, true], "New activities emit on pagination.")
@@ -244,7 +258,7 @@ final class ActivitiesViewModelTests: TestCase {
         self.activity2,
         self.activity3
       ])) {
-        self.vm.inputs.refresh()
+        self.vm.refresh()
         await self.advanceRequests()
 
         self.activitiesPresent.assertValues([true, true, true], "New activities emit on refresh.")
@@ -261,9 +275,9 @@ final class ActivitiesViewModelTests: TestCase {
       ]),
       currentUser: .template
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.userSessionStarted()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.viewDidLoad()
+      self.vm.userSessionStarted()
+      self.vm.viewWillAppear(animated: false)
       await self.advanceRequests()
 
       self.activitiesPresent.assertValues([true], "Activities loaded.")
@@ -292,9 +306,9 @@ final class ActivitiesViewModelTests: TestCase {
       apiService: mockService1,
       currentUser: user
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.userSessionStarted()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.viewDidLoad()
+      self.vm.userSessionStarted()
+      self.vm.viewWillAppear(animated: false)
       await self.advanceRequests()
 
       self.updateUserInEnvironment.assertValues([])
@@ -302,7 +316,7 @@ final class ActivitiesViewModelTests: TestCase {
       self.clearBadgeValue.assertValueCount(0)
 
       await withEnvironment(apiService: mockService2) {
-        self.vm.inputs.refresh()
+        self.vm.refresh()
         await self.advanceRequests()
 
         self.activitiesPresent.assertValues([true, true], "New activities emit on refresh.")
@@ -333,9 +347,9 @@ final class ActivitiesViewModelTests: TestCase {
     await withEnvironment(
       apiService: mockService1
     ) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.userSessionStarted()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.viewDidLoad()
+      self.vm.userSessionStarted()
+      self.vm.viewWillAppear(animated: false)
       await self.advanceRequests()
 
       self.updateUserInEnvironment.assertValues([])
@@ -343,7 +357,7 @@ final class ActivitiesViewModelTests: TestCase {
       self.clearBadgeValue.assertValueCount(0)
 
       await withEnvironment(apiService: mockService2) {
-        self.vm.inputs.refresh()
+        self.vm.refresh()
         await self.advanceRequests()
 
         self.activitiesPresent.assertValues([])
@@ -362,7 +376,7 @@ final class ActivitiesViewModelTests: TestCase {
     let project = activity.project!
     let refTag = RefTag.activity
 
-    self.vm.inputs.activityUpdateCellTappedProjectImage(activity: activity)
+    self.vm.activityUpdateCellTappedProjectImage(activity: activity)
 
     self.goToProject.assertValues([project])
     self.showRefTag.assertValues([refTag])
@@ -378,8 +392,8 @@ final class ActivitiesViewModelTests: TestCase {
   func testSurveys() async {
     let surveyResponse = SurveyResponse.template
 
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewWillAppear(animated: false)
+    self.vm.viewDidLoad()
+    self.vm.viewWillAppear(animated: false)
     await self.advanceRequests()
 
     self.unansweredSurveyResponse.assertValueCount(0, "Survey does not emit when logged out.")
@@ -388,29 +402,29 @@ final class ActivitiesViewModelTests: TestCase {
       apiService: MockService(fetchUnansweredSurveyResponsesResponse: [surveyResponse]),
       currentUser: .template
     ) {
-      self.vm.inputs.userSessionStarted()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.userSessionStarted()
+      self.vm.viewWillAppear(animated: false)
       await self.advanceRequests()
 
       self.unansweredSurveyResponse.assertValues([[surveyResponse]])
 
       // Tap to see survey response.
-      self.vm.inputs.tappedRespondNow(forSurveyResponse: surveyResponse)
+      self.vm.tappedRespondNow(forSurveyResponse: surveyResponse)
       self.goToSurveyResponse.assertValues([surveyResponse])
 
       // Exited survey full screen.
-      self.vm.inputs.viewWillAppear(animated: true)
+      self.vm.viewWillAppear(animated: true)
       await self.advanceRequests()
       self.unansweredSurveyResponse.assertValues(
         [[surveyResponse], [surveyResponse]],
         "Survey emits whenever view appears"
       )
 
-      self.vm.inputs.tappedRespondNow(forSurveyResponse: surveyResponse)
+      self.vm.tappedRespondNow(forSurveyResponse: surveyResponse)
       self.goToSurveyResponse.assertValues([surveyResponse, surveyResponse])
 
       // Exited survey modal.
-      self.vm.inputs.surveyResponseViewControllerDismissed()
+      self.vm.surveyResponseViewControllerDismissed()
       await self.advanceRequests()
       self.unansweredSurveyResponse.assertValues(
         [[surveyResponse], [surveyResponse], [surveyResponse]],
@@ -426,7 +440,7 @@ final class ActivitiesViewModelTests: TestCase {
     let env = ProjectAndBackingEnvelope.template
       |> \.project .~ .template
 
-    self.vm.inputs.erroredBackingViewDidTapManage(with: env)
+    self.vm.erroredBackingViewDidTapManage(with: env)
 
     self.goToManagePledgeProjectParam.assertValues([.id(env.project.id)])
     self.goToManagePledgeBackingParam.assertValues([.id(env.backing.id)])
@@ -439,14 +453,14 @@ final class ActivitiesViewModelTests: TestCase {
       self.updateUserInEnvironment.assertDidNotEmitValue()
       self.erroredBackings.assertDidNotEmitValue()
 
-      self.vm.inputs.managePledgeViewControllerDidFinish()
+      self.vm.managePledgeViewControllerDidFinish()
 
       await self.advanceRequests()
 
       self.updateUserInEnvironment.assertValues([user])
       self.erroredBackings.assertDidNotEmitValue()
 
-      self.vm.inputs.currentUserUpdated()
+      self.vm.currentUserUpdated()
 
       await self.advanceRequests()
 
@@ -462,14 +476,14 @@ final class ActivitiesViewModelTests: TestCase {
       self.updateUserInEnvironment.assertDidNotEmitValue()
       self.erroredBackings.assertDidNotEmitValue()
 
-      self.vm.inputs.managePledgeViewControllerDidFinish()
+      self.vm.managePledgeViewControllerDidFinish()
 
       await self.advanceRequests()
 
       self.updateUserInEnvironment.assertValues([user])
       self.erroredBackings.assertDidNotEmitValue()
 
-      self.vm.inputs.currentUserUpdated()
+      self.vm.currentUserUpdated()
 
       await self.advanceRequests()
 
@@ -483,15 +497,15 @@ final class ActivitiesViewModelTests: TestCase {
 
     await withEnvironment(apiService: MockService(fetchUnansweredSurveyResponsesResponse: [surveyResponse])) {
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear(animated: false)
       await self.advanceRequests()
 
       self.unansweredSurveyResponse.assertValues([[surveyResponse]])
 
       AppEnvironment.logout()
-      self.vm.inputs.userSessionEnded()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.userSessionEnded()
+      self.vm.viewWillAppear(animated: false)
       await self.advanceRequests()
 
       self.unansweredSurveyResponse.assertValues([[surveyResponse]])
@@ -506,4 +520,20 @@ final class ActivitiesViewModelTests: TestCase {
     |> Activity.lens.category .~ .shipped
     |> Activity.lens.trackingNumber .~ "test-tracking-number"
     |> Activity.lens.trackingUrl .~ "https://example.com"
+}
+
+fileprivate final class ActivityRecorder<Value> {
+  private(set) var values: [Value] = []
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    self.assertValueCount(0, message, file: file, line: line)
+  }
+}
+fileprivate extension ActivityRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
+  }
 }
