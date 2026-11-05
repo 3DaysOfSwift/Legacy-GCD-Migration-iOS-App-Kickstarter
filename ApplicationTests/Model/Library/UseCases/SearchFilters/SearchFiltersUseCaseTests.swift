@@ -2,8 +2,6 @@
 @testable import KsApi
 
 
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import Combine
 import XCTest
 
@@ -13,44 +11,39 @@ final class SearchFiltersUseCaseTests: TestCase {
 
   private lazy var searchFeature = SearchFeature(provider: AsyncSearchProjectsProvider())
   private var useCase: SearchFiltersUseCase!
-  private var initialBinding: Disposable?
   private var selectionObservation: MainActorObservation?
 
-  private let selectedSort = TestObserver<DiscoveryParams.Sort, Never>()
-  private let selectedCategory = TestObserver<KsApi.Category?, Never>()
-  private let selectedState = TestObserver<DiscoveryParams.State, Never>()
-  private let selectedPercentRaisedBucket = TestObserver<DiscoveryParams.PercentRaisedBucket?, Never>()
-  private let selectedLocation = TestObserver<Location?, Never>()
-  private let selectedAmountRaisedBucket = TestObserver<DiscoveryParams.AmountRaisedBucket?, Never>()
-  private let selectedGoalBucket = TestObserver<DiscoveryParams.GoalBucket?, Never>()
-  private let selectedToggles = TestObserver<SearchFilterToggles, Never>()
-  private let showFilters = TestObserver<SearchFilterModalType, Never>()
+  private let selectedSort = FilterRecorder<DiscoveryParams.Sort>()
+  private let selectedCategory = FilterRecorder<KsApi.Category?>()
+  private let selectedState = FilterRecorder<DiscoveryParams.State>()
+  private let selectedPercentRaisedBucket = FilterRecorder<DiscoveryParams.PercentRaisedBucket?>()
+  private let selectedLocation = FilterRecorder<Location?>()
+  private let selectedAmountRaisedBucket = FilterRecorder<DiscoveryParams.AmountRaisedBucket?>()
+  private let selectedGoalBucket = FilterRecorder<DiscoveryParams.GoalBucket?>()
+  private let selectedToggles = FilterRecorder<SearchFilterToggles>()
+  private let showFilters = FilterRecorder<SearchFilterModalType>()
 
-  private let (initialSignal, initialObserver) = Signal<Void, Never>.pipe()
 
   override func setUp() async throws {
     try await super.setUp()
 
     MainActor.assumeIsolated {
-    self.initialBinding = self.initialSignal.observeValues { [searchFeature] in
-      searchFeature.filterSelection.publishInitialSelection()
-    }
     self.useCase = SearchFiltersUseCase(searchFeature: self.searchFeature)
 
     self.selectionObservation = self.searchFeature.filterSelection.observe { [weak self] change in
       guard let self else { return }
       switch change {
-      case let .category(value): self.selectedCategory.observer.send(value: value.category)
-      case let .sort(value): self.selectedSort.observer.send(value: value)
-      case let .state(value): self.selectedState.observer.send(value: value)
-      case let .percent(value): self.selectedPercentRaisedBucket.observer.send(value: value)
-      case let .location(value): self.selectedLocation.observer.send(value: value)
-      case let .amount(value): self.selectedAmountRaisedBucket.observer.send(value: value)
-      case let .goal(value): self.selectedGoalBucket.observer.send(value: value)
-      case let .toggles(value): self.selectedToggles.observer.send(value: value)
+      case let .category(value): self.selectedCategory.record(value.category)
+      case let .sort(value): self.selectedSort.record(value)
+      case let .state(value): self.selectedState.record(value)
+      case let .percent(value): self.selectedPercentRaisedBucket.record(value)
+      case let .location(value): self.selectedLocation.record(value)
+      case let .amount(value): self.selectedAmountRaisedBucket.record(value)
+      case let .goal(value): self.selectedGoalBucket.record(value)
+      case let .toggles(value): self.selectedToggles.record(value)
       }
     }
-    self.useCase.uiOutputs.onShowFilters = { [weak self] in self?.showFilters.observer.send(value: $0) }
+    self.useCase.uiOutputs.onShowFilters = { [weak self] in self?.showFilters.record($0) }
     }
   }
 
@@ -94,7 +87,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_allFilters_onInitialSignal_areDefaults() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.assertAllFilters_areSetToDefaults()
   }
@@ -102,13 +95,13 @@ final class SearchFiltersUseCaseTests: TestCase {
   func test_sort_onInitialSignal_isRecommended() {
     self.selectedSort.assertDidNotEmitValue()
 
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.selectedSort.assertLastValue(.magic)
   }
 
   func test_tappedSort_showsSortOptions() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.showFilters.assertDidNotEmitValue()
 
@@ -133,7 +126,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_tappedCategories_showsCategoryFilters() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
     self.searchFeature.publishCategories([
       .art,
       .illustration,
@@ -164,7 +157,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_tappedProjectState_showsAllOptions() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.showFilters.assertDidNotEmitValue()
 
@@ -189,7 +182,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_tappedPercentRaised_showsPercentRaised() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.showFilters.assertDidNotEmitValue()
 
@@ -214,7 +207,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_tappedAllFilters_showsAllOptions() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.showFilters.assertDidNotEmitValue()
 
@@ -228,7 +221,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_tappedLocation_showsLocation() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.searchFeature.publishDefaultLocations(threeLocations)
     self.searchFeature.publishSuggestedLocations(threeLocations)
@@ -257,7 +250,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func testLookupRefreshAndClearPreserveSelectedFilters() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
     let location = threeLocations[0]
     self.useCase.inputs.selectedFilter(.category(.rootCategory(.art)))
     self.useCase.inputs.selectedFilter(.location(location))
@@ -297,7 +290,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func testReleasedAdapterStopsUpdatingRetainedPresentationModel() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
     let filters = self.useCase.uiOutputs.searchFilters
     weak var weakAdapter = self.useCase
     self.useCase = nil
@@ -316,7 +309,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_tappedAmountRaised_showsAmountRaised() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.showFilters.assertDidNotEmitValue()
 
@@ -341,7 +334,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_tappedGoal_showsGoal() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.showFilters.assertDidNotEmitValue()
 
@@ -366,7 +359,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_selectingCategory_updatesCategory() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     let categories: [KsApi.Category] = [
       .art,
@@ -394,7 +387,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_selectingSort_updatesSort() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.showFilters.assertDidNotEmitValue()
     self.selectedSort.assertLastValue(.magic)
@@ -413,7 +406,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_selectingState_updatesState() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.assert_selectedProjectState_isDefault()
 
@@ -428,7 +421,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_selectingPercentRaisedBucket_updatesBucket() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.assert_selectedPercentRaisedBucket_isDefault()
 
@@ -443,7 +436,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_selectingAmountRaisedBucket_updatesBucket() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.assert_selectedAmountRaisedBucket_isDefault()
 
@@ -458,7 +451,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_selectingLocation_updatesLocation() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.assert_selectedLocation_isDefault()
 
@@ -479,7 +472,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_selectingToggles_updatesToggles() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.assert_toggles_areDefaults()
 
@@ -525,7 +518,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_selectingSort_updatesSortPill() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.selectedSort.assertLastValue(.magic)
 
@@ -553,7 +546,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_selectingCategory_updatesCategoryPill() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
     self.searchFeature.publishCategories([
       .art,
       .illustration,
@@ -612,7 +605,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_selectingPercentRaised_updatesPercentRaisedPill() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.assert_selectedPercentRaisedBucket_isDefault()
 
@@ -652,7 +645,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_selectingAmountRaised_updatesAmountRaisedPill() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.assert_selectedAmountRaisedBucket_isDefault()
 
@@ -692,7 +685,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_selectingLocation_updatesLocationPill() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     self.assert_selectedLocation_isDefault()
 
@@ -735,7 +728,7 @@ final class SearchFiltersUseCaseTests: TestCase {
 
   func test_userLoggedIn_showsUserTogglePills() {
     withEnvironment(currentUser: User.template) {
-      self.initialObserver.send(value: ())
+      self.searchFeature.filterSelection.publishInitialSelection()
 
       XCTAssertNotNil(self.useCase.uiOutputs.searchFilters.followingPill)
       XCTAssertNotNil(self.useCase.uiOutputs.searchFilters.projectsWeLovePill)
@@ -746,7 +739,7 @@ final class SearchFiltersUseCaseTests: TestCase {
 
   func test_userLoggedOut_showsAnonymousTogglePills() {
     withEnvironment(currentUser: nil) {
-      self.initialObserver.send(value: ())
+      self.searchFeature.filterSelection.publishInitialSelection()
 
       XCTAssertNil(self.useCase.uiOutputs.searchFilters.followingPill)
       XCTAssertNotNil(self.useCase.uiOutputs.searchFilters.projectsWeLovePill)
@@ -760,7 +753,7 @@ final class SearchFiltersUseCaseTests: TestCase {
     onEvent event: SearchFilterEvent
   ) {
     withEnvironment(currentUser: User.template) {
-      self.initialObserver.send(value: ())
+      self.searchFeature.filterSelection.publishInitialSelection()
 
       self.assert_toggles_areDefaults()
 
@@ -804,7 +797,7 @@ final class SearchFiltersUseCaseTests: TestCase {
 
   func test_tappingOnToggles_changesToggleValue_insteadOfShowingFilters() {
     withEnvironment(currentUser: User.template) {
-      self.initialObserver.send(value: ())
+      self.searchFeature.filterSelection.publishInitialSelection()
       self.assert_toggles_areDefaults()
 
       self.useCase.inputs.tappedButton(forFilterType: .following)
@@ -889,7 +882,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_clearQueryText_resetsSort_andClearsFilters() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
     self.searchFeature.publishCategories([
       .art
     ])
@@ -907,7 +900,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_resetAllFilters_resetsAllFilters() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
     self.searchFeature.publishCategories([
       .art,
       .documentary,
@@ -924,7 +917,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   }
 
   func test_resetFiltersForType_resetsOnlySpecificFilters() {
-    self.initialObserver.send(value: ())
+    self.searchFeature.filterSelection.publishInitialSelection()
 
     for type in SearchFilterModalType.allCases {
       XCTAssertFalse(
@@ -983,3 +976,18 @@ private let threeLocations = [
     name: "Allston, MA"
   )
 ]
+
+private final class FilterRecorder<Value> {
+  private(set) var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func record(_ value: Value) { self.values.append(value) }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, message, file: file, line: line)
+  }
+  func assertDidEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertFalse(self.values.isEmpty, message, file: file, line: line)
+  }
+  func assertLastValue(_ value: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) where Value: Equatable {
+    XCTAssertEqual(self.values.last, value, message, file: file, line: line)
+  }
+}
