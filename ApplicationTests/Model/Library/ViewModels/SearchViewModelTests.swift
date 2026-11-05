@@ -6,9 +6,6 @@ import GraphAPI
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -51,46 +48,41 @@ internal final class SearchViewModelTests: TestCase {
     return try testGraphObject(fromResource: url)
   }
 
-  fileprivate let changeSearchFieldFocusFocused = TestObserver<Bool, Never>()
-  fileprivate let changeSearchFieldFocusAnimated = TestObserver<Bool, Never>()
-  fileprivate let goToRefTag = TestObserver<RefTag, Never>()
-  private let hasAddedProjects = TestObserver<Bool, Never>()
-  private let (searchResultsSignal, searchResultsObserver) = Signal<SearchResults, Never>.pipe()
-  private let (emptyStateSignal, emptyStateObserver) = Signal<(DiscoveryParams, Bool), Never>.pipe()
-  fileprivate let hasProjects = TestObserver<Bool, Never>()
-  fileprivate let isPopularTitleVisible = TestObserver<Bool, Never>()
-  fileprivate var noProjects = TestObserver<Bool, Never>()
-  fileprivate let searchLoaderIndicatorIsAnimating = TestObserver<Bool, Never>()
-  fileprivate let showEmptyState = TestObserver<Bool, Never>()
-  fileprivate let showEmptyStateParams = TestObserver<DiscoveryParams, Never>()
-  fileprivate let showFilters = TestObserver<SearchFilterModalType, Never>()
-  fileprivate let showVideoFeedBanner = TestObserver<Bool, Never>()
+  fileprivate let goToRefTag = SearchRecorder<RefTag>()
+  private let hasAddedProjects = SearchRecorder<Bool>()
+  private var resultObservers: [(SearchResults) -> Void] = []
+  private var lastProjectCount = 0
+  fileprivate let hasProjects = SearchRecorder<Bool>()
+  fileprivate let isPopularTitleVisible = SearchRecorder<Bool>()
+  fileprivate var noProjects = SearchRecorder<Bool>()
+  fileprivate let searchLoaderIndicatorIsAnimating = SearchRecorder<Bool>()
+  fileprivate let showEmptyState = SearchRecorder<Bool>()
+  fileprivate let showEmptyStateParams = SearchRecorder<DiscoveryParams>()
+  fileprivate let showFilters = SearchRecorder<SearchFilterModalType>()
+  fileprivate let showVideoFeedBanner = SearchRecorder<Bool>()
 
   override func setUp() async throws {
     try await super.setUp()
 
     MainActor.assumeIsolated {
-      self.vm.outputs.onSearchResults = { [weak self] in self?.searchResultsObserver.send(value: $0) }
-      self.vm.outputs.onEmptyStateChanged = { [weak self] in self?.emptyStateObserver.send(value: ($0, $1)) }
-      self.vm.outputs.onGoToProject = { [weak self] _, refTag in self?.goToRefTag.observer.send(value: refTag) }
-      self.searchResultsSignal.map { $0.isProjectsTitleVisible }
-        .observe(self.isPopularTitleVisible.observer)
-      self.searchResultsSignal.map { !$0.projects.isEmpty }.skipRepeats(==)
-        .observe(self.hasProjects.observer)
-      self.searchResultsSignal.map { $0.projects.isEmpty }.skipRepeats(==)
-        .observe(self.noProjects.observer)
-      self.vm.outputs.onLoadingChanged = { [weak self] in self?.searchLoaderIndicatorIsAnimating.observer.send(value: $0) }
-      self.emptyStateSignal.map(second).observe(self.showEmptyState.observer)
-      self.emptyStateSignal.map(first).observe(self.showEmptyStateParams.observer)
-      self.vm.outputs.onVideoFeedBannerChanged = { [weak self] in self?.showVideoFeedBanner.observer.send(value: $0) }
-
-      self.searchResultsSignal
-        .map { $0.projects.count }
-        .combinePrevious(0)
-        .map { prev, next in next > prev }
-        .observe(self.hasAddedProjects.observer)
-
-      self.vm.outputs.onShowFilters = { [weak self] in self?.showFilters.observer.send(value: $0) }
+      self.vm.outputs.onSearchResults = { [weak self] result in
+        guard let self else { return }
+        self.isPopularTitleVisible.record(result.isProjectsTitleVisible)
+        let hasProjects = !result.projects.isEmpty
+        if self.hasProjects.lastValue != hasProjects { self.hasProjects.record(hasProjects) }
+        if self.noProjects.lastValue != !hasProjects { self.noProjects.record(!hasProjects) }
+        self.hasAddedProjects.record(result.projects.count > self.lastProjectCount)
+        self.lastProjectCount = result.projects.count
+        for observer in self.resultObservers { observer(result) }
+      }
+      self.vm.outputs.onEmptyStateChanged = { [weak self] parameters, visible in
+        self?.showEmptyStateParams.record(parameters)
+        self?.showEmptyState.record(visible)
+      }
+      self.vm.outputs.onGoToProject = { [weak self] _, refTag in self?.goToRefTag.record(refTag) }
+      self.vm.outputs.onLoadingChanged = { [weak self] in self?.searchLoaderIndicatorIsAnimating.record($0) }
+      self.vm.outputs.onVideoFeedBannerChanged = { [weak self] in self?.showVideoFeedBanner.record($0) }
+      self.vm.outputs.onShowFilters = { [weak self] in self?.showFilters.record($0) }
     }
   }
 
@@ -1283,9 +1275,9 @@ internal final class SearchViewModelTests: TestCase {
       apiService: MockService(fetchGraphQLResponses: popularResponse),
       debounceInterval: debounceDelay
     ) {
-      let projects = TestObserver<[String], Never>()
+      let projects = SearchRecorder<[String]>()
 
-      self.searchResultsSignal.map { $0.projects.map { $0.name } }.observe(projects.observer)
+      self.resultObservers.append { projects.record($0.projects.map { $0.name }) }
 
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: true)
@@ -1337,8 +1329,8 @@ internal final class SearchViewModelTests: TestCase {
       apiDelayInterval: apiDelay,
       debounceInterval: debounceDelay
     ) {
-      let projects = TestObserver<[String], Never>()
-      self.searchResultsSignal.map { $0.projects.map { $0.name } }.observe(projects.observer)
+      let projects = SearchRecorder<[String]>()
+      self.resultObservers.append { projects.record($0.projects.map { $0.name }) }
 
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: true)
@@ -1630,5 +1622,26 @@ private final class SearchDelayCancellation: @unchecked Sendable {
     self.lock.lock()
     self.cancelled = true
     self.lock.unlock()
+  }
+}
+
+private final class SearchRecorder<Value> {
+  private(set) var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func record(_ value: Value) { self.values.append(value) }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, message, file: file, line: line)
+  }
+  func assertDidEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertFalse(self.values.isEmpty, message, file: file, line: line)
+  }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertLastValue(_ value: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) where Value: Equatable {
+    XCTAssertEqual(self.values.last, value, message, file: file, line: line)
+  }
+  func assertValues(_ values: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) where Value: Equatable {
+    XCTAssertEqual(self.values, values, message, file: file, line: line)
   }
 }
