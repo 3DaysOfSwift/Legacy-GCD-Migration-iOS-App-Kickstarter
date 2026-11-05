@@ -1761,7 +1761,6 @@
 				"E6CB7A89A9C3074B9705547D",
 				"152A97C64D42FC1DF635D920",
 				"5F2EBA09F812161689F8E3FF",
-				"76BCBBA463C05CAB04FE3120",
 				"7CAD0E5C29CB2201FF406A66",
 				"F370BD767E45A7F89D8B58CE",
 				"9F655B42A0F8947328DACB95",
@@ -7549,10 +7548,6 @@
 			"lastKnownFileType" = "sourcecode.swift";
 			"sourceTree" = "<group>";
 		};
-		"8AC9D611130C5F0D7E5582C3" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "76BCBBA463C05CAB04FE3120";
-		};
 		"6263D6B5FAB1D9C028C8B3DA" = {
 			"path" = "PresentationTests.xctest";
 			"isa" = "PBXFileReference";
@@ -8430,7 +8425,6 @@
 				"347590036906B5253DD9554C",
 				"3AD2CAB6F6551C6AFAA672A7",
 				"D46CC924FF56254CE45D3D0E",
-				"8AC9D611130C5F0D7E5582C3",
 				"B91C400171F566711BDA3D4F",
 				"C6DE6836154AFB13CCFE2202",
 				"669E3D4D9CB99396FF633E7B",
@@ -18936,13 +18930,6 @@
 		"7094C080D9357592F1BB02E7" = {
 			"name" = "HelpDataSource.swift";
 			"path" = "Kickstarter-iOS/1 - View/Views/Help/Datasource/HelpDataSource.swift";
-			"isa" = "PBXFileReference";
-			"sourceTree" = "SOURCE_ROOT";
-			"lastKnownFileType" = "sourcecode.swift";
-		};
-		"76BCBBA463C05CAB04FE3120" = {
-			"name" = "ObservedSignal.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/ObservedSignal.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
