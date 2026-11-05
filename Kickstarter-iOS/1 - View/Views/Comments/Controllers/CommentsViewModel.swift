@@ -379,10 +379,7 @@ public final class CommentsViewModel: CommentsViewModelType,
     // MARK: User Blocking Analytics
 
     let blockAnalytics = self.blockAnalytics
-    _ = self.blockUserProperty.signal
-      .combineLatest(with: initialProject)
-      .observeValues { blockedUserId, project in
-        blockAnalytics.latest = (project, "\(blockedUserId)")
+    blockAnalytics.onInitiate = { project, blockedUserId in
         AppEnvironment.current.ksrAnalytics
           .trackBlockedUser(
             project,
@@ -391,7 +388,10 @@ public final class CommentsViewModel: CommentsViewModelType,
             typeContext: .initiate,
             targetUserId: "\(blockedUserId)"
           )
-      }
+    }
+    _ = initialProject.observeValues { project in
+      blockAnalytics.receive(project: project)
+    }
 
 
     self.disposables += projectOrUpdate.observeValues { [weak self] value in
@@ -434,9 +434,8 @@ public final class CommentsViewModel: CommentsViewModelType,
 
   private let blockPresentation = DiscussionBlockPresentation()
   private let blockAnalytics = BlockUserAnalyticsContext()
-  private let blockUserProperty = MutableProperty<String>("")
   public func blockUser(id: String) {
-    self.blockUserProperty.value = id
+    self.blockAnalytics.receive(userID: "\(id)")
     self.blockPresentation.start(feature: self.feature, id: id) { [weak self] result in
       guard let self else { return }
       switch result {
@@ -600,5 +599,26 @@ internal final class DiscussionBlockPresentation {
 
 @MainActor
 internal final class BlockUserAnalyticsContext {
-  var latest: (Project, String)?
+  var onInitiate: ((Project, String) -> Void)?
+  private var project: Project?
+  private var userID: String?
+  var latest: (Project, String)? {
+    guard let project, let userID else { return nil }
+    return (project, userID)
+  }
+
+  func receive(project: Project) {
+    self.project = project
+    self.trackInitiation()
+  }
+
+  func receive(userID: String) {
+    self.userID = userID
+    self.trackInitiation()
+  }
+
+  private func trackInitiation() {
+    guard let (project, userID) = self.latest else { return }
+    self.onInitiate?(project, userID)
+  }
 }

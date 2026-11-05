@@ -245,10 +245,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     // MARK: User Blocking Analytics
 
     let blockAnalytics = self.blockAnalytics
-    _ = self.blockUserProperty.signal
-      .combineLatest(with: project)
-      .observeValues { blockedUserId, project in
-        blockAnalytics.latest = (project, "\(blockedUserId)")
+    blockAnalytics.onInitiate = { project, blockedUserId in
         AppEnvironment.current.ksrAnalytics
           .trackBlockedUser(
             project,
@@ -257,7 +254,10 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
             typeContext: .initiate,
             targetUserId: "\(blockedUserId)"
           )
-      }
+    }
+    _ = project.observeValues { project in
+      blockAnalytics.receive(project: project)
+    }
 
 
     self.disposables += requestFirstPageWith.observeValues { [weak self] comment in
@@ -278,9 +278,8 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
 
   private let blockPresentation = DiscussionBlockPresentation()
   private let blockAnalytics = BlockUserAnalyticsContext()
-  private let blockUserProperty = MutableProperty<String>("")
   public func blockUser(id: String) {
-    self.blockUserProperty.value = id
+    self.blockAnalytics.receive(userID: "\(id)")
     self.blockPresentation.start(feature: self.feature, id: id) { [weak self] result in
       guard let self else { return }
       switch result {
