@@ -3,9 +3,6 @@
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import UIKit
 import XCTest
 
@@ -14,17 +11,21 @@ internal final class DiscoveryViewModelTests: TestCase {
   // Logic/output assertions only; visual suites retain their reference-device gate.
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  fileprivate lazy var vm: DiscoveryViewModelType = DiscoveryViewModel(
-    discoveryFeature: DiscoveryFeature(provider: AsyncDiscoveryProvider())
+  fileprivate lazy var vm = DiscoveryViewModel(
+    discoveryFeature: DiscoveryFeature(provider: AsyncDiscoveryProvider()),
+    deferInitial: { [weak self] action in self?.deferred.append(action) }
   )
 
-  fileprivate let configureDataSource = TestObserver<[DiscoveryParams.Sort], Never>()
-  fileprivate let configureNavigationHeader = TestObserver<DiscoveryParams, Never>()
-  fileprivate let loadFilterIntoDataSource = TestObserver<DiscoveryParams, Never>()
-  fileprivate let navigateToSort = TestObserver<DiscoveryParams.Sort, Never>()
-  fileprivate let navigateDirection = TestObserver<UIPageViewController.NavigationDirection, Never>()
-  fileprivate let selectSortPage = TestObserver<DiscoveryParams.Sort, Never>()
-  fileprivate let updateSortPagerStyle = TestObserver<Int?, Never>()
+  fileprivate let configureDataSource = DiscoveryRecording<[DiscoveryParams.Sort]>()
+  fileprivate let configureNavigationHeader = DiscoveryRecording<DiscoveryParams>()
+  fileprivate let loadFilterIntoDataSource = DiscoveryRecording<DiscoveryParams>()
+  fileprivate let navigateToSort = DiscoveryRecording<DiscoveryParams.Sort>()
+  fileprivate let navigateDirection = DiscoveryRecording<UIPageViewController.NavigationDirection>()
+  fileprivate let selectSortPage = DiscoveryRecording<DiscoveryParams.Sort>()
+  fileprivate let updateSortPagerStyle = DiscoveryRecording<Int?>()
+
+  private var deferred: [@MainActor () -> Void] = []
+  private var ordering: [String] = []
 
   let initialParams = .defaults
     |> DiscoveryParams.lens.includePOTD .~ true
@@ -35,30 +36,45 @@ internal final class DiscoveryViewModelTests: TestCase {
 
   internal override func setUp() async throws {
     try await super.setUp()
-    MainActor.assumeIsolated {
-    self.vm.outputs.loadFilterIntoDataSource.observe(self.loadFilterIntoDataSource.observer)
-    self.vm.outputs.configurePagerDataSource.observe(self.configureDataSource.observer)
-    self.vm.outputs.navigateToSort.map { $0.0 }.observe(self.navigateToSort.observer)
-    self.vm.outputs.navigateToSort.map { $0.1 }.observe(self.navigateDirection.observer)
-    self.vm.outputs.selectSortPage.observe(self.selectSortPage.observer)
-    self.vm.outputs.updateSortPagerStyle.observe(self.updateSortPagerStyle.observer)
-    self.vm.outputs.configureNavigationHeader.observe(self.configureNavigationHeader.observer)
+    self.vm.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .configurePager(sorts):
+        self.configureDataSource.append(sorts)
+        self.ordering.append("configureDataSource")
+      case let .navigationHeader(params): self.configureNavigationHeader.append(params)
+      case let .loadFilter(params):
+        self.loadFilterIntoDataSource.append(params)
+        self.ordering.append("loadFilterIntoDataSource")
+      case let .navigate(sort, direction):
+        self.navigateToSort.append(sort)
+        self.navigateDirection.append(direction)
+      case let .selectSort(sort): self.selectSortPage.append(sort)
+      case let .pagerStyle(value): self.updateSortPagerStyle.append(value)
+      case .configureSortPager, .sortsEnabled: break
+      }
     }
+  }
+
+  private func runDeferred() {
+    let actions = self.deferred
+    self.deferred.removeAll()
+    actions.forEach { $0() }
   }
 
   func testConfigureDataSource() {
     self.configureDataSource.assertValueCount(0, "Data source doesn't configure immediately.")
 
-    self.vm.inputs.viewDidLoad()
+    self.vm.viewDidLoad()
 
     self.configureDataSource.assertValueCount(1, "Data source configures after view loads.")
   }
 
   func testConfigureDataSourceRemoteConfigConfiguration() {
     withEnvironment(remoteConfigClient: MockRemoteConfigClient()) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
-      self.vm.inputs.remoteConfigClientConfigured()
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear(animated: false)
+      self.vm.remoteConfigClientConfigured()
 
       self.configureDataSource.assertValueCount(1)
     }
@@ -66,10 +82,10 @@ internal final class DiscoveryViewModelTests: TestCase {
 
   func testConfigureDataSource_RemoteConfigConfiguration_Failed() {
     withEnvironment(remoteConfigClient: nil) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear(animated: false)
 
-      self.vm.inputs.remoteConfigClientConfigurationFailed()
+      self.vm.remoteConfigClientConfigurationFailed()
 
       self.configureDataSource.assertValueCount(1)
     }
@@ -79,16 +95,16 @@ internal final class DiscoveryViewModelTests: TestCase {
     withEnvironment {
       self.loadFilterIntoDataSource.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
-      self.scheduler.advance()
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear(animated: false)
+      self.runDeferred()
 
       self.loadFilterIntoDataSource.assertValues(
         [self.initialParams],
         "Initial params load into data source immediately."
       )
 
-      self.vm.inputs.filter(withParams: self.starredParams)
+      self.vm.filter(withParams: self.starredParams)
 
       self.loadFilterIntoDataSource.assertValues(
         [self.initialParams, self.starredParams],
@@ -101,18 +117,18 @@ internal final class DiscoveryViewModelTests: TestCase {
     withEnvironment(remoteConfigClient: nil) {
       self.loadFilterIntoDataSource.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear(animated: false)
 
       self.loadFilterIntoDataSource.assertDidNotEmitValue("Waits for Remote Config configuration")
 
-      self.vm.inputs.remoteConfigClientConfigured()
+      self.vm.remoteConfigClientConfigured()
 
-      self.scheduler.advance()
+      self.runDeferred()
 
       self.loadFilterIntoDataSource.assertValues([self.initialParams])
 
-      self.vm.inputs.filter(withParams: self.starredParams)
+      self.vm.filter(withParams: self.starredParams)
 
       self.loadFilterIntoDataSource.assertValues(
         [self.initialParams, self.starredParams],
@@ -125,18 +141,18 @@ internal final class DiscoveryViewModelTests: TestCase {
     withEnvironment(remoteConfigClient: nil) {
       self.loadFilterIntoDataSource.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear(animated: false)
 
       self.loadFilterIntoDataSource.assertDidNotEmitValue("Waits for Remote Config configuration")
 
-      self.vm.inputs.remoteConfigClientConfigurationFailed()
+      self.vm.remoteConfigClientConfigurationFailed()
 
-      self.scheduler.advance()
+      self.runDeferred()
 
       self.loadFilterIntoDataSource.assertValues([self.initialParams], "Proceeds after 3 seconds")
 
-      self.vm.inputs.filter(withParams: self.starredParams)
+      self.vm.filter(withParams: self.starredParams)
 
       self.loadFilterIntoDataSource.assertValues(
         [self.initialParams, self.starredParams],
@@ -150,10 +166,10 @@ internal final class DiscoveryViewModelTests: TestCase {
       |> \.optedOutOfRecommendations .~ true
 
     withEnvironment(config: Config.template, currentUser: user) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear(animated: false)
 
-      self.scheduler.advance()
+      self.runDeferred()
 
       self.configureNavigationHeader.assertValues([self.initialParams])
     }
@@ -169,10 +185,10 @@ internal final class DiscoveryViewModelTests: TestCase {
       |> \.optedOutOfRecommendations .~ false
 
     withEnvironment(config: Config.template, currentUser: user) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear(animated: false)
 
-      self.scheduler.advance()
+      self.runDeferred()
 
       self.configureNavigationHeader.assertValues([recsInitialParams])
     }
@@ -191,18 +207,18 @@ internal final class DiscoveryViewModelTests: TestCase {
       |> \.optedOutOfRecommendations .~ true
 
     withEnvironment(config: Config.template, currentUser: user) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear(animated: false)
 
-      self.scheduler.advance()
+      self.runDeferred()
 
       self.configureNavigationHeader.assertValues([recsInitialParams])
 
       withEnvironment(currentUser: optedOutUser) {
-        self.vm.inputs.didChangeRecommendationsSetting()
-        self.vm.inputs.viewWillAppear(animated: false)
+        self.vm.didChangeRecommendationsSetting()
+        self.vm.viewWillAppear(animated: false)
 
-        self.scheduler.advance()
+        self.runDeferred()
 
         self.configureNavigationHeader.assertValues([recsInitialParams, self.initialParams])
       }
@@ -212,10 +228,10 @@ internal final class DiscoveryViewModelTests: TestCase {
   func testConfigureNavigationHeader() {
     self.configureNavigationHeader.assertValueCount(0)
 
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewWillAppear(animated: false)
+    self.vm.viewDidLoad()
+    self.vm.viewWillAppear(animated: false)
 
-    self.scheduler.advance()
+    self.runDeferred()
 
     self.configureNavigationHeader.assertValues([self.initialParams])
   }
@@ -224,18 +240,18 @@ internal final class DiscoveryViewModelTests: TestCase {
     withEnvironment(remoteConfigClient: nil) {
       self.configureNavigationHeader.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear(animated: false)
 
       self.configureNavigationHeader.assertDidNotEmitValue("Waits for Remote Config configuration")
 
-      self.vm.inputs.remoteConfigClientConfigured()
+      self.vm.remoteConfigClientConfigured()
 
-      self.scheduler.advance()
+      self.runDeferred()
 
       self.configureNavigationHeader.assertValues([self.initialParams])
 
-      self.vm.inputs.filter(withParams: self.starredParams)
+      self.vm.filter(withParams: self.starredParams)
 
       self.configureNavigationHeader.assertValues(
         [self.initialParams, self.starredParams],
@@ -248,18 +264,18 @@ internal final class DiscoveryViewModelTests: TestCase {
     withEnvironment(remoteConfigClient: nil) {
       self.configureNavigationHeader.assertValueCount(0)
 
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.viewDidLoad()
+      self.vm.viewWillAppear(animated: false)
 
       self.configureNavigationHeader.assertDidNotEmitValue("Waits for Remote Config configuration")
 
-      self.vm.inputs.remoteConfigClientConfigurationFailed()
+      self.vm.remoteConfigClientConfigurationFailed()
 
-      self.scheduler.advance()
+      self.runDeferred()
 
       self.configureNavigationHeader.assertValues([self.initialParams], "Proceeds after 3 seconds")
 
-      self.vm.inputs.filter(withParams: self.starredParams)
+      self.vm.filter(withParams: self.starredParams)
 
       self.configureNavigationHeader.assertValues(
         [self.initialParams, self.starredParams],
@@ -269,19 +285,13 @@ internal final class DiscoveryViewModelTests: TestCase {
   }
 
   func testOrdering() {
-    let test = TestObserver<String, Never>()
-    Signal.merge(
-      self.vm.outputs.configurePagerDataSource.mapConst("configureDataSource"),
-      self.vm.outputs.loadFilterIntoDataSource.mapConst("loadFilterIntoDataSource")
-    ).observe(test.observer)
+    self.vm.viewDidLoad()
+    self.vm.viewWillAppear(animated: false)
 
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewWillAppear(animated: false)
+    self.runDeferred()
 
-    self.scheduler.advance()
-
-    test.assertValues(
-      ["configureDataSource", "loadFilterIntoDataSource"],
+    XCTAssertEqual(
+      self.ordering, ["configureDataSource", "loadFilterIntoDataSource"],
       "The data source should be configured first, and then the filter changed."
     )
   }
@@ -290,50 +300,50 @@ internal final class DiscoveryViewModelTests: TestCase {
    Tests the ways in which a user can swipe between sorts and select sorts from the page.
    */
   func testNavigatingSorts() {
-    self.vm.inputs.viewDidLoad()
+    self.vm.viewDidLoad()
 
     self.selectSortPage.assertValues([], "Nothing emits at first.")
     self.navigateToSort.assertValues([], "Nothing emits at first.")
     self.navigateDirection.assertValues([], "Nothing emits at first.")
 
-    self.vm.inputs.willTransition(toPage: 1)
+    self.vm.willTransition(toPage: 1)
 
     self.selectSortPage.assertValues([], "Nothing emits when a swipe transition starts.")
     self.navigateToSort.assertValues([], "Nothing emits when a swipe transition starts.")
     self.navigateDirection.assertValues([], "Nothing emits when a swipe transition starts.")
 
-    self.vm.inputs.pageTransition(completed: false)
+    self.vm.pageTransition(completed: false)
 
     self.selectSortPage.assertValues([], "Nothing emits when a transition doesn't complete.")
     self.navigateToSort.assertValues([], "Nothing emits when a transition doesn't complete.")
     self.navigateDirection.assertValues([], "Nothing emits when a transition doesn't complete.")
 
-    self.vm.inputs.willTransition(toPage: 1)
+    self.vm.willTransition(toPage: 1)
 
     self.selectSortPage.assertValues([], "Nothing emits when a swipe transition starts.")
     self.navigateToSort.assertValues([], "Nothing emits when a swipe transition starts.")
     self.navigateDirection.assertValues([], "Nothing emits when a swipe transition starts.")
 
-    self.vm.inputs.pageTransition(completed: true)
+    self.vm.pageTransition(completed: true)
 
     self.selectSortPage.assertValues([.popular], "Select the popular page in the pager.")
     self.navigateToSort.assertValues([], "Don't navigate to a page.")
     self.navigateDirection.assertValues([], "Don't navigate to a page.")
 
-    self.vm.inputs.willTransition(toPage: 2)
-    self.vm.inputs.pageTransition(completed: true)
+    self.vm.willTransition(toPage: 2)
+    self.vm.pageTransition(completed: true)
 
     self.selectSortPage.assertValues([.popular, .newest], "Select the newest page in the pager.")
     self.navigateToSort.assertValues([], "Navigate to the newest page.")
     self.navigateDirection.assertValues([], "Navigate forward to the page.")
 
-    self.vm.inputs.sortPagerSelected(sort: .magic)
+    self.vm.sortPagerSelected(sort: .magic)
 
     self.selectSortPage.assertValues([.popular, .newest, .magic], "Select the magic page in the pager.")
     self.navigateToSort.assertValues([.magic], "Navigate to the magic page.")
     self.navigateDirection.assertValues([.reverse], "Navigate backwards to the page.")
 
-    self.vm.inputs.sortPagerSelected(sort: .magic)
+    self.vm.sortPagerSelected(sort: .magic)
 
     self.selectSortPage.assertValues(
       [.popular, .newest, .magic],
@@ -353,12 +363,12 @@ internal final class DiscoveryViewModelTests: TestCase {
    Tests that events are tracked correctly while swiping sorts and selecting sorts from the page.
    */
   func testSortSwipeEventTracking() {
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewWillAppear(animated: true)
+    self.vm.viewDidLoad()
+    self.vm.viewWillAppear(animated: true)
 
     XCTAssertEqual([], self.segmentTrackingClient.events)
 
-    self.vm.inputs.willTransition(toPage: 1)
+    self.vm.willTransition(toPage: 1)
 
     XCTAssertEqual(
       [],
@@ -366,7 +376,7 @@ internal final class DiscoveryViewModelTests: TestCase {
       "No events tracked when starting a swipe transition."
     )
 
-    self.vm.inputs.pageTransition(completed: false)
+    self.vm.pageTransition(completed: false)
 
     XCTAssertEqual(
       [],
@@ -374,7 +384,7 @@ internal final class DiscoveryViewModelTests: TestCase {
       "No events tracked when the transition did not complete."
     )
 
-    self.vm.inputs.willTransition(toPage: 1)
+    self.vm.willTransition(toPage: 1)
 
     XCTAssertEqual(
       [],
@@ -382,7 +392,7 @@ internal final class DiscoveryViewModelTests: TestCase {
       "Still no events tracked when starting transition."
     )
 
-    self.vm.inputs.pageTransition(completed: true)
+    self.vm.pageTransition(completed: true)
 
     XCTAssertEqual(
       ["CTA Clicked"], self.segmentTrackingClient.events,
@@ -399,7 +409,7 @@ internal final class DiscoveryViewModelTests: TestCase {
       "Correct sort is tracked."
     )
 
-    self.vm.inputs.sortPagerSelected(sort: .newest)
+    self.vm.sortPagerSelected(sort: .newest)
 
     XCTAssertEqual(
       ["CTA Clicked", "CTA Clicked"],
@@ -419,7 +429,7 @@ internal final class DiscoveryViewModelTests: TestCase {
       "Correct sort is tracked."
     )
 
-    self.vm.inputs.sortPagerSelected(sort: .newest)
+    self.vm.sortPagerSelected(sort: .newest)
 
     XCTAssertEqual(
       ["CTA Clicked", "CTA Clicked"],
@@ -440,20 +450,36 @@ internal final class DiscoveryViewModelTests: TestCase {
   }
 
   func testUpdateSortPagerStyle() {
-    self.vm.inputs.viewDidLoad()
+    self.vm.viewDidLoad()
 
     self.updateSortPagerStyle.assertValueCount(0)
 
-    self.vm.inputs.filter(withParams: self.categoryParams)
+    self.vm.filter(withParams: self.categoryParams)
 
     self.updateSortPagerStyle.assertValues([1], "Emits the category id")
 
-    self.vm.inputs.filter(withParams: self.categoryParams)
+    self.vm.filter(withParams: self.categoryParams)
 
     self.updateSortPagerStyle.assertValues([1], "Does not emit a repeat value.")
 
-    self.vm.inputs.filter(withParams: self.subcategoryParams)
+    self.vm.filter(withParams: self.subcategoryParams)
 
     self.updateSortPagerStyle.assertValues([1, 30], "Emits root category id.")
+  }
+}
+
+private final class DiscoveryRecording<Value> {
+  private(set) var values: [Value] = []
+  func append(_ value: Value) { self.values.append(value) }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, message, file: file, line: line)
+  }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+}
+private extension DiscoveryRecording where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
   }
 }

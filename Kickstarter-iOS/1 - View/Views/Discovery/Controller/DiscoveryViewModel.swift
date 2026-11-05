@@ -1,186 +1,127 @@
 import KsApi
-import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 import UIKit
 
 @MainActor
-public protocol DiscoveryViewModelInputs {
-  /// Call when Recommendations setting changes on Settings > Account > Privacy > Recommendations.
-  func didChangeRecommendationsSetting()
-
-  /// Call when params have been selected.
-  func filter(withParams params: DiscoveryParams)
-
-  /// Call when the Remote Config Client has been configured
-  func remoteConfigClientConfigured()
-
-  /// Call when the RemoteConfigClient configuration has failed
-  func remoteConfigClientConfigurationFailed()
-
-  /// Call when the UIPageViewController finishes transitioning.
-  func pageTransition(completed: Bool)
-
-  /// Call when the SortPagerViewController wants to switch to a specific sort.
-  func sortPagerSelected(sort: DiscoveryParams.Sort)
-
-  /// Call to disable/enable the sorts when an empty state is displayed/dismissed.
-  func setSortsEnabled(_ enabled: Bool)
-
-  /// Call from the controller's viewDidLoad.
-  func viewDidLoad()
-
-  /// Call from the controller's viewWillAppear.
-  func viewWillAppear(animated: Bool)
-
-  /// Call when the UIPageViewController begins a transition sequence.
-  func willTransition(toPage nextPage: Int)
-}
-
-@MainActor
-public protocol DiscoveryViewModelOutputs {
-  /// Emits params to configure the navigation header.
-  var configureNavigationHeader: Signal<DiscoveryParams, Never> { get }
-
-  /// Emits an array of sorts that should be used to configure the pager data source.
-  var configurePagerDataSource: Signal<[DiscoveryParams.Sort], Never> { get }
-
-  /// Emits an array of sorts that should be used to configure the sort pager controller.
-  var configureSortPager: Signal<[DiscoveryParams.Sort], Never> { get }
-
-  /// Emits a discovery params value that should be passed to all the pages in discovery.
-  var loadFilterIntoDataSource: Signal<DiscoveryParams, Never> { get }
-
-  /// Emits when we should manually navigate to a sort's page.
-  var navigateToSort: Signal<
-    (DiscoveryParams.Sort, UIPageViewController.NavigationDirection),
-    Never
-  > { get }
-
-  /// Emits a sort that should be passed on to the sort pager view controller.
-  var selectSortPage: Signal<DiscoveryParams.Sort, Never> { get }
-
-  /// Emits to disable/enable the sorts when an empty state is displayed/dismissed.
-  var sortsAreEnabled: Signal<Bool, Never> { get }
-
-  /// Emits a category id to update the sort pager view controller style.
-  var updateSortPagerStyle: Signal<Int?, Never> { get }
-}
-
-@MainActor
-public protocol DiscoveryViewModelType {
-  var inputs: DiscoveryViewModelInputs { get }
-  var outputs: DiscoveryViewModelOutputs { get }
-}
-
-@MainActor
-public final class DiscoveryViewModel: DiscoveryViewModelType, DiscoveryViewModelInputs,
-  DiscoveryViewModelOutputs {
+final class DiscoveryViewModel {
+  enum Event {
+    case configurePager([DiscoveryParams.Sort])
+    case configureSortPager([DiscoveryParams.Sort])
+    case navigationHeader(DiscoveryParams)
+    case loadFilter(DiscoveryParams)
+    case navigate(DiscoveryParams.Sort, UIPageViewController.NavigationDirection)
+    case selectSort(DiscoveryParams.Sort)
+    case sortsEnabled(Bool)
+    case pagerStyle(Int?)
+  }
+  var onEvent: ((Event) -> Void)?
   private let discoveryFeature: DiscoveryFeature
-  private let bindings = ScopedDisposable(CompositeDisposable())
+  private let deferInitial: @MainActor (@escaping @MainActor () -> Void) -> Void
+  private let sorts: [DiscoveryParams.Sort] = [.magic, .popular, .newest, .endingSoon]
+  private var didConfigure = false
+  private var filterReady = false
+  private var didAppear = false
+  private var recommendationsChanged = false
+  private var initialParameters: DiscoveryParams?
+  private var currentParameters: DiscoveryParams?
+  private var pendingPage: Int?
+  private var selectedSort: DiscoveryParams.Sort?
+  private var previousNavigation: (DiscoveryParams.Sort, Bool) = (.magic, true)
+  private var lastNavigation: (DiscoveryParams.Sort, Bool)?
+  private var previousUserSort: DiscoveryParams.Sort = .magic
+  private var lastPagerStyle: Int??
 
-  public init(discoveryFeature: DiscoveryFeature? = nil) {
-    let discoveryFeature = discoveryFeature ?? AppModel.shared.discoveryFeature
-    self.discoveryFeature = discoveryFeature
-    let remoteConfigReadyOrContinue = Signal.merge(
-      self.remoteConfigClientConfiguredProperty.signal,
-      self.viewDidLoadProperty.signal.ignoreValues(),
-      self.remoteConfigClientConfigurationFailedProperty.signal
-    ).take(first: 1)
+  init(discoveryFeature: DiscoveryFeature? = nil, deferInitial: @escaping @MainActor (@escaping @MainActor () -> Void) -> Void = { action in
+    Task { @MainActor in await Task.yield(); action() }
+  }) {
+    self.discoveryFeature = discoveryFeature ?? AppModel.shared.discoveryFeature
+    self.deferInitial = deferInitial
+  }
 
-    let sorts: [DiscoveryParams.Sort] = [.magic, .popular, .newest, .endingSoon]
+  func viewDidLoad() { self.configurePagerIfNeeded() }
+  func remoteConfigClientConfigured() { self.configurePagerIfNeeded() }
+  func remoteConfigClientConfigurationFailed() { self.configurePagerIfNeeded() }
 
-    let configureWithSorts = remoteConfigReadyOrContinue.mapConst(sorts)
-
-    self.configurePagerDataSource = configureWithSorts
-    self.configureSortPager = configureWithSorts
-
-    let initialParams = Signal.merge(
-      self.viewWillAppearProperty.signal.take(first: 1).ignoreValues(),
-      self.didChangeRecommendationsSettingProperty.signal
-        .takeWhen(self.viewWillAppearProperty.signal)
-    )
-    .map { DiscoveryFeature.initialParameters(for: AppEnvironment.current.currentUser) }
-    .skipRepeats()
-
-    let currentParams = discoveryFeature.filterChanges.skipRepeats()
-
-    let dataSourceConfiguredAndCurrentParams = Signal.combineLatest(
-      configureWithSorts.ksr_debounce(.nanoseconds(0), on: AppEnvironment.current.scheduler),
-      currentParams
-    )
-    .map(second)
-
-    self.configureNavigationHeader = dataSourceConfiguredAndCurrentParams
-    self.loadFilterIntoDataSource = dataSourceConfiguredAndCurrentParams
-
-    let swipeToSort = self.willTransitionToPageProperty.signal
-      .takeWhen(self.pageTransitionCompletedProperty.signal.filter(isTrue))
-      .map { sorts[$0] }
-
-    let prevSortedPage = Signal.merge(
-      swipeToSort,
-      self.sortPagerSelectedSortProperty.signal.skipNil()
-    )
-    .combinePrevious(.magic)
-    .map(first)
-
-    self.selectSortPage = Signal
-      .merge(
-        swipeToSort,
-        self.sortPagerSelectedSortProperty.signal.skipNil(),
-        currentParams.map { $0.sort }.skipNil()
-      )
-      .skipRepeats()
-
-    self.navigateToSort = Signal
-      .merge(
-        swipeToSort.map { (sort: $0, ignore: true) },
-        self.sortPagerSelectedSortProperty.signal.skipNil().map { (sort: $0, ignore: false) },
-        currentParams.map { $0.sort }.skipNil().map { (sort: $0, ignore: false) }
-      )
-      .skipRepeats(==)
-      .combinePrevious((sort: .magic, ignore: true))
-      .filter { _, next in !next.ignore }
-      .map { previous, next in
-        let lhs = sorts.firstIndex(of: next.sort) ?? -1
-        let rhs = sorts.firstIndex(of: previous.sort) ?? 9_999
-        return (next.sort, lhs < rhs ? .reverse : .forward)
-      }
-
-    self.updateSortPagerStyle = self.filterWithParamsProperty.signal.skipNil()
-      .map { $0.category?.intID }
-      .skipRepeats(==)
-
-    self.sortsAreEnabled = self.setSortsEnabledProperty.signal.skipNil()
-
-    let currentSortedPage = Signal.merge(
-      self.sortPagerSelectedSortProperty.signal.skipNil().skipRepeats(==),
-      swipeToSort
-    )
-
-    self.bindings += Signal.combineLatest(
-      currentParams,
-      currentSortedPage,
-      prevSortedPage
-    )
-    .filter { $0.1.rawValue != $0.2.rawValue }
-    .observeValues { [weak self] currentParams, currentSortedPage, prevSortedPage in
+  private func configurePagerIfNeeded() {
+    guard !self.didConfigure else { return }
+    self.didConfigure = true
+    self.onEvent?(.configurePager(self.sorts))
+    self.onEvent?(.configureSortPager(self.sorts))
+    self.deferInitial { [weak self] in
       guard let self else { return }
-      AppEnvironment
-        .current
-        .ksrAnalytics
-        .trackDiscoverySelectedSort(
-          prevSort: prevSortedPage,
-          params: currentParams,
-          discoverySortContext: self.getDiscoverySortTypeContext(from: currentSortedPage)
-        )
-    }
-    self.bindings += initialParams.observeValues { parameters in
-      discoveryFeature.selectFilter(parameters)
+      self.filterReady = true
+      if let params = self.currentParameters { self.publishFilter(params) }
     }
   }
 
+  func didChangeRecommendationsSetting() { self.recommendationsChanged = true }
+
+  func viewWillAppear(animated _: Bool) {
+    guard !self.didAppear || self.recommendationsChanged else { return }
+    self.didAppear = true
+    let params = DiscoveryFeature.initialParameters(for: AppEnvironment.current.currentUser)
+    guard self.initialParameters != params else { return }
+    self.initialParameters = params
+    self.selectParameters(params)
+  }
+
+  func filter(withParams params: DiscoveryParams) {
+    self.selectParameters(params)
+    let categoryID = params.category?.intID
+    if self.lastPagerStyle == nil || self.lastPagerStyle! != categoryID {
+      self.lastPagerStyle = .some(categoryID)
+      self.onEvent?(.pagerStyle(categoryID))
+    }
+  }
+
+  private func selectParameters(_ params: DiscoveryParams) {
+    self.discoveryFeature.selectFilter(params)
+    guard self.currentParameters != params else { return }
+    self.currentParameters = params
+    if let sort = params.sort { self.changeSort(sort, fromSwipe: false, isUserAction: false) }
+    if self.filterReady { self.publishFilter(params) }
+  }
+
+  private func publishFilter(_ params: DiscoveryParams) {
+    self.onEvent?(.navigationHeader(params))
+    self.onEvent?(.loadFilter(params))
+  }
+
+  func setSortsEnabled(_ enabled: Bool) { self.onEvent?(.sortsEnabled(enabled)) }
+  func willTransition(toPage nextPage: Int) { self.pendingPage = nextPage }
+  func pageTransition(completed: Bool) {
+    guard completed, let page = self.pendingPage, self.sorts.indices.contains(page) else { return }
+    self.changeSort(self.sorts[page], fromSwipe: true, isUserAction: true)
+  }
+  func sortPagerSelected(sort: DiscoveryParams.Sort) {
+    self.changeSort(sort, fromSwipe: false, isUserAction: true)
+  }
+
+  private func changeSort(_ sort: DiscoveryParams.Sort, fromSwipe: Bool, isUserAction: Bool) {
+    if self.selectedSort != sort {
+      self.selectedSort = sort
+      self.onEvent?(.selectSort(sort))
+    }
+    let event = (sort, fromSwipe)
+    if self.lastNavigation?.0 != event.0 || self.lastNavigation?.1 != event.1 {
+      let previous = self.previousNavigation
+      self.lastNavigation = event
+      self.previousNavigation = event
+      if !fromSwipe {
+        let lhs = self.sorts.firstIndex(of: sort) ?? -1
+        let rhs = self.sorts.firstIndex(of: previous.0) ?? 9_999
+        self.onEvent?(.navigate(sort, lhs < rhs ? .reverse : .forward))
+      }
+    }
+    if isUserAction, self.previousUserSort != sort {
+      if let params = self.currentParameters {
+        AppEnvironment.current.ksrAnalytics.trackDiscoverySelectedSort(
+          prevSort: self.previousUserSort, params: params,
+          discoverySortContext: self.getDiscoverySortTypeContext(from: sort)
+        )
+      }
+      self.previousUserSort = sort
+    }
+  }
 
   /// convert DiscoveryParams.Sort to TypeContext.DiscoverySortContext
   private func getDiscoverySortTypeContext(
@@ -200,66 +141,4 @@ public final class DiscoveryViewModel: DiscoveryViewModelType, DiscoveryViewMode
     }
   }
 
-  fileprivate let didChangeRecommendationsSettingProperty = MutableProperty(())
-  public func didChangeRecommendationsSetting() {
-    self.didChangeRecommendationsSettingProperty.value = ()
-  }
-
-  fileprivate let filterWithParamsProperty = MutableProperty<DiscoveryParams?>(nil)
-  public func filter(withParams params: DiscoveryParams) {
-    self.discoveryFeature.selectFilter(params)
-    self.filterWithParamsProperty.value = params
-  }
-
-  fileprivate let remoteConfigClientConfiguredProperty = MutableProperty(())
-  public func remoteConfigClientConfigured() {
-    self.remoteConfigClientConfiguredProperty.value = ()
-  }
-
-  fileprivate let remoteConfigClientConfigurationFailedProperty = MutableProperty(())
-  public func remoteConfigClientConfigurationFailed() {
-    self.remoteConfigClientConfigurationFailedProperty.value = ()
-  }
-
-  fileprivate let pageTransitionCompletedProperty = MutableProperty(false)
-  public func pageTransition(completed: Bool) {
-    self.pageTransitionCompletedProperty.value = completed
-  }
-
-  fileprivate let sortPagerSelectedSortProperty = MutableProperty<DiscoveryParams.Sort?>(nil)
-  public func sortPagerSelected(sort: DiscoveryParams.Sort) {
-    self.sortPagerSelectedSortProperty.value = sort
-  }
-
-  fileprivate let setSortsEnabledProperty = MutableProperty<Bool?>(nil)
-  public func setSortsEnabled(_ enabled: Bool) {
-    self.setSortsEnabledProperty.value = enabled
-  }
-
-  fileprivate let willTransitionToPageProperty = MutableProperty<Int>(0)
-  public func willTransition(toPage nextPage: Int) {
-    self.willTransitionToPageProperty.value = nextPage
-  }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
-  }
-
-  fileprivate let viewWillAppearProperty = MutableProperty<Bool?>(nil)
-  public func viewWillAppear(animated: Bool) {
-    self.viewWillAppearProperty.value = animated
-  }
-
-  public let configureNavigationHeader: Signal<DiscoveryParams, Never>
-  public let configurePagerDataSource: Signal<[DiscoveryParams.Sort], Never>
-  public let configureSortPager: Signal<[DiscoveryParams.Sort], Never>
-  public let loadFilterIntoDataSource: Signal<DiscoveryParams, Never>
-  public let navigateToSort: Signal<(DiscoveryParams.Sort, UIPageViewController.NavigationDirection), Never>
-  public let selectSortPage: Signal<DiscoveryParams.Sort, Never>
-  public let sortsAreEnabled: Signal<Bool, Never>
-  public let updateSortPagerStyle: Signal<Int?, Never>
-
-  public var inputs: DiscoveryViewModelInputs { return self }
-  public var outputs: DiscoveryViewModelOutputs { return self }
 }

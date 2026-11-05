@@ -54,13 +54,11 @@ public final class DiscoveryFeature {
   private let projectsPipe = Signal<(DiscoveryParams.Sort, [Project]), Never>.pipe()
   private let loadingPipe = Signal<(DiscoveryParams.Sort, Bool), Never>.pipe()
   private let activitiesPipe = Signal<(DiscoveryParams.Sort, [Activity]), Never>.pipe()
-  private let filtersPipe = Signal<DiscoveryParams, Never>.pipe()
   public private(set) var selectedParameters: DiscoveryParams?
 
   public var projects: Signal<(DiscoveryParams.Sort, [Project]), Never> { self.projectsPipe.output }
   public var loading: Signal<(DiscoveryParams.Sort, Bool), Never> { self.loadingPipe.output }
   public var activities: Signal<(DiscoveryParams.Sort, [Activity]), Never> { self.activitiesPipe.output }
-  public var filterChanges: Signal<DiscoveryParams, Never> { self.filtersPipe.output }
 
   public static func initialParameters(for user: User?) -> DiscoveryParams {
     guard user?.optedOutOfRecommendations == false else {
@@ -72,7 +70,6 @@ public final class DiscoveryFeature {
   /// Selection is domain state; screen readiness still decides when to publish it.
   public func selectFilter(_ parameters: DiscoveryParams) {
     self.selectedParameters = parameters
-    self.filtersPipe.input.send(value: parameters)
   }
 
   public init(

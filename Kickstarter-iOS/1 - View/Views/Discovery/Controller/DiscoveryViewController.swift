@@ -5,7 +5,7 @@ import Prelude
 import UIKit
 
 internal final class DiscoveryViewController: UIViewController {
-  fileprivate let viewModel: DiscoveryViewModelType = DiscoveryViewModel()
+  fileprivate let viewModel = DiscoveryViewModel()
   fileprivate var dataSource: DiscoveryPagesDataSource?
 
   private var recommendationsChangedObserver: MainActorNotificationObservation?
@@ -48,27 +48,27 @@ internal final class DiscoveryViewController: UIViewController {
     self.navigationHeaderViewController.delegate = self
 
     self.recommendationsChangedObserver = MainActorNotificationObservation(name: .ksr_recommendationsSettingChanged) { [weak self] _ in
-      self?.viewModel.inputs.didChangeRecommendationsSetting()
+      self?.viewModel.didChangeRecommendationsSetting()
     }
 
     self.remoteConfigConfiguredObserver = MainActorNotificationSignalObservation(name: .ksr_remoteConfigClientConfigured) { [weak self] in
-      self?.viewModel.inputs.remoteConfigClientConfigured()
+      self?.viewModel.remoteConfigClientConfigured()
     }
 
     self.remoteConfigConfigurationFailedObserver = MainActorNotificationSignalObservation(name: .ksr_remoteConfigClientConfigurationFailed) { [weak self] in
-      self?.viewModel.inputs.remoteConfigClientConfigurationFailed()
+      self?.viewModel.remoteConfigClientConfigurationFailed()
     }
 
     self.pagesBottomToSafeArea.isActive = false
     self.pagesBottomToSuperview.isActive = true
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
 
-    self.viewModel.inputs.viewWillAppear(animated: animated)
+    self.viewModel.viewWillAppear(animated: animated)
 
     self.navigationController?.setNavigationBarHidden(true, animated: animated)
   }
@@ -76,54 +76,31 @@ internal final class DiscoveryViewController: UIViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.configureNavigationHeader
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.navigationHeaderViewController.configureWith(params: $0) }
-
-    self.viewModel.outputs.configurePagerDataSource
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.configurePagerDataSource($0) }
-
-    self.viewModel.outputs.configureSortPager
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.sortPagerViewController.configureWith(sorts: $0) }
-
-    self.viewModel.outputs.loadFilterIntoDataSource
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.dataSource?.load(filter: $0) }
-
-    self.viewModel.outputs.navigateToSort
-      .observeForControllerAction()
-      .observeValues { [weak self] sort, direction in
-        guard let controller = self?.dataSource?.controllerFor(sort: sort) else { return }
-
-        self?.pageViewController.ksr_setViewControllers(
-          [controller], direction: direction, animated: true, completion: nil
-        )
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .navigationHeader(params): self.navigationHeaderViewController.configureWith(params: params)
+      case let .configurePager(sorts): self.configurePagerDataSource(sorts)
+      case let .configureSortPager(sorts): self.sortPagerViewController.configureWith(sorts: sorts)
+      case let .loadFilter(params): self.dataSource?.load(filter: params)
+      case let .navigate(sort, direction):
+        guard let controller = self.dataSource?.controllerFor(sort: sort) else { return }
+        self.pageViewController.ksr_setViewControllers([controller], direction: direction, animated: true, completion: nil)
+      case let .selectSort(sort): self.sortPagerViewController.select(sort: sort)
+      case let .sortsEnabled(enabled):
+        self.sortPagerViewController.setSortPagerEnabled(enabled)
+        self.setPageViewControllerScrollEnabled(enabled)
+      case let .pagerStyle(categoryID): self.sortPagerViewController.updateStyle(categoryId: categoryID)
       }
-
-    self.viewModel.outputs.selectSortPage
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.sortPagerViewController.select(sort: $0) }
-
-    self.viewModel.outputs.sortsAreEnabled
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.sortPagerViewController.setSortPagerEnabled($0)
-        self?.setPageViewControllerScrollEnabled($0)
-      }
-
-    self.viewModel.outputs.updateSortPagerStyle
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.sortPagerViewController.updateStyle(categoryId: $0) }
+    }
   }
 
   internal func filter(with params: DiscoveryParams) {
-    self.viewModel.inputs.filter(withParams: params)
+    self.viewModel.filter(withParams: params)
   }
 
   internal func setSortsEnabled(_ enabled: Bool) {
-    self.viewModel.inputs.setSortsEnabled(enabled)
+    self.viewModel.setSortsEnabled(enabled)
   }
 
   fileprivate func configurePagerDataSource(_ sorts: [DiscoveryParams.Sort]) {
@@ -151,7 +128,7 @@ extension DiscoveryViewController: UIPageViewControllerDelegate {
     previousViewControllers _: [UIViewController],
     transitionCompleted completed: Bool
   ) {
-    self.viewModel.inputs.pageTransition(completed: completed)
+    self.viewModel.pageTransition(completed: completed)
   }
 
   internal func pageViewController(
@@ -161,13 +138,13 @@ extension DiscoveryViewController: UIPageViewControllerDelegate {
     guard let dataSource = self.dataSource,
           let idx = pendingViewControllers.first.flatMap(dataSource.indexFor(controller:)) else { return }
 
-    self.viewModel.inputs.willTransition(toPage: idx)
+    self.viewModel.willTransition(toPage: idx)
   }
 }
 
 extension DiscoveryViewController: SortPagerViewControllerDelegate {
   internal func sortPager(_: UIViewController, selectedSort sort: DiscoveryParams.Sort) {
-    self.viewModel.inputs.sortPagerSelected(sort: sort)
+    self.viewModel.sortPagerSelected(sort: sort)
   }
 }
 
