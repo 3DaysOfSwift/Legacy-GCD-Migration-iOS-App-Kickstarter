@@ -91,6 +91,12 @@ public protocol SearchViewModelType {
 public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, SearchViewModelOutputs {
   private let searchFeature: SearchFeature
   private let featureBindings = ScopedDisposable(CompositeDisposable())
+  private let resultsPipe = Signal<[SearchResult], Never>.pipe()
+  private let pagesPipe = Signal<[SearchResult], Never>.pipe()
+  private let countPipe = Signal<Int, Never>.pipe()
+  private let loadingPipe = Signal<Bool, Never>.pipe()
+  private let pageCountPipe = Signal<Int, Never>.pipe()
+  private var searchObservation: MainActorObservation?
   private let completionAnalytics: SearchCompletionAnalytics
   // UIKit retains the shared Feature task rather than spawning wrapper Tasks.
   internal private(set) var searchTask: Task<Void, Never>?
@@ -105,10 +111,10 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.searchFiltersUseCase = SearchFiltersUseCase(searchFeature: searchFeature)
     // Output notification only: query input and first appearance are explicit commands.
     let queryText = self.queryTextPipe.output
-    let paginatedProjects = searchFeature.paginatedResults
-    let isLoading = searchFeature.loading
-    let stats = searchFeature.resultCount
-    let searchResults = searchFeature.results
+    let paginatedProjects = self.pagesPipe.output
+    let isLoading = self.loadingPipe.output
+    let stats = self.countPipe.output
+    let searchResults = self.resultsPipe.output.skipRepeats(==)
 
     self.searchLoaderIndicatorIsAnimating = isLoading
 
@@ -154,7 +160,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     // Register analytics before presentation: a zero count or buffered page
     // settlement can track before the corresponding cards are published.
     self.completionAnalytics = SearchCompletionAnalytics(
-      counts: stats, pages: searchFeature.pageCount,
+      counts: stats, pages: self.pageCountPipe.output,
       results: paginatedProjects, loading: isLoading
     )
 
@@ -188,10 +194,20 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       self.hasReceivedFilterSelection = true
       self.refreshSearchIfReady()
     }
-    self.featureBindings += searchFeature.loading.observeValues { [weak self] loading in
+    self.featureBindings += isLoading.observeValues { [weak self] loading in
       if !loading {
         self?.searchTask = nil
         self?.pageTask = nil
+      }
+    }
+    self.searchObservation = searchFeature.observe { [weak self] update in
+      guard let self else { return }
+      switch update {
+      case let .results(value): self.resultsPipe.input.send(value: value)
+      case let .page(value): self.pagesPipe.input.send(value: value)
+      case let .count(value): self.countPipe.input.send(value: value)
+      case let .loading(value): self.loadingPipe.input.send(value: value)
+      case let .pageCount(value): self.pageCountPipe.input.send(value: value)
       }
     }
   }

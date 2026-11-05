@@ -179,11 +179,12 @@ final class SearchRequestCancellationTests: TestCase {
     ) {
       let feature = SearchFeature(provider: AsyncSearchProjectsProvider())
       let loaded = self.expectation(description: "async Feature result")
-      let observation = feature.paginatedResults.observeValues { projects in
+      let observation = feature.observe { update in
+        guard case let .page(projects) = update else { return }
         XCTAssertEqual(projects.count, 5)
         loaded.fulfill()
       }
-      defer { observation?.dispose() }
+      defer { observation.stop() }
       await feature.search(parameters: .defaults)
       await self.fulfillment(of: [loaded], timeout: 2)
       XCTAssertEqual(feature.projects.count, 5)
@@ -223,12 +224,13 @@ final class SearchRequestCancellationTests: TestCase {
     await self.withEnvironment(debounceInterval: .seconds(0), scheduler: QueueScheduler.main) {
       let feature = SearchFeature(provider: provider)
       var resultEvents = 0
-      let observation = feature.paginatedResults.observeValues { _ in
+      let observation = feature.observe { update in
+        guard case .page = update else { return }
         resultEvents += 1
         loaded.fulfill()
       }
       defer {
-        observation?.dispose()
+        observation.stop()
         for callback in callbacks { callback(.failure(ProbeError.failed)) }
       }
       var parameters = DiscoveryParams.defaults

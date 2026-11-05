@@ -195,11 +195,11 @@ internal final class SearchViewModelTests: TestCase {
         return
       }
       var admitted: [DiscoveryParams] = []
-      let observation = self.searchFeature.loading.observeValues { [weak self] loading in
-        guard loading, let parameters = self?.searchFeature.parameters else { return }
+      let observation = self.searchFeature.observe { [weak self] update in
+        guard case let .loading(loading) = update, loading, let parameters = self?.searchFeature.parameters else { return }
         admitted.append(parameters)
       }
-      defer { observation?.dispose() }
+      defer { observation.stop() }
       self.searchFeature.resetFilters(.allFilters)
 
       var expectedAdmissions: [DiscoveryParams] = []
@@ -455,12 +455,12 @@ internal final class SearchViewModelTests: TestCase {
     // successful first page consumes one before cards/loading=false publish.
     var analyticsAtPagePublication: [Int] = []
     var loadingAtPagePublication: [Bool] = []
-    let observation = self.searchFeature.pageCount.observeValues { [weak self] _ in
-      guard let self else { return }
+    let observation = self.searchFeature.observe { [weak self] update in
+      guard case .pageCount = update, let self else { return }
       analyticsAtPagePublication.append(self.segmentTrackingClient.events.count)
       loadingAtPagePublication.append(self.searchFeature.isLoading)
     }
-    defer { observation?.dispose() }
+    defer { observation.stop() }
     await withEnvironment(apiService: MockService(fetchGraphQLResponses: populated)) {
       self.vm.inputs.searchTextChanged("recovered")
       await self.advanceRequests()

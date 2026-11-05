@@ -2,13 +2,12 @@ import Foundation
 import GraphAPI
 import KsApi
 import Prelude
-import ReactiveSwift
 
 public typealias SearchResult = SearchProjectResponse
 
 /// Owns filter policy, directly awaitable requests, cursor and accumulated results.
 /// Distinct queries supersede old work; equivalent in-flight requests share completion.
-/// Signals are an output-only compatibility edge for the unchanged UIKit screen.
+/// Explicit main-actor notifications report state transitions to presentation.
 @MainActor
 public final class SearchFeature {
   public private(set) var projects: [SearchResult] = []
@@ -17,16 +16,18 @@ public final class SearchFeature {
   public private(set) var searchError: ErrorEnvelope?
   public private(set) var parameters: DiscoveryParams?
 
-  private let resultsPipe = Signal<[SearchResult], Never>.pipe()
-  private let pagesPipe = Signal<[SearchResult], Never>.pipe()
-  private let countPipe = Signal<Int, Never>.pipe()
-  private let loadingPipe = Signal<Bool, Never>.pipe()
-  private let pageCountPipe = Signal<Int, Never>.pipe()
-  public var results: Signal<[SearchResult], Never> { self.resultsPipe.output.skipRepeats(==) }
-  public var paginatedResults: Signal<[SearchResult], Never> { self.pagesPipe.output }
-  public var resultCount: Signal<Int, Never> { self.countPipe.output }
-  public var loading: Signal<Bool, Never> { self.loadingPipe.output }
-  public var pageCount: Signal<Int, Never> { self.pageCountPipe.output }
+  internal enum Update {
+    case results([SearchResult]), page([SearchResult]), count(Int), loading(Bool), pageCount(Int)
+  }
+  private var observers: [(id: UUID, callback: (Update) -> Void)] = []
+  internal func observe(_ callback: @escaping (Update) -> Void) -> MainActorObservation {
+    let id = UUID()
+    self.observers.append((id, callback))
+    return MainActorObservation { [weak self] in self?.observers.removeAll { $0.id == id } }
+  }
+  private func emit(_ update: Update) {
+    for observer in self.observers { observer.callback(update) }
+  }
 
   internal let filterSelection: SearchFilterSelection
   internal enum LookupUpdate {
@@ -336,7 +337,7 @@ public final class SearchFeature {
     self.nextCursor = nil
     self.completedPageCount = 0
     self.projects = []
-    self.resultsPipe.input.send(value: [])
+    self.emit(.results([]))
     let debounce = self.hasRequested ? AppEnvironment.current.debounceInterval.searchDelaySeconds : 0
     self.hasRequested = true
     return self.requestPage(parameters: parameters, cursor: nil, debounce: debounce)
@@ -409,16 +410,16 @@ public final class SearchFeature {
     let incoming = data.projects
     self.nextCursor = !incoming.isEmpty && data.hasNextPage ? data.endCursor : nil
     self.totalCount = data.totalCount
-    self.countPipe.input.send(value: self.totalCount)
+    self.emit(.count(self.totalCount))
     self.projects = firstPage ? incoming : self.projects + incoming
     // Preserve legacy output ordering used by analytics: count, page, results,
     // then loading=false. Empty terminal pages retain already accumulated cards.
     if !self.projects.isEmpty {
       self.completedPageCount += 1
-      self.pageCountPipe.input.send(value: self.completedPageCount)
+      self.emit(.pageCount(self.completedPageCount))
     }
-    self.pagesPipe.input.send(value: self.projects)
-    self.resultsPipe.input.send(value: self.projects)
+    self.emit(.page(self.projects))
+    self.emit(.results(self.projects))
   }
 
   private func finishRequest(id: UUID) {
@@ -429,7 +430,7 @@ public final class SearchFeature {
 
   private func setLoading(_ loading: Bool) {
     self.isLoading = loading
-    self.loadingPipe.input.send(value: loading)
+    self.emit(.loading(loading))
   }
 
   deinit {
