@@ -1,6 +1,5 @@
 import KsApi
 import Prelude
-import ReactiveSwift
 import WebKit
 
 public protocol HasProjectCreatorProperties {
@@ -31,115 +30,54 @@ extension Project: HasProjectCreatorProperties {
 
 public typealias ProjectCreatorConfiguration = HasProjectCreatorProperties & HasProjectWebURL
 
-@MainActor public protocol ProjectCreatorViewModelInputs {
-  /// Call with the project given to the view.
-  func configureWith(project: any ProjectCreatorConfiguration)
-
-  /// Call with the navigation action given to the webview's delegate method. Returns the policy that can
-  /// be returned from the delegate method.
-  func decidePolicy(forNavigationAction action: WKNavigationActionData) -> WKNavigationActionPolicy
-
-  /// Call when the view loads.
-  func viewDidLoad()
-}
-
-@MainActor public protocol ProjectCreatorViewModelOutputs {
-  /// Emits when we should return to project page.
-  var goBackToProject: Signal<(), Never> { get }
-
-  /// Emits when the LoginToutViewController should be presented.
-  var goToLoginTout: Signal<LoginIntent, Never> { get }
-
-  /// Emits when we should navigate to the message dialog.
-  var goToMessageDialog: Signal<(MessageSubject, KSRAnalytics.MessageDialogContext), Never> { get }
-
-  /// Emits when we should open a safari browser with the URL.
-  var goToSafariBrowser: Signal<URL, Never> { get }
-
-  /// Emits a request that should be loaded into the web view.
-  var loadWebViewRequest: Signal<URLRequest, Never> { get }
-}
-
-@MainActor public protocol ProjectCreatorViewModelType {
-  var inputs: ProjectCreatorViewModelInputs { get }
-  var outputs: ProjectCreatorViewModelOutputs { get }
-}
-
-@MainActor public final class ProjectCreatorViewModel: ProjectCreatorViewModelType,
-  ProjectCreatorViewModelInputs,
-  ProjectCreatorViewModelOutputs {
+@MainActor public final class ProjectCreatorViewModel {
+  public var onGoBack: (() -> Void)?
+  public var onLogin: ((LoginIntent) -> Void)?
+  public var onMessage: ((MessageSubject, KSRAnalytics.MessageDialogContext) -> Void)?
+  public var onSafari: ((URL) -> Void)?
+  public var onLoad: ((URLRequest) -> Void)?
   private let projectDetailsFeature: ProjectDetailsFeature
+  private var project: (any ProjectCreatorConfiguration)?
+  private var loaded = false
 
   public init(projectDetailsFeature: ProjectDetailsFeature? = nil) {
-    let projectDetailsFeature = projectDetailsFeature ?? AppModel.shared.projectDetailsFeature
-    self.projectDetailsFeature = projectDetailsFeature
-    let navigationAction = self.navigationAction.signal.skipNil()
-    let project = Signal.combineLatest(self.projectProperty.signal.skipNil(), self.viewDidLoadProperty.signal)
-      .map(first)
-
-    let properties = project.map { $0.projectCreatorProperties }
-
-    let messageCreatorRequest = navigationAction
-      .filter { $0.navigationType == .linkActivated }
-      .filter { projectDetailsFeature.isCreatorMessage(request: $0.request) }
-      .map { $0.request }
-
-    self.loadWebViewRequest = properties.compactMap {
-      projectDetailsFeature.creatorBiographyRequest(projectURL: $0.projectWebURL)
-    }
-
-    self.decidedPolicy <~ navigationAction
-      .map { $0.navigationType == .other ? .allow : .cancel }
-
-    self.goToLoginTout = messageCreatorRequest.ignoreValues()
-      .filter { projectDetailsFeature.creatorMessageRequiresAuthentication }
-      .map { .messageCreator }
-
-    self.goToMessageDialog = properties
-      .takeWhen(messageCreatorRequest)
-      .compactMap { projectDetailsFeature.creatorMessageSubject(projectID: $0.id, projectName: $0.name) }
-      .map { ($0, .projectPage) }
-
-    self.goBackToProject = Signal.combineLatest(properties, navigationAction)
-      .filter { $1.navigationType == .linkActivated }
-      .filter { properties, navigation in
-        properties.projectWebURL == navigation.request.url?.absoluteString
-      }
-      .ignoreValues()
-
-    self.goToSafariBrowser = Signal.combineLatest(properties, navigationAction)
-      .filter { $1.navigationType == .linkActivated }
-      .filter { !projectDetailsFeature.isCreatorMessage(request: $1.request) }
-      .filter { properties, navigation in
-        properties.projectWebURL != navigation.request.url?.absoluteString
-      }
-      .map { $1.request.url }
-      .skipNil()
+    self.projectDetailsFeature = projectDetailsFeature ?? AppModel.shared.projectDetailsFeature
   }
 
-  fileprivate let projectProperty = MutableProperty<(any ProjectCreatorConfiguration)?>(nil)
   public func configureWith(project: any ProjectCreatorConfiguration) {
-    self.projectProperty.value = project
+    self.project = project
+    self.loadIfReady()
   }
 
-  fileprivate let navigationAction = MutableProperty<WKNavigationActionData?>(nil)
-  fileprivate let decidedPolicy = MutableProperty(WKNavigationActionPolicy.cancel)
-  public func decidePolicy(forNavigationAction action: WKNavigationActionData) -> WKNavigationActionPolicy {
-    self.navigationAction.value = action
-    return self.decidedPolicy.value
-  }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    self.loaded = true
+    self.loadIfReady()
   }
 
-  public let goBackToProject: Signal<(), Never>
-  public let goToLoginTout: Signal<LoginIntent, Never>
-  public let goToMessageDialog: Signal<(MessageSubject, KSRAnalytics.MessageDialogContext), Never>
-  public let goToSafariBrowser: Signal<URL, Never>
-  public let loadWebViewRequest: Signal<URLRequest, Never>
+  private func loadIfReady() {
+    guard self.loaded, let properties = self.project?.projectCreatorProperties,
+          let request = self.projectDetailsFeature.creatorBiographyRequest(projectURL: properties.projectWebURL) else { return }
+    self.onLoad?(request)
+  }
 
-  public var inputs: ProjectCreatorViewModelInputs { return self }
-  public var outputs: ProjectCreatorViewModelOutputs { return self }
+  public func decidePolicy(forNavigationAction action: WKNavigationActionData) -> WKNavigationActionPolicy {
+    if action.navigationType == .linkActivated {
+      let isMessage = self.projectDetailsFeature.isCreatorMessage(request: action.request)
+      if isMessage {
+        if self.projectDetailsFeature.creatorMessageRequiresAuthentication { self.onLogin?(.messageCreator) }
+        if self.loaded, let properties = self.project?.projectCreatorProperties,
+           let subject = self.projectDetailsFeature.creatorMessageSubject(projectID: properties.id, projectName: properties.name) {
+          self.onMessage?(subject, .projectPage)
+        }
+      }
+      if self.loaded, let properties = self.project?.projectCreatorProperties {
+        if properties.projectWebURL == action.request.url?.absoluteString {
+          self.onGoBack?()
+        } else if !isMessage, let url = action.request.url {
+          self.onSafari?(url)
+        }
+      }
+    }
+    return action.navigationType == .other ? .allow : .cancel
+  }
 }

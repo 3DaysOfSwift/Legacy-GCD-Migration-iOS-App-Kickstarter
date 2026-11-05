@@ -5,20 +5,20 @@ import SafariServices
 import WebKit
 
 internal final class ProjectCreatorViewController: WebViewController {
-  fileprivate let viewModel: ProjectCreatorViewModelType = ProjectCreatorViewModel()
+  fileprivate let viewModel = ProjectCreatorViewModel()
 
   var isPresentedFromVideoFeed = false
 
   internal static func configuredWith(project: any ProjectCreatorConfiguration)
     -> ProjectCreatorViewController {
     let vc = ProjectCreatorViewController()
-    vc.viewModel.inputs.configureWith(project: project)
+    vc.viewModel.configureWith(project: project)
     return vc
   }
 
   internal override func viewDidLoad() {
     super.viewDidLoad()
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
 
     self.navigationItem.title = Strings.project_subpages_menu_buttons_creator()
 
@@ -42,35 +42,27 @@ internal final class ProjectCreatorViewController: WebViewController {
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.goToLoginTout
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.goToLoginTout($0)
-      }
-
-    self.viewModel.outputs.loadWebViewRequest
-      .observeForControllerAction()
-      .observeValues { [weak self] in _ = self?.webView.load($0) }
-
-    self.viewModel.outputs.goBackToProject
-      .observeForControllerAction()
-      .observeValues { [weak self] in
+    self.viewModel.onLogin = { [weak self] intent in
+      Task { @MainActor [weak self] in self?.goToLoginTout(intent) }
+    }
+    self.viewModel.onLoad = { [weak self] request in
+      Task { @MainActor [weak self] in _ = self?.webView.load(request) }
+    }
+    self.viewModel.onGoBack = { [weak self] in
+      Task { @MainActor [weak self] in
         if self?.traitCollection.userInterfaceIdiom == .pad || self?.isPresentedFromVideoFeed == true {
           self?.dismiss(animated: true, completion: nil)
         } else {
           self?.navigationController?.popViewController(animated: true)
         }
       }
-
-    self.viewModel.outputs.goToMessageDialog
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.goToMessageDialog(subject: $0, context: $1) }
-
-    self.viewModel.outputs.goToSafariBrowser
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.goTo(url: $0)
-      }
+    }
+    self.viewModel.onMessage = { [weak self] subject, context in
+      Task { @MainActor [weak self] in self?.goToMessageDialog(subject: subject, context: context) }
+    }
+    self.viewModel.onSafari = { [weak self] url in
+      Task { @MainActor [weak self] in self?.goTo(url: url) }
+    }
   }
 
   internal func webView(
@@ -79,7 +71,7 @@ internal final class ProjectCreatorViewController: WebViewController {
     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
   ) {
     decisionHandler(
-      self.viewModel.inputs.decidePolicy(
+      self.viewModel.decidePolicy(
         forNavigationAction: WKNavigationActionData(navigationAction: navigationAction)
       )
     )
