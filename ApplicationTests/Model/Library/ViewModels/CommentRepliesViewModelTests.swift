@@ -43,14 +43,11 @@ internal final class CommentRepliesViewModelTests: TestCase {
       self.vm.outputs.onLoadRootComment = { [weak self] comment in self?.loadCommentIntoDataSourceComment.observer.send(value: comment) }
       self.vm.outputs.onDidBlockUser = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
       self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }
-      self.vm.outputs.loadFailableReplyIntoDataSource.map(first)
-        .observe(self.loadFailableReplyIntoDataSource.observer)
-
-      self.vm.outputs.loadFailableReplyIntoDataSource.map(second)
-        .observe(self.loadFailableCommentIDIntoDataSource.observer)
-
-      self.vm.outputs.loadFailableReplyIntoDataSource.map(third)
-        .observe(self.loadFailableProjectIntoDataSource.observer)
+      self.vm.outputs.onLoadFailableReply = { [weak self] comment, id, project in
+        self?.loadFailableReplyIntoDataSource.observer.send(value: comment)
+        self?.loadFailableCommentIDIntoDataSource.observer.send(value: id)
+        self?.loadFailableProjectIntoDataSource.observer.send(value: project)
+      }
 
       self.vm.outputs.onLoadReplies = { [weak self] repliesAndCount, project in
         self?.loadRepliesAndProjectIntoDataSourceProject.observer.send(value: project)

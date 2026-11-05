@@ -124,9 +124,7 @@ final class CommentRepliesViewController: UITableViewController, MessageBannerVi
         self.viewModel.inputs.dataSourceLoaded()
       }
 
-    self.viewModel.outputs.loadFailableReplyIntoDataSource
-      .observeForUI()
-      .observeValues { [weak self] failableComment, replaceableCommentId, project in
+    self.viewModel.outputs.onLoadFailableReply = { [weak self] failableComment, replaceableCommentId, project in
         guard let self = self else { return }
         let (indexPath, newComment) = self.dataSource.replace(
           comment: failableComment,

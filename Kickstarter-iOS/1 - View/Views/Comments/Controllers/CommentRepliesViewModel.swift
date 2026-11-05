@@ -61,7 +61,7 @@ public protocol CommentRepliesViewModelOutputs: AnyObject {
   var onLoadReplies: ((([Comment], Int), Project) -> Void)? { get set }
 
   /// Emits a `Comment`, `String` and `Project` to replace an optimistically posted comment after a network request completes.
-  var loadFailableReplyIntoDataSource: Signal<(Comment, String, Project), Never> { get }
+  var onLoadFailableReply: ((Comment, String, Project) -> Void)? { get set }
 
   /// Emits when a comment has been posted reset the composer.
   var onResetCommentComposer: (() -> Void)? { get set }
@@ -93,6 +93,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   private var latestRootComment: Comment?
   private var latestProject: Project?
   private var latestReplies: ([Comment], Int)?
+  private var latestFailableReply: (Comment, String)?
   private var pageObservation: MainActorObservation?
   private let route = UUID()
   private let disposables = ScopedDisposable(CompositeDisposable())
@@ -220,8 +221,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
 
     let failableOrRetriedComment = Signal.merge(retryingComment, failableCommentWithReplacementId)
 
-    self.loadFailableReplyIntoDataSource = Signal.combineLatest(failableOrRetriedComment, project)
-      .map(unpack)
 
 
     // MARK: User Blocking Analytics
@@ -246,6 +245,12 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
       guard let self else { return }
       self.latestProject = project
       if let replies = self.latestReplies { self.onLoadReplies?(replies, project) }
+      if let (comment, id) = self.latestFailableReply { self.onLoadFailableReply?(comment, id, project) }
+    }
+    self.disposables += failableOrRetriedComment.observeValues { [weak self] comment, id in
+      guard let self else { return }
+      self.latestFailableReply = (comment, id)
+      if let project = self.latestProject { self.onLoadFailableReply?(comment, id, project) }
     }
     self.disposables += rootComment.observeValues { [weak self] comment in
       guard let self else { return }
@@ -344,7 +349,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   public let configureCommentComposerViewWithData: Signal<CommentComposerViewData, Never>
   public var onLoadRootComment: ((Comment) -> Void)?
   public var onLoadReplies: ((([Comment], Int), Project) -> Void)?
-  public let loadFailableReplyIntoDataSource: Signal<(Comment, String, Project), Never>
+  public var onLoadFailableReply: ((Comment, String, Project) -> Void)?
   public var onResetCommentComposer: (() -> Void)?
   public var onScrollToReply: ((String) -> Void)?
   public var onPaginationError: (() -> Void)?
