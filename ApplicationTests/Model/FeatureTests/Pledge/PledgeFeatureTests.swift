@@ -529,51 +529,30 @@ final class PledgeFeatureTests: TestCase {
   }
 
   func testOverviewReceiptChangesAreOrderedAndDuplicatesShare() async throws {
-    var results: [Bool] = []
-    let first = self.feature.receiptResult(backingID: "B", received: true).startWithResult {
-      if case .success(let value) = $0 {
-        results.append(value)
-      } else {
-        XCTFail("Unexpected receipt failure")
-      }
-    }
-    let duplicate = self.feature.receiptResult(backingID: "B", received: true).startWithResult {
-      if case .success(let value) = $0 {
-        results.append(value)
-      } else {
-        XCTFail("Unexpected receipt failure")
-      }
-    }
-    let next = self.feature.receiptResult(backingID: "B", received: false).startWithResult {
-      if case .success(let value) = $0 {
-        results.append(value)
-      } else {
-        XCTFail("Unexpected receipt failure")
-      }
-    }
-    defer {
-      first.dispose()
-      duplicate.dispose()
-      next.dispose()
-    }
+    let first = Task { try await self.feature.receipt(backingID: "B", received: true) }
     await self.provider.overviewReceipts.waitFor(1)
+    let duplicate = Task { try await self.feature.receipt(backingID: "B", received: true) }
+    await Task.yield()
+    let next = Task { try await self.feature.receipt(backingID: "B", received: false) }
+    await Task.yield()
     XCTAssertEqual(self.provider.receiptInputs.map { $0.1 }, [true])
     try self.provider.overviewReceipts.finish(0, .success(true))
     await self.provider.overviewReceipts.waitFor(2)
     XCTAssertEqual(self.provider.receiptInputs.map { $0.1 }, [true, false])
     try self.provider.overviewReceipts.finish(1, .success(true))
-    await self.feature.waitForOperations()
-    XCTAssertEqual(results, [true, true, true])
+    let values = try await [first.value, duplicate.value, next.value]
+    XCTAssertEqual(values, [true, true, true])
   }
-  func testAddressWriteSettlesAfterObserverDisposalAndDoesNotRetry() async throws {
-    var delivered = false
-    let subscription = self.feature.confirmAddressResult(backingID: "B", addressID: "A")
-      .startWithResult { _ in delivered = true }
+  func testAddressWriteSettlesAfterCallerCancellationAndDoesNotRetry() async throws {
+    let task = Task { try await self.feature.confirmAddress(backingID: "B", addressID: "A") }
     await self.provider.addresses.waitFor(1)
-    subscription.dispose()
+    task.cancel()
     try self.provider.addresses.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
+    do {
+      _ = try await task.value
+      XCTFail("Cancelled caller must not receive a result")
+    } catch { XCTAssertTrue(error is CancellationError) }
     await self.feature.waitForOperations()
-    XCTAssertFalse(delivered)
     XCTAssertEqual(self.provider.addressInputs.count, 1)
     XCTAssertEqual(self.provider.addressInputs.first?.1, "A")
   }

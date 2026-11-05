@@ -219,16 +219,6 @@ public final class PledgeFeature {
   public func receipt(backingID: String, received: Bool) async throws -> Bool {
     try Self.acknowledged(await self.execute(.receipt(backingID, received)))
   }
-  public func confirmAddressResult(backingID: String, addressID: String) -> SignalProducer<
-    Bool, ErrorEnvelope
-  > {
-    self.result(.confirmAddress(backingID, addressID), transform: Self.acknowledged)
-  }
-  public func receiptResult(backingID: String, received: Bool) -> SignalProducer<
-    Bool, ErrorEnvelope
-  > {
-    self.result(.receipt(backingID, received), transform: Self.acknowledged)
-  }
   private static func acknowledged(_ value: Value) throws -> Bool {
     guard case .acknowledged(let success) = value else { throw ErrorEnvelope.couldNotParseJSON }
     return success

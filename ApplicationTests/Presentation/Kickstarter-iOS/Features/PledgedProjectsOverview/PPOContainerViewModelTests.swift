@@ -20,7 +20,7 @@ final class PPOContainerViewModelTests: XCTestCase {
     }
     model.confirmAddress(addressId: "A", backingId: "B") { progress.append($0) }
     XCTAssertEqual(progress, [.confirmed])
-    await feature.waitForOperations()
+    await model.waitForOperations()
     XCTAssertEqual(progress, [.confirmed, .succeeded])
     XCTAssertEqual(banners, [.success])
     XCTAssertEqual(refreshes, 1)
@@ -38,7 +38,7 @@ final class PPOContainerViewModelTests: XCTestCase {
       refresh.cancel()
     }
     model.confirmAddress(addressId: "A", backingId: "B") { progress.append($0) }
-    await feature.waitForOperations()
+    await model.waitForOperations()
     XCTAssertEqual(progress, [.confirmed, .succeeded])
     XCTAssertEqual(errors, 1)
     XCTAssertEqual(refreshes, 0)
@@ -52,7 +52,7 @@ final class PPOContainerViewModelTests: XCTestCase {
     let banner = model.showBanner.sink { if $0.type == .error { errors += 1 } }
     defer { banner.cancel() }
     model.confirmAddress(addressId: "A", backingId: "B") { progress.append($0) }
-    await feature.waitForOperations()
+    await model.waitForOperations()
     XCTAssertEqual(progress, [.confirmed])
     XCTAssertEqual(errors, 1)
   }
@@ -69,7 +69,7 @@ final class PPOContainerViewModelTests: XCTestCase {
       refresh.cancel()
     }
     model.updateRewardReceived(backingId: "B", rewardReceived: true)
-    await feature.waitForOperations()
+    await model.waitForOperations()
     XCTAssertEqual(errors, 1)
     XCTAssertEqual(refreshes, 1)
   }
@@ -85,7 +85,7 @@ final class PPOContainerViewModelTests: XCTestCase {
       refresh.cancel()
     }
     model.updateRewardReceived(backingId: "B", rewardReceived: false)
-    await feature.waitForOperations()
+    await model.waitForOperations()
     XCTAssertEqual(banners, 0)
     XCTAssertEqual(refreshes, 0)
   }

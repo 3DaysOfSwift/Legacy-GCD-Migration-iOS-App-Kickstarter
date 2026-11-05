@@ -2,7 +2,6 @@ import Combine
 import Foundation
 import KsApi
 
-import ReactiveSwift
 import UIKit
 
 typealias PPOStripeConfiguration = (publishableKey: String, merchantIdentifier: String)
@@ -132,33 +131,52 @@ final class PPOContainerViewModel: PPOContainerViewModelInputs, PPOContainerView
     addressId: String, backingId: String, onProgress: @escaping (PPOActionState) -> Void
   ) {
     onProgress(.confirmed)
-    self.observations += self.feature.confirmAddressResult(
-      backingID: backingId, addressID: addressId
-    )
-    .startWithResult { [weak self] result in
-      guard let self else { return }
-      let success: Bool
-      switch result {
-      case .success(let acknowledged):
+    let id = UUID()
+    let feature = self.feature
+    self.tasks[id] = Task { [weak self] in
+      defer { self?.tasks[id] = nil }
+      do {
+        let acknowledged = try await feature.confirmAddress(backingID: backingId, addressID: addressId)
+        guard !Task.isCancelled, let self else { return }
         onProgress(.succeeded)
-        success = acknowledged
-      case .failure: success = false
+        self.showBannerSubject.send(
+          acknowledged
+            ? (.success, Strings.Address_confirmed_need_to_change_your_address_before_it_locks())
+            : (.error, Strings.Something_went_wrong_please_try_again()))
+      } catch {
+        guard !Task.isCancelled, !(error is CancellationError), let self else { return }
+        self.showBannerSubject.send((.error, Strings.Something_went_wrong_please_try_again()))
       }
-      self.showBannerSubject.send(
-        success
-          ? (.success, Strings.Address_confirmed_need_to_change_your_address_before_it_locks())
-          : (.error, Strings.Something_went_wrong_please_try_again()))
     }
   }
 
   func updateRewardReceived(backingId: String, rewardReceived: Bool) {
-    self.observations += self.feature.receiptResult(backingID: backingId, received: rewardReceived)
-      .startWithResult { [weak self] result in
-        guard let self else { return }
-        if case .success(true) = result { return }
-        self.showBannerSubject.send((.error, Strings.Something_went_wrong_please_try_again()))
-        self.receiptFailureSubject.send(())
+    let id = UUID()
+    let feature = self.feature
+    self.tasks[id] = Task { [weak self] in
+      defer { self?.tasks[id] = nil }
+      do {
+        let acknowledged = try await feature.receipt(backingID: backingId, received: rewardReceived)
+        guard !Task.isCancelled, let self, !acknowledged else { return }
+        self.showReceiptFailure()
+      } catch {
+        guard !Task.isCancelled, !(error is CancellationError), let self else { return }
+        self.showReceiptFailure()
       }
+    }
+  }
+
+  private func showReceiptFailure() {
+    self.showBannerSubject.send((.error, Strings.Something_went_wrong_please_try_again()))
+    self.receiptFailureSubject.send(())
+  }
+
+  func waitForOperations() async {
+    while let task = self.tasks.values.first { await task.value }
+  }
+
+  deinit {
+    self.tasks.values.forEach { $0.cancel() }
   }
 
   func actionFinishedPerforming() {
@@ -202,7 +220,7 @@ final class PPOContainerViewModel: PPOContainerViewModelInputs, PPOContainerView
   private let process3DSAuthenticationState = PassthroughSubject<PPOActionState, Never>()
   private let stripeConfigurationSubject = PassthroughSubject<PPOStripeConfiguration, Never>()
   private let feature: PledgeFeature
-  private let observations = ScopedDisposable(CompositeDisposable())
+  private var tasks: [UUID: Task<Void, Never>] = [:]
   private let receiptFailureSubject = PassthroughSubject<Void, Never>()
   private let actionFinishedPerformingSubject = PassthroughSubject<Void, Never>()
   private let shouldRefreshSubject = PassthroughSubject<Void, Never>()
