@@ -18,11 +18,6 @@ class MockGraphQLClient: ApolloClientType {
   // MARK: Public functions
 
   /// Placeholder implementation because protocol definition used in `Service`
-  public func fetch<Query: GraphQLQuery>(query _: Query) -> SignalProducer<Query.Data, ErrorEnvelope> {
-    return SignalProducer<Query.Data, ErrorEnvelope>.never
-  }
-
-  /// Placeholder implementation because protocol definition used in `Service`
   public func perform<Mutation: GraphQLMutation>(
     mutation _: Mutation
   ) -> SignalProducer<Mutation.Data, ErrorEnvelope> {
@@ -33,13 +28,6 @@ class MockGraphQLClient: ApolloClientType {
 /** Implementation of optional `fetch` and `perform` with `result` useful for mocking data.
  */
 extension ApolloClientType {
-  public func fetchWithResult<Query: GraphQLQuery, Data: Decodable>(
-    query _: Query,
-    result: Result<Data, ErrorEnvelope>?
-  ) -> SignalProducer<Data, ErrorEnvelope> {
-    producer(for: result)
-  }
-
   public func performWithResult<Mutation: GraphQLMutation, Data: Decodable>(
     mutation _: Mutation,
     result: Result<Data, ErrorEnvelope>?
