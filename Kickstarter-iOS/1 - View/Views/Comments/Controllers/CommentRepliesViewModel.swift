@@ -64,10 +64,10 @@ public protocol CommentRepliesViewModelOutputs: AnyObject {
   var loadFailableReplyIntoDataSource: Signal<(Comment, String, Project), Never> { get }
 
   /// Emits when a comment has been posted reset the composer.
-  var resetCommentComposer: Signal<(), Never> { get }
+  var onResetCommentComposer: (() -> Void)? { get set }
 
   /// Emits when a replyId is supplied to the view controller configuration and we want to scroll to a specific index.
-  var scrollToReply: Signal<String, Never> { get }
+  var onScrollToReply: ((String) -> Void)? { get set }
 
   /// Emits when a pagination error has occurred.
   var onPaginationError: (() -> Void)? { get set }
@@ -122,9 +122,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
         .takeWhen(self.viewDidAppearProperty.signal),
       self.viewDidLoadProperty.signal.mapConst(false)
     ).skipRepeats()
-
-    self.resetCommentComposer = self.commentComposerDidSubmitTextProperty.signal.skipNil()
-      .ignoreValues()
 
     self.configureCommentComposerViewWithData = Signal
       .combineLatest(
@@ -234,10 +231,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
       .map(unpack)
 
 
-    self.scrollToReply = self.replyIdProperty.signal
-      .skipNil()
-      .takeWhen(self.dataSourceLoadedProperty.signal)
-
     // MARK: User Blocking Analytics
 
     let blockAnalytics = self.blockAnalytics
@@ -302,12 +295,13 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
 
   fileprivate let commentComposerDidSubmitTextProperty = MutableProperty<String?>(nil)
   public func commentComposerDidSubmitText(_ text: String) {
+    self.onResetCommentComposer?()
     self.commentComposerDidSubmitTextProperty.value = text
   }
 
   fileprivate let commentProjectProperty = MutableProperty<(Comment, Project, Bool)?>(nil)
   fileprivate let updateProperty = MutableProperty<Update?>(nil)
-  fileprivate let replyIdProperty = MutableProperty<String?>(nil)
+  private var replyID: String?
   public func configureWith(
     comment: Comment,
     project: Project,
@@ -317,7 +311,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   ) {
     self.commentProjectProperty.value = (comment, project, inputAreaBecomeFirstResponder)
     self.updateProperty.value = update
-    self.replyIdProperty.value = replyId
+    if let replyId { self.replyID = replyId }
   }
 
   public func paginateOrErrorCellWasTapped() {
@@ -329,9 +323,8 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     self.retryFirstPageProperty.value = ()
   }
 
-  fileprivate let dataSourceLoadedProperty = MutableProperty(())
   public func dataSourceLoaded() {
-    self.dataSourceLoadedProperty.value = ()
+    if let replyID = self.replyID { self.onScrollToReply?(replyID) }
   }
 
   fileprivate let viewDidAppearProperty = MutableProperty(())
@@ -348,8 +341,8 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   public let loadCommentIntoDataSource: Signal<Comment, Never>
   public var loadRepliesAndProjectIntoDataSource: Signal<(([Comment], Int), Project), Never>
   public let loadFailableReplyIntoDataSource: Signal<(Comment, String, Project), Never>
-  public let resetCommentComposer: Signal<(), Never>
-  public let scrollToReply: Signal<String, Never>
+  public var onResetCommentComposer: (() -> Void)?
+  public var onScrollToReply: ((String) -> Void)?
   public var onPaginationError: (() -> Void)?
   public var onDidBlockUser: (() -> Void)?
   public var onDidBlockUserError: (() -> Void)?

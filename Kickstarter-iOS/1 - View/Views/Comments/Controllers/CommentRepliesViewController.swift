@@ -105,9 +105,7 @@ final class CommentRepliesViewController: UITableViewController, MessageBannerVi
         self?.commentComposer.configure(with: data)
       }
 
-    self.viewModel.outputs.resetCommentComposer
-      .observeForUI()
-      .observeValues { [weak self] _ in
+    self.viewModel.outputs.onResetCommentComposer = { [weak self] in
         self?.commentComposer.resetInput()
       }
 
@@ -159,9 +157,7 @@ final class CommentRepliesViewController: UITableViewController, MessageBannerVi
         self.tableView.reloadData()
       }
 
-    self.viewModel.outputs.scrollToReply
-      .observeForUI()
-      .observeValues { [weak self] replyId in
+    self.viewModel.outputs.onScrollToReply = { [weak self] replyId in
         if let indexPath = self?.dataSource.index(for: replyId) {
           self?.tableView.scrollToRow(at: indexPath, at: .top, animated: false)
         }
