@@ -1,5 +1,6 @@
 @testable import Kickstarter_iOS
 import Foundation
+import Observation
 @testable import KsApi
 
 
@@ -10,6 +11,55 @@ import XCTest
 @MainActor
 final class DiscoveryFeatureTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
+
+  func testFilterSelectionIsObservable() async {
+    let feature = DiscoveryFeature(provider: ControlledDiscoveryProvider())
+    let changed = expectation(description: "Filter selection changed")
+    withObservationTracking {
+      _ = feature.selectedParameters
+    } onChange: {
+      changed.fulfill()
+    }
+    feature.selectFilter(.defaults)
+    await fulfillment(of: [changed], timeout: 1)
+    XCTAssertEqual(feature.selectedParameters, .defaults)
+  }
+
+  func testFirstPageCreationInvalidatesObservedSnapshot() async {
+    let provider = ControlledDiscoveryProvider()
+    defer { provider.releaseAll() }
+    let feature = DiscoveryFeature(provider: provider, sleep: { _ in })
+    let changed = expectation(description: "A page route was created")
+    withObservationTracking {
+      _ = feature.snapshot(for: .magic)
+    } onChange: {
+      changed.fulfill()
+    }
+    let request = feature.requestRefresh(sort: .magic, parameters: .defaults)
+    await fulfillment(of: [changed], timeout: 1)
+    XCTAssertTrue(feature.snapshot(for: .magic).isLoading)
+    request.cancel()
+    provider.releaseAll()
+    await request.value
+  }
+
+  func testPageSnapshotIsObservableAfterRouteExists() async throws {
+    let provider = ControlledDiscoveryProvider()
+    defer { provider.releaseAll() }
+    let feature = DiscoveryFeature(provider: provider, sleep: { _ in })
+    let request = feature.requestRefresh(sort: .magic, parameters: .defaults)
+    await provider.waitForCount(1)
+    let changed = expectation(description: "Page snapshot changed")
+    withObservationTracking {
+      _ = feature.snapshot(for: .magic)
+    } onChange: {
+      changed.fulfill()
+    }
+    try provider.complete(0, ids: [1])
+    await request.value
+    await fulfillment(of: [changed], timeout: 1)
+    XCTAssertEqual(feature.snapshot(for: .magic).projects.map(\.id), [1])
+  }
 
   func testConstructionDoesNotLoadAnyFeed() {
     let provider = ControlledDiscoveryProvider()

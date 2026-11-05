@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import KsApi
 import Prelude
 import ReactiveSwift
@@ -27,7 +28,7 @@ public struct AsyncDiscoveryProvider: DiscoveryProvider {
 
 /// One Explore owner, with independent request identities for its four retained feeds.
 /// Signals are output-only compatibility adapters for the existing UIKit presentation.
-@MainActor
+@MainActor @Observable
 public final class DiscoveryFeature {
   public struct PageSnapshot {
     public fileprivate(set) var projects: [Project] = []
@@ -39,7 +40,7 @@ public final class DiscoveryFeature {
     public fileprivate(set) var activityError: ErrorEnvelope?
   }
 
-  private final class Page {
+  @Observable final class Page {
     var snapshot = PageSnapshot()
     var userID: Int?
     var cursor: String?
