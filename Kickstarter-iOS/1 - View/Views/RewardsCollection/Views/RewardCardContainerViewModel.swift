@@ -1,94 +1,36 @@
 import KsApi
 import Prelude
-import ReactiveSwift
 
 @MainActor
-public protocol RewardCardContainerViewModelInputs {
-  func configureWith(data: RewardCardViewData)
-  func pledgeButtonTapped()
-}
-
-@MainActor
-public protocol RewardCardContainerViewModelOutputs {
-  var pledgeButtonStyleType: Signal<ButtonStyleType, Never> { get }
-  var pledgeButtonEnabled: Signal<Bool, Never> { get }
-  var pledgeButtonHidden: Signal<Bool, Never> { get }
-  var pledgeButtonTitleText: Signal<String?, Never> { get }
-  var rewardSelected: Signal<Int, Never> { get }
-  func currentReward(is reward: Reward) -> Bool
-}
-
-@MainActor
-public protocol RewardCardContainerViewModelType {
-  var inputs: RewardCardContainerViewModelInputs { get }
-  var outputs: RewardCardContainerViewModelOutputs { get }
-}
-
-@MainActor
-public final class RewardCardContainerViewModel: RewardCardContainerViewModelType,
-  RewardCardContainerViewModelInputs, RewardCardContainerViewModelOutputs {
-  public init() {
-    let data = self.configDataProperty
-      .signal
-      .skipNil()
-
-    let reward: Signal<Reward, Never> =
-      data
-        .map { $0.reward }
-
-    self.currentRewardProperty <~ reward
-
-    let pledgeButtonTitleText = data
-      .map { data in
-        pledgeButtonTitle(data: data)
-      }
-
-    self.pledgeButtonTitleText = pledgeButtonTitleText
-
-    self.pledgeButtonStyleType = data
-      .map { data in
-        buttonStyleType(data: data)
-      }
-
-    self.pledgeButtonEnabled = data
-      .map { data in
-        rewardsCarouselCanNavigateToReward(
-          data.reward,
-          in: data.project,
-          selectedShippingLocation: data.currentShippingLocation
-        )
-      }
-
-    self.pledgeButtonHidden = pledgeButtonTitleText.map(isNil)
-
-    self.rewardSelected = reward
-      .takeWhen(self.pledgeButtonTappedProperty.signal)
-      .map { $0.id }
+public final class RewardCardContainerViewModel {
+  public struct Display {
+    let style: ButtonStyleType
+    let enabled: Bool
+    let hidden: Bool
+    let title: String?
   }
+  public var onDisplay: ((Display) -> Void)?
+  public var onRewardSelected: ((Int) -> Void)?
+  private var currentReward: Reward?
+  public init() {}
 
-  private let configDataProperty = MutableProperty<RewardCardViewData?>(nil)
   public func configureWith(data: RewardCardViewData) {
-    self.configDataProperty.value = data
+    self.currentReward = data.reward
+    let title = pledgeButtonTitle(data: data)
+    self.onDisplay?(Display(
+      style: buttonStyleType(data: data),
+      enabled: rewardsCarouselCanNavigateToReward(data.reward, in: data.project, selectedShippingLocation: data.currentShippingLocation),
+      hidden: title == nil,
+      title: title
+    ))
   }
 
-  private let pledgeButtonTappedProperty = MutableProperty(())
   public func pledgeButtonTapped() {
-    self.pledgeButtonTappedProperty.value = ()
+    guard let reward = self.currentReward else { return }
+    self.onRewardSelected?(reward.id)
   }
 
-  public let pledgeButtonStyleType: Signal<ButtonStyleType, Never>
-  public let pledgeButtonEnabled: Signal<Bool, Never>
-  public let pledgeButtonHidden: Signal<Bool, Never>
-  public let pledgeButtonTitleText: Signal<String?, Never>
-  public let rewardSelected: Signal<Int, Never>
-
-  private let currentRewardProperty = MutableProperty<Reward?>(nil)
-  public func currentReward(is reward: Reward) -> Bool {
-    return self.currentRewardProperty.value == reward
-  }
-
-  public var inputs: RewardCardContainerViewModelInputs { return self }
-  public var outputs: RewardCardContainerViewModelOutputs { return self }
+  public func currentReward(is reward: Reward) -> Bool { self.currentReward == reward }
 }
 
 // MARK: - Functions

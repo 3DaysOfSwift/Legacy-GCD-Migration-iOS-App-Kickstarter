@@ -15,7 +15,7 @@ public final class RewardCardContainerView: UIView {
     }
   }
 
-  private let viewModel: RewardCardContainerViewModelType = RewardCardContainerViewModel()
+  private let viewModel = RewardCardContainerViewModel()
 
   // MARK: - Properties
 
@@ -66,43 +66,28 @@ public final class RewardCardContainerView: UIView {
   public override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.rewardSelected
-      .observeForUI()
-      .observeValues { [weak self] rewardId in
-        guard let self = self else { return }
-
-        self.rewardCardView.delegate?
-          .rewardCardView(self.rewardCardView, didTapWithRewardId: rewardId)
-      }
-
-    self.viewModel.outputs.pledgeButtonTitleText.observeValues { [weak self] text in
-      self?.pledgeButton.setTitle(text, for: .normal)
+    self.viewModel.onRewardSelected = { [weak self] rewardId in
+      guard let self else { return }
+      self.rewardCardView.delegate?.rewardCardView(self.rewardCardView, didTapWithRewardId: rewardId)
     }
-    self.pledgeButton.rac.enabled = self.viewModel.outputs.pledgeButtonEnabled
-    self.pledgeButton.rac.hidden = self.viewModel.outputs.pledgeButtonHidden
-
-    self.viewModel.outputs.pledgeButtonHidden.observeValues { [weak self] hidden in
-      guard let self = self else { return }
-
-      if hidden {
+    self.viewModel.onDisplay = { [weak self] display in
+      guard let self else { return }
+      self.pledgeButton.setTitle(display.title, for: .normal)
+      self.pledgeButton.isEnabled = display.enabled
+      self.pledgeButton.isHidden = display.hidden
+      if display.hidden {
         NSLayoutConstraint.deactivate(self.pledgeButtonShownConstraints)
         NSLayoutConstraint.activate(self.pledgeButtonHiddenConstraints)
       } else {
         NSLayoutConstraint.deactivate(self.pledgeButtonHiddenConstraints)
         NSLayoutConstraint.activate(self.pledgeButtonShownConstraints)
       }
+      _ = self.pledgeButton |> display.style.style
     }
-
-    self.viewModel.outputs.pledgeButtonStyleType
-      .observeForUI()
-      .observeValues { [weak self] styleType in
-        _ = self?.pledgeButton
-          ?|> styleType.style
-      }
   }
 
   internal func configure(with data: RewardCardViewData) {
-    self.viewModel.inputs.configureWith(data: data)
+    self.viewModel.configureWith(data: data)
     self.rewardCardView.configure(with: data)
     self.adjustTopMarginForRewardCard(data)
   }
@@ -235,12 +220,12 @@ public final class RewardCardContainerView: UIView {
   }
 
   public func currentReward(is reward: Reward) -> Bool {
-    return self.viewModel.outputs.currentReward(is: reward)
+    return self.viewModel.currentReward(is: reward)
   }
 
   // MARK: - Selectors
 
   @objc func pledgeButtonTapped() {
-    self.viewModel.inputs.pledgeButtonTapped()
+    self.viewModel.pledgeButtonTapped()
   }
 }

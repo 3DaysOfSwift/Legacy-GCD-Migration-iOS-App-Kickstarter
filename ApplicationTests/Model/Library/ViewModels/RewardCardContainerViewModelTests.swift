@@ -3,21 +3,18 @@
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class RewardCardContainerViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  fileprivate let vm: RewardCardContainerViewModelType = RewardCardContainerViewModel()
+  fileprivate let vm = RewardCardContainerViewModel()
 
-  private let pledgeButtonStyleType = TestObserver<ButtonStyleType, Never>()
-  private let pledgeButtonEnabled = TestObserver<Bool, Never>()
-  private let pledgeButtonHidden = TestObserver<Bool, Never>()
-  private let pledgeButtonTitleText = TestObserver<String?, Never>()
-  private let rewardSelected = TestObserver<Int, Never>()
+  private let pledgeButtonStyleType = Recorder<ButtonStyleType>()
+  private let pledgeButtonEnabled = Recorder<Bool>()
+  private let pledgeButtonHidden = Recorder<Bool>()
+  private let pledgeButtonTitleText = Recorder<String?>()
+  private let rewardSelected = Recorder<Int>()
 
   let availableHasAddOns = Reward.postcards
     |> Reward.lens.hasAddOns .~ true
@@ -78,11 +75,13 @@ final class RewardCardContainerViewModelTests: TestCase {
   override func setUp() async throws {
     try await super.setUp()
 
-    self.vm.outputs.pledgeButtonStyleType.observe(self.pledgeButtonStyleType.observer)
-    self.vm.outputs.pledgeButtonEnabled.observe(self.pledgeButtonEnabled.observer)
-    self.vm.outputs.pledgeButtonHidden.observe(self.pledgeButtonHidden.observer)
-    self.vm.outputs.pledgeButtonTitleText.observe(self.pledgeButtonTitleText.observer)
-    self.vm.outputs.rewardSelected.observe(self.rewardSelected.observer)
+    self.vm.onDisplay = { [weak self] display in
+      self?.pledgeButtonStyleType.record(display.style)
+      self?.pledgeButtonEnabled.record(display.enabled)
+      self?.pledgeButtonHidden.record(display.hidden)
+      self?.pledgeButtonTitleText.record(display.title)
+    }
+    self.vm.onRewardSelected = { [weak self] in self?.rewardSelected.record($0) }
   }
 
   func testLive_BackedProject_BackedReward() {
@@ -103,7 +102,7 @@ final class RewardCardContainerViewModelTests: TestCase {
             |> Backing.lens.amount .~ 700.0
         )
 
-      self.vm.inputs.configureWith(data: RewardCardViewData(
+      self.vm.configureWith(data: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -164,7 +163,7 @@ final class RewardCardContainerViewModelTests: TestCase {
             |> Backing.lens.amount .~ 700.0
         )
 
-      self.vm.inputs.configureWith(data: RewardCardViewData(
+      self.vm.configureWith(data: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -218,7 +217,7 @@ final class RewardCardContainerViewModelTests: TestCase {
           |> Project.lens.state .~ .live
           |> Project.lens.personalization.isBacking .~ false
 
-        self.vm.inputs.configureWith(data: RewardCardViewData(
+        self.vm.configureWith(data: RewardCardViewData(
           project: project,
           reward: reward,
           context: .pledge,
@@ -273,7 +272,7 @@ final class RewardCardContainerViewModelTests: TestCase {
           |> Project.lens.personalization.isBacking .~ nil
           |> Project.lens.personalization.backing .~ nil
 
-        self.vm.inputs.configureWith(data: RewardCardViewData(
+        self.vm.configureWith(data: RewardCardViewData(
           project: project,
           reward: reward,
           context: .pledge,
@@ -333,7 +332,7 @@ final class RewardCardContainerViewModelTests: TestCase {
             |> Backing.lens.amount .~ 700.0
         )
 
-      self.vm.inputs.configureWith(data: RewardCardViewData(
+      self.vm.configureWith(data: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -394,7 +393,7 @@ final class RewardCardContainerViewModelTests: TestCase {
             |> Backing.lens.amount .~ 700.0
         )
 
-      self.vm.inputs.configureWith(data: RewardCardViewData(
+      self.vm.configureWith(data: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -435,7 +434,7 @@ final class RewardCardContainerViewModelTests: TestCase {
         |> Project.lens.state .~ .successful
         |> Project.lens.personalization.isBacking .~ false
 
-      self.vm.inputs.configureWith(data: RewardCardViewData(
+      self.vm.configureWith(data: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -497,7 +496,7 @@ final class RewardCardContainerViewModelTests: TestCase {
             |> Backing.lens.status .~ .errored
         )
 
-      self.vm.inputs.configureWith(data: RewardCardViewData(
+      self.vm.configureWith(data: RewardCardViewData(
         project: project,
         reward: reward,
         context: .pledge,
@@ -544,7 +543,7 @@ final class RewardCardContainerViewModelTests: TestCase {
           |> Project.lens.state .~ .live
           |> Project.lens.personalization.isBacking .~ false
 
-        self.vm.inputs.configureWith(data: RewardCardViewData(
+        self.vm.configureWith(data: RewardCardViewData(
           project: project,
           reward: reward,
           context: .pledge,
@@ -593,7 +592,7 @@ final class RewardCardContainerViewModelTests: TestCase {
           |> Project.lens.state .~ .successful
           |> Project.lens.personalization.isBacking .~ false
 
-        self.vm.inputs.configureWith(data: RewardCardViewData(
+        self.vm.configureWith(data: RewardCardViewData(
           project: project,
           reward: reward,
           context: .pledge,
@@ -643,7 +642,7 @@ final class RewardCardContainerViewModelTests: TestCase {
       currentShippingLocation: .usa
     )
 
-    self.vm.inputs.configureWith(data: data)
+    self.vm.configureWith(data: data)
 
     self.pledgeButtonEnabled.assertLastValue(true)
     self.pledgeButtonTitleText.assertLastValue("Select")
@@ -664,7 +663,7 @@ final class RewardCardContainerViewModelTests: TestCase {
       currentShippingLocation: .australia
     )
 
-    self.vm.inputs.configureWith(data: data)
+    self.vm.configureWith(data: data)
 
     self.pledgeButtonEnabled.assertLastValue(false)
     self.pledgeButtonTitleText.assertLastValue("Not available in selected country")
@@ -687,7 +686,7 @@ final class RewardCardContainerViewModelTests: TestCase {
       currentShippingLocation: .australia
     )
 
-    self.vm.inputs.configureWith(data: data)
+    self.vm.configureWith(data: data)
 
     self.pledgeButtonEnabled.assertLastValue(false)
     self.pledgeButtonTitleText.assertLastValue("Not available in selected country")
@@ -715,7 +714,7 @@ final class RewardCardContainerViewModelTests: TestCase {
       currentShippingLocation: .australia
     )
 
-    self.vm.inputs.configureWith(data: data)
+    self.vm.configureWith(data: data)
 
     self.pledgeButtonEnabled.assertLastValue(true)
     self.pledgeButtonTitleText.assertLastValue("Continue")
@@ -746,7 +745,7 @@ final class RewardCardContainerViewModelTests: TestCase {
       currentShippingLocation: .australia
     )
 
-    self.vm.inputs.configureWith(data: data)
+    self.vm.configureWith(data: data)
 
     self.pledgeButtonEnabled.assertLastValue(false)
     self.pledgeButtonTitleText.assertLastValue("Not available in selected country")
@@ -767,7 +766,7 @@ final class RewardCardContainerViewModelTests: TestCase {
       currentShippingLocation: nil
     )
 
-    self.vm.inputs.configureWith(data: data)
+    self.vm.configureWith(data: data)
 
     self.pledgeButtonEnabled.assertLastValue(true)
     self.pledgeButtonTitleText.assertLastValue("Select")
@@ -794,7 +793,7 @@ final class RewardCardContainerViewModelTests: TestCase {
       currentShippingLocation: .australia
     )
 
-    self.vm.inputs.configureWith(data: data)
+    self.vm.configureWith(data: data)
 
     self.pledgeButtonEnabled.assertLastValue(
       true,
@@ -807,15 +806,23 @@ final class RewardCardContainerViewModelTests: TestCase {
   }
 
   func testPledgeButtonTapped() {
-    self.vm.inputs.configureWith(data: RewardCardViewData(
+    self.vm.configureWith(data: RewardCardViewData(
       project: Project.template,
       reward: Reward.template,
       context: .pledge,
       currentShippingLocation: nil
     ))
 
-    self.vm.inputs.pledgeButtonTapped()
+    self.vm.pledgeButtonTapped()
 
     self.rewardSelected.assertValues([Reward.template.id])
   }
+}
+
+private final class Recorder<Value> {
+  private var values: [Value] = []
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValueCount(_ count: Int, file: StaticString = #filePath, line: UInt = #line) { XCTAssertEqual(self.values.count, count, file: file, line: line) }
+  func assertValues(_ expected: [Value], file: StaticString = #filePath, line: UInt = #line) where Value: Equatable { XCTAssertEqual(self.values, expected, file: file, line: line) }
+  func assertLastValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) where Value: Equatable { XCTAssertEqual(self.values.last, expected, message, file: file, line: line) }
 }
