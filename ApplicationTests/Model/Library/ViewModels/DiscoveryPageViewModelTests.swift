@@ -4,9 +4,6 @@ import Experimentation
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import UIKit
 import XCTest
 
@@ -26,7 +23,6 @@ internal final class DiscoveryPageViewModelTests: TestCase {
   }
 
   private func advanceRequests() async {
-    await self.scheduler.advance()
     await self.vm.pageTask?.value
     await self.vm.activityTask?.value
   }
@@ -40,78 +36,72 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     try await super.tearDown()
   }
 
-  fileprivate let activitiesForSample = TestObserver<[Activity], Never>()
-  fileprivate let asyncReloadData = TestObserver<(), Never>()
-  private let (projectsLoadedSignal, projectsLoadedObserver) = Signal<([Project], DiscoveryParams?), Never>.pipe()
-  fileprivate let contentInset = TestObserver<UIEdgeInsets, Never>()
-  fileprivate let dismissPersonalizationCell = TestObserver<Void, Never>()
-  fileprivate let goToActivityProject = TestObserver<Project, Never>()
-  fileprivate let goToActivityProjectRefTag = TestObserver<RefTag, Never>()
-  fileprivate let goToCuratedProjects = TestObserver<[KsApi.Category], Never>()
-  fileprivate let goToPlaylist = TestObserver<[Project], Never>()
-  fileprivate let goToPlaylistProject = TestObserver<Project, Never>()
-  fileprivate let goToPlaylistRefTag = TestObserver<RefTag, Never>()
-  fileprivate let goToProjectUpdate = TestObserver<Update, Never>()
-  fileprivate let hasAddedProjects = TestObserver<Bool, Never>()
-  fileprivate let hasLoadedProjects = TestObserver<(), Never>()
-  fileprivate let hasRemovedProjects = TestObserver<Bool, Never>()
-  fileprivate let hideEmptyState = TestObserver<(), Never>()
-  fileprivate let notifyDelegateContentOffsetChanged = TestObserver<CGPoint, Never>()
-  fileprivate let projectsAreLoading = TestObserver<Bool, Never>()
-  fileprivate let projectsAreLoadingAnimated = TestObserver<(Bool, Bool), Never>()
-  fileprivate let projectsLoadedDiscoveryParams = TestObserver<DiscoveryParams?, Never>()
-  fileprivate let setScrollsToTop = TestObserver<Bool, Never>()
-  fileprivate let showEmptyState = TestObserver<EmptyState, Never>()
-  fileprivate let showOnboarding = TestObserver<Bool, Never>()
-  fileprivate let showPersonalization = TestObserver<Bool, Never>()
-  fileprivate let showVideoFeedBanner = TestObserver<Bool, Never>()
+  fileprivate let activitiesForSample = DiscoveryRecorder<[Activity]>()
+  fileprivate let asyncReloadData = DiscoveryRecorder<()>()
+  private var previousProjectCount = 0
+  fileprivate let contentInset = DiscoveryRecorder<UIEdgeInsets>()
+  fileprivate let dismissPersonalizationCell = DiscoveryRecorder<Void>()
+  fileprivate let goToActivityProject = DiscoveryRecorder<Project>()
+  fileprivate let goToActivityProjectRefTag = DiscoveryRecorder<RefTag>()
+  fileprivate let goToCuratedProjects = DiscoveryRecorder<[KsApi.Category]>()
+  fileprivate let goToPlaylist = DiscoveryRecorder<[Project]>()
+  fileprivate let goToPlaylistProject = DiscoveryRecorder<Project>()
+  fileprivate let goToPlaylistRefTag = DiscoveryRecorder<RefTag>()
+  fileprivate let goToProjectUpdate = DiscoveryRecorder<Update>()
+  fileprivate let hasAddedProjects = DiscoveryRecorder<Bool>()
+  fileprivate let hasLoadedProjects = DiscoveryRecorder<()>()
+  fileprivate let hasRemovedProjects = DiscoveryRecorder<Bool>()
+  fileprivate let hideEmptyState = DiscoveryRecorder<()>()
+  fileprivate let notifyDelegateContentOffsetChanged = DiscoveryRecorder<CGPoint>()
+  fileprivate let projectsAreLoading = DiscoveryRecorder<Bool>()
+  fileprivate let projectsAreLoadingAnimated = DiscoveryRecorder<(Bool, Bool)>()
+  fileprivate let projectsLoadedDiscoveryParams = DiscoveryRecorder<DiscoveryParams?>()
+  fileprivate let setScrollsToTop = DiscoveryRecorder<Bool>()
+  fileprivate let showEmptyState = DiscoveryRecorder<EmptyState>()
+  fileprivate let showOnboarding = DiscoveryRecorder<Bool>()
+  fileprivate let showPersonalization = DiscoveryRecorder<Bool>()
+  fileprivate let showVideoFeedBanner = DiscoveryRecorder<Bool>()
 
   internal override func setUp() async throws {
     try await super.setUp()
 
     MainActor.assumeIsolated {
-    self.vm.outputs.onActivitiesForSample = { [weak self] in self?.activitiesForSample.observer.send(value: $0) }
-    self.vm.outputs.onAsyncReloadData = { [weak self] in self?.asyncReloadData.observer.send(value: ()) }
+    self.vm.outputs.onActivitiesForSample = { [weak self] in self?.activitiesForSample.record($0) }
+    self.vm.outputs.onAsyncReloadData = { [weak self] in self?.asyncReloadData.record(()) }
     self.vm.outputs.onProjectsLoaded = { [weak self] projects, parameters in
-      self?.projectsLoadedObserver.send(value: (projects, parameters))
+      guard let self else { return }
+      self.hasLoadedProjects.record(())
+      self.projectsLoadedDiscoveryParams.record(parameters)
+      self.hasAddedProjects.record(projects.count > self.previousProjectCount)
+      self.hasRemovedProjects.record(projects.count < self.previousProjectCount)
+      self.previousProjectCount = projects.count
     }
-    self.vm.outputs.onContentInset = { [weak self] in self?.contentInset.observer.send(value: $0) }
-    self.vm.outputs.onDismissPersonalizationCell = { [weak self] in self?.dismissPersonalizationCell.observer.send(value: ()) }
-    self.vm.outputs.onHideEmptyState = { [weak self] in self?.hideEmptyState.observer.send(value: ()) }
+    self.vm.outputs.onContentInset = { [weak self] in self?.contentInset.record($0) }
+    self.vm.outputs.onDismissPersonalizationCell = { [weak self] in self?.dismissPersonalizationCell.record(()) }
+    self.vm.outputs.onHideEmptyState = { [weak self] in self?.hideEmptyState.record(()) }
     self.vm.outputs.onGoToActivityProject = { [weak self] project, tag in
-      self?.goToActivityProject.observer.send(value: project)
-      self?.goToActivityProjectRefTag.observer.send(value: tag)
+      self?.goToActivityProject.record(project)
+      self?.goToActivityProjectRefTag.record(tag)
     }
-    self.vm.outputs.onGoToCuratedProjects = { [weak self] in self?.goToCuratedProjects.observer.send(value: $0) }
+    self.vm.outputs.onGoToCuratedProjects = { [weak self] in self?.goToCuratedProjects.record($0) }
     self.vm.outputs.onGoToProjectPlaylist = { [weak self] project, projects, tag in
-      self?.goToPlaylistProject.observer.send(value: project)
-      self?.goToPlaylist.observer.send(value: projects)
-      self?.goToPlaylistRefTag.observer.send(value: tag)
+      self?.goToPlaylistProject.record(project)
+      self?.goToPlaylist.record(projects)
+      self?.goToPlaylistRefTag.record(tag)
     }
-    self.vm.outputs.onGoToProjectUpdate = { [weak self] _, update in self?.goToProjectUpdate.observer.send(value: update) }
-    self.vm.outputs.onContentOffsetChanged = { [weak self] in self?.notifyDelegateContentOffsetChanged.observer.send(value: $0) }
+    self.vm.outputs.onGoToProjectUpdate = { [weak self] _, update in self?.goToProjectUpdate.record(update) }
+    self.vm.outputs.onContentOffsetChanged = { [weak self] in self?.notifyDelegateContentOffsetChanged.record($0) }
     self.vm.outputs.onProjectsLoadingChanged = { [weak self] loading, animated in
-      self?.projectsAreLoadingAnimated.observer.send(value: (loading, animated))
-      self?.projectsAreLoading.observer.send(value: loading)
+      self?.projectsAreLoadingAnimated.record((loading, animated))
+      self?.projectsAreLoading.record(loading)
     }
-    self.projectsLoadedSignal.ignoreValues().observe(self.hasLoadedProjects.observer)
-    self.projectsLoadedSignal.map(second).observe(self.projectsLoadedDiscoveryParams.observer)
-    self.vm.outputs.onScrollsToTopChanged = { [weak self] in self?.setScrollsToTop.observer.send(value: $0) }
-    self.vm.outputs.onShowEmptyState = { [weak self] in self?.showEmptyState.observer.send(value: $0) }
-    self.vm.outputs.onShowOnboarding = { [weak self] in self?.showOnboarding.observer.send(value: $0) }
-    self.vm.outputs.onShowPersonalization = { [weak self] in self?.showPersonalization.observer.send(value: $0) }
-    self.vm.outputs.onVideoFeedBannerChanged = { [weak self] in self?.showVideoFeedBanner.observer.send(value: $0) }
+    self.vm.outputs.onScrollsToTopChanged = { [weak self] in self?.setScrollsToTop.record($0) }
+    self.vm.outputs.onShowEmptyState = { [weak self] in self?.showEmptyState.record($0) }
+    self.vm.outputs.onShowOnboarding = { [weak self] in self?.showOnboarding.record($0) }
+    self.vm.outputs.onShowPersonalization = { [weak self] in self?.showPersonalization.record($0) }
+    self.vm.outputs.onVideoFeedBannerChanged = { [weak self] in self?.showVideoFeedBanner.record($0) }
 
-    self.projectsLoadedSignal
-      .map { $0.0.count }
-      .combinePrevious(0)
-      .map { prev, next in next > prev }
-      .observe(self.hasAddedProjects.observer)
-    self.projectsLoadedSignal
-      .map { $0.0.count }
-      .combinePrevious(0)
-      .map { prev, next in next < prev }
-      .observe(self.hasRemovedProjects.observer)
+
     }
   }
 
@@ -1321,5 +1311,23 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
       self.showVideoFeedBanner.assertValueCount(1, "Repeated identical values are skipped.")
     }
+  }
+}
+
+private final class DiscoveryRecorder<Value> {
+  private(set) var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func record(_ value: Value) { self.values.append(value) }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, message, file: file, line: line)
+  }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertLastValue(_ value: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) where Value: Equatable {
+    XCTAssertEqual(self.values.last, value, message, file: file, line: line)
+  }
+  func assertValues(_ values: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) where Value: Equatable {
+    XCTAssertEqual(self.values, values, message, file: file, line: line)
   }
 }
