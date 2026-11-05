@@ -19,12 +19,12 @@ final class PledgeAmountSummaryViewController: UIViewController {
   private lazy var shippingLocationLabel: UILabel = { UILabel(frame: .zero) }()
   private lazy var shippingLocationStackView: UIStackView = { UIStackView(frame: .zero) }()
 
-  private let viewModel: PledgeAmountSummaryViewModelType = PledgeAmountSummaryViewModel()
+  private let viewModel = PledgeAmountSummaryViewModel()
 
   // MARK: Life cycle
 
   public func configureWith(_ data: PledgeAmountSummaryViewData) {
-    self.viewModel.inputs.configureWith(data)
+    self.viewModel.configureWith(data)
   }
 
   override func viewDidLoad() {
@@ -32,7 +32,7 @@ final class PledgeAmountSummaryViewController: UIViewController {
 
     self.configureSubviews()
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   // MARK: Styles
@@ -77,12 +77,15 @@ final class PledgeAmountSummaryViewController: UIViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.bonusAmountLabel.rac.attributedText = self.viewModel.outputs.bonusAmountText
-    self.bonusAmountStackView.rac.hidden = self.viewModel.outputs.bonusAmountStackViewIsHidden
-    self.pledgeAmountLabel.rac.attributedText = self.viewModel.outputs.pledgeAmountText
-    self.shippingAmountLabel.rac.attributedText = self.viewModel.outputs.shippingAmountText
-    self.shippingLocationLabel.rac.text = self.viewModel.outputs.shippingLocationText
-    self.shippingLocationStackView.rac.hidden = self.viewModel.outputs.shippingLocationStackViewIsHidden
+    self.viewModel.onDisplay = { [weak self] display in
+      guard let self else { return }
+      if let bonus = display.bonus { self.bonusAmountLabel.attributedText = bonus }
+      self.bonusAmountStackView.isHidden = display.bonusHidden
+      if let pledge = display.pledge { self.pledgeAmountLabel.attributedText = pledge }
+      if let shipping = display.shipping { self.shippingAmountLabel.attributedText = shipping }
+      if let location = display.location { self.shippingLocationLabel.text = location }
+      self.shippingLocationStackView.isHidden = display.shippingHidden
+    }
   }
 
   // MARK: Functions

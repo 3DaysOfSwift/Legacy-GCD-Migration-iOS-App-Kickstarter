@@ -1,7 +1,6 @@
 import Foundation
 import KsApi
 import Prelude
-import ReactiveSwift
 
 public struct PledgeAmountSummaryViewData {
   public let bonusAmount: Double?
@@ -18,99 +17,41 @@ public struct PledgeAmountSummaryViewData {
 }
 
 @MainActor
-public protocol PledgeAmountSummaryViewModelInputs {
-  func configureWith(_ data: PledgeAmountSummaryViewData)
-  func viewDidLoad()
-}
-
-@MainActor
-public protocol PledgeAmountSummaryViewModelOutputs {
-  var bonusAmountText: Signal<NSAttributedString, Never> { get }
-  var bonusAmountStackViewIsHidden: Signal<Bool, Never> { get }
-  var pledgeAmountText: Signal<NSAttributedString, Never> { get }
-  var shippingAmountText: Signal<NSAttributedString, Never> { get }
-  var shippingLocationStackViewIsHidden: Signal<Bool, Never> { get }
-  var shippingLocationText: Signal<String, Never> { get }
-}
-
-@MainActor
-public protocol PledgeAmountSummaryViewModelType {
-  var inputs: PledgeAmountSummaryViewModelInputs { get }
-  var outputs: PledgeAmountSummaryViewModelOutputs { get }
-}
-
-@MainActor
-public class PledgeAmountSummaryViewModel: PledgeAmountSummaryViewModelType,
-  PledgeAmountSummaryViewModelInputs, PledgeAmountSummaryViewModelOutputs {
-  public init() {
-    let data = Signal.combineLatest(
-      self.configureWithDataSignal,
-      self.viewDidLoadProperty.signal
-    )
-    .map(first)
-
-    self.pledgeAmountText = data
-      .map {
-        (
-          $0.currencyCode,
-          $0.isNoReward ? ($0.bonusAmount ?? 0) : $0.rewardMinimum,
-          $0.omitUSCurrencyCode
-        )
-      }
-      .map(pledgeAmountSummaryViewModelAttributedCurrency)
-      .skipNil()
-
-    self.bonusAmountText = data
-      .map { data in (data.currencyCode, data.bonusAmount ?? 0, data.omitUSCurrencyCode) }
-      .map(plusSignAmount)
-      .skipNil()
-
-    self.shippingAmountText = data
-      .map { ($0.currencyCode, $0.shippingAmount ?? 0, $0.omitUSCurrencyCode) }
-      .map(plusSignAmount)
-      .skipNil()
-
-    self.shippingLocationText = data.map { $0.locationName }
-      .skipNil()
-      .map { Strings.Shipping_to_country(country: $0) }
-
-    self.bonusAmountStackViewIsHidden = data.map { $0.isNoReward || $0.bonusAmountHidden }
-    self.shippingLocationStackViewIsHidden = data.map {
-      let nonLocalPickupShippingLocationStackViewIsHiddenConditions = (
-        $0.locationName == nil || $0
-          .shippingAmountHidden
-      )
-
-      return $0.rewardIsLocalPickup ? true : nonLocalPickupShippingLocationStackViewIsHiddenConditions
-    }
+public final class PledgeAmountSummaryViewModel {
+  struct Display {
+    let bonus: NSAttributedString?
+    let bonusHidden: Bool
+    let pledge: NSAttributedString?
+    let shipping: NSAttributedString?
+    let shippingHidden: Bool
+    let location: String?
   }
+  var onDisplay: ((Display) -> Void)?
+  private var data: PledgeAmountSummaryViewData?
+  private var loaded = false
+  public init() {}
 
-  private let (configureWithDataSignal, configureWithDataObserver)
-    = Signal<PledgeAmountSummaryViewData, Never>.pipe()
   public func configureWith(_ data: PledgeAmountSummaryViewData) {
-    self.configureWithDataObserver.send(value: data)
+    self.data = data
+    if self.loaded { self.publish(data) }
   }
-
-  private let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    self.loaded = true
+    if let data = self.data { self.publish(data) }
   }
-
-  public let bonusAmountText: Signal<NSAttributedString, Never>
-  public let bonusAmountStackViewIsHidden: Signal<Bool, Never>
-  public let pledgeAmountText: Signal<NSAttributedString, Never>
-  public let shippingAmountText: Signal<NSAttributedString, Never>
-  public let shippingLocationStackViewIsHidden: Signal<Bool, Never>
-  public let shippingLocationText: Signal<String, Never>
-
-  public var inputs: PledgeAmountSummaryViewModelInputs { return self }
-  public var outputs: PledgeAmountSummaryViewModelOutputs { return self }
-}
-
-@MainActor
-private func formattedPledgeDate(_ backing: Backing) -> String {
-  let formattedDate = Format.date(secondsInUTC: backing.pledgedAt, dateStyle: .long, timeStyle: .none)
-  return Strings.As_of_pledge_date(pledge_date: formattedDate)
+  private func publish(_ data: PledgeAmountSummaryViewData) {
+    self.onDisplay?(Display(
+      bonus: plusSignAmount(with: data.currencyCode, amount: data.bonusAmount ?? 0, omitUSCurrencyCode: data.omitUSCurrencyCode),
+      bonusHidden: data.isNoReward || data.bonusAmountHidden,
+      pledge: pledgeAmountSummaryViewModelAttributedCurrency(
+        with: data.currencyCode, amount: data.isNoReward ? (data.bonusAmount ?? 0) : data.rewardMinimum,
+        omitUSCurrencyCode: data.omitUSCurrencyCode
+      ),
+      shipping: plusSignAmount(with: data.currencyCode, amount: data.shippingAmount ?? 0, omitUSCurrencyCode: data.omitUSCurrencyCode),
+      shippingHidden: data.rewardIsLocalPickup || data.locationName == nil || data.shippingAmountHidden,
+      location: data.locationName.map { Strings.Shipping_to_country(country: $0) }
+    ))
+  }
 }
 
 @MainActor
