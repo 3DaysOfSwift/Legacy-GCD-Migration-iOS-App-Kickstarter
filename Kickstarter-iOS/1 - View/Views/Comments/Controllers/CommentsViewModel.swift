@@ -65,10 +65,10 @@ public protocol CommentsViewModelOutputs: AnyObject {
   var loadCommentsAndProjectIntoDataSource: Signal<([Comment], Project, Bool), Never> { get }
 
   /// Emits a HelpType to use when presenting a HelpWebViewController.
-  var showHelpWebViewController: Signal<HelpType, Never> { get }
+  var onShowHelp: ((HelpType) -> Void)? { get set }
 
   /// Emits when a comment has been posted and we should scroll to top and reset the composer.
-  var resetCommentComposerAndScrollToTop: Signal<(), Never> { get }
+  var onResetComposerAndScrollToTop: (() -> Void)? { get set }
 
   /// Emits when a block user request is successful.
   var onDidBlockUser: (() -> Void)? { get set }
@@ -201,8 +201,6 @@ public final class CommentsViewModel: CommentsViewModelType,
       .takePairWhen(self.failableOrComment.signal.skipNil())
       .map(unpack)
       .map(commentsReplacingCommentById)
-    self.resetCommentComposerAndScrollToTop = self.commentComposerDidSubmitTextProperty.signal.skipNil()
-      .ignoreValues()
 
     let paginatedComments = Signal.merge(
       // Pull to refresh, clear comments cache.
@@ -326,9 +324,6 @@ public final class CommentsViewModel: CommentsViewModelType,
     )
     .skipRepeats()
 
-    self.showHelpWebViewController = self.commentRemovedCellDidTapURLProperty.signal.skipNil()
-      .map(HelpType.helpType)
-      .skipNil()
 
     // MARK: User Blocking Analytics
 
@@ -436,9 +431,8 @@ public final class CommentsViewModel: CommentsViewModelType,
     }
   }
 
-  fileprivate let commentComposerDidSubmitTextProperty = MutableProperty<String?>(nil)
   public func commentComposerDidSubmitText(_ text: String) {
-    self.commentComposerDidSubmitTextProperty.value = text
+    self.onResetComposerAndScrollToTop?()
     guard let project = self.latestPostingProject, let commentableID = self.latestCommentableID,
           let user = self.postingUser else { return }
     let id = UUID()
@@ -452,9 +446,8 @@ public final class CommentsViewModel: CommentsViewModelType,
     }
   }
 
-  fileprivate let commentRemovedCellDidTapURLProperty = MutableProperty<URL?>(nil)
   public func commentRemovedCellDidTapURL(_ url: URL) {
-    self.commentRemovedCellDidTapURLProperty.value = url
+    if let type = HelpType.helpType(from: url) { self.onShowHelp?(type) }
   }
 
   fileprivate let commentCellDidTapReplyProperty = MutableProperty<Comment?>(nil)
@@ -497,8 +490,8 @@ public final class CommentsViewModel: CommentsViewModelType,
     Never
   >
   public let loadCommentsAndProjectIntoDataSource: Signal<([Comment], Project, Bool), Never>
-  public let showHelpWebViewController: Signal<HelpType, Never>
-  public let resetCommentComposerAndScrollToTop: Signal<(), Never>
+  public var onShowHelp: ((HelpType) -> Void)?
+  public var onResetComposerAndScrollToTop: (() -> Void)?
   public var onDidBlockUser: (() -> Void)?
   public var onDidBlockUserError: (() -> Void)?
 

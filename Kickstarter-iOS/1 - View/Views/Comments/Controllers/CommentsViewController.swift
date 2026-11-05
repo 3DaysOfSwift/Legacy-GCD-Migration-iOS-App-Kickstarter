@@ -123,12 +123,10 @@ internal final class CommentsViewController: UITableViewController, MessageBanne
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.resetCommentComposerAndScrollToTop
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        self?.commentComposer.resetInput()
-        self?.tableView.scrollToTop()
-      }
+    self.viewModel.outputs.onResetComposerAndScrollToTop = { [weak self] in
+      self?.commentComposer.resetInput()
+      self?.tableView.scrollToTop()
+    }
 
     self.viewModel.outputs.configureCommentComposerViewWithData
       .observeForUI()
@@ -182,11 +180,9 @@ internal final class CommentsViewController: UITableViewController, MessageBanne
         self?.tableView.separatorStyle = isHidden ? .none : .singleLine
       }
 
-    self.viewModel.outputs.showHelpWebViewController
-      .observeForControllerAction()
-      .observeValues { [weak self] helpType in
-        self?.presentHelpWebViewController(with: helpType)
-      }
+    self.viewModel.outputs.onShowHelp = { [weak self] helpType in
+      self?.presentHelpWebViewController(with: helpType)
+    }
 
     self.viewModel.outputs.onDidBlockUser = { [weak self] in
         guard let self, let messageBanner = self.messageBannerViewController else { return }

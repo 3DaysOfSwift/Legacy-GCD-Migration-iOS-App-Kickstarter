@@ -60,7 +60,7 @@ internal final class CommentsViewModelTests: TestCase {
         .observe(self.loadCommentsAndProjectIntoDataSourceProject.observer)
       self.vm.outputs.loadCommentsAndProjectIntoDataSource.map(third)
         .observe(self.loadCommentsAndProjectIntoDataSourceShouldShowErrorState.observer)
-      self.vm.outputs.showHelpWebViewController.observe(self.showHelpWebViewController.observer)
+      self.vm.outputs.onShowHelp = { [weak self] in self?.showHelpWebViewController.observer.send(value: $0) }
     }
   }
 
@@ -293,6 +293,13 @@ internal final class CommentsViewModelTests: TestCase {
       self.showHelpWebViewController
         .assertValue(.community, ".community is emitted after commentRemovedCellDidTapURL is called.")
     }
+  }
+
+  func testSubmittingCommentResetsComposer() {
+    var resets = 0
+    self.vm.outputs.onResetComposerAndScrollToTop = { resets += 1 }
+    self.vm.inputs.commentComposerDidSubmitText("hello")
+    XCTAssertEqual(resets, 1)
   }
 
   func testGoToCommentReplies_ReplyComment_HasShownKeyboard() async {
