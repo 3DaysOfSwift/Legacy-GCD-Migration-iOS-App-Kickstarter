@@ -55,7 +55,7 @@ public protocol CommentRepliesViewModelOutputs: AnyObject {
   var configureCommentComposerViewWithData: Signal<CommentComposerViewData, Never> { get }
 
   /// Emits a root `Comment`s  to load into the data source.
-  var loadCommentIntoDataSource: Signal<Comment, Never> { get }
+  var onLoadRootComment: ((Comment) -> Void)? { get set }
 
   /// Emits a tuple of (`Comment`,`Int`) and a `Project` to load into the data source
   var onLoadReplies: ((([Comment], Int), Project) -> Void)? { get set }
@@ -90,6 +90,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   CommentRepliesViewModelInputs,
   CommentRepliesViewModelOutputs {
   private let feature: DiscussionFeature
+  private var latestRootComment: Comment?
   private var latestProject: Project?
   private var latestReplies: ([Comment], Int)?
   private var pageObservation: MainActorObservation?
@@ -112,7 +113,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
 
     let project = rootCommentProject.map(second)
 
-    self.loadCommentIntoDataSource = rootComment
 
     let currentUser = self.viewDidLoadProperty.signal
       .map { _ in AppEnvironment.current.currentUser }
@@ -153,10 +153,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     let commentCellTapped = self.didSelectCommentProperty.signal.skipNil()
     let erroredCommentTapped = commentCellTapped.filter { comment in comment.status == .failed }
 
-    let requestFirstPageWith = Signal.merge(
-      rootComment,
-      rootComment.takeWhen(self.retryFirstPageProperty.signal)
-    )
 
 
     let commentComposerDidSubmitText = self.commentComposerDidSubmitTextProperty.signal.skipNil()
@@ -251,8 +247,11 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
       self.latestProject = project
       if let replies = self.latestReplies { self.onLoadReplies?(replies, project) }
     }
-    self.disposables += requestFirstPageWith.observeValues { [weak self] comment in
-      self?.loadingTask = feature.requestFirstPage(route: route, source: .replies(comment.id), refresh: true)
+    self.disposables += rootComment.observeValues { [weak self] comment in
+      guard let self else { return }
+      self.latestRootComment = comment
+      self.onLoadRootComment?(comment)
+      self.loadingTask = feature.requestFirstPage(route: route, source: .replies(comment.id), refresh: true)
     }
     self.pageObservation = feature.observePages { [weak self] update in
       guard let self else { return }
@@ -323,9 +322,9 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     self.loadingTask = self.feature.requestNextPage(route: self.route)
   }
 
-  fileprivate let retryFirstPageProperty = MutableProperty(())
   public func retryFirstPage() {
-    self.retryFirstPageProperty.value = ()
+    guard let comment = self.latestRootComment else { return }
+    self.loadingTask = self.feature.requestFirstPage(route: self.route, source: .replies(comment.id), refresh: true)
   }
 
   public func dataSourceLoaded() {
@@ -343,7 +342,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   }
 
   public let configureCommentComposerViewWithData: Signal<CommentComposerViewData, Never>
-  public let loadCommentIntoDataSource: Signal<Comment, Never>
+  public var onLoadRootComment: ((Comment) -> Void)?
   public var onLoadReplies: ((([Comment], Int), Project) -> Void)?
   public let loadFailableReplyIntoDataSource: Signal<(Comment, String, Project), Never>
   public var onResetCommentComposer: (() -> Void)?

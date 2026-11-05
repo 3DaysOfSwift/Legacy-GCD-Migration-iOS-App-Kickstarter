@@ -109,9 +109,7 @@ final class CommentRepliesViewController: UITableViewController, MessageBannerVi
         self?.commentComposer.resetInput()
       }
 
-    self.viewModel.outputs.loadCommentIntoDataSource
-      .observeForUI()
-      .observeValues { [weak self] comment in
+    self.viewModel.outputs.onLoadRootComment = { [weak self] comment in
         self?.dataSource.loadRootComment(
           comment
         )
