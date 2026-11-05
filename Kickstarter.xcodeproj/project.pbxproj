@@ -4879,7 +4879,6 @@
 				"AAF5494E2F2445C0001DB5AC",
 				"AAF5494F2F2445C0001DB5AC",
 				"AAF549502F2445C0001DB5AC",
-				"AAF549512F2445C0001DB5AC",
 				"AAF549522F2445C0001DB5AC",
 				"AAF549532F2445C0001DB5AC",
 				"AAF549542F2445C0001DB5AC",
@@ -5798,10 +5797,6 @@
 				"153FE1640AB1F46FD37DE462",
 			);
 		};
-		"AAF549512F2445C0001DB5AC" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "AAF5486F2F2445C0001DB5AC";
-		};
 		"EA53770E03DABD8BE0A31ACE" = {
 			"isa" = "PBXGroup";
 			"name" = "Datasource";
@@ -6392,10 +6387,6 @@
 		"8ECF8F2D38844D357DE28F77" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "E16E4989D5B30E7FED1A8600";
-		};
-		"02AB73BCE56BB27E49CF176F" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "3D803F3DEAFD0FE546D29322";
 		};
 		"0682E3FF019212575F8D9577" = {
 			"isa" = "PBXGroup";
@@ -8136,7 +8127,6 @@
 				"65B86E42C70491EB60CA33B7",
 				"2EEA969E1E772377B4D07B5A",
 				"95EEEE2898A54913AAE472AF",
-				"02AB73BCE56BB27E49CF176F",
 				"C0CE21AAB994224B00E31F80",
 				"345DFFD9245E05430DC2459F",
 				"0AA5E7AA577A987580E08C35",
@@ -14241,12 +14231,6 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "24568091115F2EB35CA1D14E";
 		};
-		"AAF5486F2F2445C0001DB5AC" = {
-			"path" = "ProjectPamphletContentViewModelTests.swift";
-			"isa" = "PBXFileReference";
-			"lastKnownFileType" = "sourcecode.swift";
-			"sourceTree" = "<group>";
-		};
 		"AAF549652F2445C0001DB5AC" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "AAF548832F2445C0001DB5AC";
@@ -16353,13 +16337,6 @@
 			"lastKnownFileType" = "text";
 			"sourceTree" = "<group>";
 		};
-		"3D803F3DEAFD0FE546D29322" = {
-			"name" = "ProjectPamphletContentViewModel.swift";
-			"path" = "Kickstarter-iOS/1 - View/Views/ProjectPamphletContent/ProjectPamphletContentViewModel.swift";
-			"isa" = "PBXFileReference";
-			"sourceTree" = "SOURCE_ROOT";
-			"lastKnownFileType" = "sourcecode.swift";
-		};
 		"E10BE8D52B02975C00F73DC9" = {
 			"buildActionMask" = "2147483647";
 			"dstSubfolderSpec" = "13";
@@ -17662,7 +17639,6 @@
 				"AAF5486D2F2445C0001DB5AC",
 				"AAF5486E2F2445C0001DB5AC",
 				"E10FED143005D38600EAF400",
-				"AAF5486F2F2445C0001DB5AC",
 				"AAF548702F2445C0001DB5AC",
 				"AAF548712F2445C0001DB5AC",
 				"AAF548722F2445C0001DB5AC",
@@ -18488,14 +18464,6 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "750B185EA52F8969EFC169B0";
 		};
-		"90D1FAABC93A5919BEBA2FC7" = {
-			"isa" = "PBXGroup";
-			"name" = "ProjectPamphletContent";
-			"sourceTree" = "<group>";
-			"children" = (
-				"3D803F3DEAFD0FE546D29322",
-			);
-		};
 		"CBDF13011E49686E50DB0779" = {
 			"name" = "video-feed-copy-link-checkmark.json";
 			"path" = "Kickstarter-iOS/3 - App Resources/VideoFeed/video-feed-copy-link-checkmark.json";
@@ -18614,7 +18582,6 @@
 				"3FCDF89515C6B67983BBECB2",
 				"5168EAAED81AD7E72732647D",
 				"3632C2A0D89496D2AA1EE916",
-				"90D1FAABC93A5919BEBA2FC7",
 				"1708113051A94974FDE731E2",
 				"11CC54A42C41C07DA35C1E89",
 				"159CE7E23F280A606CDD5D53",
