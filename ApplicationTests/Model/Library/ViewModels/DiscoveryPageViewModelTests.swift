@@ -857,6 +857,10 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       await self.advanceRequests()
 
       self.projectsAreLoading.assertValueCount(6)
+      XCTAssertEqual(
+        self.projectsAreLoadingAnimated.values.map { "\($0.0):\($0.1)" },
+        ["true:false", "false:false", "true:false", "false:false", "true:true", "false:true"]
+      )
     }
   }
 

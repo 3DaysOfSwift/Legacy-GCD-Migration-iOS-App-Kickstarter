@@ -138,7 +138,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   DiscoveryPageViewModelOutputs {
   private let discoveryFeature: DiscoveryFeature
   private let projectsPipe = Signal<(DiscoveryParams.Sort, [Project]), Never>.pipe()
-  private let loadingPipe = Signal<(DiscoveryParams.Sort, Bool), Never>.pipe()
+  private let loadingStatePipe = Signal<(Bool, Bool), Never>.pipe()
   private var discoveryObservation: MainActorObservation?
   private let featureBindings = ScopedDisposable(CompositeDisposable())
   internal private(set) var pageTask: Task<Void, Never>?
@@ -194,9 +194,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     let paginatedProjects = self.projectsPipe.output
       .filter { $0.0 == selectedSort.value }
       .map { $0.1 }
-    let isLoading = self.loadingPipe.output
-      .filter { $0.0 == selectedSort.value }
-      .map { $0.1 }
 
     let projects = Signal.merge(
       paginatedProjects,
@@ -213,22 +210,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.asyncReloadData = self.projectsLoaded.take(first: 1).ignoreValues()
 
 
-    let isRefreshing = isLoading
-      .combineLatest(with: self.pulledToRefreshProperty.signal)
-      .map(first)
-      .skipRepeats()
-
-    let projectsLoadingNoRefresh = Signal.merge(
-      isLoading,
-      isLoading.takeWhen(isRefreshing).mapConst(false)
-    ).skipRepeats()
-
-    self.projectsAreLoadingAnimated = Signal.merge(
-      isRefreshing.map { ($0, true) },
-      projectsLoadingNoRefresh.map { ($0, false) },
-      self.viewWillAppearProperty.signal.take(first: 1).mapConst((true, false))
-    )
-    .skipRepeats(==)
+    self.projectsAreLoadingAnimated = self.loadingStatePipe.output
 
     self.showEmptyState = Signal.combineLatest(
       paramsChanged,
@@ -302,7 +284,8 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
       guard let self else { return }
       switch update {
       case let .projects(sort, projects): self.projectsPipe.input.send(value: (sort, projects))
-      case let .loading(sort, loading): self.loadingPipe.input.send(value: (sort, loading))
+      case let .loading(sort, loading):
+        if sort == self.sortProperty.value { self.receiveLoading(loading) }
       case let .activities(sort, activities): self.receiveActivities(activities, sort: sort)
       }
     }
@@ -345,12 +328,40 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
 
   fileprivate let pulledToRefreshProperty = MutableProperty(())
   public func pulledToRefresh() {
+    self.hasPulledToRefresh = true
     self.pulledToRefreshProperty.value = ()
   }
 
   fileprivate let sortProperty = MutableProperty<DiscoveryParams.Sort?>(nil)
   public func configureWith(sort: DiscoveryParams.Sort) {
     self.sortProperty.value = sort
+  }
+
+  private var hasPulledToRefresh = false
+  private var hasAppearedForLoading = false
+  private var lastRefreshLoading: Bool?
+  private var lastNonRefreshLoading: Bool?
+  private var lastPublishedLoading: (Bool, Bool)?
+
+  private func publishLoading(_ loading: Bool, animated: Bool) {
+    if let previous = self.lastPublishedLoading, previous.0 == loading, previous.1 == animated { return }
+    self.lastPublishedLoading = (loading, animated)
+    self.loadingStatePipe.input.send(value: (loading, animated))
+  }
+  private func publishNonRefreshLoading(_ loading: Bool) {
+    guard self.lastNonRefreshLoading != loading else { return }
+    self.lastNonRefreshLoading = loading
+    self.publishLoading(loading, animated: false)
+  }
+  private func updateRefreshLoading(_ loading: Bool) {
+    guard self.lastRefreshLoading != loading else { return }
+    self.lastRefreshLoading = loading
+    self.publishNonRefreshLoading(false)
+    self.publishLoading(loading, animated: true)
+  }
+  private func receiveLoading(_ loading: Bool) {
+    self.publishNonRefreshLoading(loading)
+    if self.hasPulledToRefresh { self.updateRefreshLoading(loading) }
   }
 
   private var currentContentOffset: CGPoint?
@@ -448,6 +459,10 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   fileprivate let viewWillAppearProperty = MutableProperty(())
   public func viewWillAppear() {
     self.viewWillAppearProperty.value = ()
+    if !self.hasAppearedForLoading {
+      self.hasAppearedForLoading = true
+      self.publishLoading(true, animated: false)
+    }
     if AppEnvironment.current.currentUser == nil { self.publishActivities([]) }
     self.onContentInset?(.zero)
     self.updateVideoFeedBanner()
