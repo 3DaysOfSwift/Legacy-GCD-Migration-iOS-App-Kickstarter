@@ -26,8 +26,6 @@ final class ProjectCardView: UIView {
   private lazy var progressBarContainerView = { UIView(frame: .zero) }()
   private lazy var progressBarView = { UIView(frame: .zero) }()
 
-  private let viewModel: ProjectCardViewModelType = ProjectCardViewModel()
-
   // MARK: - Lifecycle
 
   override init(frame: CGRect) {
@@ -36,7 +34,6 @@ final class ProjectCardView: UIView {
     self.configureViews()
     self.setupConstraints()
     self.bindStyles()
-    self.bindViewModel()
   }
 
   @available(*, unavailable)
@@ -122,7 +119,23 @@ final class ProjectCardView: UIView {
   }
 
   internal func configureWith(value: ProjectCardProperties) {
-    self.viewModel.inputs.configureWith(project: value)
+    let presentation = ProjectCardPresentation(project: value)
+    if let url = presentation.imageSource?.url {
+      self.projectImageView.af.cancelImageRequest()
+      self.projectImageView.image = nil
+      self.projectImageView.ksr_setImageWithURL(url)
+    }
+    self.projectTitleLabel.text = presentation.title
+    self.projectStatusLabel.text = presentation.status
+    if let image = presentation.statusImage {
+      self.projectStatusImageView.image = image
+    }
+    self.progressBarView.backgroundColor = presentation.progressBarColor
+    self.progressBarContainerView.isHidden = presentation.isPrelaunch
+    let progress = presentation.progress
+    let anchorX = progress == 0 ? 0 : 0.5 / progress
+    self.progressBarView.layer.anchorPoint = CGPoint(x: CGFloat(max(anchorX, 0.5)), y: 0.5)
+    self.progressBarView.transform = CGAffineTransform(scaleX: CGFloat(min(progress, 1.0)), y: 1.0)
 
     self.layoutIfNeeded()
   }
@@ -142,61 +155,7 @@ final class ProjectCardView: UIView {
     self.setNeedsLayout()
   }
 
-  internal override func bindViewModel() {
-    super.bindViewModel()
 
-    self.viewModel.outputs.projectImageSource
-      .compactMap { $0?.url }
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.projectImageView.af.cancelImageRequest()
-        self?.projectImageView.image = nil
-      })
-      .skipNil()
-      .observeValues { [weak self] url in
-        self?.projectImageView.ksr_setImageWithURL(url)
-      }
-
-    self.viewModel.outputs.projectTitle
-      .observeForUI()
-      .observeValues { [weak self] title in
-        self?.projectTitleLabel.text = title
-      }
-
-    self.viewModel.outputs.projectStatus
-      .observeForUI()
-      .observeValues { [weak self] text in
-        self?.projectStatusLabel.text = text
-      }
-
-    self.viewModel.outputs.projectStatusImage
-      .observeForUI()
-      .observeValues { [weak self] image in
-        guard let image = image else { return }
-
-        self?.projectStatusImageView.image = image
-      }
-
-    self.viewModel.outputs.progressBarColor
-      .observeForUI()
-      .observeValues { [weak self] color in
-        self?.progressBarView.backgroundColor = color
-      }
-
-    self.viewModel.outputs.prelaunchProject
-      .observeForUI()
-      .observeValues { [weak self] isPrelaunchProject in
-        self?.progressBarContainerView.isHidden = isPrelaunchProject
-      }
-
-    self.viewModel.outputs.progress
-      .observeForUI()
-      .observeValues { [weak self] progress in
-        let anchorX = progress == 0 ? 0 : 0.5 / progress
-        self?.progressBarView.layer.anchorPoint = CGPoint(x: CGFloat(max(anchorX, 0.5)), y: 0.5)
-        self?.progressBarView.transform = CGAffineTransform(scaleX: CGFloat(min(progress, 1.0)), y: 1.0)
-      }
-  }
 }
 
 @MainActor

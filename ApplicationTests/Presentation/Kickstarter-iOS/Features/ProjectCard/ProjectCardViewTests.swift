@@ -1,5 +1,4 @@
 import UIKit
-import ReactiveSwift
 @testable import Kickstarter_iOS
 import GraphAPI
 
@@ -43,8 +42,6 @@ final class ProjectCardViewTests: TestCase {
         )
         parent.view.frame.size.height = 300
 
-        self.scheduler.advance(by: .seconds(1))
-
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }
     }
@@ -70,8 +67,6 @@ final class ProjectCardViewTests: TestCase {
         )
         parent.view.frame.size.height = 300
 
-        self.scheduler.advance(by: .seconds(1))
-
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }
     }
@@ -96,8 +91,6 @@ final class ProjectCardViewTests: TestCase {
           child: wrappedViewController(subview: view, device: device)
         )
         parent.view.frame.size.height = 300
-
-        self.scheduler.advance(by: .seconds(1))
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }
@@ -131,8 +124,6 @@ final class ProjectCardViewTests: TestCase {
         )
         parent.view.frame.size.height = 300
 
-        self.scheduler.advance(by: .seconds(1))
-
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }
     }
@@ -164,11 +155,32 @@ final class ProjectCardViewTests: TestCase {
         )
         parent.view.frame.size.height = 300
 
-        self.scheduler.advance(by: .seconds(1))
-
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }
     }
+  }
+}
+
+@MainActor
+final class ProjectCardPresentationTests: XCTestCase {
+  func testPresentationReflectsProjectAndFunding() throws {
+    let node = createMockProjectNode(name: "A new project", state: "successful", percentFunded: 125)
+    let project = try XCTUnwrap(ProjectCardProperties(node.fragments.projectCardFragment))
+    let presentation = ProjectCardPresentation(project: project)
+
+    XCTAssertEqual(presentation.title, "A new project")
+    XCTAssertEqual(presentation.progress, 1.25)
+    XCTAssertFalse(presentation.isPrelaunch)
+    XCTAssertEqual(presentation.status, Strings.Ended() + " • " + Strings.percentage_funded(percentage: Format.percentage(125)))
+  }
+
+  func testPrelaunchPresentationHidesFunding() throws {
+    let node = createMockProjectNode(state: "live", isLaunched: false, prelaunchActivated: true, launchedAt: "-5")
+    let project = try XCTUnwrap(ProjectCardProperties(node.fragments.projectCardFragment))
+    let presentation = ProjectCardPresentation(project: project)
+
+    XCTAssertTrue(presentation.isPrelaunch)
+    XCTAssertEqual(presentation.status, Strings.Launching_soon())
   }
 }
 

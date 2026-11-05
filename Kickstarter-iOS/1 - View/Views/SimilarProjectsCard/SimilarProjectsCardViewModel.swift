@@ -1,81 +1,27 @@
 import KDS
 import Kingfisher
 import KsApi
-import ReactiveSwift
 import UIKit
 
 @MainActor
-public protocol ProjectsCardViewModelInputs {
-  func configureWith(project: ProjectCardProperties)
-}
+struct ProjectCardPresentation {
+  let imageSource: Kingfisher.Source?
+  let status: String
+  let statusImage: UIImage?
+  let title: String
+  let progress: Float
+  let progressBarColor: UIColor
+  let isPrelaunch: Bool
 
-@MainActor
-public protocol ProjectsCardViewModelOutputs {
-  /// Emits the project's photo URL to be displayed.
-  var projectImageSource: Signal<Kingfisher.Source?, Never> { get }
-
-  /// Emits text for the project status label. (days left, ended, launching soon, late pledges active)
-  var projectStatus: Signal<String, Never> { get }
-
-  /// Emits image for the project status based on the project status label.
-  var projectStatusImage: Signal<UIImage?, Never> { get }
-
-  /// Emits project name to be displayed.
-  var projectTitle: Signal<String, Never> { get }
-
-  /// Emits the project's funding progress amount to be displayed.
-  var progress: Signal<Float, Never> { get }
-
-  /// Emits a color for the progress bar.
-  var progressBarColor: Signal<UIColor, Never> { get }
-
-  /// Emits to hide information about pledging when project is prelaunch
-  var prelaunchProject: Signal<Bool, Never> { get }
-}
-
-@MainActor
-public protocol ProjectCardViewModelType {
-  var inputs: ProjectsCardViewModelInputs { get }
-  var outputs: ProjectsCardViewModelOutputs { get }
-}
-
-@MainActor
-public final class ProjectCardViewModel: ProjectCardViewModelType,
-  ProjectsCardViewModelInputs,
-  ProjectsCardViewModelOutputs {
-  public init() {
-    let project = self.projectProperty.signal.skipNil()
-
-    self.projectImageSource = project.map { $0.image }
-
-    self.projectStatus = project.map(getProjectStatus(for:))
-
-    self.projectStatusImage = project.map(getProjectStatusImage(for:))
-
-    self.projectTitle = project.map { $0.name }
-
-    self.progress = project.map { Float($0.percentFunded) / 100 }
-
-    self.progressBarColor = project.map(progressBarColorForProject)
-
-    self.prelaunchProject = project.map(similarProjectsCardViewModelIsProjectPrelaunch)
+  init(project: ProjectCardProperties) {
+    self.imageSource = project.image
+    self.status = getProjectStatus(for: project)
+    self.statusImage = getProjectStatusImage(for: project)
+    self.title = project.name
+    self.progress = Float(project.percentFunded) / 100
+    self.progressBarColor = progressBarColorForProject(project)
+    self.isPrelaunch = similarProjectsCardViewModelIsProjectPrelaunch(project)
   }
-
-  fileprivate let projectProperty = MutableProperty<ProjectCardProperties?>(nil)
-  public func configureWith(project: ProjectCardProperties) {
-    self.projectProperty.value = project
-  }
-
-  public let projectImageSource: Signal<Kingfisher.Source?, Never>
-  public let projectStatus: Signal<String, Never>
-  public let projectStatusImage: Signal<UIImage?, Never>
-  public let projectTitle: Signal<String, Never>
-  public let progress: Signal<Float, Never>
-  public let progressBarColor: Signal<UIColor, Never>
-  public let prelaunchProject: Signal<Bool, Never>
-
-  public var inputs: ProjectsCardViewModelInputs { return self }
-  public var outputs: ProjectsCardViewModelOutputs { return self }
 }
 
 @MainActor
