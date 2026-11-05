@@ -161,14 +161,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     )
     .map(DiscoveryParams.lens.sort.set)
 
-    let isCloseToBottom = self.willDisplayRowProperty.signal.skipNil()
-      .map { row, total in
-        row >= total - 3 && row > 0
-      }
-      .skipRepeats()
-      .filter(isTrue)
-      .ignoreValues()
-
     let isVisible = Signal.merge(
       self.viewDidAppearProperty.signal.mapConst(true),
       self.viewDidDisappearProperty.signal.mapConst(false)
@@ -268,10 +260,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.featureBindings += requestFirstPageWith.observeValues { [weak self] parameters in
       guard let self, let sort = self.sortProperty.value else { return }
       self.pageTask = discoveryFeature.requestRefresh(sort: sort, parameters: parameters, force: true)
-    }
-    self.featureBindings += isCloseToBottom.observeValues { [weak self] in
-      guard let self, let sort = self.sortProperty.value else { return }
-      self.pageTask = discoveryFeature.requestNextPage(sort: sort)
     }
     self.featureBindings += self.viewDidAppearProperty.signal.observeValues { [weak self] in
       guard let self, let sort = self.sortProperty.value,
@@ -465,9 +453,13 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.updateVideoFeedBanner()
   }
 
-  fileprivate let willDisplayRowProperty = MutableProperty<(row: Int, total: Int)?>(nil)
+  private var wasCloseToBottom: Bool?
   public func willDisplayRow(_ row: Int, outOf totalRows: Int) {
-    self.willDisplayRowProperty.value = (row, totalRows)
+    let closeToBottom = row >= totalRows - 3 && row > 0
+    guard self.wasCloseToBottom != closeToBottom else { return }
+    self.wasCloseToBottom = closeToBottom
+    guard closeToBottom, let sort = self.sortProperty.value else { return }
+    self.pageTask = self.discoveryFeature.requestNextPage(sort: sort)
   }
 
   private var connectivity: Reachability = .none
