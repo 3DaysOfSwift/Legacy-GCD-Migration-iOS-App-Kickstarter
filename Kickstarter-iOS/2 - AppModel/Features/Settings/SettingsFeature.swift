@@ -160,9 +160,15 @@ public final class SettingsFeature {
   public func save(_ changes: [Change], from user: User) async throws -> User {
     try Task.checkCancellation()
     // Once admitted, a preference write outlives its initiating screen/waiter.
-    let value = try await self.request(changes, from: user).task.value
+    let value = try await self.requestPreferences(changes, from: user).value
     try Task.checkCancellation()
     return value
+  }
+
+  /// Admit preferences immediately so callers can retain a waiter without owning the write.
+  @discardableResult
+  public func requestPreferences(_ changes: [Change], from user: User) -> Task<User, Error> {
+    self.request(changes, from: user).task
   }
 
   /// Notification URLs carry wire names. Convert only the requested field into
@@ -192,7 +198,7 @@ public final class SettingsFeature {
     ]
     // Legacy decoding ignored unknown keys but still saved the unchanged user.
     let changes = names[parameter].map { [Change(.notification($0), enabled)] } ?? []
-    return self.request(changes, from: user).task
+    return self.requestPreferences(changes, from: user)
   }
 
   private func identity(for user: User) -> Account {

@@ -76,9 +76,10 @@ final class SettingsFeatureTests: XCTestCase {
   func testSignedOutCommandDoesNotReachProvider() async throws {
     let fixture = PreferencesFixture()
     fixture.user = nil
-    let subscription = fixture.feature.saveResult([.init(.newsletter(.arts), true)], from: .template).start()
-    defer { subscription.dispose(); fixture.provider.gate.releaseAll() }
-    await fixture.feature.waitForOperations()
+    defer { fixture.provider.gate.releaseAll() }
+    let request = fixture.feature.requestPreferences([.init(.newsletter(.arts), true)], from: .template)
+    do { _ = try await request.value; XCTFail("Signed-out write must fail") }
+    catch { XCTAssertTrue(error is CancellationError) }
     XCTAssertEqual(fixture.provider.sent.count, 0)
     XCTAssertEqual(fixture.commits, 0)
   }
@@ -93,9 +94,8 @@ final class SettingsFeatureTests: XCTestCase {
     let fixture = PreferencesFixture()
     defer { fixture.provider.gate.releaseAll() }
     let original = try XCTUnwrap(fixture.user)
-    let first = fixture.feature.saveResult([.init(.newsletter(.arts), true)], from: original).start()
-    let second = fixture.feature.saveResult([.init(.notification(.messages), true)], from: original).start()
-    defer { first.dispose(); second.dispose() }
+    let first = fixture.feature.requestPreferences([.init(.newsletter(.arts), true)], from: original)
+    let second = fixture.feature.requestPreferences([.init(.notification(.messages), true)], from: original)
     await fixture.provider.gate.waitFor(1)
     XCTAssertEqual(fixture.provider.sent.count, 1)
     try fixture.provider.succeed(0)
@@ -103,7 +103,8 @@ final class SettingsFeatureTests: XCTestCase {
     XCTAssertEqual(fixture.provider.sent[1].newsletters.arts, true)
     XCTAssertEqual(fixture.provider.sent[1].notifications.messages, true)
     try fixture.provider.succeed(1)
-    await fixture.feature.waitForOperations()
+    _ = try await first.value
+    _ = try await second.value
     XCTAssertEqual(fixture.user?.newsletters.arts, true)
     XCTAssertEqual(fixture.user?.notifications.messages, true)
     XCTAssertEqual(fixture.commits, 2)
@@ -235,9 +236,7 @@ final class SettingsFeatureTests: XCTestCase {
     let fixture = PreferencesFixture()
     defer { fixture.provider.gate.releaseAll() }
     let user = try XCTUnwrap(fixture.user)
-    let subscription = fixture.feature.saveResult(SettingsFeature.Change.allNewsletters(true), from: user)
-      .start()
-    defer { subscription.dispose() }
+    let request = fixture.feature.requestPreferences(SettingsFeature.Change.allNewsletters(true), from: user)
     await fixture.provider.gate.waitFor(1)
     let sent = try XCTUnwrap(fixture.provider.sent.first)
     for newsletter in Newsletter.allCases {
@@ -246,7 +245,7 @@ final class SettingsFeatureTests: XCTestCase {
     XCTAssertEqual(sent.notifications.messages, user.notifications.messages)
     XCTAssertEqual(sent.social, user.social)
     try fixture.provider.succeed(0)
-    await fixture.feature.waitForOperations()
+    _ = try await request.value
   }
 
   func testOlderReadCannotOverwriteCompletedPreferenceWrite() async throws {
@@ -281,9 +280,10 @@ final class SettingsFeatureTests: XCTestCase {
     let fixture = PreferencesFixture()
     var source = try XCTUnwrap(fixture.user)
     source.id += 1
-    let subscription = fixture.feature.saveResult([.init(.newsletter(.arts), true)], from: source).start()
-    defer { subscription.dispose(); fixture.provider.gate.releaseAll() }
-    await fixture.feature.waitForOperations()
+    defer { fixture.provider.gate.releaseAll() }
+    let request = fixture.feature.requestPreferences([.init(.newsletter(.arts), true)], from: source)
+    do { _ = try await request.value; XCTFail("Wrong-account write must fail") }
+    catch { XCTAssertTrue(error is CancellationError) }
     XCTAssertEqual(fixture.provider.sent.count, 0)
     XCTAssertEqual(fixture.commits, 0)
   }
