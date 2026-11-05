@@ -1,18 +1,7 @@
 import Foundation
 import GraphAPI
-import ReactiveSwift
 
 extension Project {
-  static func projectProducer(
-    from data: GraphAPI.FetchAddOnsQuery.Data
-  ) -> SignalProducer<Project, ErrorEnvelope> {
-    guard let project = Project.project(from: data) else {
-      return SignalProducer(error: ErrorEnvelope.couldNotParseJSON)
-    }
-
-    return SignalProducer(value: project)
-  }
-
   static func project(from data: GraphAPI.FetchAddOnsQuery.Data) -> Project? {
     let addOns = data.project?.addOns?.nodes?
       .compactMap { node -> Reward? in

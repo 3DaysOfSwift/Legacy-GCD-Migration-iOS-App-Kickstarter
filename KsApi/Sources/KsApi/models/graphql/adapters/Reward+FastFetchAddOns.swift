@@ -1,17 +1,6 @@
 import GraphAPI
-import ReactiveSwift
 
 extension Reward {
-  static func addOnsProducer(
-    from data: GraphAPI.FastFetchAddOnsQuery.Data
-  ) -> SignalProducer<[Reward], ErrorEnvelope> {
-    guard let addOns = Reward.addOns(from: data) else {
-      return SignalProducer(error: ErrorEnvelope.couldNotParseJSON)
-    }
-
-    return SignalProducer(value: addOns)
-  }
-
   static func addOns(from data: GraphAPI.FastFetchAddOnsQuery.Data) -> [Reward]? {
     guard let baseReward = data.reward else { return nil }
     let addOns = baseReward.displayableAddons.nodes?

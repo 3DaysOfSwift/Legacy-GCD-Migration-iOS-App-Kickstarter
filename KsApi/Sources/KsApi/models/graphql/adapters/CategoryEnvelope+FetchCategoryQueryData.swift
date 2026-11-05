@@ -1,18 +1,6 @@
 import GraphAPI
-import ReactiveSwift
 
 extension CategoryEnvelope {
-  /**
-   Returns a minimal `CategoryEnvelope` from a `FetchCategoryQuery.Data`
-   */
-  static func envelopeProducer(
-    from data: GraphAPI.FetchCategoryQuery
-      .Data
-  ) -> SignalProducer<CategoryEnvelope, ErrorEnvelope> {
-    guard let envelope = self.envelope(from: data) else { return .empty }
-    return SignalProducer(value: envelope)
-  }
-
   static func envelope(from data: GraphAPI.FetchCategoryQuery.Data) -> CategoryEnvelope? {
     guard let categoryNode = data.node?.asCategory else { return nil }
 

@@ -6,8 +6,7 @@ import XCTest
 final class Project_FetchAddOnsQueryDataTests: XCTestCase {
   func testFetchAddOnsQueryData_Success() {
     let data = FetchAddsOnsQueryTemplate.valid.data
-    let producer = Project.projectProducer(from: data)
-    guard let envelope = MockGraphQLClient.shared.client.data(from: producer) else {
+    guard let envelope = Project.project(from: data) else {
       XCTFail()
 
       return

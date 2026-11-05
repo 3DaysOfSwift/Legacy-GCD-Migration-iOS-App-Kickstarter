@@ -1,14 +1,13 @@
 import Apollo
+import GraphAPI
 @testable import KsApi
 @testable import KsApiTestHelpers
 import XCTest
 
 final class Category_FetchCategoryQueryDataTests: XCTestCase {
-  func testNativeCategoryMappingMatchesExistingEnvelope() throws {
-    let data = FetchCategoryQueryTemplate.valid.data
-    let native = try XCTUnwrap(CategoryEnvelope.envelope(from: data))
-    let existing = try XCTUnwrap(MockGraphQLClient.shared.client.data(from: CategoryEnvelope.envelopeProducer(from: data)))
-    XCTAssertEqual(native.node, existing.node)
+  func testNativeCategoryMappingReturnsNilForMissingCategory() throws {
+    let data = try testGraphObject(jsonString: "{}") as GraphAPI.FetchCategoryQuery.Data
+    XCTAssertNil(CategoryEnvelope.envelope(from: data))
   }
 
   @MainActor func testAsyncCategoryMockReturnsConfiguredValueAndPropagatesFailure() async throws {
@@ -22,8 +21,7 @@ final class Category_FetchCategoryQueryDataTests: XCTestCase {
   }
 
   func testFetchCategoryQueryData_Success() {
-    let producer = CategoryEnvelope.envelopeProducer(from: FetchCategoryQueryTemplate.valid.data)
-    guard let envelope = MockGraphQLClient.shared.client.data(from: producer)?.node else {
+    guard let envelope = CategoryEnvelope.envelope(from: FetchCategoryQueryTemplate.valid.data)?.node else {
       XCTFail()
 
       return
