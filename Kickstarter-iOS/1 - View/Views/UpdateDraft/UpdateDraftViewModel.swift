@@ -1,399 +1,179 @@
 import KsApi
 import Prelude
-import ReactiveSwift
 import UIKit
 
 @MainActor
-public protocol UpdateDraftViewModelInputs {
-  /// Call when the creator taps "add attachment".
-  func addAttachmentButtonTapped(availableSources: [AttachmentSource])
-
-  /// Call when the creator taps a selection from the attachment actions sheet.
-  func addAttachmentSheetButtonTapped(_ action: AttachmentSource)
-
-  /// Call when a creator taps an attachment to be removed.
-  func attachmentTapped(id: Int)
-
-  /// Call when the draft body changes.
-  func bodyTextChanged(to body: String)
-
-  /// Call when the creator taps "Close".
-  func closeButtonTapped()
-
-  /// Call with the project provided to the view.
-  func configureWith(project: Project)
-
-  /// Call with the image picked by the image picker.
-  func imagePicked(url: URL, fromSource source: AttachmentSource)
-
-  /// Call when the image picker is canceled.
-  func imagePickerCanceled()
-
-  /// Call when the creator taps "public"/"backers only".
-  func isBackersOnlyOn(_ isBackersOnly: Bool)
-
-  /// Call when the creator taps "preview".
-  func previewButtonTapped()
-
-  /// Call when attachment removal confirmed.
-  func remove(attachment: UpdateDraft.Attachment)
-
-  /// Call when the draft title changes.
-  func titleTextChanged(to title: String)
-
-  /// Call when title text field keyboard returns.
-  func titleTextFieldDoneEditing()
-
-  /// Call when the view loads.
-  func viewDidLoad()
-
-  /// Call when the view will disappear.
-  func viewWillDisappear()
-}
-
-@MainActor
-public protocol UpdateDraftViewModelOutputs {
-  /// An attachment was added.
-  var attachmentAdded: Signal<UpdateDraft.Attachment, Never> { get }
-
-  /// An attachment was removed.
-  var attachmentRemoved: Signal<UpdateDraft.Attachment, Never> { get }
-
-  /// An collection of attachments.
-  var attachments: Signal<[UpdateDraft.Attachment], Never> { get }
-
-  /// The draft's working body.
-  var body: Signal<String, Never> { get }
-
-  /// When the body text view should become first responder.
-  var bodyTextViewBecomeFirstResponder: Signal<(), Never> { get }
-
-  /// Emits when the view controller should show a preview.
-  var goToPreview: Signal<UpdateDraft, Never> { get }
-
-  /// Whether or not to show the attachments section.
-  var isAttachmentsSectionHidden: Signal<Bool, Never> { get }
-
-  /// Whether or not the draft is being fetched from the API.
-  var isLoading: Signal<Bool, Never> { get }
-
-  /// Whether or not the draft is limited to backers only.
-  var isBackersOnly: Signal<Bool, Never> { get }
-
-  /// Whether or not the body placeholder is visible.
-  var isBodyPlaceholderHidden: Signal<Bool, Never> { get }
-
-  /// Whether or no the preview button should be enabled.
-  var isPreviewButtonEnabled: Signal<Bool, Never> { get }
-
-  /// Emits the update number, formatted.
-  var navigationItemTitle: Signal<String, Never> { get }
-
-  /// Emits when the view controller should be dismissed.
-  var notifyPresenterViewControllerWantsDismissal: Signal<(), Never> { get }
-
-  /// Emits when the keyboard should be dismissed.
-  var resignFirstResponder: Signal<(), Never> { get }
-
-  /// Emits when adding an attachment fails.
-  var showAddAttachmentFailure: Signal<(), Never> { get }
-
-  /// Emits when add attachment is tapped.
-  var showAttachmentActions: Signal<[AttachmentSource], Never> { get }
-
-  /// Emits when the creator selects "add photo" or "choose from camera roll".
-  var showImagePicker: Signal<AttachmentSource, Never> { get }
-
-  /// Emits when the view controller should show a load error.
-  var showLoadFailure: Signal<(), Never> { get }
-
-  /// Emits when an attachment is tapped.
-  var showRemoveAttachmentConfirmation: Signal<UpdateDraft.Attachment, Never> { get }
-
-  /// Emits when removing an attachment failed.
-  var showRemoveAttachmentFailure: Signal<(), Never> { get }
-
-  /// Emits when a save fails.
-  var showSaveFailure: Signal<(), Never> { get }
-
-  /// The draft's working title.
-  var title: Signal<String, Never> { get }
-
-  /// When the body text view should become first responder.
-  var titleTextFieldBecomeFirstResponder: Signal<(), Never> { get }
-}
-
-@MainActor
-public protocol UpdateDraftViewModelType {
-  var inputs: UpdateDraftViewModelInputs { get }
-  var outputs: UpdateDraftViewModelOutputs { get }
-}
-
-@MainActor
-public final class UpdateDraftViewModel: UpdateDraftViewModelType, UpdateDraftViewModelInputs,
-  UpdateDraftViewModelOutputs {
+final class UpdateDraftViewModel {
+  enum Event {
+    case attachmentAdded(UpdateDraft.Attachment), attachmentRemoved(UpdateDraft.Attachment)
+    case attachments([UpdateDraft.Attachment]), body(String), bodyTextViewBecomeFirstResponder
+    case goToPreview(UpdateDraft), isAttachmentsSectionHidden(Bool), isLoading(Bool), isBackersOnly(Bool)
+    case isBodyPlaceholderHidden(Bool), isPreviewButtonEnabled(Bool), navigationItemTitle(String)
+    case notifyPresenterViewControllerWantsDismissal, resignFirstResponder, showAddAttachmentFailure
+    case showAttachmentActions([AttachmentSource]), showImagePicker(AttachmentSource), showLoadFailure
+    case showRemoveAttachmentConfirmation(UpdateDraft.Attachment), showRemoveAttachmentFailure
+    case showSaveFailure, title(String), titleTextFieldBecomeFirstResponder
+  }
+  var onEvent: ((Event) -> Void)?
   private let feature: CreatorDraftsFeature
   private let route = UUID()
-  public init(creatorDraftsFeature: CreatorDraftsFeature? = nil) {
+  private var project: Project?
+  private var didLoad = false
+  private var draft: UpdateDraft?
+  private var currentTitle: String?
+  private var currentBody: String?
+  private var backersOnly: Bool?
+  private var currentAttachments: [UpdateDraft.Attachment]?
+  private var lastAttachmentHidden: Bool?
+  private var lastPreviewEnabled: Bool?
+  private var lastPlaceholderHidden: Bool?
+  private var saveTask: Task<Void, Never>?
+  private var saveRevision = UUID()
+  private var imageTasks: [UUID: Task<Void, Never>] = [:]
+
+  init(creatorDraftsFeature: CreatorDraftsFeature? = nil) {
     let feature = creatorDraftsFeature ?? AppModel.shared.creatorDraftsFeature
     self.feature = feature
-    let route = self.route
-    // MARK: - Loading
-
-    let project: Signal<Project, Never> = self.projectProperty.signal.skipNil()
-
-    let draftEvent = feature.loads.filter { $0.0 == route }
-      .map { _, result -> Signal<UpdateDraft, ErrorEnvelope>.Event in
-        switch result {
-        case .success(let draft): return .value(draft)
-        case .failure(let error): return .failed(error)
-        }
-      }
-    Signal.combineLatest(self.viewDidLoadProperty.signal, project)
-      .map(second).observeValues { feature.requestLoad(project: $0, route: route) }
-
-    let draft: Signal<UpdateDraft, Never> = draftEvent.values()
-
-    self.showLoadFailure = draftEvent.errors().ignoreValues()
-
-    self.isLoading = Signal.merge(
-      self.viewDidLoadProperty.signal.mapConst(true),
-      draft.mapConst(false)
-    )
-
-    self.navigationItemTitle = draft
-      .map { $0.update.sequence }
-      .map { Strings.dashboard_post_update_compose_update_number(update_number: Format.wholeNumber($0)) }
-
-    // MARK: - Form Fields
-
-    self.title = draft.map { $0.update.title }
-    self.body = draft.map { $0.update.body ?? "" }
-
-    let wasBackersOnly: Signal<Bool, Never> = draft.map { $0.update.isPublic }.map(negate)
-
-    self.isBackersOnly = Signal.merge(wasBackersOnly, self.isBackersOnlyOnProperty.signal)
-
-    let currentTitle: Signal<String, Never> = Signal.merge(self.title, self.titleTextChangedProperty.signal)
-    let currentBody: Signal<String, Never> = Signal.merge(self.body, self.bodyTextChangedProperty.signal)
-
-    // MARK: - Attachments
-
-    self.attachments = draft
-      .map {
-        $0.images.map(UpdateDraft.Attachment.image)
-          + [$0.video.map(UpdateDraft.Attachment.video)].compact()
-      }
-
-    self.showAttachmentActions = self.addAttachmentButtonTappedProperty.signal
-
-    self.showImagePicker = self.addAttachmentSheetButtonTappedProperty.signal
-      .skipNil()
-
-    let addAttachmentEvent = draft
-      .takePairWhen(self.imagePickedProperty.signal.skipNil().map(first))
-      .flatMap(.merge) { _, url in feature.addResult(file: url, route: route).materialize() }
-
-    self.showAddAttachmentFailure = addAttachmentEvent.errors().ignoreValues()
-
-    self.attachmentAdded = addAttachmentEvent.values()
-      .map(UpdateDraft.Attachment.image)
-
-    let currentAttachments = feature.attachments.filter { $0.0 == route }.map { $0.1 }
-
-    self.showRemoveAttachmentConfirmation = currentAttachments
-      .takePairWhen(self.attachmentTappedProperty.signal)
-      .map { attachments, id in attachments.first { $0.id == id } }
-      .skipNil()
-
-    let removeAttachmentEvent: Signal<Signal<UpdateDraft.Image, ErrorEnvelope>.Event, Never> = draft
-      .takePairWhen(self.removeAttachmentProperty.signal.skipNil())
-      .flatMap(.merge) { _, attachment in feature.removeResult(attachment: attachment, route: route).materialize() }
-
-    self.showRemoveAttachmentFailure = removeAttachmentEvent.errors().ignoreValues()
-
-    self.attachmentRemoved = removeAttachmentEvent.values()
-      .map(UpdateDraft.Attachment.image)
-
-    self.isAttachmentsSectionHidden = Signal
-      .merge(
-        self.viewDidLoadProperty.signal.mapConst(true),
-        currentAttachments.map { $0.isEmpty }
-      )
-      .skipRepeats()
-
-    // MARK: - Validation
-
-    let hasContent: Signal<Bool, Never> = Signal.combineLatest(currentTitle, currentBody, currentAttachments)
-      .map { title, body, attachments in
-        !title.trimmed().isEmpty && (!body.trimmed().isEmpty || !attachments.isEmpty)
-      }
-
-    self.isPreviewButtonEnabled = Signal
-      .merge(
-        self.viewDidLoadProperty.signal.mapConst(false),
-        hasContent
-      )
-      .skipRepeats()
-
-    // MARK: - Focus
-
-    let draftHasTitle: Signal<Bool, Never> = draft
-      .map { !$0.update.title.isEmpty }
-
-    let draftHasBody: Signal<Bool, Never> = draft
-      .map { !($0.update.body ?? "").isEmpty }
-
-    self.titleTextFieldBecomeFirstResponder = draftHasTitle
-      .filter(isFalse)
-      .ignoreValues()
-
-    self.isBodyPlaceholderHidden = currentBody
-      .map { !$0.isEmpty }
-      .skipRepeats()
-
-    self.bodyTextViewBecomeFirstResponder = .merge(
-      self.titleTextFieldDoneEditingProperty.signal,
-      Signal.combineLatest(
-        draftHasTitle.filter(isTrue),
-        draftHasBody.filter(isFalse)
-      )
-      .ignoreValues()
-    )
-
-    // MARK: - Saving
-
-    let saveAction: Signal<SaveAction, Never> = Signal.merge(
-      self.closeButtonTappedProperty.signal.mapConst(SaveAction.dismiss),
-      self.previewButtonTappedProperty.signal.mapConst(SaveAction.preview)
-    )
-
-    let saved = Signal.combineLatest(currentTitle, currentBody, self.isBackersOnly)
-      .takePairWhen(saveAction)
-      .switchMap { fields, action in
-        feature.saveResult(route: route, title: fields.0, body: fields.1, isPublic: !fields.2)
-          .map { (action, $0) }.materialize()
-      }
-
-    self.notifyPresenterViewControllerWantsDismissal = Signal.merge(
-      self.showLoadFailure,
-      saved.values().filter { $0.0 == .dismiss }.ignoreValues()
-    )
-    self.showSaveFailure = saved.errors().ignoreValues()
-    self.goToPreview = saved.values().filter { $0.0 == .preview }.map { $0.1 }
-
-    self.resignFirstResponder = self.viewWillDisappearProperty.signal
+    feature.observe(route: self.route) { [weak self] event in self?.receive(event) }
   }
-
   deinit {
+    self.saveTask?.cancel()
+    for task in self.imageTasks.values { task.cancel() }
     let feature = self.feature
     let route = self.route
     Task { @MainActor in feature.release(route: route) }
   }
-
-  // INPUTS
-  fileprivate let addAttachmentButtonTappedProperty = MutableProperty<[AttachmentSource]>([])
-  public func addAttachmentButtonTapped(availableSources: [AttachmentSource]) {
-    self.addAttachmentButtonTappedProperty.value = availableSources
+  func configureWith(project: Project) {
+    self.project = project
+    if self.didLoad { self.feature.requestLoad(project: project, route: self.route) }
   }
-
-  fileprivate let addAttachmentSheetButtonTappedProperty = MutableProperty<AttachmentSource?>(nil)
-  public func addAttachmentSheetButtonTapped(_ action: AttachmentSource) {
-    self.addAttachmentSheetButtonTappedProperty.value = action
+  func viewDidLoad() {
+    self.didLoad = true
+    self.onEvent?(.isLoading(true))
+    self.publishAttachmentHidden(true)
+    self.publishPreviewEnabled(false)
+    if let project = self.project { self.feature.requestLoad(project: project, route: self.route) }
   }
-
-  fileprivate let attachmentTappedProperty = MutableProperty(0)
-  public func attachmentTapped(id: Int) {
-    self.attachmentTappedProperty.value = id
+  private func receive(_ event: CreatorDraftsFeature.Event) {
+    switch event {
+    case let .load(.failure(_)):
+      self.onEvent?(.showLoadFailure)
+      self.onEvent?(.notifyPresenterViewControllerWantsDismissal)
+    case let .load(.success(draft)):
+      self.draft = draft
+      self.currentTitle = draft.update.title
+      self.currentBody = draft.update.body ?? ""
+      self.backersOnly = !draft.update.isPublic
+      self.onEvent?(.isLoading(false))
+      self.onEvent?(.navigationItemTitle(Strings.dashboard_post_update_compose_update_number(update_number: Format.wholeNumber(draft.update.sequence))))
+      self.onEvent?(.title(draft.update.title))
+      self.onEvent?(.body(draft.update.body ?? ""))
+      self.onEvent?(.isBackersOnly(!draft.update.isPublic))
+      let attachments = draft.images.map(UpdateDraft.Attachment.image) + (draft.video.map { [.video($0)] } ?? [])
+      self.onEvent?(.attachments(attachments))
+      self.publishPlaceholder()
+      if draft.update.title.isEmpty { self.onEvent?(.titleTextFieldBecomeFirstResponder) }
+      else if (draft.update.body ?? "").isEmpty { self.onEvent?(.bodyTextViewBecomeFirstResponder) }
+      self.publishValidation()
+    case let .attachments(attachments):
+      self.currentAttachments = attachments
+      self.publishAttachmentHidden(attachments.isEmpty)
+      self.publishValidation()
+    }
   }
-
-  fileprivate let bodyTextChangedProperty = MutableProperty("")
-  public func bodyTextChanged(to body: String) {
-    self.bodyTextChangedProperty.value = body
+  func titleTextChanged(to title: String) { self.currentTitle = title; self.publishValidation() }
+  func bodyTextChanged(to body: String) { self.currentBody = body; self.publishPlaceholder(); self.publishValidation() }
+  func isBackersOnlyOn(_ value: Bool) { self.backersOnly = value; self.onEvent?(.isBackersOnly(value)) }
+  private func publishValidation() {
+    guard let title = self.currentTitle, let body = self.currentBody, let attachments = self.currentAttachments else { return }
+    self.publishPreviewEnabled(!title.trimmed().isEmpty && (!body.trimmed().isEmpty || !attachments.isEmpty))
   }
-
-  fileprivate let closeButtonTappedProperty = MutableProperty(())
-  public func closeButtonTapped() {
-    self.closeButtonTappedProperty.value = ()
+  private func publishPreviewEnabled(_ value: Bool) {
+    guard self.lastPreviewEnabled != value else { return }
+    self.lastPreviewEnabled = value
+    self.onEvent?(.isPreviewButtonEnabled(value))
   }
-
-  fileprivate let projectProperty = MutableProperty<Project?>(nil)
-  public func configureWith(project: Project) {
-    self.projectProperty.value = project
+  private func publishAttachmentHidden(_ value: Bool) {
+    guard self.lastAttachmentHidden != value else { return }
+    self.lastAttachmentHidden = value
+    self.onEvent?(.isAttachmentsSectionHidden(value))
   }
-
-  fileprivate let imagePickedProperty = MutableProperty<(URL, AttachmentSource)?>(nil)
-  public func imagePicked(url: URL, fromSource source: AttachmentSource) {
-    self.imagePickedProperty.value = (url, source)
+  private func publishPlaceholder() {
+    guard let body = self.currentBody else { return }
+    let hidden = !body.isEmpty
+    guard self.lastPlaceholderHidden != hidden else { return }
+    self.lastPlaceholderHidden = hidden
+    self.onEvent?(.isBodyPlaceholderHidden(hidden))
   }
-
-  fileprivate let imagePickerCanceledProperty = MutableProperty(())
-  public func imagePickerCanceled() {
-    self.imagePickerCanceledProperty.value = ()
+  func addAttachmentButtonTapped(availableSources: [AttachmentSource]) { self.onEvent?(.showAttachmentActions(availableSources)) }
+  func addAttachmentSheetButtonTapped(_ action: AttachmentSource) { self.onEvent?(.showImagePicker(action)) }
+  func attachmentTapped(id: Int) {
+    if let attachment = self.currentAttachments?.first(where: { $0.id == id }) { self.onEvent?(.showRemoveAttachmentConfirmation(attachment)) }
   }
-
-  fileprivate let isBackersOnlyOnProperty = MutableProperty(false)
-  public func isBackersOnlyOn(_ isBackersOnly: Bool) {
-    self.isBackersOnlyOnProperty.value = isBackersOnly
+  func imagePicked(url: URL, fromSource _: AttachmentSource) {
+    guard self.draft != nil else { return }
+    let id = UUID()
+    let feature = self.feature
+    let route = self.route
+    self.imageTasks[id] = Task { [weak self] in
+      defer { self?.imageTasks[id] = nil }
+      do {
+        let image = try await feature.add(file: url, route: route)
+        guard !Task.isCancelled else { return }
+        self?.onEvent?(.attachmentAdded(.image(image)))
+      } catch {
+        guard !Task.isCancelled, !(error is CancellationError) else { return }
+        self?.onEvent?(.showAddAttachmentFailure)
+      }
+    }
   }
-
-  fileprivate let previewButtonTappedProperty = MutableProperty(())
-  public func previewButtonTapped() {
-    self.previewButtonTappedProperty.value = ()
+  func remove(attachment: UpdateDraft.Attachment) {
+    guard self.draft != nil else { return }
+    guard case let .image(image) = attachment else { self.onEvent?(.showRemoveAttachmentFailure); return }
+    let id = UUID()
+    let feature = self.feature
+    let route = self.route
+    self.imageTasks[id] = Task { [weak self] in
+      defer { self?.imageTasks[id] = nil }
+      do {
+        let removed = try await feature.remove(imageID: image.id, route: route)
+        guard !Task.isCancelled else { return }
+        self?.onEvent?(.attachmentRemoved(.image(removed)))
+      } catch {
+        guard !Task.isCancelled, !(error is CancellationError) else { return }
+        self?.onEvent?(.showRemoveAttachmentFailure)
+      }
+    }
   }
-
-  fileprivate let removeAttachmentProperty = MutableProperty<UpdateDraft.Attachment?>(nil)
-  public func remove(attachment: UpdateDraft.Attachment) {
-    self.removeAttachmentProperty.value = attachment
+  func imagePickerCanceled() {}
+  func titleTextFieldDoneEditing() { self.onEvent?(.bodyTextViewBecomeFirstResponder) }
+  func viewWillDisappear() { self.onEvent?(.resignFirstResponder) }
+  func closeButtonTapped() { self.save(preview: false) }
+  func previewButtonTapped() { self.save(preview: true) }
+  private func save(preview: Bool) {
+    guard let title = self.currentTitle, let body = self.currentBody, let backersOnly = self.backersOnly else { return }
+    self.saveTask?.cancel()
+    let revision = UUID()
+    self.saveRevision = revision
+    let feature = self.feature
+    let route = self.route
+    self.saveTask = Task { [weak self] in
+      do {
+        let saved = try await feature.save(route: route, title: title, body: body, isPublic: !backersOnly)
+        guard !Task.isCancelled, let self, self.saveRevision == revision else { return }
+        if preview { self.onEvent?(.goToPreview(saved)) }
+        else { self.onEvent?(.notifyPresenterViewControllerWantsDismissal) }
+      } catch {
+        guard !Task.isCancelled, !(error is CancellationError), let self, self.saveRevision == revision else { return }
+        self.onEvent?(.showSaveFailure)
+      }
+    }
   }
-
-  fileprivate let titleTextChangedProperty = MutableProperty("")
-  public func titleTextChanged(to title: String) {
-    self.titleTextChangedProperty.value = title
+  func waitForPending() async {
+    await self.feature.waitForOperations()
+    await self.saveTask?.value
+    for task in Array(self.imageTasks.values) { await task.value }
   }
-
-  fileprivate let titleTextFieldDoneEditingProperty = MutableProperty(())
-  public func titleTextFieldDoneEditing() {
-    self.titleTextFieldDoneEditingProperty.value = ()
-  }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
-  }
-
-  fileprivate let viewWillDisappearProperty = MutableProperty(())
-  public func viewWillDisappear() {
-    self.viewWillDisappearProperty.value = ()
-  }
-
-  // OUTPUTS
-  public let attachmentAdded: Signal<UpdateDraft.Attachment, Never>
-  public let attachmentRemoved: Signal<UpdateDraft.Attachment, Never>
-  public let attachments: Signal<[UpdateDraft.Attachment], Never>
-  public let body: Signal<String, Never>
-  public let bodyTextViewBecomeFirstResponder: Signal<(), Never>
-  public let goToPreview: Signal<UpdateDraft, Never>
-  public let isAttachmentsSectionHidden: Signal<Bool, Never>
-  public let isLoading: Signal<Bool, Never>
-  public let isBodyPlaceholderHidden: Signal<Bool, Never>
-  public let isBackersOnly: Signal<Bool, Never>
-  public let isPreviewButtonEnabled: Signal<Bool, Never>
-  public let navigationItemTitle: Signal<String, Never>
-  public let notifyPresenterViewControllerWantsDismissal: Signal<(), Never>
-  public let resignFirstResponder: Signal<(), Never>
-  public let showAddAttachmentFailure: Signal<(), Never>
-  public let showAttachmentActions: Signal<[AttachmentSource], Never>
-  public let showImagePicker: Signal<AttachmentSource, Never>
-  public let showLoadFailure: Signal<(), Never>
-  public let showRemoveAttachmentConfirmation: Signal<UpdateDraft.Attachment, Never>
-  public let showRemoveAttachmentFailure: Signal<(), Never>
-  public let showSaveFailure: Signal<(), Never>
-  public let title: Signal<String, Never>
-  public let titleTextFieldBecomeFirstResponder: Signal<(), Never>
-
-  public var inputs: UpdateDraftViewModelInputs { return self }
-  public var outputs: UpdateDraftViewModelOutputs { return self }
 }
 
 public enum AttachmentSource: String {
@@ -438,9 +218,4 @@ public func == (lhs: AttachmentSource, rhs: AttachmentSource) -> Bool {
   default:
     return false
   }
-}
-
-private enum SaveAction {
-  case dismiss
-  case preview
 }

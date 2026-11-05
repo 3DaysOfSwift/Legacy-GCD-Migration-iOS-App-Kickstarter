@@ -2,7 +2,6 @@
 @testable import KsApi
 
 import Prelude
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -10,7 +9,6 @@ final class CreatorDraftsFeatureTests: XCTestCase {
   private var provider: ControlledCreatorDraftsProvider!
   private var feature: CreatorDraftsFeature!
   private let route = UUID()
-  private var disposables = CompositeDisposable()
 
   override func setUp() async throws {
     try await super.setUp()
@@ -23,7 +21,6 @@ final class CreatorDraftsFeatureTests: XCTestCase {
     await self.feature.load(project: .template, route: self.route)
   }
   override func tearDown() async throws {
-    self.disposables.dispose()
     self.feature.reset()
     self.provider.loads.releaseAll()
     self.provider.saves.releaseAll()
@@ -32,15 +29,14 @@ final class CreatorDraftsFeatureTests: XCTestCase {
     await self.feature.waitForOperations()
     try await super.tearDown()
   }
-  private func save(_ title: String) -> SignalProducer<UpdateDraft, ErrorEnvelope> {
-    self.feature.saveResult(route: self.route, title: title, body: "Body", isPublic: false)
+  private func save(_ title: String) -> Task<UpdateDraft, Error> {
+    Task { try await self.feature.save(route: self.route, title: title, body: "Body", isPublic: false) }
   }
 
   func testEquivalentSavesShareAndDifferentFieldsExecuteInOrder() async throws {
-    var completed = 0
-    self.disposables += self.save("First").startWithResult { _ in completed += 1 }
-    self.disposables += self.save("First").startWithResult { _ in completed += 1 }
-    self.disposables += self.save("Second").startWithResult { _ in completed += 1 }
+    let first = self.save("First")
+    let duplicate = self.save("First")
+    let second = self.save("Second")
     await self.provider.saves.waitFor(1)
     XCTAssertEqual(self.provider.titles, ["First"])
     try self.provider.saves.finish(0, .success(.template |> UpdateDraft.lens.update.title .~ "First"))
@@ -48,63 +44,64 @@ final class CreatorDraftsFeatureTests: XCTestCase {
     XCTAssertEqual(self.provider.titles, ["First", "Second"])
     XCTAssertEqual(self.provider.savedDrafts[1].update.title, "First")
     try self.provider.saves.finish(1, .success(.template |> UpdateDraft.lens.update.title .~ "Second"))
-    await self.feature.waitForOperations()
-    XCTAssertEqual(completed, 3)
+    _ = try await first.value
+    _ = try await duplicate.value
+    _ = try await second.value
   }
 
   func testUploadSettlesBeforeSaveAndSaveUsesCurrentImages() async throws {
-    self.disposables += self.feature.addResult(file: URL(fileURLWithPath: "/tmp/test.png"), route: self.route).startWithResult { _ in }
-    self.disposables += self.save("After upload").startWithResult { _ in }
+    let upload = Task { try await self.feature.add(file: URL(fileURLWithPath: "/tmp/test.png"), route: self.route) }
     await self.provider.adds.waitFor(1)
+    let save = self.save("After upload")
     XCTAssertEqual(self.provider.saves.count, 0)
     try self.provider.adds.finish(0, .success(.template))
     await self.provider.saves.waitFor(1)
     XCTAssertEqual(self.provider.savedDrafts.first?.images.map(\.id), [UpdateDraft.Image.template.id])
     try self.provider.saves.finish(0, .success(self.provider.savedDrafts[0]))
-    await self.feature.waitForOperations()
+    _ = try await upload.value
+    _ = try await save.value
   }
 
   func testFailureDoesNotBlockFollowingEditAndRetryIsExplicit() async throws {
-    var failures = 0
-    self.disposables += self.save("First").startWithResult { if case .failure = $0 { failures += 1 } }
-    self.disposables += self.save("Second").startWithResult { _ in }
+    let first = self.save("First")
+    let second = self.save("Second")
     await self.provider.saves.waitFor(1)
     try self.provider.saves.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
     await self.provider.saves.waitFor(2)
     try self.provider.saves.finish(1, .success(.template))
-    await self.feature.waitForOperations()
-    XCTAssertEqual(failures, 1)
+    do { _ = try await first.value; XCTFail("Expected failure") } catch { XCTAssertTrue(error is ErrorEnvelope) }
+    _ = try await second.value
     XCTAssertEqual(self.provider.saves.count, 2)
   }
 
   func testScreenReleaseSuppressesDeliveryButAdmittedSaveSettles() async throws {
-    var emitted = false
-    self.disposables += self.save("First").startWithResult { _ in emitted = true }
+    let save = self.save("First")
     await self.provider.saves.waitFor(1)
     self.feature.release(route: self.route)
     try self.provider.saves.finish(0, .success(.template))
-    await self.feature.waitForOperations()
-    XCTAssertFalse(emitted)
+    do { _ = try await save.value; XCTFail("Released screen received result") }
+    catch { XCTAssertTrue(error is CancellationError) }
     XCTAssertEqual(self.provider.saves.count, 1)
   }
 
   func testSessionChangeSuppressesOutcomeAndQueuedMutation() async throws {
-    var emitted = false
-    self.disposables += self.save("First").startWithResult { _ in emitted = true }
-    self.disposables += self.save("Second").startWithResult { _ in emitted = true }
+    let first = self.save("First")
+    let second = self.save("Second")
     await self.provider.saves.waitFor(1)
     self.feature.sessionFeature.sessionChanged()
     try self.provider.saves.finish(0, .success(.template))
-    await self.feature.waitForOperations()
-    XCTAssertFalse(emitted)
+    for task in [first, second] {
+      do { _ = try await task.value; XCTFail("Old session received result") }
+      catch { XCTAssertTrue(error is CancellationError) }
+    }
     XCTAssertEqual(self.provider.saves.count, 1)
   }
 
   func testReplacedReadRejectsLateSuccess() async throws {
     self.provider.pauseLoad = true
     var loaded: [String] = []
-    self.disposables += self.feature.loads.observeValues {
-      if case .success(let draft) = $0.1 { loaded.append(draft.update.title) }
+    self.feature.observe(route: self.route) { event in
+      if case let .load(.success(draft)) = event { loaded.append(draft.update.title) }
     }
     let first = self.feature.requestLoad(project: .template, route: self.route)
     await self.provider.loads.waitFor(1)
@@ -117,6 +114,16 @@ final class CreatorDraftsFeatureTests: XCTestCase {
     XCTAssertEqual(loaded, ["Current"])
   }
 
+  func testResetKeepsOpenRouteListenerForNextLoad() async {
+    var loadCount = 0
+    self.feature.observe(route: self.route) { event in
+      if case .load(.success) = event { loadCount += 1 }
+    }
+    self.feature.reset()
+    await self.feature.load(project: .template, route: self.route)
+    XCTAssertEqual(loadCount, 1)
+  }
+
   func testUnchangedDraftDoesNotSendWrite() async throws {
     let draft = UpdateDraft.template
     let saved = try await self.feature.save(route: self.route, title: draft.update.title,
@@ -126,29 +133,34 @@ final class CreatorDraftsFeatureTests: XCTestCase {
   }
 
   func testUnsupportedVideoRemovalUsesFailureOutput() async {
+    let vm = UpdateDraftViewModel(creatorDraftsFeature: self.feature)
     var failed = false
-    self.disposables += self.feature.removeResult(attachment: .video(.template), route: self.route)
-      .startWithResult { if case .failure = $0 { failed = true } }
-    await self.feature.waitForOperations()
+    vm.onEvent = { if case .showRemoveAttachmentFailure = $0 { failed = true } }
+    vm.configureWith(project: .template)
+    vm.viewDidLoad()
+    await vm.waitForPending()
+    vm.remove(attachment: .video(.template))
     XCTAssertTrue(failed)
     XCTAssertEqual(self.provider.removes.count, 0)
   }
 
   func testNewUploadDoesNotRestorePreviouslyDeletedImage() async throws {
     var lists: [[Int]] = []
-    self.disposables += self.feature.attachments.observeValues { lists.append($0.1.map(\.id)) }
-    self.disposables += self.feature.addResult(file: URL(fileURLWithPath: "/tmp/one.png"), route: self.route).startWithResult { _ in }
+    self.feature.observe(route: self.route) { event in
+      if case let .attachments(attachments) = event { lists.append(attachments.map(\.id)) }
+    }
+    let first = Task { try await self.feature.add(file: URL(fileURLWithPath: "/tmp/one.png"), route: self.route) }
     await self.provider.adds.waitFor(1)
     try self.provider.adds.finish(0, .success(.template))
-    await self.feature.waitForOperations()
-    self.disposables += self.feature.removeResult(attachment: .image(.template), route: self.route).startWithResult { _ in }
+    _ = try await first.value
+    let removal = Task { try await self.feature.remove(imageID: UpdateDraft.Image.template.id, route: self.route) }
     await self.provider.removes.waitFor(1)
     try self.provider.removes.finish(0, .success(.template))
-    await self.feature.waitForOperations()
-    self.disposables += self.feature.addResult(file: URL(fileURLWithPath: "/tmp/two.png"), route: self.route).startWithResult { _ in }
+    _ = try await removal.value
+    let second = Task { try await self.feature.add(file: URL(fileURLWithPath: "/tmp/two.png"), route: self.route) }
     await self.provider.adds.waitFor(2)
     try self.provider.adds.finish(1, .success(.template |> UpdateDraft.Image.lens.id .~ 2))
-    await self.feature.waitForOperations()
+    _ = try await second.value
     XCTAssertEqual(lists, [[1], [], [2]])
   }
 
@@ -156,11 +168,16 @@ final class CreatorDraftsFeatureTests: XCTestCase {
     let vm = UpdateDraftViewModel(creatorDraftsFeature: self.feature)
     var previews = 0
     var dismissals = 0
-    self.disposables += vm.goToPreview.observeValues { _ in previews += 1 }
-    self.disposables += vm.notifyPresenterViewControllerWantsDismissal.observeValues { dismissals += 1 }
+    vm.onEvent = { event in
+      switch event {
+      case .goToPreview: previews += 1
+      case .notifyPresenterViewControllerWantsDismissal: dismissals += 1
+      default: break
+      }
+    }
     vm.configureWith(project: .template)
     vm.viewDidLoad()
-    await self.feature.waitForOperations()
+    await vm.waitForPending()
     vm.titleTextChanged(to: "Preview version")
     vm.previewButtonTapped()
     await self.provider.saves.waitFor(1)
@@ -171,10 +188,11 @@ final class CreatorDraftsFeatureTests: XCTestCase {
     XCTAssertEqual(previews, 0)
     XCTAssertEqual(dismissals, 0)
     try self.provider.saves.finish(1, .success(.template |> UpdateDraft.lens.update.title .~ "Close version"))
-    await self.feature.waitForOperations()
+    await vm.waitForPending()
     XCTAssertEqual(previews, 0)
     XCTAssertEqual(dismissals, 1)
   }
+
 }
 
 @MainActor

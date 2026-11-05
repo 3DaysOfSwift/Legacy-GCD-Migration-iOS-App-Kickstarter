@@ -1,7 +1,6 @@
 import Foundation
 import KsApi
 import Prelude
-import ReactiveSwift
 
 @MainActor
 public protocol CreatorDraftsProvider {
@@ -65,11 +64,15 @@ public final class CreatorDraftsFeature {
   private var tails: [Key: Pending] = [:]
   private var writes: [UUID: Task<Outcome, Error>] = [:]
   private var reads: [UUID: Task<Void, Never>] = [:]
-  private var observations: [UUID: Task<Void, Never>] = [:]
-  private let loadPipe = Signal<(UUID, Result<UpdateDraft, ErrorEnvelope>), Never>.pipe()
-  private let attachmentsPipe = Signal<(UUID, [UpdateDraft.Attachment]), Never>.pipe()
-  public var loads: Signal<(UUID, Result<UpdateDraft, ErrorEnvelope>), Never> { self.loadPipe.output }
-  public var attachments: Signal<(UUID, [UpdateDraft.Attachment]), Never> { self.attachmentsPipe.output }
+  public enum Event {
+    case load(Result<UpdateDraft, ErrorEnvelope>)
+    case attachments([UpdateDraft.Attachment])
+  }
+  private var listeners: [UUID: @MainActor (Event) -> Void] = [:]
+
+  public func observe(route: UUID, onEvent: @escaping @MainActor (Event) -> Void) {
+    self.listeners[route] = onEvent
+  }
 
   public init(
     sessionFeature: SessionFeature, makeProvider: @escaping () -> any CreatorDraftsProvider,
@@ -88,12 +91,15 @@ public final class CreatorDraftsFeature {
     try Task.checkCancellation()
     guard self.isCurrent(key) else { throw CancellationError() }
   }
-  public func release(route: UUID) { self.routes.removeValue(forKey: route)?.read?.task.cancel() }
+  public func release(route: UUID) {
+    self.routes.removeValue(forKey: route)?.read?.task.cancel()
+    self.listeners[route] = nil
+  }
   public func reset() {
-    for route in Array(self.routes.keys) { self.release(route: route) }
+    for state in self.routes.values { state.read?.task.cancel() }
+    self.routes.removeAll()
     self.drafts.removeAll()
     self.revisions.removeAll()
-    for task in self.observations.values { task.cancel() }
   }
   public func load(project: Project, route: UUID) async { await self.requestLoad(project: project, route: route).value }
 
@@ -104,7 +110,7 @@ public final class CreatorDraftsFeature {
     if let state = self.routes[route], state.key == key, let read = state.read, read.revision == revision {
       return read.task
     }
-    self.release(route: route)
+    self.routes.removeValue(forKey: route)?.read?.task.cancel()
     let state = Route(key: key)
     self.routes[route] = state
     let id = UUID()
@@ -121,12 +127,12 @@ public final class CreatorDraftsFeature {
         try self.requireCurrent(key)
         guard self.routes[route] === state, self.revisions[key, default: 0] == revision else { return }
         self.drafts[key] = draft
-        self.loadPipe.input.send(value: (route, .success(draft)))
+        self.listeners[route]?(.load(.success(draft)))
         self.publishAttachments(key: key)
       } catch {
         guard !Task.isCancelled, !(error is CancellationError), self.isCurrent(key),
               self.routes[route] === state, self.revisions[key, default: 0] == revision else { return }
-        self.loadPipe.input.send(value: (route, .failure((error as? ErrorEnvelope) ?? .couldNotParseJSON)))
+        self.listeners[route]?(.load(.failure((error as? ErrorEnvelope) ?? .couldNotParseJSON)))
       }
     }
     state.read = (id, revision, task)
@@ -161,28 +167,6 @@ public final class CreatorDraftsFeature {
       try self.requireCurrent(state.key)
       guard self.routes[route] === state else { throw CancellationError() }
       throw error
-    }
-  }
-
-  public func saveResult(route: UUID, title: String, body: String, isPublic: Bool) -> SignalProducer<UpdateDraft, ErrorEnvelope> {
-    self.result(.save(title: title, body: body, isPublic: isPublic), route: route).attemptMap {
-      guard case .saved(let draft) = $0 else { return .failure(.couldNotParseJSON) }
-      return .success(draft)
-    }
-  }
-  public func addResult(file: URL, route: UUID) -> SignalProducer<UpdateDraft.Image, ErrorEnvelope> {
-    self.imageResult(.add(file), route: route)
-  }
-  public func removeResult(attachment: UpdateDraft.Attachment, route: UUID) -> SignalProducer<UpdateDraft.Image, ErrorEnvelope> {
-    guard case .image(let image) = attachment else {
-      return SignalProducer(error: .couldNotParseJSON)
-    }
-    return self.imageResult(.remove(image.id), route: route)
-  }
-  private func imageResult(_ command: Command, route: UUID) -> SignalProducer<UpdateDraft.Image, ErrorEnvelope> {
-    self.result(command, route: route).attemptMap {
-      guard case .image(let image) = $0 else { return .failure(.couldNotParseJSON) }
-      return .success(image)
     }
   }
 
@@ -239,47 +223,14 @@ public final class CreatorDraftsFeature {
     guard let draft = self.drafts[key], self.isCurrent(key) else { return }
     let attachments = draft.images.map(UpdateDraft.Attachment.image) + (draft.video.map { [.video($0)] } ?? [])
     for (route, state) in self.routes where state.key == key {
-      self.attachmentsPipe.input.send(value: (route, attachments))
-    }
-  }
-
-  // Values-only adapter for the existing screens; execution belongs to the task
-  // queue above. Disposing observation never cancels an admitted server write.
-  private func result(_ command: Command, route: UUID) -> SignalProducer<Outcome, ErrorEnvelope> {
-    let state = self.routes[route]
-    return SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        guard let state, self.routes[route] === state, self.isCurrent(state.key) else { observer.sendInterrupted(); return }
-        let work: Task<Outcome, Error>
-        do { work = try self.request(command, state: state) }
-        catch { observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON); return }
-        let id = UUID()
-        let task = Task { [self] in
-          defer { self.observations[id] = nil }
-          do {
-            let outcome = try await work.value
-            try self.requireCurrent(state.key)
-            guard self.routes[route] === state else { observer.sendInterrupted(); return }
-            observer.send(value: outcome)
-            observer.sendCompleted()
-          } catch {
-            guard !Task.isCancelled, !(error is CancellationError), self.isCurrent(state.key), self.routes[route] === state else {
-              observer.sendInterrupted(); return
-            }
-            observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
-          }
-        }
-        self.observations[id] = task
-        lifetime.observeEnded { task.cancel() }
-      }
+      self.listeners[route]?(.attachments(attachments))
     }
   }
 
   public func waitForOperations() async {
-    while !self.reads.isEmpty || !self.writes.isEmpty || !self.observations.isEmpty {
+    while !self.reads.isEmpty || !self.writes.isEmpty {
       for task in Array(self.reads.values) { await task.value }
       for task in Array(self.writes.values) { _ = await task.result }
-      for task in Array(self.observations.values) { await task.value }
     }
   }
 }
