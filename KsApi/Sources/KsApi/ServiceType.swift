@@ -342,14 +342,6 @@ public protocol ServiceType {
   /// Follow a user with their id.
   func followFriend(userId id: Int) -> SignalProducer<User, ErrorEnvelope>
 
-  /// Increment the video complete stat for a project.
-  func incrementVideoCompletion(for project: any HasProjectWebURL)
-    -> SignalProducer<VoidEnvelope, ErrorEnvelope>
-
-  /// Increment the video start stat for a project.
-  func incrementVideoStart(forProject project: any HasProjectWebURL)
-    -> SignalProducer<VoidEnvelope, ErrorEnvelope>
-
   /// Attempt a login with an email, password and optional code.
   func login(email: String, password: String, code: String?) ->
     SignalProducer<AccessTokenEnvelope, ErrorEnvelope>
@@ -360,10 +352,6 @@ public protocol ServiceType {
 
   /// Marks all the messages in a particular thread as read.
   func markAsRead(messageThread: MessageThread) -> SignalProducer<MessageThread, ErrorEnvelope>
-
-  /// Posts a comment to a project or replies in a thread
-  func postComment(input: PostCommentInput)
-    -> SignalProducer<Comment, ErrorEnvelope>
 
   /// Returns a project update preview URL.
   func previewUrl(forDraft draft: UpdateDraft) -> URL?
@@ -385,18 +373,6 @@ public protocol ServiceType {
   func sendMessage(body: String, toSubject subject: MessageSubject)
     -> SignalProducer<Message, ErrorEnvelope>
 
-  /// Sends a verification email (after updating the email from account settings).
-  func sendVerificationEmail(input: EmptyInput)
-    -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
-
-  /// Signin with Apple
-  func signInWithApple(input: SignInWithAppleInput)
-    -> SignalProducer<SignInWithAppleEnvelope, ErrorEnvelope>
-
-  /// Signup with Facebook access token and newsletter bool.
-  func signup(facebookAccessToken: String, sendNewsletters: Bool) ->
-    SignalProducer<AccessTokenEnvelope, ErrorEnvelope>
-
   /// Unfollow a user with their id.
   func unfollowFriend(userId id: Int) -> SignalProducer<VoidEnvelope, ErrorEnvelope>
 
@@ -404,24 +380,13 @@ public protocol ServiceType {
   func updateProjectNotification(_ notification: ProjectNotification)
     -> SignalProducer<ProjectNotification, ErrorEnvelope>
 
-  /// Update the current user with settings attributes.
-  func updateUserSelf(_ user: User) -> SignalProducer<User, ErrorEnvelope>
-
   /// Updates the draft of a project update.
   func update(draft: UpdateDraft, title: String, body: String, isPublic: Bool)
     -> SignalProducer<UpdateDraft, ErrorEnvelope>
 
-  /// Unwatches a project.
-  func unwatchProject(input: WatchProjectInput) ->
-    SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope>
-
   /// Verifies an email address with a given access token.
   func verifyEmail(withToken token: String)
     -> SignalProducer<EmailVerificationResponseEnvelope, ErrorEnvelope>
-
-  /// Watches (also known as favoriting) a project.
-  func watchProject(input: WatchProjectInput) ->
-    SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope>
 
   func fetchSavedProjects(cursor: String?, limit: Int?)
     -> SignalProducer<GraphAPI.FetchMySavedProjectsQuery.Data, ErrorEnvelope>

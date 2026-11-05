@@ -569,34 +569,6 @@ public struct Service: ServiceType {
     return request(.followFriend(userId: id))
   }
 
-  public func incrementVideoCompletion(for project: any HasProjectWebURL) ->
-    SignalProducer<VoidEnvelope, ErrorEnvelope> {
-    let producer = request(.incrementVideoCompletion(project: project))
-      as SignalProducer<VoidEnvelope, ErrorEnvelope>
-
-    return producer
-      .flatMapError { env -> SignalProducer<VoidEnvelope, ErrorEnvelope> in
-        if env.ksrCode == .ErrorEnvelopeJSONParsingFailed {
-          return .init(value: VoidEnvelope())
-        }
-        return .init(error: env)
-      }
-  }
-
-  public func incrementVideoStart(forProject project: any HasProjectWebURL) ->
-    SignalProducer<VoidEnvelope, ErrorEnvelope> {
-    let producer = request(.incrementVideoStart(project: project))
-      as SignalProducer<VoidEnvelope, ErrorEnvelope>
-
-    return producer
-      .flatMapError { env -> SignalProducer<VoidEnvelope, ErrorEnvelope> in
-        if env.ksrCode == .ErrorEnvelopeJSONParsingFailed {
-          return .init(value: VoidEnvelope())
-        }
-        return .init(error: env)
-      }
-  }
-
   public func login(email: String, password: String, code: String?) ->
     SignalProducer<AccessTokenEnvelope, ErrorEnvelope> {
     return request(.login(email: email, password: password, code: code))
@@ -609,16 +581,6 @@ public struct Service: ServiceType {
 
   public func markAsRead(messageThread: MessageThread) -> SignalProducer<MessageThread, ErrorEnvelope> {
     return request(.markAsRead(messageThread))
-  }
-
-  public func postComment(input: PostCommentInput)
-    -> SignalProducer<Comment, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(
-        mutation: GraphAPI
-          .PostCommentMutation(input: GraphAPI.PostCommentInput.from(input))
-      )
-      .flatMap(PostCommentEnvelope.producer(from:))
   }
 
   public func publish(draft: UpdateDraft) -> SignalProducer<Update, ErrorEnvelope> {
@@ -643,30 +605,6 @@ public struct Service: ServiceType {
     return request(.sendMessage(body: body, messageSubject: subject))
   }
 
-  public func sendVerificationEmail(input _: EmptyInput) ->
-    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(
-        mutation: GraphAPI
-          .UserSendEmailVerificationMutation(input: GraphAPI.UserSendEmailVerificationInput())
-      )
-      .flatMap { _ in
-        SignalProducer(value: EmptyResponseEnvelope())
-      }
-  }
-
-  public func signInWithApple(input: SignInWithAppleInput)
-    -> SignalProducer<SignInWithAppleEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(mutation: GraphAPI.SignInWithAppleMutation(input: GraphAPI.SignInWithAppleInput.from(input)))
-      .flatMap(SignInWithAppleEnvelope.producer(from:))
-  }
-
-  public func signup(facebookAccessToken token: String, sendNewsletters: Bool) ->
-    SignalProducer<AccessTokenEnvelope, ErrorEnvelope> {
-    return request(.facebookSignup(facebookAccessToken: token, sendNewsletters: sendNewsletters))
-  }
-
   public func unfollowFriend(userId id: Int) -> SignalProducer<VoidEnvelope, ErrorEnvelope> {
     return request(.unfollowFriend(userId: id))
   }
@@ -681,27 +619,9 @@ public struct Service: ServiceType {
     return request(.updateProjectNotification(notification: notification))
   }
 
-  public func updateUserSelf(_ user: User) -> SignalProducer<User, ErrorEnvelope> {
-    return request(.updateUserSelf(user))
-  }
-
-  public func unwatchProject(input: WatchProjectInput) ->
-    SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(mutation: GraphAPI.UnwatchProjectMutation(input: GraphAPI.UnwatchProjectInput.from(input)))
-      .flatMap(WatchProjectResponseEnvelope.producer(from:))
-  }
-
   public func verifyEmail(withToken token: String)
     -> SignalProducer<EmailVerificationResponseEnvelope, ErrorEnvelope> {
     request(.verifyEmail(accessToken: token))
-  }
-
-  public func watchProject(input: WatchProjectInput) ->
-    SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .perform(mutation: GraphAPI.WatchProjectMutation(input: GraphAPI.WatchProjectInput.from(input)))
-      .flatMap(WatchProjectResponseEnvelope.producer(from:))
   }
 
   public func blockUser(input: BlockUserInput)

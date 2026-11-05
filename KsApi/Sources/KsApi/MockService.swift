@@ -1798,24 +1798,6 @@
       return producer(for: self.fetchUserResult)
     }
 
-    internal func incrementVideoCompletion(for _: any HasProjectWebURL) ->
-      SignalProducer<VoidEnvelope, ErrorEnvelope> {
-      if let error = incrementVideoCompletionError {
-        return .init(error: error)
-      } else {
-        return .init(value: VoidEnvelope())
-      }
-    }
-
-    internal func incrementVideoStart(forProject _: any HasProjectWebURL) ->
-      SignalProducer<VoidEnvelope, ErrorEnvelope> {
-      if let error = incrementVideoStartError {
-        return .init(error: error)
-      } else {
-        return .init(value: VoidEnvelope())
-      }
-    }
-
     @MainActor public func authenticate(
       email _: String, password _: String, code _: String?
     ) async throws -> AccessTokenEnvelope {
@@ -1917,18 +1899,6 @@
       return SignalProducer(value: messageThread)
     }
 
-    func postComment(input: PostCommentInput)
-      -> SignalProducer<Comment, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutation = GraphAPI
-        .PostCommentMutation(input: GraphAPI.PostCommentInput.from(input))
-
-      return client.performWithResult(mutation: mutation, result: self.postCommentResult)
-    }
-
     func resetPassword(email _: String) -> SignalProducer<User, ErrorEnvelope> {
       if let response = resetPasswordResponse {
         return SignalProducer(value: response)
@@ -1966,61 +1936,12 @@
       )
     }
 
-    internal func sendVerificationEmail(input _: EmptyInput)
-      -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutationSendVerificationEmail = GraphAPI
-        .UserSendEmailVerificationMutation(input: GraphAPI.UserSendEmailVerificationInput())
-
-      return client
-        .performWithResult(mutation: mutationSendVerificationEmail, result: self.sendEmailVerificationResult)
-    }
-
-    internal func signInWithApple(input: SignInWithAppleInput)
-      -> SignalProducer<SignInWithAppleEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutationSignInWithApple = GraphAPI
-        .SignInWithAppleMutation(input: GraphAPI.SignInWithAppleInput.from(input))
-
-      return client
-        .performWithResult(mutation: mutationSignInWithApple, result: self.signInWithAppleResult)
-    }
-
-    internal func signup(facebookAccessToken _: String, sendNewsletters _: Bool) ->
-      SignalProducer<AccessTokenEnvelope, ErrorEnvelope> {
-      if let error = signupError {
-        return SignalProducer(error: error)
-      } else if let accessTokenEnvelope = signupResponse {
-        return SignalProducer(value: accessTokenEnvelope)
-      }
-      return SignalProducer(
-        value:
-        AccessTokenEnvelope(
-          accessToken: "deadbeef",
-          user: .template
-        )
-      )
-    }
-
     internal func updateProjectNotification(_ notification: ProjectNotification)
       -> SignalProducer<ProjectNotification, ErrorEnvelope> {
       if let error = updateProjectNotificationError {
         return SignalProducer(error: error)
       }
       return SignalProducer(value: notification)
-    }
-
-    internal func updateUserSelf(_ user: User) -> SignalProducer<User, ErrorEnvelope> {
-      if let error = updateUserSelfError {
-        return SignalProducer(error: error)
-      }
-      return SignalProducer(value: user)
     }
 
     internal func fetchUpdate(updateId: Int, projectParam _: Param)
@@ -2071,34 +1992,9 @@
       return SignalProducer(value: updatedDraft)
     }
 
-    internal func unwatchProject(input: WatchProjectInput)
-      -> SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutationUnwatchProject = GraphAPI
-        .UnwatchProjectMutation(input: GraphAPI.UnwatchProjectInput.from(input))
-
-      return client
-        .performWithResult(mutation: mutationUnwatchProject, result: self.unwatchProjectMutationResult)
-    }
-
     internal func verifyEmail(withToken _: String)
       -> SignalProducer<EmailVerificationResponseEnvelope, ErrorEnvelope> {
       return producer(for: self.verifyEmailResult)
-    }
-
-    internal func watchProject(input: WatchProjectInput)
-      -> SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let mutationWatchProject = GraphAPI.WatchProjectMutation(input: GraphAPI.WatchProjectInput.from(input))
-
-      return client
-        .performWithResult(mutation: mutationWatchProject, result: self.watchProjectMutationResult)
     }
 
     internal func addImage(file _: URL, toDraft _: UpdateDraft)
