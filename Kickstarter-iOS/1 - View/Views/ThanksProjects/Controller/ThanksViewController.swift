@@ -2,8 +2,6 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 import StoreKit
 import UIKit
 
@@ -16,13 +14,13 @@ internal final class ThanksViewController: UIViewController, UITableViewDelegate
   @IBOutlet fileprivate var thankYouLabel: UILabel!
   @IBOutlet fileprivate var headerView: UIView!
 
-  fileprivate let viewModel: ThanksViewModelType = ThanksViewModel()
+  fileprivate let viewModel = ThanksViewModel()
   fileprivate let shareViewModel = ShareViewModel()
   fileprivate let dataSource = ThanksProjectsDataSource()
 
   internal static func configured(with data: ThanksPageData) -> ThanksViewController {
     let vc = Storyboard.Thanks.instantiate(ThanksViewController.self)
-    vc.viewModel.inputs.configure(with: data)
+    vc.viewModel.configure(with: data)
     vc.shareViewModel.configureWith(shareContext: .thanks(data.project), shareContextView: nil)
     return vc
   }
@@ -41,7 +39,7 @@ internal final class ThanksViewController: UIViewController, UITableViewDelegate
 
     self.setupNavigationItem()
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   private func setupNavigationItem() {
@@ -123,75 +121,28 @@ internal final class ThanksViewController: UIViewController, UITableViewDelegate
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.backedLabel.rac.attributedText = self.viewModel.outputs.backedProjectText
-
-    self.viewModel.outputs.postProjectBackedNotification
-      .observeForControllerAction()
-      .observeValues {
-        NotificationCenter.default.post($0)
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .backedProjectText(text): self.backedLabel.attributedText = text
+      case let .postProjectBackedNotification(notification): NotificationCenter.default.post(notification)
+      case let .goToDiscovery(params): self.goToDiscovery(params: params)
+      case let .goToProject(project, projects, refTag): self.goToProject(project, projects: projects, refTag: refTag)
+      case .postContextualNotification:
+        NotificationCenter.default.post(Notification(name: .ksr_showNotificationsDialog, userInfo: [
+          UserInfoKeys.context: PushNotificationDialog.Context.pledge,
+          UserInfoKeys.viewController: self
+        ]))
+      case .showRatingAlert: self.showRatingAlert()
+      case .showGamesNewsletterAlert: self.showGamesNewsletterAlert()
+      case let .showGamesNewsletterOptInAlert(title): self.showGamesNewsletterOptInAlert(title: title)
+      case .updateUserInEnvironment: self.viewModel.userUpdated()
+      case let .postUserUpdatedNotification(notification): NotificationCenter.default.post(notification)
+      case let .showRecommendations(projects, category):
+        self.dataSource.loadData(projects: projects, category: category)
+        self.projectsTableView.reloadData()
       }
-
-    self.viewModel.outputs.goToDiscovery
-      .observeForControllerAction()
-      .observeValues { [weak self] params in
-        self?.goToDiscovery(params: params)
-      }
-
-    self.viewModel.outputs.goToProject
-      .observeForControllerAction()
-      .observeValues { [weak self] project, projects, refTag in
-        self?.goToProject(project, projects: projects, refTag: refTag)
-      }
-
-    self.viewModel.outputs.postContextualNotification
-      .observeForUI()
-      .observeValues {
-        NotificationCenter.default.post(
-          Notification(
-            name: .ksr_showNotificationsDialog,
-            userInfo: [
-              UserInfoKeys.context: PushNotificationDialog.Context.pledge,
-              UserInfoKeys.viewController: self
-            ]
-          )
-        )
-      }
-
-    self.viewModel.outputs.showRatingAlert
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.showRatingAlert()
-      }
-
-    self.viewModel.outputs.showGamesNewsletterAlert
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.showGamesNewsletterAlert()
-      }
-
-    self.viewModel.outputs.showGamesNewsletterOptInAlert
-      .observeForControllerAction()
-      .observeValues { [weak self] title in
-        self?.showGamesNewsletterOptInAlert(title: title)
-      }
-
-    self.viewModel.outputs.updateUserInEnvironment
-      .observeValues { [weak self] _ in
-        self?.viewModel.inputs.userUpdated()
-      }
-
-    self.viewModel.outputs.postUserUpdatedNotification
-      .observeValues(NotificationCenter.default.post)
-
-    self.viewModel.outputs.showRecommendations
-      .observeForUI()
-      .observeValues { [weak self] projects, category in
-        self?.dataSource.loadData(
-          projects: projects,
-          category: category
-        )
-        self?.projectsTableView.reloadData()
-      }
+    }
 
     self.shareViewModel.onShareSheet = { [weak self] controller, _ in self?.showShareSheet(controller) }
   }
@@ -239,7 +190,7 @@ internal final class ThanksViewController: UIViewController, UITableViewDelegate
     self.present(
       UIAlertController.games(
         subscribeHandler: { [weak self] _ in
-          self?.viewModel.inputs.gamesNewsletterSignupButtonTapped()
+          self?.viewModel.gamesNewsletterSignupButtonTapped()
         }
       ),
       animated: true,
@@ -279,7 +230,7 @@ internal final class ThanksViewController: UIViewController, UITableViewDelegate
     didSelectRowAt indexPath: IndexPath
   ) {
     if let project = self.dataSource.projectAtIndexPath(indexPath) {
-      self.viewModel.inputs.projectTapped(project)
+      self.viewModel.projectTapped(project)
     }
   }
 
@@ -288,12 +239,12 @@ internal final class ThanksViewController: UIViewController, UITableViewDelegate
   }
 
   @objc fileprivate func closeButtonTapped() {
-    self.viewModel.inputs.closeButtonTapped()
+    self.viewModel.closeButtonTapped()
   }
 }
 
 extension ThanksViewController: ThanksCategoryCellDelegate {
   func thanksCategoryCell(_: ThanksCategoryCell, didTapSeeAllProjectsWith category: KsApi.Category) {
-    self.viewModel.inputs.categoryCellTapped(category)
+    self.viewModel.categoryCellTapped(category)
   }
 }

@@ -5,9 +5,6 @@
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import UIKit
 import XCTest
 
@@ -23,24 +20,24 @@ final class ThanksViewModelTests: TestCase {
   )
   private lazy var feature = RecommendationsFeature(settingsFeature: self.settingsFeature,
     makeProvider: { AsyncRecommendationsProvider(service: AppEnvironment.current.apiService) })
-  private lazy var vm: ThanksViewModel = ThanksViewModel(recommendationsFeature: self.feature)
+  private lazy var vm: ThanksViewModel = ThanksViewModel(recommendationsFeature: self.feature, sleep: { _ in try Task.checkCancellation() })
   private let categoryEnvelope = CategoryEnvelope(node: .template)
 
-  private let backedProjectText = TestObserver<String, Never>()
-  private let postBackedNotification = TestObserver<Notification.Name, Never>()
-  private let goToDiscovery = TestObserver<KsApi.Category, Never>()
-  private let goToProject = TestObserver<Project, Never>()
-  private let goToProjects = TestObserver<[Project], Never>()
-  private let goToRefTag = TestObserver<RefTag, Never>()
-  private let showRatingAlert = TestObserver<(), Never>()
-  private let showGamesNewsletterAlert = TestObserver<(), Never>()
-  private let showGamesNewsletterOptInAlert = TestObserver<String, Never>()
-  private let showRecommendationsProjects = TestObserver<[Project], Never>()
-  private let postContextualNotification = TestObserver<(), Never>()
-  private let postUserUpdatedNotification = TestObserver<Notification.Name, Never>()
-  private let updateUserInEnvironment = TestObserver<User, Never>()
-  private let facebookButtonIsHidden = TestObserver<Bool, Never>()
-  private let twitterButtonIsHidden = TestObserver<Bool, Never>()
+  private let backedProjectText = ThanksRecorder<String>()
+  private let postBackedNotification = ThanksRecorder<Notification.Name>()
+  private let goToDiscovery = ThanksRecorder<KsApi.Category>()
+  private let goToProject = ThanksRecorder<Project>()
+  private let goToProjects = ThanksRecorder<[Project]>()
+  private let goToRefTag = ThanksRecorder<RefTag>()
+  private let showRatingAlert = ThanksRecorder<()>()
+  private let showGamesNewsletterAlert = ThanksRecorder<()>()
+  private let showGamesNewsletterOptInAlert = ThanksRecorder<String>()
+  private let showRecommendationsProjects = ThanksRecorder<[Project]>()
+  private let postContextualNotification = ThanksRecorder<()>()
+  private let postUserUpdatedNotification = ThanksRecorder<Notification.Name>()
+  private let updateUserInEnvironment = ThanksRecorder<User>()
+  private let facebookButtonIsHidden = ThanksRecorder<Bool>()
+  private let twitterButtonIsHidden = ThanksRecorder<Bool>()
 
   override func setUp() async throws {
     try await super.setUp()
@@ -56,23 +53,23 @@ final class ThanksViewModelTests: TestCase {
   }
 
   private func bindOutputs() {
-    self.vm.outputs.backedProjectText.map { $0.string }.observe(self.backedProjectText.observer)
-    self.vm.outputs.postProjectBackedNotification.map { $0.name }
-      .observe(self.postBackedNotification.observer)
-    self.vm.outputs.goToDiscovery.map { params in params.category ?? Category.filmAndVideo }
-      .observe(self.goToDiscovery.observer)
-    self.vm.outputs.goToProject.map { $0.0 }.observe(self.goToProject.observer)
-    self.vm.outputs.goToProject.map { $0.1 }.observe(self.goToProjects.observer)
-    self.vm.outputs.goToProject.map { $0.2 }.observe(self.goToRefTag.observer)
-    self.vm.outputs.postContextualNotification.observe(self.postContextualNotification.observer)
-    self.vm.outputs.postUserUpdatedNotification.map { $0.name }
-      .observe(self.postUserUpdatedNotification.observer)
-    self.vm.outputs.showGamesNewsletterAlert.observe(self.showGamesNewsletterAlert.observer)
-    self.vm.outputs.showGamesNewsletterOptInAlert.observe(self.showGamesNewsletterOptInAlert.observer)
-    self.vm.outputs.showRatingAlert.observe(self.showRatingAlert.observer)
-    self.vm.outputs.showRecommendations.map(first)
-      .observe(self.showRecommendationsProjects.observer)
-    self.vm.outputs.updateUserInEnvironment.observe(self.updateUserInEnvironment.observer)
+    self.vm.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .backedProjectText(text): self.backedProjectText.record(text.string)
+      case let .postProjectBackedNotification(notification): self.postBackedNotification.record(notification.name)
+      case let .goToDiscovery(params): self.goToDiscovery.record(params.category ?? .filmAndVideo)
+      case let .goToProject(project, projects, refTag):
+        self.goToProject.record(project); self.goToProjects.record(projects); self.goToRefTag.record(refTag)
+      case .postContextualNotification: self.postContextualNotification.record(())
+      case let .postUserUpdatedNotification(notification): self.postUserUpdatedNotification.record(notification.name)
+      case .showGamesNewsletterAlert: self.showGamesNewsletterAlert.record(())
+      case let .showGamesNewsletterOptInAlert(title): self.showGamesNewsletterOptInAlert.record(title)
+      case .showRatingAlert: self.showRatingAlert.record(())
+      case let .showRecommendations(projects, _): self.showRecommendationsProjects.record(projects)
+      case let .updateUserInEnvironment(user): self.updateUserInEnvironment.record(user)
+      }
+    }
   }
 
   private func thanksPageData(
@@ -89,9 +86,9 @@ final class ThanksViewModelTests: TestCase {
       apiService: MockService(updateUserSelfError: .couldNotParseJSON), currentUser: .template
     ) {
       let original = AppEnvironment.current.currentUser?.newsletters.games
-      self.vm.inputs.gamesNewsletterSignupButtonTapped()
+      self.vm.gamesNewsletterSignupButtonTapped()
+      await self.vm.waitForNewsletter()
       await self.settingsFeature.waitForOperations()
-      await self.scheduler.advance()
       self.updateUserInEnvironment.assertDidNotEmitValue()
       self.postUserUpdatedNotification.assertDidNotEmitValue()
       XCTAssertEqual(AppEnvironment.current.currentUser?.newsletters.games, original)
@@ -100,12 +97,12 @@ final class ThanksViewModelTests: TestCase {
   }
 
   func testPostBackedNotification() {
-    self.vm.inputs.configure(with: self.thanksPageData())
-    self.vm.inputs.viewDidLoad()
+    self.vm.configure(with: self.thanksPageData())
+    self.vm.viewDidLoad()
 
     self.postBackedNotification.assertDidNotEmitValue()
 
-    self.vm.inputs.closeButtonTapped()
+    self.vm.closeButtonTapped()
 
     self.postBackedNotification.assertValue(Notification.Name.ksr_projectBacked)
   }
@@ -125,16 +122,15 @@ final class ThanksViewModelTests: TestCase {
       fetchGraphCategoryResult: .success(self.categoryEnvelope),
       fetchDiscoveryResponse: response
     )) {
-      self.vm.inputs.configure(with: self.thanksPageData(project: project))
-      self.vm.inputs.viewDidLoad()
+      self.vm.configure(with: self.thanksPageData(project: project))
+      self.vm.viewDidLoad()
 
       await self.feature.waitForOperations()
       await self.vm.waitForRecommendations()
-      await scheduler.advance()
 
       self.showRecommendationsProjects.assertValueCount(1)
 
-      self.vm.inputs.categoryCellTapped(.illustration)
+      self.vm.categoryCellTapped(.illustration)
 
       self.goToDiscovery.assertValues([.illustration])
       XCTAssertEqual(
@@ -151,8 +147,8 @@ final class ThanksViewModelTests: TestCase {
   // FIXME: MBL-2857
   func testDisplayBackedProjectText() {
     let project = Project.template |> \.category .~ .games
-    self.vm.inputs.configure(with: self.thanksPageData(project: project))
-    self.vm.inputs.viewDidLoad()
+    self.vm.configure(with: self.thanksPageData(project: project))
+    self.vm.viewDidLoad()
 
     self.backedProjectText.assertValues(
       [
@@ -173,8 +169,8 @@ final class ThanksViewModelTests: TestCase {
     project.stats.projectCurrency = Project.Country.jp.currencyCode
 
     withEnvironment(Environment(currentUserEmail: "test@user.com")) {
-      self.vm.inputs.configure(with: self.thanksPageData(project: project, pledgeTotal: 127))
-      self.vm.inputs.viewDidLoad()
+      self.vm.configure(with: self.thanksPageData(project: project, pledgeTotal: 127))
+      self.vm.viewDidLoad()
 
       self.backedProjectText
         .assertValues(
@@ -188,8 +184,8 @@ final class ThanksViewModelTests: TestCase {
     withEnvironment(currentUser: .template) {
       self.showRatingAlert.assertValueCount(0, "Rating Alert does not emit")
 
-      self.vm.inputs.configure(with: self.thanksPageData())
-      self.vm.inputs.viewDidLoad()
+      self.vm.configure(with: self.thanksPageData())
+      self.vm.viewDidLoad()
 
       self.showRatingAlert.assertValueCount(1, "Rating Alert emits when view did load")
       self.showGamesNewsletterAlert.assertValueCount(0, "Games alert does not emit")
@@ -210,8 +206,8 @@ final class ThanksViewModelTests: TestCase {
       )
 
       let project = Project.template |> Project.lens.category .~ .games
-      self.vm.inputs.configure(with: self.thanksPageData(project: project))
-      self.vm.inputs.viewDidLoad()
+      self.vm.configure(with: self.thanksPageData(project: project))
+      self.vm.viewDidLoad()
 
       self.showRatingAlert.assertValueCount(0, "Rating alert does not show on games project")
       self.showGamesNewsletterAlert.assertValueCount(1, "Games alert shows on games project")
@@ -220,14 +216,19 @@ final class ThanksViewModelTests: TestCase {
         "Newsletter pref saved"
       )
 
-      let secondVM: ThanksViewModelType = ThanksViewModel(recommendationsFeature: self.feature)
-      let secondShowRatingAlert = TestObserver<(), Never>()
-      secondVM.outputs.showRatingAlert.observe(secondShowRatingAlert.observer)
-      let secondShowGamesNewsletterAlert = TestObserver<(), Never>()
-      secondVM.outputs.showGamesNewsletterAlert.observe(secondShowGamesNewsletterAlert.observer)
+      let secondVM = ThanksViewModel(recommendationsFeature: self.feature, sleep: { _ in try Task.checkCancellation() })
+      let secondShowRatingAlert = ThanksRecorder<()>()
+      let secondShowGamesNewsletterAlert = ThanksRecorder<()>()
+      secondVM.onEvent = { event in
+        switch event {
+        case .showRatingAlert: secondShowRatingAlert.record(())
+        case .showGamesNewsletterAlert: secondShowGamesNewsletterAlert.record(())
+        default: break
+        }
+      }
 
-      secondVM.inputs.configure(with: self.thanksPageData(project: project))
-      secondVM.inputs.viewDidLoad()
+      secondVM.configure(with: self.thanksPageData(project: project))
+      secondVM.viewDidLoad()
 
       secondShowRatingAlert.assertValueCount(1, "Rating alert shows on games project")
       secondShowGamesNewsletterAlert.assertValueCount(0, "Games alert does not show again on games project")
@@ -241,8 +242,8 @@ final class ThanksViewModelTests: TestCase {
     let project = Project.template |> Project.lens.category .~ .games
 
     withEnvironment(currentUser: user) {
-      self.vm.inputs.configure(with: self.thanksPageData(project: project))
-      self.vm.inputs.viewDidLoad()
+      self.vm.configure(with: self.thanksPageData(project: project))
+      self.vm.viewDidLoad()
 
       self.showGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on games project")
     }
@@ -253,15 +254,15 @@ final class ThanksViewModelTests: TestCase {
     let project = Project.template |> Project.lens.category .~ .games
 
     await withEnvironment(currentUser: .template) {
-      self.vm.inputs.configure(with: self.thanksPageData(project: project))
-      self.vm.inputs.viewDidLoad()
+      self.vm.configure(with: self.thanksPageData(project: project))
+      self.vm.viewDidLoad()
 
       self.showGamesNewsletterAlert.assertValueCount(1)
 
-      self.vm.inputs.gamesNewsletterSignupButtonTapped()
+      self.vm.gamesNewsletterSignupButtonTapped()
 
+      await self.vm.waitForNewsletter()
       await self.settingsFeature.waitForOperations()
-      await scheduler.advance()
 
       self.updateUserInEnvironment.assertValueCount(1)
       self.showGamesNewsletterOptInAlert.assertValueCount(0, "Opt-in alert does not emit")
@@ -271,7 +272,7 @@ final class ThanksViewModelTests: TestCase {
         self.segmentTrackingClient.events
       )
 
-      self.vm.inputs.userUpdated()
+      self.vm.userUpdated()
 
       self.postUserUpdatedNotification.assertValues(
         [Notification.Name.ksr_userUpdated],
@@ -285,7 +286,7 @@ final class ThanksViewModelTests: TestCase {
     let user = User.template |> \.stats.backedProjectsCount .~ 0
 
     withEnvironment(currentUser: user) {
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
       self.postContextualNotification.assertDidEmitValue()
     }
   }
@@ -295,7 +296,7 @@ final class ThanksViewModelTests: TestCase {
     let user = User.template |> \.stats.backedProjectsCount .~ 2
 
     withEnvironment(currentUser: user) {
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
       self.postContextualNotification.assertDidNotEmitValue()
     }
   }
@@ -305,18 +306,19 @@ final class ThanksViewModelTests: TestCase {
     let project = Project.template |> Project.lens.category .~ .games
 
     await withEnvironment(countryCode: "DE", currentUser: User.template) {
-      self.vm.inputs.configure(with: self.thanksPageData(project: project))
-      self.vm.inputs.viewDidLoad()
+      self.vm.configure(with: self.thanksPageData(project: project))
+      self.vm.viewDidLoad()
 
       self.showGamesNewsletterAlert.assertValueCount(1)
 
-      self.vm.inputs.gamesNewsletterSignupButtonTapped()
+      self.vm.gamesNewsletterSignupButtonTapped()
 
       self.showGamesNewsletterOptInAlert.assertValues(
         ["Kickstarter Loves Games"],
         "Opt-in alert emits with title"
       )
 
+      await self.vm.waitForNewsletter()
       await self.settingsFeature.waitForOperations()
 
       XCTAssertEqual(
@@ -343,16 +345,15 @@ final class ThanksViewModelTests: TestCase {
         fetchDiscoveryResponse: response
       )
     ) {
-      self.vm.inputs.configure(with: self.thanksPageData(project: project))
-      self.vm.inputs.viewDidLoad()
+      self.vm.configure(with: self.thanksPageData(project: project))
+      self.vm.viewDidLoad()
 
       await self.feature.waitForOperations()
       await self.vm.waitForRecommendations()
-      await scheduler.advance()
 
       self.showRecommendationsProjects.assertValueCount(1)
 
-      self.vm.inputs.projectTapped(project)
+      self.vm.projectTapped(project)
 
       self.goToProject.assertValues([project])
       self.goToProjects.assertValueCount(1)
@@ -386,12 +387,11 @@ final class ThanksViewModelTests: TestCase {
       fetchGraphCategoryResult: .success(self.categoryEnvelope),
       fetchDiscoveryResponse: response
     )) {
-      self.vm.inputs.configure(with: self.thanksPageData(project: project))
-      self.vm.inputs.viewDidLoad()
+      self.vm.configure(with: self.thanksPageData(project: project))
+      self.vm.viewDidLoad()
 
       await self.feature.waitForOperations()
       await self.vm.waitForRecommendations()
-      await scheduler.advance()
 
       self.showRecommendationsProjects.assertValueCount(1, "Recommended projects emit, shuffled.")
     }
@@ -403,12 +403,11 @@ final class ThanksViewModelTests: TestCase {
     let project = Project.template |> Project.lens.category .~ .games
 
     await withEnvironment(apiService: MockService(fetchDiscoveryResponse: response)) {
-      self.vm.inputs.configure(with: self.thanksPageData(project: project))
-      self.vm.inputs.viewDidLoad()
+      self.vm.configure(with: self.thanksPageData(project: project))
+      self.vm.viewDidLoad()
 
       await self.feature.waitForOperations()
       await self.vm.waitForRecommendations()
-      await scheduler.advance()
 
       self.showRecommendationsProjects.assertValueCount(0, "Recommended projects did not emit")
     }
@@ -434,8 +433,8 @@ final class ThanksViewModelTests: TestCase {
     )
 
     (self.appTrackingTransparency as? MockAppTrackingTransparency)?.shouldRequestAuthStatus = false
-    self.vm.inputs.configure(with: self.thanksPageData(checkoutData: checkoutData))
-    self.vm.inputs.viewDidLoad()
+    self.vm.configure(with: self.thanksPageData(checkoutData: checkoutData))
+    self.vm.viewDidLoad()
 
     XCTAssertNil(self.segmentTrackingClient.properties.last)
   }
@@ -459,8 +458,8 @@ final class ThanksViewModelTests: TestCase {
       userHasStoredApplePayCard: true
     )
 
-    self.vm.inputs.configure(with: self.thanksPageData(checkoutData: checkoutData))
-    self.vm.inputs.viewDidLoad()
+    self.vm.configure(with: self.thanksPageData(checkoutData: checkoutData))
+    self.vm.viewDidLoad()
 
     let segmentClientProps = self.segmentTrackingClient.properties.last
 
@@ -498,5 +497,27 @@ final class ThanksViewModelTests: TestCase {
     // Project properties
 
     XCTAssertEqual("1", segmentClientProps?["project_pid"] as? String)
+  }
+}
+
+private final class ThanksRecorder<Value> {
+  private var values: [Value] = []
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    self.assertValueCount(0, message, file: file, line: line)
+  }
+  func assertDidEmitValue(file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertFalse(self.values.isEmpty, file: file, line: line)
+  }
+}
+private extension ThanksRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
+  }
+  func assertValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    self.assertValues([expected], message, file: file, line: line)
   }
 }
