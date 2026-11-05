@@ -13,10 +13,6 @@ public protocol StripeIntentServiceType {
     pledgeTotal: Double
   ) -> SignalProducer<PaymentIntentEnvelope, ErrorEnvelope>
   func setupIntent(for projectId: String?, context: GraphAPI.StripeIntentContextTypes) async throws -> ClientSecretEnvelope
-  func createSetupIntent(
-    for projectId: String?,
-    context: GraphAPI.StripeIntentContextTypes
-  ) -> SignalProducer<ClientSecretEnvelope, ErrorEnvelope>
 }
 
 /// This is the module that creates either a Stripe payment intent or a setup intent.
@@ -49,8 +45,7 @@ public class StripeIntentService: StripeIntentServiceType {
   }
 
   /**
-   Returns a signal producer that contains a `ClientSecretEnvelope` or `ErrorEnvelope`  representing whether or not a setup intent was created and returned successfully.
-   The returned producer emits once and completes.
+   Creates a setup intent and returns its client secret.
 
    - parameter for: The types to register that we will request permissions for.
    - parameters:
@@ -62,10 +57,4 @@ public class StripeIntentService: StripeIntentServiceType {
     try await self.paymentsFeature.setup(projectID: projectId, context: context)
   }
 
-  public func createSetupIntent(
-    for projectId: String?,
-    context: GraphAPI.StripeIntentContextTypes
-  ) -> SignalProducer<ClientSecretEnvelope, ErrorEnvelope> {
-    self.paymentsFeature.setupResult(projectID: projectId, context: context)
-  }
 }

@@ -39,17 +39,4 @@ public class MockStripeIntentService: StripeIntentServiceType {
     return try await self.paymentsFeature.setup(projectID: projectId, context: context)
   }
 
-  public func createSetupIntent(
-    for projectId: String?,
-    context: GraphAPI.StripeIntentContextTypes
-  ) -> SignalProducer<ClientSecretEnvelope, ErrorEnvelope> {
-    assert(
-      AppEnvironment.current.apiService is MockService,
-      "AppEnvironment.current.apiService should be a MockService when used in test."
-    )
-
-    self.setupIntentRequests += 1
-
-    return self.paymentsFeature.setupResult(projectID: projectId, context: context)
-  }
 }
