@@ -114,10 +114,18 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       initialData: initialData.ignoreValues()
     )
 
-    self.paymentMethodsUseCase = PaymentMethodsUseCase(
-      initialData: initialData,
-      isLoggedIn: self.loginSignupUseCase.dataOutputs.isLoggedIn
-    )
+    self.paymentMethodsUseCase = PaymentMethodsUseCase()
+    let paymentMethods = self.paymentMethodsUseCase
+    let paymentHidden = self.paymentHiddenPipe
+    let paymentConfig = self.paymentConfigPipe
+    let paymentSelected = self.paymentSelectedPipe
+    let paymentValid = self.paymentValidPipe
+    paymentMethods.onHidden = { paymentHidden.input.send(value: $0) }
+    paymentMethods.onConfiguration = { paymentConfig.input.send(value: $0) }
+    paymentMethods.onSelected = { paymentSelected.input.send(value: $0) }
+    paymentMethods.onValidity = { paymentValid.input.send(value: $0) }
+    initialData.observeValues { paymentMethods.configure($0) }
+    self.loginSignupUseCase.dataOutputs.isLoggedIn.observeValues { paymentMethods.loginChanged($0) }
 
     // MARK: Calculate totals
 
@@ -341,7 +349,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
     // MARK: Validate Existing Cards
 
-    let selectedCard = self.paymentMethodsUseCase.dataOutputs.selectedPaymentSource.skipNil()
+    let selectedCard = self.paymentSelectedPipe.output.skipNil()
 
     let paymentIntentClientSecretForExistingCards = paymentIntentClientSecret
       .takeWhen(selectedCard)
@@ -742,7 +750,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
   public let configureEstimatedShippingView: Signal<(String?, String?), Never>
   public var configurePaymentMethodsViewControllerWithValue: Signal<PledgePaymentMethodsValue, Never> {
-    return self.paymentMethodsUseCase.configurePaymentMethodsViewControllerWithValue
+    return self.paymentConfigPipe.output
   }
 
   public let configurePledgeRewardsSummaryViewWithData: Signal<(
@@ -761,7 +769,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   public let showErrorBannerWithMessage: Signal<String, Never>
   public let showWebHelp: Signal<HelpType, Never>
   public var paymentMethodsViewHidden: Signal<Bool, Never> {
-    return self.paymentMethodsUseCase.paymentMethodsViewHidden
+    return self.paymentHiddenPipe.output
   }
 
   public let validateCheckoutSuccess: Signal<PaymentSourceValidation, Never>
@@ -776,4 +784,8 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
   private let loginSignupUseCase: LoginSignupUseCase
   private let paymentMethodsUseCase: PaymentMethodsUseCase
+  private let paymentHiddenPipe = Signal<Bool, Never>.pipe()
+  private let paymentConfigPipe = Signal<PledgePaymentMethodsValue, Never>.pipe()
+  private let paymentSelectedPipe = Signal<PaymentSourceSelected?, Never>.pipe()
+  private let paymentValidPipe = Signal<Bool, Never>.pipe()
 }

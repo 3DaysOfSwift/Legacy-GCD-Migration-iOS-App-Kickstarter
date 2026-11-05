@@ -4,9 +4,6 @@ import Foundation
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -15,29 +12,18 @@ final class PaymentMethodsUseCaseTests: TestCase {
 
   private var useCase: PaymentMethodsUseCase!
 
-  private var paymentMethodsViewHidden = TestObserver<Bool, Never>()
-  private var configureWithValue = TestObserver<PledgePaymentMethodsValue, Never>()
-  private var selectedPaymentSource = TestObserver<PaymentSourceSelected?, Never>()
-  private var paymentMethodChangedAndValid = TestObserver<Bool, Never>()
-
-  private let (initialDataSignal, initialDataObserver) = Signal<PledgeViewData, Never>
-    .pipe()
-  private let (isLoggedInSignal, isLoggedInObserver) = Signal<Bool, Never>
-    .pipe()
+  private var paymentMethodsViewHidden = MethodRecorder<Bool>()
+  private var configureWithValue = MethodRecorder<PledgePaymentMethodsValue>()
+  private var selectedPaymentSource = MethodRecorder<PaymentSourceSelected?>()
+  private var paymentMethodChangedAndValid = MethodRecorder<Bool>()
 
   override func setUp() async throws {
     try await super.setUp()
-
-    self.useCase = PaymentMethodsUseCase(
-      initialData: self.initialDataSignal,
-      isLoggedIn: self.isLoggedInSignal
-    )
-
-    self.useCase.uiOutputs.paymentMethodsViewHidden.observe(self.paymentMethodsViewHidden.observer)
-    self.useCase.uiOutputs.configurePaymentMethodsViewControllerWithValue
-      .observe(self.configureWithValue.observer)
-    self.useCase.dataOutputs.selectedPaymentSource.observe(self.selectedPaymentSource.observer)
-    self.useCase.dataOutputs.paymentMethodChangedAndValid.observe(self.paymentMethodChangedAndValid.observer)
+    self.useCase = PaymentMethodsUseCase()
+    self.useCase.onHidden = { [weak self] in self?.paymentMethodsViewHidden.record($0) }
+    self.useCase.onConfiguration = { [weak self] in self?.configureWithValue.record($0) }
+    self.useCase.onSelected = { [weak self] in self?.selectedPaymentSource.record($0) }
+    self.useCase.onValidity = { [weak self] in self?.paymentMethodChangedAndValid.record($0) }
   }
 
   func test_LoggedInUser_SendsConfigValue_AndShowsPaymentMethods() {
@@ -58,7 +44,7 @@ final class PaymentMethodsUseCaseTests: TestCase {
     self.configureWithValue.assertDidNotEmitValue()
     self.paymentMethodsViewHidden.assertDidNotEmitValue()
 
-    self.initialDataObserver.send(value: data)
+    self.useCase.configure(data)
 
     self.configureWithValue.assertDidNotEmitValue("Nobody is logged in, so no event should have been sent.")
     self.paymentMethodsViewHidden.assertLastValue(
@@ -67,7 +53,7 @@ final class PaymentMethodsUseCaseTests: TestCase {
     )
 
     withEnvironment(currentUser: User.template) {
-      self.isLoggedInObserver.send(value: true)
+      self.useCase.loginChanged(true)
 
       self.configureWithValue
         .assertDidEmitValue("A user is logged in, so a configuration event should be sent.")
@@ -94,7 +80,7 @@ final class PaymentMethodsUseCaseTests: TestCase {
     )
 
     withEnvironment(currentUser: User.template) {
-      self.initialDataObserver.send(value: updateData)
+      self.useCase.configure(updateData)
 
       self.configureWithValue
         .assertDidNotEmitValue(
@@ -125,12 +111,12 @@ final class PaymentMethodsUseCaseTests: TestCase {
     withEnvironment(currentUser: User.template) {
       self.selectedPaymentSource.assertDidNotEmitValue()
 
-      self.initialDataObserver.send(value: updateData)
+      self.useCase.configure(updateData)
       self.selectedPaymentSource.assertLastValue(nil, "Default selected payment source should be nil.")
 
       let card = PaymentSourceSelected.savedCreditCard("123", "pm_fake")
 
-      self.useCase.uiInputs.creditCardSelected(with: card)
+      self.useCase.creditCardSelected(with: card)
       self.selectedPaymentSource.assertDidEmitValue()
       XCTAssertEqual(self.selectedPaymentSource.lastValue!, card)
     }
@@ -154,7 +140,7 @@ final class PaymentMethodsUseCaseTests: TestCase {
     withEnvironment(currentUser: User.template) {
       self.paymentMethodChangedAndValid.assertDidNotEmitValue()
 
-      self.initialDataObserver.send(value: updateData)
+      self.useCase.configure(updateData)
 
       self.paymentMethodChangedAndValid.assertLastValue(false)
 
@@ -182,7 +168,7 @@ final class PaymentMethodsUseCaseTests: TestCase {
     withEnvironment(currentUser: User.template) {
       self.paymentMethodChangedAndValid.assertDidNotEmitValue()
 
-      self.initialDataObserver.send(value: updateData)
+      self.useCase.configure(updateData)
 
       self.paymentMethodsViewHidden.assertLastValue(true)
       self.paymentMethodChangedAndValid.assertLastValue(
@@ -213,7 +199,7 @@ final class PaymentMethodsUseCaseTests: TestCase {
     withEnvironment(currentUser: User.template) {
       self.paymentMethodChangedAndValid.assertDidNotEmitValue()
 
-      self.initialDataObserver.send(value: updateData)
+      self.useCase.configure(updateData)
 
       self.paymentMethodsViewHidden.assertLastValue(false)
       self.paymentMethodChangedAndValid.assertLastValue(false)
@@ -237,4 +223,14 @@ final class PaymentMethodsUseCaseTests: TestCase {
       )
     }
   }
+}
+
+private final class MethodRecorder<Value> {
+  private var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func record(_ value: Value) { self.values.append(value) }
+  func assertDidEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) { XCTAssertFalse(self.values.isEmpty, message, file: file, line: line) }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) { XCTAssertTrue(self.values.isEmpty, message, file: file, line: line) }
+  func assertLastValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) where Value: Equatable { XCTAssertEqual(self.values.last, expected, message, file: file, line: line) }
+  func assertValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) where Value: Equatable { XCTAssertEqual(self.values, [expected], message, file: file, line: line) }
 }
