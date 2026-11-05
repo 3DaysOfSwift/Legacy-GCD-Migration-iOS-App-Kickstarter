@@ -1,6 +1,5 @@
 import KsApi
 import Prelude
-import ReactiveSwift
 import UIKit
 
 public struct CancelPledgeViewData {
@@ -12,154 +11,80 @@ public struct CancelPledgeViewData {
 }
 
 @MainActor
-public protocol CancelPledgeViewModelInputs {
-  func cancelPledgeButtonTapped()
-  func configure(with data: CancelPledgeViewData)
-  func goBackButtonTapped()
-  func textFieldDidEndEditing(with text: String?)
-  func textFieldShouldReturn()
-  func traitCollectionDidChange()
-  func viewDidLoad()
-  func viewTapped()
-}
+final class CancelPledgeViewModel {
+  enum Event {
+    case details(NSAttributedString)
+    case buttonEnabled(Bool)
+    case error(String)
+    case loading(Bool)
+    case success(String)
+  }
 
-@MainActor
-public protocol CancelPledgeViewModelOutputs {
-  var cancellationDetailsAttributedText: Signal<NSAttributedString, Never> { get }
-  var cancelPledgeButtonEnabled: Signal<Bool, Never> { get }
-  var cancelPledgeError: Signal<String, Never> { get }
-  var dismissKeyboard: Signal<Void, Never> { get }
-  var isLoading: Signal<Bool, Never> { get }
-  var notifyDelegateCancelPledgeSuccess: Signal<String, Never> { get }
-  var popCancelPledgeViewController: Signal<Void, Never> { get }
-}
+  var onEvent: ((Event) -> Void)?
+  private let feature: PledgeFeature
+  private var data: CancelPledgeViewData?
+  private var hasLoaded = false
+  private var reason: String?
+  private var task: Task<Void, Never>?
 
-@MainActor
-public protocol CancelPledgeViewModelType {
-  var inputs: CancelPledgeViewModelInputs { get }
-  var outputs: CancelPledgeViewModelOutputs { get }
-}
+  init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
+    self.feature = feature
+  }
 
-@MainActor
-public final class CancelPledgeViewModel: CancelPledgeViewModelType, CancelPledgeViewModelInputs,
-  CancelPledgeViewModelOutputs {
-  public init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
-    let data = Signal.combineLatest(
-      self.configureWithDataProperty.signal.skipNil(),
-      self.viewDidLoadProperty.signal
-    )
-    .map(first)
+  func configure(with data: CancelPledgeViewData) {
+    self.data = data
+    self.publishDetailsIfReady()
+  }
 
-    self.cancellationDetailsAttributedText = Signal.merge(
-      data,
-      data.takeWhen(self.traitCollectionDidChangeProperty.signal)
-    )
-    .map { data in
+  func viewDidLoad() {
+    self.hasLoaded = true
+    self.reason = nil
+    self.publishDetailsIfReady()
+  }
 
-      let formattedAmount = Format.currency(
-        data.pledgeAmount,
-        currencyCode: data.project.statsCurrency,
-        omitCurrencyCode: data.omitUSCurrencyCode
-      )
-      return (formattedAmount, data.projectName)
-    }
-    .map(createCancellationDetailsAttributedText(with:projectName:))
+  func traitCollectionDidChange() {
+    self.publishDetailsIfReady(enableButton: false)
+  }
 
-    self.popCancelPledgeViewController = self.goBackButtonTappedProperty.signal
+  func textFieldDidEndEditing(with text: String?) { self.reason = text }
 
-    self.dismissKeyboard = Signal.merge(
-      self.textFieldShouldReturnProperty.signal,
-      self.viewTappedProperty.signal
-    )
-
-    let cancellationNote = Signal.merge(
-      self.viewDidLoadProperty.signal.mapConst(nil),
-      self.textFieldDidEndEditingTextProperty.signal
-    )
-
-    let cancelPledgeSubmit = Signal.combineLatest(
-      data.map { $0.backingId },
-      cancellationNote
-    )
-    .takeWhen(self.cancelPledgeButtonTappedProperty.signal)
-
-    let cancelPledgeEvent = cancelPledgeSubmit
-      .map(CancelBackingInput.init(backingId:cancellationReason:))
-      .switchMap { input in
-        feature.delayedResult(feature.cancelResult(input))
-          .materialize()
+  func cancelPledgeButtonTapped() {
+    guard self.hasLoaded, let data = self.data else { return }
+    self.task?.cancel()
+    self.onEvent?(.loading(true))
+    self.onEvent?(.buttonEnabled(false))
+    let input = CancelBackingInput(backingId: data.backingId, cancellationReason: self.reason)
+    let feature = self.feature
+    self.task = Task { [weak self] in
+      do {
+        try await feature.cancelWithPresentationDelay(input)
+        guard !Task.isCancelled, let self else { return }
+        self.onEvent?(.success(Strings.Youve_canceled_your_pledge()))
+        self.onEvent?(.loading(false))
+        self.onEvent?(.buttonEnabled(true))
+      } catch {
+        guard !Task.isCancelled, !(error is CancellationError), let self else { return }
+        self.onEvent?(.error((error as? ErrorEnvelope)?.localizedDescription ?? error.localizedDescription))
+        self.onEvent?(.loading(false))
+        self.onEvent?(.buttonEnabled(true))
       }
+    }
+  }
 
-    self.isLoading = Signal.merge(
-      self.cancelPledgeButtonTappedProperty.signal.mapConst(true),
-      cancelPledgeEvent.filter { $0.isTerminating }.mapConst(false)
+  func waitForOperation() async { await self.task?.value }
+
+  deinit { self.task?.cancel() }
+
+  private func publishDetailsIfReady(enableButton: Bool = true) {
+    guard self.hasLoaded, let data = self.data else { return }
+    let amount = Format.currency(
+      data.pledgeAmount,
+      currencyCode: data.project.statsCurrency,
+      omitCurrencyCode: data.omitUSCurrencyCode
     )
-
-    self.notifyDelegateCancelPledgeSuccess = cancelPledgeEvent.values()
-      .map { _ in Strings.Youve_canceled_your_pledge() }
-
-    self.cancelPledgeError = cancelPledgeEvent
-      .errors()
-      .map { $0.localizedDescription }
-
-    self.cancelPledgeButtonEnabled = Signal.merge(
-      data.mapConst(true),
-      cancelPledgeSubmit.mapConst(false),
-      cancelPledgeEvent.map { $0.isTerminating }.mapConst(true)
-    )
-    .skipRepeats()
+    self.onEvent?(.details(createCancellationDetailsAttributedText(with: amount, projectName: data.projectName)))
+    if enableButton { self.onEvent?(.buttonEnabled(true)) }
   }
-
-  private let cancelPledgeButtonTappedProperty = MutableProperty(())
-  public func cancelPledgeButtonTapped() {
-    self.cancelPledgeButtonTappedProperty.value = ()
-  }
-
-  private let configureWithDataProperty = MutableProperty<CancelPledgeViewData?>(nil)
-  public func configure(with data: CancelPledgeViewData) {
-    self.configureWithDataProperty.value = data
-  }
-
-  private let goBackButtonTappedProperty = MutableProperty(())
-  public func goBackButtonTapped() {
-    self.goBackButtonTappedProperty.value = ()
-  }
-
-  private let textFieldDidEndEditingTextProperty = MutableProperty<String?>(nil)
-  public func textFieldDidEndEditing(with text: String?) {
-    self.textFieldDidEndEditingTextProperty.value = text
-  }
-
-  private let textFieldShouldReturnProperty = MutableProperty(())
-  public func textFieldShouldReturn() {
-    self.textFieldShouldReturnProperty.value = ()
-  }
-
-  private let traitCollectionDidChangeProperty = MutableProperty(())
-  public func traitCollectionDidChange() {
-    self.traitCollectionDidChangeProperty.value = ()
-  }
-
-  private let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
-  }
-
-  private let viewTappedProperty = MutableProperty(())
-  public func viewTapped() {
-    self.viewTappedProperty.value = ()
-  }
-
-  public let cancellationDetailsAttributedText: Signal<NSAttributedString, Never>
-  public let cancelPledgeButtonEnabled: Signal<Bool, Never>
-  public let cancelPledgeError: Signal<String, Never>
-  public let dismissKeyboard: Signal<Void, Never>
-  public let isLoading: Signal<Bool, Never>
-  public let notifyDelegateCancelPledgeSuccess: Signal<String, Never>
-  public let popCancelPledgeViewController: Signal<Void, Never>
-
-  public var inputs: CancelPledgeViewModelInputs { return self }
-  public var outputs: CancelPledgeViewModelOutputs { return self }
 }
 
 private func createCancellationDetailsAttributedText(with amount: String, projectName: String)

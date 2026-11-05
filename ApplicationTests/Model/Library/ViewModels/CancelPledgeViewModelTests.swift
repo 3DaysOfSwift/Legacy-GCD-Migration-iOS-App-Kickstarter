@@ -5,25 +5,13 @@ import KDS
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 final class CancelPledgeViewModelTests: TestCase {
 
-  private func advancePledges(by interval: DispatchTimeInterval = .seconds(0)) async {
-    await self.feature.waitForOperations()
-    await self.scheduler.advance(by: interval)
-    await self.feature.waitForOperations()
-    await self.scheduler.advance()
-  }
-  private func runPledges() async {
-    await self.feature.waitForOperations()
-    await self.scheduler.run()
-    await self.feature.waitForOperations()
-    await self.scheduler.run()
-  }
+  private func advancePledges() async { await self.vm.waitForOperation() }
+  private func runPledges() async { await self.vm.waitForOperation() }
 
   override var requiresSnapshotReferenceSimulator: Bool { false }
   private let feature = PledgeFeature(
@@ -33,31 +21,28 @@ final class CancelPledgeViewModelTests: TestCase {
       return AsyncPledgeProvider(service: AppEnvironment.current.apiService)
     }
   )
-  private lazy var vm: CancelPledgeViewModelType = CancelPledgeViewModel(feature: self.feature)
+  private lazy var vm: CancelPledgeViewModel = CancelPledgeViewModel(feature: self.feature)
 
-  private let cancellationDetailsAttributedTextString = TestObserver<String, Never>()
-  private let cancellationDetailsAttributedTextAttributedString = TestObserver<NSAttributedString, Never>()
-  private let cancelPledgeButtonEnabled = TestObserver<Bool, Never>()
-  private let cancelPledgeError = TestObserver<String, Never>()
-  private let dismissKeyboard = TestObserver<Void, Never>()
-  private let isLoading = TestObserver<Bool, Never>()
-  private let notifyDelegateCancelPledgeSuccess = TestObserver<String, Never>()
-  private let popCancelPledgeViewController = TestObserver<Void, Never>()
+  private let cancellationDetailsAttributedTextString = Recording<String>()
+  private let cancellationDetailsAttributedTextAttributedString = Recording<NSAttributedString>()
+  private let cancelPledgeButtonEnabled = Recording<Bool>()
+  private let cancelPledgeError = Recording<String>()
+  private let isLoading = Recording<Bool>()
+  private let notifyDelegateCancelPledgeSuccess = Recording<String>()
 
   override func setUp() async throws {
     try await super.setUp()
-    MainActor.assumeIsolated {
-
-      self.vm.outputs.cancellationDetailsAttributedText
-        .observe(self.cancellationDetailsAttributedTextAttributedString.observer)
-      self.vm.outputs.cancellationDetailsAttributedText.map { $0.string }
-        .observe(self.cancellationDetailsAttributedTextString.observer)
-      self.vm.outputs.cancelPledgeButtonEnabled.observe(self.cancelPledgeButtonEnabled.observer)
-      self.vm.outputs.cancelPledgeError.observe(self.cancelPledgeError.observer)
-      self.vm.outputs.dismissKeyboard.observe(self.dismissKeyboard.observer)
-      self.vm.outputs.isLoading.observe(self.isLoading.observer)
-      self.vm.outputs.notifyDelegateCancelPledgeSuccess.observe(self.notifyDelegateCancelPledgeSuccess.observer)
-      self.vm.outputs.popCancelPledgeViewController.observe(self.popCancelPledgeViewController.observer)
+    self.vm.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .details(value):
+        self.cancellationDetailsAttributedTextAttributedString.append(value)
+        self.cancellationDetailsAttributedTextString.append(value.string)
+      case let .buttonEnabled(value): self.cancelPledgeButtonEnabled.append(value)
+      case let .error(value): self.cancelPledgeError.append(value)
+      case let .loading(value): self.isLoading.append(value)
+      case let .success(value): self.notifyDelegateCancelPledgeSuccess.append(value)
+      }
     }
   }
 
@@ -73,8 +58,8 @@ final class CancelPledgeViewModelTests: TestCase {
       pledgeAmount: 5
     )
 
-    self.vm.inputs.configure(with: data)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configure(with: data)
+    self.vm.viewDidLoad()
 
     let cancellationString = "Are you sure you wish to cancel your $5 pledge to Cosmic Surgery?"
     var pledgeAmountRange: NSRange = (cancellationString as NSString).range(of: "$5")
@@ -104,7 +89,7 @@ final class CancelPledgeViewModelTests: TestCase {
       [boldFontAttribute]
     )
 
-    self.vm.inputs.traitCollectionDidChange()
+    self.vm.traitCollectionDidChange()
 
     self.cancellationDetailsAttributedTextString
       .assertValues([
@@ -129,76 +114,7 @@ final class CancelPledgeViewModelTests: TestCase {
         ) } as? [UIFont],
       [boldFontAttribute, boldFontAttribute]
     )
-    await self.feature.waitForOperations()
-  }
-
-  func testGoBackButtonTapped() async {
-    let project = Project.template
-
-    let data = CancelPledgeViewData(
-      project: project,
-      projectName: project.name,
-      omitUSCurrencyCode: project.stats.omitUSCurrencyCode,
-      backingId: "backing-id",
-      pledgeAmount: 5
-    )
-
-    self.vm.inputs.configure(with: data)
-
-    self.vm.inputs.viewDidLoad()
-
-    self.popCancelPledgeViewController.assertDidNotEmitValue()
-
-    self.vm.inputs.goBackButtonTapped()
-
-    self.popCancelPledgeViewController.assertValueCount(1)
-    await self.feature.waitForOperations()
-  }
-
-  func testDismissKeyboard() async {
-    let project = Project.template
-
-    let data = CancelPledgeViewData(
-      project: project,
-      projectName: project.name,
-      omitUSCurrencyCode: project.stats.omitUSCurrencyCode,
-      backingId: "backing-id",
-      pledgeAmount: 5
-    )
-
-    self.vm.inputs.configure(with: data)
-
-    self.vm.inputs.viewDidLoad()
-
-    self.dismissKeyboard.assertDidNotEmitValue()
-
-    self.vm.inputs.textFieldShouldReturn()
-
-    self.dismissKeyboard.assertValueCount(1)
-    await self.feature.waitForOperations()
-  }
-
-  func testViewTapped() async {
-    let project = Project.template
-
-    let data = CancelPledgeViewData(
-      project: project,
-      projectName: project.name,
-      omitUSCurrencyCode: project.stats.omitUSCurrencyCode,
-      backingId: "backing-id",
-      pledgeAmount: 5
-    )
-
-    self.vm.inputs.configure(with: data)
-
-    self.vm.inputs.viewDidLoad()
-
-    self.dismissKeyboard.assertDidNotEmitValue()
-
-    self.vm.inputs.viewTapped()
-
-    self.dismissKeyboard.assertValueCount(1)
-    await self.feature.waitForOperations()
+    await self.vm.waitForOperation()
   }
 
   func testCancelPledgeButtonEnabled() async {
@@ -216,17 +132,17 @@ final class CancelPledgeViewModelTests: TestCase {
         pledgeAmount: project.personalization.backing?.amount ?? 0
       )
 
-      self.vm.inputs.configure(with: data)
+      self.vm.configure(with: data)
 
-      self.vm.inputs.viewDidLoad()
-
-      self.cancelPledgeButtonEnabled.assertValues([true])
-
-      self.vm.inputs.textFieldDidEndEditing(with: "cancel reason")
+      self.vm.viewDidLoad()
 
       self.cancelPledgeButtonEnabled.assertValues([true])
 
-      self.vm.inputs.cancelPledgeButtonTapped()
+      self.vm.textFieldDidEndEditing(with: "cancel reason")
+
+      self.cancelPledgeButtonEnabled.assertValues([true])
+
+      self.vm.cancelPledgeButtonTapped()
 
       self.cancelPledgeButtonEnabled.assertValues(
         [true, false],
@@ -239,9 +155,9 @@ final class CancelPledgeViewModelTests: TestCase {
         [true, false, true],
         "Cancel button enabled when request completes"
       )
-      await self.feature.waitForOperations()
+      await self.vm.waitForOperation()
     }
-    await self.feature.waitForOperations()
+    await self.vm.waitForOperation()
   }
 
   func testCancelPledge_Success() async {
@@ -259,14 +175,14 @@ final class CancelPledgeViewModelTests: TestCase {
         pledgeAmount: project.personalization.backing?.amount ?? 0
       )
 
-      self.vm.inputs.configure(with: data)
+      self.vm.configure(with: data)
 
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       self.notifyDelegateCancelPledgeSuccess.assertDidNotEmitValue()
       self.cancelPledgeError.assertDidNotEmitValue()
 
-      self.vm.inputs.cancelPledgeButtonTapped()
+      self.vm.cancelPledgeButtonTapped()
 
       self.notifyDelegateCancelPledgeSuccess.assertDidNotEmitValue()
       self.cancelPledgeError.assertDidNotEmitValue()
@@ -276,9 +192,9 @@ final class CancelPledgeViewModelTests: TestCase {
       self.notifyDelegateCancelPledgeSuccess.assertValues(["You\'ve canceled your pledge."])
       self.cancelPledgeError.assertDidNotEmitValue()
 
-      self.vm.inputs.textFieldDidEndEditing(with: "No money")
+      self.vm.textFieldDidEndEditing(with: "No money")
 
-      self.vm.inputs.cancelPledgeButtonTapped()
+      self.vm.cancelPledgeButtonTapped()
 
       self.notifyDelegateCancelPledgeSuccess.assertValueCount(1)
       self.cancelPledgeError.assertDidNotEmitValue()
@@ -290,9 +206,9 @@ final class CancelPledgeViewModelTests: TestCase {
         "You\'ve canceled your pledge."
       ])
       self.cancelPledgeError.assertDidNotEmitValue()
-      await self.feature.waitForOperations()
+      await self.vm.waitForOperation()
     }
-    await self.feature.waitForOperations()
+    await self.vm.waitForOperation()
   }
 
   func testCancelPledge_Error() async {
@@ -312,14 +228,14 @@ final class CancelPledgeViewModelTests: TestCase {
         pledgeAmount: project.personalization.backing?.amount ?? 0
       )
 
-      self.vm.inputs.configure(with: data)
+      self.vm.configure(with: data)
 
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       self.notifyDelegateCancelPledgeSuccess.assertDidNotEmitValue()
       self.cancelPledgeError.assertDidNotEmitValue()
 
-      self.vm.inputs.cancelPledgeButtonTapped()
+      self.vm.cancelPledgeButtonTapped()
 
       self.notifyDelegateCancelPledgeSuccess.assertDidNotEmitValue()
       self.cancelPledgeError.assertDidNotEmitValue()
@@ -328,9 +244,9 @@ final class CancelPledgeViewModelTests: TestCase {
 
       self.notifyDelegateCancelPledgeSuccess.assertDidNotEmitValue()
       self.cancelPledgeError.assertValues(["Something went wrong."])
-      await self.feature.waitForOperations()
+      await self.vm.waitForOperation()
     }
-    await self.feature.waitForOperations()
+    await self.vm.waitForOperation()
   }
 
   func testTrackingEvents() async {
@@ -348,18 +264,18 @@ final class CancelPledgeViewModelTests: TestCase {
         pledgeAmount: project.personalization.backing?.amount ?? 0
       )
 
-      self.vm.inputs.configure(with: data)
+      self.vm.configure(with: data)
 
-      self.vm.inputs.viewDidLoad()
-
-      XCTAssertEqual([], self.segmentTrackingClient.events)
-
-      self.vm.inputs.cancelPledgeButtonTapped()
+      self.vm.viewDidLoad()
 
       XCTAssertEqual([], self.segmentTrackingClient.events)
-      await self.feature.waitForOperations()
+
+      self.vm.cancelPledgeButtonTapped()
+
+      XCTAssertEqual([], self.segmentTrackingClient.events)
+      await self.vm.waitForOperation()
     }
-    await self.feature.waitForOperations()
+    await self.vm.waitForOperation()
   }
 
   func testIsLoading() async {
@@ -379,21 +295,37 @@ final class CancelPledgeViewModelTests: TestCase {
     let mockService = MockService(cancelBackingResult: .success(envelope))
 
     await withEnvironment(apiService: mockService) {
-      self.vm.inputs.configure(with: data)
+      self.vm.configure(with: data)
 
-      self.vm.inputs.viewDidLoad()
+      self.vm.viewDidLoad()
 
       self.isLoading.assertDidNotEmitValue()
 
-      self.vm.inputs.cancelPledgeButtonTapped()
+      self.vm.cancelPledgeButtonTapped()
 
       self.isLoading.assertValues([true])
 
       await self.advancePledges()
 
       self.isLoading.assertValues([true, false])
-      await self.feature.waitForOperations()
+      await self.vm.waitForOperation()
     }
-    await self.feature.waitForOperations()
+    await self.vm.waitForOperation()
+  }
+}
+
+private final class Recording<Value> {
+  private(set) var values: [Value] = []
+  func append(_ value: Value) { self.values.append(value) }
+  func assertDidNotEmitValue(file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, file: file, line: line)
+  }
+  func assertValueCount(_ count: Int, file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, file: file, line: line)
+  }
+}
+private extension Recording where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
   }
 }

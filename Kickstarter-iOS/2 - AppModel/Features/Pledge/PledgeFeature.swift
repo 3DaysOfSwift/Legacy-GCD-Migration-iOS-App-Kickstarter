@@ -233,6 +233,18 @@ public final class PledgeFeature {
   public func cancel(_ input: KsApi.CancelBackingInput) async throws {
     _ = try await self.execute(.cancel(input))
   }
+  /// Keep the existing presentation delay and suppress results from a replaced session.
+  func cancelWithPresentationDelay(_ input: KsApi.CancelBackingInput) async throws {
+    let session = self.session
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    let result: Result<Void, Error>
+    do { try await self.cancel(input); result = .success(()) }
+    catch { result = .failure(error) }
+    if delay.isInfinite { try await Task.sleep(nanoseconds: UInt64.max) }
+    else if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
+    try self.requireCurrent(session)
+    try result.get()
+  }
   public func received(projectID: Int, userID: Int, received: Bool) async throws -> Backing {
     try Self.received(
       await self.execute(.received(projectID: projectID, userID: userID, received: received)))

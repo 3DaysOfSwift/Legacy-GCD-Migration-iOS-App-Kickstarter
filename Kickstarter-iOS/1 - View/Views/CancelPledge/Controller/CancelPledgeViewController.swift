@@ -16,7 +16,7 @@ protocol CancelPledgeViewControllerDelegate: AnyObject {
 final class CancelPledgeViewController: UIViewController, MessageBannerViewControllerPresenting {
   private var keyboardObservation: Keyboard.Observation?
   weak var delegate: CancelPledgeViewControllerDelegate?
-  private let viewModel: CancelPledgeViewModelType = CancelPledgeViewModel()
+  private let viewModel = CancelPledgeViewModel()
 
   // MARK: - Properties
 
@@ -92,19 +92,19 @@ final class CancelPledgeViewController: UIViewController, MessageBannerViewContr
 
     self.messageBannerViewController = self.configureMessageBannerViewController(on: self)
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
 
-    self.viewModel.inputs.traitCollectionDidChange()
+    self.viewModel.traitCollectionDidChange()
   }
 
   // MARK: - Configuration
 
   internal func configure(with data: CancelPledgeViewData) {
-    self.viewModel.inputs.configure(with: data)
+    self.viewModel.configure(with: data)
   }
 
   override func bindStyles() {
@@ -149,41 +149,16 @@ final class CancelPledgeViewController: UIViewController, MessageBannerViewContr
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.cancelPledgeError
-      .observeForUI()
-      .observeValues { [weak self] errorMessage in
-        self?.messageBannerViewController?.showBanner(with: .error, message: errorMessage)
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .details(text): self.cancellationDetailsTextLabel.attributedText = text
+      case let .buttonEnabled(enabled): self.cancelPledgeButton.isEnabled = enabled
+      case let .error(message): self.messageBannerViewController?.showBanner(with: .error, message: message)
+      case let .loading(loading): self.cancelPledgeButton.isLoading = loading
+      case let .success(message): self.delegate?.cancelPledgeViewController(self, didCancelPledgeWithMessage: message)
       }
-
-    self.viewModel.outputs.dismissKeyboard
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.view.endEditing(true)
-      }
-
-    self.viewModel.outputs.notifyDelegateCancelPledgeSuccess
-      .observeForControllerAction()
-      .observeValues { [weak self] confirmationMessage in
-        guard let self = self else { return }
-
-        self.delegate?.cancelPledgeViewController(self, didCancelPledgeWithMessage: confirmationMessage)
-      }
-
-    self.viewModel.outputs.popCancelPledgeViewController
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.navigationController?.popViewController(animated: true)
-      }
-
-    self.viewModel.outputs.isLoading
-      .observeForUI()
-      .observeValues { [weak self] isLoading in
-        self?.cancelPledgeButton.isLoading = isLoading
-      }
-
-    self.cancellationDetailsTextLabel.rac.attributedText = self.viewModel.outputs
-      .cancellationDetailsAttributedText
-    self.cancelPledgeButton.rac.enabled = self.viewModel.outputs.cancelPledgeButtonEnabled
+    }
 
     self.keyboardObservation = Keyboard.observe { [weak self] change in
         guard let self = self else { return }
@@ -213,25 +188,25 @@ final class CancelPledgeViewController: UIViewController, MessageBannerViewContr
   // MARK: - Accessors
 
   @objc private func viewTapped() {
-    self.viewModel.inputs.viewTapped()
+    self.view.endEditing(true)
   }
 
   @objc private func goBackButtonTapped() {
-    self.viewModel.inputs.goBackButtonTapped()
+    self.navigationController?.popViewController(animated: true)
   }
 
   @objc private func cancelPledgeButtonTapped() {
-    self.viewModel.inputs.cancelPledgeButtonTapped()
+    self.viewModel.cancelPledgeButtonTapped()
   }
 }
 
 extension CancelPledgeViewController: UITextFieldDelegate {
   func textFieldDidEndEditing(_ textField: UITextField) {
-    self.viewModel.inputs.textFieldDidEndEditing(with: textField.text)
+    self.viewModel.textFieldDidEndEditing(with: textField.text)
   }
 
   func textFieldShouldReturn(_: UITextField) -> Bool {
-    self.viewModel.inputs.textFieldShouldReturn()
+    self.view.endEditing(true)
 
     return true
   }
