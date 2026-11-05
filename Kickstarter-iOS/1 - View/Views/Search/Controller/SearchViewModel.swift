@@ -110,15 +110,6 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     )
     // Output notification only: query input and first appearance are explicit commands.
     let queryText = self.queryTextPipe.output
-    let selection = self.searchFiltersUseCase.dataOutputs
-    // Keep the legacy screen's per-observer initial barrier and every subsequent
-    // field notification. This stream reports selection changes; it owns no query.
-    let selectionChanges = Signal.combineLatest(
-      selection.selectedSort, selection.selectedCategory, selection.selectedState,
-      selection.selectedPercentRaisedBucket, selection.selectedLocation,
-      selection.selectedAmountRaisedBucket, selection.selectedGoalBucket,
-      selection.selectedToggles
-    ).ignoreValues()
     let paginatedProjects = searchFeature.paginatedResults
     let isLoading = searchFeature.loading
     let stats = searchFeature.resultCount
@@ -195,9 +186,12 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.featureBindings += self.completionAnalytics.countsToTrack.observeValues { [weak self] count in
       self?.trackResultCompletion(count: count)
     }
-    self.featureBindings += selectionChanges.observeValues { [weak self] in
-      self?.hasReceivedFilterSelection = true
-      self?.refreshSearchIfReady()
+    self.selectionObservation = searchFeature.filterSelection.observe { [weak self] change in
+      guard let self else { return }
+      self.selectionFieldsSeen.insert(change.field)
+      guard self.selectionFieldsSeen.count == 8 else { return }
+      self.hasReceivedFilterSelection = true
+      self.refreshSearchIfReady()
     }
     self.featureBindings += searchFeature.loading.observeValues { [weak self] loading in
       if !loading {
@@ -216,6 +210,8 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   private var appearanceResultsCount: Int?
   private var hasAppearedAnimated = false
   private var hasReceivedFilterSelection = false
+  private var selectionFieldsSeen = Set<Int>()
+  private var selectionObservation: MainActorObservation?
   private var wasCloseToBottom: Bool?
   private let queryTextPipe = Signal<String, Never>.pipe()
   private let queryParametersPipe = Signal<DiscoveryParams, Never>.pipe()

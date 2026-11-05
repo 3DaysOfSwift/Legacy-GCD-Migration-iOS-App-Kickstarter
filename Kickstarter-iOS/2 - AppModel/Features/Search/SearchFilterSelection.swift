@@ -13,6 +13,18 @@ internal final class SearchFilterSelection {
     case percent(DiscoveryParams.PercentRaisedBucket?), location(Location?)
     case amount(DiscoveryParams.AmountRaisedBucket?), goal(DiscoveryParams.GoalBucket?)
     case toggles(SearchFilterToggles)
+    var field: Int {
+      switch self {
+      case .sort: return 0
+      case .category: return 1
+      case .state: return 2
+      case .percent: return 3
+      case .location: return 4
+      case .amount: return 5
+      case .goal: return 6
+      case .toggles: return 7
+      }
+    }
   }
   private var observers: [(id: UUID, callback: (Change) -> Void)] = []
   internal func observe(_ observer: @escaping (Change) -> Void) -> MainActorObservation {

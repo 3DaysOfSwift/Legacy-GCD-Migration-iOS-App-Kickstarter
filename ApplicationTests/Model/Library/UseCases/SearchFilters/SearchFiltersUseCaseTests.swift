@@ -14,6 +14,7 @@ final class SearchFiltersUseCaseTests: TestCase {
   private lazy var searchFeature = SearchFeature(provider: AsyncSearchProjectsProvider())
   private var useCase: SearchFiltersUseCase!
   private var initialBinding: Disposable?
+  private var selectionObservation: MainActorObservation?
 
   private let selectedSort = TestObserver<DiscoveryParams.Sort, Never>()
   private let selectedCategory = TestObserver<KsApi.Category?, Never>()
@@ -44,14 +45,19 @@ final class SearchFiltersUseCaseTests: TestCase {
       suggestedLocations: self.suggestedLocationsSignal
     )
 
-    self.useCase.dataOutputs.selectedCategory.map { $0.category }.observe(self.selectedCategory.observer)
-    self.useCase.dataOutputs.selectedSort.observe(self.selectedSort.observer)
-    self.useCase.dataOutputs.selectedState.observe(self.selectedState.observer)
-    self.useCase.dataOutputs.selectedPercentRaisedBucket.observe(self.selectedPercentRaisedBucket.observer)
-    self.useCase.dataOutputs.selectedLocation.observe(self.selectedLocation.observer)
-    self.useCase.dataOutputs.selectedAmountRaisedBucket.observe(self.selectedAmountRaisedBucket.observer)
-    self.useCase.dataOutputs.selectedGoalBucket.observe(self.selectedGoalBucket.observer)
-    self.useCase.dataOutputs.selectedToggles.observe(self.selectedToggles.observer)
+    self.selectionObservation = self.searchFeature.filterSelection.observe { [weak self] change in
+      guard let self else { return }
+      switch change {
+      case let .category(value): self.selectedCategory.observer.send(value: value.category)
+      case let .sort(value): self.selectedSort.observer.send(value: value)
+      case let .state(value): self.selectedState.observer.send(value: value)
+      case let .percent(value): self.selectedPercentRaisedBucket.observer.send(value: value)
+      case let .location(value): self.selectedLocation.observer.send(value: value)
+      case let .amount(value): self.selectedAmountRaisedBucket.observer.send(value: value)
+      case let .goal(value): self.selectedGoalBucket.observer.send(value: value)
+      case let .toggles(value): self.selectedToggles.observer.send(value: value)
+      }
+    }
     self.useCase.uiOutputs.showFilters.observe(self.showFilters.observer)
     }
   }

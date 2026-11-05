@@ -6,7 +6,6 @@ import UIKit
 public protocol SearchFiltersUseCaseType {
   var inputs: SearchFiltersUseCaseInputs { get }
   var uiOutputs: SearchFiltersUseCaseUIOutputs { get }
-  var dataOutputs: SearchFiltersUseCaseDataOutputs { get }
 }
 
 @MainActor
@@ -32,28 +31,8 @@ public protocol SearchFiltersUseCaseUIOutputs {
 }
 
 @MainActor
-public protocol SearchFiltersUseCaseDataOutputs {
-  /// The currently selected sort option. Defaults to `.magic`. Published when filter options are initialised.
-  var selectedSort: Signal<DiscoveryParams.Sort, Never> { get }
-  /// The currently selected category. Defaults to nil. Default value only sent after `initialSignal` occurs.
-  var selectedCategory: Signal<SearchFiltersCategory, Never> { get }
-  /// The currently selected project state. Defaults to `.all`. Default value only sent after `initialSignal` occurs.
-  var selectedState: Signal<DiscoveryParams.State, Never> { get }
-  /// The currently selected percent raised bucket. Defaults to `nil`. Default value only sent after `initialSignal` occurs.
-  var selectedPercentRaisedBucket: Signal<DiscoveryParams.PercentRaisedBucket?, Never> { get }
-  /// The currently selected filter location. Defaults to `nil`. Default value only sent after `initialSignal` occurs.
-  var selectedLocation: Signal<Location?, Never> { get }
-  /// The currently selected amount raised bucket. Defaults to `nil`. Default value only sent after `initialSignal` occurs.
-  var selectedAmountRaisedBucket: Signal<DiscoveryParams.AmountRaisedBucket?, Never> { get }
-  /// The currently selected goal bucket. Defaults to `nil`. Default value only sent after `initialSignal` occurs.
-  var selectedGoalBucket: Signal<DiscoveryParams.GoalBucket?, Never> { get }
-  /// The currently selected 'Show Only' toggles. All toggles default to `false`. Default value only sent after `initialSignal` occurs.
-  var selectedToggles: Signal<SearchFilterToggles, Never> { get }
-}
-
-@MainActor
 public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFiltersUseCaseInputs,
-  SearchFiltersUseCaseUIOutputs, SearchFiltersUseCaseDataOutputs {
+  SearchFiltersUseCaseUIOutputs {
   /// Adapts Feature selection and lookup outputs for the existing filter UI.
   /// Initial selection publication remains an explicit Feature command.
   public init(
@@ -101,32 +80,6 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
 
     self.showFilters = self.showFiltersPipe.output
 
-    self.bindings += Signal.combineLatest(
-      self.dataOutputs.selectedSort,
-      self.dataOutputs.selectedCategory,
-      self.dataOutputs.selectedState,
-      self.dataOutputs.selectedPercentRaisedBucket,
-      self.dataOutputs.selectedLocation,
-      self.dataOutputs.selectedAmountRaisedBucket,
-      self.dataOutputs.selectedGoalBucket,
-      self.dataOutputs.selectedToggles
-    )
-    .observeForUI()
-    .observeValues { [
-      weak searchFilters
-    ] sort, category, state, percentRaisedBucket, location, amountRaisedBucket, goalBucket, toggles in
-      searchFilters?.update(
-        withSort: sort,
-        category: category,
-        projectState: state,
-        percentRaisedBucket: percentRaisedBucket,
-        location: location,
-        amountRaisedBucket: amountRaisedBucket,
-        goalBucket: goalBucket,
-        toggles: toggles
-      )
-    }
-
     self.bindings += categories
       .observeForUI()
       .observeValues { [weak searchFilters] categories in
@@ -144,18 +97,20 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
       .observeValues { [weak searchFilters] locations in
         searchFilters?.update(withSuggestedLocations: locations)
       }
-    self.selectionObservation = selection.observe { [weak self] change in
-      guard let self else { return }
-      switch change {
-      case let .sort(value): self.selectedSortPipe.input.send(value: value)
-      case let .category(value): self.selectedCategoryPipe.input.send(value: value)
-      case let .state(value): self.selectedStatePipe.input.send(value: value)
-      case let .percent(value): self.selectedPercentRaisedBucketPipe.input.send(value: value)
-      case let .location(value): self.selectedLocationPipe.input.send(value: value)
-      case let .amount(value): self.selectedAmountRaisedBucketPipe.input.send(value: value)
-      case let .goal(value): self.selectedGoalBucketPipe.input.send(value: value)
-      case let .toggles(value): self.selectedTogglesPipe.input.send(value: value)
-      }
+    self.selectionObservation = selection.observe { [weak self, weak selection] change in
+      guard let self, let selection else { return }
+      self.selectionFieldsSeen.insert(change.field)
+      guard self.selectionFieldsSeen.count == 8 else { return }
+      self.searchFilters.update(
+        withSort: selection.selectedSortValue,
+        category: selection.selectedCategoryValue,
+        projectState: selection.selectedStateValue,
+        percentRaisedBucket: selection.selectedPercentRaisedBucketValue,
+        location: selection.selectedLocationValue,
+        amountRaisedBucket: selection.selectedAmountRaisedBucketValue,
+        goalBucket: selection.selectedGoalBucketValue,
+        toggles: selection.toggles
+      )
     }
   }
 
@@ -173,6 +128,7 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
   private let searchFeature: SearchFeature
   private let bindings = ScopedDisposable(CompositeDisposable())
   private var selectionObservation: MainActorObservation?
+  private var selectionFieldsSeen = Set<Int>()
 
   nonisolated internal static let defaultSortOption = DiscoveryParams.Sort.magic
 
@@ -196,23 +152,6 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
   ]
 
   public let showFilters: Signal<SearchFilterModalType, Never>
-
-  private let selectedSortPipe = Signal<DiscoveryParams.Sort, Never>.pipe()
-  public var selectedSort: Signal<DiscoveryParams.Sort, Never> { self.selectedSortPipe.output }
-  private let selectedCategoryPipe = Signal<SearchFiltersCategory, Never>.pipe()
-  public var selectedCategory: Signal<SearchFiltersCategory, Never> { self.selectedCategoryPipe.output }
-  private let selectedStatePipe = Signal<DiscoveryParams.State, Never>.pipe()
-  public var selectedState: Signal<DiscoveryParams.State, Never> { self.selectedStatePipe.output }
-  private let selectedPercentRaisedBucketPipe = Signal<DiscoveryParams.PercentRaisedBucket?, Never>.pipe()
-  public var selectedPercentRaisedBucket: Signal<DiscoveryParams.PercentRaisedBucket?, Never> { self.selectedPercentRaisedBucketPipe.output }
-  private let selectedLocationPipe = Signal<Location?, Never>.pipe()
-  public var selectedLocation: Signal<Location?, Never> { self.selectedLocationPipe.output }
-  private let selectedAmountRaisedBucketPipe = Signal<DiscoveryParams.AmountRaisedBucket?, Never>.pipe()
-  public var selectedAmountRaisedBucket: Signal<DiscoveryParams.AmountRaisedBucket?, Never> { self.selectedAmountRaisedBucketPipe.output }
-  private let selectedGoalBucketPipe = Signal<DiscoveryParams.GoalBucket?, Never>.pipe()
-  public var selectedGoalBucket: Signal<DiscoveryParams.GoalBucket?, Never> { self.selectedGoalBucketPipe.output }
-  private let selectedTogglesPipe = Signal<SearchFilterToggles, Never>.pipe()
-  public var selectedToggles: Signal<SearchFilterToggles, Never> { self.selectedTogglesPipe.output }
 
   public private(set) var searchFilters: SearchFilters
 
@@ -238,7 +177,6 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
 
   public var inputs: SearchFiltersUseCaseInputs { return self }
   public var uiOutputs: SearchFiltersUseCaseUIOutputs { return self }
-  public var dataOutputs: SearchFiltersUseCaseDataOutputs { return self }
 }
 
 private func filterModal(toShowForPill pill: SearchFilterPill.FilterType) -> SearchFilterModalType {
