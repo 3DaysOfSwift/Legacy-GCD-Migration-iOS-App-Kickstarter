@@ -1,7 +1,5 @@
 @testable import Kickstarter_iOS
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import WebKit
 import XCTest
 
@@ -14,41 +12,45 @@ final class PledgeManagerWebViewModelTests: TestCase {
   private let feature = PledgeFeature(
     sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: MockService()) }),
     makeProvider: { AsyncPledgeProvider(service: AppEnvironment.current.apiService) })
-  private lazy var vm: PledgeManagerWebViewModelType = PledgeManagerWebViewModel(
+  private lazy var vm: PledgeManagerWebViewModel = PledgeManagerWebViewModel(
     feature: self.feature)
 
-  fileprivate let dismissViewController = TestObserver<Void, Never>()
-  fileprivate let goToNativeScreen = TestObserver<PledgeManagerNativeNatigationRequest, Never>()
-  fileprivate let presentUpdateVC = TestObserver<(Project, Update), Never>()
-  fileprivate let goToLoginSignup = TestObserver<LoginIntent, Never>()
-  fileprivate let title = TestObserver<String?, Never>()
-  fileprivate let webViewLoadRequestIsPrepared = TestObserver<Bool, Never>()
-  fileprivate let webViewLoadRequest = TestObserver<URLRequest, Never>()
+  fileprivate let dismissViewController = PledgeWebRecorder<Void>()
+  fileprivate let goToNativeScreen = PledgeWebRecorder<PledgeManagerNativeNatigationRequest>()
+  fileprivate let presentUpdateVC = PledgeWebRecorder<(Project, Update)>()
+  fileprivate let goToLoginSignup = PledgeWebRecorder<LoginIntent>()
+  fileprivate let title = PledgeWebRecorder<String?>()
+  fileprivate let webViewLoadRequestIsPrepared = PledgeWebRecorder<Bool>()
+  fileprivate let webViewLoadRequest = PledgeWebRecorder<URLRequest>()
 
   override func setUp() async throws {
     try await super.setUp()
     MainActor.assumeIsolated {
 
-      self.vm.outputs.dismissViewController.observe(self.dismissViewController.observer)
-      self.vm.outputs.goToNativeScreen.observe(self.goToNativeScreen.observer)
-      self.vm.outputs.presentUpdateVC.observe(self.presentUpdateVC.observer)
-      self.vm.outputs.goToLoginSignup.observe(self.goToLoginSignup.observer)
-      self.vm.outputs.title.observe(self.title.observer)
-      self.vm.outputs.webViewLoadRequest
-        .map { AppEnvironment.current.apiService.isPrepared(request: $0) }
-        .observe(self.webViewLoadRequestIsPrepared.observer)
-      self.vm.outputs.webViewLoadRequest.observe(self.webViewLoadRequest.observer)
+      self.vm.onEvent = { [weak self] event in
+        guard let self else { return }
+        switch event {
+        case .dismissViewController: self.dismissViewController.record(())
+        case let .goToNativeScreen(request): self.goToNativeScreen.record(request)
+        case let .presentUpdateVC(project, update): self.presentUpdateVC.record((project, update))
+        case let .goToLoginSignup(intent): self.goToLoginSignup.record(intent)
+        case let .title(title): self.title.record(title)
+        case let .webViewLoadRequest(request):
+          self.webViewLoadRequestIsPrepared.record(AppEnvironment.current.apiService.isPrepared(request: request))
+          self.webViewLoadRequest.record(request)
+        }
+      }
 
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
     }
   }
 
   func testDismissViewControllerOnCloseButtonTapped() {
-    self.vm.inputs.configureWith(url: SurveyResponse.template.urls.web.survey)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(url: SurveyResponse.template.urls.web.survey)
+    self.vm.viewDidLoad()
     self.dismissViewController.assertDidNotEmitValue()
 
-    self.vm.inputs.closeButtonTapped()
+    self.vm.closeButtonTapped()
     self.dismissViewController.assertValueCount(1)
   }
 
@@ -59,8 +61,8 @@ final class PledgeManagerWebViewModelTests: TestCase {
       |> SurveyResponse.lens.id .~ 123
       |> SurveyResponse.lens.project .~ project
 
-    self.vm.inputs.configureWith(url: surveyResponse.urls.web.survey)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(url: surveyResponse.urls.web.survey)
+    self.vm.viewDidLoad()
 
     // 1. Load survey.
     self.webViewLoadRequestIsPrepared.assertValues([true])
@@ -75,7 +77,7 @@ final class PledgeManagerWebViewModelTests: TestCase {
       targetFrame: WKFrameInfoData(mainFrame: true, request: surveyPreparedGetRequest)
     )
 
-    let surveyPreparedGetRequestPolicy = self.vm.inputs.decidePolicyFor(
+    let surveyPreparedGetRequestPolicy = self.vm.decidePolicyFor(
       navigationAction: surveyPreparedGetRequestNavigationAction
     )
 
@@ -93,7 +95,7 @@ final class PledgeManagerWebViewModelTests: TestCase {
       targetFrame: WKFrameInfoData(mainFrame: true, request: surveyUnpreparedPostRequest)
     )
 
-    let surveyUnpreparedPostRequestPolicy = self.vm.inputs.decidePolicyFor(
+    let surveyUnpreparedPostRequestPolicy = self.vm.decidePolicyFor(
       navigationAction: surveyUnpreparedPostRequestNavigationAction
     )
 
@@ -117,7 +119,7 @@ final class PledgeManagerWebViewModelTests: TestCase {
       targetFrame: WKFrameInfoData(mainFrame: true, request: surveyRedirectGetRequest)
     )
 
-    let surveyRedirectGetRequestPolicy = self.vm.inputs.decidePolicyFor(
+    let surveyRedirectGetRequestPolicy = self.vm.decidePolicyFor(
       navigationAction: surveyRedirectGetRequestNavigationAction
     )
 
@@ -129,7 +131,7 @@ final class PledgeManagerWebViewModelTests: TestCase {
     // 4. Tap close button, dismiss view controller.
     self.dismissViewController.assertDidNotEmitValue()
 
-    self.vm.inputs.closeButtonTapped()
+    self.vm.closeButtonTapped()
     self.dismissViewController.assertValueCount(1)
   }
 
@@ -138,19 +140,19 @@ final class PledgeManagerWebViewModelTests: TestCase {
     let basicBackingUrl = "\(project.urls.web.project)/backing/"
 
     let backingDetailsAction = navigationData(basicBackingUrl + "details")
-    _ = self.vm.inputs.decidePolicyFor(navigationAction: backingDetailsAction)
+    _ = self.vm.decidePolicyFor(navigationAction: backingDetailsAction)
     self.title.assertLastValue(nil)
 
     let redeemAction = navigationData(basicBackingUrl + "redeem")
-    _ = self.vm.inputs.decidePolicyFor(navigationAction: redeemAction)
+    _ = self.vm.decidePolicyFor(navigationAction: redeemAction)
     self.title.assertLastValue("Pledge Manager")
 
     let pledgeManagementAction = navigationData(basicBackingUrl + "pledge_management")
-    _ = self.vm.inputs.decidePolicyFor(navigationAction: pledgeManagementAction)
+    _ = self.vm.decidePolicyFor(navigationAction: pledgeManagementAction)
     self.title.assertLastValue(nil)
 
     let surveyAction = navigationData(basicBackingUrl + "survey_responses")
-    _ = self.vm.inputs.decidePolicyFor(navigationAction: surveyAction)
+    _ = self.vm.decidePolicyFor(navigationAction: surveyAction)
     self.title.assertLastValue(nil)
   }
 
@@ -162,8 +164,8 @@ final class PledgeManagerWebViewModelTests: TestCase {
       .template
       |> SurveyResponse.lens.project .~ project
 
-    self.vm.inputs.configureWith(url: surveyResponse.urls.web.survey)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(url: surveyResponse.urls.web.survey)
+    self.vm.viewDidLoad()
 
     self.goToNativeScreen.assertDidNotEmitValue()
 
@@ -175,7 +177,7 @@ final class PledgeManagerWebViewModelTests: TestCase {
       targetFrame: WKFrameInfoData(mainFrame: true, request: request)
     )
 
-    let policy = self.vm.inputs.decidePolicyFor(navigationAction: navigationAction)
+    let policy = self.vm.decidePolicyFor(navigationAction: navigationAction)
     XCTAssertEqual(WKNavigationActionPolicy.cancel.rawValue, policy.rawValue)
 
     self.dismissViewController.assertDidNotEmitValue()
@@ -188,8 +190,8 @@ final class PledgeManagerWebViewModelTests: TestCase {
       .template
       |> SurveyResponse.lens.project .~ project
 
-    self.vm.inputs.configureWith(url: surveyResponse.urls.web.survey)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(url: surveyResponse.urls.web.survey)
+    self.vm.viewDidLoad()
 
     self.goToNativeScreen.assertDidNotEmitValue()
 
@@ -201,7 +203,7 @@ final class PledgeManagerWebViewModelTests: TestCase {
       targetFrame: WKFrameInfoData(mainFrame: true, request: request)
     )
 
-    let policy = self.vm.inputs.decidePolicyFor(navigationAction: navigationAction)
+    let policy = self.vm.decidePolicyFor(navigationAction: navigationAction)
 
     XCTAssertEqual(WKNavigationActionPolicy.cancel.rawValue, policy.rawValue)
 
@@ -217,8 +219,8 @@ final class PledgeManagerWebViewModelTests: TestCase {
 
     let update = Update.template
 
-    self.vm.inputs.configureWith(url: surveyResponse.urls.web.survey)
-    self.vm.inputs.viewDidLoad()
+    self.vm.configureWith(url: surveyResponse.urls.web.survey)
+    self.vm.viewDidLoad()
 
     await withEnvironment(
       apiService: MockService(
@@ -238,13 +240,14 @@ final class PledgeManagerWebViewModelTests: TestCase {
         targetFrame: WKFrameInfoData(mainFrame: true, request: request)
       )
 
-      let policy = self.vm.inputs.decidePolicyFor(navigationAction: navigationAction)
+      let policy = self.vm.decidePolicyFor(navigationAction: navigationAction)
       XCTAssertEqual(WKNavigationActionPolicy.cancel.rawValue, policy.rawValue)
 
       self.goToNativeScreen.assertLastValue(
         .goToUpdate(param: .slug(project.slug), updateId: updateId))
 
-      self.vm.inputs.fetchUpdateVCData(param: .slug(project.slug), updateId: updateId)
+      self.vm.fetchUpdateVCData(param: .slug(project.slug), updateId: updateId)
+      await self.vm.waitForUpdate()
       await self.feature.waitForOperations()
 
       self.dismissViewController.assertDidNotEmitValue()
@@ -261,8 +264,8 @@ final class PledgeManagerWebViewModelTests: TestCase {
     withEnvironment(currentUser: nil) {
       let surveyResponse = SurveyResponse.template
 
-      self.vm.inputs.configureWith(url: surveyResponse.urls.web.survey)
-      self.vm.inputs.viewDidLoad()
+      self.vm.configureWith(url: surveyResponse.urls.web.survey)
+      self.vm.viewDidLoad()
 
       self.goToLoginSignup.assertValue(.generic)
     }
@@ -272,13 +275,13 @@ final class PledgeManagerWebViewModelTests: TestCase {
     withEnvironment(currentUser: nil) {
       let surveyResponse = SurveyResponse.template
 
-      self.vm.inputs.configureWith(url: surveyResponse.urls.web.survey)
-      self.vm.inputs.viewDidLoad()
+      self.vm.configureWith(url: surveyResponse.urls.web.survey)
+      self.vm.viewDidLoad()
 
       // Request should not send when user is logged out.
       self.webViewLoadRequest.assertValueCount(0)
 
-      self.vm.inputs.userSessionStarted()
+      self.vm.userSessionStarted()
 
       // Request should be sent as soon as user has logged in.
       self.webViewLoadRequest.assertValueCount(1)
@@ -364,5 +367,28 @@ private func surveyRequest(project: Project, prepared: Bool, method: KsApi.Metho
     return AppEnvironment.current.apiService.preparedRequest(forRequest: request)
   } else {
     return request
+  }
+}
+
+fileprivate final class PledgeWebRecorder<Value> {
+  private(set) var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    self.assertValueCount(0, message, file: file, line: line)
+  }
+}
+fileprivate extension PledgeWebRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
+  }
+  func assertValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    self.assertValues([expected], message, file: file, line: line)
+  }
+  func assertLastValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.last, expected, message, file: file, line: line)
   }
 }

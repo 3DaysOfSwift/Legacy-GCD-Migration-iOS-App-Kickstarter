@@ -1,8 +1,6 @@
 import FirebaseCrashlytics
 import KsApi
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 import WebKit
 
 // All requests that can be intercepted from the web view and opened natively
@@ -14,221 +12,92 @@ public enum PledgeManagerNativeNatigationRequest: Equatable {
 }
 
 @MainActor
-public protocol PledgeManagerWebViewModelInputs {
-  /// Call when the close button is tapped.
-  func closeButtonTapped()
-
-  /// Call to configure with a survey url.
-  func configureWith(url: String)
-
-  /// Call when the webview needs to decide a policy for a navigation action. Returns the decision policy.
-  func decidePolicyFor(navigationAction: WKNavigationActionData) -> WKNavigationActionPolicy
-
-  /// Call when view model should handle fetching the necessary data and trigger `goToUpdate`.
-  func fetchUpdateVCData(param: Param, updateId: Int)
-
-  /// Call when the user session starts.
-  func userSessionStarted()
-
-  /// Call when the view loads.
-  func viewDidLoad()
-}
-
-@MainActor
-public protocol PledgeManagerWebViewModelOutputs {
-  /// Emits when the view controller should be dismissed.
-  var dismissViewController: Signal<Void, Never> { get }
-
-  /// Emits native navigation request for the view controller to handle.
-  var goToNativeScreen: Signal<PledgeManagerNativeNatigationRequest, Never> { get }
-
-  /// Emits a project and update that should be used to present the update view controller.
-  var presentUpdateVC: Signal<(Project, Update), Never> { get }
-
-  /// Emits a login intent that should be used to log in.
-  var goToLoginSignup: Signal<LoginIntent, Never> { get }
-
-  /// Emits a title, if any, that should be shown in the top bar.
-  /// `nil` should reset the view to have no title.
-  var title: Signal<String?, Never> { get }
-
-  /// Emits a request that should be loaded by the webview.
-  var webViewLoadRequest: Signal<URLRequest, Never> { get }
-}
-
-@MainActor
-public protocol PledgeManagerWebViewModelType: PledgeManagerWebViewModelInputs,
-  PledgeManagerWebViewModelOutputs
-{
-  var inputs: PledgeManagerWebViewModelInputs { get }
-  var outputs: PledgeManagerWebViewModelOutputs { get }
-}
-
-@MainActor
-public final class PledgeManagerWebViewModel: PledgeManagerWebViewModelType {
+final class PledgeManagerWebViewModel {
+  enum Event {
+    case dismissViewController
+    case goToNativeScreen(PledgeManagerNativeNatigationRequest)
+    case presentUpdateVC(Project, Update)
+    case goToLoginSignup(LoginIntent)
+    case title(String?)
+    case webViewLoadRequest(URLRequest)
+  }
+  var onEvent: ((Event) -> Void)?
   private let feature: PledgeFeature
   private let updateRoute = UUID()
-  public init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
-    self.feature = feature
-    let route = self.updateRoute
-    let initialIsLoggedIn = self.viewDidLoadProperty.signal.compactMap {
-      AppEnvironment.current.currentUser != nil
-    }
+  private var initialURL: String?
+  private var loaded = false
+  private var loggedIn = false
+  private var updateTask: Task<Void, Never>?
+  private var updateRevision = UUID()
 
-    self.goToLoginSignup = initialIsLoggedIn.filter(isFalse).map { _ in
-      LoginIntent.generic
-    }
-
-    let isLoggedIn = Signal.merge(
-      initialIsLoggedIn,
-      self.userSessionStartedProperty.signal.mapConst(true)
-    )
-
-    // Wait until user is logged in before handling survey response.
-    let surveyResponse = Signal.combineLatest(
-      self.initialUrlProperty.signal.skipNil(),
-      self.viewDidLoadProperty.signal,
-      isLoggedIn.filter(isTrue)
-    )
-    .map(first)
-
-    let initialRequest =
-      surveyResponse
-      .map { surveyUrlString -> URLRequest? in
-        guard let url = URL(string: surveyUrlString) else { return nil }
-        return URLRequest(url: url)
-      }
-      .skipNil()
-
-    let newNavigationAction = self.policyForNavigationActionProperty.signal.skipNil()
-
-    let newRequest = newNavigationAction.map { action in action.request }
-
-    self.title = Signal.merge(initialRequest, newRequest)
-      .compactMap { request in
-        if isSupportedRequest(request: request) {
-          // Only update the title based on the main survey url.
-          return request.url
-        }
-        return nil
-      }
-      .map { (surveyUrl: URL) -> String? in
-        // The pledge management flow has its own url, so show a title for this url.
-        // The other urls shown in this dashboard are not unique (navigating between
-        // the pages they load doesn't change the url), so show no title instead.
-        if surveyUrl.lastPathComponent == "redeem" {
-          return Strings.Pledge_manager()
-        } else {
-          return nil
-        }
-      }
-
-    let newUnpreparedRequest =
-      newRequest
-      .filter { request in
-        isUnpreparedSupportedRequest(request: request)
-      }
-
-    self.dismissViewController = self.closeButtonTappedProperty.signal
-
-    self.goToNativeScreen =
-      newRequest
-      .map { nativeNavigationRequestForURLRequest($0) }
-      .skipNil()
-
-    self.presentUpdateVC = self.fetchUpdateVCDataProperty.signal.skipNil()
-      .switchMap { param, updateID in
-        feature.updateContextResult(route: route, param: param, updateID: updateID).demoteErrors()
-      }
-
-    self.policyDecisionProperty
-      <~ newNavigationAction
-      .map { action in
-        if isStripeNavigationAction(action) {
-          return true
-        }
-
-        // A supported request will be prepared by logic elsewhere in the class and loaded into
-        // the web view from there. Never allow the unprepared version of these to render.
-        let request = action.request
-        if isSupportedRequest(request: request) {
-          return AppEnvironment.current.apiService.isPrepared(request: request)
-        }
-
-        // If the corresponding native navigation request exists,
-        // this request will be handled elsewhere.
-        if nativeNavigationRequestForURLRequest(request) != nil {
-          return false
-        }
-
-        // Log unrecognized urls.
-        if let error = errorForUnrecognizedUrl(request: request) {
-          Crashlytics.crashlytics().record(error: error)
-        }
-
-        // Never show unsupported kickstarter navigation requests, since these
-        // can get the user into bad/weird states.
-        if isKickstarterRequest(request) {
-          return false
-        }
-
-        return featureBypassPledgeManagerDecisionPolicyEnabled()
-      }
-      .map { $0 ? .allow : .cancel }
-
-    self.webViewLoadRequest = Signal.merge(
-      initialRequest,
-      newUnpreparedRequest
-    )
-    .map { request in AppEnvironment.current.apiService.preparedRequest(forRequest: request) }
-  }
-
-  fileprivate let closeButtonTappedProperty = MutableProperty(())
-  public func closeButtonTapped() {
-    self.feature.releaseRead(route: self.updateRoute)
-    self.closeButtonTappedProperty.value = ()
-  }
+  init(feature: PledgeFeature = AppModel.shared.pledgeFeature) { self.feature = feature }
   deinit {
+    self.updateTask?.cancel()
     let feature = self.feature
     let route = self.updateRoute
     Task { @MainActor in feature.releaseRead(route: route) }
   }
-
-  fileprivate let policyForNavigationActionProperty = MutableProperty<WKNavigationActionData?>(nil)
-  fileprivate let policyDecisionProperty = MutableProperty(WKNavigationActionPolicy.allow)
-  public func decidePolicyFor(navigationAction: WKNavigationActionData) -> WKNavigationActionPolicy
-  {
-    self.policyForNavigationActionProperty.value = navigationAction
-    return self.policyDecisionProperty.value
+  func configureWith(url: String) {
+    self.initialURL = url
+    self.loadInitialIfReady()
   }
-
-  fileprivate let initialUrlProperty = MutableProperty<String?>(nil)
-  public func configureWith(url: String) {
-    self.initialUrlProperty.value = url
+  func viewDidLoad() {
+    self.loaded = true
+    self.loggedIn = AppEnvironment.current.currentUser != nil
+    if !self.loggedIn { self.onEvent?(.goToLoginSignup(.generic)) }
+    self.loadInitialIfReady()
   }
-
-  fileprivate let fetchUpdateVCDataProperty = MutableProperty<(Param, Int)?>(nil)
-  public func fetchUpdateVCData(param: Param, updateId: Int) {
-    self.fetchUpdateVCDataProperty.value = (param, updateId)
+  func userSessionStarted() {
+    self.loggedIn = true
+    self.loadInitialIfReady()
   }
-
-  fileprivate let userSessionStartedProperty = MutableProperty(())
-  public func userSessionStarted() {
-    self.userSessionStartedProperty.value = ()
+  private func loadInitialIfReady() {
+    guard self.loaded, self.loggedIn, let initialURL, let url = URL(string: initialURL) else { return }
+    let request = URLRequest(url: url)
+    self.publishTitle(for: request)
+    self.onEvent?(.webViewLoadRequest(AppEnvironment.current.apiService.preparedRequest(forRequest: request)))
   }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() { self.viewDidLoadProperty.value = () }
-
-  public let dismissViewController: Signal<Void, Never>
-  public let goToNativeScreen: Signal<PledgeManagerNativeNatigationRequest, Never>
-  public let presentUpdateVC: Signal<(Project, Update), Never>
-  public let webViewLoadRequest: Signal<URLRequest, Never>
-  public let goToLoginSignup: Signal<LoginIntent, Never>
-  public let title: Signal<String?, Never>
-
-  public var inputs: PledgeManagerWebViewModelInputs { return self }
-  public var outputs: PledgeManagerWebViewModelOutputs { return self }
+  private func publishTitle(for request: URLRequest) {
+    guard isSupportedRequest(request: request), let url = request.url else { return }
+    self.onEvent?(.title(url.lastPathComponent == "redeem" ? Strings.Pledge_manager() : nil))
+  }
+  func closeButtonTapped() {
+    self.updateRevision = UUID()
+    self.updateTask?.cancel()
+    self.feature.releaseRead(route: self.updateRoute)
+    self.onEvent?(.dismissViewController)
+  }
+  func fetchUpdateVCData(param: Param, updateId: Int) {
+    self.updateTask?.cancel()
+    let revision = UUID()
+    self.updateRevision = revision
+    let feature = self.feature
+    let route = self.updateRoute
+    self.updateTask = Task { [weak self] in
+      do {
+        let (project, update) = try await feature.updateContext(route: route, param: param, updateID: updateId)
+        guard !Task.isCancelled, let self, self.updateRevision == revision else { return }
+        self.onEvent?(.presentUpdateVC(project, update))
+      } catch { }
+    }
+  }
+  func waitForUpdate() async { await self.updateTask?.value }
+  func decidePolicyFor(navigationAction action: WKNavigationActionData) -> WKNavigationActionPolicy {
+    let request = action.request
+    self.publishTitle(for: request)
+    if isUnpreparedSupportedRequest(request: request) {
+      self.onEvent?(.webViewLoadRequest(AppEnvironment.current.apiService.preparedRequest(forRequest: request)))
+    }
+    if let native = nativeNavigationRequestForURLRequest(request) { self.onEvent?(.goToNativeScreen(native)) }
+    if isStripeNavigationAction(action) { return .allow }
+    if isSupportedRequest(request: request) {
+      return AppEnvironment.current.apiService.isPrepared(request: request) ? .allow : .cancel
+    }
+    if nativeNavigationRequestForURLRequest(request) != nil { return .cancel }
+    if let error = errorForUnrecognizedUrl(request: request) { Crashlytics.crashlytics().record(error: error) }
+    if isKickstarterRequest(request) { return .cancel }
+    return featureBypassPledgeManagerDecisionPolicyEnabled() ? .allow : .cancel
+  }
 }
 
 // All navigation requests returned by this function should be passed along to

@@ -479,12 +479,6 @@ public final class PledgeFeature {
       throw error
     }
   }
-  public func updateContextResult(route: UUID, param: Param, updateID: Int)
-    -> SignalProducer<(Project, Update), ErrorEnvelope>
-  {
-    self.readResult(
-      route: route, input: .updateContext(param, updateID), transform: Self.updateContext)
-  }
   private static func updateContext(_ value: ReadValue) throws -> (Project, Update) {
     guard case .updateContext(let project, let update) = value else {
       throw ErrorEnvelope.couldNotParseJSON

@@ -13,12 +13,12 @@ internal protocol PledgeManagerWebViewControllerDelegate: AnyObject {
 internal final class PledgeManagerWebViewController: WebViewController {
   internal weak var delegate: PledgeManagerWebViewControllerDelegate?
   private var sessionStartedObserver: MainActorNotificationObservation?
-  fileprivate let viewModel: PledgeManagerWebViewModelType = PledgeManagerWebViewModel()
+  fileprivate let viewModel = PledgeManagerWebViewModel()
 
   internal static func configuredWith(url: String)
     -> PledgeManagerWebViewController {
     let vc = PledgeManagerWebViewController()
-    vc.viewModel.inputs.configureWith(url: url)
+    vc.viewModel.configureWith(url: url)
     return vc
   }
 
@@ -33,61 +33,37 @@ internal final class PledgeManagerWebViewController: WebViewController {
         action: #selector(self.closeButtonTapped)
       )
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
 
-    self.viewModel.outputs.title
-      .observeForUI()
-      .observeValues { [weak self] title in
-        self?.title = title
-      }
   }
 
   internal override func bindViewModel() {
     super.bindViewModel()
-
-    self.viewModel.outputs.dismissViewController
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.navigationController?.dismiss(animated: true, completion: nil)
-        self?.delegate?.pledgeManagerWebViewControllerDismissed()
-      }
-
-    self.viewModel.outputs.goToLoginSignup
-      .observeForControllerAction()
-      .observeValues { [weak self] intent in
-        self?.goToLoginSignup(with: intent)
-      }
-
     self.sessionStartedObserver = MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
-      self?.viewModel.inputs.userSessionStarted()
+      self?.viewModel.userSessionStarted()
     }
-
-    self.viewModel.outputs.goToNativeScreen
-      .observeForControllerAction()
-      .observeValues { [weak self] (nativeNavigationRequest: PledgeManagerNativeNatigationRequest) in
-        switch nativeNavigationRequest {
-        case let .goToProject(param, refTag): self?.goToProject(param: param, refTag: refTag)
-        case let .goToPledge(param): self?.goToPledge(param: param)
-        case let .goToUpdate(param, updateId):
-          self?.viewModel.inputs.fetchUpdateVCData(param: param, updateId: updateId)
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case .dismissViewController:
+        self.navigationController?.dismiss(animated: true, completion: nil)
+        self.delegate?.pledgeManagerWebViewControllerDismissed()
+      case let .goToLoginSignup(intent): self.goToLoginSignup(with: intent)
+      case let .goToNativeScreen(request):
+        switch request {
+        case let .goToProject(param, refTag): self.goToProject(param: param, refTag: refTag)
+        case let .goToPledge(param): self.goToPledge(param: param)
+        case let .goToUpdate(param, updateId): self.viewModel.fetchUpdateVCData(param: param, updateId: updateId)
         }
+      case let .presentUpdateVC(project, update): self.goToUpdate(project: project, update: update)
+      case let .webViewLoadRequest(request): self.webView.load(request)
+      case let .title(title): self.title = title
       }
-
-    self.viewModel.outputs.presentUpdateVC
-      .observeForControllerAction()
-      .observeValues { [weak self] project, update in
-        self?.goToUpdate(project: project, update: update)
-      }
-
-    self.viewModel.outputs.webViewLoadRequest
-      .observeForControllerAction()
-      .observeValues { [weak self] request in
-        self?.webView.load(request)
-      }
+    }
   }
 
   @objc fileprivate func closeButtonTapped() {
-    self.viewModel.inputs.closeButtonTapped()
+    self.viewModel.closeButtonTapped()
   }
 
   internal func webView(
@@ -96,7 +72,7 @@ internal final class PledgeManagerWebViewController: WebViewController {
     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
   ) {
     decisionHandler(
-      self.viewModel.inputs.decidePolicyFor(
+      self.viewModel.decidePolicyFor(
         navigationAction: WKNavigationActionData(navigationAction: navigationAction)
       )
     )

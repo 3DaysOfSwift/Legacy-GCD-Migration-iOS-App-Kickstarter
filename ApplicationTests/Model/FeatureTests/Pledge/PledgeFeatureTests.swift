@@ -752,27 +752,8 @@ private final class ControlledPledgeProvider: PledgeProvider {
 extension PledgeFeatureTests {
   func testUpdateNavigationSharesPairAndPreservesIdentity() async throws {
     let route = UUID()
-    var values: [(Project, Update)] = []
-    let first = self.feature.updateContextResult(route: route, param: .slug("first"), updateID: 42)
-      .startWithResult {
-        if case .success(let value) = $0 {
-          values.append(value)
-        } else {
-          XCTFail("Unexpected request error")
-        }
-      }
-    let second = self.feature.updateContextResult(route: route, param: .slug("first"), updateID: 42)
-      .startWithResult {
-        if case .success(let value) = $0 {
-          values.append(value)
-        } else {
-          XCTFail("Unexpected request error")
-        }
-      }
-    defer {
-      first.dispose()
-      second.dispose()
-    }
+    let first = Task { try await self.feature.updateContext(route: route, param: .slug("first"), updateID: 42) }
+    let second = Task { try await self.feature.updateContext(route: route, param: .slug("first"), updateID: 42) }
     await self.provider.updateProjects.waitFor(1)
     XCTAssertEqual(self.provider.projectUpdates.count, 0)
     try self.provider.updateProjects.finish(0, .success(.template))
@@ -781,25 +762,19 @@ extension PledgeFeatureTests {
     XCTAssertEqual(self.provider.projectUpdateInputs.map { $0.1 }, [.slug("first")])
     try self.provider.projectUpdates.finish(0, .success(.template))
     await self.feature.waitForOperations()
-    XCTAssertEqual(values.count, 2)
-    XCTAssertEqual(values.first?.0.id, Project.template.id)
-    XCTAssertEqual(values.first?.1.id, Update.template.id)
+    let firstValue = try await first.value
+    let secondValue = try await second.value
+    XCTAssertEqual(firstValue.0.id, Project.template.id)
+    XCTAssertEqual(firstValue.1.id, Update.template.id)
+    XCTAssertEqual(secondValue.0.id, Project.template.id)
+    XCTAssertEqual(secondValue.1.id, Update.template.id)
   }
 
   func testChangedUpdateDestinationSuppressesLateProjectBeforeSecondStage() async throws {
     let route = UUID()
-    var oldValues = 0
-    let first = self.feature.updateContextResult(route: route, param: .slug("old"), updateID: 1)
-      .startWithResult {
-        if case .success = $0 { oldValues += 1 } else { XCTFail("Unexpected request error") }
-      }
+    let first = Task { try await self.feature.updateContext(route: route, param: .slug("old"), updateID: 1) }
     await self.provider.updateProjects.waitFor(1)
-    let second = self.feature.updateContextResult(route: route, param: .slug("new"), updateID: 2)
-      .start()
-    defer {
-      first.dispose()
-      second.dispose()
-    }
+    let second = Task { try await self.feature.updateContext(route: route, param: .slug("new"), updateID: 2) }
     await self.provider.updateProjects.waitFor(2)
     try self.provider.updateProjects.finish(0, .success(.template))
     try self.provider.updateProjects.finish(1, .success(.template))
@@ -807,19 +782,22 @@ extension PledgeFeatureTests {
     XCTAssertEqual(self.provider.projectUpdateInputs.map { $0.0 }, [2])
     try self.provider.projectUpdates.finish(0, .success(.template))
     await self.feature.waitForOperations()
-    XCTAssertEqual(oldValues, 0)
+    do { _ = try await first.value; XCTFail("Obsolete update reached the screen") }
+    catch { XCTAssertTrue(error is CancellationError) }
+    _ = try await second.value
   }
 
   func testClosingWebScreenSuppressesLateUpdate() async throws {
     let vm = PledgeManagerWebViewModel(feature: self.feature)
     var navigation = 0
-    let observation = vm.outputs.presentUpdateVC.observeValues { _ in navigation += 1 }
-    defer { observation?.dispose() }
-    vm.inputs.fetchUpdateVCData(param: .id(1), updateId: 2)
+    vm.onEvent = { event in
+      if case .presentUpdateVC = event { navigation += 1 }
+    }
+    vm.fetchUpdateVCData(param: .id(1), updateId: 2)
     await self.provider.updateProjects.waitFor(1)
     try self.provider.updateProjects.finish(0, .success(.template))
     await self.provider.projectUpdates.waitFor(1)
-    vm.inputs.closeButtonTapped()
+    vm.closeButtonTapped()
     try self.provider.projectUpdates.finish(0, .success(.template))
     await self.feature.waitForOperations()
     XCTAssertEqual(navigation, 0)
@@ -827,27 +805,20 @@ extension PledgeFeatureTests {
 
   func testUpdateNavigationRejectsReplacedSessionAndCanRetryAfterFailure() async throws {
     let route = UUID()
-    var values = 0
-    var errors = 0
-    let first = self.feature.updateContextResult(route: route, param: .id(1), updateID: 2)
-      .startWithResult { if case .success = $0 { values += 1 } else { errors += 1 } }
+    let first = Task { try await self.feature.updateContext(route: route, param: .id(1), updateID: 2) }
     await self.provider.updateProjects.waitFor(1)
     self.session.sessionChanged()
     try self.provider.updateProjects.finish(0, .success(.template))
     await self.feature.waitForOperations()
     XCTAssertEqual(self.provider.projectUpdates.count, 0)
-    XCTAssertEqual(values, 0)
-    XCTAssertEqual(errors, 0)
-    let retry = self.feature.updateContextResult(route: route, param: .id(1), updateID: 2)
-      .startWithFailed { _ in errors += 1 }
-    defer {
-      first.dispose()
-      retry.dispose()
-    }
+    do { _ = try await first.value; XCTFail("Stale session update succeeded") }
+    catch { XCTAssertTrue(error is CancellationError) }
+    let retry = Task { try await self.feature.updateContext(route: route, param: .id(1), updateID: 2) }
     await self.provider.updateProjects.waitFor(2)
     try self.provider.updateProjects.finish(1, .failure(ErrorEnvelope.couldNotParseJSON))
     await self.feature.waitForOperations()
-    XCTAssertEqual(errors, 1)
+    do { _ = try await retry.value; XCTFail("Expected update lookup failure") }
+    catch { XCTAssertTrue(error is ErrorEnvelope) }
     XCTAssertEqual(self.provider.projectUpdates.count, 0)
   }
 }
