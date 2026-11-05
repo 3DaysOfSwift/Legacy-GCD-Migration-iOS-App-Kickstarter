@@ -78,7 +78,7 @@ final class RootCommentCell: UITableViewCell, ValueCell {
   internal func configureWith(value: Comment) {
     self.commentCellHeaderStackView
       .configureWith(comment: value)
-    self.viewModel.inputs.configureWith(comment: value, project: nil)
+    self.viewModel.configureWith(comment: value, project: nil)
   }
 
   private func configureViews() {
@@ -122,19 +122,19 @@ final class RootCommentCell: UITableViewCell, ValueCell {
   // MARK: - View model
 
   internal override func bindViewModel() {
-    self.bodyTextView.rac.text = self.viewModel.outputs.body
-
-    self.viewModel.outputs.cellAuthor
-      .observeForUI()
-      .observeValues { [weak self] author in
-        guard let self = self else { return }
-        self.delegate?.commentCellDidTapHeader(self, author)
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .body(text): self.bodyTextView.text = text
+      case let .cellAuthor(author): self.delegate?.commentCellDidTapHeader(self, author)
+      default: break
       }
+    }
   }
 
   // MARK: - Actions
 
   @objc private func commentCellHeaderTapped() {
-    self.viewModel.inputs.cellHeaderTapped()
+    self.viewModel.cellHeaderTapped()
   }
 }

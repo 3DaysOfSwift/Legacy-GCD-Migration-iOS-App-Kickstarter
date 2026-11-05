@@ -3,8 +3,6 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 private enum Constants {
@@ -15,43 +13,48 @@ private enum Constants {
 internal final class CommentCellViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
-  let vm: CommentCellViewModelType = CommentCellViewModel()
+  let vm = CommentCellViewModel()
 
-  private let authorBadge = TestObserver<Comment.AuthorBadge, Never>()
-  private let authorImageURL = TestObserver<URL?, Never>()
-  private let authorName = TestObserver<String, Never>()
-  private let body = TestObserver<String, Never>()
-  private let bottomRowStackViewIsHidden = TestObserver<Bool, Never>()
-  private let cellAuthor = TestObserver<Comment.Author, Never>()
-  private let commentStatus = TestObserver<Comment.Status, Never>()
-  private let flagButtonIsHidden = TestObserver<Bool, Never>()
-  private let notifyDelegateLinkTappedWithURL = TestObserver<URL, Never>()
-  private let postTime = TestObserver<String, Never>()
-  private let postedButtonIsHidden = TestObserver<Bool, Never>()
-  private let replyButtonIsHidden = TestObserver<Bool, Never>()
-  private let replyCommentTapped = TestObserver<Comment, Never>()
-  private let shouldIndentContent = TestObserver<Bool, Never>()
-  private let viewCommentReplies = TestObserver<Comment, Never>()
-  private let viewRepliesStackViewIsHidden = TestObserver<Bool, Never>()
+  private let authorBadge = CommentRecorder<Comment.AuthorBadge>()
+  private let authorImageURL = CommentRecorder<URL?>()
+  private let authorName = CommentRecorder<String>()
+  private let body = CommentRecorder<String>()
+  private let bottomRowStackViewIsHidden = CommentRecorder<Bool>()
+  private let cellAuthor = CommentRecorder<Comment.Author>()
+  private let commentStatus = CommentRecorder<Comment.Status>()
+  private let flagButtonIsHidden = CommentRecorder<Bool>()
+  private let notifyDelegateLinkTappedWithURL = CommentRecorder<URL>()
+  private let postTime = CommentRecorder<String>()
+  private let postedButtonIsHidden = CommentRecorder<Bool>()
+  private let replyButtonIsHidden = CommentRecorder<Bool>()
+  private let replyCommentTapped = CommentRecorder<Comment>()
+  private let shouldIndentContent = CommentRecorder<Bool>()
+  private let viewCommentReplies = CommentRecorder<Comment>()
+  private let viewRepliesStackViewIsHidden = CommentRecorder<Bool>()
 
   override func setUp() async throws {
     try await super.setUp()
-    self.vm.outputs.authorBadge.observe(self.authorBadge.observer)
-    self.vm.outputs.authorImageURL.observe(self.authorImageURL.observer)
-    self.vm.outputs.authorName.observe(self.authorName.observer)
-    self.vm.outputs.body.observe(self.body.observer)
-    self.vm.outputs.bottomRowStackViewIsHidden.observe(self.bottomRowStackViewIsHidden.observer)
-    self.vm.outputs.cellAuthor.observe(self.cellAuthor.observer)
-    self.vm.outputs.commentStatus.observe(self.commentStatus.observer)
-    self.vm.outputs.flagButtonIsHidden.observe(self.flagButtonIsHidden.observer)
-    self.vm.outputs.notifyDelegateLinkTappedWithURL.observe(self.notifyDelegateLinkTappedWithURL.observer)
-    self.vm.outputs.postTime.observe(self.postTime.observer)
-    self.vm.outputs.postedButtonIsHidden.observe(self.postedButtonIsHidden.observer)
-    self.vm.outputs.replyButtonIsHidden.observe(self.replyButtonIsHidden.observer)
-    self.vm.outputs.replyCommentTapped.observe(self.replyCommentTapped.observer)
-    self.vm.outputs.shouldIndentContent.observe(self.shouldIndentContent.observer)
-    self.vm.outputs.viewCommentReplies.observe(self.viewCommentReplies.observer)
-    self.vm.outputs.viewRepliesViewHidden.observe(self.viewRepliesStackViewIsHidden.observer)
+    self.vm.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .authorBadge(value): self.authorBadge.record(value)
+      case let .authorImageURL(value): self.authorImageURL.record(value)
+      case let .authorName(value): self.authorName.record(value)
+      case let .body(value): self.body.record(value)
+      case let .bottomRowStackViewIsHidden(value): self.bottomRowStackViewIsHidden.record(value)
+      case let .cellAuthor(value): self.cellAuthor.record(value)
+      case let .commentStatus(value): self.commentStatus.record(value)
+      case let .flagButtonIsHidden(value): self.flagButtonIsHidden.record(value)
+      case let .notifyDelegateLinkTappedWithURL(value): self.notifyDelegateLinkTappedWithURL.record(value)
+      case let .postTime(value): self.postTime.record(value)
+      case let .postedButtonIsHidden(value): self.postedButtonIsHidden.record(value)
+      case let .replyButtonIsHidden(value): self.replyButtonIsHidden.record(value)
+      case let .replyCommentTapped(value): self.replyCommentTapped.record(value)
+      case let .shouldIndentContent(value): self.shouldIndentContent.record(value)
+      case let .viewCommentReplies(value): self.viewCommentReplies.record(value)
+      case let .viewRepliesViewHidden(value): self.viewRepliesStackViewIsHidden.record(value)
+      }
+    }
   }
 
   func testOutputs() {
@@ -64,7 +67,7 @@ internal final class CommentCellViewModelTests: TestCase {
     let project = Project.template
       |> \.personalization.isBacking .~ true
 
-    self.vm.inputs.configureWith(comment: comment, project: project)
+    self.vm.configureWith(comment: comment, project: project)
 
     self.authorBadge.assertValues([.creator], "The author's badge is emitted.")
     self.authorImageURL.assertValues([URL(string: "http://www.kickstarter.com/small.jpg")!])
@@ -77,10 +80,10 @@ internal final class CommentCellViewModelTests: TestCase {
   func testOutput_ReplyComment() {
     let comment = Comment.template
     withEnvironment(currentUser: .template) {
-      self.vm.inputs.configureWith(comment: comment, project: .template)
+      self.vm.configureWith(comment: comment, project: .template)
       self.replyCommentTapped.assertDidNotEmitValue()
 
-      self.vm.inputs.replyButtonTapped()
+      self.vm.replyButtonTapped()
 
       self.replyCommentTapped
         .assertValue(comment, "The that should be replied to was emmited")
@@ -90,10 +93,10 @@ internal final class CommentCellViewModelTests: TestCase {
   func testOutput_CellHeaderTapped_EmitsCellAuthor() {
     let comment = Comment.template
     withEnvironment(currentUser: .template) {
-      self.vm.inputs.configureWith(comment: comment, project: .template)
+      self.vm.configureWith(comment: comment, project: .template)
       self.cellAuthor.assertDidNotEmitValue()
 
-      self.vm.inputs.cellHeaderTapped()
+      self.vm.cellHeaderTapped()
 
       self.cellAuthor
         .assertValue(comment.author)
@@ -104,7 +107,7 @@ internal final class CommentCellViewModelTests: TestCase {
     let user = User.template |> \.id .~ 12_345
 
     withEnvironment(currentUser: user) {
-      self.vm.inputs.configureWith(comment: .template, project: .template)
+      self.vm.configureWith(comment: .template, project: .template)
 
       self.bottomRowStackViewIsHidden
         .assertValue(
@@ -118,7 +121,7 @@ internal final class CommentCellViewModelTests: TestCase {
     let project = Project.template
       |> \.personalization.isBacking .~ true
 
-    self.vm.inputs.configureWith(comment: .template, project: project)
+    self.vm.configureWith(comment: .template, project: project)
 
     self.bottomRowStackViewIsHidden
       .assertValue(
@@ -128,7 +131,7 @@ internal final class CommentCellViewModelTests: TestCase {
   }
 
   func testOutput_bottomRowStackViewIsHidden_IsReply() {
-    self.vm.inputs.configureWith(comment: .replyTemplate, project: .template)
+    self.vm.configureWith(comment: .replyTemplate, project: .template)
 
     self.bottomRowStackViewIsHidden
       .assertValue(
@@ -139,7 +142,7 @@ internal final class CommentCellViewModelTests: TestCase {
 
   func testOutput_bottomRowStackViewIsHidden_LoggedOut_IsReplyTrue() {
     withEnvironment(currentUser: nil) {
-      self.vm.inputs.configureWith(comment: .replyTemplate, project: .template)
+      self.vm.configureWith(comment: .replyTemplate, project: .template)
 
       self.bottomRowStackViewIsHidden
         .assertValue(
@@ -150,19 +153,19 @@ internal final class CommentCellViewModelTests: TestCase {
   }
 
   func testOutput_shouldIndentContent_True() {
-    self.vm.inputs.configureWith(comment: .replyTemplate, project: .template)
-    self.vm.inputs.bindStyles()
+    self.vm.configureWith(comment: .replyTemplate, project: .template)
+    self.vm.bindStyles()
     self.shouldIndentContent.assertValue(true)
   }
 
   func testOutput_shouldIndentContent_False() {
-    self.vm.inputs.configureWith(comment: .template, project: .template)
-    self.vm.inputs.bindStyles()
+    self.vm.configureWith(comment: .template, project: .template)
+    self.vm.bindStyles()
     self.shouldIndentContent.assertValue(false)
   }
 
   func testOutputs_flagButtonIsHidden() {
-    self.vm.inputs.configureWith(comment: .template, project: .template)
+    self.vm.configureWith(comment: .template, project: .template)
 
     self.flagButtonIsHidden
       .assertValue(true, "The feature flag is not enabled, therefore the flag button is hidden.")
@@ -175,11 +178,10 @@ internal final class CommentCellViewModelTests: TestCase {
       return
     }
 
-    self.vm.inputs.configureWith(comment: .template, project: nil)
+    self.vm.configureWith(comment: .template, project: nil)
 
-    self.scheduler.advance()
 
-    self.vm.inputs.linkTapped(url: expectedURL)
+    self.vm.linkTapped(url: expectedURL)
 
     self.notifyDelegateLinkTappedWithURL
       .assertValue(expectedURL, "The URL directs to Kickstarters Community Guidelines.")
@@ -187,7 +189,7 @@ internal final class CommentCellViewModelTests: TestCase {
 
   func testOutputs_replyButtonIsHidden_IsBacker_False_IsLoggedOut() {
     withEnvironment(currentUser: nil) {
-      self.vm.inputs.configureWith(comment: .template, project: .template)
+      self.vm.configureWith(comment: .template, project: .template)
 
       self.replyButtonIsHidden
         .assertValue(true, "The replyButton is hidden because the user is not a backer AND not logged in.")
@@ -198,7 +200,7 @@ internal final class CommentCellViewModelTests: TestCase {
     let user = User.template |> \.id .~ 12_345
 
     withEnvironment(currentUser: user) {
-      self.vm.inputs.configureWith(comment: .template, project: .template)
+      self.vm.configureWith(comment: .template, project: .template)
 
       self.replyButtonIsHidden
         .assertValue(true, "The replyButton is hidden because the user is logged in but not a backer.")
@@ -212,7 +214,7 @@ internal final class CommentCellViewModelTests: TestCase {
       |> \.memberData.permissions .~ [.post, .comment]
 
     withEnvironment(currentUser: user) {
-      self.vm.inputs.configureWith(comment: .template, project: project)
+      self.vm.configureWith(comment: .template, project: project)
 
       self.replyButtonIsHidden
         .assertValue(false, "The replyButton is not hidden because the user is a creator collaborator.")
@@ -223,7 +225,7 @@ internal final class CommentCellViewModelTests: TestCase {
     let user = User.template |> \.id .~ 12_345
 
     withEnvironment(currentUser: user) {
-      self.vm.inputs.configureWith(comment: .template, project: .template)
+      self.vm.configureWith(comment: .template, project: .template)
 
       self.replyButtonIsHidden
         .assertValue(
@@ -240,7 +242,7 @@ internal final class CommentCellViewModelTests: TestCase {
     let user = User.template |> \.id .~ 12_345
 
     withEnvironment(currentUser: user) {
-      self.vm.inputs.configureWith(comment: .template, project: project)
+      self.vm.configureWith(comment: .template, project: project)
 
       self.replyButtonIsHidden
         .assertValue(false, "The replyButton is not hidden.")
@@ -253,7 +255,7 @@ internal final class CommentCellViewModelTests: TestCase {
     let user = User.template |> \.id .~ 12_345
 
     withEnvironment(currentUser: user) {
-      self.vm.inputs.configureWith(comment: .template, project: .template)
+      self.vm.configureWith(comment: .template, project: .template)
 
       self.replyButtonIsHidden
         .assertValue(true, "The replyButton is hidden because the user is not a backer.")
@@ -272,7 +274,7 @@ internal final class CommentCellViewModelTests: TestCase {
     let comment = Comment.template
       |> \.author .~ author
 
-    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.vm.configureWith(comment: comment, project: .template)
 
     self.authorBadge.assertValues([.creator], "The author's badge is emitted.")
     self.authorImageURL.assertValues([URL(string: "http://www.kickstarter.com/small.jpg")!])
@@ -285,10 +287,10 @@ internal final class CommentCellViewModelTests: TestCase {
   func testOutput_ViewCommentReplies() {
     let comment = Comment.template
     withEnvironment(currentUser: .template) {
-      self.vm.inputs.configureWith(comment: comment, project: .template)
+      self.vm.configureWith(comment: comment, project: .template)
       self.viewCommentReplies.assertDidNotEmitValue()
 
-      self.vm.inputs.viewRepliesButtonTapped()
+      self.vm.viewRepliesButtonTapped()
 
       self.viewCommentReplies
         .assertValue(comment, "A Comment was emitted after the view replies button was tapped.")
@@ -299,7 +301,7 @@ internal final class CommentCellViewModelTests: TestCase {
     let comment = Comment.template
       |> \.removedPerGuidelines .~ true
 
-    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.vm.configureWith(comment: comment, project: .template)
 
     let commentHasBeenRemovedString = Strings
       .This_comment_has_been_removed_for_violating_kickstarters_community_guidelines(
@@ -313,7 +315,7 @@ internal final class CommentCellViewModelTests: TestCase {
     let comment = Comment.template
       |> \.isDeleted .~ true
 
-    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.vm.configureWith(comment: comment, project: .template)
 
     let body = Strings.This_comment_has_been_removed_by_Kickstarter() + " " + Strings
       .Learn_more_about_comment_guidelines(community_link: Constants.communityLink)
@@ -325,7 +327,7 @@ internal final class CommentCellViewModelTests: TestCase {
       |> \.hasFlaggings .~ true
       |> \.sustained .~ false
 
-    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.vm.configureWith(comment: comment, project: .template)
 
     let body = Strings
       .This_comment_is_under_review_for_potentially_violating_kickstarters_community_guidelines(
@@ -340,7 +342,7 @@ internal final class CommentCellViewModelTests: TestCase {
       |> \.hasFlaggings .~ true
       |> \.sustained .~ true
 
-    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.vm.configureWith(comment: comment, project: .template)
 
     self.body.assertLastValue(comment.body)
   }
@@ -348,7 +350,7 @@ internal final class CommentCellViewModelTests: TestCase {
   func testPersonalizedLabels_UserIs_Creator_Author() {
     let comment = Comment.template
 
-    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.vm.configureWith(comment: comment, project: .template)
     self.authorBadge.assertValues([.creator], "The author's badge is emitted.")
   }
 
@@ -363,7 +365,7 @@ internal final class CommentCellViewModelTests: TestCase {
     let user = User.template |> \.id .~ 12_345
 
     withEnvironment(currentUser: user) {
-      self.vm.inputs.configureWith(comment: comment, project: .template)
+      self.vm.configureWith(comment: comment, project: .template)
       self.authorBadge.assertValues([.you], "The author's badge is emitted.")
     }
   }
@@ -371,21 +373,33 @@ internal final class CommentCellViewModelTests: TestCase {
   func testPersonalizedLabels_UserIs_Superbacker_Author() {
     let comment = Comment.superbackerTemplate
 
-    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.vm.configureWith(comment: comment, project: .template)
     self.authorBadge.assertValues([.superbacker], "The author's badge is emitted.")
   }
 
   func testPersonalizedLabels_UserIs_Backer_Author() {
     let comment = Comment.backerTemplate
 
-    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.vm.configureWith(comment: comment, project: .template)
     self.authorBadge.assertValues([.backer], "The author's badge is emitted.")
+  }
+
+  func testReusingCellReplacesBlockedAuthorAndReplyVisibility() {
+    let backingProject = Project.template |> \.personalization.isBacking .~ true
+    withEnvironment(currentUser: .template) {
+      self.vm.configureWith(comment: .blockedTemplate, project: .template)
+      self.vm.configureWith(comment: .template, project: backingProject)
+      self.authorName.assertLastValue(Comment.template.author.name)
+      self.body.assertLastValue(Comment.template.body)
+      self.replyButtonIsHidden.assertLastValue(false)
+      self.bottomRowStackViewIsHidden.assertLastValue(false)
+    }
   }
 
   func testBlockedAuthor() {
     let comment = Comment.blockedTemplate
 
-    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.vm.configureWith(comment: comment, project: .template)
     self.authorBadge.assertValues([.backer], "The default badge is emitted.")
     self.authorName.assertValue(Strings.Blocked_user(), "The author's name is hidden.")
     self.authorImageURL.assertValue(nil, "The author's avatar is hidden.")
@@ -395,11 +409,11 @@ internal final class CommentCellViewModelTests: TestCase {
   func testBindStylesEmitsAuthorBadge() {
     self.authorBadge.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(comment: .template, project: .template)
+    self.vm.configureWith(comment: .template, project: .template)
 
     self.authorBadge.assertValues([.creator], "The author's badge is emitted.")
 
-    self.vm.inputs.bindStyles()
+    self.vm.bindStyles()
 
     self.authorBadge.assertValues([.creator, .creator], "The author's badge is emitted.")
   }
@@ -410,12 +424,12 @@ internal final class CommentCellViewModelTests: TestCase {
     let comment = Comment.template
       |> \.status .~ .retrying
 
-    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.vm.configureWith(comment: comment, project: .template)
 
     self.commentStatus.assertValues([.retrying], "The comment status is emitted.")
     self.postedButtonIsHidden.assertValues([true], "The posted button hiddent state is emitted.")
 
-    self.vm.inputs.bindStyles()
+    self.vm.bindStyles()
 
     self.commentStatus.assertValues([.retrying, .retrying], "The comment status is emitted.")
     self.postedButtonIsHidden.assertValues([true, true], "The posted button hiddent state is emitted.")
@@ -425,12 +439,12 @@ internal final class CommentCellViewModelTests: TestCase {
     let comment = Comment.template
       |> \.status .~ .retrySuccess
 
-    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.vm.configureWith(comment: comment, project: .template)
 
     self.commentStatus.assertValues([.retrySuccess], "The comment status is emitted.")
     self.postedButtonIsHidden.assertValues([false], "The posted button hiddent state is emitted.")
 
-    self.vm.inputs.bindStyles()
+    self.vm.bindStyles()
 
     self.commentStatus.assertValues([.retrySuccess, .retrySuccess], "The comment status is emitted.")
     self.postedButtonIsHidden.assertValues([false, false], "The posted button hiddent state is emitted.")
@@ -442,7 +456,7 @@ internal final class CommentCellViewModelTests: TestCase {
     let comment = Comment.template
       |> \.replyCount .~ 0
 
-    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.vm.configureWith(comment: comment, project: .template)
 
     self.viewRepliesStackViewIsHidden.assertValues([true])
   }
@@ -453,9 +467,31 @@ internal final class CommentCellViewModelTests: TestCase {
 
     self.viewRepliesStackViewIsHidden.assertDidNotEmitValue()
 
-    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.vm.configureWith(comment: comment, project: .template)
 
     self.viewRepliesStackViewIsHidden
       .assertValue(false, "The stack view is not hidden because there are replies.")
+  }
+}
+
+private final class CommentRecorder<Value> {
+  private var values: [Value] = []
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertDidNotEmitValue(file: StaticString = #filePath, line: UInt = #line) {
+    self.assertValueCount(0, file: file, line: line)
+  }
+}
+private extension CommentRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
+  }
+  func assertValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    self.assertValues([expected], message, file: file, line: line)
+  }
+  func assertLastValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.last, expected, message, file: file, line: line)
   }
 }

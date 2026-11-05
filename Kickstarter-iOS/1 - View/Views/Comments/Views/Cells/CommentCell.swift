@@ -62,15 +62,15 @@ final class CommentCell: UITableViewCell, ValueCell {
   // MARK: - Actions
 
   @objc func replyButtonTapped() {
-    self.viewModel.inputs.replyButtonTapped()
+    self.viewModel.replyButtonTapped()
   }
 
   @objc func viewRepliesTapped() {
-    self.viewModel.inputs.viewRepliesButtonTapped()
+    self.viewModel.viewRepliesButtonTapped()
   }
 
   @objc private func commentCellHeaderTapped() {
-    self.viewModel.inputs.cellHeaderTapped()
+    self.viewModel.cellHeaderTapped()
   }
 
   // MARK: - Styles
@@ -96,7 +96,7 @@ final class CommentCell: UITableViewCell, ValueCell {
     _ = self.flagButton
       |> UIButton.lens.image(for: .normal) %~ { _ in Kickstarter_iOS.image(named: "flag") }
 
-    self.viewModel.inputs.bindStyles()
+    self.viewModel.bindStyles()
   }
 
   // MARK: - Configuration
@@ -104,7 +104,7 @@ final class CommentCell: UITableViewCell, ValueCell {
   internal func configureWith(value: (comment: Comment, project: Project)) {
     self.commentCellHeaderStackView
       .configureWith(comment: value.comment)
-    self.viewModel.inputs.configureWith(comment: value.comment, project: value.project)
+    self.viewModel.configureWith(comment: value.comment, project: value.project)
   }
 
   private func configureViews() {
@@ -151,49 +151,27 @@ final class CommentCell: UITableViewCell, ValueCell {
   // MARK: - View model
 
   internal override func bindViewModel() {
-    self.bodyTextView.rac.text = self.viewModel.outputs.body
-    self.bottomRowStackView.rac.hidden = self.viewModel.outputs.bottomRowStackViewIsHidden
-    self.flagButton.rac.hidden = self.viewModel.outputs.flagButtonIsHidden
-    self.replyButton.rac.hidden = self.viewModel.outputs.replyButtonIsHidden
-    self.viewRepliesView.rac.hidden = self.viewModel.outputs.viewRepliesViewHidden
-
-    self.postedButton.rac.hidden = self.viewModel.outputs.postedButtonIsHidden
-
-    self.viewModel.outputs.cellAuthor
-      .observeForUI()
-      .observeValues { [weak self] author in
-        guard let self = self else { return }
-        self.delegate?.commentCellDidTapHeader(self, author)
-      }
-
-    self.viewModel.outputs.replyCommentTapped
-      .observeForUI()
-      .observeValues { [weak self] comment in
-        guard let self = self else { return }
-        self.delegate?.commentCellDidTapReply(self, comment: comment)
-      }
-
-    self.viewModel.outputs.viewCommentReplies
-      .observeForUI()
-      .observeValues { [weak self] comment in
-        guard let self = self else { return }
-        self.delegate?.commentCellDidTapViewReplies(self, comment: comment)
-      }
-
-    self.viewModel.outputs.shouldIndentContent
-      .observeForUI()
-      .observeValues { shouldIndent in
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .body(text): self.bodyTextView.text = text
+      case let .bottomRowStackViewIsHidden(hidden): self.bottomRowStackView.isHidden = hidden
+      case let .flagButtonIsHidden(hidden): self.flagButton.isHidden = hidden
+      case let .replyButtonIsHidden(hidden): self.replyButton.isHidden = hidden
+      case let .viewRepliesViewHidden(hidden): self.viewRepliesView.isHidden = hidden
+      case let .postedButtonIsHidden(hidden): self.postedButton.isHidden = hidden
+      case let .cellAuthor(author): self.delegate?.commentCellDidTapHeader(self, author)
+      case let .replyCommentTapped(comment): self.delegate?.commentCellDidTapReply(self, comment: comment)
+      case let .viewCommentReplies(comment): self.delegate?.commentCellDidTapViewReplies(self, comment: comment)
+      case let .shouldIndentContent(shouldIndent):
         _ = self.rootStackView
           |> \.axis .~ .vertical
-          |> \.layoutMargins .~ .init(
-            top: Styles.grid(1),
-            left: Styles.grid(shouldIndent ? CommentCellStyles.Content.leftIndentWidth : 1),
-            bottom: Styles.grid(3),
-            right: Styles.grid(1)
-          )
+          |> \.layoutMargins .~ .init(top: Styles.grid(1), left: Styles.grid(shouldIndent ? CommentCellStyles.Content.leftIndentWidth : 1), bottom: Styles.grid(3), right: Styles.grid(1))
           |> \.isLayoutMarginsRelativeArrangement .~ true
           |> \.spacing .~ Styles.grid(3)
+      default: break
       }
+    }
   }
 }
 

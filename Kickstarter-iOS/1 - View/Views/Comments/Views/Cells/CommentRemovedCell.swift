@@ -74,7 +74,7 @@ final class CommentRemovedCell: UITableViewCell, ValueCell {
     _ = self.commentTextView
       |> tappableLinksViewStyle
 
-    self.viewModel.inputs.bindStyles()
+    self.viewModel.bindStyles()
   }
 
   // MARK: - Configuration
@@ -82,7 +82,7 @@ final class CommentRemovedCell: UITableViewCell, ValueCell {
   internal func configureWith(value: Comment) {
     self.commentCellHeaderStackView
       .configureWith(comment: value)
-    self.viewModel.inputs.configureWith(comment: value, project: nil)
+    self.viewModel.configureWith(comment: value, project: nil)
   }
 
   private func configureViews() {
@@ -109,21 +109,15 @@ final class CommentRemovedCell: UITableViewCell, ValueCell {
 
   internal override func bindViewModel() {
     super.bindViewModel()
-
-    self.viewRepliesView.rac.hidden = self.viewModel.outputs.viewRepliesViewHidden
-
-    self.viewModel.outputs.notifyDelegateLinkTappedWithURL
-      .observeForUI()
-      .observeValues { [weak self] url in
-        guard let self = self else { return }
-        self.delegate?.commentRemovedCell(self, didTapURL: url)
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .viewRepliesViewHidden(hidden): self.viewRepliesView.isHidden = hidden
+      case let .notifyDelegateLinkTappedWithURL(url): self.delegate?.commentRemovedCell(self, didTapURL: url)
+      case let .body(text): self.commentTextView.attributedText = attributedText(text)
+      default: break
       }
-
-    self.viewModel.outputs.body
-      .observeForUI()
-      .observeValues { body in
-        self.commentTextView.attributedText = attributedText(body)
-      }
+    }
   }
 }
 
@@ -173,7 +167,7 @@ extension CommentRemovedCell: UITextViewDelegate {
     _: UITextView, shouldInteractWith url: URL, in _: NSRange,
     interaction _: UITextItemInteraction
   ) -> Bool {
-    self.viewModel.inputs.linkTapped(url: url)
+    self.viewModel.linkTapped(url: url)
     return false
   }
 }

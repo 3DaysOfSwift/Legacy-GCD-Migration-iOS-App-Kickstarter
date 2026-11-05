@@ -53,7 +53,7 @@ final class CommentPostFailedCell: UITableViewCell, ValueCell {
       |> commentBodyTextViewStyle
       |> \.textColor .~ LegacyColors.ksr_support_400.uiColor()
 
-    self.viewModel.inputs.bindStyles()
+    self.viewModel.bindStyles()
   }
 
   // MARK: - Configuration
@@ -61,7 +61,7 @@ final class CommentPostFailedCell: UITableViewCell, ValueCell {
   internal func configureWith(value: Comment) {
     self.commentCellHeaderStackView
       .configureWith(comment: value)
-    self.viewModel.inputs.configureWith(comment: value, project: nil)
+    self.viewModel.configureWith(comment: value, project: nil)
   }
 
   private func configureViews() {
@@ -78,24 +78,17 @@ final class CommentPostFailedCell: UITableViewCell, ValueCell {
   // MARK: - View model
 
   internal override func bindViewModel() {
-    self.bodyTextView.rac.text = self.viewModel.outputs.body
-
-    self.viewModel.outputs.commentStatus
-      .observeForUI()
-      .observeValues { [weak self] status in
-        guard let self = self else { return }
-        _ = self.retryButton
-          |> status == .retrying ? postingButtonStyle : retryButtonStyle
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .body(text): self.bodyTextView.text = text
+      case let .commentStatus(status):
+        _ = self.retryButton |> status == .retrying ? postingButtonStyle : retryButtonStyle
+      case let .shouldIndentContent(shouldIndent):
+        if shouldIndent { _ = self.rootStackView |> commentCellIndentedRootStackViewStyle }
+      default: break
       }
-
-    self.viewModel.outputs.shouldIndentContent
-      .observeForUI()
-      .observeValues { shouldIndent in
-        guard shouldIndent else { return }
-
-        _ = self.rootStackView
-          |> commentCellIndentedRootStackViewStyle
-      }
+    }
   }
 }
 

@@ -68,13 +68,13 @@ internal final class CommentCellHeaderStackView: UIStackView {
       |> \.font .~ UIFont.ksr_footnote()
       |> \.adjustsFontForContentSizeCategory .~ true
 
-    self.viewModel.inputs.bindStyles()
+    self.viewModel.bindStyles()
   }
 
   // MARK: - Configuration
 
   internal func configureWith(comment: Comment) {
-    self.viewModel.inputs.configureWith(comment: comment, project: nil)
+    self.viewModel.configureWith(comment: comment, project: nil)
   }
 
   private func configureViews() {
@@ -127,26 +127,19 @@ internal final class CommentCellHeaderStackView: UIStackView {
   // MARK: View Model
 
   override func bindViewModel() {
-    self.viewModel.outputs.authorImageURL
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.circleAvatarImageView.af.cancelImageRequest()
-        self?.circleAvatarImageView.image = nil
-      })
-      .observeValues { [weak self] url in
-        if let url {
-          self?.circleAvatarImageView
-            .ksr_setImageWithURL(url)
-        }
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .authorImageURL(url):
+        self.circleAvatarImageView.af.cancelImageRequest()
+        self.circleAvatarImageView.image = nil
+        if let url { self.circleAvatarImageView.ksr_setImageWithURL(url) }
+      case let .authorBadge(badge): self.configureUserBadgeStyle(from: badge)
+      case let .authorName(name): self.authorNameLabel.text = name; self.accessibilityLabel = name
+      case let .postTime(time): self.postTimeLabel.text = time
+      default: break
       }
-
-    self.viewModel.outputs.authorBadge
-      .observeForUI()
-      .observeValues(self.configureUserBadgeStyle)
-
-    self.authorNameLabel.rac.text = self.viewModel.authorName
-    self.postTimeLabel.rac.text = self.viewModel.postTime
-    self.rac.accessibilityLabel = self.viewModel.authorName
+    }
   }
 }
 
