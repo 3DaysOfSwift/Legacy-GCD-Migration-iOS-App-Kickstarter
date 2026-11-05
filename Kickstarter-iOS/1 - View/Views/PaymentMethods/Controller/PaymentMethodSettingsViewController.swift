@@ -15,8 +15,7 @@ protocol PaymentMethodSettingsViewControllerDelegate: AnyObject {
 internal final class PaymentMethodSettingsViewController: UIViewController,
   MessageBannerViewControllerPresenting {
   private let dataSource = PaymentMethodsDataSource()
-  private let viewModel: PaymentMethodsViewModelType =
-    PaymentMethodSettingsViewModel(stripeIntentService: StripeIntentService())
+  private let viewModel = PaymentMethodSettingsViewModel(stripeIntentService: StripeIntentService())
   private let paymentSheet = PaymentSheetOperation()
   private weak var cancellationDelegate: PaymentMethodSettingsViewControllerDelegate?
   @IBOutlet private var tableView: UITableView!
@@ -56,11 +55,11 @@ internal final class PaymentMethodSettingsViewController: UIViewController,
 
     self.dataSource.deletionHandler = { [weak self] creditCard in
       self?.paymentSheet.cancelBeforePresentation()
-      self?.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: true)
-      self?.viewModel.inputs.didDelete(creditCard, visibleCellCount: self?.tableView.visibleCells.count ?? 0)
+      self?.viewModel.shouldCancelPaymentSheetAppearance(state: true)
+      self?.viewModel.didDelete(creditCard, visibleCellCount: self?.tableView.visibleCells.count ?? 0)
     }
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   override func viewWillDisappear(_ animated: Bool) {
@@ -93,80 +92,30 @@ internal final class PaymentMethodSettingsViewController: UIViewController,
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.editButton.rac.enabled = self.viewModel.outputs.editButtonIsEnabled
-
-    self.viewModel.outputs.cancelAddNewCardLoadingState
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        guard let strongSelf = self else { return }
-        strongSelf.cancellationDelegate?.cancelLoadingPaymentMethodsViewController(strongSelf)
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .editButtonIsEnabled(enabled): self.editButton.isEnabled = enabled
+      case .cancelAddNewCardLoadingState: self.cancellationDelegate?.cancelLoadingPaymentMethodsViewController(self)
+      case let .paymentMethods(cards): self.dataSource.load(creditCards: cards); self.tableView.reloadData()
+      case .reloadData: self.tableView.reloadData()
+      case let .goToPaymentSheet(data): self.goToPaymentSheet(data: data)
+      case let .errorLoadingPaymentMethodsOrSetupIntent(message): self.messageBannerViewController?.showBanner(with: .error, message: message)
+      case let .presentBanner(message): self.messageBannerViewController?.showBanner(with: .success, message: message)
+      case let .tableViewIsEditing(editing): self.tableView.setEditing(editing, animated: true)
+      case let .showAlert(message): self.present(UIAlertController.genericError(message), animated: true)
+      case let .editButtonTitle(title): self.editButton.title = title
+      case let .setStripePublishableKey(key): STPAPIClient.shared.publishableKey = key
       }
-
-    self.viewModel.outputs.paymentMethods
-      .observeForUI()
-      .observeValues { [weak self] result in
-        self?.dataSource.load(creditCards: result)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.reloadData
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.goToPaymentSheet
-      .observeForUI()
-      .observeValues { [weak self] data in
-        guard let strongSelf = self else { return }
-
-        strongSelf.goToPaymentSheet(data: data)
-      }
-
-    self.viewModel.outputs.errorLoadingPaymentMethodsOrSetupIntent
-      .observeForUI()
-      .observeValues { [weak self] message in
-        self?.messageBannerViewController?.showBanner(with: .error, message: message)
-      }
-
-    self.viewModel.outputs.presentBanner
-      .observeForUI()
-      .observeValues { [weak self] message in
-        self?.messageBannerViewController?.showBanner(with: .success, message: message)
-      }
-
-    self.viewModel.outputs.tableViewIsEditing
-      .observeForUI()
-      .observeValues { [weak self] isEditing in
-        self?.tableView.setEditing(isEditing, animated: true)
-      }
-
-    self.viewModel.outputs.showAlert
-      .observeForControllerAction()
-      .observeValues { [weak self] message in
-        self?.present(UIAlertController.genericError(message), animated: true)
-      }
-
-    self.viewModel.outputs.editButtonTitle
-      .observeForUI()
-      .observeValues { [weak self] title in
-        _ = self?.editButton
-          ?|> \.title %~ { _ in title }
-      }
-
-    self.viewModel.outputs.setStripePublishableKey
-      .observeForUI()
-      .observeValues {
-        STPAPIClient.shared.publishableKey = $0
-      }
+    }
   }
 
   // MARK: - Actions
 
   @objc private func edit() {
     self.paymentSheet.cancelBeforePresentation()
-    self.viewModel.inputs.editButtonTapped()
-    self.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: true)
+    self.viewModel.editButtonTapped()
+    self.viewModel.shouldCancelPaymentSheetAppearance(state: true)
   }
 
   // MARK: - Private Helpers
@@ -182,15 +131,15 @@ internal final class PaymentMethodSettingsViewController: UIViewController,
       },
       completed: { [weak self] result in
         guard let self else { return }
-        self.viewModel.inputs.shouldCancelPaymentSheetAppearance(state: true)
+        self.viewModel.shouldCancelPaymentSheetAppearance(state: true)
         switch result {
-        case .completed: self.viewModel.inputs.paymentSheetDidAdd(setupIntent: data.clientSecret)
+        case .completed: self.viewModel.paymentSheetDidAdd(setupIntent: data.clientSecret)
         case .noSelection: break
-        case .canceled: self.viewModel.inputs.failedToAddNewCard()
+        case .canceled: self.viewModel.failedToAddNewCard()
         case let .loadFailed(error):
           self.messageBannerViewController?.showBanner(with: .error, message: error.localizedDescription)
         case let .failed(error):
-          self.viewModel.inputs.failedToAddNewCard()
+          self.viewModel.failedToAddNewCard()
           self.messageBannerViewController?.showBanner(with: .error, message: error.localizedDescription)
         }
       }
@@ -243,7 +192,7 @@ extension PaymentMethodSettingsViewController: UITableViewDelegate {
 
 extension PaymentMethodSettingsViewController: PaymentMethodsFooterViewDelegate {
   internal func paymentMethodsFooterViewDidTapAddNewCardButton(_: PaymentMethodsFooterView) {
-    self.viewModel.inputs.paymentMethodsFooterViewDidTapAddNewCardButton()
+    self.viewModel.paymentMethodsFooterViewDidTapAddNewCardButton()
   }
 }
 

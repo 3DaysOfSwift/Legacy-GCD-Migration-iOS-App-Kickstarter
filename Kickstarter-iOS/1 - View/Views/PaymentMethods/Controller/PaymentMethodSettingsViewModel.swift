@@ -1,274 +1,187 @@
 import Foundation
 import KsApi
-import Prelude
-import ReactiveSwift
 import StripePaymentSheet
 
 @MainActor
-public protocol PaymentMethodSettingsViewModelInputs {
-  func failedToAddNewCard()
-  func didDelete(_ creditCard: UserCreditCards.CreditCard, visibleCellCount: Int)
-  func editButtonTapped()
-  func paymentMethodsFooterViewDidTapAddNewCardButton()
-  func paymentSheetDidAdd(
-    setupIntent: String
-  )
-  func shouldCancelPaymentSheetAppearance(state: Bool)
-  func viewDidLoad()
-}
-
-@MainActor
-public protocol PaymentMethodSettingsViewModelOutputs {
-  var cancelAddNewCardLoadingState: Signal<Void, Never> { get }
-  var editButtonIsEnabled: Signal<Bool, Never> { get }
-  var editButtonTitle: Signal<String, Never> { get }
-  var errorLoadingPaymentMethodsOrSetupIntent: Signal<String, Never> { get }
-  var goToPaymentSheet: Signal<PaymentSheetSetupData, Never> { get }
-  var paymentMethods: Signal<[UserCreditCards.CreditCard], Never> { get }
-  var presentBanner: Signal<String, Never> { get }
-  var reloadData: Signal<Void, Never> { get }
-  var setStripePublishableKey: Signal<String, Never> { get }
-  var showAlert: Signal<String, Never> { get }
-  var tableViewIsEditing: Signal<Bool, Never> { get }
-}
-
-@MainActor
-public protocol PaymentMethodsViewModelType {
-  var inputs: PaymentMethodSettingsViewModelInputs { get }
-  var outputs: PaymentMethodSettingsViewModelOutputs { get }
-}
-
-@MainActor
-public final class PaymentMethodSettingsViewModel: PaymentMethodsViewModelType,
-  PaymentMethodSettingsViewModelInputs, PaymentMethodSettingsViewModelOutputs {
+final class PaymentMethodSettingsViewModel {
+  enum Event {
+    case cancelAddNewCardLoadingState, editButtonIsEnabled(Bool), editButtonTitle(String)
+    case errorLoadingPaymentMethodsOrSetupIntent(String), goToPaymentSheet(PaymentSheetSetupData)
+    case paymentMethods([UserCreditCards.CreditCard]), presentBanner(String), reloadData
+    case setStripePublishableKey(String), showAlert(String), tableViewIsEditing(Bool)
+  }
+  var onEvent: ((Event) -> Void)?
   let stripeIntentService: StripeIntentServiceType
+  private let sleep: @MainActor (TimeInterval) async throws -> Void
+  private var loadTask: Task<Void, Never>?
+  private var deleteTask: Task<Void, Never>?
+  private var storeTask: Task<Void, Never>?
+  private var setupTask: Task<Void, Never>?
+  private var isEditing = false
+  private var hasEditingState = false
+  private var enabled: Bool?
+  private var shouldCancel = false
+  private var latestCards: [UserCreditCards.CreditCard]?
 
-  public init(stripeIntentService: StripeIntentServiceType) {
+  init(stripeIntentService: StripeIntentServiceType,
+       sleep: @escaping @MainActor (TimeInterval) async throws -> Void = { seconds in
+         if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
+       }) {
     self.stripeIntentService = stripeIntentService
-    let paymentsFeature = stripeIntentService.paymentsFeature
-
-    self.reloadData = self.viewDidLoadProperty.signal
-
-    let paymentMethodsEvent = Signal.merge(
-      self.viewDidLoadProperty.signal,
-      self.addNewCardSucceededProperty.signal.ignoreValues(),
-      self.failedToAddNewCardProperty.signal
+    self.sleep = sleep
+  }
+  deinit {
+    self.loadTask?.cancel(); self.deleteTask?.cancel(); self.storeTask?.cancel(); self.setupTask?.cancel()
+  }
+  private struct PresentationSession {
+    let userID: Int?
+    let generation: Int
+  }
+  private var presentationSession: PresentationSession {
+    let session = self.stripeIntentService.paymentsFeature.sessionFeature
+    return PresentationSession(userID: session.currentUser?.id, generation: session.generation)
+  }
+  private func isCurrent(_ identity: PresentationSession) -> Bool {
+    self.stripeIntentService.paymentsFeature.sessionFeature.isCurrent(
+      userID: identity.userID, generation: identity.generation
     )
-    .switchMap { _ in
-      paymentsFeature.currentResult {
-        paymentsFeature.result { try await paymentsFeature.cards() }
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+  }
+  func viewDidLoad() {
+    self.onEvent?(.reloadData)
+    self.setEnabled(false)
+    self.onEvent?(.setStripePublishableKey(AppEnvironment.current.environmentType.stripePublishableKey))
+    self.loadCards()
+  }
+  func failedToAddNewCard() { self.loadCards() }
+  private func loadCards() {
+    self.loadTask?.cancel()
+    let feature = self.stripeIntentService.paymentsFeature
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    let sleep = self.sleep
+    let identity = self.presentationSession
+    self.loadTask = Task { [weak self] in
+      guard self?.isCurrent(identity) == true else { return }
+      do {
+        let cards = try await feature.cards().me.storedCards.storedCards
+        try await sleep(delay)
+        try Task.checkCancellation()
+        guard let self, self.isCurrent(identity) else { return }
+        self.latestCards = cards
+        self.onEvent?(.paymentMethods(cards))
+        self.setEnabled(!cards.isEmpty)
+      } catch {
+        do { try await sleep(delay) } catch { return }
+        guard !Task.isCancelled, !(error is CancellationError), let self, self.isCurrent(identity) else { return }
+        self.reportError(error)
       }
-        .materialize()
     }
-
-    let paymentSheetEnabled: Bool = true
-
-    let deletePaymentMethodEvents = self.didDeleteCreditCardSignal
-      .map(first)
-      .switchMap { creditCard in
-        paymentsFeature.currentResult {
-          paymentsFeature.removeResult(id: creditCard.id)
-            .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-        }
-          .materialize()
+  }
+  func didDelete(_ card: UserCreditCards.CreditCard, visibleCellCount: Int) {
+    self.setEnabled(visibleCellCount > 0)
+    self.deleteTask?.cancel()
+    let feature = self.stripeIntentService.paymentsFeature
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    let sleep = self.sleep
+    let identity = self.presentationSession
+    self.deleteTask = Task { [weak self] in
+      guard self?.isCurrent(identity) == true else { return }
+      do {
+        let cards = try await feature.remove(id: card.id).storedCards
+        try await sleep(delay)
+        try Task.checkCancellation()
+        guard let self, self.isCurrent(identity) else { return }
+        self.latestCards = cards
+        self.setEnabled(!cards.isEmpty)
+      } catch {
+        do { try await sleep(delay) } catch { return }
+        guard !Task.isCancelled, !(error is CancellationError), let self, self.isCurrent(identity) else { return }
+        self.onEvent?(.showAlert(Strings.Something_went_wrong_and_we_were_unable_to_remove_your_payment_method_please_try_again()))
+        if let cards = self.latestCards { self.onEvent?(.paymentMethods(cards)); self.setEnabled(!cards.isEmpty) }
       }
-
-    let deletePaymentMethodEventsErrors = deletePaymentMethodEvents.errors()
-
-    self.showAlert = deletePaymentMethodEventsErrors
-      .ignoreValues()
-      .map {
-        Strings.Something_went_wrong_and_we_were_unable_to_remove_your_payment_method_please_try_again()
+    }
+  }
+  func editButtonTapped() {
+    guard self.hasEditingState else { return }
+    self.setEditing(!self.isEditing)
+  }
+  func paymentMethodsFooterViewDidTapAddNewCardButton() {
+    self.shouldCancel = false
+    self.setupTask?.cancel()
+    let service = self.stripeIntentService
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    let sleep = self.sleep
+    let identity = self.presentationSession
+    self.setupTask = Task { [weak self] in
+      guard self?.isCurrent(identity) == true else { return }
+      do {
+        let envelope = try await service.setupIntent(for: nil, context: .profileSettings)
+        try await sleep(1 + delay)
+        try Task.checkCancellation()
+        guard let self, self.isCurrent(identity), !self.shouldCancel else { return }
+        var configuration = PaymentSheet.Configuration()
+        configuration.merchantDisplayName = Strings.general_accessibility_kickstarter()
+        configuration.allowsDelayedPaymentMethods = true
+        configuration.defaultBillingDetails.email = AppEnvironment.current.currentUserEmail
+        self.onEvent?(.goToPaymentSheet(PaymentSheetSetupData(clientSecret: envelope.clientSecret, configuration: configuration)))
+        self.setEditing(false)
+      } catch {
+        do { try await sleep(delay) } catch { return }
+        guard !Task.isCancelled, !(error is CancellationError), let self, self.isCurrent(identity) else { return }
+        self.reportError(error)
       }
-
-    let initialPaymentMethodsValues = paymentMethodsEvent
-      .values().map { $0.me.storedCards.storedCards }
-
-    let deletePaymentMethodValues = deletePaymentMethodEvents.values()
-      .map { $0.storedCards }
-
-    let latestPaymentMethods = Signal.merge(
-      initialPaymentMethodsValues,
-      deletePaymentMethodValues
-    )
-
-    let newSetupIntentCards = self.newSetupIntentCreditCardProperty.signal.skipNil()
-      .switchMap { secret in
-        paymentsFeature.currentResult {
-          paymentsFeature.storeResult(secret: secret)
-            .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-        }
-          .map { (envelope: CreatePaymentSourceEnvelope) in envelope.createPaymentSource }
-          .materialize()
+    }
+  }
+  func paymentSheetDidAdd(setupIntent: String) {
+    self.storeTask?.cancel()
+    let feature = self.stripeIntentService.paymentsFeature
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    let sleep = self.sleep
+    let identity = self.presentationSession
+    self.storeTask = Task { [weak self] in
+      guard self?.isCurrent(identity) == true else { return }
+      do {
+        _ = try await feature.store(secret: setupIntent)
+        try await sleep(delay)
+        try Task.checkCancellation()
+        guard let self, self.isCurrent(identity) else { return }
+        self.addNewCardSucceeded(with: Strings.Got_it_your_changes_have_been_saved())
+      } catch {
+        do { try await sleep(delay) } catch { return }
+        guard !Task.isCancelled, !(error is CancellationError), let self, self.isCurrent(identity) else { return }
+        self.reportError(error)
       }
-
-    self.addNewCardSucceededProperty <~ newSetupIntentCards.values()
-      .map { _ in Strings.Got_it_your_changes_have_been_saved() }
-
-    self.paymentMethods = Signal.merge(
-      initialPaymentMethodsValues,
-      deletePaymentMethodEventsErrors
-        .withLatest(from: latestPaymentMethods)
-        .map(second)
-    )
-
-    let hasAtLeastOneCard = Signal.merge(
-      self.paymentMethods
-        .map { !$0.isEmpty },
-      deletePaymentMethodValues
-        .map { !$0.isEmpty },
-      self.didDeleteCreditCardSignal.map(second)
-        .map { $0 > 0 }
-    )
-
-    self.editButtonIsEnabled = Signal.merge(
-      self.viewDidLoadProperty.signal.mapConst(false),
-      hasAtLeastOneCard
-    )
-    .skipRepeats()
-
-    self.presentBanner = self.addNewCardSucceededProperty.signal.skipNil()
-
-    self.tableViewIsEditing = self.tableViewIsEditingProperty.signal
-
-    self.editButtonTitle = self.tableViewIsEditing
-      .map { $0 ? Strings.Done() : Strings.discovery_favorite_categories_buttons_edit() }
-
-    let createSetupIntentEvent = self.didTapAddCardButtonProperty.signal
-      .switchMap { SignalProducer(value: paymentSheetEnabled) }
-      .filter(isTrue)
-      .switchMap { (_: Bool) -> SignalProducer<Signal<PaymentSheetSetupData, ErrorEnvelope>.Event, Never> in
-        paymentsFeature.currentResult {
-          stripeIntentService.createSetupIntent(for: nil, context: .profileSettings)
-            .ksr_debounce(.seconds(1), on: AppEnvironment.current.scheduler)
-            .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-            .switchMap { envelope -> SignalProducer<PaymentSheetSetupData, ErrorEnvelope> in
-              var configuration = PaymentSheet.Configuration()
-              configuration.merchantDisplayName = Strings.general_accessibility_kickstarter()
-              configuration.allowsDelayedPaymentMethods = true
-
-              // Log in to Stripe Link
-              configuration.defaultBillingDetails.email = AppEnvironment.current.currentUserEmail
-
-              let data = PaymentSheetSetupData(
-                clientSecret: envelope.clientSecret,
-                configuration: configuration
-              )
-              return SignalProducer(value: data)
-            }
-        }.materialize()
-      }
-
-    self.cancelAddNewCardLoadingState = self.shouldCancelPaymentSheetAppearance.signal.filter(isTrue)
-      .ignoreValues()
-
-    self.goToPaymentSheet = createSetupIntentEvent.values()
-      .withLatestFrom(self.shouldCancelPaymentSheetAppearance.signal)
-      .map { data, shouldCancel -> PaymentSheetSetupData? in
-        shouldCancel ? nil : data
-      }
-      .skipNil()
-
-    let stopEditing = Signal.merge(
-      self.editButtonIsEnabled.filter(isFalse),
-      self.goToPaymentSheet.signal.ignoreValues().mapConst(false)
-    )
-
-    self.tableViewIsEditingProperty <~ Signal.merge(
-      stopEditing,
-      self.editButtonTappedSignal
-        .withLatest(from: self.tableViewIsEditingProperty.signal)
-        .map(second)
-        .negate()
-    )
-
-    self.errorLoadingPaymentMethodsOrSetupIntent = Signal.merge(
-      paymentMethodsEvent.errors(),
-      createSetupIntentEvent.errors(),
-      newSetupIntentCards.errors()
-    )
-    .map { $0.localizedDescription }
-
-    self.shouldCancelPaymentSheetAppearance <~ Signal
-      .merge(
-        self.didTapAddCardButtonProperty.signal
-          .ignoreValues()
-          .mapConst(false),
-        self.addNewCardSucceededProperty.signal
-          .ignoreValues()
-          .mapConst(true),
-        self.errorLoadingPaymentMethodsOrSetupIntent.signal
-          .ignoreValues()
-          .mapConst(true)
-      )
-
-    self.setStripePublishableKey = self.viewDidLoadProperty.signal
-      .map { _ in AppEnvironment.current.environmentType.stripePublishableKey }
+    }
   }
-
-  // Stores the table view's editing state as it is affected by multiple signals
-  private let tableViewIsEditingProperty = MutableProperty<Bool>(false)
-
-  fileprivate let (didDeleteCreditCardSignal, didDeleteCreditCardObserver) =
-    Signal<
-      (UserCreditCards.CreditCard, Int),
-      Never
-    >.pipe()
-  public func didDelete(_ creditCard: UserCreditCards.CreditCard, visibleCellCount: Int) {
-    self.didDeleteCreditCardObserver.send(value: (creditCard, visibleCellCount))
+  func addNewCardSucceeded(with message: String) {
+    self.onEvent?(.presentBanner(message))
+    self.shouldCancelPaymentSheetAppearance(state: true)
+    self.loadCards()
   }
-
-  fileprivate let (editButtonTappedSignal, editButtonTappedObserver) = Signal<(), Never>.pipe()
-  public func editButtonTapped() {
-    self.editButtonTappedObserver.send(value: ())
+  func shouldCancelPaymentSheetAppearance(state: Bool) {
+    self.shouldCancel = state
+    if state { self.onEvent?(.cancelAddNewCardLoadingState) }
   }
-
-  fileprivate let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+  private func reportError(_ error: Error) {
+    let message = ((error as? ErrorEnvelope) ?? .couldNotParseJSON).localizedDescription
+    self.onEvent?(.errorLoadingPaymentMethodsOrSetupIntent(message))
+    self.shouldCancelPaymentSheetAppearance(state: true)
   }
-
-  fileprivate let failedToAddNewCardProperty = MutableProperty(())
-  public func failedToAddNewCard() {
-    self.failedToAddNewCardProperty.value = ()
+  private func setEnabled(_ enabled: Bool) {
+    guard self.enabled != enabled else { return }
+    self.enabled = enabled
+    self.onEvent?(.editButtonIsEnabled(enabled))
+    if !enabled { self.setEditing(false) }
   }
-
-  fileprivate let didTapAddCardButtonProperty = MutableProperty(())
-  public func paymentMethodsFooterViewDidTapAddNewCardButton() {
-    self.didTapAddCardButtonProperty.value = ()
+  private func setEditing(_ editing: Bool) {
+    self.hasEditingState = true
+    self.isEditing = editing
+    self.onEvent?(.tableViewIsEditing(editing))
+    self.onEvent?(.editButtonTitle(editing ? Strings.Done() : Strings.discovery_favorite_categories_buttons_edit()))
   }
-
-  fileprivate let addNewCardSucceededProperty = MutableProperty<String?>(nil)
-  public func addNewCardSucceeded(with message: String) {
-    self.addNewCardSucceededProperty.value = message
+  func waitForPending() async {
+    await self.setupTask?.value
+    await self.deleteTask?.value
+    await self.storeTask?.value
+    await self.loadTask?.value
   }
-
-  private let newSetupIntentCreditCardProperty =
-    MutableProperty<String?>(nil)
-  public func paymentSheetDidAdd(
-    setupIntent: String
-  ) {
-    self.newSetupIntentCreditCardProperty.value = setupIntent
-  }
-
-  private let shouldCancelPaymentSheetAppearance = MutableProperty<Bool>(false)
-  public func shouldCancelPaymentSheetAppearance(state: Bool) {
-    self.shouldCancelPaymentSheetAppearance.value = state
-  }
-
-  public let cancelAddNewCardLoadingState: Signal<Void, Never>
-  public let editButtonIsEnabled: Signal<Bool, Never>
-  public let editButtonTitle: Signal<String, Never>
-  public let errorLoadingPaymentMethodsOrSetupIntent: Signal<String, Never>
-  public let goToPaymentSheet: Signal<PaymentSheetSetupData, Never>
-  public let paymentMethods: Signal<[UserCreditCards.CreditCard], Never>
-  public let presentBanner: Signal<String, Never>
-  public let reloadData: Signal<Void, Never>
-  public let setStripePublishableKey: Signal<String, Never>
-  public let showAlert: Signal<String, Never>
-  public let tableViewIsEditing: Signal<Bool, Never>
-
-  public var inputs: PaymentMethodSettingsViewModelInputs { return self }
-  public var outputs: PaymentMethodSettingsViewModelOutputs { return self }
 }

@@ -34,6 +34,11 @@ public class MockStripeIntentService: StripeIntentServiceType {
     return self.paymentsFeature.intentResult(projectID: projectId, backingID: backingId, checkoutID: checkoutId, total: pledgeTotal)
   }
 
+  public func setupIntent(for projectId: String?, context: GraphAPI.StripeIntentContextTypes) async throws -> ClientSecretEnvelope {
+    self.setupIntentRequests += 1
+    return try await self.paymentsFeature.setup(projectID: projectId, context: context)
+  }
+
   public func createSetupIntent(
     for projectId: String?,
     context: GraphAPI.StripeIntentContextTypes

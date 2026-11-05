@@ -12,6 +12,7 @@ public protocol StripeIntentServiceType {
     checkoutId: String,
     pledgeTotal: Double
   ) -> SignalProducer<PaymentIntentEnvelope, ErrorEnvelope>
+  func setupIntent(for projectId: String?, context: GraphAPI.StripeIntentContextTypes) async throws -> ClientSecretEnvelope
   func createSetupIntent(
     for projectId: String?,
     context: GraphAPI.StripeIntentContextTypes
@@ -56,6 +57,10 @@ public class StripeIntentService: StripeIntentServiceType {
      - projectId: The optional GraphID of a project
      - context: The context for which this intent is being created
    */
+
+  public func setupIntent(for projectId: String?, context: GraphAPI.StripeIntentContextTypes) async throws -> ClientSecretEnvelope {
+    try await self.paymentsFeature.setup(projectID: projectId, context: context)
+  }
 
   public func createSetupIntent(
     for projectId: String?,
