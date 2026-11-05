@@ -77,7 +77,6 @@ public struct Service: ServiceType {
     )
   }
 
-
   public func addImage(file fileURL: URL, toDraft draft: UpdateDraft)
     -> SignalProducer<UpdateDraft.Image, ErrorEnvelope> {
     return request(Route.addImage(fileUrl: fileURL, toDraft: draft))
@@ -112,7 +111,6 @@ public struct Service: ServiceType {
       map: { Location.locations(from: $0) })
   }
 
-
   public func addUserToSecretRewardGroup(token: String, forProject param: Param)
     -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
     let input = GraphAPI.AddUserToSecretRewardGroupInput.from(token: token, forProject: param)
@@ -136,7 +134,6 @@ public struct Service: ServiceType {
         SignalProducer(value: EmptyResponseEnvelope())
       }
   }
-
 
   public func createFlaggingInput(input: CreateFlaggingInput)
     -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
@@ -169,7 +166,6 @@ public struct Service: ServiceType {
       map: { ReportProjectInfoListItem.items(from: $0) }
     )
   }
-
 
   public func delete(image: UpdateDraft.Image, fromDraft draft: UpdateDraft)
     -> SignalProducer<UpdateDraft.Image, ErrorEnvelope> {
@@ -206,53 +202,6 @@ public struct Service: ServiceType {
     return request(.backing(projectId: project.id, backerId: user.id))
   }
 
-  public func fetchProjectComments(
-    slug: String,
-    cursor: String?,
-    limit: Int?
-  ) -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .fetch(query: GraphAPI.FetchProjectCommentsQuery(
-        slug: slug,
-        cursor: GraphQLNullable.someOrNil(cursor),
-        limit: GraphQLNullable.someOrNil(limit)
-      ))
-      .flatMap(CommentsEnvelope.envelopeProducer(from:))
-  }
-
-  public func fetchUpdateComments(
-    id: String,
-    cursor: String?,
-    limit: Int?
-  ) -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .fetch(query: GraphAPI.FetchUpdateCommentsQuery(
-        postId: id,
-        cursor: GraphQLNullable.someOrNil(cursor),
-        limit: GraphQLNullable.someOrNil(limit)
-      ))
-      .flatMap(CommentsEnvelope.envelopeProducer(from:))
-  }
-
-  public func fetchCommentReplies(
-    id: String,
-    cursor: String?,
-    limit: Int
-  )
-    -> SignalProducer<CommentRepliesEnvelope, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .fetch(query: GraphAPI.FetchCommentRepliesQuery(
-        commentId: id,
-        cursor: GraphQLNullable.someOrNil(cursor),
-        limit: limit
-      ))
-      .compactMap(CommentRepliesEnvelope.commentRepliesEnvelope(from:))
-  }
-
-  public func fetchConfig() -> SignalProducer<Config, ErrorEnvelope> {
-    return request(.config)
-  }
-
   public func fetchDiscovery(paginationUrl: String)
     -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope> {
     return requestPaginationDecodable(paginationUrl)
@@ -279,19 +228,6 @@ public struct Service: ServiceType {
     return request(.discover(params))
   }
 
-  public func fetchFriends() -> SignalProducer<FindFriendsEnvelope, ErrorEnvelope> {
-    return request(.friends)
-  }
-
-  public func fetchFriends(paginationUrl: String)
-    -> SignalProducer<FindFriendsEnvelope, ErrorEnvelope> {
-    return requestPaginationDecodable(paginationUrl)
-  }
-
-  public func fetchFriendStats() -> SignalProducer<FriendStatsEnvelope, ErrorEnvelope> {
-    return request(.friendStats)
-  }
-
   public func fetchGraphCategories()
     -> SignalProducer<RootCategoriesEnvelope, ErrorEnvelope> {
     return GraphQL.shared.client
@@ -313,13 +249,6 @@ public struct Service: ServiceType {
       .flatMap(UserEnvelope<GraphUser>.envelopeProducer(from:))
   }
 
-  public func fetchGraphUserEmail()
-    -> SignalProducer<UserEnvelope<GraphUserEmail>, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .fetch(query: GraphAPI.FetchUserEmailQuery())
-      .flatMap(UserEnvelope<GraphUserEmail>.envelopeProducer(from:))
-  }
-
   public func fetchGraphUserEmailCombine()
     -> AnyPublisher<UserEnvelope<GraphUserEmail>, ErrorEnvelope> {
     GraphQL.shared.client
@@ -329,13 +258,6 @@ public struct Service: ServiceType {
       }
   }
 
-  public func fetchGraphUserSetup()
-    -> SignalProducer<UserEnvelope<GraphUserSetup>, ErrorEnvelope> {
-    GraphQL.shared.client
-      .fetch(query: GraphAPI.FetchUserSetupQuery())
-      .flatMap(UserEnvelope<GraphUserSetup>.envelopeProducer(from:))
-  }
-
   public func fetchGraphUserSetupCombine()
     -> AnyPublisher<UserEnvelope<GraphUserSetup>, ErrorEnvelope> {
     GraphQL.shared.client
@@ -343,13 +265,6 @@ public struct Service: ServiceType {
       .mapFetchResults { (data: GraphAPI.FetchUserSetupQuery.Data) -> UserEnvelope<GraphUserSetup>? in
         UserEnvelope<GraphUserSetup>.userEnvelope(from: data)
       }
-  }
-
-  public func fetchGraphUserSelf()
-    -> SignalProducer<UserEnvelope<User>, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .fetch(query: GraphAPI.FetchUserQuery(withStoredCards: false))
-      .flatMap(UserEnvelope<User>.envelopeProducer(from:))
   }
 
   public func fetchBacking(id: Int)
@@ -376,37 +291,6 @@ public struct Service: ServiceType {
   ///
   /// - Parameters:
   ///   - id: The backing ID.
-  public func fetchBackingForManagePledge(id: Int)
-    -> SignalProducer<Backing, ErrorEnvelope> {
-    return GraphQL.shared.client
-      .fetch(
-        query: GraphAPI
-          .FetchBackingWithIncrementsRefundedQuery(
-            id: "\(id)"
-          )
-      )
-      .flatMap(Backing.producer(from:))
-  }
-
-  public func fetchMessageThread(messageThreadId: Int)
-    -> SignalProducer<MessageThreadEnvelope, ErrorEnvelope> {
-    return request(.messagesForThread(messageThreadId: messageThreadId))
-  }
-
-  public func fetchMessageThread(backing: Backing)
-    -> SignalProducer<MessageThreadEnvelope?, ErrorEnvelope> {
-    return request(.messagesForBacking(backing))
-  }
-
-  public func fetchMessageThreads(mailbox: Mailbox, project: Project?)
-    -> SignalProducer<MessageThreadsEnvelope, ErrorEnvelope> {
-    return request(.messageThreads(mailbox: mailbox, project: project))
-  }
-
-  public func fetchMessageThreads(paginationUrl: String)
-    -> SignalProducer<MessageThreadsEnvelope, ErrorEnvelope> {
-    return requestPaginationDecodable(paginationUrl)
-  }
 
   public func fastFetchProjectPageBase(projectParam: Param)
     -> SignalProducer<Project, ErrorEnvelope> {
@@ -787,7 +671,6 @@ public struct Service: ServiceType {
     return request(.unfollowFriend(userId: id))
   }
 
-
   public func update(draft: UpdateDraft, title: String, body: String, isPublic: Bool)
     -> SignalProducer<UpdateDraft, ErrorEnvelope> {
     return request(.updateUpdateDraft(draft, title: title, body: body, isPublic: isPublic))
@@ -836,7 +719,6 @@ public struct Service: ServiceType {
    - parameter paymentSourceId: The id of the payment source.
    - parameter paymentIntentClientSecret: The client secret returned from our CreatePaymentIntent Mutation.
    */
-
 
   public func confirmBackingAddress(
     backingId: String,

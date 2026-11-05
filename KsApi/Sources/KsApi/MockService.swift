@@ -614,7 +614,6 @@
       self.tokenExchangeResponse = tokenExchangeResponse
     }
 
-
     public func addUserToSecretRewardGroup(token: String, forProject param: Param)
       -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
       guard let client = self.apolloClient else {
@@ -639,13 +638,11 @@
       return client.performWithResult(mutation: mutation, result: self.blockUserResult)
     }
 
-
     @MainActor public func recordProjectAttribution(input: GraphAPI.CreateAttributionEventInput) async throws {
       try Task.checkCancellation()
       guard let result = self.createAttributionEventResult else { throw ErrorEnvelope.couldNotParseJSON }
       _ = try result.get()
     }
-
 
     internal func createFlaggingInput(input: CreateFlaggingInput) -> ReactiveSwift
       .SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
@@ -670,7 +667,6 @@
 
       return client.performWithResult(mutation: mutation, result: self.createFlaggingResult)
     }
-
 
     @MainActor public func discussionComments(slug: String?, updateID: String?, cursor: String?) async throws -> CommentsEnvelope {
       try Task.checkCancellation()
@@ -963,63 +959,6 @@
       return try result.get()
     }
 
-    func fetchProjectComments(
-      slug: String,
-      cursor: String?,
-      limit: Int?
-    ) -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let fetchProjectCommentsQuery = GraphAPI.FetchProjectCommentsQuery(
-        slug: slug,
-        cursor: GraphQLNullable.someOrNil(cursor),
-        limit: GraphQLNullable.someOrNil(limit)
-      )
-
-      return client
-        .fetchWithResult(query: fetchProjectCommentsQuery, result: self.fetchProjectCommentsEnvelopeResult)
-    }
-
-    func fetchUpdateComments(
-      id: String,
-      cursor: String?,
-      limit: Int?
-    ) -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let fetchUpdateCommentsQuery = GraphAPI.FetchUpdateCommentsQuery(
-        postId: id,
-        cursor: GraphQLNullable.someOrNil(cursor),
-        limit: GraphQLNullable.someOrNil(limit)
-      )
-
-      return client
-        .fetchWithResult(query: fetchUpdateCommentsQuery, result: self.fetchUpdateCommentsEnvelopeResult)
-    }
-
-    func fetchCommentReplies(
-      id: String,
-      cursor: String?,
-      limit: Int
-    ) -> SignalProducer<CommentRepliesEnvelope, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let fetchCommentRepliesQuery = GraphAPI.FetchCommentRepliesQuery(
-        commentId: id,
-        cursor: GraphQLNullable.someOrNil(cursor),
-        limit: limit
-      )
-
-      return client
-        .fetchWithResult(query: fetchCommentRepliesQuery, result: self.fetchCommentRepliesEnvelopeResult)
-    }
-
     @MainActor internal func applicationConfiguration() async throws -> Config {
       try Task.checkCancellation()
       return self.fetchConfigResponse ?? .template
@@ -1033,11 +972,6 @@
     @MainActor internal func registerApplicationPushToken(_ token: String) async throws {
       try Task.checkCancellation()
       // The public demo never registers a real token with any server.
-    }
-
-    internal func fetchConfig() -> SignalProducer<Config, ErrorEnvelope> {
-      guard let config = self.fetchConfigResponse else { return .empty }
-      return SignalProducer(value: config)
     }
 
     @MainActor public func friendsPage(cursor: String?) async throws -> FindFriendsEnvelope {
@@ -1067,30 +1001,6 @@
 
     @MainActor public func followEveryFriend() async throws {
       try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
-    }
-
-    internal func fetchFriends() -> SignalProducer<FindFriendsEnvelope, ErrorEnvelope> {
-      if let response = fetchFriendsResponse {
-        return SignalProducer(value: response)
-      } else if let error = fetchFriendsError {
-        return SignalProducer(error: error)
-      }
-
-      return SignalProducer(value: .template)
-    }
-
-    internal func fetchFriends(paginationUrl _: String)
-      -> SignalProducer<FindFriendsEnvelope, ErrorEnvelope> {
-      return self.fetchFriends()
-    }
-
-    internal func fetchFriendStats() -> SignalProducer<FriendStatsEnvelope, ErrorEnvelope> {
-      if let response = fetchFriendStatsResponse {
-        return SignalProducer(value: response)
-      } else if let error = fetchFriendStatsError {
-        return SignalProducer(error: error)
-      }
-      return SignalProducer(value: .template)
     }
 
     internal func followAllFriends() -> SignalProducer<VoidEnvelope, ErrorEnvelope> {
@@ -1204,17 +1114,6 @@
       return client.fetchWithResult(query: fetchGraphCategoryQuery, result: self.fetchGraphCategoryResult)
     }
 
-    internal func fetchGraphUserSelf()
-      -> SignalProducer<UserEnvelope<User>, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let fetchGraphUserQuery = GraphAPI.FetchUserQuery(withStoredCards: false)
-
-      return client.fetchWithResult(query: fetchGraphUserQuery, result: self.fetchGraphUserSelfResult)
-    }
-
     internal func fetchGraphUser(withStoredCards: Bool)
       -> SignalProducer<UserEnvelope<GraphUser>, ErrorEnvelope> {
       guard let client = self.apolloClient else {
@@ -1226,16 +1125,6 @@
       return client.fetchWithResult(query: fetchGraphUserQuery, result: self.fetchGraphUserResult)
     }
 
-    internal func fetchGraphUserEmail() -> SignalProducer<UserEnvelope<GraphUserEmail>, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let fetchGraphUserEmailQuery = GraphAPI.FetchUserEmailQuery()
-
-      return client.fetchWithResult(query: fetchGraphUserEmailQuery, result: self.fetchGraphUserEmailResult)
-    }
-
     func fetchGraphUserEmailCombine() -> AnyPublisher<UserEnvelope<GraphUserEmail>, ErrorEnvelope> {
       guard let client = self.apolloClient else {
         return Empty(completeImmediately: false).eraseToAnyPublisher()
@@ -1243,16 +1132,6 @@
 
       let fetchGraphUserEmailQuery = GraphAPI.FetchUserEmailQuery()
       return client.fetchWithResult(query: fetchGraphUserEmailQuery, result: self.fetchGraphUserEmailResult)
-    }
-
-    internal func fetchGraphUserSetup() -> SignalProducer<UserEnvelope<GraphUserSetup>, ErrorEnvelope> {
-      guard let client = self.apolloClient else {
-        return .empty
-      }
-
-      let fetchGraphUserSetupQuery = GraphAPI.FetchUserSetupQuery()
-
-      return client.fetchWithResult(query: fetchGraphUserSetupQuery, result: self.fetchGraphUserSetupResult)
     }
 
     func fetchGraphUserSetupCombine() -> AnyPublisher<UserEnvelope<GraphUserSetup>, ErrorEnvelope> {
@@ -1417,11 +1296,6 @@
       return producer(for: self.fetchProjectAndBackingResult)
     }
 
-    func fetchBackingForManagePledge(id _: Int)
-      -> SignalProducer<Backing, ErrorEnvelope> {
-      return producer(for: self.fetchManagePledgeViewBackingResult)
-    }
-
     @MainActor public func rewardAddOns(slug _: String, locationID _: String?) async throws -> [Reward]? {
       try Task.checkCancellation()
       guard let result = self.fetchRewardAddOnsSelectionViewRewardsResult else {
@@ -1509,78 +1383,6 @@
     @MainActor public func submitMessage(body: String, subject _: MessageSubject) async throws -> Message {
       _ = try self.completeAccountWrite(.success(EmptyResponseEnvelope()))
       return .template |> Message.lens.id .~ body.hashValue |> Message.lens.body .~ body
-    }
-
-    internal func fetchMessageThread(messageThreadId _: Int)
-      -> SignalProducer<MessageThreadEnvelope, ErrorEnvelope> {
-      if let error = self.fetchMessageThreadResult?.error {
-        return SignalProducer(error: error)
-      }
-
-      return SignalProducer(
-        value: MessageThreadEnvelope(
-          participants: [.template, .template |> \.id .~ 2],
-          messages: [
-            .template |> Message.lens.id .~ 1,
-            .template |> Message.lens.id .~ 2,
-            .template |> Message.lens.id .~ 3
-          ],
-          messageThread: self.fetchMessageThreadResult?.value as? MessageThread ?? .template
-        )
-      )
-    }
-
-    internal func fetchMessageThread(backing _: Backing)
-      -> SignalProducer<MessageThreadEnvelope?, ErrorEnvelope> {
-      if let error = self.fetchMessageThreadResult?.error {
-        return SignalProducer(error: error)
-      }
-
-      if let thread = self.fetchMessageThreadResult?.value as? MessageThread {
-        return SignalProducer(
-          value: MessageThreadEnvelope(
-            participants: [.template, .template |> \.id .~ 2],
-            messages: [
-              .template |> Message.lens.id .~ 1,
-              .template |> Message.lens.id .~ 2,
-              .template |> Message.lens.id .~ 3
-            ],
-            messageThread: thread
-          )
-        )
-      } else {
-        return SignalProducer(value: nil)
-      }
-    }
-
-    internal func fetchMessageThreads(mailbox _: Mailbox, project _: Project?)
-      -> SignalProducer<MessageThreadsEnvelope, ErrorEnvelope> {
-      return SignalProducer(
-        value:
-        MessageThreadsEnvelope(
-          messageThreads: self.fetchMessageThreadsResponse,
-          urls: MessageThreadsEnvelope.UrlsEnvelope(
-            api: MessageThreadsEnvelope.UrlsEnvelope.ApiEnvelope(
-              moreMessageThreads: ""
-            )
-          )
-        )
-      )
-    }
-
-    internal func fetchMessageThreads(paginationUrl _: String)
-      -> SignalProducer<MessageThreadsEnvelope, ErrorEnvelope> {
-      return SignalProducer(
-        value:
-        MessageThreadsEnvelope(
-          messageThreads: self.fetchMessageThreadsResponse,
-          urls: MessageThreadsEnvelope.UrlsEnvelope(
-            api: MessageThreadsEnvelope.UrlsEnvelope.ApiEnvelope(
-              moreMessageThreads: ""
-            )
-          )
-        )
-      )
     }
 
     internal func fetchProjectNotifications() -> SignalProducer<[ProjectNotification], ErrorEnvelope> {
@@ -2269,7 +2071,6 @@
       return SignalProducer(value: updatedDraft)
     }
 
-
     internal func unwatchProject(input: WatchProjectInput)
       -> SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope> {
       guard let client = self.apolloClient else {
@@ -2282,7 +2083,6 @@
       return client
         .performWithResult(mutation: mutationUnwatchProject, result: self.unwatchProjectMutationResult)
     }
-
 
     internal func verifyEmail(withToken _: String)
       -> SignalProducer<EmailVerificationResponseEnvelope, ErrorEnvelope> {
@@ -2318,7 +2118,6 @@
 
       return SignalProducer(value: self.removeAttachmentResponse ?? .template)
     }
-
 
     internal func triggerThirdPartyEventInput(input: TriggerThirdPartyEventInput) -> ReactiveSwift
       .SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {

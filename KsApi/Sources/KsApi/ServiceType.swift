@@ -88,7 +88,6 @@ public protocol ServiceType {
   /// Returns a new service with the oauth token set to `nil`.
   func logout() -> Self
 
-
   /// Uploads and attaches an image to the draft of a project update.
   func addImage(file fileURL: URL, toDraft draft: UpdateDraft)
     -> SignalProducer<UpdateDraft.Image, ErrorEnvelope>
@@ -96,12 +95,6 @@ public protocol ServiceType {
   /// Sends facebook ad data and/or google analytics data relevant to the user
   func triggerThirdPartyEventInput(input: TriggerThirdPartyEventInput)
     -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
-
-
-
-
-
-
 
   /// Let the server know to create/track an attribution event.
   @MainActor func recordProjectAttribution(input: GraphAPI.CreateAttributionEventInput) async throws
@@ -118,12 +111,6 @@ public protocol ServiceType {
   @MainActor func reportingEmail() async throws -> String?
   @MainActor func submitProjectReport(input: CreateFlaggingInput) async throws
   @MainActor func fetchProjectFlaggingOptions() async throws -> [ReportProjectInfoListItem]
-
-
-
-
-
-
 
   /// Removes an image from a project update draft.
   func delete(image: UpdateDraft.Image, fromDraft draft: UpdateDraft)
@@ -187,33 +174,10 @@ public protocol ServiceType {
   @MainActor func profileSavedProjects(cursor: String?) async throws -> ProfileProjectsResponse
   @MainActor func setProjectWatched(id: String, watched: Bool) async throws -> WatchProjectResponseEnvelope
 
-  /// Fetch comments for a project with a slug, cursor and limit.
-  func fetchProjectComments(
-    slug: String,
-    cursor: String?,
-    limit: Int?
-  ) -> SignalProducer<CommentsEnvelope, ErrorEnvelope>
-
-  /// Fetch comments for an update with an id, cursor, limit and comments' users' stored cards.
-  func fetchUpdateComments(
-    id: String,
-    cursor: String?,
-    limit: Int?
-  ) -> SignalProducer<CommentsEnvelope, ErrorEnvelope>
-
-  /// Fetch comment replies for a comment with an id, limit, cursor and user information with stored cards.
-  func fetchCommentReplies(
-    id: String,
-    cursor: String?,
-    limit: Int
-  ) -> SignalProducer<CommentRepliesEnvelope, ErrorEnvelope>
-
   /// Fetch the config.
   @MainActor func applicationConfiguration() async throws -> Config
   @MainActor func applicationSurvey(id: Int) async throws -> SurveyResponse
   @MainActor func registerApplicationPushToken(_ token: String) async throws
-
-  func fetchConfig() -> SignalProducer<Config, ErrorEnvelope>
 
   /// Fetch discovery envelope with a pagination url.
   func fetchDiscovery(paginationUrl: String) -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope>
@@ -235,14 +199,6 @@ public protocol ServiceType {
   @MainActor func unfollowUser(id: Int) async throws
   @MainActor func followEveryFriend() async throws
 
-  func fetchFriends() -> SignalProducer<FindFriendsEnvelope, ErrorEnvelope>
-
-  /// Fetch friends from a pagination url.
-  func fetchFriends(paginationUrl: String) -> SignalProducer<FindFriendsEnvelope, ErrorEnvelope>
-
-  /// Fetch friend stats.
-  func fetchFriendStats() -> SignalProducer<FriendStatsEnvelope, ErrorEnvelope>
-
   /// Fetch Categories objects using graphQL.
   func fetchGraphCategories() -> SignalProducer<RootCategoriesEnvelope, ErrorEnvelope>
 
@@ -254,51 +210,17 @@ public protocol ServiceType {
   func fetchGraphUser(withStoredCards: Bool)
     -> SignalProducer<UserEnvelope<GraphUser>, ErrorEnvelope>
 
-  /// Fetches the email of the currently logged in User.
-  func fetchGraphUserEmail()
-    -> SignalProducer<UserEnvelope<GraphUserEmail>, ErrorEnvelope>
-
   func fetchGraphUserEmailCombine()
     -> AnyPublisher<UserEnvelope<GraphUserEmail>, ErrorEnvelope>
 
-  /// Fetches the email of the currently logged in User.
-  func fetchGraphUserSetup()
-    -> SignalProducer<UserEnvelope<GraphUserSetup>, ErrorEnvelope>
-
   func fetchGraphUserSetupCombine()
     -> AnyPublisher<UserEnvelope<GraphUserSetup>, ErrorEnvelope>
-
-  /// Fetches GraphQL user fragment and returns User instance.
-  func fetchGraphUserSelf()
-    -> SignalProducer<UserEnvelope<User>, ErrorEnvelope>
 
   /// Fetch `Backing` data, and the backing's `Project`, using a `Backing` ID.
   /// - Parameters:
   ///    - id: backing ID
   func fetchBacking(id: Int)
     -> SignalProducer<ProjectAndBackingEnvelope, ErrorEnvelope>
-
-  /// Explicitly fetches a `Backing`, with suitable information for loading the Manage Pledge page.
-  /// `refundedAmount`is included in the `paymentIncrements`.
-  /// - Parameters:
-  ///    - id: backing ID
-  func fetchBackingForManagePledge(id: Int)
-    -> SignalProducer<Backing, ErrorEnvelope>
-
-  /// Fetches all of the messages in a particular message thread.
-  func fetchMessageThread(messageThreadId: Int)
-    -> SignalProducer<MessageThreadEnvelope, ErrorEnvelope>
-
-  /// Fetches all of the messages related to a particular backing.
-  func fetchMessageThread(backing: Backing) -> SignalProducer<MessageThreadEnvelope?, ErrorEnvelope>
-
-  /// Fetches all of the messages in a particular mailbox and specific to a particular project.
-  func fetchMessageThreads(mailbox: Mailbox, project: Project?)
-    -> SignalProducer<MessageThreadsEnvelope, ErrorEnvelope>
-
-  /// Fetches more messages threads from a pagination URL.
-  func fetchMessageThreads(paginationUrl: String)
-    -> SignalProducer<MessageThreadsEnvelope, ErrorEnvelope>
 
   /// Fetch the newest data for a particular project from its id or slug. (v1)
   func fetchProject(param: Param) -> SignalProducer<Project, ErrorEnvelope>
@@ -478,7 +400,6 @@ public protocol ServiceType {
   /// Unfollow a user with their id.
   func unfollowFriend(userId id: Int) -> SignalProducer<VoidEnvelope, ErrorEnvelope>
 
-
   /// Update the project notification setting.
   func updateProjectNotification(_ notification: ProjectNotification)
     -> SignalProducer<ProjectNotification, ErrorEnvelope>
@@ -493,7 +414,6 @@ public protocol ServiceType {
   /// Unwatches a project.
   func unwatchProject(input: WatchProjectInput) ->
     SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope>
-
 
   /// Verifies an email address with a given access token.
   func verifyEmail(withToken token: String)
