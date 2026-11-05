@@ -1,14 +1,14 @@
 import AdSupport
 import AppTrackingTransparency
 import Foundation
-import ReactiveSwift
 
 public typealias AppTrackingAuthorization = ATTrackingManager.AuthorizationStatus
 
 @MainActor
 public protocol AppTrackingTransparencyType {
   var advertisingIdentifier: String? { get }
-  var authorizationStatus: SignalProducer<AppTrackingAuthorization, Never> { get }
+  func observeAuthorizationStatus(_ observer: @escaping @MainActor (AppTrackingAuthorization) -> Void) -> UUID
+  func removeAuthorizationObserver(_ id: UUID)
   func updateAdvertisingIdentifier()
   func requestAndSetAuthorizationStatus(_ completion: ((ATTrackingManager.AuthorizationStatus) -> Void)?)
   func shouldRequestAuthorizationStatus() -> Bool
@@ -28,7 +28,7 @@ public class AppTrackingTransparency: AppTrackingTransparencyType {
     guard self.authorizationTask == nil else { return }
     self.authorizationTask = Task {
       let authStatus = await ATTrackingManager.requestTrackingAuthorization()
-      self.authorizationStatusProperty.value = authStatus
+      self.setAuthorizationStatus(authStatus)
       self.advertisingIdentifier = authStatus == .authorized
         ? ASIdentifierManager.shared().advertisingIdentifier.uuidString : nil
       let completions = self.authorizationCompletions
@@ -49,7 +49,7 @@ public class AppTrackingTransparency: AppTrackingTransparencyType {
 
   public func updateAdvertisingIdentifier() {
     let status = ATTrackingManager.trackingAuthorizationStatus
-    self.authorizationStatusProperty.value = status
+    self.setAuthorizationStatus(status)
 
     switch status {
     case .authorized:
@@ -59,13 +59,23 @@ public class AppTrackingTransparency: AppTrackingTransparencyType {
     }
   }
 
-  public var authorizationStatus: SignalProducer<AppTrackingAuthorization, Never> {
-    self.authorizationStatusProperty.producer
-      .replayLazily(upTo: 1)
-      .skipRepeats()
+  private var authorizationStatus: AppTrackingAuthorization = .notDetermined
+  private var authorizationObservers: [UUID: @MainActor (AppTrackingAuthorization) -> Void] = [:]
+
+  public func observeAuthorizationStatus(_ observer: @escaping @MainActor (AppTrackingAuthorization) -> Void) -> UUID {
+    let id = UUID()
+    self.authorizationObservers[id] = observer
+    observer(self.authorizationStatus)
+    return id
   }
 
-  // MARK: Subjects
+  public func removeAuthorizationObserver(_ id: UUID) {
+    self.authorizationObservers[id] = nil
+  }
 
-  private let authorizationStatusProperty = MutableProperty<AppTrackingAuthorization>(.notDetermined)
+  private func setAuthorizationStatus(_ status: AppTrackingAuthorization) {
+    guard self.authorizationStatus != status else { return }
+    self.authorizationStatus = status
+    for observer in Array(self.authorizationObservers.values) { observer(status) }
+  }
 }

@@ -636,9 +636,11 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
 
   private struct DemoTrackingConsent: AppTrackingTransparencyType {
     var advertisingIdentifier: String? { nil }
-    var authorizationStatus: SignalProducer<AppTrackingAuthorization, Never> {
-      SignalProducer(value: .restricted)
+    func observeAuthorizationStatus(_ observer: @escaping @MainActor (AppTrackingAuthorization) -> Void) -> UUID {
+      observer(.restricted)
+      return UUID()
     }
+    func removeAuthorizationObserver(_: UUID) {}
 
     func updateAdvertisingIdentifier() {}
     func shouldRequestAuthorizationStatus() -> Bool { false }

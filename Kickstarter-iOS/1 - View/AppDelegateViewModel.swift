@@ -594,7 +594,13 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
         self.applicationActiveProperty.signal.ignoreValues()
       )
       .flatMap { () in
-        AppEnvironment.current.appTrackingTransparency.authorizationStatus
+        SignalProducer { observer, lifetime in
+          let tracking = AppEnvironment.current.appTrackingTransparency
+          let id = tracking.observeAuthorizationStatus { observer.send(value: $0) }
+          lifetime.observeEnded {
+            Task { @MainActor in tracking.removeAuthorizationObserver(id) }
+          }
+        }
       }
   }
 
