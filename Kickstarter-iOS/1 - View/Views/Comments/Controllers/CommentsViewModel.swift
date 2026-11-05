@@ -90,6 +90,7 @@ public final class CommentsViewModel: CommentsViewModelType,
   private let pagePipe = Signal<(UUID, [Comment], Int), Never>.pipe()
   private let loadingPipe = Signal<(UUID, Bool), Never>.pipe()
   private let errorPipe = Signal<(UUID, ErrorEnvelope), Never>.pipe()
+  private let mutationPipe = Signal<[Comment], Never>.pipe()
   private var pageObservation: MainActorObservation?
   private let route = UUID()
   private let disposables = ScopedDisposable(CompositeDisposable())
@@ -139,8 +140,6 @@ public final class CommentsViewModel: CommentsViewModelType,
       .filter(isTrue)
       .ignoreValues()
 
-    let currentComments = self.currentComments.signal.skipNil()
-
     let tappedToRetry = self.commentTableViewFooterViewDidTapRetryProperty.signal
     // Retry the next page if we've paged before at least once and tapped to retry.
     let retryNextPage = Signal.combineLatest(
@@ -174,25 +173,13 @@ public final class CommentsViewModel: CommentsViewModelType,
     let isLoading = self.loadingPipe.output.filter { $0.0 == route }.map { $0.1 }
     let errors = self.errorPipe.output.filter { $0.0 == route }.map { $0.1 }
 
-    let commentsWithRetryingComment = currentComments
-      .takePairWhen(self.retryingComment.signal.skipNil())
-      .map(unpack)
-      .map(commentsReplacingCommentById)
-
-    let commentsWithFailableOrComment = currentComments
-      .takePairWhen(self.failableOrComment.signal.skipNil())
-      .map(unpack)
-      .map(commentsReplacingCommentById)
-
     let paginatedComments = Signal.merge(
       // Pull to refresh, clear comments cache.
       pullToRefresh.mapConst(([], true)),
       // Regular paged comments, don't clear accumulator.
       comments.map { comments in (comments, false) },
-      // Comments with a retrying comment, replace our current comments cache with this.
-      commentsWithRetryingComment.map { comments in (comments, true) },
-      // Comments with a failable or new comment, replace our current comments cache with this.
-      commentsWithFailableOrComment.map { comments in (comments, true) }
+      // Locally changed comments replace the accumulator.
+      self.mutationPipe.output.map { comments in (comments, true) }
     )
     .scan([]) { accum, value -> [Comment] in
       let (comments, clear) = value
@@ -204,10 +191,6 @@ public final class CommentsViewModel: CommentsViewModelType,
       paginatedComments,
       initialProject
     )
-
-    self.currentComments <~ commentsAndProject.map(first)
-      // Thread hop so that we don't circularly buffer.
-      .ksr_debounce(.nanoseconds(0), on: AppEnvironment.current.scheduler)
 
     // Allow empty arrays from the first emission.
     let emptyCommentsWithInitialProject = Signal.zip(comments, initialProject)
@@ -301,6 +284,7 @@ public final class CommentsViewModel: CommentsViewModelType,
       self?.onFooterState?(state)
     }
     self.disposables += commentsAndProject.observeValues { [weak self] comments, _ in
+      self?.currentComments = comments
       self?.onSeparatorHidden?(comments.isEmpty)
     }
     self.disposables += initialProject.observeValues { [weak self] project in
@@ -347,10 +331,14 @@ public final class CommentsViewModel: CommentsViewModelType,
     }
   }
 
-  // Properties to assist with injecting these values into the existing data streams.
-  private let currentComments = MutableProperty<[Comment]?>(nil)
-  private let retryingComment = MutableProperty<(Comment, String)?>(nil)
-  private let failableOrComment = MutableProperty<(Comment, String)?>(nil)
+  private var currentComments: [Comment]?
+
+  private func applyComment(_ comment: Comment, replacing id: String) {
+    guard let currentComments = self.currentComments else { return }
+    let comments = commentsReplacingCommentById(currentComments, replacingComment: comment, withId: id)
+    self.currentComments = comments
+    self.mutationPipe.input.send(value: comments)
+  }
 
   private let blockPresentation = DiscussionBlockPresentation()
   private let blockAnalytics = BlockUserAnalyticsContext()
@@ -387,7 +375,7 @@ public final class CommentsViewModel: CommentsViewModelType,
     guard comment.status == .failed, self.retryTasks[comment.id] == nil,
           let commentableID = self.latestCommentableID else { return }
     let task = self.feature.beginRetry(comment: comment, commentableID: commentableID, parentID: nil) { [weak self] replacement, id in
-      self?.retryingComment.value = (replacement, id)
+      self?.applyComment(replacement, replacing: id)
     }
     self.retryTasks[comment.id] = task
     Task { [weak self] in
@@ -402,7 +390,7 @@ public final class CommentsViewModel: CommentsViewModelType,
           let user = self.postingUser else { return }
     let id = UUID()
     let task = self.feature.beginPresentedPost(project: project, commentableID: commentableID, parentID: nil, user: user, body: text) { [weak self] comment, replacementID in
-      self?.failableOrComment.value = (comment, replacementID)
+      self?.applyComment(comment, replacing: replacementID)
     }
     self.postTasks[id] = task
     Task { [weak self] in
