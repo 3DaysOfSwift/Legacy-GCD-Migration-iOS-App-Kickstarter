@@ -1,8 +1,6 @@
 import Foundation
 import KsApi
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 
 @MainActor
 public protocol CommentRepliesViewModelInputs {
@@ -102,55 +100,17 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   private var postTasks: [UUID: Task<Void, Never>] = [:]
   private var pageObservation: MainActorObservation?
   private let route = UUID()
-  private let disposables = ScopedDisposable(CompositeDisposable())
   private(set) var loadingTask: Task<Void, Never>?
-  private(set) var contextTask: Task<Void, Never>?
 
   public init(feature: DiscussionFeature? = nil) {
     let feature = feature ?? AppModel.shared.discussionFeature
     self.feature = feature
     let route = self.route
-    let rootCommentProject = Signal.combineLatest(
-      self.commentProjectProperty.signal.skipNil(),
-      self.viewDidLoadProperty.signal
-    )
-    .map(first)
-
-    let rootComment = rootCommentProject.map(first)
-
-    let project = rootCommentProject.map(second)
-
-
-    // MARK: User Blocking Analytics
-
-    let blockAnalytics = self.blockAnalytics
-    blockAnalytics.onInitiate = { project, blockedUserId in
-        AppEnvironment.current.ksrAnalytics
-          .trackBlockedUser(
-            project,
-            page: .project,
-            sectionContext: .comments,
-            typeContext: .initiate,
-            targetUserId: "\(blockedUserId)"
-          )
-    }
-    _ = project.observeValues { project in
-      blockAnalytics.receive(project: project)
-    }
-
-
-    self.disposables += project.observeValues { [weak self] project in
-      guard let self else { return }
-      self.latestProject = project
-      self.updateComposer()
-      if let replies = self.latestReplies { self.onLoadReplies?(replies, project) }
-      if let (comment, id) = self.latestFailableReply { self.onLoadFailableReply?(comment, id, project) }
-    }
-    self.disposables += rootComment.observeValues { [weak self] comment in
-      guard let self else { return }
-      self.latestRootComment = comment
-      self.onLoadRootComment?(comment)
-      self.loadingTask = feature.requestFirstPage(route: route, source: .replies(comment.id), refresh: true)
+    self.blockAnalytics.onInitiate = { project, blockedUserId in
+      AppEnvironment.current.ksrAnalytics.trackBlockedUser(
+        project, page: .project, sectionContext: .comments,
+        typeContext: .initiate, targetUserId: "\(blockedUserId)"
+      )
     }
     self.pageObservation = feature.observePages { [weak self] update in
       guard let self else { return }
@@ -194,7 +154,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   public func didSelectComment(_ comment: Comment) {
     guard comment.status == .failed, self.retryTasks[comment.id] == nil,
           let project = self.latestProject, self.latestRootComment != nil else { return }
-    let commentableID = self.updateProperty.value.map { encodeToBase64("FreeformPost-\($0.id)") } ?? project.graphID
+    let commentableID = self.update.map { encodeToBase64("FreeformPost-\($0.id)") } ?? project.graphID
     let task = self.feature.beginRetry(comment: comment, commentableID: commentableID, parentID: comment.parentId) { [weak self] replacement, id in
       guard let self else { return }
       self.latestFailableReply = (replacement, id)
@@ -211,7 +171,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     self.onResetCommentComposer?()
     guard let project = self.latestProject, let root = self.latestRootComment,
           let user = self.composerUser else { return }
-    let commentableID = self.updateProperty.value.map { encodeToBase64("FreeformPost-\($0.id)") } ?? project.graphID
+    let commentableID = self.update.map { encodeToBase64("FreeformPost-\($0.id)") } ?? project.graphID
     let id = UUID()
     let task = self.feature.beginPresentedPost(project: project, commentableID: commentableID, parentID: root.id, user: user, body: text) { [weak self] comment, replacementID in
       guard let self else { return }
@@ -225,8 +185,8 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     }
   }
 
-  fileprivate let commentProjectProperty = MutableProperty<(Comment, Project, Bool)?>(nil)
-  fileprivate let updateProperty = MutableProperty<Update?>(nil)
+  private var configuration: (comment: Comment, project: Project)?
+  private var update: Update?
   private var replyID: String?
   public func configureWith(
     comment: Comment,
@@ -236,9 +196,10 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     replyId: String?
   ) {
     self.requestedFirstResponder = inputAreaBecomeFirstResponder
-    self.commentProjectProperty.value = (comment, project, inputAreaBecomeFirstResponder)
-    self.updateProperty.value = update
+    self.configuration = (comment, project)
+    self.update = update
     if let replyId { self.replyID = replyId }
+    self.applyConfigurationIfLoaded()
   }
 
   public func paginateOrErrorCellWasTapped() {
@@ -261,12 +222,24 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     self.updateComposer()
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.composerLoaded = true
     self.composerUser = AppEnvironment.current.currentUser
     self.composerFirstResponder = false
-    self.viewDidLoadProperty.value = ()
+    self.applyConfigurationIfLoaded()
+  }
+
+  private func applyConfigurationIfLoaded() {
+    guard self.composerLoaded, let configuration = self.configuration else { return }
+    let project = configuration.project
+    self.blockAnalytics.receive(project: project)
+    self.latestProject = project
+    self.updateComposer()
+    if let replies = self.latestReplies { self.onLoadReplies?(replies, project) }
+    if let (comment, id) = self.latestFailableReply { self.onLoadFailableReply?(comment, id, project) }
+    self.latestRootComment = configuration.comment
+    self.onLoadRootComment?(configuration.comment)
+    self.loadingTask = self.feature.requestFirstPage(route: self.route, source: .replies(configuration.comment.id), refresh: true)
   }
 
   private func updateComposer() {
@@ -292,7 +265,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
 
   deinit {
     self.loadingTask?.cancel()
-    self.contextTask?.cancel()
     self.retryTasks.values.forEach { $0.cancel() }
     self.postTasks.values.forEach { $0.cancel() }
 
@@ -304,7 +276,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   }
 
   func waitForLoads() async {
-    await self.contextTask?.value
     await self.loadingTask?.value
     await self.feature.waitForMutations()
     for task in self.retryTasks.values { await task.value }

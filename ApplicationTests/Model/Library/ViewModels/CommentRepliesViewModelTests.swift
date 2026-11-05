@@ -81,6 +81,19 @@ internal final class CommentRepliesViewModelTests: TestCase {
     }
   }
 
+  func testConfiguringAfterViewLoadsPublishesRootComment() async {
+    await withEnvironment {
+      self.vm.inputs.viewDidLoad()
+      self.loadCommentIntoDataSourceComment.assertDidNotEmitValue()
+      self.vm.inputs.configureWith(
+        comment: .template, project: .template, update: nil,
+        inputAreaBecomeFirstResponder: false, replyId: nil
+      )
+      self.loadCommentIntoDataSourceComment.assertValue(.template)
+      await self.vm.waitForLoads()
+    }
+  }
+
   func testOutput_ConfigureCommentComposerViewWithData_IsLoggedOut_HasNoCommentComposer() async {
     self.configureCommentComposerViewURL.assertDidNotEmitValue()
     self.configureCommentComposerViewCanPostComment.assertDidNotEmitValue()
