@@ -439,18 +439,6 @@ private final class ControlledRewardsProvider: RewardsProvider {
 }
 
 extension RewardsFeatureTests {
-  func testDeferredAddOnsObservationCannotStartInReplacementSession() async {
-    let fixture = AddOnsFixture()
-    let result = fixture.result(UUID())
-    fixture.session.sessionChanged()
-    var interrupted = false
-    let observation = result.startWithInterrupted { interrupted = true }
-    defer { observation.dispose() }
-    await fixture.feature.waitForAddOns()
-    XCTAssertTrue(interrupted)
-    XCTAssertEqual(fixture.provider.gate.count, 0)
-  }
-
   func testCancelledAddOnsCallerDoesNotAdmitRequest() async {
     let fixture = AddOnsFixture()
     let task = Task {
@@ -513,28 +501,40 @@ extension RewardsFeatureTests {
     XCTAssertEqual(fixture.provider.gate.count, 0)
   }
 
+  func testCancelledAddOnsDeliveryDoesNotCallCompletion() async throws {
+    let fixture = AddOnsFixture()
+    defer { fixture.provider.gate.releaseAll() }
+    var completions = 0
+    let task = fixture.start(UUID()) { _ in completions += 1 }
+    await fixture.provider.gate.waitFor(1)
+    task.cancel()
+    try fixture.provider.gate.finish(0, .success([.template]))
+    await fixture.feature.waitForAddOns()
+    XCTAssertEqual(completions, 0)
+  }
+
   func testAddOnsShareEquivalentPendingReadsAndRefreshAfterCompletion() async throws {
     let fixture = AddOnsFixture()
     defer { fixture.provider.gate.releaseAll() }
     let route = UUID()
     var values = 0
-    let first = fixture.result(route).startWithResult {
+    let first = fixture.start(route) {
       if case .success = $0 { values += 1 } else { XCTFail("Unexpected request error") }
     }
-    let second = fixture.result(route).startWithResult {
+    let second = fixture.start(route) {
       if case .success = $0 { values += 1 } else { XCTFail("Unexpected request error") }
     }
     defer {
-      first.dispose()
-      second.dispose()
+      first.cancel()
+      second.cancel()
     }
     await fixture.provider.gate.waitFor(1)
     try fixture.provider.gate.finish(0, .success([.template]))
     await fixture.feature.waitForAddOns()
     XCTAssertEqual(values, 2)
     XCTAssertEqual(fixture.provider.gate.count, 1)
-    let refresh = fixture.result(route).start()
-    defer { refresh.dispose() }
+    let refresh = fixture.start(route) { _ in }
+    defer { refresh.cancel() }
     await fixture.provider.gate.waitFor(2)
     try fixture.provider.gate.finish(1, .success([]))
     await fixture.feature.waitForAddOns()
@@ -547,20 +547,20 @@ extension RewardsFeatureTests {
     var old = 0
     var new = 0
     var other = 0
-    let first = fixture.result(route).startWithResult {
+    let first = fixture.start(route) {
       if case .success = $0 { old += 1 } else { XCTFail("Unexpected request error") }
     }
     await fixture.provider.gate.waitFor(1)
-    let second = fixture.result(route, shipping: .template).startWithResult {
+    let second = fixture.start(route, shipping: .template) {
       if case .success = $0 { new += 1 } else { XCTFail("Unexpected request error") }
     }
-    let third = fixture.result(UUID()).startWithResult {
+    let third = fixture.start(UUID()) {
       if case .success = $0 { other += 1 } else { XCTFail("Unexpected request error") }
     }
     defer {
-      first.dispose()
-      second.dispose()
-      third.dispose()
+      first.cancel()
+      second.cancel()
+      third.cancel()
     }
     await fixture.provider.gate.waitFor(3)
     try fixture.provider.gate.finish(2, .success([.template]))
@@ -578,19 +578,19 @@ extension RewardsFeatureTests {
     defer { fixture.provider.gate.releaseAll() }
     let route = UUID()
     var values = 0
-    let first = fixture.result(route).startWithResult {
+    let first = fixture.start(route) {
       if case .success = $0 { values += 1 } else { XCTFail("Unexpected request error") }
     }
     await fixture.provider.gate.waitFor(1)
     fixture.feature.releaseAddOns(route: route)
     try fixture.provider.gate.finish(0, .success([.template]))
     await fixture.feature.waitForAddOns()
-    let second = fixture.result(route).startWithResult {
+    let second = fixture.start(route) {
       if case .success = $0 { values += 1 } else { XCTFail("Unexpected request error") }
     }
     defer {
-      first.dispose()
-      second.dispose()
+      first.cancel()
+      second.cancel()
     }
     await fixture.provider.gate.waitFor(2)
     fixture.session.sessionChanged()
@@ -605,18 +605,18 @@ extension RewardsFeatureTests {
     let route = UUID()
     var errors = 0
     var values = 0
-    let first = fixture.result(route).startWithFailed { _ in errors += 1 }
+    let first = fixture.start(route) { if case .failure = $0 { errors += 1 } }
     await fixture.provider.gate.waitFor(1)
     try fixture.provider.gate.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
     await fixture.feature.waitForAddOns()
     XCTAssertEqual(errors, 1)
     XCTAssertEqual(fixture.provider.gate.count, 1)
-    let retry = fixture.result(route).startWithResult {
+    let retry = fixture.start(route) {
       if case .success = $0 { values += 1 } else { XCTFail("Unexpected request error") }
     }
     defer {
-      first.dispose()
-      retry.dispose()
+      first.cancel()
+      retry.cancel()
     }
     await fixture.provider.gate.waitFor(2)
     try fixture.provider.gate.finish(1, .success(nil))
@@ -627,14 +627,14 @@ extension RewardsFeatureTests {
   func testFastAddOnsUseBaseRewardAndShippingCountryOrCountryFallback() async throws {
     let fixture = AddOnsFixture(fast: true)
     defer { fixture.provider.gate.releaseAll() }
-    let first = fixture.result(UUID(), shipping: .template).start()
+    let first = fixture.start(UUID(), shipping: .template) { _ in }
     await fixture.provider.gate.waitFor(1)
     try fixture.provider.gate.finish(0, .success([]))
     await fixture.feature.waitForAddOns()
-    let second = fixture.result(UUID()).start()
+    let second = fixture.start(UUID()) { _ in }
     defer {
-      first.dispose()
-      second.dispose()
+      first.cancel()
+      second.cancel()
     }
     await fixture.provider.gate.waitFor(2)
     try fixture.provider.gate.finish(1, .success([]))
@@ -657,11 +657,12 @@ private final class AddOnsFixture {
   init(fast: Bool = false) { self.fast = fast }
   lazy var feature = RewardsFeature(
     sessionFeature: self.session, makeProvider: { self.provider }, fastCheckout: { self.fast })
-  func result(_ route: UUID, shipping: ShippingRule? = nil) -> SignalProducer<
-    [Reward]?, ErrorEnvelope
-  > {
-    self.feature.addOnsResult(
-      route: route, slug: "fixture", baseReward: self.reward, shippingRule: shipping)
+  func start(
+    _ route: UUID, shipping: ShippingRule? = nil,
+    completion: @escaping @MainActor (Result<[Reward]?, Error>) -> Void
+  ) -> Task<Void, Never> {
+    self.feature.startAddOns(route: route, slug: "fixture", baseReward: self.reward,
+                              shippingRule: shipping, completion: completion)
   }
 }
 

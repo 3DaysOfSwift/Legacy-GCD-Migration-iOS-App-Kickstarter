@@ -433,46 +433,6 @@ public final class RewardsFeature {
     return task
   }
 
-  /// Compatibility for the existing presentation graph; request execution is owned above.
-  public func addOnsResult(
-    route: UUID, slug: String, baseReward: Reward?, shippingRule: ShippingRule?
-  )
-    -> SignalProducer<[Reward]?, ErrorEnvelope>
-  {
-    let userID = self.sessionFeature.currentUser?.id
-    let generation = self.sessionFeature.generation
-    return SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        guard self.sessionFeature.isCurrent(userID: userID, generation: generation) else {
-          observer.sendInterrupted()
-          return
-        }
-        let request = self.requestAddOns(
-          route: route, slug: slug, baseReward: baseReward, shippingRule: shippingRule)
-        let id = UUID()
-        let task = Task { [self] in
-          defer { self.addOnsObservers[id] = nil }
-          do {
-            let value = try await request.task.value
-            try self.requireCurrentAddOns(request.identity, route: route, version: request.id)
-            observer.send(value: value)
-            observer.sendCompleted()
-          } catch {
-            guard !Task.isCancelled, !(error is CancellationError),
-              self.addOnsVersions[route] == request.id,
-              self.sessionFeature.isCurrent(userID: userID, generation: generation) else {
-              observer.sendInterrupted()
-              return
-            }
-            observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
-          }
-        }
-        self.addOnsObservers[id] = task
-        lifetime.observeEnded { task.cancel() }
-      }
-    }
-  }
-
   public func releaseAddOns(route: UUID) {
     self.addOnsVersions[route] = nil
     self.addOnsRequests.removeValue(forKey: route)?.task.cancel()
