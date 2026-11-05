@@ -125,9 +125,7 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
       .map(extractViewController)
       .observeValues(scrollToTop)
 
-    self.viewModel.outputs.avatarImage
-      .observeForUI()
-      .observeValues { [weak self] data, url, index in
+    self.viewModel.outputs.onAvatarImage = { [weak self] data, url, index in
         guard let self, let current = self.lastTabBarItemsData, current.isLoggedIn,
           current.items.contains(where: { item in
             if case let .profile(currentURL, currentIndex) = item { return currentURL == url && currentIndex == index }

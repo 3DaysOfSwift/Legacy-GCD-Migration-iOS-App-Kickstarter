@@ -109,7 +109,7 @@ public protocol RootViewModelInputs {
 }
 
 @MainActor
-public protocol RootViewModelOutputs {
+public protocol RootViewModelOutputs: AnyObject {
   /// Emits when the discovery VC should filter with specific params.
   var filterDiscovery: Signal<(RootViewControllerIndex, DiscoveryParams), Never> { get }
 
@@ -127,7 +127,7 @@ public protocol RootViewModelOutputs {
   var setViewControllers: Signal<[RootViewControllerData], Never> { get }
 
   /// Emits data for setting tab bar item styles.
-  var avatarImage: Signal<(Data, URL, Int), Never> { get }
+  var onAvatarImage: ((Data, URL, Int) -> Void)? { get set }
   var tabBarItemsData: Signal<TabBarItemsData, Never> { get }
 
   /// Emits an already committed User for the existing user-updated notification.
@@ -150,8 +150,7 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   private var avatarTask: Task<Void, Never>?
   private var avatarID: UUID?
   private var avatarInput: (URL, Int, Int)?
-  private let avatarPipe = Signal<(Data, URL, Int), Never>.pipe()
-  public var avatarImage: Signal<(Data, URL, Int), Never> { self.avatarPipe.output }
+  public var onAvatarImage: ((Data, URL, Int) -> Void)?
   private var badgeTask: Task<Void, Never>?
   private var badgeIdentity: (userID: Int, generation: Int, token: UUID)?
   private let badgePipe = Signal<(User, Int), Never>.pipe()
@@ -456,7 +455,7 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
         let data = try await feature.avatar(url: url)
         try Task.checkCancellation()
         guard let self, self.avatarID == id else { return }
-        self.avatarPipe.input.send(value: (data, url, index))
+        self.onAvatarImage?(data, url, index)
       } catch { /* Keep the existing profile icon on a failed image read. */ }
     }
     return self.avatarTask

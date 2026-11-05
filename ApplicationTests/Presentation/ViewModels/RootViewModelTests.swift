@@ -35,7 +35,7 @@ final class RootViewModelTests: TestCase {
     let feature = ProfileFeature(sessionFeature: session, makeProvider: { AsyncProfileProvider(service: MockService()) }, loadAvatar: { _ in try await gate.request() })
     let vm = RootViewModel(profileFeature: feature)
     var delivered = 0
-    vm.avatarImage.observeValues { _ in delivered += 1 }
+    vm.onAvatarImage = { _, _, _ in delivered += 1 }
     let url = try XCTUnwrap(URL(string: User.template.avatar.small))
     let request = vm.requestAvatar(url: url, index: 3, isLoggedIn: true)
     await gate.waitFor(1)
@@ -51,7 +51,7 @@ final class RootViewModelTests: TestCase {
     let feature = ProfileFeature(sessionFeature: session, makeProvider: { AsyncProfileProvider(service: MockService()) }, loadAvatar: { _ in try await gate.request() })
     let vm = RootViewModel(profileFeature: feature)
     var indices: [Int] = []
-    vm.avatarImage.observeValues { indices.append($0.2) }
+    vm.onAvatarImage = { _, _, index in indices.append(index) }
     let url = try XCTUnwrap(URL(string: User.template.avatar.small))
     let old = vm.requestAvatar(url: url, index: 3, isLoggedIn: true)
     await gate.waitFor(1)
