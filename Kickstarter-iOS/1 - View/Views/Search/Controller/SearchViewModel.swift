@@ -1,7 +1,6 @@
 import Foundation
 import KsApi
 import Prelude
-import ReactiveSwift
 
 public typealias SearchResultCard = ProjectCardProperties
 
@@ -62,13 +61,13 @@ public protocol SearchViewModelOutputs: AnyObject {
   var onGoToProject: ((ProjectPageParam, RefTag) -> Void)? { get set }
 
   /// Used to power the datasource. Emits projects, whether or not to show the "Popular" title, and the results count. May emit an array of empty projects if the page was cleared and new results are loading.
-  var searchResults: Signal<SearchResults, Never> { get }
+  var onSearchResults: ((SearchResults) -> Void)? { get set }
 
   /// Emits when loading indicator should be hidden.
   var onLoadingChanged: ((Bool) -> Void)? { get set }
 
   /// Emits true when no search results should be shown, and false otherwise.
-  var showEmptyState: Signal<(DiscoveryParams, Bool), Never> { get }
+  var onEmptyStateChanged: ((DiscoveryParams, Bool) -> Void)? { get set }
 
   /// Sends a model object which can be used to display all filter options, and a type describing which filters to display.
   var onShowFilters: ((SearchFilterModalType) -> Void)? { get set }
@@ -90,11 +89,6 @@ public protocol SearchViewModelType {
 @MainActor
 public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, SearchViewModelOutputs {
   private let searchFeature: SearchFeature
-  private let featureBindings = ScopedDisposable(CompositeDisposable())
-  private let resultsPipe = Signal<[SearchResult], Never>.pipe()
-  private let pagesPipe = Signal<[SearchResult], Never>.pipe()
-  private let countPipe = Signal<Int, Never>.pipe()
-  private let loadingPipe = Signal<Bool, Never>.pipe()
   private var searchObservation: MainActorObservation?
   private let completionAnalytics: SearchCompletionAnalytics
   // UIKit retains the shared Feature task rather than spawning wrapper Tasks.
@@ -108,63 +102,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     let searchFeature = searchFeature ?? AppModel.shared.searchFeature
     self.searchFeature = searchFeature
     self.searchFiltersUseCase = SearchFiltersUseCase(searchFeature: searchFeature)
-    // Output notification only: query input and first appearance are explicit commands.
-    let queryText = self.queryTextPipe.output
-    let paginatedProjects = self.pagesPipe.output
-    let isLoading = self.loadingPipe.output
-    let stats = self.countPipe.output
-    let searchResults = self.resultsPipe.output.skipRepeats(==)
-
-
-    // Show the 'Discover projects' title if we're showing 'Discover' results (i.e. no query)
-    let isProjectsTitleVisible = Signal.combineLatest(queryText, searchResults)
-      .map { query, projects in query.isEmpty && !projects.isEmpty }
-      .skipRepeats()
-
-    self.projects = searchResults
-      .map { (nodes: [SearchResult]) -> [SearchResultCard] in
-        nodes.compactMap { node in
-          return ProjectCardProperties(node.card)
-        }
-      }
-
-    let shouldShowEmptyState = Signal.combineLatest(paginatedProjects, isLoading)
-      .map { projects, isLoading in
-        if isLoading { return false }
-        return projects.isEmpty
-      }
-      .skipRepeats()
-
-    self.showEmptyState = self.queryParametersPipe.output
-      .takePairWhen(shouldShowEmptyState)
-
-
-
-
-    // Register analytics before presentation: a zero count or buffered page
-    // settlement can track before the corresponding cards are published.
     self.completionAnalytics = SearchCompletionAnalytics()
-
-    self.searchResults = Signal.combineLatest(
-      isProjectsTitleVisible,
-      stats,
-      self.projects
-    ).map { isProjectsTitleVisible, resultCount, projects in
-      SearchResults(
-        isProjectsTitleVisible: isProjectsTitleVisible,
-        count: resultCount,
-        projects: projects.map { $0.projectCellModel }
-      )
-    }.merge(with: self.initialResultsPipe.output)
-
-    // Bind only after every presentation/analytics observer is installed.
-    // These handles belong to this screen, not the app-scoped Feature.
-    self.featureBindings += searchResults.observeValues { [weak self] results in
-      self?.displayedResults = results
-    }
-    self.featureBindings += stats.observeValues { [weak self] count in
-      self?.appearanceResultsCount = count
-    }
     self.completionAnalytics.onCount = { [weak self] count in
       self?.trackResultCompletion(count: count)
     }
@@ -175,25 +113,24 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       self.hasReceivedFilterSelection = true
       self.refreshSearchIfReady()
     }
-    self.featureBindings += isLoading.observeValues { [weak self] loading in
-      if !loading {
-        self?.searchTask = nil
-        self?.pageTask = nil
-      }
-    }
     self.searchObservation = searchFeature.observe { [weak self] update in
       guard let self else { return }
       switch update {
-      case let .results(value): self.resultsPipe.input.send(value: value)
+      case let .results(value): self.receiveResults(value)
       case let .page(value):
         self.completionAnalytics.recordResults()
-        self.pagesPipe.input.send(value: value)
+        self.latestPage = value
+        self.updateEmptyState()
       case let .count(value):
         self.completionAnalytics.recordCount(value)
-        self.countPipe.input.send(value: value)
+        self.latestCount = value
+        self.emitSearchResultsIfReady()
+        self.appearanceResultsCount = value
       case let .loading(value):
         self.completionAnalytics.recordLoading(value)
-        self.loadingPipe.input.send(value: value)
+        self.latestLoading = value
+        self.updateEmptyState()
+        if !value { self.searchTask = nil; self.pageTask = nil }
         self.onLoadingChanged?(value)
       case let .pageCount(value): self.completionAnalytics.recordPage(value)
       }
@@ -218,9 +155,42 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   private var selectionFieldsSeen = Set<Int>()
   private var selectionObservation: MainActorObservation?
   private var wasCloseToBottom: Bool?
-  private let queryTextPipe = Signal<String, Never>.pipe()
-  private let queryParametersPipe = Signal<DiscoveryParams, Never>.pipe()
-  private let initialResultsPipe = Signal<SearchResults, Never>.pipe()
+  private var latestPage: [SearchResult]?
+  private var latestLoading: Bool?
+  private var latestCount: Int?
+  private var latestCards: [BackerDashboardProjectCellViewModel.ProjectCellModel]?
+  private var latestTitleVisible: Bool?
+  private var latestEmptyState: Bool?
+
+  private func emitSearchResultsIfReady() {
+    guard let title = self.latestTitleVisible, let count = self.latestCount, let cards = self.latestCards else { return }
+    self.onSearchResults?(SearchResults(isProjectsTitleVisible: title, count: count, projects: cards))
+  }
+
+  private func updateTitle(for results: [SearchResult]) {
+    guard let query = self.queryText else { return }
+    let visible = query.isEmpty && !results.isEmpty
+    guard self.latestTitleVisible != visible else { return }
+    self.latestTitleVisible = visible
+    self.emitSearchResultsIfReady()
+  }
+
+  private func receiveResults(_ results: [SearchResult]) {
+    guard self.displayedResults != results else { return }
+    self.updateTitle(for: results)
+    self.latestCards = results.compactMap { ProjectCardProperties($0.card)?.projectCellModel }
+    self.emitSearchResultsIfReady()
+    self.displayedResults = results
+  }
+
+  private func updateEmptyState() {
+    guard let page = self.latestPage, let loading = self.latestLoading else { return }
+    let empty = !loading && page.isEmpty
+    guard self.latestEmptyState != empty else { return }
+    self.latestEmptyState = empty
+    guard let parameters = self.latestQueryParameters else { return }
+    self.onEmptyStateChanged?(parameters, empty)
+  }
 
   public func searchTextChanged(_ searchText: String) {
     self.publishQueryText(searchText)
@@ -234,14 +204,13 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     // Legacy parameter admission preceded query-text presentation observers.
     // Preserve that order, including synchronous cancellation/loading analytics.
     self.refreshSearchIfReady()
-    self.queryTextPipe.input.send(value: query)
+    if let results = self.displayedResults { self.updateTitle(for: results) }
   }
 
   private func refreshSearchIfReady() {
     guard self.hasReceivedFilterSelection, let query = self.queryText else { return }
     let parameters = self.searchFeature.queryParameters(for: query)
     self.latestQueryParameters = parameters
-    self.queryParametersPipe.input.send(value: parameters)
     self.searchTask = self.searchFeature.requestSearch(parameters: parameters)
   }
 
@@ -291,7 +260,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     }
     if animated { self.trackAppearance() }
     if isFirstAnimatedAppearance {
-      self.initialResultsPipe.input.send(value: SearchResults(
+      self.onSearchResults?(SearchResults(
         isProjectsTitleVisible: false, count: 0, projects: []
       ))
     }
@@ -334,9 +303,8 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   private var connectivityObservation: MainActorObservation?
 
   public var onGoToProject: ((ProjectPageParam, RefTag) -> Void)?
-  public let projects: Signal<[SearchResultCard], Never>
   public var onLoadingChanged: ((Bool) -> Void)?
-  public let showEmptyState: Signal<(DiscoveryParams, Bool), Never>
+  public var onEmptyStateChanged: ((DiscoveryParams, Bool) -> Void)?
   public var onVideoFeedBannerChanged: ((Bool) -> Void)?
 
   private func updateVideoFeedBanner() {
@@ -345,7 +313,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.lastVideoFeedBanner = shouldShow
     self.onVideoFeedBannerChanged?(shouldShow)
   }
-  public let searchResults: Signal<SearchResults, Never>
+  public var onSearchResults: ((SearchResults) -> Void)?
 
   public var onShowFilters: ((SearchFilterModalType) -> Void)? {
     get { self.searchFiltersUseCase.onShowFilters }

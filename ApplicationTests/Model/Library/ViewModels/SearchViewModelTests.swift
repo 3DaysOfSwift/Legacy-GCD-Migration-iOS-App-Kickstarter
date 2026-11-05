@@ -55,6 +55,8 @@ internal final class SearchViewModelTests: TestCase {
   fileprivate let changeSearchFieldFocusAnimated = TestObserver<Bool, Never>()
   fileprivate let goToRefTag = TestObserver<RefTag, Never>()
   private let hasAddedProjects = TestObserver<Bool, Never>()
+  private let (searchResultsSignal, searchResultsObserver) = Signal<SearchResults, Never>.pipe()
+  private let (emptyStateSignal, emptyStateObserver) = Signal<(DiscoveryParams, Bool), Never>.pipe()
   fileprivate let hasProjects = TestObserver<Bool, Never>()
   fileprivate let isPopularTitleVisible = TestObserver<Bool, Never>()
   fileprivate var noProjects = TestObserver<Bool, Never>()
@@ -68,19 +70,21 @@ internal final class SearchViewModelTests: TestCase {
     try await super.setUp()
 
     MainActor.assumeIsolated {
+      self.vm.outputs.onSearchResults = { [weak self] in self?.searchResultsObserver.send(value: $0) }
+      self.vm.outputs.onEmptyStateChanged = { [weak self] in self?.emptyStateObserver.send(value: ($0, $1)) }
       self.vm.outputs.onGoToProject = { [weak self] _, refTag in self?.goToRefTag.observer.send(value: refTag) }
-      self.vm.outputs.searchResults.map { $0.isProjectsTitleVisible }
+      self.searchResultsSignal.map { $0.isProjectsTitleVisible }
         .observe(self.isPopularTitleVisible.observer)
-      self.vm.outputs.searchResults.map { !$0.projects.isEmpty }.skipRepeats(==)
+      self.searchResultsSignal.map { !$0.projects.isEmpty }.skipRepeats(==)
         .observe(self.hasProjects.observer)
-      self.vm.outputs.searchResults.map { $0.projects.isEmpty }.skipRepeats(==)
+      self.searchResultsSignal.map { $0.projects.isEmpty }.skipRepeats(==)
         .observe(self.noProjects.observer)
       self.vm.outputs.onLoadingChanged = { [weak self] in self?.searchLoaderIndicatorIsAnimating.observer.send(value: $0) }
-      self.vm.outputs.showEmptyState.map(second).observe(self.showEmptyState.observer)
-      self.vm.outputs.showEmptyState.map(first).observe(self.showEmptyStateParams.observer)
+      self.emptyStateSignal.map(second).observe(self.showEmptyState.observer)
+      self.emptyStateSignal.map(first).observe(self.showEmptyStateParams.observer)
       self.vm.outputs.onVideoFeedBannerChanged = { [weak self] in self?.showVideoFeedBanner.observer.send(value: $0) }
 
-      self.vm.outputs.searchResults
+      self.searchResultsSignal
         .map { $0.projects.count }
         .combinePrevious(0)
         .map { prev, next in next > prev }
@@ -1281,7 +1285,7 @@ internal final class SearchViewModelTests: TestCase {
     ) {
       let projects = TestObserver<[String], Never>()
 
-      self.vm.outputs.searchResults.map { $0.projects.map { $0.name } }.observe(projects.observer)
+      self.searchResultsSignal.map { $0.projects.map { $0.name } }.observe(projects.observer)
 
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: true)
@@ -1334,7 +1338,7 @@ internal final class SearchViewModelTests: TestCase {
       debounceInterval: debounceDelay
     ) {
       let projects = TestObserver<[String], Never>()
-      self.vm.outputs.searchResults.map { $0.projects.map { $0.name } }.observe(projects.observer)
+      self.searchResultsSignal.map { $0.projects.map { $0.name } }.observe(projects.observer)
 
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: true)

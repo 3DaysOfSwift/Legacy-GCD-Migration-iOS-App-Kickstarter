@@ -2,7 +2,6 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveSwift
 import SwiftUI
 import UIKit
 
@@ -76,9 +75,7 @@ internal final class SearchViewController: UITableViewController,
   }
 
   internal override func bindViewModel() {
-    self.viewModel.outputs.searchResults
-      .observeForUI()
-      .observeValues { [weak self] results in
+    self.viewModel.outputs.onSearchResults = { [weak self] results in
         self?.dataSource.load(results: results)
         self?.tableView.reloadData()
       }
@@ -103,9 +100,7 @@ internal final class SearchViewController: UITableViewController,
         }
       }
 
-    self.viewModel.outputs.showEmptyState
-      .observeForUI()
-      .observeValues { [weak self] params, visible in
+    self.viewModel.outputs.onEmptyStateChanged = { [weak self] params, visible in
         let data = SearchEmptyStateSearchData(
           query: params.query,
           hasFilters: self?.viewModel.outputs.searchFilters.hasFilters == true
