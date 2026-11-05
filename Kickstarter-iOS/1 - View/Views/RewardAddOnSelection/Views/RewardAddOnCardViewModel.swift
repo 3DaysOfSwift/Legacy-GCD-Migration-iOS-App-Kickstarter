@@ -181,16 +181,6 @@ private func needsConversion(project: Project) -> Bool {
   return project.stats.needsConversion
 }
 
-private func backingReward(fromProject project: Project) -> Reward? {
-  guard let backing = project.personalization.backing else {
-    return nil
-  }
-
-  return project.rewards
-    .first { $0.id == backing.rewardId || $0.id == backing.reward?.id }
-    .coalesceWith(.noReward)
-}
-
 @MainActor
 private func pillValues(project: Project, reward: Reward) -> [String] {
   return [

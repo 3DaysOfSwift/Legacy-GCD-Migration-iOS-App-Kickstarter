@@ -1169,6 +1169,21 @@ final class RewardAddOnCardViewModelTests: TestCase {
     self.notifiyDelegateDidSelectQuantityQuantity.assertValues([4, 3])
   }
 
+  func testReusedCardReportsCurrentRewardAndDoesNotNotifyOnConfiguration() {
+    let first = Reward.template |> Reward.lens.id .~ 123 |> Reward.lens.limitPerBacker .~ 10
+    let second = Reward.template |> Reward.lens.id .~ 456 |> Reward.lens.limitPerBacker .~ 10
+    self.vm.configure(with: .init(project: .template, reward: first, context: .pledge,
+                                 shippingRule: nil, selectedQuantities: [123: 2]))
+    self.vm.stepperValueChanged(3)
+    self.vm.configure(with: .init(project: .template, reward: second, context: .pledge,
+                                 shippingRule: nil, selectedQuantities: [456: 4]))
+    self.notifiyDelegateDidSelectQuantityRewardId.assertValues([123])
+    self.quantityLabelText.assertValues(["2", "3", "4"])
+    self.vm.stepperValueChanged(5)
+    self.notifiyDelegateDidSelectQuantityRewardId.assertValues([123, 456])
+    self.notifiyDelegateDidSelectQuantityQuantity.assertValues([3, 5])
+  }
+
   func testGenerateFeedback() {
     let reward = Reward.template
       |> Reward.lens.limitPerBacker .~ 10
