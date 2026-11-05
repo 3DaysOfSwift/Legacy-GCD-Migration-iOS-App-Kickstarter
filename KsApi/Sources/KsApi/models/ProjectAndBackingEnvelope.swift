@@ -1,6 +1,5 @@
 import Foundation
 import GraphAPI
-import ReactiveSwift
 
 public struct ProjectAndBackingEnvelope: Equatable, Decodable, Sendable {
   public var project: Project
@@ -10,15 +9,6 @@ public struct ProjectAndBackingEnvelope: Equatable, Decodable, Sendable {
 // MARK: - GraphQL Adapters
 
 extension ProjectAndBackingEnvelope {
-  static func envelopeProducer(
-    from data: GraphAPI.FetchBackingQuery.Data
-  ) -> SignalProducer<ProjectAndBackingEnvelope, ErrorEnvelope> {
-    guard let envelope = Self.envelope(from: data) else {
-      return SignalProducer(error: .couldNotParseJSON)
-    }
-    return SignalProducer(value: envelope)
-  }
-
   static func envelope(from data: GraphAPI.FetchBackingQuery.Data) -> ProjectAndBackingEnvelope? {
     let addOns = data.backing?.addOns?.nodes?
       .compactMap { $0 }

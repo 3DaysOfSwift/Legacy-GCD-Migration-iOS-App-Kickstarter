@@ -3,8 +3,6 @@ import GraphAPI
 import GraphAPITestMocks
 @testable import KsApi
 @testable import KsApiTestHelpers
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
 import XCTest
 
 final class ProjectAndBackingEnvelopeTests: XCTestCase {
@@ -16,9 +14,7 @@ final class ProjectAndBackingEnvelopeTests: XCTestCase {
     mock.backing = GraphAPITestMocks.Backing.mock
 
     let data = GraphAPI.FetchBackingQuery.Data.from(mock)
-    let producer = ProjectAndBackingEnvelope.envelopeProducer(from: data)
-
-    guard let envelope = MockGraphQLClient.shared.client.data(from: producer) else {
+    guard let envelope = ProjectAndBackingEnvelope.envelope(from: data) else {
       XCTFail()
 
       return
@@ -37,9 +33,7 @@ final class ProjectAndBackingEnvelopeTests: XCTestCase {
     mock.backing?.paymentIncrements = [GraphAPITestMocks.PaymentIncrement.collectedMock]
 
     let data = GraphAPI.FetchBackingQuery.Data.from(mock)
-    let producer = ProjectAndBackingEnvelope.envelopeProducer(from: data)
-
-    guard let envelope = MockGraphQLClient.shared.client.data(from: producer) else {
+    guard let envelope = ProjectAndBackingEnvelope.envelope(from: data) else {
       XCTFail()
 
       return
@@ -60,9 +54,7 @@ final class ProjectAndBackingEnvelopeTests: XCTestCase {
     mock.backing = GraphAPITestMocks.Backing.mock
 
     let data = GraphAPI.FetchBackingWithIncrementsRefundedQuery.Data.from(mock)
-    let producer = Backing.producer(from: data)
-
-    guard let backing = MockGraphQLClient.shared.client.data(from: producer) else {
+    guard let backing = Backing.managedBacking(from: data) else {
       XCTFail()
 
       return
@@ -85,9 +77,7 @@ final class ProjectAndBackingEnvelopeTests: XCTestCase {
     ]
 
     let data = GraphAPI.FetchBackingWithIncrementsRefundedQuery.Data.from(mock)
-    let producer = Backing.producer(from: data)
-
-    guard let backing = MockGraphQLClient.shared.client.data(from: producer) else {
+    guard let backing = Backing.managedBacking(from: data) else {
       XCTFail()
 
       return

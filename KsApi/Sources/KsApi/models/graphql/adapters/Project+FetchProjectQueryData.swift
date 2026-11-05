@@ -2,31 +2,11 @@ import Apollo
 import Foundation
 import GraphAPI
 import Prelude
-import ReactiveSwift
 
 extension Project {
   public struct ProjectPamphletData: Decodable, Sendable {
     public let project: Project
     public let backingId: Int?
-  }
-
-  static func projectProducer(
-    from data: GraphAPI.FetchProjectByParamQuery.Data
-  ) -> SignalProducer<ProjectPamphletData, ErrorEnvelope> {
-    let projectAndBackingId = Project.project(
-      from: data
-    )
-
-    guard let project = projectAndBackingId.0 else {
-      return SignalProducer(error: ErrorEnvelope.couldNotParseJSON)
-    }
-
-    let data = ProjectPamphletData(
-      project: project,
-      backingId: projectAndBackingId.1
-    )
-
-    return SignalProducer(value: data)
   }
 
   internal static func project(

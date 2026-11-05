@@ -1,6 +1,5 @@
 import GraphAPI
 import Prelude
-import ReactiveSwift
 
 extension Backing {
   /**
@@ -68,13 +67,6 @@ extension Backing {
       shippingAmount: backingFragment.shippingAmount?.fragments.moneyFragment.amount.flatMap(Double.init),
       status: backingStatus
     )
-  }
-
-  static func producer(
-    from data: FetchBackingWithIncrementsRefundedQuery.Data
-  ) -> SignalProducer<Backing, ErrorEnvelope> {
-    guard let backing = managedBacking(from: data) else { return SignalProducer(error: .couldNotParseJSON) }
-    return SignalProducer(value: backing)
   }
 
   static func managedBacking(
