@@ -93,15 +93,15 @@ public final class ConnectivityState {
   }
   private var observers: [UUID: (Reachability) -> Void] = [:]
   public init(_ value: Reachability = .none) { self.value = value }
-  public func observe(_ observer: @escaping (Reachability) -> Void) -> ConnectivityObservation {
+  public func observe(_ observer: @escaping (Reachability) -> Void) -> MainActorObservation {
     let id = UUID()
     self.observers[id] = observer
     observer(self.value)
-    return ConnectivityObservation { [weak self] in self?.observers.removeValue(forKey: id) }
+    return MainActorObservation { [weak self] in self?.observers.removeValue(forKey: id) }
   }
 }
 
-public final class ConnectivityObservation {
+public final class MainActorObservation {
   private let cancel: @MainActor () -> Void
   @MainActor init(_ cancel: @escaping @MainActor () -> Void) { self.cancel = cancel }
   @MainActor public func stop() { self.cancel() }

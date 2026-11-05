@@ -110,7 +110,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     )
     // Output notification only: query input and first appearance are explicit commands.
     let queryText = self.queryTextPipe.output
-    let selection = searchFeature.filterSelection
+    let selection = self.searchFiltersUseCase.dataOutputs
     // Keep the legacy screen's per-observer initial barrier and every subsequent
     // field notification. This stream reports selection changes; it owns no query.
     let selectionChanges = Signal.combineLatest(
@@ -330,7 +330,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
 
   private let searchFiltersUseCase: SearchFiltersUseCase
   private let reachabilityProperty = MutableProperty<Reachability>(.none)
-  private var connectivityObservation: ConnectivityObservation?
+  private var connectivityObservation: MainActorObservation?
 
   public let goToProject: Signal<(ProjectPageParam, RefTag), Never>
   public let projects: Signal<[SearchResultCard], Never>

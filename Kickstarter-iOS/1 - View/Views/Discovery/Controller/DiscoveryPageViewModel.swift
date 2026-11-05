@@ -503,7 +503,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   }
 
   private let reachabilityProperty = MutableProperty<Reachability>(.none)
-  private var connectivityObservation: ConnectivityObservation?
+  private var connectivityObservation: MainActorObservation?
 
   public let activitiesForSample: Signal<[Activity], Never>
   public let asyncReloadData: Signal<Void, Never>

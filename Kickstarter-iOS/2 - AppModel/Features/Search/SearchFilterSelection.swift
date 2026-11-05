@@ -1,121 +1,59 @@
 import KsApi
-import ReactiveSwift
+import Foundation
 
 /// Search's synchronous selection policy, owned by SearchFeature.
-/// Ordinary main-actor state is authoritative. Pipes only adapt changes to the
-/// legacy UIKit presentation/analytics edge; they do not own domain values.
+/// Main-actor state and explicit change notifications own the selection policy.
 @MainActor
 internal final class SearchFilterSelection {
   internal static let defaultSortOption = DiscoveryParams.Sort.magic
   internal static let defaultStateOption = DiscoveryParams.State.all
 
-  internal private(set) var selectedSortValue: DiscoveryParams.Sort = SearchFilterSelection.defaultSortOption {
-    didSet { self.selectedSortPipe.input.send(value: self.selectedSortValue) }
+  internal enum Change {
+    case sort(DiscoveryParams.Sort), category(SearchFiltersCategory), state(DiscoveryParams.State)
+    case percent(DiscoveryParams.PercentRaisedBucket?), location(Location?)
+    case amount(DiscoveryParams.AmountRaisedBucket?), goal(DiscoveryParams.GoalBucket?)
+    case toggles(SearchFilterToggles)
   }
-  private let selectedSortPipe = Signal<DiscoveryParams.Sort, Never>.pipe()
-  internal var selectedSort: Signal<DiscoveryParams.Sort, Never> { self.selectedSortPipe.output }
-
-  internal private(set) var selectedCategoryValue: SearchFiltersCategory = .none {
-    didSet { self.selectedCategoryPipe.input.send(value: self.selectedCategoryValue) }
+  private var observers: [(id: UUID, callback: (Change) -> Void)] = []
+  internal func observe(_ observer: @escaping (Change) -> Void) -> MainActorObservation {
+    let id = UUID()
+    self.observers.append((id, observer))
+    return MainActorObservation { [weak self] in self?.observers.removeAll { $0.id == id } }
   }
-  private let selectedCategoryPipe = Signal<SearchFiltersCategory, Never>.pipe()
-  internal var selectedCategory: Signal<SearchFiltersCategory, Never> { self.selectedCategoryPipe.output }
-
-  internal private(set) var selectedStateValue: DiscoveryParams.State = SearchFilterSelection.defaultStateOption {
-    didSet { self.selectedStatePipe.input.send(value: self.selectedStateValue) }
+  private func emit(_ change: Change) {
+    for observer in self.observers { observer.callback(change) }
   }
-  private let selectedStatePipe = Signal<DiscoveryParams.State, Never>.pipe()
-  internal var selectedState: Signal<DiscoveryParams.State, Never> { self.selectedStatePipe.output }
-
-  internal private(set) var selectedPercentRaisedBucketValue: DiscoveryParams.PercentRaisedBucket? = nil {
-    didSet { self.selectedPercentRaisedBucketPipe.input.send(value: self.selectedPercentRaisedBucketValue) }
+  private var togglesSeen = Set<Int>()
+  private func emitToggle(_ index: Int) {
+    self.togglesSeen.insert(index)
+    if self.togglesSeen.count == 4 { self.emit(.toggles(self.toggles)) }
   }
-  private let selectedPercentRaisedBucketPipe = Signal<DiscoveryParams.PercentRaisedBucket?, Never>.pipe()
-  internal var selectedPercentRaisedBucket: Signal<DiscoveryParams.PercentRaisedBucket?, Never> {
-    self.selectedPercentRaisedBucketPipe.output
-  }
-
-  internal private(set) var selectedLocationValue: Location? = nil {
-    didSet { self.selectedLocationPipe.input.send(value: self.selectedLocationValue) }
-  }
-  private let selectedLocationPipe = Signal<Location?, Never>.pipe()
-  internal var selectedLocation: Signal<Location?, Never> { self.selectedLocationPipe.output }
-
-  internal private(set) var selectedAmountRaisedBucketValue: DiscoveryParams.AmountRaisedBucket? = nil {
-    didSet { self.selectedAmountRaisedBucketPipe.input.send(value: self.selectedAmountRaisedBucketValue) }
-  }
-  private let selectedAmountRaisedBucketPipe = Signal<DiscoveryParams.AmountRaisedBucket?, Never>.pipe()
-  internal var selectedAmountRaisedBucket: Signal<DiscoveryParams.AmountRaisedBucket?, Never> {
-    self.selectedAmountRaisedBucketPipe.output
-  }
-
-  internal private(set) var selectedGoalBucketValue: DiscoveryParams.GoalBucket? = nil {
-    didSet { self.selectedGoalBucketPipe.input.send(value: self.selectedGoalBucketValue) }
-  }
-  private let selectedGoalBucketPipe = Signal<DiscoveryParams.GoalBucket?, Never>.pipe()
-  internal var selectedGoalBucket: Signal<DiscoveryParams.GoalBucket?, Never> {
-    self.selectedGoalBucketPipe.output
-  }
-
-  internal private(set) var recommendedValue = false {
-    didSet { self.recommendedPipe.input.send(value: self.recommendedValue) }
-  }
-  private let recommendedPipe = Signal<Bool, Never>.pipe()
-
-  internal private(set) var savedProjectsValue = false {
-    didSet { self.savedProjectsPipe.input.send(value: self.savedProjectsValue) }
-  }
-  private let savedProjectsPipe = Signal<Bool, Never>.pipe()
-
-  internal private(set) var projectsWeLoveValue = false {
-    didSet { self.projectsWeLovePipe.input.send(value: self.projectsWeLoveValue) }
-  }
-  private let projectsWeLovePipe = Signal<Bool, Never>.pipe()
-
-  internal private(set) var followingValue = false {
-    didSet { self.followingPipe.input.send(value: self.followingValue) }
-  }
-  private let followingPipe = Signal<Bool, Never>.pipe()
+  internal private(set) var selectedSortValue: DiscoveryParams.Sort = defaultSortOption { didSet { self.emit(.sort(self.selectedSortValue)) } }
+  internal private(set) var selectedCategoryValue: SearchFiltersCategory = .none { didSet { self.emit(.category(self.selectedCategoryValue)) } }
+  internal private(set) var selectedStateValue: DiscoveryParams.State = defaultStateOption { didSet { self.emit(.state(self.selectedStateValue)) } }
+  internal private(set) var selectedPercentRaisedBucketValue: DiscoveryParams.PercentRaisedBucket? { didSet { self.emit(.percent(self.selectedPercentRaisedBucketValue)) } }
+  internal private(set) var selectedLocationValue: Location? { didSet { self.emit(.location(self.selectedLocationValue)) } }
+  internal private(set) var selectedAmountRaisedBucketValue: DiscoveryParams.AmountRaisedBucket? { didSet { self.emit(.amount(self.selectedAmountRaisedBucketValue)) } }
+  internal private(set) var selectedGoalBucketValue: DiscoveryParams.GoalBucket? { didSet { self.emit(.goal(self.selectedGoalBucketValue)) } }
+  internal private(set) var recommendedValue = false { didSet { self.emitToggle(0) } }
+  internal private(set) var savedProjectsValue = false { didSet { self.emitToggle(1) } }
+  internal private(set) var projectsWeLoveValue = false { didSet { self.emitToggle(2) } }
+  internal private(set) var followingValue = false { didSet { self.emitToggle(3) } }
 
   internal var toggles: SearchFilterToggles {
-    SearchFilterToggles(
-      recommended: self.recommendedValue,
-      savedProjects: self.savedProjectsValue,
-      projectsWeLove: self.projectsWeLoveValue,
-      following: self.followingValue
-    )
-  }
-
-  internal let selectedToggles: Signal<SearchFilterToggles, Never>
-
-  internal init() {
-    // Preserve the adapter's initial barrier and individual toggle emissions.
-    // Native query construction reads ordinary state without this subscription.
-    self.selectedToggles = Signal.combineLatest(
-      self.recommendedPipe.output,
-      self.savedProjectsPipe.output,
-      self.projectsWeLovePipe.output,
-      self.followingPipe.output
-    ).map { recommended, saved, projectsWeLove, following in
-      SearchFilterToggles(
-        recommended: recommended, savedProjects: saved,
-        projectsWeLove: projectsWeLove, following: following
-      )
-    }
+    SearchFilterToggles(recommended: self.recommendedValue, savedProjects: self.savedProjectsValue,
+                        projectsWeLove: self.projectsWeLoveValue, following: self.followingValue)
   }
 
   internal func publishInitialSelection() {
-    self.selectedSortPipe.input.send(value: self.selectedSortValue)
-    self.selectedCategoryPipe.input.send(value: self.selectedCategoryValue)
-    self.selectedStatePipe.input.send(value: self.selectedStateValue)
-    self.selectedPercentRaisedBucketPipe.input.send(value: self.selectedPercentRaisedBucketValue)
-    self.selectedLocationPipe.input.send(value: self.selectedLocationValue)
-    self.selectedAmountRaisedBucketPipe.input.send(value: self.selectedAmountRaisedBucketValue)
-    self.selectedGoalBucketPipe.input.send(value: self.selectedGoalBucketValue)
-    self.recommendedPipe.input.send(value: self.recommendedValue)
-    self.savedProjectsPipe.input.send(value: self.savedProjectsValue)
-    self.projectsWeLovePipe.input.send(value: self.projectsWeLoveValue)
-    self.followingPipe.input.send(value: self.followingValue)
+    self.emit(.sort(self.selectedSortValue))
+    self.emit(.category(self.selectedCategoryValue))
+    self.emit(.state(self.selectedStateValue))
+    self.emit(.percent(self.selectedPercentRaisedBucketValue))
+    self.emit(.location(self.selectedLocationValue))
+    self.emit(.amount(self.selectedAmountRaisedBucketValue))
+    self.emit(.goal(self.selectedGoalBucketValue))
+    self.emitToggle(0); self.emitToggle(1); self.emitToggle(2); self.emitToggle(3)
   }
 
   internal func clearedQueryText() {

@@ -64,14 +64,6 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
   ) {
     self.searchFeature = searchFeature
     let selection = searchFeature.filterSelection
-    self.selectedSort = selection.selectedSort
-    self.selectedCategory = selection.selectedCategory
-    self.selectedState = selection.selectedState
-    self.selectedPercentRaisedBucket = selection.selectedPercentRaisedBucket
-    self.selectedLocation = selection.selectedLocation
-    self.selectedAmountRaisedBucket = selection.selectedAmountRaisedBucket
-    self.selectedGoalBucket = selection.selectedGoalBucket
-    self.selectedToggles = selection.selectedToggles
 
     self.searchFilters = SearchFilters(
       sort: SearchFilters.SortOptions(
@@ -152,6 +144,19 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
       .observeValues { [weak searchFilters] locations in
         searchFilters?.update(withSuggestedLocations: locations)
       }
+    self.selectionObservation = selection.observe { [weak self] change in
+      guard let self else { return }
+      switch change {
+      case let .sort(value): self.selectedSortPipe.input.send(value: value)
+      case let .category(value): self.selectedCategoryPipe.input.send(value: value)
+      case let .state(value): self.selectedStatePipe.input.send(value: value)
+      case let .percent(value): self.selectedPercentRaisedBucketPipe.input.send(value: value)
+      case let .location(value): self.selectedLocationPipe.input.send(value: value)
+      case let .amount(value): self.selectedAmountRaisedBucketPipe.input.send(value: value)
+      case let .goal(value): self.selectedGoalBucketPipe.input.send(value: value)
+      case let .toggles(value): self.selectedTogglesPipe.input.send(value: value)
+      }
+    }
   }
 
 
@@ -167,6 +172,7 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
 
   private let searchFeature: SearchFeature
   private let bindings = ScopedDisposable(CompositeDisposable())
+  private var selectionObservation: MainActorObservation?
 
   nonisolated internal static let defaultSortOption = DiscoveryParams.Sort.magic
 
@@ -191,14 +197,22 @@ public final class SearchFiltersUseCase: SearchFiltersUseCaseType, SearchFilters
 
   public let showFilters: Signal<SearchFilterModalType, Never>
 
-  public let selectedSort: Signal<DiscoveryParams.Sort, Never>
-  public let selectedCategory: Signal<SearchFiltersCategory, Never>
-  public let selectedState: Signal<DiscoveryParams.State, Never>
-  public let selectedPercentRaisedBucket: Signal<DiscoveryParams.PercentRaisedBucket?, Never>
-  public let selectedLocation: Signal<Location?, Never>
-  public let selectedAmountRaisedBucket: Signal<DiscoveryParams.AmountRaisedBucket?, Never>
-  public let selectedGoalBucket: Signal<DiscoveryParams.GoalBucket?, Never>
-  public let selectedToggles: Signal<SearchFilterToggles, Never>
+  private let selectedSortPipe = Signal<DiscoveryParams.Sort, Never>.pipe()
+  public var selectedSort: Signal<DiscoveryParams.Sort, Never> { self.selectedSortPipe.output }
+  private let selectedCategoryPipe = Signal<SearchFiltersCategory, Never>.pipe()
+  public var selectedCategory: Signal<SearchFiltersCategory, Never> { self.selectedCategoryPipe.output }
+  private let selectedStatePipe = Signal<DiscoveryParams.State, Never>.pipe()
+  public var selectedState: Signal<DiscoveryParams.State, Never> { self.selectedStatePipe.output }
+  private let selectedPercentRaisedBucketPipe = Signal<DiscoveryParams.PercentRaisedBucket?, Never>.pipe()
+  public var selectedPercentRaisedBucket: Signal<DiscoveryParams.PercentRaisedBucket?, Never> { self.selectedPercentRaisedBucketPipe.output }
+  private let selectedLocationPipe = Signal<Location?, Never>.pipe()
+  public var selectedLocation: Signal<Location?, Never> { self.selectedLocationPipe.output }
+  private let selectedAmountRaisedBucketPipe = Signal<DiscoveryParams.AmountRaisedBucket?, Never>.pipe()
+  public var selectedAmountRaisedBucket: Signal<DiscoveryParams.AmountRaisedBucket?, Never> { self.selectedAmountRaisedBucketPipe.output }
+  private let selectedGoalBucketPipe = Signal<DiscoveryParams.GoalBucket?, Never>.pipe()
+  public var selectedGoalBucket: Signal<DiscoveryParams.GoalBucket?, Never> { self.selectedGoalBucketPipe.output }
+  private let selectedTogglesPipe = Signal<SearchFilterToggles, Never>.pipe()
+  public var selectedToggles: Signal<SearchFilterToggles, Never> { self.selectedTogglesPipe.output }
 
   public private(set) var searchFilters: SearchFilters
 
