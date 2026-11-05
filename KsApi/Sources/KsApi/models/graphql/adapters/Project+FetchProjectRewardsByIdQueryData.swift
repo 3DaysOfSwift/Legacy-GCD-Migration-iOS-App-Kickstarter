@@ -1,7 +1,6 @@
 import Apollo
 import GraphAPI
 import Prelude
-import ReactiveSwift
 
 /// A protocol that defines how we want to insert the `No Reward` into the overall rewards list.
 ///
@@ -15,14 +14,6 @@ public protocol NoRewardInserter {
 }
 
 extension Project {
-  static func projectRewardsProducer(
-    from data: GraphAPI.FetchProjectRewardsByIdQuery.Data
-  ) -> SignalProducer<[Reward], ErrorEnvelope> {
-    let projectRewards = Project.projectRewards(from: data)
-
-    return SignalProducer(value: projectRewards)
-  }
-
   static func projectRewards(
     from data: GraphAPI.FetchSortedProjectRewardsByIdQuery.Data,
     withNoReward inserter: NoRewardInserter
@@ -61,17 +52,6 @@ extension Project {
         )
       }
     return projectRewards ?? []
-  }
-
-  static func projectRewardsAndPledgeOverTimeDataProducer(
-    from data: GraphAPI.FetchProjectRewardsByIdQuery.Data
-  ) -> SignalProducer<
-    RewardsAndPledgeOverTimeEnvelope,
-    ErrorEnvelope
-  > {
-    let projectRewards = Project.projectRewardsAndPledgeOverTimeData(from: data)
-
-    return SignalProducer(value: projectRewards)
   }
 
   static func projectRewardsAndPledgeOverTimeData(

@@ -1,5 +1,4 @@
 import Foundation
-import ReactiveSwift
 
 public struct RewardsAndPledgeOverTimeEnvelope: Sendable {
   public let rewards: [Reward]

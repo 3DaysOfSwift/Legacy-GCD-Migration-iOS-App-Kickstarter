@@ -1,16 +1,14 @@
 import Apollo
 @testable import KsApi
 @testable import KsApiTestHelpers
-import ReactiveSwift
 import XCTest
 
 final class Project_FetchProjectRewardsByIdQueryDataTests: XCTestCase {
   func testProjectRewardsProperties_Success() {
-    let rewardsProducer = Project
-      .projectRewardsProducer(from: FetchProjectRewardsByIdQueryTemplate.validRewardWithAllFields.data)
+    let rewards = Project
+      .projectRewards(from: FetchProjectRewardsByIdQueryTemplate.validRewardWithAllFields.data)
 
-    guard let rewards = MockGraphQLClient.shared.client.data(from: rewardsProducer),
-          let reward = rewards.first else {
+    guard let reward = rewards.first else {
       XCTFail()
       return
     }
@@ -58,11 +56,10 @@ final class Project_FetchProjectRewardsByIdQueryDataTests: XCTestCase {
 
   func test_expandedShippingProperties() {
     // Test on reward that has restricted shipping; only to the EU.
-    let rewardsProducer = Project
-      .projectRewardsProducer(from: FetchProjectRewardsByIdQueryTemplate.expandedShippingReward.data)
+    let rewards = Project
+      .projectRewards(from: FetchProjectRewardsByIdQueryTemplate.expandedShippingReward.data)
 
-    guard let rewards = MockGraphQLClient.shared.client.data(from: rewardsProducer),
-          let reward = rewards.first else {
+    guard let reward = rewards.first else {
       XCTFail()
 
       return
@@ -81,13 +78,8 @@ final class Project_FetchProjectRewardsByIdQueryDataTests: XCTestCase {
 
   func test_allShippingProperties_areNil_whenIncludeShippingRules_isFalse() {
     // Test on reward that has restricted shipping; only to the EU.
-    let rewardsProducer = Project
-      .projectRewardsProducer(from: FetchProjectRewardsByIdQueryTemplate.includeShippingRulesFalse.data)
-
-    guard let rewards = MockGraphQLClient.shared.client.data(from: rewardsProducer) else {
-      XCTFail("Should have produced rewards")
-      return
-    }
+    let rewards = Project
+      .projectRewards(from: FetchProjectRewardsByIdQueryTemplate.includeShippingRulesFalse.data)
 
     XCTAssertEqual(rewards.count, 1, "Even if shipping rules aren't set, rewards should be parsed.")
 

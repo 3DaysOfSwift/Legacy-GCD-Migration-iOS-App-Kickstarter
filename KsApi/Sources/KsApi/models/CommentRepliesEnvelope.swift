@@ -1,5 +1,4 @@
 import Foundation
-import ReactiveSwift
 
 public struct CommentRepliesEnvelope: Decodable, Sendable {
   public var comment: Comment

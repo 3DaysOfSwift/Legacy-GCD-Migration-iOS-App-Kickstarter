@@ -651,7 +651,7 @@ public struct Service: ServiceType {
 
     return GraphQL.shared.client
       .fetch(query: query)
-      .flatMap(Project.projectRewardsProducer(from:))
+      .map(Project.projectRewards(from:))
   }
 
   public func fetchProjectRewards(
@@ -689,7 +689,7 @@ public struct Service: ServiceType {
 
     return GraphQL.shared.client
       .fetch(query: query)
-      .flatMap(Project.projectRewardsAndPledgeOverTimeDataProducer(from:))
+      .map(Project.projectRewardsAndPledgeOverTimeData(from:))
   }
 
   public func fetchProject(_ params: DiscoveryParams) -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope> {

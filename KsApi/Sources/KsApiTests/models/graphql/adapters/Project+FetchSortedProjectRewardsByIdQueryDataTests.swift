@@ -2,7 +2,6 @@ import Apollo
 import GraphAPI
 @testable import KsApi
 @testable import KsApiTestHelpers
-import ReactiveSwift
 import XCTest
 
 private enum NoRewardSortType {

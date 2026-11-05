@@ -1,6 +1,5 @@
 import Foundation
 import Prelude
-import ReactiveSwift
 
 public struct Project: Sendable {
   public var availableCardTypes: [String]?

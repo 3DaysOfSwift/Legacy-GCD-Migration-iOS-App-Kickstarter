@@ -37,7 +37,7 @@ public final class ProjectPageFetcherTests: XCTestCase {
     // to duplicate the actual GraphQL mapping behavior.
     let projectResult = Project.projectProducer(from: fetchProjectResponse).first()
     let backingResult = ProjectAndBackingEnvelope.envelopeProducer(from: fetchBackingResponse).first()
-    let rewardsResult = Project.projectRewardsProducer(from: fetchRewardsResponse).first()
+    let rewardsResult: Result<[KsApi.Reward], ErrorEnvelope>? = .success(Project.projectRewards(from: fetchRewardsResponse))
 
     let mockService = MockService(
       fetchProjectAndBackingResult: backingResult,
@@ -92,7 +92,7 @@ public final class ProjectPageFetcherTests: XCTestCase {
     // MockService requires V1 objects, so this is a best effort
     // to duplicate the actual GraphQL mapping behavior.
     let projectResult = Project.projectProducer(from: fetchProjectResponse).first()
-    let rewardsResult = Project.projectRewardsProducer(from: fetchRewardsResponse).first()
+    let rewardsResult: Result<[KsApi.Reward], ErrorEnvelope>? = .success(Project.projectRewards(from: fetchRewardsResponse))
 
     let mockService = MockService(
       fetchProjectPamphletResult: projectResult,
