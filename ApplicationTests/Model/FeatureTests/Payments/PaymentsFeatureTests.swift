@@ -4,7 +4,6 @@ import GraphAPI
 @testable import KsApi
 
 
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -138,21 +137,6 @@ final class PaymentsFeatureTests: TestCase {
     do { _ = try await queued.value; XCTFail("Old queued write must not be delivered") }
     catch { XCTAssertTrue(error is CancellationError) }
     XCTAssertEqual(self.provider.stores.count, 0)
-  }
-
-  func testSessionChangeDuringPresentationDelaySuppressesClientSecret() async throws {
-    var delivered = false
-    let subscription = self.feature.currentResult {
-      self.feature.setupResult(projectID: nil, context: .profileSettings)
-        .delay(1, on: self.scheduler)
-    }.startWithResult { _ in delivered = true }
-    defer { subscription.dispose() }
-    await self.provider.setups.waitFor(1)
-    try self.provider.setups.finish(0, .success(ClientSecretEnvelope(clientSecret: "fixture")))
-    await self.feature.waitForOperations()
-    self.session.sessionChanged()
-    await self.scheduler.advance(by: 1)
-    XCTAssertFalse(delivered)
   }
 
   func testAwaitableCommandRejectsCanceledCallerWithoutRetryingWrite() async throws {

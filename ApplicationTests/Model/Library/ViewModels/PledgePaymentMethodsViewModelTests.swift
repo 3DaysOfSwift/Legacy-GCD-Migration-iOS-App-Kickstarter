@@ -82,6 +82,35 @@ final class PledgePaymentMethodsViewModelTests: TestCase {
     }
   }
 
+  func testAccountChangeDuringSetupDelaySuppressesClientSecret() async {
+    let gate = PledgePaymentDelayGate()
+    var blockSetup = false
+    let vm = PledgePaymentMethodsViewModel(stripeIntentService: self.mockStripeIntentService, sleep: { _ in
+      if blockSetup { try await gate.wait() }
+    })
+    var presented = false
+    vm.onEvent = { event in
+      if case .goToAddCardViaStripeScreen = event { presented = true }
+    }
+    let cards = UserEnvelope<GraphUser>(me: self.userTemplate)
+    let service = MockService(
+      createStripeSetupIntentResult: .success(ClientSecretEnvelope(clientSecret: "fixture")),
+      fetchGraphUserResult: .success(cards)
+    )
+    await withEnvironment(apiService: service, currentUser: .template) {
+      vm.configure(with: (.template, .template, "checkout", .template, .pledge, nil))
+      vm.viewDidLoad()
+      await vm.waitForPending()
+      blockSetup = true
+      vm.didSelectRowAtIndexPath(IndexPath(row: 0, section: PaymentMethodsTableViewSection.addNewCard.rawValue))
+      await gate.waitUntilBlocked()
+      self.mockStripeIntentService.paymentsFeature.sessionFeature.sessionChanged()
+      gate.resume()
+      await vm.waitForPending()
+      XCTAssertFalse(presented)
+    }
+  }
+
   // MARK: - New card added
 
   func testReloadPaymentMethods_NewCardAdded_UnavailableIsLast() async {

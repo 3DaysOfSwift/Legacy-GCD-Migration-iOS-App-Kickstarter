@@ -184,14 +184,6 @@ public final class PaymentsFeature {
       }
     }
   }
-  public func setupResult(projectID: String?, context: GraphAPI.StripeIntentContextTypes) -> SignalProducer<ClientSecretEnvelope, ErrorEnvelope> {
-    self.commandResult(.setup(projectID, context.rawValue), operation: {
-      .setup(try await $0.setup(input: KsApi.CreateSetupIntentInput(projectId: projectID, context: context)))
-    }) {
-      guard case let .setup(value) = $0 else { preconditionFailure("Payment command type mismatch") }
-      return value
-    }
-  }
   public func intentResult(projectID: String, backingID: String, checkoutID: String, total: Double) -> SignalProducer<PaymentIntentEnvelope, ErrorEnvelope> {
     let amount = String(format: "%.2f", total)
     return self.commandResult(.intent(projectID, backingID, checkoutID, amount), operation: {
@@ -230,14 +222,6 @@ public final class PaymentsFeature {
         lifetime.observeEnded { task.cancel() }
       }
     }
-  }
-
-  /// Recheck session identity after any existing presentation debounce/delay.
-  public func currentResult<Value>(_ make: () -> SignalProducer<Value, ErrorEnvelope>) -> SignalProducer<Value, ErrorEnvelope> {
-    let session = self.session
-    return make().materialize()
-      .filter { _ in MainActor.assumeIsolated { self.session == session } }
-      .dematerialize()
   }
 
   public func reset() {
