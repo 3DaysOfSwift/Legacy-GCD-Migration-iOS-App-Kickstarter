@@ -38,10 +38,9 @@ final class SettingsFeatureTests: XCTestCase {
     let fixture = PreferencesFixture()
     defer { fixture.provider.gate.releaseAll() }
     let user = try XCTUnwrap(fixture.user)
-    let newsletter = fixture.feature.saveResult([.init(.newsletter(.games), true)], from: user).start()
+    let newsletter = fixture.feature.requestPreferences([.init(.newsletter(.games), true)], from: user)
     let notification = try XCTUnwrap(fixture.feature.requestNotification(named: "notify_mobile_of_messages", enabled: true))
-    let laterNewsletter = fixture.feature.saveResult([.init(.newsletter(.games), false)], from: user).start()
-    defer { newsletter.dispose(); laterNewsletter.dispose() }
+    let laterNewsletter = fixture.feature.requestPreferences([.init(.newsletter(.games), false)], from: user)
     await fixture.provider.gate.waitFor(1)
     try fixture.provider.succeed(0)
     await fixture.provider.gate.waitFor(2)
@@ -52,8 +51,9 @@ final class SettingsFeatureTests: XCTestCase {
     XCTAssertEqual(fixture.provider.sent[2].newsletters.games, false)
     XCTAssertEqual(fixture.provider.sent[2].notifications.mobileMessages, true)
     try fixture.provider.succeed(2)
+    _ = try await newsletter.value
     _ = try await notification.value
-    await fixture.feature.waitForOperations()
+    _ = try await laterNewsletter.value
     XCTAssertEqual(fixture.commits, 3)
   }
 
@@ -114,22 +114,21 @@ final class SettingsFeatureTests: XCTestCase {
     let fixture = PreferencesFixture()
     defer { fixture.provider.gate.releaseAll() }
     let user = try XCTUnwrap(fixture.user)
-    var completions = 0
     let changes: [SettingsFeature.Change] = [.init(.newsletter(.arts), true)]
-    let a = fixture.feature.saveResult(changes, from: user).start { if case .value = $0 { completions += 1 } }
-    let duplicate = fixture.feature.saveResult(changes, from: user)
-      .start { if case .value = $0 { completions += 1 } }
-    let b = fixture.feature.saveResult([.init(.newsletter(.arts), false)], from: user).start()
-    let c = fixture.feature.saveResult(changes, from: user).start()
-    defer { a.dispose(); duplicate.dispose(); b.dispose(); c.dispose() }
+    let a = fixture.feature.requestPreferences(changes, from: user)
+    let duplicate = fixture.feature.requestPreferences(changes, from: user)
+    let b = fixture.feature.requestPreferences([.init(.newsletter(.arts), false)], from: user)
+    let c = fixture.feature.requestPreferences(changes, from: user)
     for index in 0..<3 {
       await fixture.provider.gate.waitFor(index + 1)
       XCTAssertEqual(fixture.provider.sent[index].newsletters.arts, index != 1)
       try fixture.provider.succeed(index)
     }
-    await fixture.feature.waitForOperations()
+    _ = try await a.value
+    _ = try await duplicate.value
+    _ = try await b.value
+    _ = try await c.value
     XCTAssertEqual(fixture.provider.sent.count, 3)
-    XCTAssertEqual(completions, 2)
     XCTAssertEqual(fixture.user?.newsletters.arts, true)
   }
 
@@ -137,42 +136,42 @@ final class SettingsFeatureTests: XCTestCase {
     let fixture = PreferencesFixture()
     defer { fixture.provider.gate.releaseAll() }
     let user = try XCTUnwrap(fixture.user)
-    var failures = 0
-    let a = fixture.feature.saveResult([.init(.newsletter(.arts), true)], from: user)
-      .startWithFailed { _ in failures += 1 }
-    let b = fixture.feature.saveResult([.init(.notification(.messages), true)], from: user).start()
-    defer { a.dispose(); b.dispose() }
+    let a = fixture.feature.requestPreferences([.init(.newsletter(.arts), true)], from: user)
+    let b = fixture.feature.requestPreferences([.init(.notification(.messages), true)], from: user)
     await fixture.provider.gate.waitFor(1)
     try fixture.provider.gate.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
     await fixture.provider.gate.waitFor(2)
     XCTAssertEqual(fixture.provider.sent[1].newsletters.arts, user.newsletters.arts)
-    XCTAssertEqual(failures, 1)
+    do { _ = try await a.value; XCTFail("The failed write must report an error") } catch {}
     XCTAssertNotNil(fixture.feature.lastError)
     try fixture.provider.succeed(1)
-    await fixture.feature.waitForOperations()
-    let retry = fixture.feature.saveResult([.init(.newsletter(.arts), true)], from: user).start()
-    defer { retry.dispose() }
+    _ = try await b.value
+    let retry = fixture.feature.requestPreferences([.init(.newsletter(.arts), true)], from: user)
     await fixture.provider.gate.waitFor(3)
     try fixture.provider.succeed(2)
-    await fixture.feature.waitForOperations()
+    _ = try await retry.value
     XCTAssertNil(fixture.feature.lastError)
     XCTAssertEqual(fixture.user?.newsletters.arts, true)
     XCTAssertEqual(fixture.user?.notifications.messages, true)
   }
 
-  func testDisposedPresentationDoesNotAbandonAdmittedWrite() async throws {
+  func testCanceledPresentationDoesNotAbandonAdmittedWrite() async throws {
     let fixture = PreferencesFixture()
     defer { fixture.provider.gate.releaseAll() }
-    var delivered = false
-    let subscription = fixture.feature.saveResult(
-      [.init(.privacy(.following), false)],
-      from: try XCTUnwrap(fixture.user)
-    ).start { if case .value = $0 { delivered = true } }
+    let request = fixture.feature.requestPreferences(
+      [.init(.privacy(.following), false)], from: try XCTUnwrap(fixture.user)
+    )
+    let waiter = Task {
+      let user = try await request.value
+      try Task.checkCancellation()
+      return user
+    }
     await fixture.provider.gate.waitFor(1)
-    subscription.dispose()
+    waiter.cancel()
     try fixture.provider.succeed(0)
-    await fixture.feature.waitForOperations()
-    XCTAssertFalse(delivered)
+    do { _ = try await waiter.value; XCTFail("Canceled waiter must not receive the result") }
+    catch { XCTAssertTrue(error is CancellationError) }
+    _ = try await request.value
     XCTAssertEqual(fixture.commits, 1)
     XCTAssertEqual(fixture.user?.social, false)
   }
