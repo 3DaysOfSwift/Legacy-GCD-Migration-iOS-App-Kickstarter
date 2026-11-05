@@ -126,7 +126,7 @@ final class DiscussionFeatureTests: TestCase {
     let provider = ControlledDiscussionProvider()
     let feature = self.feature(provider)
     var successes = 0
-    let subscription = feature.blockUserEvents(id: "target").startWithValues { event in
+    let subscription = discussionBlockUserEvents(feature: feature, id: "target").startWithValues { event in
       if event.value != nil { successes += 1 }
     }
     defer { subscription.dispose() }

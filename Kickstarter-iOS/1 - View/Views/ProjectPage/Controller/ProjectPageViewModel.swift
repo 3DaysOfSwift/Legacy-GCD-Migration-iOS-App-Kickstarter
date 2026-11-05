@@ -660,7 +660,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     // MARK: User blocking
 
     let blockUserEvent = self.blockUserProperty.signal
-      .switchMap { id in projectDetailsFeature.discussionFeature.blockUserEvents(id: String(id)) }
+      .switchMap { id in discussionBlockUserEvents(feature: projectDetailsFeature.discussionFeature, id: String(id)) }
 
     self.didBlockUser = blockUserEvent.values().ignoreValues()
       .map { _ in NotificationCenter.default.post(.init(name: .ksr_blockedUser)) }

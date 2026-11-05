@@ -243,7 +243,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
       .takeWhen(self.dataSourceLoadedProperty.signal)
 
     let blockUserEvent = self.blockUserProperty.signal
-      .switchMap { id in feature.blockUserEvents(id: id) }
+      .switchMap { id in discussionBlockUserEvents(feature: feature, id: id) }
 
     self.didBlockUser = blockUserEvent.values().ignoreValues()
       .map { _ in NotificationCenter.default.post(.init(name: .ksr_blockedUser)) }

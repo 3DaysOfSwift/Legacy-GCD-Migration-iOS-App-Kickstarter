@@ -263,40 +263,6 @@ public final class DiscussionFeature {
     }
   }
 
-  /// Keep delayed presentation bound to the initiating session too. A completed
-  /// request can otherwise sit on the scheduler until after logout/login.
-  func blockUserEvents(id: String) -> SignalProducer<Signal<EmptyResponseEnvelope, ErrorEnvelope>.Event, Never> {
-    let userID = self.sessionFeature.currentUser?.id
-    let generation = self.sessionFeature.generation
-    return self.blockUserResult(id: id)
-      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-      .materialize()
-      .filter { _ in self.sessionFeature.isCurrent(userID: userID, generation: generation) }
-  }
-
-  func blockUserResult(id: String) -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
-    SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        let key = BlockIdentity(targetID: id, userID: AppEnvironment.current.currentUser?.id, generation: self.sessionFeature.generation)
-        let request = self.requestBlock(key)
-        let waiter = Task { @MainActor in
-          do {
-            let response = try await request.value
-            guard !Task.isCancelled else { return }
-            observer.send(value: response)
-            observer.sendCompleted()
-          } catch is CancellationError {
-            if !Task.isCancelled { observer.sendInterrupted() }
-          } catch {
-            guard !Task.isCancelled else { return }
-            observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
-          }
-        }
-        lifetime.observeEnded { waiter.cancel() }
-      }
-    }
-  }
-
   /// Test synchronization for the existing scheduler-driven presentation adapters.
   /// Awaiting writes does not advance or bypass their visible status delays.
   func waitForMutations() async {

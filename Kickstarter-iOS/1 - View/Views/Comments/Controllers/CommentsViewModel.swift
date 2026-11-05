@@ -377,7 +377,7 @@ public final class CommentsViewModel: CommentsViewModelType,
       .skipNil()
 
     let blockUserEvent = self.blockUserProperty.signal
-      .switchMap { id in feature.blockUserEvents(id: id) }
+      .switchMap { id in discussionBlockUserEvents(feature: feature, id: id) }
 
     self.didBlockUser = blockUserEvent.values().ignoreValues()
       .map { _ in NotificationCenter.default.post(.init(name: .ksr_blockedUser)) }
@@ -558,4 +558,37 @@ private func commentsReplacingCommentById(
   mutableComments[commentIndex] = replacingComment
 
   return mutableComments
+}
+
+/// Transitional adapter for the legacy screens. The Feature owns the admitted
+/// write; cancellation only stops this screen's wait and delayed delivery.
+@MainActor
+internal func discussionBlockUserEvents(
+  feature: DiscussionFeature, id: String
+) -> SignalProducer<Signal<EmptyResponseEnvelope, ErrorEnvelope>.Event, Never> {
+  let userID = feature.sessionFeature.currentUser?.id
+  let generation = feature.sessionFeature.generation
+  let result = SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> { observer, lifetime in
+    MainActor.assumeIsolated {
+      let request = feature.requestBlockUser(id: id)
+      let waiter = Task { @MainActor in
+        do {
+          let response = try await request.value
+          guard !Task.isCancelled else { return }
+          observer.send(value: response)
+          observer.sendCompleted()
+        } catch is CancellationError {
+          if !Task.isCancelled { observer.sendInterrupted() }
+        } catch {
+          guard !Task.isCancelled else { return }
+          observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
+        }
+      }
+      lifetime.observeEnded { waiter.cancel() }
+    }
+  }
+  return result
+    .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+    .materialize()
+    .filter { _ in feature.sessionFeature.isCurrent(userID: userID, generation: generation) }
 }
