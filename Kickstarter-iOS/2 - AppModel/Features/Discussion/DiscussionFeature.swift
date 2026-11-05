@@ -96,7 +96,6 @@ public final class DiscussionFeature {
 
   private var posts: [PostIdentity: Task<Comment, Error>] = [:]
   private var blocks: [BlockIdentity: Task<EmptyResponseEnvelope, Error>] = [:]
-  private let blockResults = Signal<(BlockIdentity, Result<EmptyResponseEnvelope, Error>), Never>.pipe()
   private var activePosts = 0
   private var waitingPosts: [CheckedContinuation<Void, Never>] = []
 
@@ -221,7 +220,6 @@ public final class DiscussionFeature {
           self.sessionFeature.isCurrent(userID: key.userID, generation: key.generation) ? error : CancellationError()
         )
       }
-      self.blockResults.input.send(value: (key, result))
       return try result.get()
     }
     self.blocks[key] = task
@@ -280,18 +278,21 @@ public final class DiscussionFeature {
     SignalProducer { observer, lifetime in
       MainActor.assumeIsolated {
         let key = BlockIdentity(targetID: id, userID: AppEnvironment.current.currentUser?.id, generation: self.sessionFeature.generation)
-        let subscription = self.blockResults.output.filter { $0.0 == key }.take(first: 1)
-          .observeValues { _, result in
-            switch result {
-            case let .success(response):
-              observer.send(value: response)
-              observer.sendCompleted()
-            case .failure(is CancellationError): observer.sendInterrupted()
-            case let .failure(error): observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
-            }
+        let request = self.requestBlock(key)
+        let waiter = Task { @MainActor in
+          do {
+            let response = try await request.value
+            guard !Task.isCancelled else { return }
+            observer.send(value: response)
+            observer.sendCompleted()
+          } catch is CancellationError {
+            if !Task.isCancelled { observer.sendInterrupted() }
+          } catch {
+            guard !Task.isCancelled else { return }
+            observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
           }
-        lifetime.observeEnded { subscription?.dispose() }
-        _ = self.requestBlock(key)
+        }
+        lifetime.observeEnded { waiter.cancel() }
       }
     }
   }
