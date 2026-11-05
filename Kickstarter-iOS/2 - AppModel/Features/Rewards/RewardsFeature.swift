@@ -47,6 +47,7 @@ public final class RewardsFeature {
     public fileprivate(set) var selectedLocation: Location?
     public fileprivate(set) var isLoading = false
     public fileprivate(set) var error: ErrorEnvelope?
+    public fileprivate(set) var hasResult = false
   }
 
   private struct ShippingIdentity: Equatable {
@@ -62,19 +63,6 @@ public final class RewardsFeature {
   }
 
   private var shippingRoutes: [UUID: ShippingRoute] = [:]
-  private let shippingCompletionPipe = Signal<(UUID, Result<[Location], ErrorEnvelope>), Never>
-    .pipe()
-  private let shippingLoadingPipe = Signal<(UUID, Bool), Never>.pipe()
-  private let shippingSelectionPipe = Signal<(UUID, Location?), Never>.pipe()
-  public var shippingCompletions: Signal<(UUID, Result<[Location], ErrorEnvelope>), Never> {
-    self.shippingCompletionPipe.output
-  }
-
-  public var shippingLoading: Signal<(UUID, Bool), Never> { self.shippingLoadingPipe.output }
-  public var shippingSelections: Signal<(UUID, Location?), Never> {
-    self.shippingSelectionPipe.output
-  }
-
   public func shippingSnapshot(for route: UUID) -> ShippingSnapshot {
     self.shippingRoutes[route]?.snapshot ?? ShippingSnapshot()
   }
@@ -109,12 +97,12 @@ public final class RewardsFeature {
     let sleep = self.sleep
     entry.snapshot.isLoading = true
     entry.snapshot.error = nil
+    entry.snapshot.hasResult = false
     let task = Task { [weak self] in
       defer {
-        if let self, entry.request?.id == requestID {
+        if self != nil, entry.request?.id == requestID {
           entry.request = nil
           entry.snapshot.isLoading = false
-          self.shippingLoadingPipe.input.send(value: (route, false))
         }
       }
       do {
@@ -129,12 +117,11 @@ public final class RewardsFeature {
         guard identity.userID == AppEnvironment.current.currentUser?.id,
           let self, self.shippingRoutes[route]?.request?.id == requestID
         else { return }
+        entry.snapshot.hasResult = true
         entry.snapshot.locations = locations
         entry.snapshot.selectedLocation =
           locations.first { $0.id == selectedLocationID }
           ?? defaultShippingLocation(fromLocations: locations)
-        self.shippingCompletionPipe.input.send(value: (route, .success(locations)))
-        self.shippingSelectionPipe.input.send(value: (route, entry.snapshot.selectedLocation))
       } catch is CancellationError {
         // Obsolete reads do not notify the delegate or display an error.
       } catch {
@@ -145,18 +132,16 @@ public final class RewardsFeature {
         else { return }
         let failure = (error as? ErrorEnvelope) ?? ErrorEnvelope.couldNotParseJSON
         entry.snapshot.error = failure
-        self.shippingCompletionPipe.input.send(value: (route, .failure(failure)))
+        entry.snapshot.hasResult = true
       }
     }
     entry.request = (requestID, identity, task)
-    self.shippingLoadingPipe.input.send(value: (route, true))
     return task
   }
 
   public func selectShippingLocation(_ location: Location, route: UUID) {
     guard let entry = self.shippingRoutes[route] else { return }
     entry.snapshot.selectedLocation = location
-    self.shippingSelectionPipe.input.send(value: (route, location))
   }
 
   public func releaseShippingLocations(route: UUID) {

@@ -2,7 +2,6 @@ import KDS
 import KsApi
 
 import Prelude
-import ReactiveSwift
 import UIKit
 
 @MainActor
@@ -20,7 +19,7 @@ final class PledgeShippingLocationViewController: UIViewController {
   // MARK: - Properties
 
   public weak var delegate: PledgeShippingLocationViewControllerDelegate?
-  private let viewModel: PledgeShippingLocationViewModelType = PledgeShippingLocationViewModel()
+  private let viewModel = PledgeShippingLocationViewModel()
 
   private lazy var adaptableStackView: UIStackView = { UIStackView(frame: .zero) }()
   private lazy var shippingLocationButton: UIButton = { UIButton(frame: .zero) }()
@@ -61,7 +60,7 @@ final class PledgeShippingLocationViewController: UIViewController {
 
     self.spacer.widthAnchor.constraint(greaterThanOrEqualToConstant: Styles.grid(3)).isActive = true
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   // MARK: - Styles
@@ -100,41 +99,22 @@ final class PledgeShippingLocationViewController: UIViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.view.rac.hidden = self.viewModel.outputs.shippingLocationViewHidden
-
-    self.adaptableStackView.rac.hidden = self.viewModel.outputs.adaptableStackViewIsHidden
-    self.shimmerLoadingView.rac.hidden = self.viewModel.outputs.shimmerLoadingViewIsHidden
-    self.shippingLocationButton.rac.title = self.viewModel.outputs.shippingLocationButtonTitle
-
-    self.viewModel.outputs.notifyDelegateOfSelectedShippingLocation
-      .observeForUI()
-      .observeValues { [weak self] location in
-        guard let self = self else { return }
-
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .visibility(hidden): self.view.isHidden = hidden
+      case let .loading(loading):
+        self.adaptableStackView.isHidden = loading
+        self.shimmerLoadingView.isHidden = !loading
+      case let .selected(location):
+        if let location { self.shippingLocationButton.setTitle(location.localizedName, for: .normal) }
         self.delegate?.pledgeShippingLocationViewController(self, didSelect: location)
+      case let .present(locations, location):
+        self.presentShippingLocations(locations: locations, selectedLocation: location)
+      case .dismiss: self.dismiss(animated: true)
+      case .error: self.delegate?.pledgeShippingLocationViewControllerFailedToLoad(self)
       }
-
-    self.viewModel.outputs.presentShippingLocations
-      .observeForUI()
-      .observeValues { [weak self] locations, location in
-        self?.presentShippingLocations(
-          locations: locations, selectedLocation: location
-        )
-      }
-
-    self.viewModel.outputs.dismissShippingLocations
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.dismiss(animated: true)
-      }
-
-    self.viewModel.outputs.shippingRulesError
-      .observeForUI()
-      .observeValues { [weak self] _ in
-        guard let self = self else { return }
-
-        self.delegate?.pledgeShippingLocationViewControllerFailedToLoad(self)
-      }
+    }
   }
 
   override func viewDidLayoutSubviews() {
@@ -146,13 +126,13 @@ final class PledgeShippingLocationViewController: UIViewController {
   // MARK: - Configuration
 
   func configureWith(value: PledgeShippingLocationViewData) {
-    self.viewModel.inputs.configureWith(data: value)
+    self.viewModel.configureWith(data: value)
   }
 
   // MARK: - Actions
 
   @objc private func shippingLocationButtonTapped(_: UIButton) {
-    self.viewModel.inputs.shippingLocationButtonTapped()
+    self.viewModel.shippingLocationButtonTapped()
   }
 
   // MARK: - Functions
@@ -164,8 +144,8 @@ final class PledgeShippingLocationViewController: UIViewController {
     let viewController = ShippingLocations.viewController(
       withLocations: locations,
       selectedLocation: selectedLocation,
-      onSelectedLocation: { self.viewModel.inputs.shippingLocationUpdated(to: $0) },
-      onCancelled: { self.viewModel.inputs.shippingLocationCancelButtonTapped() }
+      onSelectedLocation: { self.viewModel.shippingLocationUpdated(to: $0) },
+      onCancelled: { self.viewModel.shippingLocationCancelButtonTapped() }
     )
     self.presentViewControllerWithSheetOverlay(viewController, offset: CheckoutSheetLayout.Sheet.offset)
   }

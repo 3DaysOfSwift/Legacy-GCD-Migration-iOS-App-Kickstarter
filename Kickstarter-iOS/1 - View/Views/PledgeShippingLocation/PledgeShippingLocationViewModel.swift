@@ -1,8 +1,6 @@
 import Foundation
 import KsApi
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 
 public struct PledgeShippingLocationViewData {
   /// Project ID
@@ -32,151 +30,97 @@ public struct PledgeShippingLocationViewData {
   }
 }
 
-@MainActor public protocol PledgeShippingLocationViewModelInputs {
-  func configureWith(data: PledgeShippingLocationViewData)
-  func shippingLocationButtonTapped()
-  func shippingLocationCancelButtonTapped()
-  func shippingLocationUpdated(to rule: Location)
-  func viewDidLoad()
-}
+@MainActor
+final class PledgeShippingLocationViewModel {
+  enum Event {
+    case visibility(Bool)
+    case loading(Bool)
+    case selected(Location?)
+    case present([Location], Location)
+    case dismiss
+    case error
+  }
 
-@MainActor public protocol PledgeShippingLocationViewModelOutputs {
-  var adaptableStackViewIsHidden: Signal<Bool, Never> { get }
-  var dismissShippingLocations: Signal<Void, Never> { get }
-  var presentShippingLocations: Signal<([Location], Location), Never> { get }
-  var notifyDelegateOfSelectedShippingLocation: Signal<Location?, Never> { get }
-  var shimmerLoadingViewIsHidden: Signal<Bool, Never> { get }
-  var shippingLocationButtonTitle: Signal<String, Never> { get }
-  var shippingRulesError: Signal<String, Never> { get }
-  var shippingLocationViewHidden: Signal<Bool, Never> { get }
-}
-
-@MainActor public protocol PledgeShippingLocationViewModelType {
-  var inputs: PledgeShippingLocationViewModelInputs { get }
-  var outputs: PledgeShippingLocationViewModelOutputs { get }
-}
-
-@MainActor public final class PledgeShippingLocationViewModel: PledgeShippingLocationViewModelType,
-  PledgeShippingLocationViewModelInputs,
-  PledgeShippingLocationViewModelOutputs {
+  var onEvent: ((Event) -> Void)?
   private let rewardsFeature: RewardsFeature
   private let route = UUID()
-  private let disposables = ScopedDisposable(CompositeDisposable())
+  private let dismissDelay: @MainActor () async throws -> Void
+  private var data: PledgeShippingLocationViewData?
+  private var hasLoaded = false
+  private var loadID = UUID()
   internal private(set) var loadingTask: Task<Void, Never>?
+  internal private(set) var dismissTask: Task<Void, Never>?
 
-  public init(rewardsFeature: RewardsFeature? = nil) {
-    let rewardsFeature = rewardsFeature ?? AppModel.shared.rewardsFeature
-    self.rewardsFeature = rewardsFeature
+  init(
+    rewardsFeature: RewardsFeature? = nil,
+    dismissDelay: @escaping @MainActor () async throws -> Void = {
+      try await Task.sleep(for: .milliseconds(300))
+    }
+  ) {
+    self.rewardsFeature = rewardsFeature ?? AppModel.shared.rewardsFeature
+    self.dismissDelay = dismissDelay
+  }
+
+  func configureWith(data: PledgeShippingLocationViewData) {
+    self.data = data
+    self.loadIfReady()
+  }
+
+  func viewDidLoad() {
+    self.hasLoaded = true
+    self.loadIfReady()
+  }
+
+  private func loadIfReady() {
+    guard self.hasLoaded, let data = self.data else { return }
+    self.loadingTask?.cancel()
+    let id = UUID()
+    self.loadID = id
+    self.onEvent?(.visibility(!data.hasShippableRewards))
+    self.onEvent?(.loading(true))
+    let feature = self.rewardsFeature
     let route = self.route
-    let configData = Signal.combineLatest(
-      self.configDataProperty.signal.skipNil(),
-      self.viewDidLoadProperty.signal
+    let request = feature.requestShippingLocations(
+      route: route, projectID: data.pid, selectedLocationID: data.selectedLocationId,
+      hasShippableRewards: data.hasShippableRewards
     )
-    .map(first)
-
-    // Hide the selector if the project has no shippable rewards.
-    self.shippingLocationViewHidden = configData.map { data in
-      !data.hasShippableRewards
-    }
-
-    let isLoading = MutableProperty(false)
-
-    let completions = rewardsFeature.shippingCompletions.filter { $0.0 == route }.map { $0.1 }
-    let loadedLocations = completions.compactMap { result -> [Location]? in
-      guard case let .success(locations) = result else { return nil }
-      return locations
-    }
-    let erroredLocations = completions.compactMap { result -> ErrorEnvelope? in
-      guard case let .failure(error) = result else { return nil }
-      return error
-    }
-
-    self.adaptableStackViewIsHidden = isLoading.signal
-    self.shimmerLoadingViewIsHidden = isLoading.signal.negate()
-
-    self.shippingRulesError = erroredLocations
-      .mapConst(Strings.We_were_unable_to_load_the_shipping_destinations())
-
-    let selectedShippingLocation = rewardsFeature.shippingSelections
-      .filter { $0.0 == route }.map { $0.1 }
-
-    self.notifyDelegateOfSelectedShippingLocation = selectedShippingLocation
-
-    self.presentShippingLocations = Signal.combineLatest(
-      loadedLocations,
-      selectedShippingLocation.skipNil()
-    )
-    .takeWhen(self.shippingLocationButtonTappedSignal)
-
-    self.shippingLocationButtonTitle = selectedShippingLocation
-      .skipNil()
-      .map { $0.localizedName }
-
-    self.dismissShippingLocations = Signal.merge(
-      self.shippingLocationCancelButtonTappedProperty.signal,
-      self.shippingLocationUpdatedSignal.signal
-        .ignoreValues()
-        .ksr_debounce(.milliseconds(300), on: AppEnvironment.current.scheduler)
-    )
-
-    self.disposables += rewardsFeature.shippingLoading.filter { $0.0 == route }
-      .observeValues { [weak self] _, loading in
-        isLoading.value = loading
-        if !loading { self?.loadingTask = nil }
+    self.loadingTask = Task { [weak self] in
+      await request.value
+      guard !Task.isCancelled, let self, self.loadID == id else { return }
+      let snapshot = feature.shippingSnapshot(for: route)
+      if snapshot.hasResult {
+        if snapshot.error != nil { self.onEvent?(.error) }
+        else { self.onEvent?(.selected(snapshot.selectedLocation)) }
       }
-    self.disposables += configData.observeValues { [weak self] data in
-      self?.loadingTask = rewardsFeature.requestShippingLocations(
-        route: route, projectID: data.pid, selectedLocationID: data.selectedLocationId,
-        hasShippableRewards: data.hasShippableRewards
-      )
+      self.onEvent?(.loading(false))
+    }
+  }
+
+  func shippingLocationButtonTapped() {
+    let snapshot = self.rewardsFeature.shippingSnapshot(for: self.route)
+    guard let location = snapshot.selectedLocation else { return }
+    self.onEvent?(.present(snapshot.locations, location))
+  }
+
+  func shippingLocationCancelButtonTapped() { self.onEvent?(.dismiss) }
+
+  func shippingLocationUpdated(to location: Location) {
+    self.rewardsFeature.selectShippingLocation(location, route: self.route)
+    self.onEvent?(.selected(location))
+    self.dismissTask?.cancel()
+    let delay = self.dismissDelay
+    self.dismissTask = Task { [weak self] in
+      do { try await delay() } catch { return }
+      guard !Task.isCancelled else { return }
+      self?.onEvent?(.dismiss)
     }
   }
 
   deinit {
     self.loadingTask?.cancel()
-
-    let rewardsFeature = self.rewardsFeature
+    self.dismissTask?.cancel()
+    let feature = self.rewardsFeature
     let route = self.route
-    Task { @MainActor in rewardsFeature.releaseShippingLocations(route: route) }
+    Task { @MainActor in feature.releaseShippingLocations(route: route) }
   }
-
-  private let configDataProperty = MutableProperty<PledgeShippingLocationViewData?>(nil)
-  public func configureWith(data: PledgeShippingLocationViewData) {
-    self.configDataProperty.value = data
-  }
-
-  private let (shippingLocationButtonTappedSignal, shippingLocationButtonTappedObserver)
-    = Signal<Void, Never>.pipe()
-  public func shippingLocationButtonTapped() {
-    self.shippingLocationButtonTappedObserver.send(value: ())
-  }
-
-  private let shippingLocationCancelButtonTappedProperty = MutableProperty(())
-  public func shippingLocationCancelButtonTapped() {
-    self.shippingLocationCancelButtonTappedProperty.value = ()
-  }
-
-  private let (shippingLocationUpdatedSignal, shippingLocationUpdatedObserver) = Signal<Location, Never>
-    .pipe()
-  public func shippingLocationUpdated(to location: Location) {
-    self.rewardsFeature.selectShippingLocation(location, route: self.route)
-    self.shippingLocationUpdatedObserver.send(value: location)
-  }
-
-  private let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
-  }
-
-  public let adaptableStackViewIsHidden: Signal<Bool, Never>
-  public let dismissShippingLocations: Signal<Void, Never>
-  public let presentShippingLocations: Signal<([Location], Location), Never>
-  public let notifyDelegateOfSelectedShippingLocation: Signal<Location?, Never>
-  public let shimmerLoadingViewIsHidden: Signal<Bool, Never>
-  public let shippingLocationButtonTitle: Signal<String, Never>
-  public let shippingRulesError: Signal<String, Never>
-  public let shippingLocationViewHidden: Signal<Bool, Never>
-
-  public var inputs: PledgeShippingLocationViewModelInputs { return self }
-  public var outputs: PledgeShippingLocationViewModelOutputs { return self }
 }
