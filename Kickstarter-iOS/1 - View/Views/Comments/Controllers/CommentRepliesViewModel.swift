@@ -138,9 +138,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
         return encodeToBase64("FreeformPost-\(update.id)")
       }
 
-    let parentId = rootComment.flatMap { comment in
-      SignalProducer.init(value: comment.id)
-    }
+    let parentId = rootComment.map(\.id)
 
     let failablePostReplyCommentConfigData:
       Signal<(project: Project, commentableId: String, parentId: String, user: User), Never> = Signal
