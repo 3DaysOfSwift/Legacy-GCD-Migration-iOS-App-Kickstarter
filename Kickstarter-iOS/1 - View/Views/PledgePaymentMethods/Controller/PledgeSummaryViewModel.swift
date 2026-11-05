@@ -1,7 +1,6 @@
 import KDS
 import KsApi
 import Prelude
-import ReactiveSwift
 import UIKit
 
 private enum Constants {
@@ -16,148 +15,75 @@ public typealias PledgeSummaryViewData = (
 )
 
 @MainActor
-public protocol PledgeSummaryViewModelInputs {
-  func configure(with data: PledgeSummaryViewData)
-  func configureWith(pledgeOverTimeData: PledgePaymentPlansAndSelectionData?)
-  func tapped(_ url: URL)
-  func viewDidLoad()
-}
+public final class PledgeSummaryViewModel {
+  public var onAmount: ((NSAttributedString) -> Void)?
+  public var onConfirmation: ((NSAttributedString) -> Void)?
+  public var onConfirmationHidden: ((Bool) -> Void)?
+  public var onHelp: ((HelpType) -> Void)?
+  public var onPlanHidden: ((Bool) -> Void)?
+  public var onCharges: ((String) -> Void)?
+  public var onConversion: ((String) -> Void)?
+  public var onTitle: ((String) -> Void)?
+  private var data: PledgeSummaryViewData?
+  private var plan: PledgePaymentPlansAndSelectionData?
+  private var hasPlanConfiguration = false
+  private var loaded = false
 
-@MainActor
-public protocol PledgeSummaryViewModelOutputs {
-  var amountLabelAttributedText: Signal<NSAttributedString, Never> { get }
-  var confirmationLabelAttributedText: Signal<NSAttributedString, Never> { get }
-  var confirmationLabelHidden: Signal<Bool, Never> { get }
-  var notifyDelegateOpenHelpType: Signal<HelpType, Never> { get }
-  var pledgeOverTimeStackViewHidden: Signal<Bool, Never> { get }
-  var pledgeOverTimeChargesText: Signal<String, Never> { get }
-  var totalConversionLabelText: Signal<String, Never> { get }
-  var titleLabelText: Signal<String, Never> { get }
-}
+  public init() {}
 
-@MainActor
-public protocol PledgeSummaryViewModelType {
-  var inputs: PledgeSummaryViewModelInputs { get }
-  var outputs: PledgeSummaryViewModelOutputs { get }
-}
-
-@MainActor
-public class PledgeSummaryViewModel: PledgeSummaryViewModelType,
-  PledgeSummaryViewModelInputs, PledgeSummaryViewModelOutputs {
-  public init() {
-    let initialData = Signal.combineLatest(
-      self.configureWithDataProperty.signal.skipNil(),
-      self.viewDidLoadProperty.signal
-    )
-    .map(first)
-
-    let projectAndPledgeTotal = initialData
-      .map { project, total, _, _ in (project, total) }
-
-    let pledgeHasNoReward = initialData
-      .map { _, _, _, pledgeHasNoReward in pledgeHasNoReward }
-
-    let pledgeOverTimeData = Signal.combineLatest(
-      self.pledgeOverTimeDataProperty.signal,
-      self.viewDidLoadProperty.signal
-    )
-    .map(first)
-
-    self.amountLabelAttributedText = projectAndPledgeTotal
-      .map { pledgeSummaryViewModelAttributedCurrency(with: $0.0, total: $0.1) }
-      .skipNil()
-
-    self.totalConversionLabelText = projectAndPledgeTotal
-      .filter { project, _ in project.stats.needsConversion }
-      .map { project, total in
-        let convertedTotal = total * Double(project.stats.userCurrencyRate ?? project.stats.staticUsdRate)
-        let userCurrency = project.stats.userCurrency ?? Project.Country.us.currencyCode
-
-        return Format.currency(
-          convertedTotal,
-          currencyCode: userCurrency,
-          omitCurrencyCode: project.stats.omitUSCurrencyCode,
-          roundingMode: .halfUp,
-          maximumFractionDigits: 2,
-          minimumFractionDigits: 2
-        )
-      }
-      .map { Strings.About_reward_amount(reward_amount: $0) }
-
-    self.notifyDelegateOpenHelpType = self.tappedUrlSignal.map { url -> HelpType? in
-      let helpType = HelpType.allCases.filter { helpType in
-        url.absoluteString == helpType.url(
-          withBaseUrl: AppEnvironment.current.apiService.serverConfig.webBaseUrl
-        )?.absoluteString
-      }
-      .first
-
-      return helpType
-    }
-    .skipNil()
-
-    self.titleLabelText = pledgeHasNoReward
-      .map { hasNoRewards in
-        hasNoRewards == true
-          ? Strings.Pledge_without_a_reward()
-          : Strings.Pledge_amount()
-      }
-
-    self.confirmationLabelAttributedText = Signal.combineLatest(initialData, pledgeOverTimeData)
-      .map { data, pledgeOverTimeData in
-        attributedConfirmationString(with: data, pledgeOverTimeData: pledgeOverTimeData)
-      }
-
-    let project = initialData.map(\.project)
-
-    self.confirmationLabelHidden = Signal.combineLatest(initialData, project)
-      .map { initialData, project in
-        guard project.isInPostCampaignPledgingPhase else {
-          return initialData.confirmationLabelHidden
-        }
-
-        return true
-      }
-
-    self.pledgeOverTimeStackViewHidden = pledgeOverTimeData.map { $0?.isPledgeOverTime ?? false }.negate()
-
-    self.pledgeOverTimeChargesText = pledgeOverTimeData.skipNil()
-      .compactMap {
-        $0.project.pledgeOverTimeCollectionPlanChargedAsNPayments
-      }
-  }
-
-  private let configureWithDataProperty = MutableProperty<PledgeSummaryViewData?>(nil)
   public func configure(with data: PledgeSummaryViewData) {
-    self.configureWithDataProperty.value = data
+    self.data = data
+    guard self.loaded else { return }
+    self.publishSummary(data)
+    self.publishConfirmationIfReady()
   }
 
-  private let pledgeOverTimeDataProperty = MutableProperty<PledgePaymentPlansAndSelectionData?>(nil)
   public func configureWith(pledgeOverTimeData: PledgePaymentPlansAndSelectionData?) {
-    self.pledgeOverTimeDataProperty.value = pledgeOverTimeData
+    self.plan = pledgeOverTimeData
+    self.hasPlanConfiguration = true
+    guard self.loaded else { return }
+    self.publishPlan()
+    self.publishConfirmationIfReady()
   }
 
-  private let (tappedUrlSignal, tappedUrlObserver) = Signal<URL, Never>.pipe()
-  public func tapped(_ url: URL) {
-    self.tappedUrlObserver.send(value: url)
-  }
-
-  private let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    self.loaded = true
+    if let data = self.data { self.publishSummary(data) }
+    if self.hasPlanConfiguration { self.publishPlan() }
+    self.publishConfirmationIfReady()
   }
 
-  public let amountLabelAttributedText: Signal<NSAttributedString, Never>
-  public let confirmationLabelAttributedText: Signal<NSAttributedString, Never>
-  public let confirmationLabelHidden: Signal<Bool, Never>
-  public let notifyDelegateOpenHelpType: Signal<HelpType, Never>
-  public let pledgeOverTimeStackViewHidden: Signal<Bool, Never>
-  public let pledgeOverTimeChargesText: Signal<String, Never>
-  public let totalConversionLabelText: Signal<String, Never>
-  public let titleLabelText: Signal<String, Never>
+  public func tapped(_ url: URL) {
+    let baseURL = AppEnvironment.current.apiService.serverConfig.webBaseUrl
+    guard let type = HelpType.allCases.first(where: { url.absoluteString == $0.url(withBaseUrl: baseURL)?.absoluteString }) else { return }
+    self.onHelp?(type)
+  }
 
-  public var inputs: PledgeSummaryViewModelInputs { return self }
-  public var outputs: PledgeSummaryViewModelOutputs { return self }
+  private func publishSummary(_ data: PledgeSummaryViewData) {
+    let project = data.project
+    if let amount = pledgeSummaryViewModelAttributedCurrency(with: project, total: data.total) {
+      self.onAmount?(amount)
+    }
+    if project.stats.needsConversion {
+      let converted = data.total * Double(project.stats.userCurrencyRate ?? project.stats.staticUsdRate)
+      let currency = project.stats.userCurrency ?? Project.Country.us.currencyCode
+      let formatted = Format.currency(converted, currencyCode: currency, omitCurrencyCode: project.stats.omitUSCurrencyCode,
+                                     roundingMode: .halfUp, maximumFractionDigits: 2, minimumFractionDigits: 2)
+      self.onConversion?(Strings.About_reward_amount(reward_amount: formatted))
+    }
+    self.onTitle?(data.pledgeHasNoReward == true ? Strings.Pledge_without_a_reward() : Strings.Pledge_amount())
+    self.onConfirmationHidden?(project.isInPostCampaignPledgingPhase || data.confirmationLabelHidden)
+  }
+
+  private func publishPlan() {
+    self.onPlanHidden?(!(self.plan?.isPledgeOverTime ?? false))
+    if let text = self.plan?.project.pledgeOverTimeCollectionPlanChargedAsNPayments { self.onCharges?(text) }
+  }
+
+  private func publishConfirmationIfReady() {
+    guard self.hasPlanConfiguration, let data = self.data else { return }
+    self.onConfirmation?(attributedConfirmationString(with: data, pledgeOverTimeData: self.plan))
+  }
 }
 
 @MainActor

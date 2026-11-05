@@ -22,7 +22,7 @@ final class PledgeRewardsSummaryTotalViewController: UIViewController {
     PledgeOverTimeBadgeView(frame: .zero)
   }()
 
-  private let viewModel: PledgeSummaryViewModelType = PledgeSummaryViewModel()
+  private let viewModel = PledgeSummaryViewModel()
 
   // MARK: - Lifecycle
 
@@ -32,7 +32,7 @@ final class PledgeRewardsSummaryTotalViewController: UIViewController {
     self.configureSubviews()
     self.bindStyles()
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   // MARK: - Styles
@@ -92,35 +92,23 @@ final class PledgeRewardsSummaryTotalViewController: UIViewController {
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.titleLabelText
-      .observeForUI()
-      .observeValues { [weak self] text in
-        self?.titleLabel.text = text
-      }
-
-    self.amountLabel.rac.attributedText = self.viewModel.outputs.amountLabelAttributedText
-    self.totalConversionLabel.rac.text = self.viewModel.outputs.totalConversionLabelText
-
-    self.confirmationLabel.rac.hidden = self.viewModel.outputs.confirmationLabelHidden
-    self.confirmationLabel.rac.attributedText = self.viewModel.outputs.confirmationLabelAttributedText
-
-    self.pledgeOverTimeBadgeView.rac.hidden = self.viewModel.outputs.pledgeOverTimeStackViewHidden
-    self.viewModel.outputs
-      .pledgeOverTimeChargesText
-      .observeForUI()
-      .observeValues { chargesText in
-        self.pledgeOverTimeBadgeView.configure(with: chargesText)
-      }
+    self.viewModel.onTitle = { [weak self] in self?.titleLabel.text = $0 }
+    self.viewModel.onAmount = { [weak self] in self?.amountLabel.attributedText = $0 }
+    self.viewModel.onConversion = { [weak self] in self?.totalConversionLabel.text = $0 }
+    self.viewModel.onConfirmationHidden = { [weak self] in self?.confirmationLabel.isHidden = $0 }
+    self.viewModel.onConfirmation = { [weak self] in self?.confirmationLabel.attributedText = $0 }
+    self.viewModel.onPlanHidden = { [weak self] in self?.pledgeOverTimeBadgeView.isHidden = $0 }
+    self.viewModel.onCharges = { [weak self] in self?.pledgeOverTimeBadgeView.configure(with: $0) }
   }
 
   // MARK: - Configuration
 
   internal func configure(with data: PledgeSummaryViewData) {
-    self.viewModel.inputs.configure(with: data)
+    self.viewModel.configure(with: data)
   }
 
   internal func configureWith(pledgeOverTimeData: PledgePaymentPlansAndSelectionData?) {
-    self.viewModel.inputs.configureWith(pledgeOverTimeData: pledgeOverTimeData)
+    self.viewModel.configureWith(pledgeOverTimeData: pledgeOverTimeData)
   }
 }
 

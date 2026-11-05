@@ -18,7 +18,7 @@ final class PledgeSummaryViewController: UIViewController {
   private lazy var titleLabel: UILabel = { UILabel(frame: .zero) }()
   private lazy var totalConversionLabel: UILabel = { UILabel(frame: .zero) }()
   private lazy var totalStackView: UIStackView = { UIStackView(frame: .zero) }()
-  private let viewModel: PledgeSummaryViewModelType = PledgeSummaryViewModel()
+  private let viewModel = PledgeSummaryViewModel()
 
   // MARK: - Lifecycle
 
@@ -27,7 +27,7 @@ final class PledgeSummaryViewController: UIViewController {
 
     self.configureSubviews()
 
-    self.viewModel.inputs.viewDidLoad()
+    self.viewModel.viewDidLoad()
   }
 
   // MARK: - Styles
@@ -84,25 +84,18 @@ final class PledgeSummaryViewController: UIViewController {
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.confirmationLabel.rac.hidden = self.viewModel.outputs.confirmationLabelHidden
-
-    self.confirmationLabel.rac.attributedText = self.viewModel.outputs.confirmationLabelAttributedText
-
-    self.viewModel.outputs.notifyDelegateOpenHelpType
-      .observeForControllerAction()
-      .observeValues { [weak self] helpType in
-        self?.presentHelpWebViewController(with: helpType, presentationStyle: .formSheet)
-      }
-
-    self.amountLabel.rac.attributedText = self.viewModel.outputs.amountLabelAttributedText
-    self.totalConversionLabel.rac.text = self.viewModel.outputs.totalConversionLabelText
+    self.viewModel.onConfirmationHidden = { [weak self] in self?.confirmationLabel.isHidden = $0 }
+    self.viewModel.onConfirmation = { [weak self] in self?.confirmationLabel.attributedText = $0 }
+    self.viewModel.onHelp = { [weak self] in self?.presentHelpWebViewController(with: $0, presentationStyle: .formSheet) }
+    self.viewModel.onAmount = { [weak self] in self?.amountLabel.attributedText = $0 }
+    self.viewModel.onConversion = { [weak self] in self?.totalConversionLabel.text = $0 }
   }
 
   // MARK: - Configuration
 
   internal func configure(with data: PledgeSummaryViewData) {
-    self.viewModel.inputs.configure(with: data)
-    self.viewModel.inputs.configureWith(pledgeOverTimeData: nil)
+    self.viewModel.configure(with: data)
+    self.viewModel.configureWith(pledgeOverTimeData: nil)
   }
 }
 
@@ -118,7 +111,7 @@ extension PledgeSummaryViewController: UITextViewDelegate {
     _: UITextView, shouldInteractWith url: URL, in _: NSRange,
     interaction _: UITextItemInteraction
   ) -> Bool {
-    self.viewModel.inputs.tapped(url)
+    self.viewModel.tapped(url)
     return false
   }
 }

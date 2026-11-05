@@ -3,40 +3,40 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
 internal final class PledgeSummaryViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
-  private let vm: PledgeSummaryViewModelType = PledgeSummaryViewModel()
+  private let vm = PledgeSummaryViewModel()
 
-  private let amountLabelAttributedText = TestObserver<NSAttributedString, Never>()
-  private let amountLabelText = TestObserver<String, Never>()
+  private let amountLabelAttributedText = Recorder<NSAttributedString>()
+  private let amountLabelText = Recorder<String>()
 
-  private let confirmationLabelAttributedText = TestObserver<NSAttributedString, Never>()
-  private let confirmationLabelText = TestObserver<String, Never>()
-  private let confirmationLabelHidden = TestObserver<Bool, Never>()
-  private let notifyDelegateOpenHelpType = TestObserver<HelpType, Never>()
-  private var pledgeOverTimeStackViewHidden = TestObserver<Bool, Never>()
-  private var pledgeOverTimeChargesText = TestObserver<String, Never>()
-  private let totalConversionLabelText = TestObserver<String, Never>()
+  private let confirmationLabelAttributedText = Recorder<NSAttributedString>()
+  private let confirmationLabelText = Recorder<String>()
+  private let confirmationLabelHidden = Recorder<Bool>()
+  private let notifyDelegateOpenHelpType = Recorder<HelpType>()
+  private var pledgeOverTimeStackViewHidden = Recorder<Bool>()
+  private var pledgeOverTimeChargesText = Recorder<String>()
+  private let totalConversionLabelText = Recorder<String>()
 
   override func setUp() async throws {
     try await super.setUp()
 
-    self.vm.outputs.notifyDelegateOpenHelpType.observe(self.notifyDelegateOpenHelpType.observer)
-    self.vm.outputs.amountLabelAttributedText.observe(self.amountLabelAttributedText.observer)
-    self.vm.outputs.amountLabelAttributedText.map { $0.string }
-      .observe(self.amountLabelText.observer)
-    self.vm.outputs.confirmationLabelAttributedText.observe(self.confirmationLabelAttributedText.observer)
-    self.vm.outputs.confirmationLabelAttributedText.map { $0.string }
-      .observe(self.confirmationLabelText.observer)
-    self.vm.outputs.confirmationLabelHidden.observe(self.confirmationLabelHidden.observer)
-    self.vm.outputs.pledgeOverTimeStackViewHidden.observe(self.pledgeOverTimeStackViewHidden.observer)
-    self.vm.outputs.pledgeOverTimeChargesText.observe(self.pledgeOverTimeChargesText.observer)
-    self.vm.outputs.totalConversionLabelText.observe(self.totalConversionLabelText.observer)
+    self.vm.onHelp = { [weak self] in self?.notifyDelegateOpenHelpType.record($0) }
+    self.vm.onAmount = { [weak self] value in
+      self?.amountLabelAttributedText.record(value)
+      self?.amountLabelText.record(value.string)
+    }
+    self.vm.onConfirmation = { [weak self] value in
+      self?.confirmationLabelAttributedText.record(value)
+      self?.confirmationLabelText.record(value.string)
+    }
+    self.vm.onConfirmationHidden = { [weak self] in self?.confirmationLabelHidden.record($0) }
+    self.vm.onPlanHidden = { [weak self] in self?.pledgeOverTimeStackViewHidden.record($0) }
+    self.vm.onCharges = { [weak self] in self?.pledgeOverTimeChargesText.record($0) }
+    self.vm.onConversion = { [weak self] in self?.totalConversionLabelText.record($0) }
   }
 
   func testNotifyDelegateOpenHelpType() {
@@ -45,7 +45,7 @@ internal final class PledgeSummaryViewModelTests: TestCase {
 
     let allHelpTypeUrls = allCases.map { $0.url(withBaseUrl: baseUrl) }.compact()
 
-    allHelpTypeUrls.forEach { self.vm.inputs.tapped($0) }
+    allHelpTypeUrls.forEach { self.vm.tapped($0) }
 
     self.notifyDelegateOpenHelpType.assertValues(allCases)
   }
@@ -55,8 +55,8 @@ internal final class PledgeSummaryViewModelTests: TestCase {
       |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
       |> Project.lens.country .~ Project.Country.us
 
-    self.vm.inputs.configure(with: (project, total: 30, false, false))
-    self.vm.inputs.viewDidLoad()
+    self.vm.configure(with: (project, total: 30, false, false))
+    self.vm.viewDidLoad()
 
     self.amountLabelText.assertValues(["$30.00"], "Total is added to reward minimum")
   }
@@ -66,8 +66,8 @@ internal final class PledgeSummaryViewModelTests: TestCase {
       |> Project.lens.stats.projectCurrency .~ Project.Country.mx.currencyCode
       |> Project.lens.country .~ Project.Country.us
 
-    self.vm.inputs.configure(with: (project, total: 30, false, false))
-    self.vm.inputs.viewDidLoad()
+    self.vm.configure(with: (project, total: 30, false, false))
+    self.vm.viewDidLoad()
 
     self.amountLabelText.assertValues([" MX$ 30.00"], "Total is added to reward minimum")
   }
@@ -76,9 +76,9 @@ internal final class PledgeSummaryViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
       |> Project.lens.country .~ Project.Country.us
-    self.vm.inputs.configure(with: (project, total: 10, false, true))
+    self.vm.configure(with: (project, total: 10, false, true))
 
-    self.vm.inputs.viewDidLoad()
+    self.vm.viewDidLoad()
 
     self.amountLabelText.assertValues(["$10.00"], "Total is used directly")
   }
@@ -89,9 +89,9 @@ internal final class PledgeSummaryViewModelTests: TestCase {
       |> Project.lens.country .~ Project.Country.us
     let pledgeSummaryViewData = PledgeSummaryViewData(project, total: 10, false, true)
 
-    self.vm.inputs.configure(with: pledgeSummaryViewData)
+    self.vm.configure(with: pledgeSummaryViewData)
 
-    self.vm.inputs.viewDidLoad()
+    self.vm.viewDidLoad()
 
     self.amountLabelText.assertValues([" MX$ 10.00"], "Total is used directly")
   }
@@ -102,8 +102,8 @@ internal final class PledgeSummaryViewModelTests: TestCase {
       |> Project.lens.stats.userCurrency .~ Project.Country.gb.currencyCode
       |> Project.lens.stats.userCurrencyRate .~ 2.0
 
-    self.vm.inputs.configure(with: (project, total: 10, false, true))
-    self.vm.inputs.viewDidLoad()
+    self.vm.configure(with: (project, total: 10, false, true))
+    self.vm.viewDidLoad()
 
     self.totalConversionLabelText.assertValues(["About £20.00"])
   }
@@ -114,8 +114,8 @@ internal final class PledgeSummaryViewModelTests: TestCase {
       |> Project.lens.stats.userCurrency .~ Project.Country.gb.currencyCode
       |> Project.lens.stats.userCurrencyRate .~ 2.0
 
-    self.vm.inputs.configure(with: (project, total: 20, false, false))
-    self.vm.inputs.viewDidLoad()
+    self.vm.configure(with: (project, total: 20, false, false))
+    self.vm.viewDidLoad()
 
     self.totalConversionLabelText.assertValues(["About £40.00"])
   }
@@ -126,8 +126,8 @@ internal final class PledgeSummaryViewModelTests: TestCase {
       |> Project.lens.stats.userCurrency .~ nil
       |> Project.lens.stats.userCurrencyRate .~ nil
 
-    self.vm.inputs.configure(with: (project, total: 10, false, false))
-    self.vm.inputs.viewDidLoad()
+    self.vm.configure(with: (project, total: 10, false, false))
+    self.vm.viewDidLoad()
 
     self.totalConversionLabelText.assertDidNotEmitValue()
   }
@@ -150,9 +150,9 @@ internal final class PledgeSummaryViewModelTests: TestCase {
         |> Project.lens.stats.userCurrency .~ Currency.USD.rawValue
         |> Project.lens.stats.projectCurrency .~ Currency.USD.rawValue
 
-      self.vm.inputs.configure(with: (project: project, total: 10, false, false))
-      self.vm.inputs.configureWith(pledgeOverTimeData: nil)
-      self.vm.inputs.viewDidLoad()
+      self.vm.configure(with: (project: project, total: 10, false, false))
+      self.vm.configureWith(pledgeOverTimeData: nil)
+      self.vm.viewDidLoad()
 
       self.confirmationLabelHidden.assertValues([false])
       self.confirmationLabelAttributedText.assertValueCount(1)
@@ -180,9 +180,9 @@ internal final class PledgeSummaryViewModelTests: TestCase {
         |> Project.lens.stats.userCurrency .~ Currency.USD.rawValue
         |> Project.lens.stats.projectCurrency .~ Currency.USD.rawValue
 
-      self.vm.inputs.configure(with: (project: project, total: 10, true, false))
-      self.vm.inputs.configureWith(pledgeOverTimeData: nil)
-      self.vm.inputs.viewDidLoad()
+      self.vm.configure(with: (project: project, total: 10, true, false))
+      self.vm.configureWith(pledgeOverTimeData: nil)
+      self.vm.viewDidLoad()
 
       self.confirmationLabelHidden.assertValues([true])
       self.confirmationLabelAttributedText.assertValueCount(1)
@@ -211,9 +211,9 @@ internal final class PledgeSummaryViewModelTests: TestCase {
         |> Project.lens.stats.projectCurrency .~ Currency.HKD.rawValue
         |> Project.lens.country .~ .us
 
-      self.vm.inputs.configure(with: (project: project, total: 10, false, false))
-      self.vm.inputs.configureWith(pledgeOverTimeData: nil)
-      self.vm.inputs.viewDidLoad()
+      self.vm.configure(with: (project: project, total: 10, false, false))
+      self.vm.configureWith(pledgeOverTimeData: nil)
+      self.vm.viewDidLoad()
 
       self.confirmationLabelHidden.assertValues([false])
       self.confirmationLabelAttributedText.assertValueCount(1)
@@ -248,9 +248,9 @@ internal final class PledgeSummaryViewModelTests: TestCase {
         project: project
       )
 
-      self.vm.inputs.configure(with: (project: project, total: 10, false, false))
-      self.vm.inputs.configureWith(pledgeOverTimeData: plotData)
-      self.vm.inputs.viewDidLoad()
+      self.vm.configure(with: (project: project, total: 10, false, false))
+      self.vm.configureWith(pledgeOverTimeData: plotData)
+      self.vm.viewDidLoad()
 
       self.confirmationLabelHidden.assertValues([false])
       self.confirmationLabelAttributedText.assertValueCount(1)
@@ -275,9 +275,9 @@ internal final class PledgeSummaryViewModelTests: TestCase {
         project: project
       )
 
-      self.vm.inputs.configure(with: (project: project, total: 10, false, false))
-      self.vm.inputs.configureWith(pledgeOverTimeData: plotData)
-      self.vm.inputs.viewDidLoad()
+      self.vm.configure(with: (project: project, total: 10, false, false))
+      self.vm.configureWith(pledgeOverTimeData: plotData)
+      self.vm.viewDidLoad()
 
       self.confirmationLabelHidden.assertValues([false])
       self.confirmationLabelAttributedText.assertValueCount(1)
@@ -288,4 +288,14 @@ internal final class PledgeSummaryViewModelTests: TestCase {
       ])
     }
   }
+}
+
+private final class Recorder<Value> {
+  private var values: [Value] = []
+  func record(_ value: Value) { self.values.append(value) }
+  func assertDidNotEmitValue(file: StaticString = #filePath, line: UInt = #line) { XCTAssertTrue(self.values.isEmpty, file: file, line: line) }
+  func assertDidEmitValue(file: StaticString = #filePath, line: UInt = #line) { XCTAssertFalse(self.values.isEmpty, file: file, line: line) }
+  func assertValueCount(_ count: Int, file: StaticString = #filePath, line: UInt = #line) { XCTAssertEqual(self.values.count, count, file: file, line: line) }
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) where Value: Equatable { XCTAssertEqual(self.values, expected, message, file: file, line: line) }
+  func assertValue(_ expected: Value, file: StaticString = #filePath, line: UInt = #line) where Value: Equatable { XCTAssertEqual(self.values.last, expected, file: file, line: line) }
 }
