@@ -87,10 +87,9 @@ public final class CommentsViewModel: CommentsViewModelType,
   // MARK: Initializers
 
   private let feature: DiscussionFeature
-  private let pagePipe = Signal<(UUID, [Comment], Int), Never>.pipe()
   private let loadingPipe = Signal<(UUID, Bool), Never>.pipe()
   private let errorPipe = Signal<(UUID, ErrorEnvelope), Never>.pipe()
-  private let mutationPipe = Signal<[Comment], Never>.pipe()
+  private let displayPipe = Signal<Void, Never>.pipe()
   private var pageObservation: MainActorObservation?
   private let route = UUID()
   private let disposables = ScopedDisposable(CompositeDisposable())
@@ -102,6 +101,11 @@ public final class CommentsViewModel: CommentsViewModelType,
   private var latestPostingProject: Project?
   private var postingUser: User?
   private var latestCommentableID: String?
+  private var accumulatedComments: [Comment] = []
+  private var lastPage: [Comment]?
+  private var hasReceivedComments = false
+  private var hasRequestedPage = false
+  private var clearingForRefresh = false
   private var latestNavigationUpdate: Update?
   private var hasNavigationConfiguration = false
   private var lastViewedReplyComment: Comment?
@@ -169,52 +173,8 @@ public final class CommentsViewModel: CommentsViewModelType,
       requestFirstPageWith.mapConst(false),
       requestNextPage.mapConst(true)
     )
-    let comments = self.pagePipe.output.filter { $0.0 == route }.map { $0.1 }.skipRepeats()
     let isLoading = self.loadingPipe.output.filter { $0.0 == route }.map { $0.1 }
     let errors = self.errorPipe.output.filter { $0.0 == route }.map { $0.1 }
-
-    let paginatedComments = Signal.merge(
-      // Pull to refresh, clear comments cache.
-      pullToRefresh.mapConst(([], true)),
-      // Regular paged comments, don't clear accumulator.
-      comments.map { comments in (comments, false) },
-      // Locally changed comments replace the accumulator.
-      self.mutationPipe.output.map { comments in (comments, true) }
-    )
-    .scan([]) { accum, value -> [Comment] in
-      let (comments, clear) = value
-      guard clear == false else { return comments }
-      return accum + comments
-    }
-
-    let commentsAndProject = Signal.combineLatest(
-      paginatedComments,
-      initialProject
-    )
-
-    // Allow empty arrays from the first emission.
-    let emptyCommentsWithInitialProject = Signal.zip(comments, initialProject)
-      .filter { comments, _ in comments.isEmpty }
-      .map { comments, project in (comments, project, false) }
-
-    // Continue to paginate normally without empty comments.
-    let paginatedCommentsAndProject = commentsAndProject
-      .filter { comments, _ in comments.isEmpty == false }
-      .map { comments, project in (comments, project, false) }
-
-    // If there are errors emit empty comments array, project and error boolean.
-    let errorsAndHasRequestedNextPage: Signal<([Comment], Project, Bool), Never> = Signal
-      .combineLatest(errors, hasRequestedNextPage)
-      .filter(second >>> isFalse)
-      .map(first)
-      .withLatestFrom(initialProject).map { ([], $1, true) }
-
-    let commentsToDisplay = Signal.merge(
-      emptyCommentsWithInitialProject,
-      paginatedCommentsAndProject,
-      errorsAndHasRequestedNextPage
-    )
-
 
     // get an id needed to post a comment to either a project or a project update
     let commentableId = projectOrUpdate
@@ -232,7 +192,7 @@ public final class CommentsViewModel: CommentsViewModelType,
 
     let initialLoadOrReload = Signal.merge(
       projectOrUpdate.ignoreValues(),
-      commentsToDisplay.ignoreValues()
+      self.displayPipe.output
     )
 
     // Footer view would be hidden if there is an error at
@@ -277,18 +237,12 @@ public final class CommentsViewModel: CommentsViewModelType,
     }
 
 
-    self.disposables += commentsToDisplay.observeValues { [weak self] comments, project, error in
-      self?.onLoadComments?(comments, project, error)
-    }
     self.disposables += footerState.observeValues { [weak self] state in
       self?.onFooterState?(state)
     }
-    self.disposables += commentsAndProject.observeValues { [weak self] comments, _ in
-      self?.currentComments = comments
-      self?.onSeparatorHidden?(comments.isEmpty)
-    }
     self.disposables += initialProject.observeValues { [weak self] project in
       self?.latestPostingProject = project
+      self?.publishCommentsIfAvailable()
       self?.publishComposer(for: project)
       self?.publishPendingNavigation()
     }
@@ -310,6 +264,7 @@ public final class CommentsViewModel: CommentsViewModelType,
       })
     }
     self.disposables += requestFirstPageWith.observeValues { [weak self] value in
+      self?.hasRequestedPage = false
       let source = value.ifLeft(
         { DiscussionFeature.Source.project($0.slug) },
         ifRight: { .update(String($0.id)) }
@@ -317,16 +272,29 @@ public final class CommentsViewModel: CommentsViewModelType,
       self?.loadingTask = feature.requestFirstPage(route: route, source: source, refresh: true)
     }
     self.disposables += requestNextPage.observeValues { [weak self] in
+      self?.hasRequestedPage = true
       self?.loadingTask = feature.requestNextPage(route: route)
     }
     self.pageObservation = feature.observePages { [weak self] update in
       guard let self else { return }
       switch update {
-      case let .page(route, comments, count): self.pagePipe.input.send(value: (route, comments, count))
+      case let .page(route, comments, _):
+        guard route == self.route, self.lastPage != comments else { return }
+        self.lastPage = comments
+        if self.clearingForRefresh && comments.isEmpty { return }
+        self.clearingForRefresh = false
+        self.hasReceivedComments = true
+        self.accumulatedComments += comments
+        self.publishCommentsIfAvailable()
       case let .loading(route, loading):
         self.loadingPipe.input.send(value: (route, loading))
         if route == self.route { self.onRefreshing?(loading) }
-      case let .error(route, error): self.errorPipe.input.send(value: (route, error))
+      case let .error(route, error):
+        self.errorPipe.input.send(value: (route, error))
+        if route == self.route, !self.hasRequestedPage, let project = self.latestPostingProject {
+          self.onLoadComments?([], project, true)
+          self.displayPipe.input.send(value: ())
+        }
       }
     }
   }
@@ -336,8 +304,17 @@ public final class CommentsViewModel: CommentsViewModelType,
   private func applyComment(_ comment: Comment, replacing id: String) {
     guard let currentComments = self.currentComments else { return }
     let comments = commentsReplacingCommentById(currentComments, replacingComment: comment, withId: id)
+    self.accumulatedComments = comments
     self.currentComments = comments
-    self.mutationPipe.input.send(value: comments)
+    self.publishCommentsIfAvailable()
+  }
+
+  private func publishCommentsIfAvailable() {
+    guard self.hasReceivedComments, let project = self.latestPostingProject else { return }
+    self.currentComments = self.accumulatedComments
+    self.onSeparatorHidden?(self.accumulatedComments.isEmpty)
+    self.onLoadComments?(self.accumulatedComments, project, false)
+    self.displayPipe.input.send(value: ())
   }
 
   private let blockPresentation = DiscussionBlockPresentation()
@@ -433,6 +410,12 @@ public final class CommentsViewModel: CommentsViewModelType,
 
   fileprivate let refreshProperty = MutableProperty(())
   public func refresh() {
+    self.clearingForRefresh = true
+    self.accumulatedComments = []
+    if self.currentComments != nil {
+      self.currentComments = []
+      self.onSeparatorHidden?(true)
+    }
     self.refreshProperty.value = ()
   }
 
