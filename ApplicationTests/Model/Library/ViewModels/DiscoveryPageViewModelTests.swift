@@ -64,7 +64,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     MainActor.assumeIsolated {
     self.vm.outputs.activitiesForSample.observe(self.activitiesForSample.observer)
     self.vm.outputs.asyncReloadData.observe(self.asyncReloadData.observer)
-    self.vm.outputs.contentInset.observe(self.contentInset.observer)
+    self.vm.outputs.onContentInset = { [weak self] in self?.contentInset.observer.send(value: $0) }
     self.vm.outputs.dismissPersonalizationCell.observe(self.dismissPersonalizationCell.observer)
     self.vm.outputs.hideEmptyState.observe(self.hideEmptyState.observer)
     self.vm.outputs.goToActivityProject.map(first).observe(self.goToActivityProject.observer)
@@ -79,7 +79,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.vm.outputs.projectsAreLoadingAnimated.observe(self.projectsAreLoadingAnimated.observer)
     self.vm.outputs.projectsLoaded.ignoreValues().observe(self.hasLoadedProjects.observer)
     self.vm.outputs.projectsLoaded.map(second).observe(self.projectsLoadedDiscoveryParams.observer)
-    self.vm.outputs.setScrollsToTop.observe(self.setScrollsToTop.observer)
+    self.vm.outputs.onScrollsToTopChanged = { [weak self] in self?.setScrollsToTop.observer.send(value: $0) }
     self.vm.outputs.showEmptyState.observe(self.showEmptyState.observer)
     self.vm.outputs.showOnboarding.observe(self.showOnboarding.observer)
     self.vm.outputs.showPersonalization.observe(self.showPersonalization.observer)

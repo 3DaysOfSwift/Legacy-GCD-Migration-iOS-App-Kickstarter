@@ -259,9 +259,7 @@ internal final class DiscoveryPageViewController: UITableViewController,
         self?.present(navController, animated: true)
       }
 
-    self.viewModel.outputs.setScrollsToTop
-      .observeForUI()
-      .observeValues { [weak self] in
+    self.viewModel.outputs.onScrollsToTopChanged = { [weak self] in
         _ = self?.tableView ?|> UIScrollView.lens.scrollsToTop .~ $0
       }
 
@@ -306,9 +304,7 @@ internal final class DiscoveryPageViewController: UITableViewController,
         self?.present(nav, animated: true, completion: nil)
       }
 
-    self.viewModel.outputs.contentInset
-      .observeForUI()
-      .observeValues { [weak self] inset in
+    self.viewModel.outputs.onContentInset = { [weak self] inset in
         guard let self = self else { return }
 
         _ = self.tableView

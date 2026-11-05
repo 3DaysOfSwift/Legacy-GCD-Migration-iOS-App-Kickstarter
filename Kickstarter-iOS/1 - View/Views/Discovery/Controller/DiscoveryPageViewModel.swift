@@ -79,7 +79,7 @@ public protocol DiscoveryPageViewModelOutputs: AnyObject {
   var asyncReloadData: Signal<Void, Never> { get }
 
   /// Emits the contentInset for the UITableView
-  var contentInset: Signal<UIEdgeInsets, Never> { get }
+  var onContentInset: ((UIEdgeInsets) -> Void)? { get set }
 
   /// Emits when the personalization cell should be deleted
   var dismissPersonalizationCell: Signal<Void, Never> { get }
@@ -112,7 +112,7 @@ public protocol DiscoveryPageViewModelOutputs: AnyObject {
   var projectsAreLoadingAnimated: Signal<(Bool, Bool), Never> { get }
 
   /// Emits a bool to allow status bar tap to scroll the table view to the top.
-  var setScrollsToTop: Signal<Bool, Never> { get }
+  var onScrollsToTopChanged: ((Bool) -> Void)? { get set }
 
   /// Emits to show the empty state controller.
   var showEmptyState: Signal<EmptyState, Never> { get }
@@ -221,8 +221,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
 
     self.asyncReloadData = self.projectsLoaded.take(first: 1).ignoreValues()
 
-    self.contentInset = self.viewWillAppearProperty.signal
-      .map { .zero }
 
     let isRefreshing = isLoading
       .combineLatest(with: self.pulledToRefreshProperty.signal)
@@ -318,10 +316,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
       .map { user, params in user == nil && params.sort == .magic }
       .skipRepeats()
 
-    self.setScrollsToTop = Signal.merge(
-      self.viewDidAppearProperty.signal.mapConst(true),
-      self.viewDidDisappearProperty.signal.mapConst(false)
-    )
 
     // MARK: Personalization Callout Card
 
@@ -487,16 +481,19 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   fileprivate let viewDidAppearProperty = MutableProperty(())
   public func viewDidAppear() {
     self.viewDidAppearProperty.value = ()
+    self.onScrollsToTopChanged?(true)
   }
 
   fileprivate let viewDidDisappearProperty = MutableProperty(false)
   public func viewDidDisappear(animated: Bool) {
     self.viewDidDisappearProperty.value = animated
+    self.onScrollsToTopChanged?(false)
   }
 
   fileprivate let viewWillAppearProperty = MutableProperty(())
   public func viewWillAppear() {
     self.viewWillAppearProperty.value = ()
+    self.onContentInset?(.zero)
     self.updateVideoFeedBanner()
   }
 
@@ -512,7 +509,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
 
   public let activitiesForSample: Signal<[Activity], Never>
   public let asyncReloadData: Signal<Void, Never>
-  public let contentInset: Signal<UIEdgeInsets, Never>
+  public var onContentInset: ((UIEdgeInsets) -> Void)?
   public let dismissPersonalizationCell: Signal<Void, Never>
   public let goToActivityProject: Signal<(Project, RefTag), Never>
   public let goToCuratedProjects: Signal<[KsApi.Category], Never>
@@ -523,7 +520,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   public let notifyDelegateContentOffsetChanged: Signal<CGPoint, Never>
   public let projectsLoaded: Signal<([Project], DiscoveryParams?), Never>
   public let projectsAreLoadingAnimated: Signal<(Bool, Bool), Never>
-  public let setScrollsToTop: Signal<Bool, Never>
+  public var onScrollsToTopChanged: ((Bool) -> Void)?
   public let showEmptyState: Signal<EmptyState, Never>
   public let showOnboarding: Signal<Bool, Never>
   public let showPersonalization: Signal<Bool, Never>
