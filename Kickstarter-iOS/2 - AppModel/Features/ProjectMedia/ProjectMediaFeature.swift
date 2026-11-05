@@ -286,6 +286,28 @@ public final class ProjectMediaFeature {
     return task
   }
 
+  /// Returns the current save state, or nil if the observing task or intent became stale.
+  public func watch(project: Project, intent: WatchIntent) async -> Project? {
+    guard !Task.isCancelled, self.isCurrentIntent(intent) else { return nil }
+    return await self.resolveWatch(project: project, intent: intent, command: self.submitWatch(intent))
+  }
+
+  private func resolveWatch(
+    project: Project, intent: WatchIntent, command: Task<WatchProjectResponseEnvelope, Error>
+  ) async -> Project? {
+    var project = project
+    do {
+      let response = try await command.value
+      guard !Task.isCancelled, self.isCurrentIntent(intent) else { return nil }
+      project.watchesCount = response.watchProject.project.watchesCount
+      project.personalization.isStarred = intent.watched
+    } catch {
+      guard !Task.isCancelled, !(error is CancellationError), self.isCurrentIntent(intent) else { return nil }
+      project.personalization.isStarred = intent.previous
+    }
+    return project
+  }
+
   /// Ordinary save buttons retain their debounce and optimistic UI. Both entry
   /// points submit to the same account/project queue and settle the shared cache.
   public func watchResult(project: Project, intent: WatchIntent) -> SignalProducer<Project, Never> {
@@ -296,18 +318,9 @@ public final class ProjectMediaFeature {
         let id = UUID()
         let task = Task { [self] in
           defer { self.watchObservations[id] = nil }
-          var project = project
-          do {
-            let response = try await command.value
-            try Task.checkCancellation()
-            guard self.isCurrentIntent(intent) else { observer.sendInterrupted(); return }
-            project.watchesCount = response.watchProject.project.watchesCount
-            project.personalization.isStarred = intent.watched
-          } catch {
-            guard !Task.isCancelled, !(error is CancellationError), self.isCurrentIntent(intent) else {
-              observer.sendInterrupted(); return
-            }
-            project.personalization.isStarred = intent.previous
+          guard let project = await self.resolveWatch(project: project, intent: intent, command: command) else {
+            observer.sendInterrupted()
+            return
           }
           observer.send(value: project)
           observer.sendCompleted()

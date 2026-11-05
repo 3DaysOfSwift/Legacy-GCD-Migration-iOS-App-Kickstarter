@@ -255,6 +255,37 @@ final class ProjectMediaFeatureTests: TestCase {
     XCTAssertEqual(feature.cached(project).personalization.isStarred, true)
   }
 
+  func testNativeSaveFailureRestoresPreviousState() async throws {
+    let provider = ControlledMediaProvider()
+    provider.pauseWatch = true
+    defer { provider.releaseAll() }
+    let feature = ProjectMediaFeature(makeProvider: { provider })
+    let project = Project.template
+    let intent = feature.prepareWatch(projectID: project.graphID, watched: true, previous: false)
+    let task = Task { await feature.watch(project: project, intent: intent) }
+    await provider.waitForWatches(1)
+    try provider.finishWatch(0, failure: true)
+    let result = await task.value
+    XCTAssertEqual(result?.personalization.isStarred, false)
+    XCTAssertEqual(feature.cached(project).personalization.isStarred, false)
+  }
+
+  func testCancelledNativeSaveWaiterStillSettlesWrite() async throws {
+    let provider = ControlledMediaProvider()
+    provider.pauseWatch = true
+    defer { provider.releaseAll() }
+    let feature = ProjectMediaFeature(makeProvider: { provider })
+    let project = Project.template
+    let intent = feature.prepareWatch(projectID: project.graphID, watched: true, previous: false)
+    let task = Task { await feature.watch(project: project, intent: intent) }
+    await provider.waitForWatches(1)
+    task.cancel()
+    try provider.finishWatch(0)
+    let result = await task.value
+    XCTAssertNil(result)
+    XCTAssertEqual(feature.cached(project).personalization.isStarred, true)
+  }
+
   func testNewerSaveIntentCannotBeRolledBackByEarlierFailure() async throws {
     let provider = ControlledMediaProvider()
     provider.pauseWatch = true
