@@ -82,16 +82,16 @@ public protocol DiscoveryPageViewModelOutputs: AnyObject {
   var onContentInset: ((UIEdgeInsets) -> Void)? { get set }
 
   /// Emits when the personalization cell should be deleted
-  var dismissPersonalizationCell: Signal<Void, Never> { get }
+  var onDismissPersonalizationCell: (() -> Void)? { get set }
 
   /// Emits a project and ref tag that we should go to from the activity sample.
   var goToActivityProject: Signal<(Project, RefTag), Never> { get }
 
   /// Emits an array of KsApi.Category objects used to generate a curated list of projects
-  var goToCuratedProjects: Signal<[KsApi.Category], Never> { get }
+  var onGoToCuratedProjects: (([KsApi.Category]) -> Void)? { get set }
 
   /// Emits a LoginIntent for the LoginToutViewController ot be configured with
-  var goToLoginSignup: Signal<LoginIntent, Never> { get }
+  var onGoToLoginSignup: ((LoginIntent) -> Void)? { get set }
 
   /// Emits a project, playlist, ref tag that we should go to from discovery.
   var goToProjectPlaylist: Signal<(Project, [Project], RefTag), Never> { get }
@@ -336,13 +336,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
 
 
 
-    self.goToCuratedProjects = self.personalizationCellTappedProperty.signal
-      .map { cachedCategories() }
-      .skipNil()
-
-    self.dismissPersonalizationCell = self.personalizationCellDismissTappedProperty.signal
-      .on(value: { _ in AppEnvironment.current.userDefaults.hasDismissedPersonalizationCard = true })
-
     self.notifyDelegateContentOffsetChanged = Signal.combineLatest(
       self.scrollViewDidScrollToContentOffsetProperty.signal.skipNil(),
       self.projectsAreLoadingAnimated.map(first)
@@ -350,8 +343,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     .filter(second >>> isFalse)
     .map(first)
 
-    self.goToLoginSignup = self.signupLoginButtonTappedProperty.signal
-      .mapConst(LoginIntent.discoveryOnboarding)
 
     // These observers only admit commands. The Feature owns and retains the work.
     self.featureBindings += requestFirstPageWith.observeValues { [weak self] parameters in
@@ -423,14 +414,14 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.onboardingCompletedProperty.value = ()
   }
 
-  fileprivate let personalizationCellTappedProperty = MutableProperty(())
   public func personalizationCellTapped() {
-    self.personalizationCellTappedProperty.value = ()
+    guard let categories = cachedCategories() else { return }
+    self.onGoToCuratedProjects?(categories)
   }
 
-  fileprivate let personalizationCellDismissTappedProperty = MutableProperty(())
   public func personalizationCellDismissTapped() {
-    self.personalizationCellDismissTappedProperty.value = ()
+    AppEnvironment.current.userDefaults.hasDismissedPersonalizationCard = true
+    self.onDismissPersonalizationCell?()
   }
 
   fileprivate let pulledToRefreshProperty = MutableProperty(())
@@ -453,9 +444,8 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.selectedFilterProperty.value = params
   }
 
-  fileprivate let signupLoginButtonTappedProperty = MutableProperty(())
   public func signupLoginButtonTapped() {
-    self.signupLoginButtonTappedProperty.value = ()
+    self.onGoToLoginSignup?(.discoveryOnboarding)
   }
 
   fileprivate let tappedActivity = MutableProperty<Activity?>(nil)
@@ -510,10 +500,10 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   public let activitiesForSample: Signal<[Activity], Never>
   public let asyncReloadData: Signal<Void, Never>
   public var onContentInset: ((UIEdgeInsets) -> Void)?
-  public let dismissPersonalizationCell: Signal<Void, Never>
+  public var onDismissPersonalizationCell: (() -> Void)?
   public let goToActivityProject: Signal<(Project, RefTag), Never>
-  public let goToCuratedProjects: Signal<[KsApi.Category], Never>
-  public let goToLoginSignup: Signal<LoginIntent, Never>
+  public var onGoToCuratedProjects: (([KsApi.Category]) -> Void)?
+  public var onGoToLoginSignup: ((LoginIntent) -> Void)?
   public let goToProjectPlaylist: Signal<(Project, [Project], RefTag), Never>
   public let goToProjectUpdate: Signal<(Project, Update), Never>
   public let hideEmptyState: Signal<Void, Never>

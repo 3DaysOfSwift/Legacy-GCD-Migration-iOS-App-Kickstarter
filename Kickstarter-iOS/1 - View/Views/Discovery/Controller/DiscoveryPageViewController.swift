@@ -234,9 +234,7 @@ internal final class DiscoveryPageViewController: UITableViewController,
         self?.tableView.reloadData()
       }
 
-    self.viewModel.outputs.dismissPersonalizationCell
-      .observeForUI()
-      .observeValues { [weak self] _ in
+    self.viewModel.outputs.onDismissPersonalizationCell = { [weak self] in
         self?.dataSource.showPersonalization(false)
 
         let section = DiscoveryProjectsDataSource.Section.personalization.rawValue
@@ -245,9 +243,7 @@ internal final class DiscoveryPageViewController: UITableViewController,
         self?.tableView.endUpdates()
       }
 
-    self.viewModel.outputs.goToCuratedProjects
-      .observeForUI()
-      .observeValues { [weak self] categories in
+    self.viewModel.outputs.onGoToCuratedProjects = { [weak self] categories in
         let curatedProjectsVC = CuratedProjectsViewController.instantiate()
         curatedProjectsVC.configure(with: categories, context: .discovery)
 
@@ -292,9 +288,7 @@ internal final class DiscoveryPageViewController: UITableViewController,
         self.delegate?.discoverPageViewController(self, contentOffsetDidChangeTo: offset)
       }
 
-    self.viewModel.outputs.goToLoginSignup
-      .observeForControllerAction()
-      .observeValues { [weak self] intent in
+    self.viewModel.outputs.onGoToLoginSignup = { [weak self] intent in
         let loginTout = LoginToutViewController.configuredWith(loginIntent: intent)
 
         let isIpad = AppEnvironment.current.device.userInterfaceIdiom == .pad

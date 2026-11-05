@@ -18,6 +18,13 @@ internal final class DiscoveryPageViewModelTests: TestCase {
   private let feature = DiscoveryFeature(provider: AsyncDiscoveryProvider(), sleep: { _ in })
   fileprivate lazy var vm = DiscoveryPageViewModel(discoveryFeature: self.feature)
 
+  func testSignupActionDeliversDiscoveryLoginIntent() {
+    var intents: [LoginIntent] = []
+    self.vm.outputs.onGoToLoginSignup = { intents.append($0) }
+    self.vm.inputs.signupLoginButtonTapped()
+    XCTAssertEqual(intents, [.discoveryOnboarding])
+  }
+
   private func advanceRequests() async {
     await self.scheduler.advance()
     await self.vm.pageTask?.value
@@ -65,11 +72,11 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.vm.outputs.activitiesForSample.observe(self.activitiesForSample.observer)
     self.vm.outputs.asyncReloadData.observe(self.asyncReloadData.observer)
     self.vm.outputs.onContentInset = { [weak self] in self?.contentInset.observer.send(value: $0) }
-    self.vm.outputs.dismissPersonalizationCell.observe(self.dismissPersonalizationCell.observer)
+    self.vm.outputs.onDismissPersonalizationCell = { [weak self] in self?.dismissPersonalizationCell.observer.send(value: ()) }
     self.vm.outputs.hideEmptyState.observe(self.hideEmptyState.observer)
     self.vm.outputs.goToActivityProject.map(first).observe(self.goToActivityProject.observer)
     self.vm.outputs.goToActivityProject.map(second).observe(self.goToActivityProjectRefTag.observer)
-    self.vm.outputs.goToCuratedProjects.observe(self.goToCuratedProjects.observer)
+    self.vm.outputs.onGoToCuratedProjects = { [weak self] in self?.goToCuratedProjects.observer.send(value: $0) }
     self.vm.outputs.goToProjectPlaylist.map(first).observe(self.goToPlaylistProject.observer)
     self.vm.outputs.goToProjectPlaylist.map(second).observe(self.goToPlaylist.observer)
     self.vm.outputs.goToProjectPlaylist.map(third).observe(self.goToPlaylistRefTag.observer)
