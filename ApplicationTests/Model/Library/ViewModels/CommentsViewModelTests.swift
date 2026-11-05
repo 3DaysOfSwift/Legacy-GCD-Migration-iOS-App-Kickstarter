@@ -37,12 +37,11 @@ internal final class CommentsViewModelTests: TestCase {
     MainActor.assumeIsolated {
       self.vm.outputs.beginOrEndRefreshing.observe(self.beginOrEndRefreshing.observer)
       self.vm.outputs.cellSeparatorHidden.observe(self.cellSeparatorHidden.observer)
-      self.vm.outputs.configureCommentComposerViewWithData.map(\.hidden)
-        .observe(self.commentComposerViewHidden.observer)
-      self.vm.outputs.configureCommentComposerViewWithData.map(\.avatarURL)
-        .observe(self.configureCommentComposerViewURL.observer)
-      self.vm.outputs.configureCommentComposerViewWithData.map(\.canPostComment)
-        .observe(self.configureCommentComposerViewCanPostComment.observer)
+      self.vm.outputs.onConfigureComposer = { [weak self] data in
+        self?.commentComposerViewHidden.observer.send(value: data.hidden)
+        self?.configureCommentComposerViewURL.observer.send(value: data.avatarURL)
+        self?.configureCommentComposerViewCanPostComment.observer.send(value: data.canPostComment)
+      }
       self.vm.outputs.onDidBlockUser = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
       self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }
       self.vm.outputs.configureFooterViewWithState.observe(self.configureFooterViewWithState.observer)

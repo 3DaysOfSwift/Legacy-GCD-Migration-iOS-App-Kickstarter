@@ -50,7 +50,7 @@ public protocol CommentsViewModelOutputs: AnyObject {
   var cellSeparatorHidden: Signal<Bool, Never> { get }
 
   /// Emits data to configure comment composer view.
-  var configureCommentComposerViewWithData: Signal<CommentComposerViewData, Never> { get }
+  var onConfigureComposer: ((CommentComposerViewData) -> Void)? { get set }
 
   /// Configures the footer view with the current state.
   var configureFooterViewWithState: Signal<CommentTableViewFooterViewState, Never> { get }
@@ -119,9 +119,6 @@ public final class CommentsViewModel: CommentsViewModelType,
         .skipNil()
     }
 
-    let currentUser = self.viewDidLoadProperty.signal
-      .map { _ in AppEnvironment.current.currentUser }
-
     let resolvedProject = Signal<Project, Never>.pipe()
     let initialProject = Signal.merge(
       projectOrUpdate.compactMap { value -> Project? in
@@ -129,22 +126,6 @@ public final class CommentsViewModel: CommentsViewModelType,
       },
       resolvedProject.output
     )
-
-    self.configureCommentComposerViewWithData = Signal
-      .combineLatest(initialProject, currentUser.signal, self.viewDidLoadProperty.signal.ignoreValues())
-      .map { ($0.0, $0.1) }
-      .map { project, currentUser in
-        let isBacker = userIsBackingProject(project)
-        let isCreatorOrCollaborator = !project.memberData.permissions.isEmpty && !isBacker
-        let canPostComment = isBacker || isCreatorOrCollaborator
-
-        guard let user = currentUser else {
-          return (nil, false, true, false)
-        }
-
-        let url = URL(string: user.avatar.medium)
-        return (url, canPostComment, false, false)
-      }
 
     let isCloseToBottom = self.willDisplayRowProperty.signal.skipNil()
       .map { row, total -> Bool in
@@ -345,6 +326,7 @@ public final class CommentsViewModel: CommentsViewModelType,
 
     self.disposables += initialProject.observeValues { [weak self] project in
       self?.latestPostingProject = project
+      self?.publishComposer(for: project)
     }
     self.disposables += commentableId.observeValues { [weak self] id in
       self?.latestCommentableID = id
@@ -473,7 +455,17 @@ public final class CommentsViewModel: CommentsViewModelType,
   fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.postingUser = AppEnvironment.current.currentUser
+    if let project = self.latestPostingProject { self.publishComposer(for: project) }
     self.viewDidLoadProperty.value = ()
+  }
+
+  private func publishComposer(for project: Project) {
+    guard let user = self.postingUser else {
+      self.onConfigureComposer?((nil, false, true, false))
+      return
+    }
+    let canPost = userIsBackingProject(project) || !project.memberData.permissions.isEmpty
+    self.onConfigureComposer?((URL(string: user.avatar.medium), canPost, false, false))
   }
 
   fileprivate let willDisplayRowProperty = MutableProperty<(row: Int, total: Int)?>(nil)
@@ -483,7 +475,7 @@ public final class CommentsViewModel: CommentsViewModelType,
 
   public let beginOrEndRefreshing: Signal<Bool, Never>
   public let cellSeparatorHidden: Signal<Bool, Never>
-  public let configureCommentComposerViewWithData: Signal<CommentComposerViewData, Never>
+  public var onConfigureComposer: ((CommentComposerViewData) -> Void)?
   public let configureFooterViewWithState: Signal<CommentTableViewFooterViewState, Never>
   public let goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder: Signal<
     (Comment, Project, Update?, Bool),

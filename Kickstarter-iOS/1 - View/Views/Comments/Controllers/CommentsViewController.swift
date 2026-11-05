@@ -128,11 +128,9 @@ internal final class CommentsViewController: UITableViewController, MessageBanne
       self?.tableView.scrollToTop()
     }
 
-    self.viewModel.outputs.configureCommentComposerViewWithData
-      .observeForUI()
-      .observeValues { [weak self] data in
-        self?.commentComposer.configure(with: data)
-      }
+    self.viewModel.outputs.onConfigureComposer = { [weak self] data in
+      self?.commentComposer.configure(with: data)
+    }
 
     self.viewModel.outputs.loadCommentsAndProjectIntoDataSource
       .observeForUI()
