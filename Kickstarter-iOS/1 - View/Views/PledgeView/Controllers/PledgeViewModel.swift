@@ -454,63 +454,19 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     self.goToApplePayPaymentAuthorization = paymentAuthorizationData
       .takeWhen(self.applePayButtonTappedSignal)
 
-    let pkPaymentData = self.pkPaymentSignal
-      .map { pkPayment -> PKPaymentData? in
-        guard let displayName = pkPayment.displayName, let network = pkPayment.network else {
-          return nil
-        }
-
-        return (displayName, network, pkPayment.transactionIdentifier)
-      }
-
-    // MARK: - Create Apple Pay Backing
-
-    let applePayStatusSuccess = Signal.combineLatest(
-      self.stripeTokenSignal.skipNil(),
-      self.stripeErrorSignal.filter(isNil),
-      pkPaymentData.skipNil()
-    )
-    .mapConst(PKPaymentAuthorizationStatus.success)
-
-    let applePayStatusFailure = Signal.merge(
-      self.stripeErrorSignal.skipNil().ignoreValues(),
-      self.stripeTokenSignal.filter(isNil).ignoreValues(),
-      pkPaymentData.filter(isNil).ignoreValues()
-    )
-    .mapConst(PKPaymentAuthorizationStatus.failure)
-
-    self.createApplePayBackingStatusProperty <~ Signal.merge(
-      applePayStatusSuccess,
-      applePayStatusFailure
-    )
-
-    let willCreateApplePayBacking = Signal.combineLatest(
-      applePayStatusSuccess,
-      context
-    )
-    .map { $1.isCreating }
-    .filter(isTrue)
-
-    // MARK: - Update Apple Pay Backing
-
-    let applePayParams = Signal.combineLatest(
-      pkPaymentData.skipNil(),
-      self.stripeTokenSignal.skipNil()
-    )
-    .map { paymentData, token in
-      (
-        paymentData.displayName,
-        paymentData.network,
-        paymentData.transactionIdentifier,
-        token
-      )
-    }
-    .map(ApplePayParams.init)
-
+    let applePayStatusSuccess = self.applePaySuccessPipe.output
+    let willCreateApplePayBacking = applePayStatusSuccess
+      .combineLatest(with: context)
+      .map { $1.isCreating }
+      .filter(isTrue)
     let applePayParamsData = Signal.merge(
       initialData.mapConst(nil),
-      applePayParams.wrapInOptional()
+      self.applePayParamsPipe.output.wrapInOptional()
     )
+    let applePaySuccess = self.applePaySuccessPipe
+    let applePayParams = self.applePayParamsPipe
+    self.applePayAuthorization.onSuccess = { applePaySuccess.input.send(value: ()) }
+    self.applePayAuthorization.onParams = { applePayParams.input.send(value: $0) }
 
     // MARK: Pledge Over Time
 
@@ -1002,17 +958,13 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     self.paymentMethodsUseCase.creditCardSelected(with: paymentSourceData)
   }
 
-  private let (pkPaymentSignal, pkPaymentObserver) = Signal<(
-    displayName: String?,
-    network: String?,
-    transactionIdentifier: String
-  ), Never>.pipe()
+  private let applePayAuthorization = ApplePayAuthorization()
+  private let applePaySuccessPipe = Signal<Void, Never>.pipe()
+  private let applePayParamsPipe = Signal<ApplePayParams, Never>.pipe()
   public func paymentAuthorizationDidAuthorizePayment(paymentData: (
-    displayName: String?,
-    network: String?,
-    transactionIdentifier: String
+    displayName: String?, network: String?, transactionIdentifier: String
   )) {
-    self.pkPaymentObserver.send(value: paymentData)
+    self.applePayAuthorization.authorized(paymentData)
   }
 
   private let (paymentAuthorizationDidFinishSignal, paymentAuthorizationDidFinishObserver)
@@ -1041,20 +993,13 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     self.scaFlowCompletedWithResultObserver.send(value: (result, error))
   }
 
-  private let (stripeTokenSignal, stripeTokenObserver) = Signal<String?, Never>.pipe()
-  private let (stripeErrorSignal, stripeErrorObserver) = Signal<Error?, Never>.pipe()
-
   private let (submitButtonTappedSignal, submitButtonTappedObserver) = Signal<Void, Never>.pipe()
   public func submitButtonTapped() {
     self.submitButtonTappedObserver.send(value: ())
   }
 
-  private let createApplePayBackingStatusProperty = MutableProperty<PKPaymentAuthorizationStatus>(.failure)
   public func stripeTokenCreated(token: String?, error: Error?) -> PKPaymentAuthorizationStatus {
-    self.stripeTokenObserver.send(value: token)
-    self.stripeErrorObserver.send(value: error)
-
-    return self.createApplePayBackingStatusProperty.value
+    self.applePayAuthorization.tokenCreated(token: token, error: error)
   }
 
   private let (termsOfUseTappedSignal, termsOfUseTappedObserver) = Signal<HelpType, Never>.pipe()
@@ -1199,4 +1144,23 @@ private func pledgeAmountSummaryViewData(
     shippingAmountHidden: !shippingViewsHidden,
     rewardIsLocalPickup: rewardIsLocalPickup
   )
+}
+
+@MainActor
+private final class ApplePayAuthorization {
+  var onSuccess: (() -> Void)?
+  var onParams: ((ApplePayParams) -> Void)?
+  private var payment: PKPaymentData?
+
+  func authorized(_ data: (displayName: String?, network: String?, transactionIdentifier: String)) {
+    guard let name = data.displayName, let network = data.network else { self.payment = nil; return }
+    self.payment = (name, network, data.transactionIdentifier)
+  }
+
+  func tokenCreated(token: String?, error: Error?) -> PKPaymentAuthorizationStatus {
+    guard error == nil, let token, let payment = self.payment else { return .failure }
+    self.onParams?(ApplePayParams(paymentInstrumentName: payment.displayName, paymentNetwork: payment.network, transactionIdentifier: payment.transactionIdentifier, token: token))
+    self.onSuccess?()
+    return .success
+  }
 }

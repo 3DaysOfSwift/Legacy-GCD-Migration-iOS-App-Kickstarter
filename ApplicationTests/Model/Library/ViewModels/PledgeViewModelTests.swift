@@ -1453,6 +1453,17 @@ final class PledgeViewModelTests: TestCase {
     await self.feature.waitForOperations()
   }
 
+  func testApplePayDoesNotReusePreviousPaymentWhenNewAuthorizationIsIncomplete() {
+    self.vm.inputs.paymentAuthorizationDidAuthorizePayment(paymentData: (
+      displayName: "Visa", network: "Visa", transactionIdentifier: "first"
+    ))
+    XCTAssertEqual(self.vm.inputs.stripeTokenCreated(token: "token", error: nil), .success)
+    self.vm.inputs.paymentAuthorizationDidAuthorizePayment(paymentData: (
+      displayName: nil, network: "Visa", transactionIdentifier: "second"
+    ))
+    XCTAssertEqual(self.vm.inputs.stripeTokenCreated(token: "new-token", error: nil), .failure)
+  }
+
   func testApplePay_WhenStripeTokenCreated_IsNil_ReturnsFailure() async {
     await withEnvironment(apiService: MockService()) {
       let project = Project.template
