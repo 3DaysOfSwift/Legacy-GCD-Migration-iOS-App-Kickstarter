@@ -11,18 +11,62 @@ import XCTest
 final class DiscussionFeatureTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
+  func testNativeRetryPublishesStatusAndSuccessfulComment() async {
+    let provider = ControlledDiscussionProvider()
+    var delays: [TimeInterval] = []
+    let feature = DiscussionFeature(sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }), makeProvider: { provider }, sleep: {
+      delays.append($0)
+    })
+    let original = Comment.template.updatingStatus(to: .failed)
+    var values: [Comment] = []
+    let task = feature.beginRetry(comment: original, commentableID: "project", parentID: nil) { comment, _ in
+      values.append(comment)
+    }
+    await task.value
+    XCTAssertEqual(values.map(\.status), [.retrying, .retrying, .retrySuccess, .success])
+    XCTAssertEqual(values[2].id, original.id)
+    XCTAssertEqual(provider.postInputs.count, 1)
+    XCTAssertEqual(delays.first, 1)
+    XCTAssertEqual(delays.last, 3)
+  }
+
+  func testNativeRetryDoesNotPostAfterSessionChangesDuringDelay() async {
+    let provider = ControlledDiscussionProvider()
+    var resume: CheckedContinuation<Void, Never>?
+    let started = expectation(description: "Retry delay started")
+    let feature = DiscussionFeature(sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }), makeProvider: { provider }, sleep: { _ in
+      await withCheckedContinuation { continuation in
+        resume = continuation
+        started.fulfill()
+      }
+    })
+    var values: [Comment] = []
+    let task = feature.beginRetry(comment: .template, commentableID: "project", parentID: nil) { comment, _ in
+      values.append(comment)
+    }
+    await fulfillment(of: [started], timeout: 2)
+    feature.sessionFeature.sessionChanged()
+    resume?.resume()
+    await task.value
+    XCTAssertEqual(values.count, 1)
+    XCTAssertTrue(provider.postInputs.isEmpty)
+  }
+
   func testAccountSwitchDuringRetryDelayDoesNotSubmitUnderNewAccount() async {
     let provider = ControlledDiscussionProvider()
-    let feature = self.feature(provider)
+    var resume: CheckedContinuation<Void, Never>?
+    let started = expectation(description: "Retry delay started")
+    let feature = DiscussionFeature(
+      sessionFeature: SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) }),
+      makeProvider: { provider },
+      sleep: { _ in await withCheckedContinuation { resume = $0; started.fulfill() } }
+    )
     await withEnvironment(currentUser: .template) {
-      let subscription = feature.retryCommentProducer(
-        erroredComment: Comment.template.updatingStatus(to: .failed),
-        commentableId: "project", parentId: nil
-      ).start()
-      defer { subscription.dispose() }
+      let task = feature.beginRetry(comment: .template, commentableID: "project", parentID: nil) { _, _ in }
+      await fulfillment(of: [started], timeout: 2)
       await withEnvironment(currentUser: nil) {
-        await self.scheduler.advance(by: .seconds(1))
-        await feature.waitForMutations()
+        resume?.resume()
+        await task.value
         XCTAssertTrue(provider.postInputs.isEmpty)
       }
     }

@@ -811,10 +811,9 @@ internal final class CommentRepliesViewModelTests: TestCase {
         let expectedRetryingSuccessComment = expectedFailedComment
           |> \.status .~ .retrySuccess
 
-        XCTAssertEqual(
-          self.loadFailableReplyIntoDataSource.values.last,
-          expectedRetryingSuccessComment,
-          "Comment is replaced with one with a retry success status after elapsed time."
+        XCTAssertTrue(
+          self.loadFailableReplyIntoDataSource.values.contains(expectedRetryingSuccessComment),
+          "Comment passes through the retry success status before completion."
         )
 
         await self.vm.waitForLoads()

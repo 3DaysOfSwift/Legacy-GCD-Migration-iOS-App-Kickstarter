@@ -99,6 +99,8 @@ public final class CommentsViewModel: CommentsViewModelType,
   private(set) var loadingTask: Task<Void, Never>?
   private(set) var contextTask: Task<Void, Never>?
   private var contextRevision = 0
+  private var retryTasks: [String: Task<Void, Never>] = [:]
+  private var latestCommentableID: String?
 
   public init(feature: DiscussionFeature? = nil) {
     let feature = feature ?? AppModel.shared.discussionFeature
@@ -250,9 +252,6 @@ public final class CommentsViewModel: CommentsViewModelType,
     self.beginOrEndRefreshing = isLoading
     self.cellSeparatorHidden = commentsAndProject.map(first).map { $0.count == .zero }
 
-    let commentCellTapped = self.didSelectCommentProperty.signal.skipNil()
-    let erroredCommentTapped = commentCellTapped.filter { comment in comment.status == .failed }
-
     let viewCommentReplies = self.commentCellDidTapViewRepliesProperty.signal
       .skipNil()
       .filter { comment in
@@ -314,32 +313,6 @@ public final class CommentsViewModel: CommentsViewModelType,
         feature.postCommentProducer
       )
 
-    let currentlyRetrying = MutableProperty<Set<String>>([])
-
-    let newErroredCommentTapped = erroredCommentTapped
-      // Check that we are not currently retrying this comment.
-      .filter { [currentlyRetrying] comment in !currentlyRetrying.value.contains(comment.id) }
-      // If we pass the filter add it to our set of retrying comments.
-      .on(value: { [currentlyRetrying] comment in
-        currentlyRetrying.value.insert(comment.id)
-      })
-
-    self.retryingComment <~ commentableId
-      .takePairWhen(newErroredCommentTapped)
-      .map { commentableId, comment in
-        (comment, commentableId, nil)
-      }
-      .flatMap(
-        .concurrent(limit: DiscussionFeature.concurrentCommentLimit),
-        feature.retryCommentProducer
-      )
-      // Once we've emitted a value here the comment has been retried and can be removed.
-      .on(value: { [currentlyRetrying] comment, id in
-        if comment.status == .success || comment.status == .failed {
-          currentlyRetrying.value.remove(id)
-        }
-      })
-
     let footerViewActivityState = Signal
       .combineLatest(isCloseToBottom, isLoading)
       .filter(second >>> isTrue)
@@ -393,6 +366,10 @@ public final class CommentsViewModel: CommentsViewModelType,
       blockAnalytics.receive(project: project)
     }
 
+
+    self.disposables += commentableId.observeValues { [weak self] id in
+      self?.latestCommentableID = id
+    }
 
     self.disposables += projectOrUpdate.observeValues { [weak self] value in
       guard let self else { return }
@@ -462,9 +439,17 @@ public final class CommentsViewModel: CommentsViewModelType,
     self.commentCellDidTapViewRepliesProperty.value = comment
   }
 
-  private let didSelectCommentProperty = MutableProperty<Comment?>(nil)
   public func didSelectComment(_ comment: Comment) {
-    self.didSelectCommentProperty.value = comment
+    guard comment.status == .failed, self.retryTasks[comment.id] == nil,
+          let commentableID = self.latestCommentableID else { return }
+    let task = self.feature.beginRetry(comment: comment, commentableID: commentableID, parentID: nil) { [weak self] replacement, id in
+      self?.retryingComment.value = (replacement, id)
+    }
+    self.retryTasks[comment.id] = task
+    Task { [weak self] in
+      await task.value
+      self?.retryTasks[comment.id] = nil
+    }
   }
 
   fileprivate let commentComposerDidSubmitTextProperty = MutableProperty<String?>(nil)
@@ -524,6 +509,7 @@ public final class CommentsViewModel: CommentsViewModelType,
   deinit {
     self.loadingTask?.cancel()
     self.contextTask?.cancel()
+    self.retryTasks.values.forEach { $0.cancel() }
 
     let feature = self.feature
     let route = self.route
@@ -536,6 +522,7 @@ public final class CommentsViewModel: CommentsViewModelType,
     await self.contextTask?.value
     await self.loadingTask?.value
     await self.feature.waitForMutations()
+    for task in self.retryTasks.values { await task.value }
     await self.blockPresentation.wait()
   }
 

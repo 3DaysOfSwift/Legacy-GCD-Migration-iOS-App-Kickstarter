@@ -159,6 +159,50 @@ public final class DiscussionFeature {
     return self.requestPost(key)
   }
 
+  /// Presents a retry without tying the admitted write to the screen's lifetime.
+  /// Capture the session before the first presentation delay so an old comment
+  /// can never be submitted under a newly signed-in account.
+  @discardableResult
+  func beginRetry(
+    comment: Comment, commentableID: String, parentID: String?,
+    receive: @escaping (Comment, String) -> Void
+  ) -> Task<Void, Never> {
+    let key = PostIdentity(
+      operationID: comment.id, body: comment.body, commentableID: commentableID,
+      parentID: parentID, userID: AppEnvironment.current.currentUser?.id,
+      generation: self.sessionFeature.generation
+    )
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    receive(comment.updatingStatus(to: .retrying), comment.id)
+    return Task { [self] in
+      do {
+        try await self.sleep(1)
+        try Task.checkCancellation()
+        guard self.sessionFeature.isCurrent(userID: key.userID, generation: key.generation) else { return }
+        receive(comment.updatingStatus(to: .retrying), comment.id)
+        let result = await self.requestPost(key).result
+        try await self.sleep(delay)
+        try Task.checkCancellation()
+        guard self.sessionFeature.isCurrent(userID: key.userID, generation: key.generation) else { return }
+        switch result {
+        case let .success(successfulComment):
+          let retrySuccess = successfulComment.updatingStatus(to: .retrySuccess) |> \.id .~ comment.id
+          receive(retrySuccess, comment.id)
+          try await self.sleep(3)
+          try Task.checkCancellation()
+          guard self.sessionFeature.isCurrent(userID: key.userID, generation: key.generation) else { return }
+          receive(successfulComment, comment.id)
+        case .failure(is CancellationError):
+          return
+        case .failure:
+          receive(comment, comment.id)
+        }
+      } catch {
+        // A cancelled presentation must not cancel a write already admitted.
+      }
+    }
+  }
+
   private func requestPost(_ key: PostIdentity) -> Task<Comment, Error> {
     if let task = self.posts[key] { return task }
     let provider = self.makeProvider()
@@ -224,43 +268,6 @@ public final class DiscussionFeature {
     }
     self.blocks[key] = task
     return task
-  }
-
-  // UIKit compatibility only: subscriptions observe Feature-owned work. Disposal
-  // removes delivery, never cancels an admitted write or retries it automatically.
-  // Callers start these producers on MainActor, as their ViewModels require.
-  private func commentResult(
-    operationID: String, body: String, commentableID: String, parentID: String?
-  ) -> SignalProducer<Comment, ErrorEnvelope> {
-    // Capture before a retry's presentation delay, not when its subscription
-    // eventually starts; otherwise an account switch could post old text as a new user.
-    let key = PostIdentity(
-      operationID: operationID, body: body, commentableID: commentableID,
-      parentID: parentID, userID: AppEnvironment.current.currentUser?.id, generation: self.sessionFeature.generation
-    )
-    return SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        guard self.sessionFeature.isCurrent(userID: key.userID, generation: key.generation) else {
-          observer.sendInterrupted()
-          return
-        }
-        let request = self.requestPost(key)
-        let waiter = Task { @MainActor in
-          do {
-            let comment = try await request.value
-            guard !Task.isCancelled else { return }
-            observer.send(value: comment)
-            observer.sendCompleted()
-          } catch is CancellationError {
-            if !Task.isCancelled { observer.sendInterrupted() }
-          } catch {
-            guard !Task.isCancelled else { return }
-            observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
-          }
-        }
-        lifetime.observeEnded { waiter.cancel() }
-      }
-    }
   }
 
   /// Test synchronization for the existing scheduler-driven presentation adapters.
@@ -519,42 +526,6 @@ extension DiscussionFeature {
   static let concurrentCommentLimit: UInt = 5
 
   // MARK: Helpers
-
-  // Preserve optimistic/retry status timing for the existing UIKit screens.
-  func retryCommentProducer(
-    erroredComment comment: Comment,
-    commentableId: String,
-    parentId: String?
-  ) -> SignalProducer<(Comment, String), Never> {
-    // Retry posting the comment.
-    let userID = AppEnvironment.current.currentUser?.id
-    return self.commentResult(
-      operationID: comment.id, body: comment.body, commentableID: commentableId, parentID: parentId
-    )
-    .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-    // Return a producer with the successful comment that is prefixed by a comment indicating that the
-    // retry was successful and then, after a 3 second delay, the actual successful comment is returned.
-    .flatMap { successfulComment -> SignalProducer<Comment, ErrorEnvelope> in
-      let retrySuccessComment = successfulComment.updatingStatus(to: .retrySuccess)
-        |> \.id .~ comment.id // Inject the original errored comment's ID to replace.
-
-      return SignalProducer(value: successfulComment)
-        .ksr_delay(.seconds(3), on: AppEnvironment.current.scheduler)
-        .prefix(value: retrySuccessComment)
-    }
-    // Immediately return a comment in a retrying state when this producer starts.
-    // Delay further emissions by 1 sec.
-    .prefix(
-      SignalProducer(value: comment.updatingStatus(to: .retrying))
-        .ksr_delay(.seconds(1), on: AppEnvironment.current.scheduler)
-        .prefix(value: comment.updatingStatus(to: .retrying))
-    )
-    // If retrying errors again, return the original comment returning it to its errored state.
-    .demoteErrors(replaceErrorWith: comment)
-    .filter { _ in AppEnvironment.current.currentUser?.id == userID }
-    // Return the comment that will be replaced with the ID to find it by.
-    .map { replacementComment in (replacementComment, comment.id) }
-  }
 
   func postCommentProducer(
     project: Project,

@@ -98,6 +98,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   private var composerLoaded = false
   private var latestReplies: ([Comment], Int)?
   private var latestFailableReply: (Comment, String)?
+  private var retryTasks: [String: Task<Void, Never>] = [:]
   private var pageObservation: MainActorObservation?
   private let route = UUID()
   private let disposables = ScopedDisposable(CompositeDisposable())
@@ -121,10 +122,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
 
     let currentUser = self.viewDidLoadProperty.signal
       .map { _ in AppEnvironment.current.currentUser }
-
-    let commentCellTapped = self.didSelectCommentProperty.signal.skipNil()
-    let erroredCommentTapped = commentCellTapped.filter { comment in comment.status == .failed }
-
 
 
     let commentComposerDidSubmitText = self.commentComposerDidSubmitTextProperty.signal.skipNil()
@@ -162,36 +159,6 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
         feature.postCommentProducer
       )
 
-    let currentlyRetrying = MutableProperty<Set<String>>([])
-
-    let newErroredCommentTapped = erroredCommentTapped
-      // Check that we are not currently retrying this comment.
-      .filter { [currentlyRetrying] comment in !currentlyRetrying.value.contains(comment.id) }
-      // If we pass the filter add it to our set of retrying comments.
-      .on(value: { [currentlyRetrying] comment in
-        currentlyRetrying.value.insert(comment.id)
-      })
-
-    let retryingComment = commentableId
-      .takePairWhen(newErroredCommentTapped)
-      .map { commentableId, comment in
-        (comment, commentableId, comment.parentId)
-      }
-      .flatMap(
-        .concurrent(limit: DiscussionFeature.concurrentCommentLimit),
-        feature.retryCommentProducer
-      )
-      // Once we've emitted a value here the comment has been retried and can be removed.
-      .on(value: { [currentlyRetrying] comment, id in
-        if comment.status == .success || comment.status == .failed {
-          currentlyRetrying.value.remove(id)
-        }
-      })
-
-    let failableOrRetriedComment = Signal.merge(retryingComment, failableCommentWithReplacementId)
-
-
-
     // MARK: User Blocking Analytics
 
     let blockAnalytics = self.blockAnalytics
@@ -217,7 +184,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
       if let replies = self.latestReplies { self.onLoadReplies?(replies, project) }
       if let (comment, id) = self.latestFailableReply { self.onLoadFailableReply?(comment, id, project) }
     }
-    self.disposables += failableOrRetriedComment.observeValues { [weak self] comment, id in
+    self.disposables += failableCommentWithReplacementId.observeValues { [weak self] comment, id in
       guard let self else { return }
       self.latestFailableReply = (comment, id)
       if let project = self.latestProject { self.onLoadFailableReply?(comment, id, project) }
@@ -267,9 +234,20 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     }
   }
 
-  private let didSelectCommentProperty = MutableProperty<Comment?>(nil)
   public func didSelectComment(_ comment: Comment) {
-    self.didSelectCommentProperty.value = comment
+    guard comment.status == .failed, self.retryTasks[comment.id] == nil,
+          let project = self.latestProject, self.latestRootComment != nil else { return }
+    let commentableID = self.updateProperty.value.map { encodeToBase64("FreeformPost-\($0.id)") } ?? project.graphID
+    let task = self.feature.beginRetry(comment: comment, commentableID: commentableID, parentID: comment.parentId) { [weak self] replacement, id in
+      guard let self else { return }
+      self.latestFailableReply = (replacement, id)
+      if let project = self.latestProject { self.onLoadFailableReply?(replacement, id, project) }
+    }
+    self.retryTasks[comment.id] = task
+    Task { [weak self] in
+      await task.value
+      self?.retryTasks[comment.id] = nil
+    }
   }
 
   fileprivate let commentComposerDidSubmitTextProperty = MutableProperty<String?>(nil)
@@ -346,6 +324,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
   deinit {
     self.loadingTask?.cancel()
     self.contextTask?.cancel()
+    self.retryTasks.values.forEach { $0.cancel() }
 
     let feature = self.feature
     let route = self.route
@@ -358,6 +337,7 @@ public final class CommentRepliesViewModel: CommentRepliesViewModelType,
     await self.contextTask?.value
     await self.loadingTask?.value
     await self.feature.waitForMutations()
+    for task in self.retryTasks.values { await task.value }
     await self.blockPresentation.wait()
   }
 

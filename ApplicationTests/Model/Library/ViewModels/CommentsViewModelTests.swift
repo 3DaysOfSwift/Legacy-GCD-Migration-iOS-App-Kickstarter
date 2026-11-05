@@ -1026,10 +1026,9 @@ internal final class CommentsViewModelTests: TestCase {
           |> \.body .~ bodyText
           |> \.status .~ .retrySuccess
 
-        XCTAssertEqual(
-          self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
-          expectedRetryingSuccessComment,
-          "Comment is replaced with one with a retrySuccess status after elapsed time."
+        XCTAssertTrue(
+          self.loadCommentsAndProjectIntoDataSourceComments.values.contains { $0.first == expectedRetryingSuccessComment },
+          "Comment passes through the retry success status before completion."
         )
 
         await self.vm.waitForLoads()
