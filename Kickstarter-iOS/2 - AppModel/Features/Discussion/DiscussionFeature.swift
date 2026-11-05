@@ -588,28 +588,44 @@ extension DiscussionFeature {
     body: String
   ) -> SignalProducer<(Comment, String), Never> {
     let userID = AppEnvironment.current.currentUser?.id
-    let failableComment = Comment.failableComment(
-      withId: AppEnvironment.current.uuidType.init().uuidString,
-      date: AppEnvironment.current.dateType.init().date,
-      project: project,
-      parentId: parentId,
-      user: user,
-      body: body
-    )
-    // Post the new comment or comment reply.
-    return self.commentResult(
-      operationID: UUID().uuidString, body: body, commentableID: commentableId, parentID: parentId
-    )
-    .ksr_delay(.seconds(1), on: AppEnvironment.current.scheduler)
-    // Immediately return a failable comment with a generated ID.
-    .prefix(value: failableComment)
-    // If the request errors we return the failableComment in a failed state.
-    .flatMapError { _ in
-      SignalProducer(value: failableComment.updatingStatus(to: .failed))
-        .ksr_delay(.seconds(1), on: AppEnvironment.current.scheduler)
+    let generation = self.sessionFeature.generation
+    return SignalProducer { observer, lifetime in
+      MainActor.assumeIsolated {
+        guard self.sessionFeature.isCurrent(userID: userID, generation: generation) else {
+          observer.sendCompleted()
+          return
+        }
+        let submission = self.beginPost(
+          project: project, commentableID: commentableId, parentID: parentId, user: user, body: body
+        )
+        let request = SignalProducer<Comment, ErrorEnvelope> { requestObserver, requestLifetime in
+          let task = Task { @MainActor in
+            do {
+              let value = try await submission.result.value
+              guard !Task.isCancelled else { return }
+              requestObserver.send(value: value)
+              requestObserver.sendCompleted()
+            } catch is CancellationError {
+              requestObserver.sendInterrupted()
+            } catch {
+              guard !Task.isCancelled else { return }
+              requestObserver.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
+            }
+          }
+          requestLifetime.observeEnded { task.cancel() }
+        }
+        let events = request
+          .ksr_delay(.seconds(1), on: AppEnvironment.current.scheduler)
+          .prefix(value: submission.comment)
+          .flatMapError { _ in
+            SignalProducer(value: submission.comment.updatingStatus(to: .failed))
+              .ksr_delay(.seconds(1), on: AppEnvironment.current.scheduler)
+          }
+          .filter { _ in self.sessionFeature.isCurrent(userID: userID, generation: generation) }
+          .map { ($0, submission.comment.id) }
+        let disposable = events.start(observer)
+        lifetime.observeEnded { disposable.dispose() }
+      }
     }
-    // Once the request completes return the actual comment and replace it by its ID.
-    .filter { _ in AppEnvironment.current.currentUser?.id == userID }
-    .map { commentOrFailable in (commentOrFailable, failableComment.id) }
   }
 }
