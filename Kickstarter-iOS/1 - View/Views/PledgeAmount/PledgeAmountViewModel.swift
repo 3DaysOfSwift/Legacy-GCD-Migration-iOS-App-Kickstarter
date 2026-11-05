@@ -1,8 +1,6 @@
 import KDS
 import KsApi
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 import UIKit
 
 public typealias PledgeAmountData = (amount: Double, min: Double, max: Double, isValid: Bool)
@@ -18,252 +16,104 @@ public enum PledgeAmountStepperConstants {
 }
 
 @MainActor
-public protocol PledgeAmountViewModelInputs {
-  func configureWith(data: PledgeAmountViewConfigData)
-  func doneButtonTapped()
-  func stepperValueChanged(_ value: Double)
-  func textFieldDidEndEditing(_ value: String?)
-  func textFieldValueChanged(_ value: String?)
-  func unavailableAmountChanged(to amount: Double)
-}
+final class PledgeAmountViewModel {
+  enum Event {
+    case currency(String), valid(Bool), selectionFeedback, warningFeedback
+    case color(UIColor), maxErrorHidden(Bool), maxErrorText(String), amount(PledgeAmountData)
+    case noReward(Bool), stepperMax(Double), stepperMin(Double), stepperValue(Double)
+    case endEditing, text(String), title(String)
+  }
+  var onEvent: ((Event) -> Void)?
+  private var config: PledgeAmountViewConfigData?
+  private var minimum: Double = 0
+  private var baseMaximum: Double = 0
+  private var unavailableAmount: Double = 0
+  private var hasUnavailableAmount = false
+  private var value: Double = 0
+  private var previousValidity: Bool?
+  private var previousStepperValue: Double?
+  private var lastStepperInput: Double?
+  private var previousMaxErrorText: String?
 
-@MainActor
-public protocol PledgeAmountViewModelOutputs {
-  var currency: Signal<String, Never> { get }
-  var doneButtonIsEnabled: Signal<Bool, Never> { get }
-  var generateSelectionFeedback: Signal<Void, Never> { get }
-  var generateNotificationWarningFeedback: Signal<Void, Never> { get }
-  var labelTextColor: Signal<UIColor, Never> { get }
-  var maxPledgeAmountErrorLabelIsHidden: Signal<Bool, Never> { get }
-  var maxPledgeAmountErrorLabelText: Signal<String, Never> { get }
-  var plusSignLabelHidden: Signal<Bool, Never> { get }
-  var notifyDelegateAmountUpdated: Signal<PledgeAmountData, Never> { get }
-  var stepperMaxValue: Signal<Double, Never> { get }
-  var stepperMinValue: Signal<Double, Never> { get }
-  var stepperValue: Signal<Double, Never> { get }
-  var subTitleLabelHidden: Signal<Bool, Never> { get }
-  var textFieldIsFirstResponder: Signal<Bool, Never> { get }
-  var textFieldTextColor: Signal<UIColor?, Never> { get }
-  var textFieldValue: Signal<String, Never> { get }
-  var titleLabelText: Signal<String, Never> { get }
-}
+  func configureWith(data: PledgeAmountViewConfigData) {
+    self.config = data
+    let (minValue, maxValue) = minAndMaxPledgeAmount(forProject: data.project, reward: data.reward)
+    self.minimum = data.reward.isNoReward ? minValue : 0
+    self.baseMaximum = maxValue
+    if !self.hasUnavailableAmount { self.unavailableAmount = 0 }
+    self.value = initialPledgeAmount(from: data.project, currentAmount: data.currentAmount, minValue: self.minimum)
+    self.onEvent?(.currency(currencySymbol(forCurrencyCode: data.project.stats.projectCurrency).trimmed()))
+    self.onEvent?(.stepperMax(PledgeAmountStepperConstants.max))
+    self.onEvent?(.noReward(data.reward.isNoReward))
+    self.onEvent?(.title(data.reward.isNoReward ? Strings.Your_pledge_amount() : Strings.Bonus_support()))
+    self.publishText()
+    self.publishAmount()
+  }
 
-@MainActor
-public protocol PledgeAmountViewModelType {
-  var inputs: PledgeAmountViewModelInputs { get }
-  var outputs: PledgeAmountViewModelOutputs { get }
-}
+  func doneButtonTapped() { self.onEvent?(.endEditing) }
 
-@MainActor
-public final class PledgeAmountViewModel: PledgeAmountViewModelType,
-  PledgeAmountViewModelInputs, PledgeAmountViewModelOutputs {
-  public init() {
-    let configData = self.projectAndRewardProperty.signal
-      .skipNil()
+  func stepperValueChanged(_ value: Double) {
+    self.value = value
+    self.publishText()
+    self.publishAmount()
+    self.lastStepperInput = value
+    if self.config != nil { self.publishFeedback(for: value, minValue: min(self.minimum, value)) }
+  }
 
-    let project = configData
-      .map(first)
+  func textFieldDidEndEditing(_ value: String?) {
+    guard let value, let number = Double(value) else { return }
+    self.value = pledgeAmountViewModelRounded(number, places: 2)
+    self.publishText()
+    self.publishAmount()
+  }
 
-    let reward = configData
-      .map(second)
+  func textFieldValueChanged(_ value: String?) {
+    self.value = Double(value ?? "") ?? 0
+    self.publishAmount()
+  }
 
-    let currentAmount = configData
-      .map(third)
+  func unavailableAmountChanged(to amount: Double) {
+    self.hasUnavailableAmount = true
+    self.unavailableAmount = amount
+    self.publishAmount()
+  }
 
-    let minAndMax = Signal.combineLatest(
-      project,
-      reward
-    )
-    .map { project, reward -> (Double, Double) in
-      let (min, max) = minAndMaxPledgeAmount(forProject: project, reward: reward)
+  private func publishFeedback(for value: Double, minValue: Double) {
+    self.onEvent?(minValue < value && value < PledgeAmountStepperConstants.max ? .selectionFeedback : .warningFeedback)
+  }
 
-      // Minimum amount for regular rewards is zero as this is the "bonus support" amount.
-      return (reward.isNoReward ? min : 0, max)
+  private func publishText() {
+    let places = self.value.truncatingRemainder(dividingBy: 1) == 0 ? 0 : 2
+    self.onEvent?(.text(String(format: "%.*f", places, self.value)))
+  }
+
+  private func publishAmount() {
+    guard let config else { return }
+    let maxValue = self.baseMaximum - self.unavailableAmount
+    let valid = self.minimum <= self.value && self.value <= maxValue
+    let rounded = pledgeAmountViewModelRounded(self.value, places: 2)
+    let stepperMinimum = min(self.minimum, self.value)
+    self.onEvent?(.stepperMin(stepperMinimum))
+    // Preserve the previous stepper feedback when its dynamic minimum is recalculated.
+    if let lastStepperInput { self.publishFeedback(for: lastStepperInput, minValue: stepperMinimum) }
+    self.onEvent?(.amount((rounded, self.minimum, maxValue, valid)))
+    self.onEvent?(.maxErrorHidden(self.value <= maxValue))
+    let maxPledge = Format.currency(maxValue, currencyCode: config.project.statsCurrency, omitCurrencyCode: false)
+    let errorText = Strings.Enter_an_amount_less_than_max_pledge(max_pledge: maxPledge)
+    if self.previousMaxErrorText != errorText {
+      self.previousMaxErrorText = errorText
+      self.onEvent?(.maxErrorText(errorText))
     }
-
-    let minValue = minAndMax
-      .map(first)
-
-    let unavailableAmount = Signal.merge(
-      self.projectAndRewardProperty.signal.mapConst(0)
-        .take(until: self.unavailableAmountChangedProperty.signal.ignoreValues()),
-      self.unavailableAmountChangedProperty.signal
-    )
-
-    let maxValue = minAndMax
-      .map(second)
-      .combineLatest(with: unavailableAmount)
-      .map(-)
-
-    let textFieldInputValue = self.textFieldDidEndEditingProperty.signal
-      .skipNil()
-      .map(Double.init)
-      .skipNil()
-      .map { pledgeAmountViewModelRounded($0, places: 2) }
-
-    let initialValue = Signal.combineLatest(
-      project,
-      currentAmount,
-      minValue
-    )
-    .map(initialPledgeAmount)
-
-    let stepperValue = Signal.merge(
-      initialValue,
-      textFieldInputValue,
-      self.stepperValueProperty.signal
-    )
-
-    self.textFieldValue = stepperValue
-      .map { value in
-        // Adds trailing zeros if the pledgeAmountViewModelRounded number has non-zero remainder
-        // Removes trailing zeros and the decimal point otherwise
-        // Example:
-        //  25 => 25
-        //  25. => 25
-        //  25.0  => 25
-        //  25.00 => 25
-        //  25.1 => 25.10
-        //  25.10 = 25.10
-        let numberOfDecimalPlaces = value.truncatingRemainder(dividingBy: 1) == 0 ? 0 : 2
-        return String(format: "%.\(numberOfDecimalPlaces)f", value)
-      }
-
-    self.currency = project
-      .map {
-        currencySymbol(forCurrencyCode: $0.stats.projectCurrency).trimmed()
-      }
-
-    let textFieldValue = self.textFieldValueProperty.signal
-      .map { $0.coalesceWith("") }
-      .map(Double.init)
-      .map { $0.coalesceWith(0) }
-
-    let updatedValue = Signal.combineLatest(
-      minValue,
-      maxValue,
-      Signal.merge(
-        stepperValue,
-        textFieldValue.signal
-      )
-    )
-
-    self.stepperMinValue = updatedValue
-      .map { ($0.0, $0.2) }
-      .map(min)
-
-    self.stepperMaxValue = minValue.mapConst(PledgeAmountStepperConstants.max)
-
-    let stepperValueChanged = Signal.combineLatest(
-      self.stepperMinValue.signal,
-      self.stepperMaxValue.signal,
-      self.stepperValueProperty.signal
-    )
-
-    self.generateSelectionFeedback = stepperValueChanged
-      .filter { min, max, value in min < value && value < max }
-      .ignoreValues()
-
-    self.generateNotificationWarningFeedback = stepperValueChanged
-      .filter { min, max, value in
-        value <= min || max <= value
-      }
-      .ignoreValues()
-
-    self.notifyDelegateAmountUpdated = updatedValue
-      .map { min, max, value in
-        (pledgeAmountViewModelRounded(value, places: 2), min, max, min <= value && value <= max)
-      }
-
-    self.maxPledgeAmountErrorLabelIsHidden = updatedValue
-      .map { _, max, value in value <= max }
-
-    let isValueValid = self.notifyDelegateAmountUpdated
-      .map { $0.3 }
-      .skipRepeats()
-
-    self.maxPledgeAmountErrorLabelText = updatedValue
-      .map(second)
-      .combineLatest(with: project)
-      .map { max, project in
-        let maxPledge = Format.currency(max, currencyCode: project.statsCurrency, omitCurrencyCode: false)
-
-        return Strings.Enter_an_amount_less_than_max_pledge(max_pledge: maxPledge)
-      }
-      .skipRepeats()
-
-    self.doneButtonIsEnabled = isValueValid
-
-    let textColor = isValueValid
-      .map { $0 ? LegacyColors.ksr_create_700.uiColor() : LegacyColors.ksr_alert.uiColor() }
-
-    self.labelTextColor = textColor
-
-    self.stepperValue = self.notifyDelegateAmountUpdated.map { $0.0 }.skipRepeats()
-
-    self.textFieldIsFirstResponder = self.doneButtonTappedProperty.signal
-      .mapConst(false)
-
-    self.textFieldTextColor = textColor
-      .wrapInOptional()
-
-    self.plusSignLabelHidden = reward.map(\.isNoReward)
-    self.subTitleLabelHidden = reward.map(\.isNoReward)
-    self.titleLabelText = reward.map(\.isNoReward).map {
-      $0 ? Strings.Your_pledge_amount() : Strings.Bonus_support()
+    if self.previousValidity != valid {
+      self.previousValidity = valid
+      self.onEvent?(.valid(valid))
+      self.onEvent?(.color(valid ? LegacyColors.ksr_create_700.uiColor() : LegacyColors.ksr_alert.uiColor()))
+    }
+    if self.previousStepperValue != rounded {
+      self.previousStepperValue = rounded
+      self.onEvent?(.stepperValue(rounded))
     }
   }
-
-  private let projectAndRewardProperty = MutableProperty<PledgeAmountViewConfigData?>(nil)
-  public func configureWith(data: PledgeAmountViewConfigData) {
-    self.projectAndRewardProperty.value = data
-  }
-
-  private let doneButtonTappedProperty = MutableProperty(())
-  public func doneButtonTapped() {
-    self.doneButtonTappedProperty.value = ()
-  }
-
-  private let stepperValueProperty = MutableProperty<Double>(0)
-  public func stepperValueChanged(_ value: Double) {
-    self.stepperValueProperty.value = value
-  }
-
-  private let textFieldDidEndEditingProperty = MutableProperty<String?>(nil)
-  public func textFieldDidEndEditing(_ value: String?) {
-    self.textFieldDidEndEditingProperty.value = value
-  }
-
-  private let textFieldValueProperty = MutableProperty<String?>(nil)
-  public func textFieldValueChanged(_ value: String?) {
-    self.textFieldValueProperty.value = value
-  }
-
-  private let unavailableAmountChangedProperty = MutableProperty<Double>(0)
-  public func unavailableAmountChanged(to amount: Double) {
-    self.unavailableAmountChangedProperty.value = amount
-  }
-
-  public let currency: Signal<String, Never>
-  public let doneButtonIsEnabled: Signal<Bool, Never>
-  public let generateSelectionFeedback: Signal<Void, Never>
-  public let generateNotificationWarningFeedback: Signal<Void, Never>
-  public let labelTextColor: Signal<UIColor, Never>
-  public let maxPledgeAmountErrorLabelIsHidden: Signal<Bool, Never>
-  public let maxPledgeAmountErrorLabelText: Signal<String, Never>
-  public let notifyDelegateAmountUpdated: Signal<PledgeAmountData, Never>
-  public let plusSignLabelHidden: Signal<Bool, Never>
-  public let stepperMaxValue: Signal<Double, Never>
-  public let stepperMinValue: Signal<Double, Never>
-  public let stepperValue: Signal<Double, Never>
-  public let subTitleLabelHidden: Signal<Bool, Never>
-  public let textFieldTextColor: Signal<UIColor?, Never>
-  public let textFieldIsFirstResponder: Signal<Bool, Never>
-  public let textFieldValue: Signal<String, Never>
-  public let titleLabelText: Signal<String, Never>
-
-  public var inputs: PledgeAmountViewModelInputs { return self }
-  public var outputs: PledgeAmountViewModelOutputs { return self }
 }
 
 // MARK: - Functions

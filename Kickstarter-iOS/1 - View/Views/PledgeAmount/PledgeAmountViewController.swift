@@ -17,7 +17,7 @@ final class PledgeAmountViewController: UIViewController {
   // MARK: - Properties
 
   public weak var delegate: PledgeAmountViewControllerDelegate?
-  private let viewModel: PledgeAmountViewModelType = PledgeAmountViewModel()
+  private let viewModel = PledgeAmountViewModel()
 
   private lazy var adaptableStackView: UIStackView = { UIStackView(frame: .zero) }()
   private lazy var amountInputView: AmountInputView = { AmountInputView(frame: .zero) }()
@@ -148,36 +148,30 @@ final class PledgeAmountViewController: UIViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.amountInputView.doneButton.rac.enabled = self.viewModel.outputs.doneButtonIsEnabled
-    self.amountInputView.label.rac.text = self.viewModel.outputs.currency
-    self.amountInputView.label.rac.textColor = self.viewModel.outputs.labelTextColor
-    self.amountInputView.textField.rac.isFirstResponder = self.viewModel.outputs.textFieldIsFirstResponder
-    self.amountInputView.textField.rac.text = self.viewModel.outputs.textFieldValue
-    self.amountInputView.textField.rac.textColor = self.viewModel.outputs.textFieldTextColor
-    self.maxPledgeAmountErrorLabel.rac.hidden = self.viewModel.outputs.maxPledgeAmountErrorLabelIsHidden
-    self.maxPledgeAmountErrorLabel.rac.text = self.viewModel.outputs.maxPledgeAmountErrorLabelText
-    self.plusSignLabel.rac.hidden = self.viewModel.outputs.plusSignLabelHidden
-    self.stepper.rac.maximumValue = self.viewModel.outputs.stepperMaxValue
-    self.stepper.rac.minimumValue = self.viewModel.outputs.stepperMinValue
-    self.stepper.rac.value = self.viewModel.outputs.stepperValue
-    self.subtitleLabel.rac.hidden = self.viewModel.outputs.subTitleLabelHidden
-    self.titleLabel.rac.text = self.viewModel.outputs.titleLabelText
-
-    self.viewModel.outputs.generateSelectionFeedback
-      .observeForUI()
-      .observeValues { generateSelectionFeedback() }
-
-    self.viewModel.outputs.generateNotificationWarningFeedback
-      .observeForUI()
-      .observeValues { generateNotificationWarningFeedback() }
-
-    self.viewModel.outputs.notifyDelegateAmountUpdated
-      .observeForUI()
-      .observeValues { [weak self] data in
-        guard let self = self else { return }
-
-        self.delegate?.pledgeAmountViewController(self, didUpdateWith: data)
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .currency(value): self.amountInputView.label.text = value
+      case let .valid(value): self.amountInputView.doneButton.isEnabled = value
+      case .selectionFeedback: generateSelectionFeedback()
+      case .warningFeedback: generateNotificationWarningFeedback()
+      case let .color(value):
+        self.amountInputView.label.textColor = value
+        self.amountInputView.textField.textColor = value
+      case let .maxErrorHidden(value): self.maxPledgeAmountErrorLabel.isHidden = value
+      case let .maxErrorText(value): self.maxPledgeAmountErrorLabel.text = value
+      case let .amount(value): self.delegate?.pledgeAmountViewController(self, didUpdateWith: value)
+      case let .noReward(value):
+        self.plusSignLabel.isHidden = value
+        self.subtitleLabel.isHidden = value
+      case let .stepperMax(value): self.stepper.maximumValue = value
+      case let .stepperMin(value): self.stepper.minimumValue = value
+      case let .stepperValue(value): self.stepper.value = value
+      case .endEditing: self.amountInputView.textField.resignFirstResponder()
+      case let .text(value): self.amountInputView.textField.text = value
+      case let .title(value): self.titleLabel.text = value
       }
+    }
   }
 
   override func didMove(toParent _: UIViewController?) {
@@ -187,27 +181,27 @@ final class PledgeAmountViewController: UIViewController {
   // MARK: - Configuration
 
   func configureWith(value: PledgeAmountViewConfigData) {
-    self.viewModel.inputs.configureWith(data: value)
+    self.viewModel.configureWith(data: value)
   }
 
   // MARK: - Actions
 
   @objc func doneButtonTapped(_: UIButton) {
-    self.viewModel.inputs.doneButtonTapped()
+    self.viewModel.doneButtonTapped()
   }
 
   @objc func stepperValueChanged(_ stepper: UIStepper) {
-    self.viewModel.inputs.stepperValueChanged(stepper.value)
+    self.viewModel.stepperValueChanged(stepper.value)
   }
 
   @objc func textFieldDidChange(_ textField: UITextField) {
-    self.viewModel.inputs.textFieldValueChanged(textField.text)
+    self.viewModel.textFieldValueChanged(textField.text)
   }
 
   // MARK: - Accessors
 
   func unavailableAmountChanged(to amount: Double) {
-    self.viewModel.inputs.unavailableAmountChanged(to: amount)
+    self.viewModel.unavailableAmountChanged(to: amount)
   }
 }
 
@@ -230,7 +224,7 @@ extension PledgeAmountViewController: UITextFieldDelegate {
   }
 
   func textFieldDidEndEditing(_ textField: UITextField, reason _: UITextField.DidEndEditingReason) {
-    self.viewModel.inputs.textFieldDidEndEditing(textField.text)
+    self.viewModel.textFieldDidEndEditing(textField.text)
   }
 }
 
