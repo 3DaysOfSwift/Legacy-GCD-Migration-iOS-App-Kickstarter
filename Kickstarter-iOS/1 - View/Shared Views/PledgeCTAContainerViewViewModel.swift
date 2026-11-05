@@ -27,11 +27,11 @@ public protocol PledgeCTAContainerViewViewModelInputs {
 }
 
 @MainActor
-public protocol PledgeCTAContainerViewViewModelOutputs {
+public protocol PledgeCTAContainerViewViewModelOutputs: AnyObject {
   var activityIndicatorIsHidden: Signal<Bool, Never> { get }
   var buttonStyleType: Signal<ButtonStyleType, Never> { get }
   var buttonTitleText: Signal<String, Never> { get }
-  var notifyDelegateCTATapped: Signal<PledgeStateCTAType, Never> { get }
+  var onCTATapped: ((PledgeStateCTAType) -> Void)? { get set }
   var pledgeCTAButtonIsHidden: Signal<Bool, Never> { get }
   var watchesLabelIsHidden: Signal<Bool, Never> { get }
   var prelaunchCTASaved: Signal<PledgeCTAPrelaunchState, Never> { get }
@@ -102,9 +102,6 @@ public final class PledgeCTAContainerViewViewModel: PledgeCTAContainerViewViewMo
       isLoading.filter(isFalse).ignoreValues()
     )
 
-    self.notifyDelegateCTATapped = self.pledgeState.signal.skipNil()
-      .takeWhen(self.pledgeCTAButtonTappedProperty.signal)
-
     self.retryStackViewIsHidden = inError
       .map(isFalse)
       .takeWhen(updateButtonStates)
@@ -163,31 +160,25 @@ public final class PledgeCTAContainerViewViewModel: PledgeCTAContainerViewViewMo
     self.subtitleText = Signal.combineLatest(project, self.pledgeState.signal.skipNil())
       .map(subtitle(project:pledgeState:))
 
-    let pledgeTypeAndProject = Signal.combineLatest(self.pledgeState.signal.skipNil(), project)
 
-    // Tracking
-    pledgeTypeAndProject
-      .takeWhen(self.pledgeCTAButtonTappedProperty.signal)
-      .observeValues { state, project in
-
-        AppEnvironment.current.ksrAnalytics.trackPledgeCTAButtonClicked(
-          stateType: state,
-          project: project
-        )
-      }
   }
 
+  private var latestProject: Project?
   private var pledgeState = MutableProperty<PledgeStateCTAType?>(nil)
   private var prelaunchState = MutableProperty<PledgeCTAPrelaunchState?>(nil)
 
   fileprivate let configData = MutableProperty<PledgeCTAContainerViewData?>(nil)
   public func configureWith(value: PledgeCTAContainerViewData) {
+    if case let .project(project) = value { self.latestProject = project }
     self.configData.value = value
   }
 
-  fileprivate let pledgeCTAButtonTappedProperty = MutableProperty(())
   public func pledgeCTAButtonTapped() {
-    self.pledgeCTAButtonTappedProperty.value = ()
+    guard let state = self.pledgeState.value else { return }
+    self.onCTATapped?(state)
+    if let project = self.latestProject {
+      AppEnvironment.current.ksrAnalytics.trackPledgeCTAButtonClicked(stateType: state, project: project)
+    }
   }
 
   fileprivate let savedProjectFromNotificationProperty = MutableProperty<(Project, Backing?)?>(nil)
@@ -203,7 +194,7 @@ public final class PledgeCTAContainerViewViewModel: PledgeCTAContainerViewViewMo
   public let buttonStyleType: Signal<ButtonStyleType, Never>
   public let buttonTitleText: Signal<String, Never>
   public let prelaunchCTASaved: Signal<PledgeCTAPrelaunchState, Never>
-  public let notifyDelegateCTATapped: Signal<PledgeStateCTAType, Never>
+  public var onCTATapped: ((PledgeStateCTAType) -> Void)?
   public let pledgeCTAButtonIsHidden: Signal<Bool, Never>
   public let watchesLabelIsHidden: Signal<Bool, Never>
   public let retryStackViewIsHidden: Signal<Bool, Never>

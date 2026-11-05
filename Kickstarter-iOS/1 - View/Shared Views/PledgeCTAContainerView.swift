@@ -171,9 +171,7 @@ final class PledgeCTAContainerView: UIView {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.notifyDelegateCTATapped
-      .observeForUI()
-      .observeValues { [weak self] state in
+    self.viewModel.outputs.onCTATapped = { [weak self] state in
         self?.delegate?.pledgeCTAButtonTapped(with: state)
       }
 

@@ -33,7 +33,7 @@ internal final class PledgeCTAContainerViewViewModelTests: TestCase {
     self.vm.outputs.activityIndicatorIsHidden.observe(self.activityIndicatorIsHidden.observer)
     self.vm.outputs.buttonStyleType.observe(self.buttonStyleType.observer)
     self.vm.outputs.buttonTitleText.observe(self.buttonTitleText.observer)
-    self.vm.outputs.notifyDelegateCTATapped.observe(self.notifyDelegateCTATapped.observer)
+    self.vm.outputs.onCTATapped = { [weak self] state in self?.notifyDelegateCTATapped.observer.send(value: state) }
     self.vm.outputs.pledgeCTAButtonIsHidden.observe(self.pledgeCTAButtonIsHidden.observer)
     self.vm.outputs.prelaunchCTASaved.observe(self.prelaunchCTASaved.observer)
     self.vm.outputs.retryStackViewIsHidden.observe(self.pledgeRetryButtonIsHidden.observer)
