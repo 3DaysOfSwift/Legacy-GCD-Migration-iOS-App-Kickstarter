@@ -305,7 +305,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     // Push notifications
 
     let pushNotificationsPreviouslyAuthorized = self.applicationLaunchOptionsProperty.signal
-      .flatMap { _ in AppEnvironment.current.pushRegistrationType.hasAuthorizedNotifications() }
+      .flatMap { _ in pushAuthorizationStatusProducer() }
 
     let pushTokenRegistrationStartedEvents = Signal.merge(
       self.didAcceptReceivingRemoteNotificationsProperty.signal,
@@ -314,7 +314,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
         .ignoreValues()
     )
     .flatMap {
-      AppEnvironment.current.pushRegistrationType.register(for: [.alert, .sound, .badge])
+      pushRegistrationProducer()
         .materialize()
     }
 
@@ -543,7 +543,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       self.applicationWillEnterForegroundProperty.signal,
       self.applicationLaunchOptionsProperty.signal.ignoreValues()
     )
-    .flatMap { AppEnvironment.current.pushRegistrationType.hasAuthorizedNotifications() }
+    .flatMap { pushAuthorizationStatusProducer() }
     .filter(isTrue)
     .mapConst(0)
 
@@ -1122,4 +1122,27 @@ private func statsigSDKKey() -> StatsigClientSDKKey {
   }
 
   return .stagingTier(Secrets.Statsig.sandbox)
+}
+
+// Temporary presentation adapters; the registration service itself owns native tasks.
+@MainActor
+private func pushAuthorizationStatusProducer() -> SignalProducer<Bool, Never> {
+  SignalProducer { observer, lifetime in
+    let task = AppEnvironment.current.pushRegistrationType.hasAuthorizedNotifications { value in
+      observer.send(value: value)
+      observer.sendCompleted()
+    }
+    lifetime.observeEnded { task?.cancel() }
+  }
+}
+
+@MainActor
+private func pushRegistrationProducer() -> SignalProducer<Bool, Never> {
+  SignalProducer { observer, lifetime in
+    let task = AppEnvironment.current.pushRegistrationType.register(for: [.alert, .sound, .badge]) { value in
+      observer.send(value: value)
+      observer.sendCompleted()
+    }
+    lifetime.observeEnded { task?.cancel() }
+  }
 }

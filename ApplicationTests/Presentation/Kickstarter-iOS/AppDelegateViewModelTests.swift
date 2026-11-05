@@ -146,7 +146,7 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testResetApplicationIconBadgeNumber_registeredForPushNotifications_WillEnterForeground() async {
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: true)
+    MockPushRegistration.authorizedValue = true
 
     await withEnvironment(pushRegistrationType: MockPushRegistration.self) {
       self.applicationIconBadgeNumber.assertValues([])
@@ -158,7 +158,7 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testResetApplicationIconBadgeNumber_notRegisteredForPushNotifications_WillEnterForeground() async {
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
+    MockPushRegistration.authorizedValue = false
 
     await withEnvironment(pushRegistrationType: MockPushRegistration.self) {
       self.applicationIconBadgeNumber.assertValues([])
@@ -170,7 +170,7 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testResetApplicationIconBadgeNumber_registeredForPushNotifications_AppLaunch() async {
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: true)
+    MockPushRegistration.authorizedValue = true
 
     await withEnvironment(pushRegistrationType: MockPushRegistration.self) {
       self.applicationIconBadgeNumber.assertValues([])
@@ -182,7 +182,7 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testResetApplicationIconBadgeNumber_notRegisteredForPushNotifications_AppLaunch() async {
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
+    MockPushRegistration.authorizedValue = false
 
     await withEnvironment(pushRegistrationType: MockPushRegistration.self) {
       self.applicationIconBadgeNumber.assertValues([])
@@ -1008,8 +1008,8 @@ final class AppDelegateViewModelTests: TestCase {
   func testRegisterPushNotifications_Prompted() async {
     let segmentClient = MockTrackingClient()
 
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
-    MockPushRegistration.registerProducer = .init(value: true)
+    MockPushRegistration.authorizedValue = false
+    MockPushRegistration.registerValue = true
 
     await withEnvironment(
       apiService: MockService(),
@@ -1041,8 +1041,8 @@ final class AppDelegateViewModelTests: TestCase {
   func testRegisterPushNotifications_PreviouslyAccepted() async {
     let segmentClient = MockTrackingClient()
 
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: true)
-    MockPushRegistration.registerProducer = .init(value: true)
+    MockPushRegistration.authorizedValue = true
+    MockPushRegistration.registerValue = true
 
     await withEnvironment(
       apiService: MockService(),
@@ -1072,8 +1072,8 @@ final class AppDelegateViewModelTests: TestCase {
 
   func testRegisterPushNotifications_WhenNotPreviouslyAccepted() async {
     let segmentClient = MockTrackingClient()
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: true)
-    MockPushRegistration.registerProducer = .init(value: true)
+    MockPushRegistration.authorizedValue = true
+    MockPushRegistration.registerValue = true
 
     await withEnvironment(
       apiService: MockService(),
@@ -1104,8 +1104,8 @@ final class AppDelegateViewModelTests: TestCase {
   func testTrackingPushAuthorizationOptIn() async {
     let segmentClient = MockTrackingClient()
 
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
-    MockPushRegistration.registerProducer = .init(value: true)
+    MockPushRegistration.authorizedValue = false
+    MockPushRegistration.registerValue = true
 
     await withEnvironment(
       currentUser: .template,
@@ -2051,7 +2051,7 @@ final class AppDelegateViewModelTests: TestCase {
     )
 
     userDefaults.set(["message"], forKey: "com.kickstarter.KeyValueStoreType.deniedNotificationContexts")
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
+    MockPushRegistration.authorizedValue = false
 
     await withEnvironment(
       currentUser: .template,
@@ -2516,8 +2516,8 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testTriggerOnboardingFlow_WhenUserHasNotDeterminedPushNotificationsOrATTPermissions() async {
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
-    MockPushRegistration.registerProducer = .init(value: true)
+    MockPushRegistration.authorizedValue = false
+    MockPushRegistration.registerValue = true
 
     let appTrackingTransparency = MockAppTrackingTransparency()
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
@@ -2551,8 +2551,8 @@ final class AppDelegateViewModelTests: TestCase {
 
   func testTriggerOnboardingFlow_IsNotCalled_WhenUserHasAuthorizedPushNotifications_ButNotATTPermissions(
   ) async {
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: true)
-    MockPushRegistration.registerProducer = .init(value: true)
+    MockPushRegistration.authorizedValue = true
+    MockPushRegistration.registerValue = true
 
     let appTrackingTransparency = MockAppTrackingTransparency()
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = false
@@ -2577,8 +2577,8 @@ final class AppDelegateViewModelTests: TestCase {
 
   func testTriggerOnboardingFlow_IsNotCalled_WhenUserHasAuthorizedATTPermissions_ButNotPushNotifications(
   ) async {
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
-    MockPushRegistration.registerProducer = .init(value: false)
+    MockPushRegistration.authorizedValue = false
+    MockPushRegistration.registerValue = false
 
     let appTrackingTransparency = MockAppTrackingTransparency()
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
@@ -2602,8 +2602,8 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testTriggerOnboardingFlow_IsNotCalled_WhenOnboardingFlowFeatureFlagDisabled() async {
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
-    MockPushRegistration.registerProducer = .init(value: false)
+    MockPushRegistration.authorizedValue = false
+    MockPushRegistration.registerValue = false
 
     let appTrackingTransparency = MockAppTrackingTransparency()
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = false
@@ -2627,8 +2627,8 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testTriggerOnboardingFlow_IsNotCalled_UserDefaultsHasSeenOnboardingIsTrue() async {
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
-    MockPushRegistration.registerProducer = .init(value: true)
+    MockPushRegistration.authorizedValue = false
+    MockPushRegistration.registerValue = true
 
     let appTrackingTransparency = MockAppTrackingTransparency()
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
@@ -2663,8 +2663,8 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testTriggerOnboardingFlow_WhenUserDefaultsHasSeenOnboardingIsFalse() async {
-    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
-    MockPushRegistration.registerProducer = .init(value: true)
+    MockPushRegistration.authorizedValue = false
+    MockPushRegistration.registerValue = true
 
     let appTrackingTransparency = MockAppTrackingTransparency()
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true

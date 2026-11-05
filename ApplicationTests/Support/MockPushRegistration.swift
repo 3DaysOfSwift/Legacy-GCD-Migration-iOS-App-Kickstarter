@@ -1,18 +1,17 @@
 @testable import Kickstarter_iOS
 import Foundation
-
-import ReactiveSwift
 import UserNotifications
 
+@MainActor
 public struct MockPushRegistration: PushRegistrationType {
-  static var registerProducer: SignalProducer<Bool, Never> = .empty
-  static var hasAuthorizedNotificationsProducer: SignalProducer<Bool, Never> = .empty
-
-  public static func register(for _: UNAuthorizationOptions) -> SignalProducer<Bool, Never> {
-    return self.registerProducer
+  static var registerValue: Bool?
+  static var authorizedValue: Bool?
+  public static func register(for _: UNAuthorizationOptions, completion: @escaping @MainActor (Bool) -> Void) -> Task<Void, Never>? {
+    if let value = self.registerValue { completion(value) }
+    return nil
   }
-
-  public static func hasAuthorizedNotifications() -> SignalProducer<Bool, Never> {
-    return self.hasAuthorizedNotificationsProducer
+  public static func hasAuthorizedNotifications(completion: @escaping @MainActor (Bool) -> Void) -> Task<Void, Never>? {
+    if let value = self.authorizedValue { completion(value) }
+    return nil
   }
 }
