@@ -1,5 +1,5 @@
 {
-  "originHash" : "d5dc67a824d65b52ae4522970c8ffd97a6e20103f2c4c7feca783f0f74a2838f",
+  "originHash" : "20403147357f479726d85c4c4077c086b9b40ca08f0bedbce665f2d63bfa9950",
   "pins" : [
     {
       "identity" : "apollo-ios",
@@ -20,30 +20,12 @@
       }
     },
     {
-      "identity" : "kickstarter-reactiveextensions",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kickstarter/Kickstarter-ReactiveExtensions",
-      "state" : {
-        "revision" : "36984ccbdbf1874728f801f29bc0e41706efdd0a",
-        "version" : "2.0.0"
-      }
-    },
-    {
       "identity" : "lrucache",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/nicklockwood/LRUCache.git",
       "state" : {
         "revision" : "0d91406ecd4d6c1c56275866f00508d9aeacc92a",
         "version" : "1.2.0"
-      }
-    },
-    {
-      "identity" : "reactiveswift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ReactiveCocoa/ReactiveSwift",
-      "state" : {
-        "revision" : "a44317ce38b5bcce173b03f5d36cfdc939e1768b",
-        "version" : "7.2.1"
       }
     },
     {
