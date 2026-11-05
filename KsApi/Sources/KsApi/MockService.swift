@@ -1430,37 +1430,6 @@
       return self.removeAttachmentResponse ?? .template
     }
 
-    internal func update(draft: UpdateDraft, title: String, body: String, isPublic: Bool)
-      -> SignalProducer<UpdateDraft, ErrorEnvelope> {
-      if let error = self.updateDraftError {
-        return SignalProducer(error: error)
-      }
-      let updatedDraft = draft
-        |> UpdateDraft.lens.update.title .~ title
-        |> UpdateDraft.lens.update.body .~ body
-        |> UpdateDraft.lens.update.isPublic .~ isPublic
-
-      return SignalProducer(value: updatedDraft)
-    }
-
-    internal func addImage(file _: URL, toDraft _: UpdateDraft)
-      -> SignalProducer<UpdateDraft.Image, ErrorEnvelope> {
-      if let error = addAttachmentError {
-        return SignalProducer(error: error)
-      }
-
-      return SignalProducer(value: self.addAttachmentResponse ?? .template)
-    }
-
-    internal func delete(image _: UpdateDraft.Image, fromDraft _: UpdateDraft)
-      -> SignalProducer<UpdateDraft.Image, ErrorEnvelope> {
-      if let error = removeAttachmentError {
-        return SignalProducer(error: error)
-      }
-
-      return SignalProducer(value: self.removeAttachmentResponse ?? .template)
-    }
-
     internal func triggerThirdPartyEventInput(input: TriggerThirdPartyEventInput) -> ReactiveSwift
       .SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
       guard let client = self.apolloClient else {

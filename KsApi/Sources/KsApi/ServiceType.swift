@@ -88,10 +88,6 @@ public protocol ServiceType {
   /// Returns a new service with the oauth token set to `nil`.
   func logout() -> Self
 
-  /// Uploads and attaches an image to the draft of a project update.
-  func addImage(file fileURL: URL, toDraft draft: UpdateDraft)
-    -> SignalProducer<UpdateDraft.Image, ErrorEnvelope>
-
   /// Sends facebook ad data and/or google analytics data relevant to the user
   func triggerThirdPartyEventInput(input: TriggerThirdPartyEventInput)
     -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
@@ -111,10 +107,6 @@ public protocol ServiceType {
   @MainActor func reportingEmail() async throws -> String?
   @MainActor func submitProjectReport(input: CreateFlaggingInput) async throws
   @MainActor func fetchProjectFlaggingOptions() async throws -> [ReportProjectInfoListItem]
-
-  /// Removes an image from a project update draft.
-  func delete(image: UpdateDraft.Image, fromDraft draft: UpdateDraft)
-    -> SignalProducer<UpdateDraft.Image, ErrorEnvelope>
 
   /// Fetches the current user's backing for the project, if it exists.
   func fetchBacking(forProject project: Project, forUser user: User)
@@ -226,10 +218,6 @@ public protocol ServiceType {
 
   /// Publishes a project update draft.
   func publish(draft: UpdateDraft) -> SignalProducer<Update, ErrorEnvelope>
-
-  /// Updates the draft of a project update.
-  func update(draft: UpdateDraft, title: String, body: String, isPublic: Bool)
-    -> SignalProducer<UpdateDraft, ErrorEnvelope>
 
   func fetchDiscovery_combine(paginationUrl: String)
     -> AnyPublisher<DiscoveryEnvelope, ErrorEnvelope>

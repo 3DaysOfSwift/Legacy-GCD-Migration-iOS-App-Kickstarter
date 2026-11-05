@@ -77,11 +77,6 @@ public struct Service: ServiceType {
     )
   }
 
-  public func addImage(file fileURL: URL, toDraft draft: UpdateDraft)
-    -> SignalProducer<UpdateDraft.Image, ErrorEnvelope> {
-    return request(Route.addImage(fileUrl: fileURL, toDraft: draft))
-  }
-
   public func fetch<Q: GraphQLQuery>(query: Q) -> SignalProducer<Q.Data, ErrorEnvelope> {
     GraphQL.shared.client.fetch(query: query)
   }
@@ -167,11 +162,6 @@ public struct Service: ServiceType {
     )
   }
 
-  public func delete(image: UpdateDraft.Image, fromDraft draft: UpdateDraft)
-    -> SignalProducer<UpdateDraft.Image, ErrorEnvelope> {
-    return request(.deleteImage(image, fromDraft: draft))
-  }
-
   public func previewUrl(forDraft draft: UpdateDraft) -> URL? {
     return self.serverConfig.apiBaseUrl
       .appendingPathComponent("/v1/projects/\(draft.update.projectId)/updates/draft/preview")
@@ -253,11 +243,6 @@ public struct Service: ServiceType {
 
   public func publish(draft: UpdateDraft) -> SignalProducer<Update, ErrorEnvelope> {
     return request(.publishUpdateDraft(draft))
-  }
-
-  public func update(draft: UpdateDraft, title: String, body: String, isPublic: Bool)
-    -> SignalProducer<UpdateDraft, ErrorEnvelope> {
-    return request(.updateUpdateDraft(draft, title: title, body: body, isPublic: isPublic))
   }
 
   /**
