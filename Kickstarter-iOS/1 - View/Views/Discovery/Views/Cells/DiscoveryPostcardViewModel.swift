@@ -1,7 +1,6 @@
 import KDS
 import KsApi
 import Prelude
-import ReactiveSwift
 import UIKit
 
 public typealias DiscoveryProjectCellRowValue = (
@@ -42,301 +41,108 @@ private enum PostcardMetadataType {
 }
 
 @MainActor
-public protocol DiscoveryPostcardViewModelInputs {
-  /// Call with the data provided to the view controller.
-  func configure(with value: DiscoveryProjectCellRowValue)
-}
-
-@MainActor
-public protocol DiscoveryPostcardViewModelOutputs {
-  /// Emits a string to use for the backers title label.
-  var backersTitleLabelText: Signal<String, Never> { get }
-
-  /// Emits a string to use for the backers subtitle label.
-  var backersSubtitleLabelText: Signal<String, Never> { get }
-
-  /// Emits the cell label to be read aloud by VoiceOver.
-  var cellAccessibilityLabel: Signal<String, Never> { get }
-
-  /// Emits the cell value to be read aloud by VoiceOver.
-  var cellAccessibilityValue: Signal<String, Never> { get }
-
-  /// Emits the text for the deadine subtitle label.
-  var deadlineSubtitleLabelText: Signal<String, Never> { get }
-
-  /// Emits the text for the deadline title label.
-  var deadlineTitleLabelText: Signal<String, Never> { get }
-
-  /// Emits a boolean to determine whether or not to display the funding progress bar view.
-  var fundingProgressBarViewHidden: Signal<Bool, Never> { get }
-
-  /// Emits a boolean to determine whether or not to display funding progress container view.
-  var fundingProgressContainerViewHidden: Signal<Bool, Never> { get }
-
-  /// Emits a boolean to determine whether or not to display the location stack view
-  var locationStackViewHidden: Signal<Bool, Never> { get }
-
-  /// Emits the location label text
-  var locationLabelText: Signal<String, Never> { get }
-
-  /// Emits metadata label text
-  var metadataLabelText: Signal<String, Never> { get }
-
-  /// Emits metadata icon image
-  var metadataIcon: Signal<UIImage?, Never> { get }
-
-  /// Emits icon image tint color
-  var metadataIconImageViewTintColor: Signal<UIColor, Never> { get }
-
-  /// Emits metadata text color
-  var metadataTextColor: Signal<UIColor, Never> { get }
-
-  /// Emits a boolean to determine whether or not the metadata view should be hidden.
-  var metadataViewHidden: Signal<Bool, Never> { get }
-
-  /// Emits the text for the pledged title label.
-  var percentFundedTitleLabelText: Signal<String, Never> { get }
-
-  /// Emits a percentage between 0.0 and 1.0 that can be used to render the funding progress bar.
-  var progressPercentage: Signal<Float, Never> { get }
-
-  /// Emits a URL to be loaded into the project's image view.
-  var projectImageURL: Signal<URL?, Never> { get }
-
-  /// Emits the text to be put into the project name and blurb label.
-  var projectNameAndBlurbLabelText: Signal<NSAttributedString, Never> { get }
-
-  /// Emits a boolean that determines if the project state icon should be hidden.
-  var projectStateIconHidden: Signal<Bool, Never> { get }
-
-  /// Emits a boolean that determines if the project state label should be hidden.
-  var projectStateStackViewHidden: Signal<Bool, Never> { get }
-
-  /// Emits the text for the project state subtitle label.
-  var projectStateSubtitleLabelText: Signal<String, Never> { get }
-
-  /// Emits the color for the project state title label.
-  var projectStateTitleLabelColor: Signal<UIColor, Never> { get }
-
-  /// Emits the text for the project state title label.
-  var projectStateTitleLabelText: Signal<String, Never> { get }
-
-  /// Emits a string for the project category label
-  var projectCategoryName: Signal<String, Never> { get }
-
-  /// Emits a boolean that determines if the "Projects We Love" label should be hidden
-  var projectIsStaffPickLabelHidden: Signal<Bool, Never> { get }
-
-  /// Emits a boolean that determines if the project categories should be hidden.
-  var projectCategoryViewHidden: Signal<Bool, Never> { get }
-
-  /// Emits a boolean that determines if the category stack view should be hidden.
-  var projectCategoryStackViewHidden: Signal<Bool, Never> { get }
-
-  /// Emits a boolean that determines if the project stats should be hidden.
-  var projectStatsStackViewHidden: Signal<Bool, Never> { get }
-
-  /// Emits the URL to be loaded into the social avatar's image view.
-  var socialImageURL: Signal<URL?, Never> { get }
-
-  /// Emits the text for the social label.
-  var socialLabelText: Signal<String, Never> { get }
-
-  /// Emits a boolean that determines if the social view should be hidden.
-  var socialStackViewHidden: Signal<Bool, Never> { get }
-}
-
-@MainActor
-public protocol DiscoveryPostcardViewModelType {
-  var inputs: DiscoveryPostcardViewModelInputs { get }
-  var outputs: DiscoveryPostcardViewModelOutputs { get }
-}
-
-@MainActor
-public final class DiscoveryPostcardViewModel: DiscoveryPostcardViewModelType,
-  DiscoveryPostcardViewModelInputs, DiscoveryPostcardViewModelOutputs {
-  public init() {
-    let configuredProject = self.configureWithValueProperty.signal.skipNil().map(first)
-    let configuredCategory = self.configureWithValueProperty.signal.skipNil().map(second)
-
-    let backersTitleAndSubtitleText = configuredProject.map { project -> (String?, String?) in
-      let string = Strings.Backers_count_separator_backers(backers_count: project.stats.backersCount)
-      let parts = string.split(separator: "\n").map(String.init)
-      return (parts.first, parts.last)
-    }
-
-    self.backersTitleLabelText = backersTitleAndSubtitleText.map { title, _ in title ?? "" }
-    self.backersSubtitleLabelText = backersTitleAndSubtitleText.map { _, subtitle in subtitle ?? "" }
-
-    let deadlineTitleAndSubtitle = configuredProject
-      .map { project -> (String, String) in
-        guard let datesDeadline = project.dates.deadline else {
-          return ("", "")
-        }
-
-        return project.state == .live
-          ? Format.duration(secondsInUTC: datesDeadline, useToGo: true)
-          : ("", "")
-      }
-
-    self.deadlineTitleLabelText = deadlineTitleAndSubtitle.map(first)
-    self.deadlineSubtitleLabelText = deadlineTitleAndSubtitle.map(second)
-
-    let possibleMetadataData = configuredProject.map { postcardMetadata(forProject: $0) }
-
-    self.metadataViewHidden = possibleMetadataData.map { $0 == nil }
-
-    let metadataData = possibleMetadataData.skipNil()
-
-    self.metadataIcon = metadataData.map { $0.iconImage }
-    self.metadataLabelText = metadataData.map { $0.labelText }
-    self.metadataTextColor = metadataData.map { $0.iconAndTextColor }
-    self.metadataIconImageViewTintColor = metadataData.map { $0.iconAndTextColor }
-
-    self.percentFundedTitleLabelText = configuredProject
-      .map { $0.state == .live ? Format.percentage($0.stats.percentFunded) : "" }
-
-    self.progressPercentage = configuredProject
-      .map(Project.lens.stats.fundingProgress.view)
-      .map(clamp(0, 1))
-
-    self.projectImageURL = configuredProject.map { $0.photo.full }.map(URL.init(string:))
-
-    self.projectNameAndBlurbLabelText = configuredProject
-      .map(projectAttributedNameAndBlurb)
-
-    self.projectStateIconHidden = configuredProject
-      .map { $0.state != .successful }
-
-    self.projectStateStackViewHidden = configuredProject.map { $0.state == .live }.skipRepeats()
-
-    self.projectStateSubtitleLabelText = configuredProject
-      .map {
-        $0.state != .live
-          ? Format.date(secondsInUTC: $0.dates.stateChangedAt, dateStyle: .medium, timeStyle: .none)
-          : ""
-      }
-
-    self.projectStateTitleLabelColor = configuredProject
-      .map {
-        $0.state == .successful ? LegacyColors.ksr_create_700.uiColor() : LegacyColors.ksr_support_700
-          .uiColor()
-      }
-      .skipRepeats()
-
-    self.projectStateTitleLabelText = configuredProject
-      .map(fundingStatusText(forProject:))
-
-    self.projectCategoryName = configuredProject
-      .map { $0.category?.name ?? "" }
-
-    self.projectCategoryViewHidden = Signal.combineLatest(
-      configuredProject,
-      configuredCategory
-    ).map { project, category in
-      guard let category = category else {
-        // Always show category when filter category is nil
-        return false
-      }
-
-      if let projectCategory = project.category {
-        // if we are in a subcategory, compare categories
-        if !category.isRoot {
-          return Int(projectCategory.id) == category.intID
-        }
-      }
-
-      // otherwise, always show category
-      return false
-    }
-
-    self.projectIsStaffPickLabelHidden = configuredProject
-      .map { $0.staffPick }
-      .negate()
-
-    let projectCategoryViewsHidden = Signal.combineLatest(
-      self.projectCategoryViewHidden.signal,
-      self.projectIsStaffPickLabelHidden.signal
-    )
-
-    self.projectCategoryStackViewHidden = projectCategoryViewsHidden
-      .map { projectCategoryViews in
-        projectCategoryViews.0 && projectCategoryViews.1
-      }
-
-    self.projectStatsStackViewHidden = self.projectStateStackViewHidden.map(negate)
-
-    self.socialImageURL = configuredProject
-      .map { $0.personalization.friends?.first.flatMap { URL(string: $0.avatar.medium) } }
-
-    self.socialLabelText = configuredProject
-      .map { $0.personalization.friends.flatMap(socialText(forFriends:)) ?? "" }
-
-    self.socialStackViewHidden = configuredProject
-      .map { $0.personalization.friends == nil || $0.personalization.friends?.count ?? 0 == 0 }
-      .skipRepeats()
-
-    self.fundingProgressContainerViewHidden = configuredProject
-      .map { $0.state == .canceled || $0.state == .suspended }
-
-    self.fundingProgressBarViewHidden = configuredProject
-      .map { $0.state == .failed }
-
-    // a11y
-    self.cellAccessibilityLabel = configuredProject.map(Project.lens.name.view)
-
-    self.cellAccessibilityValue = Signal.zip(configuredProject, self.projectStateTitleLabelText)
-      .map { project, projectState in "\(project.blurb). \(projectState)" }
-
-    let params = self.configureWithValueProperty.signal.skipNil().map(third)
-
-    self.locationStackViewHidden = params.map { $0 != nil }
-
-    self.locationLabelText = configuredProject.map { project in
-      project.location?.name ?? ""
-    }
+final class DiscoveryPostcardViewModel {
+  enum Event {
+    case backersTitleLabelText(String)
+    case backersSubtitleLabelText(String)
+    case cellAccessibilityLabel(String)
+    case cellAccessibilityValue(String)
+    case deadlineSubtitleLabelText(String)
+    case deadlineTitleLabelText(String)
+    case fundingProgressBarViewHidden(Bool)
+    case fundingProgressContainerViewHidden(Bool)
+    case locationStackViewHidden(Bool)
+    case locationLabelText(String)
+    case metadataLabelText(String)
+    case metadataIcon(UIImage?)
+    case metadataIconImageViewTintColor(UIColor)
+    case metadataTextColor(UIColor)
+    case metadataViewHidden(Bool)
+    case percentFundedTitleLabelText(String)
+    case progressPercentage(Float)
+    case projectImageURL(URL?)
+    case projectNameAndBlurbLabelText(NSAttributedString)
+    case projectStateIconHidden(Bool)
+    case projectStateStackViewHidden(Bool)
+    case projectStateSubtitleLabelText(String)
+    case projectStateTitleLabelColor(UIColor)
+    case projectStateTitleLabelText(String)
+    case projectCategoryName(String)
+    case projectIsStaffPickLabelHidden(Bool)
+    case projectCategoryViewHidden(Bool)
+    case projectCategoryStackViewHidden(Bool)
+    case projectStatsStackViewHidden(Bool)
+    case socialImageURL(URL?)
+    case socialLabelText(String)
+    case socialStackViewHidden(Bool)
   }
+  var onEvent: ((Event) -> Void)?
+  private var lastStateHidden: Bool?
+  private var lastStateColor: UIColor?
+  private var lastSocialHidden: Bool?
 
-  fileprivate let configureWithValueProperty = MutableProperty<DiscoveryProjectCellRowValue?>(nil)
-  public func configure(with value: DiscoveryProjectCellRowValue) {
-    self.configureWithValueProperty.value = value
+  func configure(with value: DiscoveryProjectCellRowValue) {
+    let project = value.project
+    let backers = Strings.Backers_count_separator_backers(backers_count: project.stats.backersCount)
+      .split(separator: "\n").map(String.init)
+    self.onEvent?(.backersTitleLabelText(backers.first ?? ""))
+    self.onEvent?(.backersSubtitleLabelText(backers.last ?? ""))
+    let deadline: (String, String)
+    if let date = project.dates.deadline, project.state == .live {
+      deadline = Format.duration(secondsInUTC: date, useToGo: true)
+    } else { deadline = ("", "") }
+    self.onEvent?(.deadlineTitleLabelText(deadline.0))
+    self.onEvent?(.deadlineSubtitleLabelText(deadline.1))
+    let metadata = postcardMetadata(forProject: project)
+    self.onEvent?(.metadataViewHidden(metadata == nil))
+    if let metadata {
+      self.onEvent?(.metadataIcon(metadata.iconImage))
+      self.onEvent?(.metadataLabelText(metadata.labelText))
+      self.onEvent?(.metadataTextColor(metadata.iconAndTextColor))
+      self.onEvent?(.metadataIconImageViewTintColor(metadata.iconAndTextColor))
+    }
+    self.onEvent?(.percentFundedTitleLabelText(project.state == .live ? Format.percentage(project.stats.percentFunded) : ""))
+    self.onEvent?(.progressPercentage(clamp(0, 1)(project.stats.fundingProgress)))
+    self.onEvent?(.projectImageURL(URL(string: project.photo.full)))
+    self.onEvent?(.projectNameAndBlurbLabelText(projectAttributedNameAndBlurb(project)))
+    self.onEvent?(.projectStateIconHidden(project.state != .successful))
+    let stateHidden = project.state == .live
+    if self.lastStateHidden != stateHidden {
+      self.lastStateHidden = stateHidden
+      self.onEvent?(.projectStateStackViewHidden(stateHidden))
+      self.onEvent?(.projectStatsStackViewHidden(!stateHidden))
+    }
+    self.onEvent?(.projectStateSubtitleLabelText(project.state != .live ? Format.date(secondsInUTC: project.dates.stateChangedAt, dateStyle: .medium, timeStyle: .none) : ""))
+    let stateColor = project.state == .successful ? LegacyColors.ksr_create_700.uiColor() : LegacyColors.ksr_support_700.uiColor()
+    if self.lastStateColor != stateColor {
+      self.lastStateColor = stateColor
+      self.onEvent?(.projectStateTitleLabelColor(stateColor))
+    }
+    let stateTitle = fundingStatusText(forProject: project)
+    self.onEvent?(.projectStateTitleLabelText(stateTitle))
+    self.onEvent?(.projectCategoryName(project.category?.name ?? ""))
+    let categoryHidden: Bool
+    if let category = value.category, !category.isRoot, let projectCategory = project.category {
+      categoryHidden = Int(projectCategory.id) == category.intID
+    } else { categoryHidden = false }
+    let staffHidden = !project.staffPick
+    self.onEvent?(.projectCategoryViewHidden(categoryHidden))
+    self.onEvent?(.projectIsStaffPickLabelHidden(staffHidden))
+    self.onEvent?(.projectCategoryStackViewHidden(categoryHidden && staffHidden))
+    self.onEvent?(.socialImageURL(project.personalization.friends?.first.flatMap { URL(string: $0.avatar.medium) }))
+    self.onEvent?(.socialLabelText(project.personalization.friends.flatMap(socialText(forFriends:)) ?? ""))
+    let socialHidden = project.personalization.friends == nil || project.personalization.friends?.count ?? 0 == 0
+    if self.lastSocialHidden != socialHidden {
+      self.lastSocialHidden = socialHidden
+      self.onEvent?(.socialStackViewHidden(socialHidden))
+    }
+    self.onEvent?(.fundingProgressContainerViewHidden(project.state == .canceled || project.state == .suspended))
+    self.onEvent?(.fundingProgressBarViewHidden(project.state == .failed))
+    self.onEvent?(.cellAccessibilityLabel(project.name))
+    self.onEvent?(.cellAccessibilityValue("\(project.blurb). \(stateTitle)"))
+    self.onEvent?(.locationStackViewHidden(value.params != nil))
+    self.onEvent?(.locationLabelText(project.location?.name ?? ""))
   }
-
-  public let backersTitleLabelText: Signal<String, Never>
-  public let backersSubtitleLabelText: Signal<String, Never>
-  public let cellAccessibilityLabel: Signal<String, Never>
-  public let cellAccessibilityValue: Signal<String, Never>
-  public let deadlineSubtitleLabelText: Signal<String, Never>
-  public let deadlineTitleLabelText: Signal<String, Never>
-  public let fundingProgressBarViewHidden: Signal<Bool, Never>
-  public let fundingProgressContainerViewHidden: Signal<Bool, Never>
-  public let locationLabelText: Signal<String, Never>
-  public let locationStackViewHidden: Signal<Bool, Never>
-  public let metadataLabelText: Signal<String, Never>
-  public let metadataIcon: Signal<UIImage?, Never>
-  public let metadataIconImageViewTintColor: Signal<UIColor, Never>
-  public let metadataTextColor: Signal<UIColor, Never>
-  public let metadataViewHidden: Signal<Bool, Never>
-  public let percentFundedTitleLabelText: Signal<String, Never>
-  public let progressPercentage: Signal<Float, Never>
-  public let projectImageURL: Signal<URL?, Never>
-  public let projectNameAndBlurbLabelText: Signal<NSAttributedString, Never>
-  public let projectStateIconHidden: Signal<Bool, Never>
-  public let projectStateStackViewHidden: Signal<Bool, Never>
-  public let projectStatsStackViewHidden: Signal<Bool, Never>
-  public let projectStateSubtitleLabelText: Signal<String, Never>
-  public let projectStateTitleLabelText: Signal<String, Never>
-  public var projectCategoryName: Signal<String, Never>
-  public let projectIsStaffPickLabelHidden: Signal<Bool, Never>
-  public var projectCategoryViewHidden: Signal<Bool, Never>
-  public var projectCategoryStackViewHidden: Signal<Bool, Never>
-  public let projectStateTitleLabelColor: Signal<UIColor, Never>
-  public let socialImageURL: Signal<URL?, Never>
-  public let socialLabelText: Signal<String, Never>
-  public let socialStackViewHidden: Signal<Bool, Never>
-
-  public var inputs: DiscoveryPostcardViewModelInputs { return self }
-  public var outputs: DiscoveryPostcardViewModelOutputs { return self }
 }
 
 private func socialText(forFriends friends: [User]) -> String? {

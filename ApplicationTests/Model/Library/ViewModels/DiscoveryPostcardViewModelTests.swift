@@ -4,8 +4,6 @@ import KDS
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 /* swiftlint:disable force_unwrapping */
@@ -14,74 +12,77 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
   override var requiresSnapshotReferenceSimulator: Bool { false }
 
   internal let vm = DiscoveryPostcardViewModel()
-  internal let backersTitleLabelText = TestObserver<String, Never>()
-  internal let cellAccessibilityLabel = TestObserver<String, Never>()
-  internal let cellAccessibilityValue = TestObserver<String, Never>()
-  internal let deadlineSubtitleLabelText = TestObserver<String, Never>()
-  internal let deadlineTitleLabelText = TestObserver<String, Never>()
-  internal let fundingProgressBarViewHidden = TestObserver<Bool, Never>()
-  internal let fundingProgressContainerViewHidden = TestObserver<Bool, Never>()
-  internal let locationLabelText = TestObserver<String, Never>()
-  internal let locationStackViewHidden = TestObserver<Bool, Never>()
-  internal let metadataIcon = TestObserver<UIImage?, Never>()
-  internal let metadataIconTintColor = TestObserver<UIColor, Never>()
-  internal let metadataTextColor = TestObserver<UIColor, Never>()
-  internal let metadataLabelText = TestObserver<String, Never>()
-  internal let metadataViewHidden = TestObserver<Bool, Never>()
-  internal let percentFundedTitleLabelText = TestObserver<String, Never>()
-  internal let progressPercentage = TestObserver<Float, Never>()
-  internal let projectImageURL = TestObserver<String?, Never>()
-  internal let projectNameAndBlurbLabelText = TestObserver<String, Never>()
-  internal let projectStateIconHidden = TestObserver<Bool, Never>()
-  internal let projectStateStackViewHidden = TestObserver<Bool, Never>()
-  internal let projectStateSubtitleLabelText = TestObserver<String, Never>()
-  internal let projectStateTitleLabelColor = TestObserver<UIColor, Never>()
-  internal let projectStateTitleLabelText = TestObserver<String, Never>()
-  internal let projectStatsStackViewHidden = TestObserver<Bool, Never>()
-  internal let socialImageURL = TestObserver<String?, Never>()
-  internal let socialLabelText = TestObserver<String, Never>()
-  internal let socialStackViewHidden = TestObserver<Bool, Never>()
-  internal let projectCategoryName = TestObserver<String, Never>()
-  internal let projectCategoryViewHidden = TestObserver<Bool, Never>()
-  internal let projectCategoryStackViewHidden = TestObserver<Bool, Never>()
-  internal let projectIsStaffPickViewHidden = TestObserver<Bool, Never>()
+  internal let backersTitleLabelText = PostcardRecorder<String>()
+  internal let cellAccessibilityLabel = PostcardRecorder<String>()
+  internal let cellAccessibilityValue = PostcardRecorder<String>()
+  internal let deadlineSubtitleLabelText = PostcardRecorder<String>()
+  internal let deadlineTitleLabelText = PostcardRecorder<String>()
+  internal let fundingProgressBarViewHidden = PostcardRecorder<Bool>()
+  internal let fundingProgressContainerViewHidden = PostcardRecorder<Bool>()
+  internal let locationLabelText = PostcardRecorder<String>()
+  internal let locationStackViewHidden = PostcardRecorder<Bool>()
+  internal let metadataIcon = PostcardRecorder<UIImage?>()
+  internal let metadataIconTintColor = PostcardRecorder<UIColor>()
+  internal let metadataTextColor = PostcardRecorder<UIColor>()
+  internal let metadataLabelText = PostcardRecorder<String>()
+  internal let metadataViewHidden = PostcardRecorder<Bool>()
+  internal let percentFundedTitleLabelText = PostcardRecorder<String>()
+  internal let progressPercentage = PostcardRecorder<Float>()
+  internal let projectImageURL = PostcardRecorder<String?>()
+  internal let projectNameAndBlurbLabelText = PostcardRecorder<String>()
+  internal let projectStateIconHidden = PostcardRecorder<Bool>()
+  internal let projectStateStackViewHidden = PostcardRecorder<Bool>()
+  internal let projectStateSubtitleLabelText = PostcardRecorder<String>()
+  internal let projectStateTitleLabelColor = PostcardRecorder<UIColor>()
+  internal let projectStateTitleLabelText = PostcardRecorder<String>()
+  internal let projectStatsStackViewHidden = PostcardRecorder<Bool>()
+  internal let socialImageURL = PostcardRecorder<String?>()
+  internal let socialLabelText = PostcardRecorder<String>()
+  internal let socialStackViewHidden = PostcardRecorder<Bool>()
+  internal let projectCategoryName = PostcardRecorder<String>()
+  internal let projectCategoryViewHidden = PostcardRecorder<Bool>()
+  internal let projectCategoryStackViewHidden = PostcardRecorder<Bool>()
+  internal let projectIsStaffPickViewHidden = PostcardRecorder<Bool>()
 
   internal override func setUp() async throws {
     try await super.setUp()
-    self.vm.outputs.backersTitleLabelText.observe(self.backersTitleLabelText.observer)
-    self.vm.outputs.cellAccessibilityLabel.observe(self.cellAccessibilityLabel.observer)
-    self.vm.outputs.cellAccessibilityValue.observe(self.cellAccessibilityValue.observer)
-    self.vm.outputs.deadlineSubtitleLabelText.observe(self.deadlineSubtitleLabelText.observer)
-    self.vm.outputs.deadlineTitleLabelText.observe(self.deadlineTitleLabelText.observer)
-    self.vm.outputs.fundingProgressBarViewHidden.observe(self.fundingProgressBarViewHidden.observer)
-    self.vm.outputs.fundingProgressContainerViewHidden
-      .observe(self.fundingProgressContainerViewHidden.observer)
-    self.vm.outputs.locationLabelText.observe(self.locationLabelText.observer)
-    self.vm.outputs.locationStackViewHidden.observe(self.locationStackViewHidden.observer)
-    self.vm.outputs.metadataIcon.observe(self.metadataIcon.observer)
-    self.vm.outputs.metadataTextColor.observe(self.metadataTextColor.observer)
-    self.vm.outputs.metadataIconImageViewTintColor.observe(self.metadataIconTintColor.observer)
-    self.vm.outputs.metadataLabelText.observe(self.metadataLabelText.observer)
-    self.vm.outputs.metadataViewHidden.observe(self.metadataViewHidden.observer)
-    self.vm.outputs.percentFundedTitleLabelText.observe(self.percentFundedTitleLabelText.observer)
-    self.vm.outputs.progressPercentage.observe(self.progressPercentage.observer)
-    self.vm.outputs.projectImageURL.map { $0?.absoluteString }.observe(self.projectImageURL.observer)
-    self.vm.outputs.projectNameAndBlurbLabelText
-      .map { $0.string }.observe(self.projectNameAndBlurbLabelText.observer)
-    self.vm.outputs.projectStateIconHidden.observe(self.projectStateIconHidden.observer)
-    self.vm.outputs.projectStateStackViewHidden.observe(self.projectStateStackViewHidden.observer)
-    self.vm.outputs.projectStateSubtitleLabelText.observe(self.projectStateSubtitleLabelText.observer)
-    self.vm.outputs.projectStateTitleLabelColor.observe(self.projectStateTitleLabelColor.observer)
-    self.vm.outputs.projectStateTitleLabelText.observe(self.projectStateTitleLabelText.observer)
-    self.vm.outputs.projectStatsStackViewHidden.observe(self.projectStatsStackViewHidden.observer)
-    self.vm.outputs.socialImageURL.map { $0?.absoluteString }.observe(self.socialImageURL.observer)
-    self.vm.outputs.socialLabelText.observe(self.socialLabelText.observer)
-    self.vm.outputs.socialStackViewHidden.observe(self.socialStackViewHidden.observer)
-
-    self.vm.outputs.projectCategoryName.observe(self.projectCategoryName.observer)
-    self.vm.outputs.projectCategoryViewHidden.observe(self.projectCategoryViewHidden.observer)
-    self.vm.outputs.projectCategoryStackViewHidden.observe(self.projectCategoryStackViewHidden.observer)
-    self.vm.outputs.projectIsStaffPickLabelHidden.observe(self.projectIsStaffPickViewHidden.observer)
+    self.vm.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .backersTitleLabelText(value): self.backersTitleLabelText.record(value)
+      case .backersSubtitleLabelText: break
+      case let .cellAccessibilityLabel(value): self.cellAccessibilityLabel.record(value)
+      case let .cellAccessibilityValue(value): self.cellAccessibilityValue.record(value)
+      case let .deadlineSubtitleLabelText(value): self.deadlineSubtitleLabelText.record(value)
+      case let .deadlineTitleLabelText(value): self.deadlineTitleLabelText.record(value)
+      case let .fundingProgressBarViewHidden(value): self.fundingProgressBarViewHidden.record(value)
+      case let .fundingProgressContainerViewHidden(value): self.fundingProgressContainerViewHidden.record(value)
+      case let .locationStackViewHidden(value): self.locationStackViewHidden.record(value)
+      case let .locationLabelText(value): self.locationLabelText.record(value)
+      case let .metadataLabelText(value): self.metadataLabelText.record(value)
+      case let .metadataIcon(value): self.metadataIcon.record(value)
+      case let .metadataIconImageViewTintColor(value): self.metadataIconTintColor.record(value)
+      case let .metadataTextColor(value): self.metadataTextColor.record(value)
+      case let .metadataViewHidden(value): self.metadataViewHidden.record(value)
+      case let .percentFundedTitleLabelText(value): self.percentFundedTitleLabelText.record(value)
+      case let .progressPercentage(value): self.progressPercentage.record(value)
+      case let .projectImageURL(value): self.projectImageURL.record(value?.absoluteString)
+      case let .projectNameAndBlurbLabelText(value): self.projectNameAndBlurbLabelText.record(value.string)
+      case let .projectStateIconHidden(value): self.projectStateIconHidden.record(value)
+      case let .projectStateStackViewHidden(value): self.projectStateStackViewHidden.record(value)
+      case let .projectStateSubtitleLabelText(value): self.projectStateSubtitleLabelText.record(value)
+      case let .projectStateTitleLabelColor(value): self.projectStateTitleLabelColor.record(value)
+      case let .projectStateTitleLabelText(value): self.projectStateTitleLabelText.record(value)
+      case let .projectCategoryName(value): self.projectCategoryName.record(value)
+      case let .projectIsStaffPickLabelHidden(value): self.projectIsStaffPickViewHidden.record(value)
+      case let .projectCategoryViewHidden(value): self.projectCategoryViewHidden.record(value)
+      case let .projectCategoryStackViewHidden(value): self.projectCategoryStackViewHidden.record(value)
+      case let .projectStatsStackViewHidden(value): self.projectStatsStackViewHidden.record(value)
+      case let .socialImageURL(value): self.socialImageURL.record(value?.absoluteString)
+      case let .socialLabelText(value): self.socialLabelText.record(value)
+      case let .socialStackViewHidden(value): self.socialStackViewHidden.record(value)
+      }
+    }
   }
 
   func testCellAccessibility() {
@@ -89,7 +90,7 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
       |> Project.lens.name .~ "Hammocks for All"
       |> Project.lens.blurb .~ "Let's make hammocks universal for all creatures!"
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.vm.configure(with: (project, nil, nil))
     self.cellAccessibilityLabel.assertValues([project.name])
     self.cellAccessibilityValue.assertValues([project.blurb + ". "])
   }
@@ -100,7 +101,7 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
       |> Project.lens.blurb .~ "Let's make hammocks universal for all creatures!"
       |> Project.lens.state .~ .canceled
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.vm.configure(with: (project, nil, nil))
     self.cellAccessibilityLabel.assertValues([project.name])
     self.cellAccessibilityValue.assertValues([project.blurb + ". " + "Project cancelled"])
   }
@@ -123,13 +124,13 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
     let featuredImage = image(named: "metadata-featured")
 
     withEnvironment(currentUser: nil) {
-      self.vm.inputs.configure(with: (Project.template, nil, nil))
+      self.vm.configure(with: (Project.template, nil, nil))
 
       self.metadataLabelText.assertValueCount(0, "No metadata shown for logged out user.")
       self.metadataViewHidden.assertValues([true])
 
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeeef", user: User.template))
-      self.vm.inputs.configure(with: (backedProject, nil, nil))
+      self.vm.configure(with: (backedProject, nil, nil))
 
       self.metadataLabelText.assertValues([Strings.discovery_baseball_card_metadata_backer()])
       self.metadataViewHidden.assertValues([true, false])
@@ -148,7 +149,7 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
       self.metadataTextColor.assertValues([backedColor])
       self.metadataIconTintColor.assertValues([backedColor])
 
-      self.vm.inputs.configure(with: (featuredProject, nil, nil))
+      self.vm.configure(with: (featuredProject, nil, nil))
       guard let parentName = featuredProject.category?.parentName else { return }
       self.metadataLabelText.assertValues(
         [
@@ -175,7 +176,7 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
     let project = Project.template
     let deadline = project.dates.deadline!
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.vm.configure(with: (project, nil, nil))
 
     self.backersTitleLabelText.assertValues([Format.wholeNumber(project.stats.backersCount)])
 
@@ -198,7 +199,7 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
     let project = .template
       |> Project.lens.name .~ "The Turtle Hat. Helping people come out of their shells!"
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.vm.configure(with: (project, nil, nil))
 
     self.projectNameAndBlurbLabelText.assertValues(
       ["\(project.name) \(project.blurb)"]
@@ -235,24 +236,24 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
     let projectManyFriends = .template
       |> Project.lens.personalization.friends .~ manyFriends
 
-    self.vm.inputs.configure(with: (projectNoSocial, nil, nil))
+    self.vm.configure(with: (projectNoSocial, nil, nil))
     self.socialImageURL.assertValues([nil])
     self.socialLabelText.assertValues([""])
     self.socialStackViewHidden.assertValues([true])
 
-    self.vm.inputs.configure(with: (projectNoFriends, nil, nil))
+    self.vm.configure(with: (projectNoFriends, nil, nil))
     self.socialImageURL.assertValues([nil, nil])
     self.socialLabelText.assertValues(["", ""])
     self.socialStackViewHidden.assertValues([true])
 
-    self.vm.inputs.configure(with: (projectOneFriend, nil, nil))
+    self.vm.configure(with: (projectOneFriend, nil, nil))
     self.socialImageURL.assertValues([nil, nil, oneFriend[0].avatar.medium])
     self.socialLabelText.assertValues(
       ["", "", Strings.project_social_friend_is_backer(friend_name: oneFriend[0].name)]
     )
     self.socialStackViewHidden.assertValues([true, false])
 
-    self.vm.inputs.configure(with: (projectTwoFriends, nil, nil))
+    self.vm.configure(with: (projectTwoFriends, nil, nil))
     self.socialImageURL.assertValues(
       [nil, nil, oneFriend[0].avatar.medium, twoFriends[0].avatar.medium],
       "First friend's avatar emits."
@@ -269,7 +270,7 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
     )
     self.socialStackViewHidden.assertValues([true, false])
 
-    self.vm.inputs.configure(with: (projectManyFriends, nil, nil))
+    self.vm.configure(with: (projectManyFriends, nil, nil))
     self.socialImageURL.assertValues([
       nil, nil, oneFriend[0].avatar.medium, twoFriends[0].avatar.medium,
       manyFriends[0].avatar.medium
@@ -301,14 +302,14 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
     let greenColor = LegacyColors.ksr_create_700.uiColor()
     let navyColor = LegacyColors.ksr_support_700.uiColor()
 
-    self.vm.inputs.configure(with: (live, nil, nil))
+    self.vm.configure(with: (live, nil, nil))
     self.projectStateStackViewHidden.assertValues([true])
     self.projectStateSubtitleLabelText.assertValueCount(1, "Empty subtitle string emits.")
     self.projectStatsStackViewHidden.assertValues([false])
     self.fundingProgressContainerViewHidden.assertValues([false])
     self.fundingProgressBarViewHidden.assertValues([false])
 
-    self.vm.inputs.configure(with: (canceled, nil, nil))
+    self.vm.configure(with: (canceled, nil, nil))
     self.projectStateIconHidden.assertValues([true, true])
     self.projectStateSubtitleLabelText.assertValueCount(2)
     self.projectStateTitleLabelText.assertValues([
@@ -321,7 +322,7 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
     self.fundingProgressBarViewHidden.assertValues([false, false])
     self.fundingProgressContainerViewHidden.assertValues([false, true])
 
-    self.vm.inputs.configure(with: (failed, nil, nil))
+    self.vm.configure(with: (failed, nil, nil))
     self.projectStateIconHidden.assertValues([true, true, true])
     self.projectStateSubtitleLabelText.assertValueCount(3)
     self.projectStateTitleLabelText.assertValues(
@@ -337,7 +338,7 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
     self.fundingProgressBarViewHidden.assertValues([false, false, true])
     self.fundingProgressContainerViewHidden.assertValues([false, true, false])
 
-    self.vm.inputs.configure(with: (successful, nil, nil))
+    self.vm.configure(with: (successful, nil, nil))
     self.projectStateIconHidden.assertValues([true, true, true, false])
     self.projectStateSubtitleLabelText.assertValueCount(4)
     self.projectStateTitleLabelText.assertValues(
@@ -354,7 +355,7 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
     self.fundingProgressBarViewHidden.assertValues([false, false, true, false])
     self.fundingProgressContainerViewHidden.assertValues([false, true, false, false])
 
-    self.vm.inputs.configure(with: (suspended, nil, nil))
+    self.vm.configure(with: (suspended, nil, nil))
     self.projectStateIconHidden.assertValues([true, true, true, false, true])
     self.projectStateSubtitleLabelText.assertValueCount(5)
     self.projectStateTitleLabelText.assertValues(
@@ -380,7 +381,7 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
       |> Project.lens.staffPick .~ true
       |> Project.lens.category .~ .illustration
 
-    self.vm.inputs.configure(with: (staffPickProject, KsApi.Category.art, nil))
+    self.vm.configure(with: (staffPickProject, KsApi.Category.art, nil))
 
     self.projectIsStaffPickViewHidden.assertValue(false)
     self.projectCategoryStackViewHidden.assertValue(false)
@@ -389,7 +390,7 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
   }
 
   func testShowsCategoryLabels_AlwaysIfFilterCategoryIsNil() {
-    self.vm.inputs.configure(with: (Project.template, nil, nil))
+    self.vm.configure(with: (Project.template, nil, nil))
 
     self.projectCategoryStackViewHidden.assertValue(false)
   }
@@ -398,7 +399,7 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
     let illustrationProject = Project.template
       |> \.category .~ .illustration
 
-    self.vm.inputs.configure(with: (illustrationProject, .illustration, nil))
+    self.vm.configure(with: (illustrationProject, .illustration, nil))
 
     self.projectIsStaffPickViewHidden.assertValue(true)
     self.projectCategoryStackViewHidden.assertValue(true)
@@ -412,7 +413,7 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
 
     let params = DiscoveryParams.defaults
 
-    self.vm.inputs.configure(with: (project, .illustration, params))
+    self.vm.configure(with: (project, .illustration, params))
 
     self.locationStackViewHidden.assertValues([true])
   }
@@ -421,7 +422,7 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
     let project = Project.template
       |> \.location .~ Location.template
 
-    self.vm.inputs.configure(with: (project, .illustration, nil))
+    self.vm.configure(with: (project, .illustration, nil))
 
     self.locationStackViewHidden.assertValues([false])
   }
@@ -430,8 +431,24 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
     let project = Project.template
       |> \.location .~ Location.template
 
-    self.vm.inputs.configure(with: (project, nil, nil))
+    self.vm.configure(with: (project, nil, nil))
 
     self.locationLabelText.assertValues(["Brooklyn"])
+  }
+}
+
+final class PostcardRecorder<Value> {
+  private var values: [Value] = []
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+}
+private extension PostcardRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
+  }
+  func assertValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    self.assertValues([expected], message, file: file, line: line)
   }
 }

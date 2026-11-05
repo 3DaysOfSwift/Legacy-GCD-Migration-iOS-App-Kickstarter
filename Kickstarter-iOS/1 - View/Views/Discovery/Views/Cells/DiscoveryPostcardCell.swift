@@ -15,7 +15,7 @@ internal protocol DiscoveryPostcardCellDelegate: AnyObject {
 }
 
 internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
-  fileprivate let viewModel: DiscoveryPostcardViewModelType = DiscoveryPostcardViewModel()
+  fileprivate let viewModel = DiscoveryPostcardViewModel()
   private let watchProjectViewModel = WatchProjectViewModel()
   internal weak var delegate: DiscoveryPostcardCellDelegate?
 
@@ -241,84 +241,57 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
       }
     }
 
-    self.rac.accessibilityLabel = self.viewModel.outputs.cellAccessibilityLabel
-    self.rac.accessibilityValue = self.viewModel.outputs.cellAccessibilityValue
-    self.backersTitleLabel.rac.text = self.viewModel.outputs.backersTitleLabelText
-    self.backersSubtitleLabel.rac.text = self.viewModel.outputs.backersSubtitleLabelText
-    self.deadlineSubtitleLabel.rac.text = self.viewModel.outputs.deadlineSubtitleLabelText
-    self.deadlineTitleLabel.rac.text = self.viewModel.outputs.deadlineTitleLabelText
-    self.fundingProgressContainerView.rac.hidden = self.viewModel.outputs.fundingProgressContainerViewHidden
-    self.fundingProgressBarView.rac.hidden = self.viewModel.outputs.fundingProgressBarViewHidden
-    self.fundingTitleLabel.rac.text = self.viewModel.outputs.percentFundedTitleLabelText
-    self.locationLabel.rac.text = self.viewModel.outputs.locationLabelText
-    self.locationStackView.rac.hidden = self.viewModel.outputs.locationStackViewHidden
-    self.metadataLabel.rac.text = self.viewModel.outputs.metadataLabelText
-    self.metadataLabel.rac.textColor = self.viewModel.outputs.metadataTextColor
-    self.metadataIconImageView.rac.tintColor = self.viewModel.outputs.metadataIconImageViewTintColor
-    self.metadataView.rac.hidden = self.viewModel.outputs.metadataViewHidden
-    self.projectNameAndBlurbLabel.rac.attributedText = self.viewModel.outputs.projectNameAndBlurbLabelText
-    self.projectStateSubtitleLabel.rac.text = self.viewModel.outputs.projectStateSubtitleLabelText
-    self.projectStateTitleLabel.rac.textColor = self.viewModel.outputs.projectStateTitleLabelColor
-    self.projectStateTitleLabel.rac.text = self.viewModel.outputs.projectStateTitleLabelText
-    self.projectStateStackView.rac.hidden = self.viewModel.outputs.projectStateStackViewHidden
-    self.projectStatsStackView.rac.hidden = self.viewModel.outputs.projectStatsStackViewHidden
-    self.socialLabel.rac.text = self.viewModel.outputs.socialLabelText
-    self.socialStackView.rac.hidden = self.viewModel.outputs.socialStackViewHidden
-    self.projectIsStaffPickView.rac.hidden = self.viewModel.outputs.projectIsStaffPickLabelHidden
-    self.projectCategoryView.rac.hidden = self.viewModel.outputs.projectCategoryViewHidden
-    self.projectCategoriesStackView.rac.hidden = self.viewModel.outputs.projectCategoryStackViewHidden
-
-    self.projectIsStaffPickView.configureWith(
-      name: Strings.Projects_We_Love(), imageNameString: "icon--small-k"
-    )
-
-    self.viewModel.outputs.projectCategoryName
-      .signal
-      .observeForUI()
-      .observeValues { [weak self] name in
-        self?.projectCategoryView.configureWith(name: name, imageNameString: "icon--compass")
-      }
-
-    self.viewModel.outputs.metadataIcon
-      .observeForUI()
-      .observeValues { [weak self] icon in
-        self?.metadataIconImageView.image = icon
-      }
-
-    self.viewModel.outputs.progressPercentage
-      .observeForUI()
-      .observeValues { [weak self] progress in
+    self.projectIsStaffPickView.configureWith(name: Strings.Projects_We_Love(), imageNameString: "icon--small-k")
+    self.viewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .backersTitleLabelText(value): self.backersTitleLabel.text = value
+      case let .backersSubtitleLabelText(value): self.backersSubtitleLabel.text = value
+      case let .deadlineSubtitleLabelText(value): self.deadlineSubtitleLabel.text = value
+      case let .deadlineTitleLabelText(value): self.deadlineTitleLabel.text = value
+      case let .fundingProgressContainerViewHidden(value): self.fundingProgressContainerView.isHidden = value
+      case let .fundingProgressBarViewHidden(value): self.fundingProgressBarView.isHidden = value
+      case let .percentFundedTitleLabelText(value): self.fundingTitleLabel.text = value
+      case let .locationLabelText(value): self.locationLabel.text = value
+      case let .locationStackViewHidden(value): self.locationStackView.isHidden = value
+      case let .metadataLabelText(value): self.metadataLabel.text = value
+      case let .metadataTextColor(value): self.metadataLabel.textColor = value
+      case let .metadataIconImageViewTintColor(value): self.metadataIconImageView.tintColor = value
+      case let .metadataViewHidden(value): self.metadataView.isHidden = value
+      case let .projectNameAndBlurbLabelText(value): self.projectNameAndBlurbLabel.attributedText = value
+      case let .projectStateSubtitleLabelText(value): self.projectStateSubtitleLabel.text = value
+      case let .projectStateTitleLabelColor(value): self.projectStateTitleLabel.textColor = value
+      case let .projectStateTitleLabelText(value): self.projectStateTitleLabel.text = value
+      case let .projectStateStackViewHidden(value): self.projectStateStackView.isHidden = value
+      case let .projectStatsStackViewHidden(value): self.projectStatsStackView.isHidden = value
+      case let .socialLabelText(value): self.socialLabel.text = value
+      case let .socialStackViewHidden(value): self.socialStackView.isHidden = value
+      case let .projectIsStaffPickLabelHidden(value): self.projectIsStaffPickView.isHidden = value
+      case let .projectCategoryViewHidden(value): self.projectCategoryView.isHidden = value
+      case let .projectCategoryStackViewHidden(value): self.projectCategoriesStackView.isHidden = value
+      case let .cellAccessibilityLabel(value): self.accessibilityLabel = value
+      case let .cellAccessibilityValue(value): self.accessibilityValue = value
+      case let .projectCategoryName(name): self.projectCategoryView.configureWith(name: name, imageNameString: "icon--compass")
+      case let .metadataIcon(icon): self.metadataIconImageView.image = icon
+      case let .progressPercentage(progress):
         let anchorX = progress == 0 ? 0 : 0.5 / progress
-        self?.fundingProgressBarView.layer.anchorPoint = CGPoint(x: CGFloat(anchorX), y: 0.5)
-        self?.fundingProgressBarView.transform = CGAffineTransform(scaleX: CGFloat(progress), y: 1.0)
+        self.fundingProgressBarView.layer.anchorPoint = CGPoint(x: CGFloat(anchorX), y: 0.5)
+        self.fundingProgressBarView.transform = CGAffineTransform(scaleX: CGFloat(progress), y: 1.0)
+      case let .projectImageURL(url):
+        self.projectImageView.af.cancelImageRequest()
+        self.projectImageView.image = nil
+        if let url { self.projectImageView.ksr_setImageWithURL(url) }
+      case let .socialImageURL(url):
+        self.socialAvatarImageView.af.cancelImageRequest()
+        self.socialAvatarImageView.image = nil
+        if let url { self.socialAvatarImageView.ksr_setRoundedImageWith(url) }
+      case .projectStateIconHidden: break
       }
-
-    self.viewModel.outputs.projectImageURL
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.projectImageView.af.cancelImageRequest()
-        self?.projectImageView.image = nil
-      })
-      .skipNil()
-      .observeValues { [weak self] url in
-        self?.projectImageView.ksr_setImageWithURL(url)
-      }
-
-    self.viewModel.outputs.socialImageURL
-      .observeForUI()
-      .on(event: { [weak self] _ in
-        self?.socialAvatarImageView.af.cancelImageRequest()
-        self?.socialAvatarImageView.image = nil
-      })
-      .skipNil()
-      .observeValues { [weak self] url in
-        self?.socialAvatarImageView.ksr_setRoundedImageWith(url)
-      }
-
+    }
   }
 
   internal func configureWith(value: DiscoveryProjectCellRowValue) {
-    self.viewModel.inputs.configure(with: value)
+    self.viewModel.configure(with: value)
 
     self.watchProjectViewModel.configure(with: (
       value.project,
