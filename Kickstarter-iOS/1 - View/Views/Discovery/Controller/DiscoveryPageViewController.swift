@@ -16,7 +16,7 @@ internal final class DiscoveryPageViewController: UITableViewController,
   MessageBannerViewControllerPresenting,
   VideoFeedBannerPresenting {
   fileprivate let viewModel: DiscoveryPageViewModelType = DiscoveryPageViewModel()
-  fileprivate let shareViewModel: ShareViewModelType = ShareViewModel()
+  fileprivate let shareViewModel = ShareViewModel()
 
   // MARK: - Properties
 
@@ -267,9 +267,9 @@ internal final class DiscoveryPageViewController: UITableViewController,
         _ = self?.tableView ?|> UIScrollView.lens.scrollsToTop .~ $0
       }
 
-    self.shareViewModel.outputs.showShareSheet
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.showShareSheet($0, shareContextView: $1) }
+    self.shareViewModel.onShareSheet = { [weak self] controller, source in
+      self?.showShareSheet(controller, shareContextView: source)
+    }
 
     self.viewModel.outputs.showEmptyState
       .observeForUI()
@@ -494,8 +494,8 @@ extension DiscoveryPageViewController: DiscoveryPostcardCellDelegate {
     cell _: DiscoveryPostcardCell, tappedShare context: ShareContext,
     fromSourceView: UIView
   ) {
-    self.shareViewModel.inputs.configureWith(shareContext: context, shareContextView: fromSourceView)
-    self.shareViewModel.inputs.shareButtonTapped()
+    self.shareViewModel.configureWith(shareContext: context, shareContextView: fromSourceView)
+    self.shareViewModel.shareButtonTapped()
   }
 
   internal func discoveryPostcardCellProjectSaveAlert() {

@@ -17,13 +17,13 @@ internal final class ThanksViewController: UIViewController, UITableViewDelegate
   @IBOutlet fileprivate var headerView: UIView!
 
   fileprivate let viewModel: ThanksViewModelType = ThanksViewModel()
-  fileprivate let shareViewModel: ShareViewModelType = ShareViewModel()
+  fileprivate let shareViewModel = ShareViewModel()
   fileprivate let dataSource = ThanksProjectsDataSource()
 
   internal static func configured(with data: ThanksPageData) -> ThanksViewController {
     let vc = Storyboard.Thanks.instantiate(ThanksViewController.self)
     vc.viewModel.inputs.configure(with: data)
-    vc.shareViewModel.inputs.configureWith(shareContext: .thanks(data.project), shareContextView: nil)
+    vc.shareViewModel.configureWith(shareContext: .thanks(data.project), shareContextView: nil)
     return vc
   }
 
@@ -193,9 +193,7 @@ internal final class ThanksViewController: UIViewController, UITableViewDelegate
         self?.projectsTableView.reloadData()
       }
 
-    self.shareViewModel.outputs.showShareSheet
-      .observeForControllerAction()
-      .observeValues { [weak self] controller, _ in self?.showShareSheet(controller) }
+    self.shareViewModel.onShareSheet = { [weak self] controller, _ in self?.showShareSheet(controller) }
   }
 
   private func updateHeaderView(height: CGFloat) {
@@ -286,7 +284,7 @@ internal final class ThanksViewController: UIViewController, UITableViewDelegate
   }
 
   @objc fileprivate func shareMoreButtonTapped() {
-    self.shareViewModel.inputs.shareButtonTapped()
+    self.shareViewModel.shareButtonTapped()
   }
 
   @objc fileprivate func closeButtonTapped() {

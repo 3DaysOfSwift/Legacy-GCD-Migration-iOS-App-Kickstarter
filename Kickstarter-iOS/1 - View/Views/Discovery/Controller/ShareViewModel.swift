@@ -1,6 +1,5 @@
 import KsApi
 import Prelude
-import ReactiveSwift
 import UIKit
 
 public struct ShareActivityCompletionData {
@@ -23,54 +22,18 @@ public struct ShareActivityCompletionData {
 }
 
 @MainActor
-public protocol ShareViewModelInputs {
-  /// Call with the context that this sharing is taking place in.
-  func configureWith(shareContext: ShareContext, shareContextView: UIView?)
-
-  /// Call when the general share button is pressed.
-  func shareButtonTapped()
-}
-
-@MainActor
-public protocol ShareViewModelOutputs {
-  /// Emits when the share sheet should be presented.
-  var showShareSheet: Signal<(UIActivityViewController, UIView?), Never> { get }
-}
-
-@MainActor
-public protocol ShareViewModelType {
-  var inputs: ShareViewModelInputs { get }
-  var outputs: ShareViewModelOutputs { get }
-}
-
-@MainActor
-public final class ShareViewModel: ShareViewModelType, ShareViewModelInputs, ShareViewModelOutputs {
-  public init() {
-    let shareContextAndView = self.shareContextProperty.signal.skipNil()
-
-    self.showShareSheet = shareContextAndView
-      .takeWhen(self.shareButtonTappedProperty.signal)
-      .map { context, view -> (UIActivityViewController, UIView?)? in
-        guard let controller = activityController(forShareContext: context) else { return nil }
-        return (controller, view)
-      }
-      .skipNil()
-  }
-
-  fileprivate let shareContextProperty = MutableProperty<(ShareContext, UIView?)?>(nil)
+public final class ShareViewModel {
+  public var onShareSheet: ((UIActivityViewController, UIView?) -> Void)?
+  private var context: (ShareContext, UIView?)?
+  public init() {}
   public func configureWith(shareContext: ShareContext, shareContextView: UIView?) {
-    self.shareContextProperty.value = (shareContext, shareContextView)
+    self.context = (shareContext, shareContextView)
   }
-
-  fileprivate let shareButtonTappedProperty = MutableProperty(())
   public func shareButtonTapped() {
-    self.shareButtonTappedProperty.value = ()
+    guard let (context, source) = self.context,
+          let controller = activityController(forShareContext: context) else { return }
+    self.onShareSheet?(controller, source)
   }
-
-  public let showShareSheet: Signal<(UIActivityViewController, UIView?), Never>
-
-  public var inputs: ShareViewModelInputs { return self }
-  public var outputs: ShareViewModelOutputs { return self }
 }
 
 @MainActor

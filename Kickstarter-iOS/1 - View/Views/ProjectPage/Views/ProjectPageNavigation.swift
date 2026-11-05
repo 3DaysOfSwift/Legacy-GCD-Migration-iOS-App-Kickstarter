@@ -53,7 +53,7 @@ final class ProjectPageNavigation {
 
   // MARK: - Private properties
 
-  private let shareViewModel: ShareViewModelType = ShareViewModel()
+  private let shareViewModel = ShareViewModel()
   private let watchProjectViewModel: WatchProjectViewModelType = WatchProjectViewModel()
 
   private lazy var navigationShareButton: UIButton = { UIButton(type: .custom) }()
@@ -86,9 +86,7 @@ final class ProjectPageNavigation {
   }
 
   private func bindSharingViewModel() {
-    self.shareViewModel.outputs.showShareSheet
-      .observeForControllerAction()
-      .observeValues { [weak self] controller, _ in
+    self.shareViewModel.onShareSheet = { [weak self] controller, _ in
         self?.delegate?.showShareSheet(controller, sourceView: self?.navigationShareButton)
       }
   }
@@ -182,7 +180,7 @@ final class ProjectPageNavigation {
   // MARK: Selectors
 
   @objc private func shareButtonTapped() {
-    self.shareViewModel.inputs.shareButtonTapped()
+    self.shareViewModel.shareButtonTapped()
   }
 
   @objc private func userSessionStarted() {
@@ -212,7 +210,7 @@ final class ProjectPageNavigation {
   }
 
   func configureSharing(with context: ShareContext) {
-    self.shareViewModel.inputs.configureWith(shareContext: context, shareContextView: nil)
+    self.shareViewModel.configureWith(shareContext: context, shareContextView: nil)
   }
 
   func configureWatchProject(with context: WatchProjectValue) {

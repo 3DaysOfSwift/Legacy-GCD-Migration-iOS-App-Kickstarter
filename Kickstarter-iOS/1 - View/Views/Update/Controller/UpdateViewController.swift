@@ -7,7 +7,7 @@ import WebKit
 
 internal final class UpdateViewController: WebViewController {
   fileprivate let viewModel: UpdateViewModel = UpdateViewModel()
-  fileprivate let shareViewModel: ShareViewModelType = ShareViewModel()
+  fileprivate let shareViewModel = ShareViewModel()
 
   fileprivate let closeButton = UIBarButtonItem()
 
@@ -17,7 +17,7 @@ internal final class UpdateViewController: WebViewController {
     -> UpdateViewController {
     let vc = Storyboard.Update.instantiate(UpdateViewController.self)
     vc.viewModel.configureWith(project: project, update: update)
-    vc.shareViewModel.inputs.configureWith(shareContext: .update(project, update), shareContextView: nil)
+    vc.shareViewModel.configureWith(shareContext: .update(project, update), shareContextView: nil)
 
     return vc
   }
@@ -105,7 +105,7 @@ internal final class UpdateViewController: WebViewController {
   }
 
   @IBAction fileprivate func shareButtonTapped() {
-    self.shareViewModel.inputs.shareButtonTapped()
+    self.shareViewModel.shareButtonTapped()
   }
 
   @objc fileprivate func dismissSelf() {
