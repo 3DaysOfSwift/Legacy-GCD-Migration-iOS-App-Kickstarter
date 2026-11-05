@@ -184,18 +184,6 @@ public final class PaymentsFeature {
       }
     }
   }
-  public func removeResult(id: String) -> SignalProducer<DeletePaymentMethodEnvelope, ErrorEnvelope> {
-    self.commandResult(.remove(id), operation: { .removed(try await $0.remove(id: id)) }) {
-      guard case let .removed(value) = $0 else { preconditionFailure("Payment command type mismatch") }
-      return value
-    }
-  }
-  public func storeResult(secret: String) -> SignalProducer<CreatePaymentSourceEnvelope, ErrorEnvelope> {
-    self.commandResult(.store(secret), operation: { .stored(try await $0.store(secret: secret)) }) {
-      guard case let .stored(value) = $0 else { preconditionFailure("Payment command type mismatch") }
-      return value
-    }
-  }
   public func setupResult(projectID: String?, context: GraphAPI.StripeIntentContextTypes) -> SignalProducer<ClientSecretEnvelope, ErrorEnvelope> {
     self.commandResult(.setup(projectID, context.rawValue), operation: {
       .setup(try await $0.setup(input: KsApi.CreateSetupIntentInput(projectId: projectID, context: context)))

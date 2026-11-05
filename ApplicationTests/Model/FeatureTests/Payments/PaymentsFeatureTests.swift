@@ -87,18 +87,23 @@ final class PaymentsFeatureTests: TestCase {
   }
 
   func testDuplicatePendingCardTailSharesButInterveningWriteDoesNot() async throws {
-    let a = self.feature.removeResult(id: "card").start()
-    let duplicate = self.feature.removeResult(id: "card").start()
-    let store = self.feature.storeResult(secret: "fixture").start()
-    let again = self.feature.removeResult(id: "card").start()
-    defer { a.dispose(); duplicate.dispose(); store.dispose(); again.dispose() }
+    let first = Task { try await self.feature.remove(id: "card") }
     await self.provider.removals.waitFor(1)
+    let duplicate = Task { try await self.feature.remove(id: "card") }
+    await Task.yield()
+    let store = Task { try await self.feature.store(secret: "fixture") }
+    await Task.yield()
+    let again = Task { try await self.feature.remove(id: "card") }
+    await Task.yield()
     try self.provider.removals.finish(0, .success(DeletePaymentMethodEnvelope(storedCards: [])))
     await self.provider.stores.waitFor(1)
     try self.provider.stores.finish(0, .success(self.storedCard()))
     await self.provider.removals.waitFor(2)
     try self.provider.removals.finish(1, .success(DeletePaymentMethodEnvelope(storedCards: [])))
-    await self.feature.waitForOperations()
+    _ = try await first.value
+    _ = try await duplicate.value
+    _ = try await store.value
+    _ = try await again.value
     XCTAssertEqual(self.provider.removals.count, 2)
   }
 
@@ -117,20 +122,21 @@ final class PaymentsFeatureTests: TestCase {
   }
 
   func testSessionChangeSuppressesOldIntentValueAndQueuedCardWrite() async throws {
-    var values = 0, errors = 0
-    let intent = self.feature.intentResult(projectID: "p", backingID: "b", checkoutID: "c", total: 1)
-      .startWithResult { _ in values += 1 }
-    let removal = self.feature.removeResult(id: "old").startWithFailed { _ in errors += 1 }
-    let queued = self.feature.storeResult(secret: "fixture").startWithResult { _ in values += 1 }
-    defer { intent.dispose(); removal.dispose(); queued.dispose() }
+    let intent = Task { try await self.feature.intent(projectID: "p", backingID: "b", checkoutID: "c", total: 1) }
+    let removal = Task { try await self.feature.remove(id: "old") }
     await self.provider.intents.waitFor(1)
     await self.provider.removals.waitFor(1)
+    let queued = Task { try await self.feature.store(secret: "fixture") }
+    await Task.yield()
     self.session.sessionChanged()
     try self.provider.intents.finish(0, .success(PaymentIntentEnvelope(clientSecret: "old")))
     try self.provider.removals.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
-    await self.feature.waitForOperations()
-    XCTAssertEqual(values, 0)
-    XCTAssertEqual(errors, 0)
+    do { _ = try await intent.value; XCTFail("Old intent must not be delivered") }
+    catch { XCTAssertTrue(error is CancellationError) }
+    do { _ = try await removal.value; XCTFail("Old error must not be delivered") }
+    catch { XCTAssertTrue(error is CancellationError) }
+    do { _ = try await queued.value; XCTFail("Old queued write must not be delivered") }
+    catch { XCTAssertTrue(error is CancellationError) }
     XCTAssertEqual(self.provider.stores.count, 0)
   }
 
