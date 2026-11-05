@@ -100,7 +100,7 @@ public protocol DiscoveryPageViewModelOutputs: AnyObject {
   var onGoToProjectUpdate: ((Project, Update) -> Void)? { get set }
 
   /// Emits when we should dismiss the empty state controller.
-  var hideEmptyState: Signal<(), Never> { get }
+  var onHideEmptyState: (() -> Void)? { get set }
 
   /// Emits with the current contentOffset.
   var onContentOffsetChanged: ((CGPoint) -> Void)? { get set }
@@ -109,13 +109,13 @@ public protocol DiscoveryPageViewModelOutputs: AnyObject {
   var projectsLoaded: Signal<([Project], DiscoveryParams?), Never> { get }
 
   /// Emits a boolean that determines if projects are currently loading or not.
-  var projectsAreLoadingAnimated: Signal<(Bool, Bool), Never> { get }
+  var onProjectsLoadingChanged: ((Bool, Bool) -> Void)? { get set }
 
   /// Emits a bool to allow status bar tap to scroll the table view to the top.
   var onScrollsToTopChanged: ((Bool) -> Void)? { get set }
 
   /// Emits to show the empty state controller.
-  var showEmptyState: Signal<EmptyState, Never> { get }
+  var onShowEmptyState: ((EmptyState) -> Void)? { get set }
 
   /// Emits a boolean that determines of the onboarding should be shown.
   var onShowOnboarding: ((Bool) -> Void)? { get set }
@@ -138,7 +138,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   DiscoveryPageViewModelOutputs {
   private let discoveryFeature: DiscoveryFeature
   private let projectsPipe = Signal<(DiscoveryParams.Sort, [Project]), Never>.pipe()
-  private let loadingStatePipe = Signal<(Bool, Bool), Never>.pipe()
   private var discoveryObservation: MainActorObservation?
   private let featureBindings = ScopedDisposable(CompositeDisposable())
   internal private(set) var pageTask: Task<Void, Never>?
@@ -210,33 +209,13 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.asyncReloadData = self.projectsLoaded.take(first: 1).ignoreValues()
 
 
-    self.projectsAreLoadingAnimated = self.loadingStatePipe.output
-
-    self.showEmptyState = Signal.combineLatest(
-      paramsChanged,
-      self.projectsAreLoadingAnimated.map(first),
-      paginatedProjects
-    )
-    .filter { _, projectsAreLoading, projects in projectsAreLoading == false && projects.isEmpty }
-    .map { params, _, _ in
-      emptyState(forParams: params)
-    }
-    .skipNil()
-    .skipRepeats()
-
-    self.hideEmptyState = Signal.merge(
-      self.viewWillAppearProperty.signal.take(first: 1),
-      self.asyncReloadData,
-      paginatedProjects.filter { !$0.isEmpty }.ignoreValues(),
-      paramsChanged.skip(first: 1).ignoreValues()
-    )
-
-
-    self.featureBindings += self.projectsAreLoadingAnimated.observeValues { [weak self] loading, _ in
+    self.featureBindings += paginatedProjects.observeValues { [weak self] projects in
       guard let self else { return }
-      self.currentProjectsLoading = loading
-      self.publishContentOffsetIfReady()
+      self.lastPaginatedProjects = projects
+      self.updateEmptyState()
+      if !projects.isEmpty { self.onHideEmptyState?() }
     }
+    self.featureBindings += self.asyncReloadData.observeValues { [weak self] in self?.onHideEmptyState?() }
 
     // These observers only admit commands. The Feature owns and retains the work.
     self.featureBindings += requestFirstPageWith.observeValues { [weak self] parameters in
@@ -274,9 +253,13 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
       self?.updateOnboarding()
     }
     self.featureBindings += paramsChanged.observeValues { [weak self] parameters in
-      self?.currentNavigationParameters = parameters
-      self?.clearActivityOnDisappear = true
-      self?.updateOnboarding()
+      guard let self else { return }
+      let hadParameters = self.currentNavigationParameters != nil
+      self.currentNavigationParameters = parameters
+      self.clearActivityOnDisappear = true
+      self.updateOnboarding()
+      self.updateEmptyState()
+      if hadParameters { self.onHideEmptyState?() }
     }
     self.featureBindings += projects.observeValues { [weak self] in self?.currentNavigationProjects = $0 }
 
@@ -346,7 +329,10 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   private func publishLoading(_ loading: Bool, animated: Bool) {
     if let previous = self.lastPublishedLoading, previous.0 == loading, previous.1 == animated { return }
     self.lastPublishedLoading = (loading, animated)
-    self.loadingStatePipe.input.send(value: (loading, animated))
+    self.currentProjectsLoading = loading
+    self.updateEmptyState()
+    self.publishContentOffsetIfReady()
+    self.onProjectsLoadingChanged?(loading, animated)
   }
   private func publishNonRefreshLoading(_ loading: Bool) {
     guard self.lastNonRefreshLoading != loading else { return }
@@ -362,6 +348,17 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   private func receiveLoading(_ loading: Bool) {
     self.publishNonRefreshLoading(loading)
     if self.hasPulledToRefresh { self.updateRefreshLoading(loading) }
+  }
+
+  private var lastPaginatedProjects: [Project]?
+  private var lastEmptyState: EmptyState?
+  private func updateEmptyState() {
+    guard let parameters = self.currentNavigationParameters,
+          self.currentProjectsLoading == false,
+          let projects = self.lastPaginatedProjects, projects.isEmpty,
+          let state = emptyState(forParams: parameters), self.lastEmptyState != state else { return }
+    self.lastEmptyState = state
+    self.onShowEmptyState?(state)
   }
 
   private var currentContentOffset: CGPoint?
@@ -461,6 +458,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     self.viewWillAppearProperty.value = ()
     if !self.hasAppearedForLoading {
       self.hasAppearedForLoading = true
+      self.onHideEmptyState?()
       self.publishLoading(true, animated: false)
     }
     if AppEnvironment.current.currentUser == nil { self.publishActivities([]) }
@@ -491,12 +489,12 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   public var onGoToLoginSignup: ((LoginIntent) -> Void)?
   public var onGoToProjectPlaylist: ((Project, [Project], RefTag) -> Void)?
   public var onGoToProjectUpdate: ((Project, Update) -> Void)?
-  public let hideEmptyState: Signal<Void, Never>
+  public var onHideEmptyState: (() -> Void)?
   public var onContentOffsetChanged: ((CGPoint) -> Void)?
   public let projectsLoaded: Signal<([Project], DiscoveryParams?), Never>
-  public let projectsAreLoadingAnimated: Signal<(Bool, Bool), Never>
+  public var onProjectsLoadingChanged: ((Bool, Bool) -> Void)?
   public var onScrollsToTopChanged: ((Bool) -> Void)?
-  public let showEmptyState: Signal<EmptyState, Never>
+  public var onShowEmptyState: ((EmptyState) -> Void)?
   public var onShowOnboarding: ((Bool) -> Void)?
   public var onShowPersonalization: ((Bool) -> Void)?
   private var hasCurrentUserValue = false

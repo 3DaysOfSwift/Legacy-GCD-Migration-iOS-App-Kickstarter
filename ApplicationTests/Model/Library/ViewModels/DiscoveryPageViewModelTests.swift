@@ -73,7 +73,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.vm.outputs.asyncReloadData.observe(self.asyncReloadData.observer)
     self.vm.outputs.onContentInset = { [weak self] in self?.contentInset.observer.send(value: $0) }
     self.vm.outputs.onDismissPersonalizationCell = { [weak self] in self?.dismissPersonalizationCell.observer.send(value: ()) }
-    self.vm.outputs.hideEmptyState.observe(self.hideEmptyState.observer)
+    self.vm.outputs.onHideEmptyState = { [weak self] in self?.hideEmptyState.observer.send(value: ()) }
     self.vm.outputs.onGoToActivityProject = { [weak self] project, tag in
       self?.goToActivityProject.observer.send(value: project)
       self?.goToActivityProjectRefTag.observer.send(value: tag)
@@ -86,11 +86,14 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
     self.vm.outputs.onGoToProjectUpdate = { [weak self] _, update in self?.goToProjectUpdate.observer.send(value: update) }
     self.vm.outputs.onContentOffsetChanged = { [weak self] in self?.notifyDelegateContentOffsetChanged.observer.send(value: $0) }
-    self.vm.outputs.projectsAreLoadingAnimated.observe(self.projectsAreLoadingAnimated.observer)
+    self.vm.outputs.onProjectsLoadingChanged = { [weak self] loading, animated in
+      self?.projectsAreLoadingAnimated.observer.send(value: (loading, animated))
+      self?.projectsAreLoading.observer.send(value: loading)
+    }
     self.vm.outputs.projectsLoaded.ignoreValues().observe(self.hasLoadedProjects.observer)
     self.vm.outputs.projectsLoaded.map(second).observe(self.projectsLoadedDiscoveryParams.observer)
     self.vm.outputs.onScrollsToTopChanged = { [weak self] in self?.setScrollsToTop.observer.send(value: $0) }
-    self.vm.outputs.showEmptyState.observe(self.showEmptyState.observer)
+    self.vm.outputs.onShowEmptyState = { [weak self] in self?.showEmptyState.observer.send(value: $0) }
     self.vm.outputs.onShowOnboarding = { [weak self] in self?.showOnboarding.observer.send(value: $0) }
     self.vm.outputs.onShowPersonalization = { [weak self] in self?.showPersonalization.observer.send(value: $0) }
     self.vm.outputs.onVideoFeedBannerChanged = { [weak self] in self?.showVideoFeedBanner.observer.send(value: $0) }
@@ -105,7 +108,6 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       .combinePrevious(0)
       .map { prev, next in next < prev }
       .observe(self.hasRemovedProjects.observer)
-    self.vm.outputs.projectsAreLoadingAnimated.map { $0.0 }.observe(self.projectsAreLoading.observer)
     }
   }
 

@@ -171,9 +171,7 @@ internal final class DiscoveryPageViewController: UITableViewController,
   internal override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.projectsAreLoadingAnimated
-      .observeForUI()
-      .observeValues { [weak self] isLoading, animated in
+    self.viewModel.outputs.onProjectsLoadingChanged = { [weak self] isLoading, animated in
         self?.pendingRefresh = (isLoading, animated)
         self?.view.setNeedsLayout()
       }
@@ -251,15 +249,11 @@ internal final class DiscoveryPageViewController: UITableViewController,
       self?.showShareSheet(controller, shareContextView: source)
     }
 
-    self.viewModel.outputs.showEmptyState
-      .observeForUI()
-      .observeValues { [weak self] emptyState in
+    self.viewModel.outputs.onShowEmptyState = { [weak self] emptyState in
         self?.showEmptyState(emptyState)
       }
 
-    self.viewModel.outputs.hideEmptyState
-      .observeForUI()
-      .observeValues { [weak self] in
+    self.viewModel.outputs.onHideEmptyState = { [weak self] in
         self?.emptyStatesController?.view.alpha = 0
         self?.emptyStatesController?.view.isHidden = true
 
