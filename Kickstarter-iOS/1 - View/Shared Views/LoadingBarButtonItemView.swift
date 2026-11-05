@@ -7,7 +7,7 @@ final class LoadingBarButtonItemView: UIView {
   private lazy var activityIndicator: UIActivityIndicatorView = { UIActivityIndicatorView() }()
   private lazy var titleButton: UIButton = { UIButton() }()
 
-  private let viewModel: LoadingBarButtonItemViewModelType = LoadingBarButtonItemViewModel()
+  private let viewModel = LoadingBarButtonItemViewModel()
 
   // Helper function for creating a UIBarButtonItem for the LoadingBarButtonItemView with liquid
   // glass animation off. The liquid glass animation is added directly to the UIButton instead,
@@ -77,33 +77,30 @@ final class LoadingBarButtonItemView: UIView {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.titleButton.rac.hidden = self.viewModel.outputs.titleButtonIsHidden
-    self.titleButton.rac.enabled = self.viewModel.outputs.titleButtonIsEnabled
-    self.titleButton.rac.title = self.viewModel.outputs.titleButtonText
-
-    self.viewModel.outputs.activityIndicatorIsLoading
-      .observeForUI()
-      .observeValues { [weak self] isLoading in
-        self?.animateActivityIndicator(isLoading)
-      }
+    self.viewModel.onEnabledChanged = { [weak self] in self?.titleButton.isEnabled = $0 }
+    self.viewModel.onTitleChanged = { [weak self] in self?.titleButton.setTitle($0, for: .normal) }
+    self.viewModel.onAnimatingChanged = { [weak self] isAnimating in
+      self?.titleButton.isHidden = isAnimating
+      self?.animateActivityIndicator(isAnimating)
+    }
   }
 
   // MARK: - Public Functions
 
   func setIsEnabled(isEnabled: Bool) {
-    self.viewModel.inputs.setIsEnabled(isEnabled: isEnabled)
+    self.viewModel.setIsEnabled(isEnabled: isEnabled)
   }
 
   func setTitle(title: String) {
-    self.viewModel.inputs.setTitle(title: title)
+    self.viewModel.setTitle(title: title)
   }
 
   func startAnimating() {
-    self.viewModel.inputs.setAnimating(isAnimating: true)
+    self.viewModel.setAnimating(isAnimating: true)
   }
 
   func stopAnimating() {
-    self.viewModel.inputs.setAnimating(isAnimating: false)
+    self.viewModel.setAnimating(isAnimating: false)
   }
 
   func addTarget(_ target: Any?, action: Selector) {

@@ -5,7 +5,7 @@ import UIKit
 final class LoadingButton: UIButton {
   // MARK: - Properties
 
-  private let viewModel: LoadingButtonViewModelType = LoadingButtonViewModel()
+  private let viewModel = LoadingButtonViewModel()
 
   private lazy var activityIndicator: UIActivityIndicatorView = {
     UIActivityIndicatorView(style: .medium)
@@ -21,7 +21,7 @@ final class LoadingButton: UIButton {
 
   public var isLoading: Bool = false {
     didSet {
-      self.viewModel.inputs.isLoading(self.isLoading)
+      self.viewModel.isLoading(self.isLoading)
     }
   }
 
@@ -66,24 +66,11 @@ final class LoadingButton: UIButton {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.isUserInteractionEnabled
-      .observeForUI()
-      .observeValues { [weak self] isUserInteractionEnabled in
-        _ = self
-          ?|> \.isUserInteractionEnabled .~ isUserInteractionEnabled
-      }
-
-    self.viewModel.outputs.startLoading
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.startLoading()
-      }
-
-    self.viewModel.outputs.stopLoading
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.stopLoading()
-      }
+    self.viewModel.onLoadingChanged = { [weak self] isLoading in
+      guard let self else { return }
+      self.isUserInteractionEnabled = !isLoading
+      if isLoading { self.startLoading() } else { self.stopLoading() }
+    }
   }
 
   // MARK: - Loading

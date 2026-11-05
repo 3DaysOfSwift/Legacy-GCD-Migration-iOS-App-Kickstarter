@@ -1,53 +1,43 @@
 @testable import Kickstarter_iOS
-
-
-import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
+import UIKit
 
+@MainActor
 final class LoadingBarButtonItemViewModelTests: TestCase {
-  private let vm: LoadingBarButtonItemViewModelType = LoadingBarButtonItemViewModel()
-
-  private let activityIndicatorIsLoading = TestObserver<Bool, Never>()
-  private let titleButtonIsEnabled = TestObserver<Bool, Never>()
-  private let titleButtonIsHidden = TestObserver<Bool, Never>()
-  private let titleButtonText = TestObserver<String, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.activityIndicatorIsLoading.observe(self.activityIndicatorIsLoading.observer)
-    self.vm.outputs.titleButtonIsEnabled.observe(self.titleButtonIsEnabled.observer)
-    self.vm.outputs.titleButtonIsHidden.observe(self.titleButtonIsHidden.observer)
-    self.vm.outputs.titleButtonText.observe(self.titleButtonText.observer)
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  func testUpdatesAreDeliveredInOrder() {
+    let viewModel = LoadingBarButtonItemViewModel()
+    var enabled: [Bool] = []
+    var titles: [String] = []
+    var animation: [Bool] = []
+    viewModel.onEnabledChanged = { enabled.append($0) }
+    viewModel.onTitleChanged = { titles.append($0) }
+    viewModel.onAnimatingChanged = { animation.append($0) }
+    viewModel.setIsEnabled(isEnabled: true)
+    viewModel.setIsEnabled(isEnabled: false)
+    viewModel.setTitle(title: "Hello")
+    viewModel.setAnimating(isAnimating: true)
+    viewModel.setAnimating(isAnimating: false)
+    XCTAssertEqual(enabled, [true, false])
+    XCTAssertEqual(titles, ["Hello"])
+    XCTAssertEqual(animation, [true, false])
+  }
+  func testViewDisplaysButtonAndLoadingState() {
+    let view = LoadingBarButtonItemView.instantiate()
+    guard let button = view.subviews.compactMap({ $0 as? UIButton }).first,
+          let indicator = view.subviews.compactMap({ $0 as? UIActivityIndicatorView }).first else {
+      return XCTFail("Expected the button and activity indicator")
+    }
+    view.setTitle(title: "Save")
+    view.setIsEnabled(isEnabled: true)
+    XCTAssertEqual(button.title(for: .normal), "Save")
+    XCTAssertTrue(button.isEnabled)
+    view.startAnimating()
+    XCTAssertTrue(button.isHidden)
+    XCTAssertTrue(indicator.isAnimating)
+    view.stopAnimating()
+    XCTAssertFalse(button.isHidden)
+    XCTAssertFalse(indicator.isAnimating)
   }
 
-  func testSetIsEnabled() {
-    self.vm.inputs.setIsEnabled(isEnabled: true)
-
-    self.titleButtonIsEnabled.assertValues([true])
-
-    self.vm.inputs.setIsEnabled(isEnabled: false)
-
-    self.titleButtonIsEnabled.assertValues([true, false])
-  }
-
-  func testSetTitle() {
-    self.vm.inputs.setTitle(title: "Hello")
-
-    self.titleButtonText.assertValue("Hello")
-  }
-
-  func testAnimating() {
-    self.vm.inputs.setAnimating(isAnimating: true)
-
-    self.activityIndicatorIsLoading.assertValues([true])
-    self.titleButtonIsHidden.assertValues([true])
-
-    self.vm.inputs.setAnimating(isAnimating: false)
-
-    self.activityIndicatorIsLoading.assertValues([true, false])
-    self.titleButtonIsHidden.assertValues([true, false])
-  }
 }

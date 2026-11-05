@@ -1,35 +1,28 @@
 @testable import Kickstarter_iOS
-
-
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
+import UIKit
 
+@MainActor
 final class LoadingButtonViewModelTests: TestCase {
-  private let vm: LoadingButtonViewModelType = LoadingButtonViewModel()
-
-  private let isUserInteractionEnabled = TestObserver<Bool, Never>()
-  private let startLoading = TestObserver<Void, Never>()
-  private let stopLoading = TestObserver<Void, Never>()
-
-  override func setUp() async throws {
-    try await super.setUp()
-
-    self.vm.outputs.isUserInteractionEnabled.observe(self.isUserInteractionEnabled.observer)
-    self.vm.outputs.startLoading.observe(self.startLoading.observer)
-    self.vm.outputs.stopLoading.observe(self.stopLoading.observer)
+  override var requiresSnapshotReferenceSimulator: Bool { false }
+  func testLoadingUpdatesAreDeliveredInOrder() {
+    let viewModel = LoadingButtonViewModel()
+    var updates: [Bool] = []
+    viewModel.onLoadingChanged = { updates.append($0) }
+    viewModel.isLoading(true)
+    viewModel.isLoading(false)
+    XCTAssertEqual(updates, [true, false])
+  }
+  func testLoadingPreservesUpdatedTitleAndInteraction() {
+    let button = LoadingButton(frame: .zero)
+    button.setTitle("Start", for: .normal)
+    button.isLoading = true
+    XCTAssertFalse(button.isUserInteractionEnabled)
+    XCTAssertNil(button.title(for: .normal))
+    button.setTitle("Updated", for: .normal)
+    button.isLoading = false
+    XCTAssertTrue(button.isUserInteractionEnabled)
+    XCTAssertEqual(button.title(for: .normal), "Updated")
   }
 
-  func testIsLoading() {
-    self.vm.inputs.isLoading(true)
-    self.isUserInteractionEnabled.assertValues([false])
-    self.startLoading.assertValueCount(1)
-    self.stopLoading.assertValueCount(0)
-
-    self.vm.inputs.isLoading(false)
-    self.isUserInteractionEnabled.assertValues([false, true])
-    self.startLoading.assertValueCount(1)
-    self.stopLoading.assertValueCount(1)
-  }
 }
