@@ -95,7 +95,6 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   private let pagesPipe = Signal<[SearchResult], Never>.pipe()
   private let countPipe = Signal<Int, Never>.pipe()
   private let loadingPipe = Signal<Bool, Never>.pipe()
-  private let pageCountPipe = Signal<Int, Never>.pipe()
   private var searchObservation: MainActorObservation?
   private let completionAnalytics: SearchCompletionAnalytics
   // UIKit retains the shared Feature task rather than spawning wrapper Tasks.
@@ -159,10 +158,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
 
     // Register analytics before presentation: a zero count or buffered page
     // settlement can track before the corresponding cards are published.
-    self.completionAnalytics = SearchCompletionAnalytics(
-      counts: stats, pages: self.pageCountPipe.output,
-      results: paginatedProjects, loading: isLoading
-    )
+    self.completionAnalytics = SearchCompletionAnalytics()
 
     self.searchResults = Signal.combineLatest(
       isProjectsTitleVisible,
@@ -184,7 +180,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.featureBindings += stats.observeValues { [weak self] count in
       self?.appearanceResultsCount = count
     }
-    self.featureBindings += self.completionAnalytics.countsToTrack.observeValues { [weak self] count in
+    self.completionAnalytics.onCount = { [weak self] count in
       self?.trackResultCompletion(count: count)
     }
     self.selectionObservation = searchFeature.filterSelection.observe { [weak self] change in
@@ -204,10 +200,16 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       guard let self else { return }
       switch update {
       case let .results(value): self.resultsPipe.input.send(value: value)
-      case let .page(value): self.pagesPipe.input.send(value: value)
-      case let .count(value): self.countPipe.input.send(value: value)
-      case let .loading(value): self.loadingPipe.input.send(value: value)
-      case let .pageCount(value): self.pageCountPipe.input.send(value: value)
+      case let .page(value):
+        self.completionAnalytics.recordResults()
+        self.pagesPipe.input.send(value: value)
+      case let .count(value):
+        self.completionAnalytics.recordCount(value)
+        self.countPipe.input.send(value: value)
+      case let .loading(value):
+        self.completionAnalytics.recordLoading(value)
+        self.loadingPipe.input.send(value: value)
+      case let .pageCount(value): self.completionAnalytics.recordPage(value)
       }
     }
   }
@@ -374,37 +376,29 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
 /// zip retained it, and changing that behaviour needs a separate product decision.
 @MainActor
 private final class SearchCompletionAnalytics {
-  private let bindings = ScopedDisposable(CompositeDisposable())
-  private let countsPipe = Signal<Int, Never>.pipe()
-  var countsToTrack: Signal<Int, Never> { self.countsPipe.output }
+  var onCount: ((Int) -> Void)?
   private var latestCount: Int?
   private var hasPublishedResults = false
   private var isLoading: Bool?
   private var pendingPages: [Int] = []
   private var unpairedSettlements = 0
 
-  init(
-    counts: Signal<Int, Never>, pages: Signal<Int, Never>,
-    results: Signal<[SearchResult], Never>, loading: Signal<Bool, Never>
-  ) {
-    self.bindings += counts.observeValues { [weak self] in self?.recordCount($0) }
-    self.bindings += pages.observeValues { [weak self] in self?.recordPage($0) }
-    self.bindings += results.observeValues { [weak self] _ in
-      self?.hasPublishedResults = true
-      self?.recordSettlementIfReady()
-    }
-    self.bindings += loading.observeValues { [weak self] loading in
-      self?.isLoading = loading
-      self?.recordSettlementIfReady()
-    }
+  func recordResults() {
+    self.hasPublishedResults = true
+    self.recordSettlementIfReady()
+  }
+
+  func recordLoading(_ loading: Bool) {
+    self.isLoading = loading
+    self.recordSettlementIfReady()
   }
 
   func recordCount(_ count: Int) {
     self.latestCount = count
-    if count == 0 { self.countsPipe.input.send(value: count) }
+    if count == 0 { self.onCount?(count) }
   }
 
-  private func recordPage(_ page: Int) {
+  func recordPage(_ page: Int) {
     guard self.unpairedSettlements > 0 else {
       self.pendingPages.append(page)
       return
@@ -424,7 +418,7 @@ private final class SearchCompletionAnalytics {
 
   private func trackIfFirstPage(_ page: Int) {
     guard page == 1, let count = self.latestCount else { return }
-    self.countsPipe.input.send(value: count)
+    self.onCount?(count)
   }
 
 }
