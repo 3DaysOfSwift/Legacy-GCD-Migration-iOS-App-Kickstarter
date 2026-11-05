@@ -16,7 +16,7 @@ internal protocol DiscoveryPostcardCellDelegate: AnyObject {
 
 internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
   fileprivate let viewModel: DiscoveryPostcardViewModelType = DiscoveryPostcardViewModel()
-  private let watchProjectViewModel: WatchProjectViewModelType = WatchProjectViewModel()
+  private let watchProjectViewModel = WatchProjectViewModel()
   internal weak var delegate: DiscoveryPostcardCellDelegate?
 
   @IBOutlet fileprivate var cardView: UIView!
@@ -82,20 +82,20 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
       self.saveButton.addTarget(self, action: #selector(self.saveButtonPressed(_:)), for: .touchDown)
 
       self.sessionStartedObserver = MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
-        self?.watchProjectViewModel.inputs.userSessionStarted()
+        self?.watchProjectViewModel.userSessionStarted()
       }
 
       self.sessionEndedObserver = MainActorNotificationObservation(name: .ksr_sessionEnded) { [weak self] _ in
-        self?.watchProjectViewModel.inputs.userSessionEnded()
+        self?.watchProjectViewModel.userSessionEnded()
       }
 
       self.projectSavedObserver = MainActorNotificationObservation(name: .ksr_projectSaved) { [weak self] notification in
-        self?.watchProjectViewModel.inputs.projectFromNotification(
+        self?.watchProjectViewModel.projectFromNotification(
           project: notification.userInfo?["project"] as? Project
         )
       }
 
-      self.watchProjectViewModel.inputs.awakeFromNib()
+      self.watchProjectViewModel.awakeFromNib()
     }
 
     super.awakeFromNib()
@@ -227,6 +227,20 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
   internal override func bindViewModel() {
     super.bindViewModel()
 
+    self.watchProjectViewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .selected(value): self.saveButton.isSelected = value
+      case .impact: generateImpactFeedback()
+      case .success: generateNotificationSuccessFeedback()
+      case .selection: generateSelectionFeedback()
+      case .savedAlert: self.delegate?.discoveryPostcardCellProjectSaveAlert()
+      case .login: self.delegate?.discoveryPostcardCellGoToLoginTout()
+      case let .notification(notification): NotificationCenter.default.post(notification)
+      case .project: break
+      }
+    }
+
     self.rac.accessibilityLabel = self.viewModel.outputs.cellAccessibilityLabel
     self.rac.accessibilityValue = self.viewModel.outputs.cellAccessibilityValue
     self.backersTitleLabel.rac.text = self.viewModel.outputs.backersTitleLabelText
@@ -250,7 +264,6 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
     self.projectStatsStackView.rac.hidden = self.viewModel.outputs.projectStatsStackViewHidden
     self.socialLabel.rac.text = self.viewModel.outputs.socialLabelText
     self.socialStackView.rac.hidden = self.viewModel.outputs.socialStackViewHidden
-    self.saveButton.rac.selected = self.watchProjectViewModel.outputs.saveButtonSelected
     self.projectIsStaffPickView.rac.hidden = self.viewModel.outputs.projectIsStaffPickLabelHidden
     self.projectCategoryView.rac.hidden = self.viewModel.outputs.projectCategoryViewHidden
     self.projectCategoriesStackView.rac.hidden = self.viewModel.outputs.projectCategoryStackViewHidden
@@ -258,18 +271,6 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
     self.projectIsStaffPickView.configureWith(
       name: Strings.Projects_We_Love(), imageNameString: "icon--small-k"
     )
-
-    self.watchProjectViewModel.outputs.generateImpactFeedback
-      .observeForUI()
-      .observeValues { _ in generateImpactFeedback() }
-
-    self.watchProjectViewModel.outputs.generateNotificationSuccessFeedback
-      .observeForUI()
-      .observeValues { generateNotificationSuccessFeedback() }
-
-    self.watchProjectViewModel.outputs.generateSelectionFeedback
-      .observeForUI()
-      .observeValues { generateSelectionFeedback() }
 
     self.viewModel.outputs.projectCategoryName
       .signal
@@ -303,12 +304,6 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
         self?.projectImageView.ksr_setImageWithURL(url)
       }
 
-    self.watchProjectViewModel.outputs.showNotificationDialog
-      .observeForUI()
-      .observeValues { n in
-        NotificationCenter.default.post(n)
-      }
-
     self.viewModel.outputs.socialImageURL
       .observeForUI()
       .on(event: { [weak self] _ in
@@ -320,25 +315,12 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
         self?.socialAvatarImageView.ksr_setRoundedImageWith(url)
       }
 
-    self.watchProjectViewModel.outputs.showProjectSavedAlert
-      .observeForUI()
-      .observeValues { [weak self] in
-        guard let _self = self else { return }
-        _self.delegate?.discoveryPostcardCellProjectSaveAlert()
-      }
-
-    self.watchProjectViewModel.outputs.goToLoginTout
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        guard let _self = self else { return }
-        _self.delegate?.discoveryPostcardCellGoToLoginTout()
-      }
   }
 
   internal func configureWith(value: DiscoveryProjectCellRowValue) {
     self.viewModel.inputs.configure(with: value)
 
-    self.watchProjectViewModel.inputs.configure(with: (
+    self.watchProjectViewModel.configure(with: (
       value.project,
       KSRAnalytics.PageContext.discovery,
       value.params
@@ -355,11 +337,11 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
   }
 
   @objc fileprivate func saveButtonPressed(_: UIButton) {
-    self.watchProjectViewModel.inputs.saveButtonTouched()
+    self.watchProjectViewModel.saveButtonTouched()
   }
 
   @objc fileprivate func saveButtonTapped(_ button: UIButton) {
-    self.watchProjectViewModel.inputs.saveButtonTapped(selected: button.isSelected)
+    self.watchProjectViewModel.saveButtonTapped(selected: button.isSelected)
   }
 }
 

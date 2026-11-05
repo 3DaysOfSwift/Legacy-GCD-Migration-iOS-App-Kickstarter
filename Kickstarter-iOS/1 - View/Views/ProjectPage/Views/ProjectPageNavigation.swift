@@ -54,7 +54,7 @@ final class ProjectPageNavigation {
   // MARK: - Private properties
 
   private let shareViewModel = ShareViewModel()
-  private let watchProjectViewModel: WatchProjectViewModelType = WatchProjectViewModel()
+  private let watchProjectViewModel = WatchProjectViewModel()
 
   private lazy var navigationShareButton: UIButton = { UIButton(type: .custom) }()
   private lazy var navigationSaveButton: UIButton = { UIButton(type: .custom) }()
@@ -92,43 +92,22 @@ final class ProjectPageNavigation {
   }
 
   private func bindWatchViewModel() {
-    self.navigationSaveButton.rac.accessibilityValue = self.watchProjectViewModel.outputs
-      .saveButtonAccessibilityValue
-    self.navigationSaveButton.rac.selected = self.watchProjectViewModel.outputs.saveButtonSelected
-
-    self.watchProjectViewModel.outputs.generateImpactFeedback
-      .observeForUI()
-      .observeValues { generateImpactFeedback() }
-
-    self.watchProjectViewModel.outputs.generateNotificationSuccessFeedback
-      .observeForUI()
-      .observeValues { generateNotificationSuccessFeedback() }
-
-    self.watchProjectViewModel.outputs.generateSelectionFeedback
-      .observeForUI()
-      .observeValues { generateSelectionFeedback() }
-
-    self.watchProjectViewModel.outputs.showProjectSavedAlert
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.delegate?.displayProjectStarredPrompt()
+    self.watchProjectViewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .selected(value):
+        self.navigationSaveButton.isSelected = value
+        self.navigationSaveButton.accessibilityValue = value ? Strings.Saved() : Strings.Unsaved()
+      case .impact: generateImpactFeedback()
+      case .success: generateNotificationSuccessFeedback()
+      case .selection: generateSelectionFeedback()
+      case .savedAlert: self.delegate?.displayProjectStarredPrompt()
+      case .login: self.delegate?.goToLogin()
+      case let .project(project):
+        NotificationCenter.default.post(name: .ksr_projectSaved, object: nil, userInfo: ["project": project])
+      case .notification: break
       }
-
-    self.watchProjectViewModel.outputs.goToLoginTout
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.delegate?.goToLogin()
-      }
-
-    self.watchProjectViewModel.outputs.postNotificationWithProject
-      .observeForUI()
-      .observeValues { project in
-        NotificationCenter.default.post(
-          name: Notification.Name.ksr_projectSaved,
-          object: nil,
-          userInfo: ["project": project]
-        )
-      }
+    }
   }
 
   // MARK: Helpers
@@ -184,11 +163,11 @@ final class ProjectPageNavigation {
   }
 
   @objc private func userSessionStarted() {
-    self.watchProjectViewModel.inputs.userSessionStarted()
+    self.watchProjectViewModel.userSessionStarted()
   }
 
   @objc private func userSessionEnded() {
-    self.watchProjectViewModel.inputs.userSessionEnded()
+    self.watchProjectViewModel.userSessionEnded()
   }
 
   @objc private func closeButtonTapped() {
@@ -196,17 +175,17 @@ final class ProjectPageNavigation {
   }
 
   @objc private func saveButtonTapped(_ button: UIButton) {
-    self.watchProjectViewModel.inputs.saveButtonTapped(selected: button.isSelected)
+    self.watchProjectViewModel.saveButtonTapped(selected: button.isSelected)
   }
 
   @objc private func saveButtonPressed() {
-    self.watchProjectViewModel.inputs.saveButtonTouched()
+    self.watchProjectViewModel.saveButtonTouched()
   }
 
   // MARK: Inputs
 
   func viewDidLoad() {
-    self.watchProjectViewModel.inputs.viewDidLoad()
+    self.watchProjectViewModel.viewDidLoad()
   }
 
   func configureSharing(with context: ShareContext) {
@@ -214,12 +193,12 @@ final class ProjectPageNavigation {
   }
 
   func configureWatchProject(with context: WatchProjectValue) {
-    self.watchProjectViewModel.inputs
+    self.watchProjectViewModel
       .configure(with: context)
   }
 
   func configureSaveWatchPrelaunchProject(with context: PledgeCTAPrelaunchState) {
-    self.watchProjectViewModel.inputs.saveButtonTapped(selected: context.saved)
+    self.watchProjectViewModel.saveButtonTapped(selected: context.saved)
   }
 }
 

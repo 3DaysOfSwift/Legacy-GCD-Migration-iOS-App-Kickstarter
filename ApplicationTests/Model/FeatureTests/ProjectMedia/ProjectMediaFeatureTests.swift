@@ -217,9 +217,7 @@ final class ProjectMediaFeatureTests: TestCase {
     let route = UUID()
     await feature.loadFeed(route: route)
     let intent = feature.prepareWatch(projectID: project.graphID, watched: true, previous: false)
-    var received = 0
-    let observation = feature.watchResult(project: project, intent: intent).startWithValues { _ in received += 1 }
-    defer { observation.dispose() }
+    let observation = Task { await feature.watch(project: project, intent: intent) }
     await provider.waitForWatches(1)
     let duplicate = feature.toggleSaved(route: route, projectID: project.graphID)
     XCTAssertEqual(provider.watches.count, 1)
@@ -231,8 +229,8 @@ final class ProjectMediaFeatureTests: TestCase {
     await duplicate?.value
     await unsave?.value
     await feature.waitForOperations()
-    await self.scheduler.advance()
-    XCTAssertEqual(received, 0, "Newer video intent supersedes the older button response")
+    let received = await observation.value
+    XCTAssertNil(received, "Newer video intent supersedes the older button response")
     XCTAssertEqual(feature.cached(project).personalization.isStarred, false)
     XCTAssertFalse(feature.feedState(route: route).items[0].isSaved)
   }
@@ -244,14 +242,13 @@ final class ProjectMediaFeatureTests: TestCase {
     let feature = ProjectMediaFeature(makeProvider: { provider })
     let project = Project.template
     let intent = feature.prepareWatch(projectID: project.graphID, watched: true, previous: false)
-    var received = false
-    let observation = feature.watchResult(project: project, intent: intent).startWithValues { _ in received = true }
+    let observation = Task { await feature.watch(project: project, intent: intent) }
     await provider.waitForWatches(1)
-    observation.dispose()
+    observation.cancel()
     try provider.finishWatch(0)
     await feature.waitForOperations()
-    await self.scheduler.advance()
-    XCTAssertFalse(received)
+    let received = await observation.value
+    XCTAssertNil(received)
     XCTAssertEqual(feature.cached(project).personalization.isStarred, true)
   }
 

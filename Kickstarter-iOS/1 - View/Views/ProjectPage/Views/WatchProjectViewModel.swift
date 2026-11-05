@@ -1,7 +1,6 @@
 import Foundation
 import KsApi
 import Prelude
-import ReactiveSwift
 
 public typealias WatchProjectValue = (
   project: Project,
@@ -10,265 +9,133 @@ public typealias WatchProjectValue = (
 )
 
 @MainActor
-public protocol WatchProjectViewModelInputs {
-  func awakeFromNib()
-  func configure(with value: WatchProjectValue)
-  func projectFromNotification(project: Project?)
-  func saveButtonTapped(selected: Bool)
-  func saveButtonTouched()
-  func userSessionEnded()
-  func userSessionStarted()
-  func viewDidLoad()
-}
-
-@MainActor
-public protocol WatchProjectViewModelOutputs {
-  /// Emits when haptic feedback should be generated
-  var generateImpactFeedback: Signal<(), Never> { get }
-
-  /// Emits when haptic feedback should be generated
-  var generateSelectionFeedback: Signal<(), Never> { get }
-
-  /// Emits when haptic feedback should be generated
-  var generateNotificationSuccessFeedback: Signal<(), Never> { get }
-
-  /// Emits when the login tout should be shown to the user.
-  var goToLoginTout: Signal<(), Never> { get }
-
-  /// Emits a project.
-  var postNotificationWithProject: Signal<Project, Never> { get }
-
-  /// Emits the accessibility hint for the star button.
-  var saveButtonAccessibilityValue: Signal<String, Never> { get }
-
-  /// Emits a boolean that determines if the save button is selected.
-  var saveButtonSelected: Signal<Bool, Never> { get }
-
-  /// Emits when a contextual Push Notification dialog should be shown.
-  var showNotificationDialog: Signal<Notification, Never> { get }
-
-  /// Emits when the project has been successfully saved and a prompt should be shown to the user.
-  var showProjectSavedAlert: Signal<Void, Never> { get }
-}
-
-@MainActor
-public protocol WatchProjectViewModelType {
-  var inputs: WatchProjectViewModelInputs { get }
-  var outputs: WatchProjectViewModelOutputs { get }
-}
-
-@MainActor
-public final class WatchProjectViewModel: WatchProjectViewModelType,
-  WatchProjectViewModelInputs, WatchProjectViewModelOutputs {
-  public init(feature: ProjectMediaFeature? = nil) {
-    let feature = feature ?? AppModel.shared.projectMediaFeature
-    self.feature = feature
-    let revision = self.revision
-    let pendingIntent = self.pendingIntent
-    self.intentLifetime = ScopedDisposable(AnyDisposable {
-      // MutableProperty synchronizes its value; transfer only the intent snapshot.
-      if let intent = pendingIntent.value {
-        Task { @MainActor in feature.cancelPreparedWatch(intent) }
-      }
-    })
-    let viewReady = Signal.merge(self.viewDidLoadProperty.signal, self.awakeFromNibProperty.signal)
-    let projectProperty = self.configureWithValueProperty.signal.skipNil().map { $0.project }
-
-    let configuredProject = Signal.combineLatest(
-      projectProperty,
-      viewReady
-    )
-    .map(first)
-    .map(feature.cached)
-
-    let currentUser = Signal.merge([
-      viewReady,
-      self.userSessionStartedProperty.signal,
-      self.userSessionEndedProperty.signal
-    ])
-    .map { AppEnvironment.current.currentUser }
-    .skipRepeats(==)
-
-    let loggedInUserTappedSaveButton = currentUser
-      .takePairWhen(self.saveButtonTappedProperty.signal)
-      .filter { user, _ in user != nil }
-      .map(second)
-
-    let loggedOutUserTappedSaveButton = currentUser
-      .takePairWhen(self.saveButtonTappedProperty.signal)
-      .filter { user, _ in user == nil }
-      .map(second)
-
-    // Emits only when a user logs in after having tapped the save/heart while logged out.
-    let userLoginAfterTappingSaveButton = Signal.combineLatest(
-      self.userSessionStartedProperty.signal,
-      loggedOutUserTappedSaveButton
-    )
-
-    let saveButtonTapped = Signal.merge(
-      loggedInUserTappedSaveButton,
-      userLoginAfterTappingSaveButton.map(second)
-    )
-
-    let projectOnSaveButtonToggle = configuredProject
-      .takePairWhen(saveButtonTapped)
-
-    let watchProjectToggle = projectOnSaveButtonToggle
-      .map { project, selected -> (Project, ProjectMediaFeature.WatchIntent, UUID) in
-        let intent = feature.prepareWatch(projectID: project.graphID, watched: !selected, previous: selected)
-        pendingIntent.value = intent
-        var project = project
-        project.personalization.isStarred = !selected
-        return (project, intent, revision.value)
-      }
-
-    let invalidation = Signal.merge(
-      saveButtonTapped.ignoreValues(), projectProperty.ignoreValues(),
-      self.userSessionEndedProperty.signal, self.userSessionStartedProperty.signal
-    )
-    let watchProjectResult = watchProjectToggle
-      .ksr_debounce(.milliseconds(500), on: AppEnvironment.current.scheduler)
-      .switchMap { project, intent, capturedRevision -> SignalProducer<Project, Never> in
-        guard revision.value == capturedRevision else { return .empty }
-        return feature.watchResult(project: project, intent: intent).take(until: invalidation)
-      }
-
-    let projectSavedFromNotification = configuredProject
-      .takePairWhen(self.projectFromNotificationProperty.signal.skipNil())
-      .filter { $0.id == $1.id }
-      .map { $0.1 }
-
-    // Project emits with initial configured value, immediately when watched, again on watch result
-    let project = Signal.merge(
-      configuredProject,
-      projectSavedFromNotification,
-      watchProjectToggle.map { $0.0 },
-      watchProjectResult
-    )
-
-    self.goToLoginTout = loggedOutUserTappedSaveButton.ignoreValues()
-
-    self.showProjectSavedAlert = project
-      .takeWhen(saveButtonTapped)
-      .filter { !$0.endsIn48Hours(today: AppEnvironment.current.dateType.init().date) }
-      .filter { _ in
-        !AppEnvironment.current.ubiquitousStore.hasSeenSaveProjectAlert ||
-          !AppEnvironment.current.userDefaults.hasSeenSaveProjectAlert
-      }
-      .on(value: { _ in
-        AppEnvironment.current.ubiquitousStore.hasSeenSaveProjectAlert = true
-        AppEnvironment.current.userDefaults.hasSeenSaveProjectAlert = true
-      })
-      .ignoreValues()
-
-    self.showNotificationDialog = project
-      .takeWhen(saveButtonTapped)
-      .filter { _ in shouldShowNotificationDialog() }
-      .on(value: { _ in
-        AppEnvironment.current.ubiquitousStore.hasSeenSaveProjectAlert = true
-        AppEnvironment.current.userDefaults.hasSeenSaveProjectAlert = true
-      })
-      .ignoreValues()
-      .map { _ in
-        Notification(
-          name: .ksr_showNotificationsDialog,
-          userInfo: [UserInfoKeys.context: PushNotificationDialog.Context.save]
-        )
-      }
-
-    self.saveButtonSelected = project
-      .map { $0.personalization.isStarred == true }
-      .skipRepeats()
-
-    self.generateImpactFeedback = self.saveButtonTouchedProperty.signal
-    self.generateNotificationSuccessFeedback = saveButtonTapped.signal.filter(isFalse).ignoreValues()
-    self.generateSelectionFeedback = saveButtonTapped.signal.filter(isTrue).ignoreValues()
-
-    self.saveButtonAccessibilityValue = self.saveButtonSelected
-      .map { starred in starred ? Strings.Saved() : Strings.Unsaved() }
-
-    self.postNotificationWithProject = project
-
-    // Tracking
-    let saveButtonTappedProperty = self.saveButtonTappedProperty
-
-    self.configureWithValueProperty.signal.skipNil()
-      .takeWhen(self.saveButtonTappedProperty.signal)
-      .observeValues { project, context, discoveryParams in
-        AppEnvironment.current.ksrAnalytics.trackWatchProjectButtonClicked(
-          project: project,
-          page: context,
-          params: discoveryParams,
-          typeContext: saveButtonTappedProperty.value ? .unwatch : .watch
-        )
-      }
+final class WatchProjectViewModel {
+  enum Event {
+    case selected(Bool)
+    case impact, selection, success, login, savedAlert
+    case project(Project)
+    case notification(Notification)
   }
 
+  var onEvent: ((Event) -> Void)?
   private let feature: ProjectMediaFeature
-  private let pendingIntent = MutableProperty<ProjectMediaFeature.WatchIntent?>(nil)
-  private let intentLifetime: ScopedDisposable<AnyDisposable>
-  private let revision = MutableProperty(UUID())
-  private let awakeFromNibProperty = MutableProperty(())
-  public func awakeFromNib() {
-    self.awakeFromNibProperty.value = ()
+  private let sleep: @MainActor (TimeInterval) async throws -> Void
+  private var configured: WatchProjectValue?
+  private var project: Project?
+  private var isReady = false
+  private var selected: Bool?
+  private var pendingLoginSelection: Bool?
+  private var pendingIntent: ProjectMediaFeature.WatchIntent?
+  private var task: Task<Void, Never>?
+
+  init(feature: ProjectMediaFeature? = nil, sleep: @escaping @MainActor (TimeInterval) async throws -> Void = { seconds in
+    if seconds.isInfinite { try await Task.sleep(nanoseconds: UInt64.max) }
+    else if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
+    try Task.checkCancellation()
+  }) {
+    self.feature = feature ?? AppModel.shared.projectMediaFeature
+    self.sleep = sleep
   }
 
-  fileprivate let configureWithValueProperty = MutableProperty<WatchProjectValue?>(nil)
-  public func configure(with value: WatchProjectValue) {
-    if let intent = self.pendingIntent.value { self.feature.cancelPreparedWatch(intent) }
-    self.pendingIntent.value = nil
-    self.revision.value = UUID()
-    self.configureWithValueProperty.value = value
+  func configure(with value: WatchProjectValue) {
+    self.invalidate()
+    self.configured = value
+    if self.isReady { self.publishProject(self.feature.cached(value.project)) }
   }
 
-  fileprivate let projectFromNotificationProperty = MutableProperty<Project?>(nil)
-  public func projectFromNotification(project: Project?) {
-    self.projectFromNotificationProperty.value = project
+  func awakeFromNib() { self.ready() }
+  func viewDidLoad() { self.ready() }
+  private func ready() {
+    self.isReady = true
+    if let value = self.configured { self.publishProject(self.feature.cached(value.project)) }
   }
 
-  fileprivate let saveButtonTappedProperty = MutableProperty(false)
-  public func saveButtonTapped(selected: Bool) {
-    self.saveButtonTappedProperty.value = selected
+  func projectFromNotification(project: Project?) {
+    guard let project, let current = self.project, current.id == project.id else { return }
+    self.publishProject(project)
   }
 
-  fileprivate let saveButtonTouchedProperty = MutableProperty(())
-  public func saveButtonTouched() {
-    self.saveButtonTouchedProperty.value = ()
+  func saveButtonTouched() { self.onEvent?(.impact) }
+
+  func saveButtonTapped(selected: Bool) {
+    if let value = self.configured {
+      AppEnvironment.current.ksrAnalytics.trackWatchProjectButtonClicked(
+        project: value.project, page: value.context, params: value.discoveryParams,
+        typeContext: selected ? .unwatch : .watch
+      )
+    }
+    guard self.isReady else { return }
+    guard AppEnvironment.current.currentUser != nil else {
+      self.pendingLoginSelection = selected
+      self.onEvent?(.login)
+      return
+    }
+    self.submit(selected: selected)
   }
 
-  fileprivate let userSessionEndedProperty = MutableProperty(())
-  public func userSessionEnded() {
-    if let intent = self.pendingIntent.value { self.feature.cancelPreparedWatch(intent) }
-    self.pendingIntent.value = nil
-    self.revision.value = UUID()
-    self.userSessionEndedProperty.value = ()
+  func userSessionEnded() { self.invalidate() }
+  func userSessionStarted() {
+    self.invalidate()
+    guard let selected = self.pendingLoginSelection else { return }
+    self.submit(selected: selected)
   }
 
-  fileprivate let userSessionStartedProperty = MutableProperty(())
-  public func userSessionStarted() {
-    if let intent = self.pendingIntent.value { self.feature.cancelPreparedWatch(intent) }
-    self.pendingIntent.value = nil
-    self.revision.value = UUID()
-    self.userSessionStartedProperty.value = ()
+  private func submit(selected: Bool) {
+    guard var project = self.project else { return }
+    self.invalidate()
+    let intent = self.feature.prepareWatch(projectID: project.graphID, watched: !selected, previous: selected)
+    self.pendingIntent = intent
+    project.personalization.isStarred = !selected
+    self.publishProject(project)
+    self.onEvent?(selected ? .selection : .success)
+    if !project.endsIn48Hours(today: AppEnvironment.current.dateType.init().date),
+       !AppEnvironment.current.ubiquitousStore.hasSeenSaveProjectAlert || !AppEnvironment.current.userDefaults.hasSeenSaveProjectAlert {
+      AppEnvironment.current.ubiquitousStore.hasSeenSaveProjectAlert = true
+      AppEnvironment.current.userDefaults.hasSeenSaveProjectAlert = true
+      self.onEvent?(.savedAlert)
+    }
+    if shouldShowNotificationDialog() {
+      AppEnvironment.current.ubiquitousStore.hasSeenSaveProjectAlert = true
+      AppEnvironment.current.userDefaults.hasSeenSaveProjectAlert = true
+      self.onEvent?(.notification(Notification(name: .ksr_showNotificationsDialog, userInfo: [UserInfoKeys.context: PushNotificationDialog.Context.save])))
+    }
+    let feature = self.feature
+    let sleep = self.sleep
+    self.task = Task { [weak self] in
+      do { try await sleep(0.5) } catch { return }
+      guard !Task.isCancelled, feature.isCurrentIntent(intent), let result = await feature.watch(project: project, intent: intent) else { return }
+      do { try await sleep(AppEnvironment.current.apiDelayInterval.searchDelaySeconds) } catch { return }
+      guard !Task.isCancelled, feature.isCurrentIntent(intent) else { return }
+      self?.publishProject(result)
+    }
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty(())
-  public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+  func waitForOperation() async { await self.task?.value }
+
+  private func invalidate() {
+    self.task?.cancel()
+    self.task = nil
+    if let pendingIntent { self.feature.cancelPreparedWatch(pendingIntent) }
+    self.pendingIntent = nil
   }
 
-  public let generateImpactFeedback: Signal<(), Never>
-  public let generateNotificationSuccessFeedback: Signal<(), Never>
-  public let generateSelectionFeedback: Signal<(), Never>
-  public let goToLoginTout: Signal<(), Never>
-  public let postNotificationWithProject: Signal<Project, Never>
-  public let saveButtonAccessibilityValue: Signal<String, Never>
-  public let saveButtonSelected: Signal<Bool, Never>
-  public let showNotificationDialog: Signal<Notification, Never>
-  public let showProjectSavedAlert: Signal<Void, Never>
+  private func publishProject(_ project: Project) {
+    self.project = project
+    let selected = project.personalization.isStarred == true
+    if self.selected != selected {
+      self.selected = selected
+      self.onEvent?(.selected(selected))
+    }
+    self.onEvent?(.project(project))
+  }
 
-  public var inputs: WatchProjectViewModelInputs { return self }
-  public var outputs: WatchProjectViewModelOutputs { return self }
+  deinit {
+    self.task?.cancel()
+    if let intent = self.pendingIntent {
+      let feature = self.feature
+      Task { @MainActor in feature.cancelPreparedWatch(intent) }
+    }
+  }
 }
 
 @MainActor

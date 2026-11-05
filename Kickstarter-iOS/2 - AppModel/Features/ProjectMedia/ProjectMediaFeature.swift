@@ -217,7 +217,6 @@ public final class ProjectMediaFeature {
   }
   private var watchIntents: [WatchIdentity: (token: UUID, admitted: Bool)] = [:]
   private var watchSettlements: [UUID: Task<WatchProjectResponseEnvelope, Error>] = [:]
-  private var watchObservations: [UUID: Task<Void, Never>] = [:]
   private var cacheIdentity: WatchIdentity?
 
   private func watchIdentity(_ projectID: String) -> WatchIdentity {
@@ -308,36 +307,10 @@ public final class ProjectMediaFeature {
     return project
   }
 
-  /// Ordinary save buttons retain their debounce and optimistic UI. Both entry
-  /// points submit to the same account/project queue and settle the shared cache.
-  public func watchResult(project: Project, intent: WatchIntent) -> SignalProducer<Project, Never> {
-    let result = SignalProducer<Project, Never> { observer, lifetime in
-      MainActor.assumeIsolated {
-        guard self.isCurrentIntent(intent) else { observer.sendInterrupted(); return }
-        let command = self.submitWatch(intent)
-        let id = UUID()
-        let task = Task { [self] in
-          defer { self.watchObservations[id] = nil }
-          guard let project = await self.resolveWatch(project: project, intent: intent, command: command) else {
-            observer.sendInterrupted()
-            return
-          }
-          observer.send(value: project)
-          observer.sendCompleted()
-        }
-        self.watchObservations[id] = task
-        lifetime.observeEnded { task.cancel() }
-      }
-    }
-    return result.ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-      .filter { _ in MainActor.assumeIsolated { self.isCurrentIntent(intent) } }
-  }
-
   public func waitForOperations() async {
-    while !self.watchWrites.isEmpty || !self.watchSettlements.isEmpty || !self.watchObservations.isEmpty {
+    while !self.watchWrites.isEmpty || !self.watchSettlements.isEmpty {
       for pending in Array(self.watchWrites.values) { _ = await pending.task.result }
       for task in Array(self.watchSettlements.values) { _ = await task.result }
-      for task in Array(self.watchObservations.values) { await task.value }
     }
   }
 

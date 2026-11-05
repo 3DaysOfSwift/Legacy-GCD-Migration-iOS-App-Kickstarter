@@ -46,7 +46,7 @@ final class DiscoveryProjectCardCell: UITableViewCell, ValueCell {
   private lazy var youreABackerView = { UIView(frame: .zero) }()
 
   private let viewModel = DiscoveryProjectCardViewModel()
-  private let watchProjectViewModel: WatchProjectViewModelType = WatchProjectViewModel()
+  private let watchProjectViewModel = WatchProjectViewModel()
 
   // MARK: - Notification Observers
 
@@ -80,7 +80,7 @@ final class DiscoveryProjectCardCell: UITableViewCell, ValueCell {
   func configureWith(value: DiscoveryProjectCellRowValue) {
     self.render(self.viewModel.configure(with: value))
 
-    self.watchProjectViewModel.inputs.configure(with: (
+    self.watchProjectViewModel.configure(with: (
       value.project,
       KSRAnalytics.PageContext.discovery,
       value.params
@@ -193,41 +193,20 @@ final class DiscoveryProjectCardCell: UITableViewCell, ValueCell {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.saveButton.rac.selected = self.watchProjectViewModel.outputs.saveButtonSelected
-
-    // Watch Project View Model
-
-    self.watchProjectViewModel.outputs.showProjectSavedAlert
-      .observeForUI()
-      .observeValues { [weak self] in
-        guard let self = self else { return }
-        self.delegate?.discoveryPostcardCellProjectSaveAlert()
+    self.watchProjectViewModel.onEvent = { [weak self] event in
+      guard let self else { return }
+      switch event {
+      case let .selected(value): self.saveButton.isSelected = value
+      case .impact: generateImpactFeedback()
+      case .success: generateNotificationSuccessFeedback()
+      case .selection: generateSelectionFeedback()
+      case .savedAlert: self.delegate?.discoveryPostcardCellProjectSaveAlert()
+      case .login: self.delegate?.discoveryPostcardCellGoToLoginTout()
+      case let .notification(notification): NotificationCenter.default.post(notification)
+      case .project: break
       }
+    }
 
-    self.watchProjectViewModel.outputs.goToLoginTout
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        guard let self = self else { return }
-        self.delegate?.discoveryPostcardCellGoToLoginTout()
-      }
-
-    self.watchProjectViewModel.outputs.showNotificationDialog
-      .observeForUI()
-      .observeValues { n in
-        NotificationCenter.default.post(n)
-      }
-
-    self.watchProjectViewModel.outputs.generateImpactFeedback
-      .observeForUI()
-      .observeValues { _ in generateImpactFeedback() }
-
-    self.watchProjectViewModel.outputs.generateNotificationSuccessFeedback
-      .observeForUI()
-      .observeValues { generateNotificationSuccessFeedback() }
-
-    self.watchProjectViewModel.outputs.generateSelectionFeedback
-      .observeForUI()
-      .observeValues { generateSelectionFeedback() }
   }
 
   private func render(_ display: DiscoveryProjectCardViewModel.Display) {
@@ -427,20 +406,20 @@ final class DiscoveryProjectCardCell: UITableViewCell, ValueCell {
     self.saveButton.addTarget(self, action: #selector(self.saveButtonPressed(_:)), for: .touchDown)
 
     self.sessionStartedObserver = MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in
-      self?.watchProjectViewModel.inputs.userSessionStarted()
+      self?.watchProjectViewModel.userSessionStarted()
     }
 
     self.sessionEndedObserver = MainActorNotificationObservation(name: .ksr_sessionEnded) { [weak self] _ in
-      self?.watchProjectViewModel.inputs.userSessionEnded()
+      self?.watchProjectViewModel.userSessionEnded()
     }
 
     self.projectSavedObserver = MainActorNotificationObservation(name: .ksr_projectSaved) { [weak self] notification in
-      self?.watchProjectViewModel.inputs.projectFromNotification(
+      self?.watchProjectViewModel.projectFromNotification(
         project: notification.userInfo?["project"] as? Project
       )
     }
 
-    self.watchProjectViewModel.inputs.awakeFromNib()
+    self.watchProjectViewModel.awakeFromNib()
   }
 
   private func addShadowLayers() {
@@ -542,11 +521,11 @@ final class DiscoveryProjectCardCell: UITableViewCell, ValueCell {
   // MARK: - Accessors
 
   @objc fileprivate func saveButtonPressed(_: UIButton) {
-    self.watchProjectViewModel.inputs.saveButtonTouched()
+    self.watchProjectViewModel.saveButtonTouched()
   }
 
   @objc fileprivate func saveButtonTapped(_ button: UIButton) {
-    self.watchProjectViewModel.inputs.saveButtonTapped(selected: button.isSelected)
+    self.watchProjectViewModel.saveButtonTapped(selected: button.isSelected)
   }
 }
 
