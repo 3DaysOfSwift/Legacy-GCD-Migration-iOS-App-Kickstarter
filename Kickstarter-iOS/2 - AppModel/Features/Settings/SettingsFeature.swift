@@ -1,8 +1,6 @@
 import Foundation
 import KsApi
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 
 @MainActor
 public protocol AccountPreferencesProvider {
@@ -129,7 +127,7 @@ public final class SettingsFeature {
   private var account: Account?
   private var tail: Pending?
   private var writes: [UUID: Task<User, Error>] = [:]
-  private var reads: [UUID: Task<Void, Never>] = [:]
+  private var reads: [UUID: Task<User, Error>] = [:]
   private var setupReads: [UUID: Task<GraphUserSetup, Error>] = [:]
   private var emailRead: (
     id: UUID,
@@ -424,29 +422,18 @@ public final class SettingsFeature {
     return try result.get()
   }
 
-  /// App lifecycle receives only a freshly committed user, not the cached initial emission.
-  public func refreshResult(allowSessionRestore: Bool = false) -> SignalProducer<User, ErrorEnvelope> {
-    SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        let id = UUID()
-        let generation = self.session.generation
-        let userID = self.session.currentUser?.id
-        let task = Task { [self] in
-          defer { self.reads[id] = nil }
-          do {
-            let user = try await self.refresh(
-              userID: userID,
-              generation: generation,
-              allowSessionRestore: allowSessionRestore
-            )
-            observer.send(value: user)
-            observer.sendCompleted()
-          } catch { Self.deliver(.failure(error), to: observer) }
-        }
-        self.reads[id] = task
-        lifetime.observeEnded { task.cancel() }
-      }
+  /// Start a session-bound refresh immediately; the caller may cancel this read.
+  @discardableResult
+  public func requestRefresh(allowSessionRestore: Bool = false) -> Task<User, Error> {
+    let id = UUID()
+    let generation = self.session.generation
+    let userID = self.session.currentUser?.id
+    let task = Task { [self] in
+      defer { self.reads[id] = nil }
+      return try await self.refresh(userID: userID, generation: generation, allowSessionRestore: allowSessionRestore)
     }
+    self.reads[id] = task
+    return task
   }
 
   public func refresh() async throws -> User {
@@ -484,17 +471,6 @@ public final class SettingsFeature {
             self.session.isCurrent(userID: userID, generation: generation)
       else { throw CancellationError() }
       throw error
-    }
-  }
-
-  private static func deliver(
-    _ result: Result<User, Error>,
-    to observer: Signal<User, ErrorEnvelope>.Observer
-  ) {
-    switch result {
-    case let .success(user): observer.send(value: user); observer.sendCompleted()
-    case .failure(is CancellationError): observer.sendInterrupted()
-    case let .failure(error): observer.send(error: error as? ErrorEnvelope ?? .couldNotParseJSON)
     }
   }
 
@@ -601,7 +577,7 @@ public final class SettingsFeature {
       let verifications = Array(self.verificationWrites.values)
       for verification in verifications { _ = await verification.result }
       if let task = self.emailRead?.task { _ = await task.result }
-      for read in reads { await read.value }
+      for read in reads { _ = await read.result }
       for write in writes { _ = await write.result }
     }
   }

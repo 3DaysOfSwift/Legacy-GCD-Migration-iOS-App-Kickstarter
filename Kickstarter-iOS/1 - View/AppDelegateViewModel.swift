@@ -225,11 +225,11 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       )
       .ksr_debounce(.seconds(5), on: AppEnvironment.current.scheduler)
       .switchMap { _ -> SignalProducer<Signal<User?, ErrorEnvelope>.Event, Never> in
-        AppEnvironment.current.apiService.isAuthenticated || AppEnvironment.current.currentUser != nil
-          ? settingsFeature
-          .refreshResult(allowSessionRestore: AppEnvironment.current.apiService.isAuthenticated)
-          .wrapInOptional().materialize()
-          : SignalProducer(value: .value(nil))
+        guard AppEnvironment.current.apiService.isAuthenticated || AppEnvironment.current.currentUser != nil else {
+          return SignalProducer(value: .value(nil))
+        }
+        let request = settingsFeature.requestRefresh(allowSessionRestore: AppEnvironment.current.apiService.isAuthenticated)
+        return lifecycleReadResult(request).wrapInOptional().materialize()
       }
 
     let fetchUserSetupEvent = Signal
@@ -933,6 +933,25 @@ private func navigation(fromShortcutItem shortcutItem: ShortcutItem) -> SignalPr
 
   case .search:
     return SignalProducer(value: .tab(.search))
+  }
+}
+
+// The settings owner checks its own session, including permitted token restoration.
+@MainActor
+private func lifecycleReadResult<Value>(_ request: Task<Value, Error>) -> SignalProducer<Value, ErrorEnvelope> {
+  SignalProducer { observer, lifetime in
+    let waiter = Task { @MainActor in
+      do {
+        let value = try await request.value
+        try Task.checkCancellation()
+        observer.send(value: value)
+        observer.sendCompleted()
+      } catch {
+        if Task.isCancelled || error is CancellationError { observer.sendInterrupted() }
+        else { observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON) }
+      }
+    }
+    lifetime.observeEnded { waiter.cancel(); request.cancel() }
   }
 }
 

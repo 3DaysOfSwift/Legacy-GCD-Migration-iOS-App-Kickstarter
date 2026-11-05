@@ -537,8 +537,8 @@ extension SettingsFeatureTests {
     let fixture = AccountWritesFixture()
     defer { fixture.provider.gate.releaseAll(); fixture.readProvider.gate.releaseAll() }
     _ = try fixture.feature.requestAccount(.currency("GBP"))
-    let refresh = fixture.feature.refreshResult().start()
-    defer { refresh.dispose() }
+    let refresh = fixture.feature.requestRefresh()
+    defer { refresh.cancel() }
     await fixture.provider.gate.waitFor(1)
     XCTAssertEqual(fixture.readProvider.gate.count, 0)
     try fixture.provider.gate.finish(0, .success(nil))
@@ -546,7 +546,7 @@ extension SettingsFeatureTests {
     var response = try XCTUnwrap(fixture.user)
     response.name = "Fresh account"
     try fixture.readProvider.gate.finish(0, .success(response))
-    await fixture.feature.waitForOperations()
+    _ = try await refresh.value
     XCTAssertEqual(fixture.user?.chosenCurrency, "GBP")
     XCTAssertEqual(fixture.user?.name, "Fresh account")
   }
@@ -555,13 +555,15 @@ extension SettingsFeatureTests {
     let fixture = AccountWritesFixture()
     defer { fixture.provider.gate.releaseAll(); fixture.readProvider.gate.releaseAll() }
     let stale = try XCTUnwrap(fixture.user)
-    let refresh = fixture.feature.refreshResult().start()
+    let refresh = fixture.feature.requestRefresh()
     await fixture.readProvider.gate.waitFor(1)
     _ = try fixture.feature.requestAccount(.currency("GBP"))
-    defer { refresh.dispose() }
+    defer { refresh.cancel() }
     await fixture.provider.gate.waitFor(1)
     try fixture.provider.gate.finish(0, .success(nil))
     try fixture.readProvider.gate.finish(0, .success(stale)) // Transport ignores cancellation.
+    do { _ = try await refresh.value; XCTFail("Stale refresh must not return") }
+    catch { XCTAssertTrue(error is CancellationError) }
     await fixture.feature.waitForOperations()
     XCTAssertEqual(fixture.user?.chosenCurrency, "GBP")
     XCTAssertEqual(fixture.commits, 1)
