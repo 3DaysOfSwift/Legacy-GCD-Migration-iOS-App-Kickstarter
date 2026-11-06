@@ -147,73 +147,11 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     initialData.observeValues { paymentMethods.configure($0) }
     self.loginStatePipe.output.observeValues { paymentMethods.loginChanged($0) }
 
-    let allRewardsTotal = Signal.combineLatest(
-      project, rewards, selectedQuantities, context
-    )
-    .map { project, rewards, selectedQuantities, context in
-      if context == .fixPaymentMethod,
-         let rewardsAmount = project.personalization.backing?.rewardsAmount {
-        return rewardsAmount
-      }
-      return calculateAllRewardsTotal(addOnRewards: rewards, selectedQuantities: selectedQuantities)
-    }
-
-    let initialShippingTotal = project.map { project in
-      guard let backing = project.personalization.backing else {
-        return 0.0
-      }
-      return backing.shippingAmount ?? 0.0
-    }
-
-    let calculatedShippingTotal = Signal.combineLatest(
-      selectedShippingRule.skipNil(),
-      rewards,
-      selectedQuantities
-    )
-    .map(calculateShippingTotal)
-
-    let allRewardsShippingTotal = Signal.merge(
-      initialShippingTotal,
-      calculatedShippingTotal
-    )
-
-    // Initial pledge amount is zero if not backed and not set previously in the flow.
-    let additionalPledgeAmount = initialData.map {
-      if let bonusSupport = $0.bonusSupport {
-        return bonusSupport
-      } else if let backing = $0.project.personalization.backing {
-        return backing.bonusAmount
-      } else {
-        return 0.0
-      }
-    }
-
-    /**
-     * The total pledge amount that will be used to create the backing.
-     * For a regular reward this includes the bonus support amount,
-     * the total of all rewards
-     * For No Reward this is only the pledge amount.
-     * Never calculate the pledge total in a fix payment method context.
-     */
-    let calculatedPledgeTotal = Signal.combineLatest(
-      additionalPledgeAmount,
-      allRewardsShippingTotal,
-      allRewardsTotal,
-      context
-    )
-    .filter { _, _, _, context in context != .fixPaymentMethod }
-    .map { additionalPledgeAmount, allRewardsShippingTotal, allRewardsTotal, _ in
-      calculatePledgeTotal(
-        pledgeAmount: additionalPledgeAmount,
-        shippingCost: allRewardsShippingTotal,
-        addOnRewardsTotal: allRewardsTotal
-      )
-    }
-
-    let pledgeTotal = Signal.merge(
-      backing.map(\.amount),
-      calculatedPledgeTotal
-    )
+    let amounts = initialData.map(PledgeAmounts.init)
+    let allRewardsTotal = amounts.map(\.rewards)
+    let allRewardsShippingTotal = amounts.map(\.shipping)
+    let additionalPledgeAmount = amounts.map(\.bonus)
+    let pledgeTotal = amounts.map(\.total).skipNil()
 
     let projectAndConfirmationLabelHidden = Signal.combineLatest(
       project,
@@ -758,18 +696,11 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         )
       }
     _ = initialData.observeValues { [weak self] data in
-      let rewardsTotal = data.context == .fixPaymentMethod
-        ? (data.project.personalization.backing?.rewardsAmount ?? calculateAllRewardsTotal(
-          addOnRewards: data.rewards, selectedQuantities: data.selectedQuantities
-        ))
-        : calculateAllRewardsTotal(addOnRewards: data.rewards, selectedQuantities: data.selectedQuantities)
-      let shippingTotal = data.selectedShippingRule.map {
-        calculateShippingTotal(shippingRule: $0, addOnRewards: data.rewards, quantities: data.selectedQuantities)
-      } ?? data.project.personalization.backing?.shippingAmount ?? 0
-      let bonusAmount = data.bonusSupport ?? data.project.personalization.backing?.bonusAmount ?? 0
-      let total: Double? = data.context == .fixPaymentMethod
-        ? data.project.personalization.backing?.amount
-        : calculatePledgeTotal(pledgeAmount: bonusAmount, shippingCost: shippingTotal, addOnRewardsTotal: rewardsTotal)
+      let amounts = PledgeAmounts(data)
+      let rewardsTotal = amounts.rewards
+      let shippingTotal = amounts.shipping
+      let bonusAmount = amounts.bonus
+      let total = amounts.total
       let locationName = data.selectedShippingRule?.location.localizedName ?? data.project.personalization.backing?.locationName
       let shippingSummary = locationName.map {
         PledgeShippingSummaryViewData(locationName: $0, omitUSCurrencyCode: data.project.stats.omitUSCurrencyCode,
@@ -790,15 +721,8 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         let locationHidden = data.context.shippingLocationViewHidden || !reward.shipping.enabled || data.rewards.count > 1
         let summaryHidden = data.context.isAny(of: .changePaymentMethod, .fixPaymentMethod) ||
           !reward.shipping.enabled || data.rewards.count == 1
-        let total: Double
-        if data.context == .fixPaymentMethod, let amount = data.project.personalization.backing?.rewardsAmount {
-          total = amount
-        } else {
-          total = calculateAllRewardsTotal(addOnRewards: data.rewards, selectedQuantities: data.selectedQuantities)
-        }
-        let bonus = data.bonusSupport ?? data.project.personalization.backing?.bonusAmount ?? 0
-        if let summary = pledgeAmountSummaryViewData(with: data.project, reward: reward, allRewardsTotal: total,
-                                                     additionalPledgeAmount: bonus,
+        if let summary = pledgeAmountSummaryViewData(with: data.project, reward: reward, allRewardsTotal: rewardsTotal,
+                                                     additionalPledgeAmount: bonusAmount,
                                                      shippingViewsHidden: locationHidden && summaryHidden) {
           self?.onPledgeAmountSummary?(summary)
         }
@@ -1079,6 +1003,28 @@ private func allValuesChangedAndValid(
 }
 
 // MARK: - Helper Functions
+
+private struct PledgeAmounts {
+  let rewards: Double
+  let shipping: Double
+  let bonus: Double
+  let total: Double?
+
+  init(_ data: PledgeViewData) {
+    let calculatedRewards = calculateAllRewardsTotal(addOnRewards: data.rewards, selectedQuantities: data.selectedQuantities)
+    rewards = data.context == .fixPaymentMethod
+      ? data.project.personalization.backing?.rewardsAmount ?? calculatedRewards
+      : calculatedRewards
+    shipping = data.selectedShippingRule.map {
+      calculateShippingTotal(shippingRule: $0, addOnRewards: data.rewards, quantities: data.selectedQuantities)
+    } ?? data.project.personalization.backing?.shippingAmount ?? 0
+    bonus = data.bonusSupport ?? data.project.personalization.backing?.bonusAmount ?? 0
+    total = data.context == .fixPaymentMethod
+      ? data.project.personalization.backing?.amount
+      : calculatePledgeTotal(pledgeAmount: bonus, shippingCost: shipping, addOnRewardsTotal: rewards)
+  }
+}
+
 
 private func pledgeAmountSummaryViewData(
   with project: Project,
