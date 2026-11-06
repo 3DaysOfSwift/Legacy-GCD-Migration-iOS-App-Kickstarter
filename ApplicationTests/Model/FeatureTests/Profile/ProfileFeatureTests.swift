@@ -5,7 +5,6 @@ import GraphAPITestMocks
 @testable import KsApi
 
 
-import ReactiveSwift
 import XCTest
 
 private typealias User = KsApi.User

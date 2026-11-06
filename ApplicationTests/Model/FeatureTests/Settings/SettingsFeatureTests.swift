@@ -1,7 +1,6 @@
 @testable import Kickstarter_iOS
 @testable import KsApi
 
-import ReactiveSwift
 import XCTest
 
 @MainActor

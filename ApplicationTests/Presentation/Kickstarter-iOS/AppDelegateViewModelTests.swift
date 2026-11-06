@@ -8,7 +8,6 @@ import GraphAPI
 
 import Prelude
 import UserNotifications
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -96,7 +95,6 @@ final class AppDelegateViewModelTests: TestCase {
       url: try XCTUnwrap(URL(string: "https://www.kickstarter.com/messages/42")), options: [:]
     )
     XCTAssertTrue(accepted)
-    await self.scheduler.advance()
     await self.lifecycleFeature.waitForOperations()
     await self.messagingFeature.waitForOperations()
     XCTAssertEqual(threads.count, 1)
@@ -220,8 +218,6 @@ final class AppDelegateViewModelTests: TestCase {
       application: UIApplication.shared,
       launchOptions: [:]
     )
-
-    await self.scheduler.advance(by: .seconds(5))
     await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
     await self.settingsFeature.waitForOperations()
 
@@ -234,7 +230,6 @@ final class AppDelegateViewModelTests: TestCase {
     self.postNotificationName.assertValues([.ksr_userUpdated])
 
     self.vm.inputs.applicationWillEnterForeground()
-    await self.scheduler.advance(by: .seconds(5))
     await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
     await self.settingsFeature.waitForOperations()
 
@@ -257,15 +252,12 @@ final class AppDelegateViewModelTests: TestCase {
       application: UIApplication.shared,
       launchOptions: [:]
     )
-
-    await self.scheduler.advance(by: .seconds(5))
     await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
     await self.settingsFeature.waitForOperations()
 
     self.postNotificationName.assertDidNotEmitValue()
 
     self.vm.inputs.applicationDidEnterBackground()
-    await self.scheduler.advance(by: .seconds(5))
     await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
     await self.settingsFeature.waitForOperations()
 
@@ -282,8 +274,6 @@ final class AppDelegateViewModelTests: TestCase {
         application: UIApplication.shared,
         launchOptions: [:]
       )
-
-      await self.scheduler.advance(by: .seconds(5))
       await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
@@ -312,7 +302,6 @@ final class AppDelegateViewModelTests: TestCase {
         application: UIApplication.shared,
         launchOptions: [:]
       )
-      await self.scheduler.advance(by: .seconds(5))
       await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
@@ -721,8 +710,6 @@ final class AppDelegateViewModelTests: TestCase {
         options: [:]
       )
       XCTAssertTrue(result)
-
-      await self.scheduler.advance()
       await self.settingsFeature.waitForOperations()
 
       let params = .defaults |> DiscoveryParams.lens.category .~ .art
@@ -749,8 +736,6 @@ final class AppDelegateViewModelTests: TestCase {
         options: [:]
       )
       XCTAssertTrue(result)
-
-      await self.scheduler.advance()
       await self.settingsFeature.waitForOperations()
 
       let params = .defaults |> DiscoveryParams.lens.category .~ .none
@@ -786,8 +771,6 @@ final class AppDelegateViewModelTests: TestCase {
         options: [:]
       )
       XCTAssertTrue(result)
-
-      await self.scheduler.advance()
       await self.settingsFeature.waitForOperations()
 
       let params = .defaults |> DiscoveryParams.lens.category .~ .tabletopGames
@@ -823,8 +806,6 @@ final class AppDelegateViewModelTests: TestCase {
         options: [:]
       )
       XCTAssertTrue(result)
-
-      await self.scheduler.advance()
       await self.settingsFeature.waitForOperations()
 
       let params = .defaults |> DiscoveryParams.lens.category .~ .games
@@ -861,8 +842,6 @@ final class AppDelegateViewModelTests: TestCase {
         options: [:]
       )
       XCTAssertTrue(result)
-
-      await self.scheduler.advance()
       await self.settingsFeature.waitForOperations()
 
       let params = .defaults |> DiscoveryParams.lens.category .~ .art
@@ -896,8 +875,6 @@ final class AppDelegateViewModelTests: TestCase {
         options: [:]
       )
       XCTAssertTrue(result)
-
-      await self.scheduler.advance()
       await self.settingsFeature.waitForOperations()
 
       let params = .defaults |> DiscoveryParams.lens.category .~ .none
@@ -939,8 +916,6 @@ final class AppDelegateViewModelTests: TestCase {
         options: [:]
       )
       XCTAssertTrue(result)
-
-      await self.scheduler.advance()
       await self.settingsFeature.waitForOperations()
 
       let params = .defaults |> DiscoveryParams.lens.category .~ .tabletopGames
@@ -1047,8 +1022,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.pushRegistrationStarted.assertValueCount(1)
 
       self.vm.inputs.didRegisterForRemoteNotifications(withDeviceTokenData: "token".data(using: .utf8)!)
-
-      await self.scheduler.advance(by: .seconds(5))
       await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
@@ -1081,8 +1054,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.pushRegistrationStarted.assertValueCount(1)
 
       self.vm.inputs.didRegisterForRemoteNotifications(withDeviceTokenData: "token".data(using: .utf8)!)
-
-      await self.scheduler.advance(by: .seconds(5))
       await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
@@ -1114,8 +1085,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.pushRegistrationStarted.assertValueCount(1)
 
       self.vm.inputs.didRegisterForRemoteNotifications(withDeviceTokenData: "token".data(using: .utf8)!)
-
-      await self.scheduler.advance(by: .seconds(5))
       await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
@@ -1154,7 +1123,6 @@ final class AppDelegateViewModelTests: TestCase {
         launchOptions: [:]
       )
       self.vm.inputs.didRegisterForRemoteNotifications(withDeviceTokenData: "deadbeef".data(using: .utf8)!)
-      await self.scheduler.advance(by: .seconds(5))
       await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
@@ -1442,8 +1410,6 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.inputs.applicationDidFinishLaunching(application: .shared, launchOptions: [:])
 
     self.setApplicationShortcutItems.assertValues([])
-
-    await self.scheduler.advance(by: .seconds(5))
     await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
     await self.settingsFeature.waitForOperations()
 
@@ -1453,7 +1419,6 @@ final class AppDelegateViewModelTests: TestCase {
 
     self.vm.inputs.applicationDidEnterBackground()
     self.vm.inputs.applicationWillEnterForeground()
-    await self.scheduler.advance(by: .seconds(5))
     await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
     await self.settingsFeature.waitForOperations()
 
@@ -1480,8 +1445,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationDidFinishLaunching(application: .shared, launchOptions: [:])
 
       self.setApplicationShortcutItems.assertValues([])
-
-      await self.scheduler.advance(by: .seconds(5))
       await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
@@ -1506,8 +1469,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationDidFinishLaunching(application: .shared, launchOptions: [:])
 
       self.setApplicationShortcutItems.assertValues([])
-
-      await self.scheduler.advance(by: .seconds(5))
       await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
@@ -2155,10 +2116,7 @@ final class AppDelegateViewModelTests: TestCase {
         url: url,
         options: [:]
       )
-
-      await self.scheduler.advance()
       await self.settingsFeature.waitForOperations()
-      await self.scheduler.advance()
 
       await (self.vm as? AppDelegateViewModel)?.waitForSettingsPresentation()
       self.emailVerificationCompletedSuccess.assertValues([true])
@@ -2192,10 +2150,7 @@ final class AppDelegateViewModelTests: TestCase {
         url: url,
         options: [:]
       )
-
-      await self.scheduler.advance()
       await self.settingsFeature.waitForOperations()
-      await self.scheduler.advance()
 
       await (self.vm as? AppDelegateViewModel)?.waitForSettingsPresentation()
       self.emailVerificationCompletedSuccess.assertValues([false])
@@ -2229,10 +2184,7 @@ final class AppDelegateViewModelTests: TestCase {
         url: url,
         options: [:]
       )
-
-      await self.scheduler.advance()
       await self.settingsFeature.waitForOperations()
-      await self.scheduler.advance()
 
       await (self.vm as? AppDelegateViewModel)?.waitForSettingsPresentation()
       self.emailVerificationCompletedSuccess.assertValues([false])
@@ -2392,7 +2344,6 @@ final class AppDelegateViewModelTests: TestCase {
         application: UIApplication.shared, url: url, options: [:]
       ))
       await self.settingsFeature.waitForOperations()
-      await self.scheduler.advance()
       await self.settingsFeature.waitForOperations()
       self.notificationSettingsUpdated.assertDidNotEmitValue()
       self.updateCurrentUserInEnvironment.assertDidNotEmitValue()
@@ -2441,8 +2392,6 @@ final class AppDelegateViewModelTests: TestCase {
         application: UIApplication.shared,
         launchOptions: [:]
       )
-
-      await self.scheduler.advance(by: .seconds(5))
       await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
@@ -2464,7 +2413,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.updateCurrentUserInEnvironment.assertValues([user])
 
       await self.settingsFeature.waitForOperations()
-      await self.scheduler.advance()
       await self.settingsFeature.waitForOperations()
 
       self.updateCurrentUserInEnvironment.assertValues([user])
@@ -2492,8 +2440,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: false)
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
-
-      await self.scheduler.advance(by: .seconds(1))
       await (self.vm as? AppDelegateViewModel)?.waitForTrackingRequests()
       await self.settingsFeature.waitForOperations()
 
@@ -2518,8 +2464,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: false)
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
-
-      await self.scheduler.advance(by: .seconds(1))
       await (self.vm as? AppDelegateViewModel)?.waitForTrackingRequests()
       await self.settingsFeature.waitForOperations()
 
@@ -2544,8 +2488,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: false)
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
-
-      await self.scheduler.advance(by: .seconds(1))
       await (self.vm as? AppDelegateViewModel)?.waitForTrackingRequests()
       await self.settingsFeature.waitForOperations()
 
@@ -2572,8 +2514,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: false)
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
-
-      await self.scheduler.advance(by: .seconds(1))
       await (self.vm as? AppDelegateViewModel)?.waitForTrackingRequests()
       await self.settingsFeature.waitForOperations()
 
@@ -2604,8 +2544,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: false)
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
-
-      await self.scheduler.advance(by: .seconds(5))
       await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
@@ -2635,8 +2573,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: false)
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
-
-      await self.scheduler.advance(by: .seconds(5))
       await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
@@ -2662,8 +2598,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: false)
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
-
-      await self.scheduler.advance(by: .seconds(5))
       await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
@@ -2688,8 +2622,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: false)
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
-
-      await self.scheduler.advance(by: .seconds(5))
       await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
@@ -2721,8 +2653,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: false)
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
-
-      await self.scheduler.advance(by: .seconds(5))
       await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
@@ -2756,8 +2686,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: false)
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
-
-      await self.scheduler.advance(by: .seconds(5))
       await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
@@ -2787,8 +2715,6 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: false)
       self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
       self.vm.inputs.applicationActive(state: true)
-
-      await self.scheduler.advance(by: .seconds(1))
       await (self.vm as? AppDelegateViewModel)?.waitForTrackingRequests()
       await self.settingsFeature.waitForOperations()
 
