@@ -78,7 +78,11 @@ public final class ManagePledgeViewModel:
   private var projectReadTask: Task<Void, Never>?
   private let projectReadIdentity = ManagePledgeReadIdentity()
   private let backingRoute = UUID()
+  private let backingReadEvents = Signal<(Signal<Backing, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
+  private var backingReadTask: Task<Void, Never>?
+  private let backingReadIdentity = ManagePledgeReadIdentity()
   deinit {
+    self.backingReadTask?.cancel()
     self.projectReadTask?.cancel()
     let feature = self.feature, projectRoute = self.projectRoute, backingRoute = self.backingRoute
     Task { @MainActor in
@@ -88,8 +92,8 @@ public final class ManagePledgeViewModel:
   }
   public init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
     self.feature = feature
-    let backingRoute = self.backingRoute
     let projectReadIdentity = self.projectReadIdentity
+    let backingReadIdentity = self.backingReadIdentity
     let params = Signal.combineLatest(
       self.configureWithProjectOrParamSignal,
       self.viewDidLoadSignal
@@ -139,13 +143,12 @@ public final class ManagePledgeViewModel:
       backingParam.takeWhen(shouldBeginRefresh)
     )
 
-    let graphBackingEvent = shouldFetchGraphBackingWithParam
-      .map { param in param.id }
-      .skipNil()
-      .switchMap { backingId in
-        feature.delayedResult(feature.backingResult(route: backingRoute, id: backingId))
-          .materialize()
+    let graphBackingEvent = self.backingReadEvents.output
+      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      .filter { [backingReadIdentity, feature] _, userID, generation, id in
+        backingReadIdentity.id == id && feature.sessionFeature.isCurrent(userID: userID, generation: generation)
       }
+      .map { event, _, _, _ in event }
 
     let backing = graphBackingEvent.values()
 
@@ -418,6 +421,32 @@ public final class ManagePledgeViewModel:
     _ = shouldFetchProjectWithParam
       .filter { [projectLoaded] _ in !projectLoaded.value }
       .observeValues { [weak self] param in self?.loadProject(param) }
+    _ = shouldFetchGraphBackingWithParam.map(\.id).skipNil()
+      .observeValues { [weak self] id in self?.loadBacking(id) }
+  }
+
+  private func loadBacking(_ backingID: Int) {
+    self.backingReadTask?.cancel()
+    let feature = self.feature
+    let route = self.backingRoute
+    let userID = feature.sessionFeature.currentUser?.id
+    let generation = feature.sessionFeature.generation
+    let id = UUID()
+    self.backingReadIdentity.id = id
+    self.backingReadTask = Task { [weak self] in
+      do {
+        let backing = try await feature.backing(route: route, id: backingID)
+        try Task.checkCancellation()
+        guard feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+        self?.backingReadEvents.input.send(value: (.value(backing), userID, generation, id))
+        self?.backingReadEvents.input.send(value: (.completed, userID, generation, id))
+      } catch is CancellationError {
+        return
+      } catch {
+        guard !Task.isCancelled, feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+        self?.backingReadEvents.input.send(value: (.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), userID, generation, id))
+      }
+    }
   }
 
   private func loadProject(_ param: Param) {
