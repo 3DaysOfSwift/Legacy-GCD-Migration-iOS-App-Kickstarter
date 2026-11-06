@@ -338,10 +338,9 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
         AppEnvironment.current.statsigClient?.reload(withUser: AppEnvironment.current.statsigUser())
       }
 
-    self.viewModel.outputs.segmentIsEnabled
-      .observeValues { enabled in
-        self.analytics?.enabled = enabled
-      }
+    self.viewModel.outputs.onSegmentEnabled = { [weak self] enabled in
+      self?.analytics?.enabled = enabled
+    }
 
     NotificationCenter.default
       .addObserver(

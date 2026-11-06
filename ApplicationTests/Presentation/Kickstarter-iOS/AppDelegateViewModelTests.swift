@@ -136,7 +136,7 @@ final class AppDelegateViewModelTests: TestCase {
       .observe(self.requestATTrackingAuthorizationStatus.observer)
     self.vm.outputs.setApplicationShortcutItems.observe(self.setApplicationShortcutItems.observer)
     self.vm.outputs.onShowAlert = { [weak self] in self?.showAlert.observer.send(value: $0) }
-    self.vm.outputs.segmentIsEnabled.observe(self.segmentIsEnabled.observer)
+    self.vm.outputs.onSegmentEnabled = { [weak self] in self?.segmentIsEnabled.observer.send(value: $0) }
     self.disposables
       .append(self.vm.outputs.trackingAuthorizationStatus.start(self.trackingAuthorizationStatus.observer))
     self.vm.outputs.triggerOnboardingFlow.observe(self.triggerOnboardingFlow.observer)

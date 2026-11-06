@@ -161,7 +161,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var requestATTrackingAuthorizationStatus: Signal<Void, Never> { get }
 
   /// Emits when our config updates with the enabled state for Semgent Analytics.
-  var segmentIsEnabled: Signal<Bool, Never> { get }
+  var onSegmentEnabled: ((Bool) -> Void)? { get set }
 
   /// Emits an array of short cut items to put into the shared application.
   var setApplicationShortcutItems: Signal<[ShortcutItem], Never> { get }
@@ -209,6 +209,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     func cancel() { self.task?.cancel(); self.task = nil; self.input = nil; self.id = nil }
   }
   private let redirectObservation = RedirectObservation()
+  private var lastSegmentEnabled: Bool?
 
   public init(lifecycleFeature: AppLifecycleFeature? = nil) {
     let lifecycleFeature = lifecycleFeature ?? AppModel.shared.appLifecycleFeature
@@ -503,12 +504,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     .mapConst(0)
 
 
-    self.segmentIsEnabled = Signal.merge(
-      self.didUpdateConfigProperty.signal.skipNil().ignoreValues(),
-      self.configUpdatedNotificationObservedProperty.signal
-    )
-    .map { _ in featureSegmentIsEnabled() }
-    .skipRepeats()
+
 
     /// Request AppTransparencyTracking outside of onboarding.
     self.requestATTrackingAuthorizationStatus = Signal
@@ -640,9 +636,15 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.onPostNotification?(Notification(name: .ksr_userUpdated, object: nil))
   }
 
-  private let configUpdatedNotificationObservedProperty = MutableProperty(())
   public func configUpdatedNotificationObserved() {
-    self.configUpdatedNotificationObservedProperty.value = ()
+    self.publishSegmentEnabledIfChanged()
+  }
+
+  private func publishSegmentEnabledIfChanged() {
+    let enabled = featureSegmentIsEnabled()
+    guard self.lastSegmentEnabled != enabled else { return }
+    self.lastSegmentEnabled = enabled
+    self.onSegmentEnabled?(enabled)
   }
 
   fileprivate let remoteNotificationProperty = MutableProperty<PushEnvelope?>(nil)
@@ -665,9 +667,8 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.didAcceptReceivingRemoteNotificationsProperty.value = ()
   }
 
-  fileprivate let didUpdateConfigProperty = MutableProperty<Config?>(nil)
   public func didUpdateConfig(_ config: Config) {
-    self.didUpdateConfigProperty.value = config
+    self.publishSegmentEnabledIfChanged()
     self.onPostNotification?(Notification(name: .ksr_configUpdated, object: nil))
   }
 
@@ -750,7 +751,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public let pushTokenSuccessfullyRegistered: Signal<String, Never>
   public var onRegisterPushTokenInBraze: ((Data) -> Void)?
   public let requestATTrackingAuthorizationStatus: Signal<Void, Never>
-  public let segmentIsEnabled: Signal<Bool, Never>
+  public var onSegmentEnabled: ((Bool) -> Void)?
   public let setApplicationShortcutItems: Signal<[ShortcutItem], Never>
   public var onShowAlert: ((Notification) -> Void)?
   public var onSynchronizeUbiquitousStore: (() -> Void)?
