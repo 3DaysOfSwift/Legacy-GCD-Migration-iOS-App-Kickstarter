@@ -86,6 +86,34 @@ final class PledgeFeatureTests: TestCase {
     XCTAssertEqual(self.provider.creates.count, 1)
   }
 
+  func testCancelledCreateWaiterDoesNotReceiveLateFailure() async throws {
+    let waiter = self.feature.startCreate(self.createInput())
+    await self.provider.creates.waitFor(1)
+    waiter.cancel()
+    try self.provider.creates.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
+    do {
+      _ = try await waiter.value
+      XCTFail("Cancelled waiter must not receive a failure")
+    } catch is CancellationError {} catch {
+      XCTFail("Expected cancellation, received: \(error)")
+    }
+    XCTAssertEqual(self.provider.creates.count, 1)
+  }
+
+  func testCancelledValidationWaiterDoesNotReceiveLateFailure() async throws {
+    let waiter = self.feature.startValidateCheckout(checkoutID: "c", sourceID: "card", secret: "secret")
+    await self.provider.validations.waitFor(1)
+    waiter.cancel()
+    try self.provider.validations.finish(0, .failure(ErrorEnvelope.validateCheckoutError(["declined"])))
+    do {
+      _ = try await waiter.value
+      XCTFail("Cancelled waiter must not receive a failure")
+    } catch is CancellationError {} catch {
+      XCTFail("Expected cancellation, received: \(error)")
+    }
+    XCTAssertEqual(self.provider.validations.count, 1)
+  }
+
   func testDuplicateCancellationSharesAndLaterExplicitRetryStartsNewRequest() async throws {
     let input = KsApi.CancelBackingInput(backingId: "backing", cancellationReason: nil)
     let first = Task { try await self.feature.cancel(input) }

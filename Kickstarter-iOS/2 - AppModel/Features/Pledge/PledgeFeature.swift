@@ -198,6 +198,17 @@ public final class PledgeFeature {
     return task
   }
 
+  private func awaitAdmitted(_ command: Task<Value, Error>, session: Session) async throws -> Value {
+    do {
+      let value = try await command.value
+      try self.requireCurrent(session)
+      return value
+    } catch {
+      try self.requireCurrent(session)
+      throw error
+    }
+  }
+
   private func execute(_ command: Command) async throws -> Value {
     try Task.checkCancellation()
     let session = self.session
@@ -229,9 +240,7 @@ public final class PledgeFeature {
     let session = self.session
     let command = self.request(.create(input))
     return Task {
-      let value = try await command.value
-      try self.requireCurrent(session)
-      return try Self.created(value)
+      try Self.created(await self.awaitAdmitted(command, session: session))
     }
   }
 
@@ -242,9 +251,7 @@ public final class PledgeFeature {
     let session = self.session
     let command = self.request(.update(input))
     return Task {
-      let value = try await command.value
-      try self.requireCurrent(session)
-      return try Self.updated(value)
+      try Self.updated(await self.awaitAdmitted(command, session: session))
     }
   }
 
@@ -271,8 +278,9 @@ public final class PledgeFeature {
   /// Admit writes synchronously so rapid toggle changes keep their order even if
   /// their presentation tasks are cancelled.
   func startReceived(projectID: Int, userID: Int, received: Bool) -> Task<Backing, Error> {
+    let session = self.session
     let command = self.request(.received(projectID: projectID, userID: userID, received: received))
-    return Task { try Self.received(await command.value) }
+    return Task { try Self.received(await self.awaitAdmitted(command, session: session)) }
   }
 
 
@@ -285,9 +293,7 @@ public final class PledgeFeature {
     let session = self.session
     let command = self.request(.openCheckout(input))
     return Task {
-      let value = try await command.value
-      try self.requireCurrent(session)
-      return try Self.checkout(value)
+      try Self.checkout(await self.awaitAdmitted(command, session: session))
     }
   }
 
@@ -304,9 +310,7 @@ public final class PledgeFeature {
     let session = self.session
     let command = self.request(.validateCheckout(checkoutID: checkoutID, sourceID: sourceID, secret: secret))
     return Task {
-      let value = try await command.value
-      try self.requireCurrent(session)
-      return try Self.validated(value)
+      try Self.validated(await self.awaitAdmitted(command, session: session))
     }
   }
 
@@ -314,9 +318,7 @@ public final class PledgeFeature {
     let session = self.session
     let command = self.request(.completeCheckout(input))
     return Task {
-      let value = try await command.value
-      try self.requireCurrent(session)
-      try Self.completed(value)
+      try Self.completed(await self.awaitAdmitted(command, session: session))
     }
   }
 
