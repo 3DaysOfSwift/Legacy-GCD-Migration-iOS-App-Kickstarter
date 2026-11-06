@@ -92,7 +92,6 @@ public protocol PledgeViewModelOutputs: AnyObject {
   > { get }
   var configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never> { get }
   var onConfigureStripe: ((String, String) -> Void)? { get set }
-  var descriptionSectionSeparatorHidden: Signal<Bool, Never> { get }
   var estimatedShippingViewHidden: Signal<Bool, Never> { get }
   var goToApplePayPaymentAuthorization: Signal<PaymentAuthorizationData, Never> { get }
   var goToThanks: Signal<ThanksPageData, Never> { get }
@@ -151,15 +150,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     paymentMethods.onValidity = { paymentValid.input.send(value: $0) }
     initialData.observeValues { paymentMethods.configure($0) }
     self.loginStatePipe.output.observeValues { paymentMethods.loginChanged($0) }
-
-    self.descriptionSectionSeparatorHidden = Signal.combineLatest(context, baseReward)
-      .map { context, reward in
-        if context.isAny(of: .pledge, .updateReward) {
-          return reward.isNoReward == false
-        }
-
-        return context.sectionSeparatorsHidden
-      }
 
     let allRewardsTotal = Signal.combineLatest(
       project, rewards, selectedQuantities, context
@@ -1017,7 +1007,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   >
   public let configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never>
   public var onConfigureStripe: ((String, String) -> Void)?
-  public let descriptionSectionSeparatorHidden: Signal<Bool, Never>
   public let estimatedShippingViewHidden: Signal<Bool, Never>
   public let goToApplePayPaymentAuthorization: Signal<PaymentAuthorizationData, Never>
   public let goToThanks: Signal<ThanksPageData, Never>
