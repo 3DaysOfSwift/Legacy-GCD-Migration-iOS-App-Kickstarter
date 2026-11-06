@@ -38,6 +38,20 @@ public struct PostCampaignPaymentAuthorizationData: Equatable {
   public let paymentIntent: String
 }
 
+private struct PostCampaignAmounts {
+  let rewards: Double
+  let shipping: Double
+  let total: Double
+
+  init(_ data: PledgeViewData) {
+    rewards = calculateAllRewardsTotal(addOnRewards: data.rewards, selectedQuantities: data.selectedQuantities)
+    shipping = data.selectedShippingRule.map {
+      calculateShippingTotal(shippingRule: $0, addOnRewards: data.rewards, quantities: data.selectedQuantities)
+    } ?? 0
+    total = calculatePledgeTotal(pledgeAmount: data.bonusSupport ?? 0, shippingCost: shipping, addOnRewardsTotal: rewards)
+  }
+}
+
 @MainActor
 public protocol PostCampaignCheckoutViewModelInputs {
   func checkoutTerminated()
@@ -99,8 +113,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     let refTag = initialData.map(\.refTag)
     let bonusAmount = initialData.map { $0.bonusSupport ?? 0.0 }
 
-    let backing = project.map(\.personalization.backing).skipNil()
-
     self.loginSignupUseCase = LoginSignupUseCase(withLoginIntent: .backProject)
     let login = self.loginSignupUseCase
     let loginState = self.loginStatePipe
@@ -120,40 +132,10 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
     // MARK: Calculate totals
 
-    let calculatedShippingTotal = Signal.combineLatest(
-      selectedShippingRule.skipNil(),
-      rewards,
-      selectedQuantities
-    )
-    .map(calculateShippingTotal)
-
-    let allRewardsShippingTotal = Signal.merge(
-      selectedShippingRule.filter(isNil).mapConst(0.0),
-      calculatedShippingTotal
-    )
-
-    let allRewardsTotal = Signal.combineLatest(
-      rewards,
-      selectedQuantities
-    )
-    .map(calculateAllRewardsTotal)
-
-    /**
-     * For a regular reward this includes the bonus support amount,
-     * the total of all rewards and their respective shipping costs.
-     * For No Reward this is only the pledge amount.
-     */
-    let calculatedPledgeTotal = Signal.combineLatest(
-      bonusAmount,
-      allRewardsShippingTotal,
-      allRewardsTotal
-    )
-    .map(calculatePledgeTotal)
-
-    let pledgeTotal = Signal.merge(
-      backing.map(\.amount),
-      calculatedPledgeTotal
-    )
+    let amounts = initialData.map(PostCampaignAmounts.init)
+    let allRewardsShippingTotal = amounts.map(\.shipping)
+    let allRewardsTotal = amounts.map(\.rewards)
+    let pledgeTotal = amounts.map(\.total)
 
     // MARK: Create checkout
 
