@@ -120,7 +120,7 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.outputs.goToManagePledge.map(second).observe(self.goToManagePledgeBackingParam.observer)
       self.vm.outputs.goToPledgeManagementPledgeView.observe(self.goToPledgeManagementViewPledge.observer)
       self.vm.outputs.goToPledgeManager.observe(self.goToPledgeManager.observer)
-      self.vm.outputs.goToReportProject.observe(self.goToReportProject.observer)
+      self.vm.outputs.onGoToReportProject = { [weak self] in self?.goToReportProject.observer.send(value: $0) }
       self.vm.outputs.goToRewards.map(first).observe(self.goToRewardsProject.observer)
       self.vm.outputs.goToRewards.map(second).observe(self.goToRewardsRefTag.observer)
       self.vm.outputs.onGoToUpdates = { [weak self] in self?.goToUpdates.observer.send(value: $0) }

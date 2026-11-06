@@ -476,18 +476,17 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         self?.present(nav, animated: true, completion: nil)
       }
 
-    self.viewModel.outputs.goToReportProject
-      .observeForControllerAction()
-      .observeValues { [weak self] flagged, projectID, projectUrl in
-        guard !flagged else { return }
+    self.viewModel.outputs.onGoToReportProject = { [weak self] details in
+      let (flagged, projectID, projectUrl) = details
+      guard !flagged else { return }
+      DispatchQueue.main.async { [weak self] in
         self?.goToReportProject(projectID: projectID, projectUrl: projectUrl)
       }
+    }
 
-    self.viewModel.outputs.goToRestrictedCreator
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.goToRestrictedCreator(message: $0)
-      }
+    self.viewModel.outputs.onGoToRestrictedCreator = { [weak self] message in
+      DispatchQueue.main.async { [weak self] in self?.goToRestrictedCreator(message: message) }
+    }
 
     self.viewModel.outputs.onGoToUpdates = { [weak self] project in
       DispatchQueue.main.async { [weak self] in self?.goToUpdates(project: project) }

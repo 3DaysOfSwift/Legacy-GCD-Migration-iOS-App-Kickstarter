@@ -169,10 +169,10 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var onGoToUpdates: ((Project) -> Void)? { get set }
 
   /// Emits a `String` that explains why the creator is restricted.
-  var goToRestrictedCreator: Signal<String, Never> { get }
+  var onGoToRestrictedCreator: ((String) -> Void)? { get set }
 
   /// Emits a `Bool` to show if the project has been flagged, the projectID as a `String`, and  a  project URL `String` when the report project view is to be rendered.
-  var goToReportProject: Signal<(Bool, String, String), Never> { get }
+  var onGoToReportProject: (((Bool, String, String)) -> Void)? { get set }
 
   /// Emits a project and refTag to be used to navigate to the reward selection screen.
   var goToRewards: Signal<(Project, RefTag?, String?), Never> { get }
@@ -464,9 +464,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
 
 
-    self.goToReportProject = freshProject.signal
-      .map { ($0.flagging ?? false, "\($0.graphID)", $0.urls.web.project) }
-      .takeWhen(self.tappedReportProjectProperty.signal)
 
     self.configureProjectNavigationSelectorView = freshProjectAndRefTag
       .map { projectAndRefTag in
@@ -639,9 +636,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
     // MARK: Project notice
 
-    self.goToRestrictedCreator = freshProject.takeWhen(self.projectNoticeDetailsRequestedProperty.signal)
-      .map(\.extendedProjectProperties?.projectNotice)
-      .skipNil()
 
     // MARK: User blocking
 
@@ -888,9 +882,9 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.prepareAudioVideoAtProperty.value = (audioVideoViewElement, indexPath)
   }
 
-  fileprivate let projectNoticeDetailsRequestedProperty = MutableProperty(())
   public func projectNoticeDetailsRequested() {
-    self.projectNoticeDetailsRequestedProperty.value = ()
+    guard let notice = self.latestProject?.extendedProjectProperties?.projectNotice else { return }
+    self.onGoToRestrictedCreator?(notice)
   }
 
   public func projectTabDisclaimerCellDidTapURL(_ url: URL) {
@@ -916,9 +910,9 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.onGoToUpdates?(project)
   }
 
-  fileprivate let tappedReportProjectProperty = MutableProperty(())
   public func tappedReportProject() {
-    self.tappedReportProjectProperty.value = ()
+    guard let project = self.latestProject else { return }
+    self.onGoToReportProject?((project.flagging ?? false, "\(project.graphID)", project.urls.web.project))
   }
 
   fileprivate let userSessionStartedProperty = MutableProperty(())
@@ -961,10 +955,10 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
   public let goToPledgeManagementPledgeView: Signal<String, Never>
 
-  public let goToRestrictedCreator: Signal<String, Never>
+  public var onGoToRestrictedCreator: ((String) -> Void)?
   public let goToRewards: Signal<(Project, RefTag?, String?), Never>
   public var onGoToUpdates: ((Project) -> Void)?
-  public let goToReportProject: Signal<(Bool, String, String), Never>
+  public var onGoToReportProject: (((Bool, String, String)) -> Void)?
   public let goToURL: Signal<URL, Never>
   public let pauseMedia: Signal<Void, Never>
   public var onNavigateBackToProjectPage: (() -> Void)?
