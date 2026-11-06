@@ -83,6 +83,13 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private var totalQuantities: SelectedRewardQuantities?
   private var totalBonus: Double?
   private var analyticsTotal: Double?
+  private var initialTrackingProject: Project?
+  private var initialTrackingReward: Reward?
+  private var initialTrackingRewards: [Reward]?
+  private var initialTrackingConfiguration: PledgeViewData?
+  private var initialTrackingBonus: Double?
+  private var initialTrackingTotal: Double?
+  private var trackedPage = false
   private var ctaCount: Int?
   private var ctaValid: Bool?
   private var ctaHasAddOns: Bool?
@@ -122,7 +129,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     let project = configData.map(\.project)
     let baseReward = configData.map(\.rewards).map(\.first).skipNil()
     let baseRewardQuantities = configData.map(\.selectedQuantities)
-    let refTag = configData.map(\.refTag)
     let context = configData.map(\.context)
     let initialLocationId = configData.map(\.selectedLocationId)
     let selectedShippingRule = configData.map(\.selectedShippingRule)
@@ -226,40 +232,35 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 
     let attibutedPledgeTotal = Signal.combineLatest(project, pledgeTotal).map(attributedCurrency)
 
-    // MARK: - Tracking
-
-    // shippingRule needs to be set for the event is fired
-    Signal.zip(
-      project,
-      baseReward,
-      selectedRewards,
-      refTag,
-      configData,
-      additionalPledgeAmount,
-      pledgeTotal
-    )
-    .take(first: 1)
-    .observeForUI()
-    .observeValues {
-      project, baseReward, selectedRewards, refTag, configData, additionalPledgeAmount, pledgeTotal
-      in
-      let checkoutPropertiesData = checkoutProperties(
-        from: project,
-        baseReward: baseReward,
-        addOnRewards: selectedRewards,
-        selectedQuantities: configData.selectedQuantities,
-        additionalPledgeAmount: additionalPledgeAmount,
-        pledgeTotal: pledgeTotal,
-        shippingTotal: 0,
-        isApplePay: nil
-      )
-
-      AppEnvironment.current.ksrAnalytics.trackAddOnsPageViewed(
-        project: project,
-        reward: baseReward,
-        checkoutData: checkoutPropertiesData,
-        refTag: refTag
-      )
+    _ = project.observeValues { [weak self] value in
+      guard let self, !self.trackedPage else { return }
+      if self.initialTrackingProject == nil { self.initialTrackingProject = value }
+      self.trackPageIfReady()
+    }
+    _ = baseReward.observeValues { [weak self] value in
+      guard let self, !self.trackedPage else { return }
+      if self.initialTrackingReward == nil { self.initialTrackingReward = value }
+      self.trackPageIfReady()
+    }
+    _ = selectedRewards.observeValues { [weak self] value in
+      guard let self, !self.trackedPage else { return }
+      if self.initialTrackingRewards == nil { self.initialTrackingRewards = value }
+      self.trackPageIfReady()
+    }
+    _ = configData.observeValues { [weak self] value in
+      guard let self, !self.trackedPage else { return }
+      if self.initialTrackingConfiguration == nil { self.initialTrackingConfiguration = value }
+      self.trackPageIfReady()
+    }
+    _ = additionalPledgeAmount.observeValues { [weak self] value in
+      guard let self, !self.trackedPage else { return }
+      if self.initialTrackingBonus == nil { self.initialTrackingBonus = value }
+      self.trackPageIfReady()
+    }
+    _ = pledgeTotal.observeValues { [weak self] value in
+      guard let self, !self.trackedPage else { return }
+      if self.initialTrackingTotal == nil { self.initialTrackingTotal = value }
+      self.trackPageIfReady()
     }
 
     _ = project.observeValues { [weak self] value in
@@ -376,6 +377,22 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     _ = refreshAddons.observeValues { [weak self] data in
       self?.loadAddOns(for: data)
     }
+  }
+
+  private func trackPageIfReady() {
+    guard !self.trackedPage, let project = self.initialTrackingProject,
+          let reward = self.initialTrackingReward, let rewards = self.initialTrackingRewards,
+          let config = self.initialTrackingConfiguration, let bonus = self.initialTrackingBonus,
+          let total = self.initialTrackingTotal else { return }
+    self.trackedPage = true
+    let data = checkoutProperties(
+      from: project, baseReward: reward, addOnRewards: rewards,
+      selectedQuantities: config.selectedQuantities, additionalPledgeAmount: bonus,
+      pledgeTotal: total, shippingTotal: 0, isApplePay: nil
+    )
+    AppEnvironment.current.ksrAnalytics.trackAddOnsPageViewed(
+      project: project, reward: reward, checkoutData: data, refTag: config.refTag
+    )
   }
 
   private func publishInitialCTA() {
