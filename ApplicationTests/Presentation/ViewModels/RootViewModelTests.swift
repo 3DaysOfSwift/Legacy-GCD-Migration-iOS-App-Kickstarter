@@ -71,7 +71,7 @@ final class RootViewModelTests: TestCase {
         .map(extractRootNames)
         .observe(self.viewControllerNames.observer)
 
-      self.vm.outputs.filterDiscovery.map(second).observe(self.filterDiscovery.observer)
+      self.vm.outputs.onFilterDiscovery = { [weak self] in self?.filterDiscovery.observer.send(value: $0.1) }
       self.vm.outputs.floatingTabBarEnabled.observe(self.floatingTabBarEnabled.observer)
       self.vm.outputs.selectedIndex.observe(self.selectedIndex.observer)
       self.vm.outputs.setBadgeValueAtIndex.map { $0.0 }.observe(self.setBadgeValueAtIndexValue.observer)

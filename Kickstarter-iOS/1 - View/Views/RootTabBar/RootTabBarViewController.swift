@@ -137,13 +137,14 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
       .observeForUI()
       .observeValues { [weak self] in self?.setTabBarItemStyles(withData: $0) }
 
-    self.viewModel.outputs.filterDiscovery
-      .observeForControllerAction()
-      .map { [weak self] index, param -> (DiscoveryViewController, DiscoveryParams)? in
-        self?.viewControllerAndParam(with: index, param: param)
+    self.viewModel.outputs.onFilterDiscovery = { [weak self] data in
+      let (index, params) = data
+      DispatchQueue.main.async { [weak self] in
+        let destination: (DiscoveryViewController, DiscoveryParams)? = self?.viewControllerAndParam(with: index, param: params)
+        guard let (controller, params) = destination else { return }
+        controller.filter(with: params)
       }
-      .skipNil()
-      .observeValues { $0.filter(with: $1) }
+    }
 
     self.viewModel.outputs.setBadgeValueAtIndex
       .observeForUI()

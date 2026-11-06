@@ -111,7 +111,7 @@ public protocol RootViewModelInputs {
 @MainActor
 public protocol RootViewModelOutputs: AnyObject {
   /// Emits when the discovery VC should filter with specific params.
-  var filterDiscovery: Signal<(RootViewControllerIndex, DiscoveryParams), Never> { get }
+  var onFilterDiscovery: (((RootViewControllerIndex, DiscoveryParams)) -> Void)? { get set }
 
   /// Emits a controller index that should be scrolled to the top. This requires figuring out what kind of
   /// controller it is, and setting its `contentOffset`.
@@ -148,6 +148,7 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   private let profileFeature: ProfileFeature
   private var sessionFeature: SessionFeature { self.profileFeature.sessionFeature }
   private var latestSelectedIndex: RootViewControllerIndex?
+  private var discoveryIndex: RootViewControllerIndex?
   private var avatarTask: Task<Void, Never>?
   private var avatarID: UUID?
   private var avatarInput: (URL, Int, Int)?
@@ -239,12 +240,6 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
       .filter { isTrue($1) }
       .map(first)
 
-    let discoveryControllerIndex = self.setViewControllers
-      .map { $0.firstIndex(of: .discovery) }
-      .skipNil()
-
-    self.filterDiscovery = discoveryControllerIndex
-      .takePairWhen(self.switchToDiscoveryProperty.signal.skipNil())
 
     self.selectedIndex = Signal.combineLatest(
       .merge(
@@ -390,6 +385,9 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
           )
       }
 
+    self.setViewControllers.observeValues { [weak self] controllers in
+      if let index = controllers.firstIndex(of: .discovery) { self?.discoveryIndex = index }
+    }
     self.selectedIndex.observeValues { [weak self] in self?.latestSelectedIndex = $0 }
     clearBadgeValueOnActivitiesTabSelected.observeValues { [weak self] _ in
       self?.clearActivityBadge()
@@ -507,6 +505,7 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   fileprivate let switchToDiscoveryProperty = MutableProperty<DiscoveryParams?>(nil)
   public func switchToDiscovery(params: DiscoveryParams?) {
     self.switchToDiscoveryProperty.value = params
+    if let params, let index = self.discoveryIndex { self.onFilterDiscovery?((index, params)) }
   }
 
   fileprivate let switchToLoginProperty = MutableProperty(())
@@ -549,7 +548,7 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
     self.voiceOverStatusDidChangeProperty.value = ()
   }
 
-  public let filterDiscovery: Signal<(RootViewControllerIndex, DiscoveryParams), Never>
+  public var onFilterDiscovery: (((RootViewControllerIndex, DiscoveryParams)) -> Void)?
   public var onScrollToTop: ((RootViewControllerIndex) -> Void)?
   public let selectedIndex: Signal<RootViewControllerIndex, Never>
   public let setBadgeValueAtIndex: Signal<RootTabBarItemBadgeValueData, Never>
