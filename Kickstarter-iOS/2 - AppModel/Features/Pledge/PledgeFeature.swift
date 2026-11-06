@@ -1,7 +1,6 @@
 import Foundation
 import GraphAPI
 import KsApi
-import ReactiveSwift
 
 @MainActor
 public protocol PledgeProvider {
@@ -146,7 +145,6 @@ public final class PledgeFeature {
   private var writeVersion: [Session: Int] = [:]
   private var tails: [Session: Pending] = [:]
   private var commands: [UUID: Task<Value, Error>] = [:]
-  private var observations: [UUID: Task<Void, Never>] = [:]
 
   private func request(_ command: Command) -> Task<Value, Error> {
     let session = self.session
@@ -352,65 +350,6 @@ public final class PledgeFeature {
     return backing
   }
 
-  // These output adapters admit synchronously, preserving rapid input order.
-  // Disposing an observer never cancels an already-admitted mutation.
-  public func createResult(_ input: KsApi.CreateBackingInput) -> SignalProducer<
-    CreateBackingEnvelope, ErrorEnvelope
-  > {
-    self.result(.create(input), transform: Self.created)
-  }
-  public func updateResult(_ input: KsApi.UpdateBackingInput) -> SignalProducer<
-    UpdateBackingEnvelope, ErrorEnvelope
-  > {
-    self.result(.update(input), transform: Self.updated)
-  }
-
-  private func result<Output>(
-    _ command: Command, transform: @escaping @MainActor (Value) throws -> Output
-  ) -> SignalProducer<Output, ErrorEnvelope> {
-    let session = self.session
-    return SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        guard self.session == session else {
-          observer.sendInterrupted()
-          return
-        }
-        let commandTask = self.request(command)
-        let id = UUID()
-        let task = Task { [self] in
-          defer { self.observations[id] = nil }
-          do {
-            let value = try await commandTask.value
-            try self.requireCurrent(session)
-            observer.send(value: try transform(value))
-            observer.sendCompleted()
-          } catch {
-            guard !Task.isCancelled, !(error is CancellationError), self.session == session
-            else {
-              observer.sendInterrupted()
-              return
-            }
-            observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
-          }
-        }
-        self.observations[id] = task
-        lifetime.observeEnded { task.cancel() }
-      }
-    }
-  }
-
-  public func delayedResult<Value>(
-    _ producer: SignalProducer<Value, ErrorEnvelope>
-  ) -> SignalProducer<Value, ErrorEnvelope> {
-    let session = self.session
-    return producer.ksr_delay(
-      AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler
-    )
-    .materialize()
-    .filter { _ in MainActor.assumeIsolated { self.session == session } }
-    .dematerialize()
-  }
-
   private enum Read: Equatable {
     case updateContext(Param, Int)
     case plan(String, String)
@@ -597,15 +536,13 @@ public final class PledgeFeature {
     self.reads.removeAll()
     self.readVersions.removeAll()
     self.writeVersion.removeAll()
-    for task in self.observations.values { task.cancel() }
     // In-flight writes settle. Old queued writes fail their generation check
     // before provider admission; a new account has its own queue.
   }
   public func waitForOperations() async {
-    while !self.commands.isEmpty || !self.observations.isEmpty || !self.readTasks.isEmpty {
+    while !self.commands.isEmpty || !self.readTasks.isEmpty {
       for task in Array(self.readTasks.values) { await task.value }
       for task in Array(self.commands.values) { _ = await task.result }
-      for task in Array(self.observations.values) { await task.value }
     }
   }
 }

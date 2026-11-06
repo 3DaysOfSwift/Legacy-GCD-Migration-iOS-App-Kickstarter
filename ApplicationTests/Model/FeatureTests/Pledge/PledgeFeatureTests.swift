@@ -73,16 +73,17 @@ final class PledgeFeatureTests: TestCase {
     XCTAssertEqual(self.provider.updates.count, 1)
   }
 
-  func testDisposedObserverDoesNotAbandonAdmittedCreate() async throws {
-    var delivered = false
-    let subscription = self.feature.createResult(self.createInput()).startWithResult { _ in
-      delivered = true
-    }
+  func testCancelledWaiterDoesNotAbandonAdmittedCreate() async throws {
+    let waiter = self.feature.startCreate(self.createInput())
     await self.provider.creates.waitFor(1)
-    subscription.dispose()
+    waiter.cancel()
     try self.provider.creates.finish(0, .success(self.created()))
-    await self.feature.waitForOperations()
-    XCTAssertFalse(delivered)
+    do {
+      _ = try await waiter.value
+      XCTFail("Cancelled waiter must not receive a result")
+    } catch is CancellationError {} catch {
+      XCTFail("Unexpected create error: \(error)")
+    }
     XCTAssertEqual(self.provider.creates.count, 1)
   }
 
@@ -122,46 +123,30 @@ final class PledgeFeatureTests: TestCase {
     XCTAssertEqual(self.provider.receivedUsers, [2, 2, 2])
   }
 
-  func testSessionChangeRejectsOldSuccessErrorAndQueuedWrite() async throws {
-    var delivered = false
-    let old = self.feature.createResult(self.createInput()).startWithResult { _ in delivered = true
-    }
-    let queued = self.feature.updateResult(self.updateInput()).startWithResult { _ in
-      delivered = true
-    }
-    defer {
-      old.dispose()
-      queued.dispose()
-    }
+  func testSessionChangeRejectsOldErrorAndQueuedWrite() async throws {
+    let old = self.feature.startCreate(self.createInput())
+    let queued = self.feature.startUpdate(self.updateInput())
     await self.provider.creates.waitFor(1)
     self.session.sessionChanged()
     try self.provider.creates.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
-    await self.feature.waitForOperations()
-    XCTAssertFalse(delivered)
+    do { _ = try await old.value; XCTFail("Old session must not receive an error") }
+    catch { XCTAssertTrue(error is CancellationError) }
+    do { _ = try await queued.value; XCTFail("Old queued write must not run") }
+    catch { XCTAssertTrue(error is CancellationError) }
     XCTAssertEqual(self.provider.updates.count, 0)
   }
 
   func testNewSessionCanProceedBeforeOldRequestSettles() async throws {
-    var oldDelivered = false
-    var newDelivered = false
-    let old = self.feature.createResult(self.createInput()).startWithResult { _ in
-      oldDelivered = true
-    }
+    let old = self.feature.startCreate(self.createInput())
     await self.provider.creates.waitFor(1)
     self.session.sessionChanged()
-    let current = self.feature.createResult(self.createInput()).startWithResult {
-      if case .success = $0 { newDelivered = true } else { XCTFail("Unexpected new-session error") }
-    }
-    defer {
-      old.dispose()
-      current.dispose()
-    }
+    let current = self.feature.startCreate(self.createInput())
     await self.provider.creates.waitFor(2)
     try self.provider.creates.finish(1, .success(self.created()))
     try self.provider.creates.finish(0, .success(self.created()))
-    await self.feature.waitForOperations()
-    XCTAssertFalse(oldDelivered)
-    XCTAssertTrue(newDelivered)
+    _ = try await current.value
+    do { _ = try await old.value; XCTFail("Old session must not receive a result") }
+    catch { XCTAssertTrue(error is CancellationError) }
   }
 
   func testCanceledAsyncCallerCannotReceiveSuccessfulUpdate() async throws {
@@ -189,28 +174,17 @@ final class PledgeFeatureTests: TestCase {
     XCTAssertEqual(self.provider.updates.count, 1)
   }
 
-  func testSessionChangeSuppressesDelayedSuccessAndFailure() async throws {
+  func testSessionChangeSuppressesDelayedFailure() async throws {
     await withEnvironment(apiDelayInterval: .seconds(1)) {
-      var delivered = false
-      let first = self.feature.delayedResult(self.feature.createResult(self.createInput()))
-        .startWithResult { _ in delivered = true }
-      let second = Task { try await self.feature.cancelWithPresentationDelay(
+      let operation = Task { try await self.feature.cancelWithPresentationDelay(
         .init(backingId: "backing", cancellationReason: nil)) }
-      defer { first.dispose() }
-      await self.provider.creates.waitFor(1)
-      do { try self.provider.creates.finish(0, .success(self.created())) } catch {
-        XCTFail("Missing fixture")
-      }
       await self.provider.cancellations.waitFor(1)
-      do {
-        try self.provider.cancellations.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
-      } catch { XCTFail("Missing fixture") }
+      do { try self.provider.cancellations.finish(0, .failure(ErrorEnvelope.couldNotParseJSON)) }
+      catch { XCTFail("Missing fixture") }
       await self.feature.waitForOperations()
       self.session.sessionChanged()
-      await self.scheduler.advance(by: 1)
-      do { try await second.value; XCTFail("Old session must not receive a result") }
+      do { try await operation.value; XCTFail("Old session must not receive a result") }
       catch { XCTAssertTrue(error is CancellationError) }
-      XCTAssertFalse(delivered)
     }
   }
 
