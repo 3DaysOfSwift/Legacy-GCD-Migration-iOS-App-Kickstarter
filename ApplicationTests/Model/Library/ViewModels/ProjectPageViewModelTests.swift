@@ -114,7 +114,7 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }
       self.vm.outputs.dismissManagePledgeAndShowMessageBannerWithMessage
         .observe(self.dismissManagePledgeAndShowMessageBannerWithMessage.observer)
-      self.vm.outputs.goToComments.observe(self.goToComments.observer)
+      self.vm.outputs.onGoToComments = { [weak self] in self?.goToComments.observer.send(value: $0) }
       self.vm.outputs.goToLoginWithIntent.observe(self.goToLoginWithIntent.observer)
       self.vm.outputs.goToManagePledge.map(first).observe(self.goToManagePledgeProjectParam.observer)
       self.vm.outputs.goToManagePledge.map(second).observe(self.goToManagePledgeBackingParam.observer)
@@ -123,11 +123,11 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.outputs.goToReportProject.observe(self.goToReportProject.observer)
       self.vm.outputs.goToRewards.map(first).observe(self.goToRewardsProject.observer)
       self.vm.outputs.goToRewards.map(second).observe(self.goToRewardsRefTag.observer)
-      self.vm.outputs.goToUpdates.observe(self.goToUpdates.observer)
+      self.vm.outputs.onGoToUpdates = { [weak self] in self?.goToUpdates.observer.send(value: $0) }
       self.vm.outputs.goToURL.observe(self.goToURL.observer)
       self.vm.outputs.pauseMedia.observe(self.pauseMedia.observer)
       self.vm.outputs.onNavigateBackToProjectPage = { [weak self] in self?.navigateBackToProjectPage.observer.send(value: ()) }
-      self.vm.outputs.presentMessageDialog.observe(self.presentMessageDialog.observer)
+      self.vm.outputs.onPresentMessageDialog = { [weak self] in self?.presentMessageDialog.observer.send(value: $0) }
       self.vm.outputs.precreateAudioVideoURLs.observe(self.precreateAudioVideoURLs.observer)
       self.vm.outputs.precreateAudioVideoURLsOnFirstLoad
         .observe(self.precreateAudioVideoURLsFirstLoad.observer)

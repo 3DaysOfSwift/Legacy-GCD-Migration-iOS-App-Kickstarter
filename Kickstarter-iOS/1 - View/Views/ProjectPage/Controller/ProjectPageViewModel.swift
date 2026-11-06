@@ -152,7 +152,7 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var dismissManagePledgeAndShowMessageBannerWithMessage: Signal<String, Never> { get }
 
   /// Emits a `Project` when the comments are to be rendered.
-  var goToComments: Signal<Project, Never> { get }
+  var onGoToComments: ((Project) -> Void)? { get set }
 
   /// Emits `LoginIntent` to take the user to the `LoginToutViewController`
   var goToLoginWithIntent: Signal<LoginIntent, Never> { get }
@@ -166,7 +166,7 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var goToPledgeManager: Signal<String, Never> { get }
 
   /// Emits a `Project` when the updates are to be rendered.
-  var goToUpdates: Signal<Project, Never> { get }
+  var onGoToUpdates: ((Project) -> Void)? { get set }
 
   /// Emits a `String` that explains why the creator is restricted.
   var goToRestrictedCreator: Signal<String, Never> { get }
@@ -187,7 +187,7 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var onNavigateBackToProjectPage: (() -> Void)? { get set }
 
   /// Emits `Project` when the MessageDialogViewController should be presented
-  var presentMessageDialog: Signal<Project, Never> { get }
+  var onPresentMessageDialog: ((Project) -> Void)? { get set }
 
   /// Emits `AudioVideoViewElement` and `IndexPath` when the project has campaign data to download for a row
   var precreateAudioVideoURLs: Signal<(AudioVideoViewElement, IndexPath), Never> { get }
@@ -459,11 +459,9 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
       }
       .take(first: 1)
 
-    self.goToComments = freshProject
-      .takeWhen(self.tappedCommentsProperty.signal)
 
-    self.goToUpdates = freshProject
-      .takeWhen(self.tappedUpdatesProperty.signal)
+
+
 
     self.goToReportProject = freshProject.signal
       .map { ($0.flagging ?? false, "\($0.graphID)", $0.urls.web.project) }
@@ -560,8 +558,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
       .skipNil()
       .observeValues { AppEnvironment.current.cookieStorage.setCookie($0) }
 
-    self.presentMessageDialog = freshProject
-      .takeWhen(self.askAQuestionCellTappedProperty.signal)
+
 
     let dataSourceUpdate = self.projectNavigationSelectorViewDidSelectProperty.signal
       .skipNil()
@@ -735,6 +732,18 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
       .observeValues { [weak self] projectID in
         self?.similarProjectsUseCase.projectIDLoaded(projectID: projectID)
       }
+
+    self.featureBindings += freshProject
+      .takeWhen(self.tappedCommentsProperty.signal)
+      .observeValues { [weak self] in self?.onGoToComments?($0) }
+
+    self.featureBindings += freshProject
+      .takeWhen(self.tappedUpdatesProperty.signal)
+      .observeValues { [weak self] in self?.onGoToUpdates?($0) }
+
+    self.featureBindings += freshProject
+      .takeWhen(self.askAQuestionCellTappedProperty.signal)
+      .observeValues { [weak self] in self?.onPresentMessageDialog?($0) }
 
     let route = self.projectRoute
     var requestRefTag: RefTag?
@@ -949,7 +958,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   public let configurePledgeCTAView: Signal<PledgeCTAContainerViewData, Never>
   public let configureProjectNavigationSelectorView: Signal<(Project, RefTag?), Never>
   public let dismissManagePledgeAndShowMessageBannerWithMessage: Signal<String, Never>
-  public let goToComments: Signal<Project, Never>
+  public var onGoToComments: ((Project) -> Void)?
 
   public var goToLoginWithIntent: Signal<LoginIntent, Never> {
     self.rewardsLoginPipe.output
@@ -963,12 +972,12 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
   public let goToRestrictedCreator: Signal<String, Never>
   public let goToRewards: Signal<(Project, RefTag?, String?), Never>
-  public let goToUpdates: Signal<Project, Never>
+  public var onGoToUpdates: ((Project) -> Void)?
   public let goToReportProject: Signal<(Bool, String, String), Never>
   public let goToURL: Signal<URL, Never>
   public let pauseMedia: Signal<Void, Never>
   public var onNavigateBackToProjectPage: (() -> Void)?
-  public let presentMessageDialog: Signal<Project, Never>
+  public var onPresentMessageDialog: ((Project) -> Void)?
   public let precreateAudioVideoURLs: Signal<(AudioVideoViewElement, IndexPath), Never>
   public let precreateAudioVideoURLsOnFirstLoad: Signal<[AudioVideoViewElement], Never>
   public let prefetchImageURLs: Signal<([URL], IndexPath), Never>

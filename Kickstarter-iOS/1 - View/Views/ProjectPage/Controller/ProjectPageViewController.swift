@@ -460,11 +460,9 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         })
       }
 
-    self.viewModel.outputs.goToComments
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.goToComments(project: $0)
-      }
+    self.viewModel.outputs.onGoToComments = { [weak self] project in
+      DispatchQueue.main.async { [weak self] in self?.goToComments(project: project) }
+    }
 
     self.viewModel.outputs.goToLoginWithIntent
       .observeForControllerAction()
@@ -491,11 +489,9 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         self?.goToRestrictedCreator(message: $0)
       }
 
-    self.viewModel.outputs.goToUpdates
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.goToUpdates(project: $0)
-      }
+    self.viewModel.outputs.onGoToUpdates = { [weak self] project in
+      DispatchQueue.main.async { [weak self] in self?.goToUpdates(project: project) }
+    }
 
     self.viewModel.outputs.goToURL
       .observeForControllerAction()
@@ -570,11 +566,9 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         }
       }
 
-    self.viewModel.outputs.presentMessageDialog
-      .observeForUI()
-      .observeValues { [weak self] project in
-        self?.presentMessageDialog(project: project)
-      }
+    self.viewModel.outputs.onPresentMessageDialog = { [weak self] project in
+      DispatchQueue.main.async { [weak self] in self?.presentMessageDialog(project: project) }
+    }
 
     self.viewModel.outputs.onShowHelp = { [weak self] helpType in
         self?.presentHelpWebViewController(with: helpType, presentationStyle: .formSheet)
