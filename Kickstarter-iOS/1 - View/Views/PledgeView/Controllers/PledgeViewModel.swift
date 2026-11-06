@@ -148,7 +148,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     self.loginStatePipe.output.observeValues { paymentMethods.loginChanged($0) }
 
     let amounts = initialData.map(PledgeAmounts.init)
-    let allRewardsTotal = amounts.map(\.rewards)
     let allRewardsShippingTotal = amounts.map(\.shipping)
     let additionalPledgeAmount = amounts.map(\.bonus)
     let pledgeTotal = amounts.map(\.total).skipNil()
@@ -170,29 +169,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       .map(second)
       .filter { $0 == .changePaymentMethod }
       .ignoreValues()
-
-    let paymentAuthorizationData: Signal<PaymentAuthorizationData, Never> = Signal.combineLatest(
-      project,
-      baseReward,
-      allRewardsTotal,
-      additionalPledgeAmount,
-      allRewardsShippingTotal
-    )
-    .map { project, reward, allRewardsTotal, additionalPledgeAmount, shippingTotal -> PaymentAuthorizationData in
-      let r = (
-        project,
-        reward,
-        allRewardsTotal,
-        additionalPledgeAmount,
-        shippingTotal,
-        Secrets.ApplePay.merchantIdentifier
-      ) as PaymentAuthorizationData
-
-      return r
-    }
-
-    let applePayAuthorization = paymentAuthorizationData
-      .takeWhen(self.applePayButtonTappedSignal)
 
     let applePayStatusSuccess = self.applePaySuccessPipe.output
     let willCreateApplePayBacking = applePayStatusSuccess
@@ -753,7 +729,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         AppEnvironment.current.environmentType.stripePublishableKey
       )
     }
-    _ = applePayAuthorization.observeValues { [weak self] in self?.onApplePayAuthorization?($0) }
     _ = pledgeCTA.observeValues { [weak self] in self?.onPledgeCTA?($0) }
     processingState.onChange = { [weak self] in self?.onProcessingHidden?($0) }
     self.createObservation = createBackingRequests.observeValues { [weak self] input in
@@ -825,7 +800,14 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
   private let (applePayButtonTappedSignal, applePayButtonTappedObserver) = Signal<Void, Never>.pipe()
   public func applePayButtonTapped() {
+    guard self.hasLoadedView, let data = self.configuredData, let reward = data.rewards.first else {
+      self.applePayButtonTappedObserver.send(value: ())
+      return
+    }
+    let amounts = PledgeAmounts(data)
     self.applePayButtonTappedObserver.send(value: ())
+    self.onApplePayAuthorization?((data.project, reward, amounts.rewards, amounts.bonus, amounts.shipping,
+                                   Secrets.ApplePay.merchantIdentifier))
   }
 
   private var configuredData: PledgeViewData?
