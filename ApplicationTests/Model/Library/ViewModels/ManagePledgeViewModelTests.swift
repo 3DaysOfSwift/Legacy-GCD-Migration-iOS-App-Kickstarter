@@ -1,8 +1,7 @@
 @testable import Kickstarter_iOS
 import Foundation
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
+import ReactiveSwift // Virtual scheduler used by the remaining delayed presentation pipeline.
 import XCTest
 
 @testable import KsApi
@@ -31,31 +30,29 @@ internal final class ManagePledgeViewModelTests: TestCase {
     })
   private var vm: ManagePledgeViewModelType!
 
-  private let configurePaymentMethodView = TestObserver<ManagePledgePaymentMethodViewData, Never>()
-  private let configurePledgeSummaryView = TestObserver<ManagePledgeSummaryViewData, Never>()
-  private let configurePlotPaymentScheduleView = TestObserver<[PledgePaymentIncrement], Never>()
-  private let endRefreshing = TestObserver<Void, Never>()
-  private let goToCancelPledge = TestObserver<CancelPledgeViewData, Never>()
-  private let goToChangePaymentMethod = TestObserver<PledgeViewData, Never>()
-  private let goToContactCreatorSubject = TestObserver<MessageSubject, Never>()
-  private let goToContactCreatorContext = TestObserver<KSRAnalytics.MessageDialogContext, Never>()
-  private let goToFixPaymentMethod = TestObserver<PledgeViewData, Never>()
-  private let goToRewards = TestObserver<Project, Never>()
-  private let loadProjectAndRewardsIntoDataSourceProject = TestObserver<Project, Never>()
-  private let loadProjectAndRewardsIntoDataSourceReward = TestObserver<[Reward], Never>()
-  private let loadPullToRefreshHeaderView = TestObserver<(), Never>()
-  private let notifyDelegateManagePledgeViewControllerFinishedWithMessage = TestObserver<
-    String?, Never
-  >()
-  private let paymentMethodViewHidden = TestObserver<Bool, Never>()
-  private let pledgeDetailsSectionLabelText = TestObserver<String, Never>()
-  private let plotPaymentScheduleViewHidden = TestObserver<Bool, Never>()
-  private let rightBarButtonItemHidden = TestObserver<Bool, Never>()
-  private let showActionSheetMenuWithOptions = TestObserver<[ManagePledgeAlertAction], Never>()
-  private let showErrorBannerWithMessage = TestObserver<String, Never>()
-  private let showSuccessBannerWithMessage = TestObserver<String, Never>()
-  private let startRefreshing = TestObserver<(), Never>()
-  private let title = TestObserver<String, Never>()
+  private let configurePaymentMethodView = ManagePledgeRecorder<ManagePledgePaymentMethodViewData>()
+  private let configurePledgeSummaryView = ManagePledgeRecorder<ManagePledgeSummaryViewData>()
+  private let configurePlotPaymentScheduleView = ManagePledgeRecorder<[PledgePaymentIncrement]>()
+  private let endRefreshing = ManagePledgeRecorder<Void>()
+  private let goToCancelPledge = ManagePledgeRecorder<CancelPledgeViewData>()
+  private let goToChangePaymentMethod = ManagePledgeRecorder<PledgeViewData>()
+  private let goToContactCreatorSubject = ManagePledgeRecorder<MessageSubject>()
+  private let goToContactCreatorContext = ManagePledgeRecorder<KSRAnalytics.MessageDialogContext>()
+  private let goToFixPaymentMethod = ManagePledgeRecorder<PledgeViewData>()
+  private let goToRewards = ManagePledgeRecorder<Project>()
+  private let loadProjectAndRewardsIntoDataSourceProject = ManagePledgeRecorder<Project>()
+  private let loadProjectAndRewardsIntoDataSourceReward = ManagePledgeRecorder<[Reward]>()
+  private let loadPullToRefreshHeaderView = ManagePledgeRecorder<()>()
+  private let notifyDelegateManagePledgeViewControllerFinishedWithMessage = ManagePledgeRecorder<String?>()
+  private let paymentMethodViewHidden = ManagePledgeRecorder<Bool>()
+  private let pledgeDetailsSectionLabelText = ManagePledgeRecorder<String>()
+  private let plotPaymentScheduleViewHidden = ManagePledgeRecorder<Bool>()
+  private let rightBarButtonItemHidden = ManagePledgeRecorder<Bool>()
+  private let showActionSheetMenuWithOptions = ManagePledgeRecorder<[ManagePledgeAlertAction]>()
+  private let showErrorBannerWithMessage = ManagePledgeRecorder<String>()
+  private let showSuccessBannerWithMessage = ManagePledgeRecorder<String>()
+  private let startRefreshing = ManagePledgeRecorder<()>()
+  private let title = ManagePledgeRecorder<String>()
 
   override func setUp() async throws {
     try await super.setUp()
@@ -63,28 +60,28 @@ internal final class ManagePledgeViewModelTests: TestCase {
 
       self.vm = ManagePledgeViewModel(feature: self.pledgeFeature)
 
-      self.vm.outputs.onContactCreator = { [weak self] a, b in self?.goToContactCreatorSubject.observer.send(value: a); self?.goToContactCreatorContext.observer.send(value: b) }
-      self.vm.outputs.onLoadProjectAndRewards = { [weak self] a, b in self?.loadProjectAndRewardsIntoDataSourceProject.observer.send(value: a); self?.loadProjectAndRewardsIntoDataSourceReward.observer.send(value: b) }
-      self.vm.outputs.onTitle = { [weak self] in self?.title.observer.send(value: $0) }
-      self.vm.outputs.onPaymentMethod = { [weak self] in self?.configurePaymentMethodView.observer.send(value: $0) }
-      self.vm.outputs.onPledgeSummary = { [weak self] in self?.configurePledgeSummaryView.observer.send(value: $0) }
-      self.vm.outputs.onLoadRefreshHeader = { [weak self] in self?.loadPullToRefreshHeaderView.observer.send(value: ()) }
-      self.vm.outputs.onEndRefreshing = { [weak self] in self?.endRefreshing.observer.send(value: ()) }
-      self.vm.outputs.onCancelPledge = { [weak self] in self?.goToCancelPledge.observer.send(value: $0) }
-      self.vm.outputs.onChangePaymentMethod = { [weak self] in self?.goToChangePaymentMethod.observer.send(value: $0) }
-      self.vm.outputs.onFixPaymentMethod = { [weak self] in self?.goToFixPaymentMethod.observer.send(value: $0) }
-      self.vm.outputs.onRewards = { [weak self] in self?.goToRewards.observer.send(value: $0) }
-      self.vm.outputs.onFinish = { [weak self] in self?.notifyDelegateManagePledgeViewControllerFinishedWithMessage.observer.send(value: $0) }
-      self.vm.outputs.onPaymentMethodHidden = { [weak self] in self?.paymentMethodViewHidden.observer.send(value: $0) }
-      self.vm.outputs.onPledgeDetailsLabel = { [weak self] in self?.pledgeDetailsSectionLabelText.observer.send(value: $0) }
-      self.vm.outputs.onRightBarButtonHidden = { [weak self] in self?.rightBarButtonItemHidden.observer.send(value: $0) }
-      self.vm.outputs.onShowMenu = { [weak self] in self?.showActionSheetMenuWithOptions.observer.send(value: $0) }
-      self.vm.outputs.onShowError = { [weak self] in self?.showErrorBannerWithMessage.observer.send(value: $0) }
-      self.vm.outputs.onShowSuccess = { [weak self] in self?.showSuccessBannerWithMessage.observer.send(value: $0) }
-      self.vm.outputs.onStartRefreshing = { [weak self] in self?.startRefreshing.observer.send(value: ()) }
+      self.vm.outputs.onContactCreator = { [weak self] a, b in self?.goToContactCreatorSubject.record(a); self?.goToContactCreatorContext.record(b) }
+      self.vm.outputs.onLoadProjectAndRewards = { [weak self] a, b in self?.loadProjectAndRewardsIntoDataSourceProject.record(a); self?.loadProjectAndRewardsIntoDataSourceReward.record(b) }
+      self.vm.outputs.onTitle = { [weak self] in self?.title.record($0) }
+      self.vm.outputs.onPaymentMethod = { [weak self] in self?.configurePaymentMethodView.record($0) }
+      self.vm.outputs.onPledgeSummary = { [weak self] in self?.configurePledgeSummaryView.record($0) }
+      self.vm.outputs.onLoadRefreshHeader = { [weak self] in self?.loadPullToRefreshHeaderView.record(()) }
+      self.vm.outputs.onEndRefreshing = { [weak self] in self?.endRefreshing.record(()) }
+      self.vm.outputs.onCancelPledge = { [weak self] in self?.goToCancelPledge.record($0) }
+      self.vm.outputs.onChangePaymentMethod = { [weak self] in self?.goToChangePaymentMethod.record($0) }
+      self.vm.outputs.onFixPaymentMethod = { [weak self] in self?.goToFixPaymentMethod.record($0) }
+      self.vm.outputs.onRewards = { [weak self] in self?.goToRewards.record($0) }
+      self.vm.outputs.onFinish = { [weak self] in self?.notifyDelegateManagePledgeViewControllerFinishedWithMessage.record($0) }
+      self.vm.outputs.onPaymentMethodHidden = { [weak self] in self?.paymentMethodViewHidden.record($0) }
+      self.vm.outputs.onPledgeDetailsLabel = { [weak self] in self?.pledgeDetailsSectionLabelText.record($0) }
+      self.vm.outputs.onRightBarButtonHidden = { [weak self] in self?.rightBarButtonItemHidden.record($0) }
+      self.vm.outputs.onShowMenu = { [weak self] in self?.showActionSheetMenuWithOptions.record($0) }
+      self.vm.outputs.onShowError = { [weak self] in self?.showErrorBannerWithMessage.record($0) }
+      self.vm.outputs.onShowSuccess = { [weak self] in self?.showSuccessBannerWithMessage.record($0) }
+      self.vm.outputs.onStartRefreshing = { [weak self] in self?.startRefreshing.record(()) }
 
-      self.vm.outputs.onPlotSchedule = { [weak self] in self?.configurePlotPaymentScheduleView.observer.send(value: $0) }
-      self.vm.outputs.onPlotScheduleHidden = { [weak self] in self?.plotPaymentScheduleViewHidden.observer.send(value: $0) }
+      self.vm.outputs.onPlotSchedule = { [weak self] in self?.configurePlotPaymentScheduleView.record($0) }
+      self.vm.outputs.onPlotScheduleHidden = { [weak self] in self?.plotPaymentScheduleViewHidden.record($0) }
     }
   }
 
@@ -2053,5 +2050,32 @@ internal final class ManagePledgeViewModelTests: TestCase {
       pledgeOverTimeCollectionPlanShortPitch: nil,
       pledgeOverTimeMinimumExplanation: nil
     )
+  }
+}
+
+private final class ManagePledgeRecorder<Value> {
+  private(set) var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, message, file: file, line: line)
+  }
+  func assertDidEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertFalse(self.values.isEmpty, message, file: file, line: line)
+  }
+}
+
+private extension ManagePledgeRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
+  }
+  func assertValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, [expected], message, file: file, line: line)
+  }
+  func assertLastValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.last, expected, message, file: file, line: line)
   }
 }
