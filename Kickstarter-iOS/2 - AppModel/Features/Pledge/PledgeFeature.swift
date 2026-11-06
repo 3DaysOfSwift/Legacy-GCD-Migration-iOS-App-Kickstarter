@@ -552,49 +552,6 @@ public final class PledgeFeature {
     guard case .backing(let backing) = value else { throw ErrorEnvelope.couldNotParseJSON }
     return backing
   }
-  public func projectResult(route: UUID, param: Param) -> SignalProducer<Project, ErrorEnvelope> {
-    self.readResult(route: route, input: .project(param), transform: Self.project)
-  }
-  public func backingResult(route: UUID, id: Int) -> SignalProducer<Backing, ErrorEnvelope> {
-    self.readResult(route: route, input: .backing(id), transform: Self.backing)
-  }
-  private func readResult<Output>(
-    route: UUID, input: Read,
-    transform: @escaping @MainActor (ReadValue) throws -> Output
-  ) -> SignalProducer<Output, ErrorEnvelope> {
-    let session = self.session
-    return SignalProducer { observer, lifetime in
-      MainActor.assumeIsolated {
-        guard self.session == session else {
-          observer.sendInterrupted()
-          return
-        }
-        let request = self.requestRead(route: route, input: input)
-        let version = self.readVersions[route]
-        let id = UUID()
-        let task = Task { [self] in
-          defer { self.observations[id] = nil }
-          do {
-            let value = try await request.value()
-            try self.requireCurrent(session)
-            guard self.readVersions[route] == version else { throw CancellationError() }
-            observer.send(value: try transform(value))
-            observer.sendCompleted()
-          } catch {
-            guard !Task.isCancelled, !(error is CancellationError), self.session == session,
-              self.readVersions[route] == version
-            else {
-              observer.sendInterrupted()
-              return
-            }
-            observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
-          }
-        }
-        self.observations[id] = task
-        lifetime.observeEnded { task.cancel() }
-      }
-    }
-  }
   public func releaseRead(route: UUID) {
     self.readVersions[route] = nil
     self.reads.removeValue(forKey: route)?.task.cancel()

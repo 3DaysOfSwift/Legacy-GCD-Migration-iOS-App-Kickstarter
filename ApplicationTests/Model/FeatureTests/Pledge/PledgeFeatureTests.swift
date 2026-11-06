@@ -365,21 +365,17 @@ final class PledgeFeatureTests: TestCase {
 
   func testBackingReadSharesPendingRequestButRefreshesAfterCompletion() async throws {
     let route = UUID()
-    var count = 0
-    let a = self.feature.backingResult(route: route, id: 1).startWithResult {
-      if case .success = $0 { count += 1 } else { XCTFail("Expected backing") }
-    }
-    let b = self.feature.backingResult(route: route, id: 1).startWithResult {
-      if case .success = $0 { count += 1 } else { XCTFail("Expected backing") }
-    }
-    defer {
-      a.dispose()
-      b.dispose()
-    }
+    let a = Task { try await self.feature.backing(route: route, id: 1) }
     await self.provider.backings.waitFor(1)
+    let secondStarted = expectation(description: "Second backing caller started")
+    let b = Task {
+      secondStarted.fulfill()
+      return try await self.feature.backing(route: route, id: 1)
+    }
+    await fulfillment(of: [secondStarted], timeout: 2)
     try self.provider.backings.finish(0, .success(.template))
-    await self.feature.waitForOperations()
-    XCTAssertEqual(count, 2)
+    _ = try await a.value
+    _ = try await b.value
     let refresh = Task { try await self.feature.backing(route: route, id: 1) }
     await self.provider.backings.waitFor(2)
     try self.provider.backings.finish(1, .success(.template))
@@ -391,39 +387,44 @@ final class PledgeFeatureTests: TestCase {
     let route = UUID()
     let canceled = Task { try await self.feature.backing(route: route, id: 1) }
     await self.provider.backings.waitFor(1)
-    var delivered = false
-    let observer = self.feature.backingResult(route: route, id: 1).startWithResult {
-      if case .success = $0 { delivered = true } else { XCTFail("Shared read failed") }
+    let started = expectation(description: "Shared backing caller started")
+    let observer = Task {
+      started.fulfill()
+      return try await self.feature.backing(route: route, id: 1)
     }
-    defer { observer.dispose() }
+    await fulfillment(of: [started], timeout: 2)
     canceled.cancel()
     try self.provider.backings.finish(0, .success(.template))
     do {
       _ = try await canceled.value
       XCTFail("Canceled caller received a result")
     } catch { XCTAssertTrue(error is CancellationError) }
-    await self.feature.waitForOperations()
-    XCTAssertTrue(delivered)
+    _ = try await observer.value
     XCTAssertEqual(self.provider.backings.count, 1)
   }
 
   func testSharedReadFailureReachesBothWaitersWithoutRetry() async throws {
     let route = UUID()
     let failure = ErrorEnvelope(errorMessages: ["Unavailable"], ksrCode: nil, httpCode: 503, exception: nil)
-    var errors: [[String]] = []
-    let first = self.feature.backingResult(route: route, id: 1).startWithResult {
-      if case let .failure(error) = $0 { errors.append(error.errorMessages) }
-      else { XCTFail("Expected read failure") }
-    }
-    let second = self.feature.backingResult(route: route, id: 1).startWithResult {
-      if case let .failure(error) = $0 { errors.append(error.errorMessages) }
-      else { XCTFail("Expected shared read failure") }
-    }
-    defer { first.dispose(); second.dispose() }
+    let first = Task { try await self.feature.backing(route: route, id: 1) }
     await self.provider.backings.waitFor(1)
+    let started = expectation(description: "Second failing read started")
+    let second = Task {
+      started.fulfill()
+      return try await self.feature.backing(route: route, id: 1)
+    }
+    await fulfillment(of: [started], timeout: 2)
     try self.provider.backings.finish(0, .failure(failure))
-    await self.feature.waitForOperations()
-    XCTAssertEqual(errors, [["Unavailable"], ["Unavailable"]])
+    for task in [first, second] {
+      do {
+        _ = try await task.value
+        XCTFail("Expected shared read failure")
+      } catch let error as ErrorEnvelope {
+        XCTAssertEqual(error.errorMessages, ["Unavailable"])
+      } catch {
+        XCTFail("Unexpected error: \(error)")
+      }
+    }
     XCTAssertEqual(self.provider.backings.count, 1)
   }
 
@@ -471,15 +472,19 @@ final class PledgeFeatureTests: TestCase {
   func testBackingRefreshWaitsForAdmittedMutation() async throws {
     let write = Task { try await self.feature.cancel(.init(backingId: "b", cancellationReason: nil)) }
     await self.provider.cancellations.waitFor(1)
-    let read = self.feature.backingResult(route: UUID(), id: 1).start()
-    defer { read.dispose() }
-    await self.provider.cancellations.waitFor(1)
+    let readStarted = expectation(description: "Backing refresh started")
+    let read = Task {
+      readStarted.fulfill()
+      return try await self.feature.backing(route: UUID(), id: 1)
+    }
+    defer { read.cancel() }
+    await fulfillment(of: [readStarted], timeout: 2)
     XCTAssertEqual(self.provider.backings.count, 0)
     try self.provider.cancellations.finish(0, .success(()))
     try await write.value
     await self.provider.backings.waitFor(1)
     try self.provider.backings.finish(0, .success(.template))
-    await self.feature.waitForOperations()
+    _ = try await read.value
   }
 
   func testRefreshAfterMutationDoesNotJoinAnOlderPendingBackingRead() async throws {
