@@ -119,13 +119,13 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     let project = initialData.map(\.project)
     let baseReward = initialData.map(\.rewards).map(\.first).skipNil()
-    let rewards = initialData.map(\.rewards)
-    let selectedQuantities = initialData.map(\.selectedQuantities)
-    let selectedShippingRule = initialData.map(\.selectedShippingRule)
-    let refTag = initialData.map(\.refTag)
     let context = initialData.map(\.context)
-
-    let backing = project.map { $0.personalization.backing }.skipNil()
+    let requestState = PledgeRequestState()
+    let createDataPipe = Signal<CreateBackingData, Never>.pipe()
+    let updateDataPipe = Signal<UpdateBackingData, Never>.pipe()
+    requestState.onCreate = { createDataPipe.input.send(value: $0) }
+    requestState.onUpdate = { updateDataPipe.input.send(value: $0) }
+    initialData.observeValues { requestState.configure($0) }
 
     self.loginSignupUseCase = LoginSignupUseCase(withLoginIntent: .backProject)
     let login = self.loginSignupUseCase
@@ -137,7 +137,10 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     let paymentMethods = self.paymentMethodsUseCase
     let paymentSelected = self.paymentSelectedPipe
     let paymentValid = self.paymentValidPipe
-    paymentMethods.onSelected = { paymentSelected.input.send(value: $0) }
+    paymentMethods.onSelected = { value in
+      paymentSelected.input.send(value: value)
+      requestState.selectPayment(value)
+    }
     paymentMethods.onValidity = { paymentValid.input.send(value: $0) }
     initialData.observeValues { paymentMethods.configure($0) }
     self.loginStatePipe.output.observeValues { paymentMethods.loginChanged($0) }
@@ -160,14 +163,9 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       .combineLatest(with: context)
       .map { $1.isCreating }
       .filter(isTrue)
-    let applePayParamsData = Signal.merge(
-      initialData.mapConst(nil),
-      self.applePayParamsPipe.output.wrapInOptional()
-    )
     let applePaySuccess = self.applePaySuccessPipe
-    let applePayParams = self.applePayParamsPipe
     self.applePayAuthorization.onSuccess = { applePaySuccess.input.send(value: ()) }
-    self.applePayAuthorization.onParams = { applePayParams.input.send(value: $0) }
+    self.applePayAuthorization.onParams = { requestState.setApplePayParams($0) }
 
     // MARK: Pledge Over Time
 
@@ -181,47 +179,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     // MARK: - Create Backing
 
-    let selectedPaymentPlan = self.planConfigPipe.output
-      .map { $0?.selectedPlan ?? .pledgeInFull }
-
-    let createBackingData = Signal.combineLatest(
-      project,
-      rewards,
-      pledgeTotal,
-      selectedQuantities,
-      selectedShippingRule,
-      self.paymentSelectedPipe.output,
-      applePayParamsData,
-      selectedPaymentPlan,
-      refTag
-    )
-    .map {
-      project,
-        rewards,
-        pledgeTotal,
-        selectedQuantities,
-        selectedShippingRule,
-        selectedPaymentSource,
-        applePayParams,
-        selectedPaymentPlan,
-        refTag
-        -> CreateBackingData in
-
-      let paymentSourceId = selectedPaymentSource?.savedCreditCardId
-
-      return (
-        project: project,
-        rewards: rewards,
-        pledgeTotal: pledgeTotal,
-        selectedQuantities: selectedQuantities,
-        shippingRule: selectedShippingRule,
-        paymentSourceId: paymentSourceId,
-        setupIntentClientSecret: nil,
-        applePayParams: applePayParams,
-        refTag: refTag,
-        incremental: selectedPaymentPlan == .pledgeOverTime
-      )
-    }
+    let createBackingData = createDataPipe.output
 
     let createButtonTapped = context
       .takeWhen(self.submitButtonTappedSignal)
@@ -272,43 +230,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     // MARK: - Update Backing
 
-    let updateBackingData = Signal.combineLatest(
-      backing,
-      rewards,
-      pledgeTotal,
-      selectedQuantities,
-      selectedShippingRule,
-      self.paymentSelectedPipe.output,
-      applePayParamsData,
-      context,
-      selectedPaymentPlan
-    )
-    .map {
-      backing,
-        rewards,
-        pledgeTotal,
-        selectedQuantities,
-        selectedShippingRule,
-        selectedPaymentSource,
-        applePayParams,
-        context,
-        selectedPaymentPlan
-        -> UpdateBackingData in
-      let paymentSourceId = selectedPaymentSource?.savedCreditCardId
-
-      return (
-        backing: backing,
-        rewards: rewards,
-        pledgeTotal: pledgeTotal,
-        selectedQuantities: selectedQuantities,
-        shippingRule: selectedShippingRule,
-        paymentSourceId: paymentSourceId,
-        setupIntentClientSecret: nil,
-        applePayParams: applePayParams,
-        context,
-        incremental: selectedPaymentPlan == .pledgeOverTime
-      )
-    }
+    let updateBackingData = updateDataPipe.output
 
     let willUpdateApplePayBacking = Signal.combineLatest(
       applePayStatusSuccess,
@@ -677,7 +599,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     _ = title.observeValues { [weak self] in self?.onTitle?($0) }
     planUseCase.onShow = { [weak self] in self?.onShowPledgeOverTime?($0) }
     planUseCase.onConfig = { [weak self] data in
-      self?.planConfigPipe.input.send(value: data)
+      requestState.selectPlan(data?.selectedPlan ?? .pledgeInFull)
       self?.onPledgeOverTimeConfig?(data)
     }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
@@ -732,7 +654,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
   private let applePayAuthorization = ApplePayAuthorization()
   private let applePaySuccessPipe = Signal<Void, Never>.pipe()
-  private let applePayParamsPipe = Signal<ApplePayParams, Never>.pipe()
   public func paymentAuthorizationDidAuthorizePayment(paymentData: (
     displayName: String?, network: String?, transactionIdentifier: String
   )) {
@@ -854,7 +775,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
   private let pledgeOverTimeUseCase: PledgeOverTimeUseCase
   private let planLoadingPipe = Signal<Bool, Never>.pipe()
-  private let planConfigPipe = Signal<PledgePaymentPlansAndSelectionData?, Never>.pipe()
   private let loginSignupUseCase: LoginSignupUseCase
   private let loginStatePipe = Signal<Bool, Never>.pipe()
   private let paymentMethodsUseCase: PaymentMethodsUseCase
@@ -900,6 +820,55 @@ private func allValuesChangedAndValid(
 }
 
 // MARK: - Helper Functions
+
+@MainActor
+private final class PledgeRequestState {
+  var onCreate: ((CreateBackingData) -> Void)?
+  var onUpdate: ((UpdateBackingData) -> Void)?
+  private var data: PledgeViewData?
+  private var payment: PaymentSourceSelected?
+  private var hasPaymentSelection = false
+  private var plan: PledgePaymentPlansType?
+  private var applePay: ApplePayParams?
+
+  func configure(_ data: PledgeViewData) {
+    self.data = data
+    self.applePay = nil
+    self.publish()
+  }
+
+  func selectPayment(_ payment: PaymentSourceSelected?) {
+    self.payment = payment
+    self.hasPaymentSelection = true
+    self.publish()
+  }
+
+  func selectPlan(_ plan: PledgePaymentPlansType) {
+    self.plan = plan
+    self.publish()
+  }
+
+  func setApplePayParams(_ params: ApplePayParams) {
+    self.applePay = params
+    self.publish()
+  }
+
+  private func publish() {
+    guard let data, let plan, hasPaymentSelection, let total = PledgeAmounts(data).total else { return }
+    let paymentID = payment?.savedCreditCardId
+    let incremental = plan == .pledgeOverTime
+    onCreate?((project: data.project, rewards: data.rewards, pledgeTotal: total,
+               selectedQuantities: data.selectedQuantities, shippingRule: data.selectedShippingRule,
+               paymentSourceId: paymentID, setupIntentClientSecret: nil, applePayParams: applePay,
+               refTag: data.refTag, incremental: incremental))
+    if let backing = data.project.personalization.backing {
+      onUpdate?((backing: backing, rewards: data.rewards, pledgeTotal: total,
+                 selectedQuantities: data.selectedQuantities, shippingRule: data.selectedShippingRule,
+                 paymentSourceId: paymentID, setupIntentClientSecret: nil, applePayParams: applePay,
+                 pledgeContext: data.context, incremental: incremental))
+    }
+  }
+}
 
 private struct PledgeAmounts {
   let rewards: Double
