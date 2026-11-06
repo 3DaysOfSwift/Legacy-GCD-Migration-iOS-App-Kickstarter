@@ -1,7 +1,6 @@
 import Foundation
 import KsApi
 import Prelude
-import ReactiveExtensions
 import Observation
 
 public struct ManagePledgePaymentMethodViewData: Equatable {

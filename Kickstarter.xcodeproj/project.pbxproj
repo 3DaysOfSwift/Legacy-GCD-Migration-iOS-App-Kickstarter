@@ -3361,8 +3361,6 @@
 				"AD2BF37EC92B3B80D01180EF",
 				"D6FFFB2FEAA8AB99D7803CF5",
 				"3E13FCF3A7B85275A8CD7A8F",
-				"C006F61DCA959B827797826B",
-				"C8F8C84A4C0F7C6619D18528",
 				"97649571E4ADC2C1DB3E2236",
 				"DEB675E5A1479AB0443D02E6",
 			);
@@ -10356,8 +10354,6 @@
 				"0A7574E30700A0EE87A1DF8E",
 				"4D6148B076A973E45E64FDA3",
 				"7CB3139F18009EABE4271C39",
-				"170E28F48075D7B983CB6B4C",
-				"29FC73D6206F271E34BA2F2C",
 				"E93F1F7AF5802213D0B4F954",
 				"26D34DD2B772FDA778DC8B06",
 			);
@@ -11139,11 +11135,6 @@
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
-		};
-		"C006F61DCA959B827797826B" = {
-			"isa" = "XCSwiftPackageProductDependency";
-			"productName" = "ReactiveSwift";
-			"package" = "A3C65249AEB7076A9CE8C3D6";
 		};
 		"0FCAFBD432BD06EEFE672D07" = {
 			"path" = "ApplicationTests/Presentation/Kickstarter-iOS/Features/PledgedProjectsOverview/CardView/PPOProjectCardTests.swift";
@@ -12327,10 +12318,6 @@
 		"D9D85A4A23BB4C6684CA5DA4" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "5A82F1AF19374CCDEBC4AC94";
-		};
-		"29FC73D6206F271E34BA2F2C" = {
-			"isa" = "PBXBuildFile";
-			"productRef" = "C8F8C84A4C0F7C6619D18528";
 		};
 		"4A750CF6BB541069307B8F91" = {
 			"isa" = "XCSwiftPackageProductDependency";
@@ -16747,10 +16734,6 @@
 		"EEFBCB26A90725FE5D4A8528" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "2073D99D2B936F90BB1A8476";
-		};
-		"170E28F48075D7B983CB6B4C" = {
-			"isa" = "PBXBuildFile";
-			"productRef" = "C006F61DCA959B827797826B";
 		};
 		"AAF549192F2445C0001DB5AC" = {
 			"isa" = "PBXBuildFile";
@@ -24267,11 +24250,6 @@
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
-		};
-		"C8F8C84A4C0F7C6619D18528" = {
-			"isa" = "XCSwiftPackageProductDependency";
-			"productName" = "ReactiveExtensions";
-			"package" = "194C593E28F5E7FF00453249";
 		};
 		"F7DB13EC47F67C81CC8682CC" = {
 			"isa" = "PBXBuildFile";
