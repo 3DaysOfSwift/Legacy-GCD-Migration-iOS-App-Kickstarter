@@ -194,8 +194,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
     // MARK: Create Payment Intent
 
-    /// Called once on viewDidLoad. All signals, except checkoutId and backingId, are linked ot initialData.
-    let paymentIntentInput = Signal.combineLatest(project, pledgeTotal, checkoutId, backingId)
     let paymentIntentEvent = self.paymentIntentPipe.output
 
     let paymentIntentClientSecret = paymentIntentEvent.values()
@@ -493,7 +491,8 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
         )
       }
     openingState.onOpen = { [weak self] input in
-      guard let self else { return }
+      guard let self, let data = self.configuredData else { return }
+      self.activeCheckoutData = data
       self.checkoutTask?.cancel()
       let userID = feature.sessionFeature.currentUser?.id
       let generation = feature.sessionFeature.generation
@@ -541,11 +540,16 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       self?.applePayValidation.start(feature: feature, checkoutID: checkoutID,
                                      sourceID: paymentMethodID, secret: secret)
     }
-    self.paymentIntentObservation = paymentIntentInput.observeValues { [weak self] project, total, checkoutID, backingID in
-      guard let self else { return }
+    self.paymentIntentObservation = createCheckoutEvents.values().observeValues { [weak self] checkout in
+      guard let self, let data = self.activeCheckoutData else { return }
       self.paymentIntentTask?.cancel()
+      var checkoutID = checkout.checkout.id
+      if let decoded = decodeBase64(checkoutID), let range = decoded.range(of: "Checkout-") {
+        checkoutID = String(decoded[range.upperBound...])
+      }
       let request = self.stripeIntentService.createPaymentIntent(
-        for: project.graphID, backingId: backingID, checkoutId: checkoutID, pledgeTotal: total
+        for: data.project.graphID, backingId: checkout.checkout.backingId, checkoutId: checkoutID,
+        pledgeTotal: PostCampaignAmounts(data).total
       )
       self.paymentIntentTask = Task { [weak self] in
         do {
@@ -640,6 +644,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   }
 
   private var configuredData: PledgeViewData?
+  private var activeCheckoutData: PledgeViewData?
   private var hasLoadedView = false
   private let initialDataEvents = Signal<PledgeViewData, Never>.pipe()
   private let viewDidLoadEvents = Signal<Void, Never>.pipe()
