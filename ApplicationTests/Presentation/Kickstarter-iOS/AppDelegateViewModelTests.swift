@@ -63,7 +63,6 @@ final class AppDelegateViewModelTests: TestCase {
   private let updateCurrentUserInEnvironment = TestObserver<User, Never>()
   private let notificationSettingsUpdated = TestObserver<Void, Never>()
   private let updateConfigInEnvironment = TestObserver<Config, Never>()
-  private var disposables: [any Disposable] = []
 
   private var defaultRootCategoriesTemplate: RootCategoriesEnvelope {
     RootCategoriesEnvelope.template
@@ -137,8 +136,9 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.outputs.onSetApplicationShortcutItems = { [weak self] in self?.setApplicationShortcutItems.observer.send(value: $0) }
     self.vm.outputs.onShowAlert = { [weak self] in self?.showAlert.observer.send(value: $0) }
     self.vm.outputs.onSegmentEnabled = { [weak self] in self?.segmentIsEnabled.observer.send(value: $0) }
-    self.disposables
-      .append(self.vm.outputs.trackingAuthorizationStatus.start(self.trackingAuthorizationStatus.observer))
+    self.vm.outputs.onTrackingAuthorizationStatus = { [weak self] in
+      self?.trackingAuthorizationStatus.observer.send(value: $0)
+    }
     self.vm.outputs.triggerOnboardingFlow.observe(self.triggerOnboardingFlow.observer)
     self.vm.outputs.onUnregisterForRemoteNotifications = { [weak self] in self?.unregisterForRemoteNotifications.observer.send(value: ()) }
     self.vm.outputs.onUpdateCurrentUser = { [weak self] in self?.updateCurrentUserInEnvironment.observer.send(value: $0) }
@@ -2791,6 +2791,17 @@ final class AppDelegateViewModelTests: TestCase {
       appTrackingTransparency.requestAndSetAuthorizationStatus()
       XCTAssertEqual(self.trackingAuthorizationStatus.values, [.notDetermined, .authorized])
       XCTAssertFalse(appTrackingTransparency.shouldRequestAuthStatus)
+    }
+  }
+
+  func testTrackingObservationDoesNotDuplicateAcrossLifecycleEvents() async {
+    let tracking = MockAppTrackingTransparency()
+    await withEnvironment(appTrackingTransparency: tracking) {
+      self.vm.inputs.applicationActive(state: false)
+      self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
+      self.vm.inputs.applicationActive(state: true)
+      tracking.authorizationStatusValue = .denied
+      XCTAssertEqual(self.trackingAuthorizationStatus.values, [.notDetermined, .denied])
     }
   }
 

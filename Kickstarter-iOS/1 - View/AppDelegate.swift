@@ -25,7 +25,6 @@ import UserNotifications
 internal final class AppDelegate: UIResponder, UIApplicationDelegate {
   var window: UIWindow?
   fileprivate let viewModel: AppDelegateViewModelType = AppDelegateViewModel()
-  fileprivate var disposables: [any Disposable] = []
   // Custom Braze cancellable type. As long as we keep a reference to this active, Braze will
   // use this to tell us about any Braze push notifications the app handles.
   fileprivate var brazeSubscription: BrazeKit.Braze.Cancellable?
@@ -270,13 +269,9 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       }
     }
 
-    self.disposables.append(
-      self.viewModel.outputs.trackingAuthorizationStatus
-        .observeForUI()
-        .startWithValues { status in
-          self.appTrackingAuthorizationChanged(status: status)
-        }
-    )
+    self.viewModel.outputs.onTrackingAuthorizationStatus = { [weak self] status in
+      DispatchQueue.main.async { [weak self] in self?.appTrackingAuthorizationChanged(status: status) }
+    }
 
     self.viewModel.outputs.onSynchronizeUbiquitousStore = { [weak self] in
       DispatchQueue.main.async { [weak self] in

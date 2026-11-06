@@ -173,7 +173,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var onSynchronizeUbiquitousStore: (() -> Void)? { get set }
 
   /// Emits immediately and when the user's authorization status changes
-  var trackingAuthorizationStatus: SignalProducer<AppTrackingAuthorization, Never> { get }
+  var onTrackingAuthorizationStatus: ((AppTrackingAuthorization) -> Void)? { get set }
 
   /// Emits when application didFinishLaunchingWithOptions and the Onboarding Flow feature flag is enabled.
   var triggerOnboardingFlow: Signal<(), Never> { get }
@@ -221,6 +221,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   private var setupRequest: Task<GraphUserSetup, Error>?
   private var setupObservation: Task<Void, Never>?
   private var lastSegmentEnabled: Bool?
+  private var trackingObserver: ((any AppTrackingTransparencyType), UUID)?
 
   public init(
     lifecycleFeature: AppLifecycleFeature? = nil,
@@ -480,20 +481,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
         return ()
       }
 
-    self.trackingAuthorizationStatus = SignalProducer
-      .merge(
-        self.applicationLaunchOptionsProperty.signal.ignoreValues(),
-        self.applicationActiveProperty.signal.ignoreValues()
-      )
-      .flatMap { () in
-        SignalProducer { observer, lifetime in
-          let tracking = AppEnvironment.current.appTrackingTransparency
-          let id = tracking.observeAuthorizationStatus { observer.send(value: $0) }
-          lifetime.observeEnded {
-            Task { @MainActor in tracking.removeAuthorizationObserver(id) }
-          }
-        }
-      }
 
   }
 
@@ -508,16 +495,30 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.setupObservation?.cancel()
     self.setupRequest?.cancel()
     let redirectObservation = self.redirectObservation
+    let trackingObserver = self.trackingObserver
     let feature = self.lifecycleFeature
     let route = self.navigationRoute
     Task { @MainActor in
       redirectObservation.cancel()
+      if let (tracking, id) = trackingObserver { tracking.removeAuthorizationObserver(id) }
       feature.release(route: route)
     }
   }
 
   public var inputs: AppDelegateViewModelInputs { return self }
   public var outputs: AppDelegateViewModelOutputs { return self }
+
+  private func observeTrackingAuthorization() {
+    let tracking = AppEnvironment.current.appTrackingTransparency
+    if let (previous, id) = self.trackingObserver {
+      if (previous as AnyObject) === (tracking as AnyObject) { return }
+      previous.removeAuthorizationObserver(id)
+    }
+    let id = tracking.observeAuthorizationStatus { [weak self] status in
+      self?.onTrackingAuthorizationStatus?(status)
+    }
+    self.trackingObserver = (tracking, id)
+  }
 
   private func scheduleUserRefresh() {
     self.userDebounceTask?.cancel()
@@ -644,6 +645,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   ) {
     self.applicationDidFinishLaunchingReturnValue = launchOptions?[UIApplication.LaunchOptionsKey.shortcutItem] == nil
     self.applicationLaunchOptionsProperty.value = (application, launchOptions)
+    self.observeTrackingAuthorization()
     self.scheduleUserRefresh()
     self.refreshUserSetup()
     self.refreshConfiguration()
@@ -666,6 +668,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   fileprivate let applicationActiveProperty = MutableProperty<Bool>(false)
   public func applicationActive(state: Bool) {
     self.applicationActiveProperty.value = state
+    self.observeTrackingAuthorization()
   }
 
   public func applicationDidEnterBackground() {
@@ -831,7 +834,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public var onSetApplicationShortcutItems: (([ShortcutItem]) -> Void)?
   public var onShowAlert: ((Notification) -> Void)?
   public var onSynchronizeUbiquitousStore: (() -> Void)?
-  public let trackingAuthorizationStatus: SignalProducer<AppTrackingAuthorization, Never>
+  public var onTrackingAuthorizationStatus: ((AppTrackingAuthorization) -> Void)?
   public let triggerOnboardingFlow: Signal<(), Never>
   public var onUnregisterForRemoteNotifications: (() -> Void)?
   public var onUpdateCurrentUser: ((User) -> Void)?
