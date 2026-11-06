@@ -399,81 +399,18 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     validateCheckoutError.observeValues { [weak self] _ in self?.onProcessingHidden?(true) }
     checkoutCompleteSignal.observeValues { [weak self] _ in self?.onProcessingHidden?(true) }
 
-    // MARK: - Tracking
-
-    // Use checkoutId in tracking, or default to nil if creating it errors.
-    let checkoutIdOrNil = Signal.merge(
-      checkoutId.wrapInOptional(),
-      createCheckoutErrors.mapConst(nil).take(first: 1)
-    )
-
-    let checkoutData = Signal.combineLatest(
-      initialData,
-      baseReward,
-      pledgeTotal,
-      allRewardsShippingTotal,
-      checkoutIdOrNil
-    )
-
-    // Page viewed event
-    checkoutData.take(first: 1)
-      .observeValues { data, baseReward, pledgeTotal, shippingTotal, checkoutId in
-        let checkoutData = self.trackingDataFromCheckoutParams(
-          data,
-          baseReward: baseReward,
-          pledgeTotal: pledgeTotal,
-          shippingTotal: shippingTotal,
-          checkoutId: checkoutId
-        )
-        AppEnvironment.current.ksrAnalytics.trackCheckoutPaymentPageViewed(
-          project: data.project,
-          reward: data.rewards[0],
-          pledgeViewContext: data.context,
-          checkoutData: checkoutData,
-          refTag: data.refTag
-        )
-      }
-
-    // Pledge button tapped event
-    checkoutData
-      .takeWhen(self.submitButtonTappedProperty.signal)
-      .observeValues { data, baseReward, pledgeTotal, shippingTotal, checkoutId in
-        let checkoutData = self.trackingDataFromCheckoutParams(
-          data,
-          baseReward: baseReward,
-          pledgeTotal: pledgeTotal,
-          shippingTotal: shippingTotal,
-          checkoutId: checkoutId
-        )
-        AppEnvironment.current.ksrAnalytics.trackPledgeSubmitButtonClicked(
-          project: data.project,
-          reward: baseReward,
-          typeContext: .creditCard,
-          checkoutData: checkoutData,
-          refTag: data.refTag
-        )
-      }
-
-    // Apple pay button tapped event
-    checkoutData
-      .takeWhen(self.applePayButtonTappedSignal)
-      .observeValues { data, baseReward, pledgeTotal, shippingTotal, checkoutId in
-        let checkoutData = self.trackingDataFromCheckoutParams(
-          data,
-          baseReward: baseReward,
-          pledgeTotal: pledgeTotal,
-          shippingTotal: shippingTotal,
-          checkoutId: checkoutId,
-          isApplePay: true
-        )
-        AppEnvironment.current.ksrAnalytics.trackPledgeSubmitButtonClicked(
-          project: data.project,
-          reward: baseReward,
-          typeContext: .applePay,
-          checkoutData: checkoutData,
-          refTag: data.refTag
-        )
-      }
+    checkoutId.observeValues { [weak self] id in
+      self?.trackingCheckoutID = id
+      self?.hasTrackingCheckoutResult = true
+      self?.trackPageIfReady()
+    }
+    createCheckoutErrors.observeValues { [weak self] _ in
+      guard let self, !self.hasTrackedCheckoutError else { return }
+      self.hasTrackedCheckoutError = true
+      self.trackingCheckoutID = nil
+      self.hasTrackingCheckoutResult = true
+      self.trackPageIfReady()
+    }
     openingState.onOpen = { [weak self] input in
       guard let self, let data = self.configuredData else { return }
       self.activeCheckoutData = data
@@ -622,6 +559,30 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     )
   }
 
+  private func trackPageIfReady() {
+    guard !hasTrackedPage, hasTrackingCheckoutResult, let data = configuredData,
+          let reward = data.rewards.first else { return }
+    hasTrackedPage = true
+    let amounts = PostCampaignAmounts(data)
+    let checkout = trackingDataFromCheckoutParams(data, baseReward: reward, pledgeTotal: amounts.total,
+      shippingTotal: amounts.shipping, checkoutId: trackingCheckoutID)
+    AppEnvironment.current.ksrAnalytics.trackCheckoutPaymentPageViewed(
+      project: data.project, reward: reward, pledgeViewContext: data.context,
+      checkoutData: checkout, refTag: data.refTag
+    )
+  }
+
+  private func trackSubmission(isApplePay: Bool) {
+    guard hasTrackingCheckoutResult, let data = configuredData, let reward = data.rewards.first else { return }
+    let amounts = PostCampaignAmounts(data)
+    let checkout = trackingDataFromCheckoutParams(data, baseReward: reward, pledgeTotal: amounts.total,
+      shippingTotal: amounts.shipping, checkoutId: trackingCheckoutID, isApplePay: isApplePay)
+    AppEnvironment.current.ksrAnalytics.trackPledgeSubmitButtonClicked(
+      project: data.project, reward: reward, typeContext: isApplePay ? .applePay : .creditCard,
+      checkoutData: checkout, refTag: data.refTag
+    )
+  }
+
   // MARK: - Inputs
 
   public func checkoutTerminated() {
@@ -630,6 +591,10 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
   private var configuredData: PledgeViewData?
   private var activeCheckoutData: PledgeViewData?
+  private var trackingCheckoutID: String?
+  private var hasTrackingCheckoutResult = false
+  private var hasTrackedCheckoutError = false
+  private var hasTrackedPage = false
   private var hasLoadedView = false
   private let initialDataEvents = Signal<PledgeViewData, Never>.pipe()
   private let ctaState = PostCampaignCTAState()
@@ -642,6 +607,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private func publishInitialDataWhenReady() {
     guard self.hasLoadedView, let data = self.configuredData else { return }
     self.initialDataEvents.input.send(value: data)
+    self.trackPageIfReady()
   }
 
   private let confirmPaymentSuccessfulProperty = MutableProperty<String?>(nil)
@@ -666,6 +632,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private let submitButtonTappedProperty = MutableProperty(())
   public func submitButtonTapped() {
     self.submitButtonTappedProperty.value = ()
+    self.trackSubmission(isApplePay: false)
     self.onProcessingHidden?(false)
   }
 
@@ -686,6 +653,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private let (applePayButtonTappedSignal, applePayButtonTappedObserver) = Signal<Void, Never>.pipe()
   public func applePayButtonTapped() {
     self.applePayButtonTappedObserver.send(value: ())
+    self.trackSubmission(isApplePay: true)
   }
 
   private let (applePayPaymentMethodIdSignal, applePayPaymentMethodIdObserver) = Signal<String, Never>.pipe()
