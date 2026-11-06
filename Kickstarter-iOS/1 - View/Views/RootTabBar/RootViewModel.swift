@@ -148,6 +148,11 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   private let profileFeature: ProfileFeature
   private var sessionFeature: SessionFeature { self.profileFeature.sessionFeature }
   private var latestSelectedIndex: RootViewControllerIndex?
+  private var requestedIndex: RootViewControllerIndex?
+  private var controllerCount: Int?
+  private var latestLoginState: Bool?
+  private var hasLoadedRootView = false
+  private var loadingRootView = false
   private var discoveryIndex: RootViewControllerIndex?
   private var activityIndex: RootViewControllerIndex?
   private var currentBadgeValue: String?
@@ -227,34 +232,6 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
         }
     )
 
-    let vcCount = self.setViewControllers.map { $0.count }
-
-    let switchToLogin = Signal.combineLatest(vcCount, loginState)
-      .takeWhen(self.switchToLoginProperty.signal)
-      .filter(second >>> isFalse)
-      .map(first)
-
-    let switchToProfile = Signal.combineLatest(vcCount, loginState)
-      .takeWhen(self.switchToProfileProperty.signal)
-      .filter { isTrue($1) }
-      .map(first)
-
-
-    let selectedIndex = Signal.combineLatest(
-      .merge(
-        self.viewDidLoadProperty.signal.mapConst(0),
-        self.didSelectIndexProperty.signal,
-        self.switchToActivitiesProperty.signal.mapConst(1),
-        self.switchToDiscoveryProperty.signal.mapConst(0),
-        self.switchToSearchProperty.signal.mapConst(2),
-        switchToLogin,
-        switchToProfile
-      ),
-      self.setViewControllers,
-      self.viewDidLoadProperty.signal
-    )
-    .map { idx, vcs, _ in clamp(0, vcs.count - 1)(idx) }
-
     // FIXME: This signal always needs to happen when setViewControllers happens.
     // Should they be combined into one signal with a tuple? Explicitly made dependent on one another?
     // See https://kickstarter.atlassian.net/browse/MBL-2053
@@ -318,19 +295,31 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
           )
       }
 
+    loginState.observeValues { [weak self] in self?.latestLoginState = $0 }
     self.setViewControllers.observeValues { [weak self] controllers in
       guard let self else { return }
+      self.controllerCount = controllers.count
       if let index = controllers.firstIndex(of: .discovery) { self.discoveryIndex = index }
       if let index = controllers.firstIndex(where: \.isActivity) {
         self.activityIndex = index
         self.clearBadgeIfActivitySelected()
       }
+      if !self.loadingRootView { self.publishSelectedIndexIfReady() }
     }
-    selectedIndex.observeValues { [weak self] index in
-      self?.latestSelectedIndex = index
-      self?.onSelectedIndex?(index)
-      self?.clearBadgeIfActivitySelected()
-    }
+  }
+
+  private func selectIndex(_ index: RootViewControllerIndex) {
+    self.requestedIndex = index
+    self.publishSelectedIndexIfReady()
+  }
+
+  private func publishSelectedIndexIfReady() {
+    guard self.hasLoadedRootView, let requestedIndex = self.requestedIndex,
+          let count = self.controllerCount, count > 0 else { return }
+    let index = clamp(0, count - 1)(requestedIndex)
+    self.latestSelectedIndex = index
+    self.onSelectedIndex?(index)
+    self.clearBadgeIfActivitySelected()
   }
 
   private func updateBadge(_ value: Int?, index: RootViewControllerIndex) {
@@ -451,6 +440,7 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   fileprivate let didSelectIndexProperty = MutableProperty(0)
   public func didSelect(index: Int) {
     self.didSelectIndexProperty.value = index
+    self.selectIndex(index)
   }
 
   public func shouldSelect(index: Int?) {
@@ -458,30 +448,27 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
     self.onScrollToTop?(index)
   }
 
-  fileprivate let switchToActivitiesProperty = MutableProperty(())
   public func switchToActivities() {
-    self.switchToActivitiesProperty.value = ()
+    self.selectIndex(1)
   }
 
-  fileprivate let switchToDiscoveryProperty = MutableProperty<DiscoveryParams?>(nil)
   public func switchToDiscovery(params: DiscoveryParams?) {
-    self.switchToDiscoveryProperty.value = params
+    self.selectIndex(0)
     if let params, let index = self.discoveryIndex { self.onFilterDiscovery?((index, params)) }
   }
 
-  fileprivate let switchToLoginProperty = MutableProperty(())
   public func switchToLogin() {
-    self.switchToLoginProperty.value = ()
+    guard self.latestLoginState == false, let count = self.controllerCount else { return }
+    self.selectIndex(count)
   }
 
-  fileprivate let switchToProfileProperty = MutableProperty(())
   public func switchToProfile() {
-    self.switchToProfileProperty.value = ()
+    guard self.latestLoginState == true, let count = self.controllerCount else { return }
+    self.selectIndex(count)
   }
 
-  fileprivate let switchToSearchProperty = MutableProperty(())
   public func switchToSearch() {
-    self.switchToSearchProperty.value = ()
+    self.selectIndex(2)
   }
 
   fileprivate let userLocalePreferencesChangedProperty = MutableProperty(())
@@ -503,7 +490,11 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     let previousIndex = self.activityIndex
+    self.loadingRootView = true
     self.viewDidLoadProperty.value = ()
+    self.loadingRootView = false
+    self.hasLoadedRootView = true
+    self.selectIndex(0)
     if let index = previousIndex {
       self.updateBadge(AppEnvironment.current.application.applicationIconBadgeNumber, index: index)
     }
