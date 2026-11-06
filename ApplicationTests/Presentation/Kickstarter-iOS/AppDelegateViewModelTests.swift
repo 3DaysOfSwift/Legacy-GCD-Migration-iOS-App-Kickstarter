@@ -108,6 +108,7 @@ final class AppDelegateViewModelTests: TestCase {
 
   private func bindOutputs() {
     self.vm = AppDelegateViewModel(lifecycleFeature: self.lifecycleFeature, pushDebounce: { try Task.checkCancellation() }, userDebounce: { try Task.checkCancellation() }, trackingDelay: { try Task.checkCancellation() })
+    (self.vm as? AppDelegateViewModel)?.settingsPresentationDelay = { _ in try Task.checkCancellation() }
     self.vm.outputs.onNotificationSettingsUpdated = { [weak self] in self?.notificationSettingsUpdated.observer.send(value: ()) }
 
     self.vm.outputs.onApplicationIconBadgeNumber = { [weak self] in self?.applicationIconBadgeNumber.observer.send(value: $0) }
@@ -2161,6 +2162,7 @@ final class AppDelegateViewModelTests: TestCase {
       await self.settingsFeature.waitForOperations()
       await self.scheduler.advance()
 
+      await (self.vm as? AppDelegateViewModel)?.waitForSettingsPresentation()
       self.emailVerificationCompletedSuccess.assertValues([true])
       self.emailVerificationCompletedMessage.assertValues(
         ["Thanks—you’ve successfully verified your email address."]
@@ -2197,6 +2199,7 @@ final class AppDelegateViewModelTests: TestCase {
       await self.settingsFeature.waitForOperations()
       await self.scheduler.advance()
 
+      await (self.vm as? AppDelegateViewModel)?.waitForSettingsPresentation()
       self.emailVerificationCompletedSuccess.assertValues([false])
       self.emailVerificationCompletedMessage.assertValues(
         ["Error Message"]
@@ -2233,6 +2236,7 @@ final class AppDelegateViewModelTests: TestCase {
       await self.settingsFeature.waitForOperations()
       await self.scheduler.advance()
 
+      await (self.vm as? AppDelegateViewModel)?.waitForSettingsPresentation()
       self.emailVerificationCompletedSuccess.assertValues([false])
       self.emailVerificationCompletedMessage.assertValues(
         ["Something went wrong, please try again."]
@@ -2400,6 +2404,11 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testDeepLinkCompletionDoesNotReplaySavedUserAfterPresentationDelay() async throws {
+    let (stream, continuation) = AsyncStream<Void>.makeStream()
+    (self.vm as? AppDelegateViewModel)?.settingsPresentationDelay = { _ in
+      for await _ in stream { break }
+      try Task.checkCancellation()
+    }
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "fixture-token", user: .template))
     let url =
       try XCTUnwrap(URL(string: "https://www.kickstarter.com/settings/notify_mobile_of_messages/true"))
@@ -2412,8 +2421,9 @@ final class AppDelegateViewModelTests: TestCase {
     var newer = try XCTUnwrap(AppEnvironment.current.currentUser)
     newer.newsletters.games = true
     AppEnvironment.updateCurrentUser(newer)
-    await self.scheduler.advance()
-    await self.settingsFeature.waitForOperations()
+    continuation.yield(())
+    continuation.finish()
+    await (self.vm as? AppDelegateViewModel)?.waitForSettingsPresentation()
     self.notificationSettingsUpdated.assertValueCount(1)
     self.updateCurrentUserInEnvironment.assertDidNotEmitValue()
     XCTAssertEqual(AppEnvironment.current.currentUser?.newsletters.games, true)
@@ -2460,6 +2470,7 @@ final class AppDelegateViewModelTests: TestCase {
       await self.settingsFeature.waitForOperations()
 
       self.updateCurrentUserInEnvironment.assertValues([user])
+      await (self.vm as? AppDelegateViewModel)?.waitForSettingsPresentation()
       self.notificationSettingsUpdated.assertValueCount(1)
       XCTAssertEqual(AppEnvironment.current.currentUser?.notifications, updatedUser.notifications)
     }

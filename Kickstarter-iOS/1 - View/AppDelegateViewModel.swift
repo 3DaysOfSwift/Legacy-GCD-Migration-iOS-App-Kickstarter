@@ -3,7 +3,6 @@ import FirebaseCrashlytics
 import KsApi
 
 import Prelude
-import ReactiveSwift
 import UIKit
 import UserNotifications
 
@@ -200,8 +199,12 @@ public protocol AppDelegateViewModelType {
 @MainActor
 public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateViewModelInputs,
   AppDelegateViewModelOutputs {
-  private let navigationEvents = Signal<Navigation, Never>.pipe()
-  private let urlEvents = Signal<URL, Never>.pipe()
+  var settingsPresentationDelay: @MainActor (TimeInterval) async throws -> Void = { seconds in
+    if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
+    try Task.checkCancellation()
+  }
+  private var notificationTasks: [UUID: Task<Void, Never>] = [:]
+  private var verificationTask: Task<Void, Never>?
   private let lifecycleFeature: AppLifecycleFeature
   private let navigationRoute = UUID()
   @MainActor private final class RedirectObservation {
@@ -244,53 +247,12 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.trackingDelay = trackingDelay
     let lifecycleFeature = lifecycleFeature ?? AppModel.shared.appLifecycleFeature
     self.lifecycleFeature = lifecycleFeature
-    let settingsFeature = lifecycleFeature.settingsFeature
-    // Transitional streams for the two remaining asynchronous settings operations.
-    let deepLink = self.navigationEvents.output
-    let deepLinkUrl = self.urlEvents.output
-    let updatedUserNotificationSettings = deepLink.filter { nav in
-      guard case .settings(.notifications) = nav else { return false }
-      return true
-    }
-    .flatMap { navigation -> SignalProducer<User, Never> in
-      guard case let .settings(.notifications(notification, enabled)) = navigation else { return .empty }
-      guard let request = settingsFeature.requestNotification(named: notification, enabled: enabled) else { return .empty }
-      return lifecycleResult(feature: lifecycleFeature) { try await request.value }
-        .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-        .demoteErrors()
-    }
-
-    updatedUserNotificationSettings.observeValues { [weak self] _ in
-      self?.onNotificationSettingsUpdated?()
-    }
-
-    let emailVerificationEvent = deepLinkUrl
-      .filter { Navigation.match($0) == .profile(.verifyEmail) }
-      .map(accessTokenFromUrl)
-      .skipNil()
-      .switchMap { accessToken in
-        let request = settingsFeature.requestVerification(token: accessToken)
-        return lifecycleResult(feature: lifecycleFeature) { try await request.value }
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .materialize()
-      }
-
-    emailVerificationEvent
-      .map(emailVerificationCompletionData)
-      .skipNil()
-      .observeValues { [weak self] message, success in
-        self?.onEmailVerificationCompleted?(message, success)
-      }
-
-    deepLinkUrl.observeValues { [weak self] url in
-      if Navigation.match(url) == .emailClick { self?.onFindRedirectUrl?(url) }
-      if shouldOpenUrlInBrowser(url) { self?.onGoToMobileSafari?(url) }
-    }
-
-
   }
 
+
   deinit {
+    self.notificationTasks.values.forEach { $0.cancel() }
+    self.verificationTask?.cancel()
     self.pushDebounceTask?.cancel()
     self.pushPresentationTask?.cancel()
     self.userDebounceTask?.cancel()
@@ -707,7 +669,9 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   }
 
   private func handleNavigation(_ navigation: Navigation) {
-    self.navigationEvents.input.send(value: navigation)
+    if case let .settings(.notifications(name, enabled)) = navigation {
+      self.updateNotification(name: name, enabled: enabled)
+    }
     if navigation == .tab(.activity) { self.onGoToActivity?() }
     if navigation == .tab(.search) { self.onGoToSearch?() }
     if navigation == .tab(.me) { self.onGoToProfile?() }
@@ -722,7 +686,57 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
   private func handleURL(_ url: URL) {
     if let navigation = Navigation.match(url) { self.handleNavigation(navigation) }
-    self.urlEvents.input.send(value: url)
+    if Navigation.match(url) == .profile(.verifyEmail), let token = accessTokenFromUrl(url) {
+      self.verifyEmail(token: token)
+    }
+    if Navigation.match(url) == .emailClick { self.onFindRedirectUrl?(url) }
+    if shouldOpenUrlInBrowser(url) { self.onGoToMobileSafari?(url) }
+  }
+
+  private func updateNotification(name: String, enabled: Bool) {
+    guard let request = self.lifecycleFeature.settingsFeature.requestNotification(named: name, enabled: enabled) else { return }
+    let operation = self.lifecycleFeature.sessionBound { try await request.value }
+    let delay = self.settingsPresentationDelay
+    let seconds = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    let id = UUID()
+    self.notificationTasks[id] = Task { [weak self] in
+      defer { self?.notificationTasks[id] = nil }
+      do {
+        _ = try await operation()
+        try await delay(seconds)
+        try Task.checkCancellation()
+        self?.onNotificationSettingsUpdated?()
+      } catch { /* Failed, cancelled or obsolete writes do not report success. */ }
+    }
+  }
+
+  private func verifyEmail(token: String) {
+    self.verificationTask?.cancel()
+    let request = self.lifecycleFeature.settingsFeature.requestVerification(token: token)
+    let operation = self.lifecycleFeature.sessionBound { try await request.value }
+    let delay = self.settingsPresentationDelay
+    let seconds = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    self.verificationTask = Task { [weak self] in
+      let result: Result<EmailVerificationResponseEnvelope, Error>
+      do { result = .success(try await operation()) }
+      catch { result = .failure(error) }
+      do {
+        try await delay(seconds)
+        try Task.checkCancellation()
+        switch result {
+        case let .success(response): self?.onEmailVerificationCompleted?(response.message, true)
+        case let .failure(error):
+          if error is CancellationError { return }
+          let message = (error as? ErrorEnvelope)?.errorMessages.first ?? Strings.Something_went_wrong_please_try_again()
+          self?.onEmailVerificationCompleted?(message, false)
+        }
+      } catch { /* A newer request or owner cancellation suppresses presentation. */ }
+    }
+  }
+
+  func waitForSettingsPresentation() async {
+    for task in Array(self.notificationTasks.values) { await task.value }
+    await self.verificationTask?.value
   }
 
   public private(set) var applicationDidFinishLaunchingReturnValue = true
@@ -888,29 +902,6 @@ private func navigation(fromShortcutItem shortcutItem: ShortcutItem) -> Navigati
   }
 }
 
-// Transitional adapter owned by the legacy app delegate presentation layer.
-@MainActor
-private func lifecycleResult<Value>(
-  feature: AppLifecycleFeature, operation: @escaping @MainActor () async throws -> Value
-) -> SignalProducer<Value, ErrorEnvelope> {
-  let admitted = feature.sessionBound(operation)
-  return SignalProducer { observer, lifetime in
-    MainActor.assumeIsolated {
-      let task = Task { @MainActor in
-        do {
-          let value = try await admitted()
-          observer.send(value: value)
-          observer.sendCompleted()
-        } catch {
-          if Task.isCancelled || error is CancellationError { observer.sendInterrupted() }
-          else { observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON) }
-        }
-      }
-      lifetime.observeEnded { task.cancel() }
-    }
-  }
-}
-
 // Figures out which shortcut items to show to a user based on whether they are a project member and/or
 // has recommendations.
 private func shortcutItems(isProjectMember _: Bool, hasRecommendations: Bool)
@@ -1004,20 +995,6 @@ private func accessTokenFromUrl(_ url: URL?) -> String? {
   }?
     .first { item in item.name == "at" }?
     .value
-}
-
-private func emailVerificationCompletionData(
-  event: Signal<EmailVerificationResponseEnvelope, ErrorEnvelope>.Event
-) -> (String, Bool)? {
-  guard !event.isCompleted else { return nil }
-
-  guard isNil(event.error), let message = event.value?.message else {
-    let message = event.error?.errorMessages.first ?? Strings.Something_went_wrong_please_try_again()
-
-    return (message, false)
-  }
-
-  return (message, true)
 }
 
 @MainActor
