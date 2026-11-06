@@ -73,7 +73,7 @@ final class RootViewModelTests: TestCase {
 
       self.vm.outputs.onFilterDiscovery = { [weak self] in self?.filterDiscovery.observer.send(value: $0.1) }
       self.vm.outputs.floatingTabBarEnabled.observe(self.floatingTabBarEnabled.observer)
-      self.vm.outputs.selectedIndex.observe(self.selectedIndex.observer)
+      self.vm.outputs.onSelectedIndex = { [weak self] in self?.selectedIndex.observer.send(value: $0) }
       self.vm.outputs.setBadgeValueAtIndex.map { $0.0 }.observe(self.setBadgeValueAtIndexValue.observer)
       self.vm.outputs.setBadgeValueAtIndex.map { $0.1 }.observe(self.setBadgeValueAtIndexIndex.observer)
       self.vm.outputs.onUserUpdated = { [weak self] in self?.updateUserInEnvironment.observer.send(value: $0) }

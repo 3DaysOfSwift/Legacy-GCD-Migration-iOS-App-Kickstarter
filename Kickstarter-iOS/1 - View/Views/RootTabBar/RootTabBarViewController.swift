@@ -109,9 +109,9 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
         self?.setViewControllers($0, animated: false)
       }
 
-    self.viewModel.outputs.selectedIndex
-      .observeForUI()
-      .observeValues { [weak self] in self?.selectedIndex = $0 }
+    self.viewModel.outputs.onSelectedIndex = { [weak self] index in
+      DispatchQueue.main.async { [weak self] in self?.selectedIndex = index }
+    }
 
     self.viewModel.outputs.onScrollToTop = { [weak self] index in
       DispatchQueue.main.async { [weak self] in

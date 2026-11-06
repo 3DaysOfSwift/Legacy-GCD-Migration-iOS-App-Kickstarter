@@ -118,7 +118,7 @@ public protocol RootViewModelOutputs: AnyObject {
   var onScrollToTop: ((RootViewControllerIndex) -> Void)? { get set }
 
   /// Emits an index that the tab bar should be switched to.
-  var selectedIndex: Signal<RootViewControllerIndex, Never> { get }
+  var onSelectedIndex: ((RootViewControllerIndex) -> Void)? { get set }
 
   /// Emits the badge value to be set at a particular tab index
   var setBadgeValueAtIndex: Signal<RootTabBarItemBadgeValueData, Never> { get }
@@ -241,7 +241,7 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
       .map(first)
 
 
-    self.selectedIndex = Signal.combineLatest(
+    let selectedIndex = Signal.combineLatest(
       .merge(
         self.viewDidLoadProperty.signal.mapConst(0),
         self.didSelectIndexProperty.signal,
@@ -268,7 +268,7 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
       }
 
     let selectedIndexAndActivityViewControllerIndex = Signal.combineLatest(
-      self.selectedIndex,
+      selectedIndex,
       activityViewControllerIndex
     )
 
@@ -388,7 +388,10 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
     self.setViewControllers.observeValues { [weak self] controllers in
       if let index = controllers.firstIndex(of: .discovery) { self?.discoveryIndex = index }
     }
-    self.selectedIndex.observeValues { [weak self] in self?.latestSelectedIndex = $0 }
+    selectedIndex.observeValues { [weak self] index in
+      self?.latestSelectedIndex = index
+      self?.onSelectedIndex?(index)
+    }
     clearBadgeValueOnActivitiesTabSelected.observeValues { [weak self] _ in
       self?.clearActivityBadge()
     }
@@ -550,7 +553,7 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
 
   public var onFilterDiscovery: (((RootViewControllerIndex, DiscoveryParams)) -> Void)?
   public var onScrollToTop: ((RootViewControllerIndex) -> Void)?
-  public let selectedIndex: Signal<RootViewControllerIndex, Never>
+  public var onSelectedIndex: ((RootViewControllerIndex) -> Void)?
   public let setBadgeValueAtIndex: Signal<RootTabBarItemBadgeValueData, Never>
   public let setViewControllers: Signal<[RootViewControllerData], Never>
   public let tabBarItemsData: Signal<TabBarItemsData, Never>
