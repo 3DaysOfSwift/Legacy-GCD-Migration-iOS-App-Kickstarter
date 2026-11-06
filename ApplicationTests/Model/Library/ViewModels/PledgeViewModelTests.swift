@@ -101,7 +101,7 @@ final class PledgeViewModelTests: TestCase {
     try await super.setUp()
     MainActor.assumeIsolated {
 
-      self.vm.outputs.beginSCAFlowWithClientSecret.observe(self.beginSCAFlowWithClientSecret.observer)
+      self.vm.outputs.onBeginSCA = { [weak self] in self?.beginSCAFlowWithClientSecret.observer.send(value: $0) }
 
       self.vm.outputs.configureLocalPickupViewWithData.observe(self.configureLocalPickupViewWithData.observer)
       self.vm.outputs.onConfigurePaymentMethods = { [weak self] value in
@@ -145,9 +145,11 @@ final class PledgeViewModelTests: TestCase {
       self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.merchantIdentifier }
         .observe(self.goToApplePayPaymentAuthorizationMerchantId.observer)
 
-      self.vm.outputs.goToThanks.map { $0.project }.observe(self.goToThanksProject.observer)
-      self.vm.outputs.goToThanks.map { $0.reward }.observe(self.goToThanksReward.observer)
-      self.vm.outputs.goToThanks.map { $0.checkoutData }.observe(self.goToThanksCheckoutData.observer)
+      self.vm.outputs.onGoToThanks = { [weak self] data in
+        self?.goToThanksProject.observer.send(value: data.project)
+        self?.goToThanksReward.observer.send(value: data.reward)
+        self?.goToThanksCheckoutData.observer.send(value: data.checkoutData)
+      }
       self.vm.outputs.onLocalPickupHidden = { [weak self] in self?.localPickupViewHidden.observer.send(value: $0) }
 
       self.vm.outputs.onPledgeUpdateSucceeded = { [weak self] message in
@@ -162,7 +164,7 @@ final class PledgeViewModelTests: TestCase {
       self.vm.outputs.onShowWebHelp = { [weak self] in self?.showWebHelp.observer.send(value: $0) }
       self.vm.outputs.onShowError = { [weak self] in self?.showErrorBannerWithMessage.observer.send(value: $0) }
 
-      self.vm.outputs.title.observe(self.title.observer)
+      self.vm.outputs.onTitle = { [weak self] in self?.title.observer.send(value: $0) }
 
       self.vm.outputs.showPledgeOverTimeUI.observe(self.showPledgeOverTimeUI.observer)
 

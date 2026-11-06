@@ -265,16 +265,9 @@ final class PledgeViewController: UIViewController,
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.title
-      .observeForUI()
-      .observeValues { [weak self] title in
-        _ = self
-          ?|> \.title .~ title
-      }
+    self.viewModel.outputs.onTitle = { [weak self] title in self?.title = title }
 
-    self.viewModel.outputs.beginSCAFlowWithClientSecret
-      .observeForUI()
-      .observeValues { [weak self] secret in
+    self.viewModel.outputs.onBeginSCA = { [weak self] secret in
         self?.beginSCAFlow(withClientSecret: secret)
       }
 
@@ -349,9 +342,7 @@ final class PledgeViewController: UIViewController,
         self?.goToPaymentAuthorization(paymentAuthorizationData)
       }
 
-    self.viewModel.outputs.goToThanks
-      .observeForControllerAction()
-      .observeValues { [weak self] data in
+    self.viewModel.outputs.onGoToThanks = { [weak self] data in
         generateNotificationSuccessFeedback()
         self?.goToThanks(data: data)
       }
@@ -373,14 +364,6 @@ final class PledgeViewController: UIViewController,
       self?.paymentMethodsViewController.view.isHidden = hidden
       self?.paymentSectionLabel.isHidden = hidden
     }
-
-    self.viewModel.outputs.title
-      .observeForUI()
-      .observeValues { [weak self] title in
-        guard let self else { return }
-        _ = self
-          |> \.title %~ { _ in title }
-      }
 
     self.viewModel.outputs.onProcessingHidden = { [weak self] isHidden in
         if isHidden {

@@ -81,7 +81,7 @@ public protocol PledgeViewModelInputs {
 
 @MainActor
 public protocol PledgeViewModelOutputs: AnyObject {
-  var beginSCAFlowWithClientSecret: Signal<String, Never> { get }
+  var onBeginSCA: ((String) -> Void)? { get set }
   var onEstimatedShipping: ((String?, String?) -> Void)? { get set }
   var configureLocalPickupViewWithData: Signal<PledgeLocalPickupViewData, Never> { get }
   var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)? { get set }
@@ -91,7 +91,7 @@ public protocol PledgeViewModelOutputs: AnyObject {
   var onConfigureStripe: ((String, String) -> Void)? { get set }
   var onEstimatedShippingHidden: ((Bool) -> Void)? { get set }
   var goToApplePayPaymentAuthorization: Signal<PaymentAuthorizationData, Never> { get }
-  var goToThanks: Signal<ThanksPageData, Never> { get }
+  var onGoToThanks: ((ThanksPageData) -> Void)? { get set }
   var onGoToLoginSignup: ((LoginIntent) -> Void)? { get set }
   var onLocalPickupHidden: ((Bool) -> Void)? { get set }
   var onPledgeUpdateSucceeded: ((String) -> Void)? { get set }
@@ -100,7 +100,7 @@ public protocol PledgeViewModelOutputs: AnyObject {
   var onProcessingHidden: ((Bool) -> Void)? { get set }
   var onShowError: ((String) -> Void)? { get set }
   var onShowWebHelp: ((HelpType) -> Void)? { get set }
-  var title: Signal<String, Never> { get }
+  var onTitle: ((String) -> Void)? { get set }
   var showPledgeOverTimeUI: Signal<Bool, Never> { get }
   var pledgeOverTimeConfigData: Signal<PledgePaymentPlansAndSelectionData?, Never> { get }
 }
@@ -658,7 +658,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       .skipNil()
       .filter(requiresSCA)
 
-    self.beginSCAFlowWithClientSecret = createOrUpdateBackingEventValuesRequiresSCA
+    let beginSCAFlowWithClientSecret: Signal<String, Never> = createOrUpdateBackingEventValuesRequiresSCA
       .map { $0.clientSecret }
       .skipNil()
 
@@ -721,7 +721,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     }
     .skipNil()
 
-    self.goToThanks = thanksPageData
+    let goToThanks: Signal<ThanksPageData, Never> = thanksPageData
       .takeWhen(createBackingCompletionEvents)
 
     let errorsOrNil = Signal.merge(
@@ -782,7 +782,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     )
     .map { $0 as PledgeViewCTAContainerViewData }
 
-    self.title = context.map { $0.title }
+    let title: Signal<String, Never> = context.map { $0.title }
 
     let trackCheckoutPageViewData = Signal.zip(
       project,
@@ -960,6 +960,9 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       self?.onPledgeUpdateSucceeded?(Strings.Got_it_your_changes_have_been_saved())
     }
     _ = errorMessages.observeValues { [weak self] in self?.onShowError?($0) }
+    _ = beginSCAFlowWithClientSecret.observeValues { [weak self] in self?.onBeginSCA?($0) }
+    _ = goToThanks.observeValues { [weak self] in self?.onGoToThanks?($0) }
+    _ = title.observeValues { [weak self] in self?.onTitle?($0) }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
     paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
@@ -1049,7 +1052,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
   // MARK: - Outputs
 
-  public let beginSCAFlowWithClientSecret: Signal<String, Never>
+  public var onBeginSCA: ((String) -> Void)?
   public var onEstimatedShipping: ((String?, String?) -> Void)?
   public let configureLocalPickupViewWithData: Signal<PledgeLocalPickupViewData, Never>
   public var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)?
@@ -1060,7 +1063,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   public var onConfigureStripe: ((String, String) -> Void)?
   public var onEstimatedShippingHidden: ((Bool) -> Void)?
   public let goToApplePayPaymentAuthorization: Signal<PaymentAuthorizationData, Never>
-  public let goToThanks: Signal<ThanksPageData, Never>
+  public var onGoToThanks: ((ThanksPageData) -> Void)?
   public var onGoToLoginSignup: ((LoginIntent) -> Void)?
 
   public var onLocalPickupHidden: ((Bool) -> Void)?
@@ -1071,7 +1074,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   public var onProcessingHidden: ((Bool) -> Void)?
   public var onShowError: ((String) -> Void)?
   public var onShowWebHelp: ((HelpType) -> Void)?
-  public let title: Signal<String, Never>
+  public var onTitle: ((String) -> Void)?
 
   public var showPledgeOverTimeUI: Signal<Bool, Never> {
     return self.planShowPipe.output
