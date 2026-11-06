@@ -39,6 +39,40 @@ public struct PostCampaignPaymentAuthorizationData: Equatable {
 }
 
 @MainActor
+private final class PostCampaignApplePayState {
+  var onStart: (() -> Void)?
+  var onAuthorize: ((String) -> Void)?
+  var onValidate: ((String, String, String) -> Void)?
+  var onComplete: ((GraphAPI.CompleteOnSessionCheckoutInput) -> Void)?
+  private var checkoutID: String?
+  private var intentSecret: String?
+  private var selectedSecret: String?
+  private var paymentMethodID: String?
+
+  func setCheckoutID(_ value: String) { checkoutID = value }
+  func setIntentSecret(_ value: String) { intentSecret = value }
+  func setPaymentMethodID(_ value: String) { paymentMethodID = value }
+  func start() {
+    guard checkoutID != nil else { return }
+    onStart?()
+    guard let intentSecret else { return }
+    selectedSecret = intentSecret
+    onAuthorize?(intentSecret)
+  }
+  func validate() {
+    guard let checkoutID, let selectedSecret, let paymentMethodID else { return }
+    onValidate?(checkoutID, paymentMethodID, selectedSecret)
+  }
+  func validationSucceeded() {
+    guard let checkoutID, let selectedSecret else { return }
+    onComplete?(GraphAPI.CompleteOnSessionCheckoutInput(
+      checkoutId: encodeToBase64("Checkout-\(checkoutID)"), paymentIntentClientSecret: selectedSecret,
+      paymentSourceId: nil, paymentSourceReusable: false, applePay: nil
+    ))
+  }
+}
+
+@MainActor
 private final class PostCampaignCardState {
   var onReady: (() -> Void)?
   var onSubmit: ((String, PaymentSourceSelected, String) -> Void)?
@@ -180,6 +214,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     let initialData = self.initialDataEvents.output
     let ctaState = self.ctaState
     let cardState = self.cardState
+    let appleState = self.applePayState
     initialData.observeValues { ctaState.configure($0) }
 
     let context = initialData.map(\.context)
@@ -246,8 +281,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
         return checkoutId
       }
 
-    let backingId = createCheckoutEvents.values().map(\.checkout.backingId)
-
     let createCheckoutErrors = createCheckoutEvents.errors()
 
     // MARK: Configure views
@@ -265,8 +298,14 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
     let selectedCard = self.paymentSelectedPipe.output.skipNil()
 
-    checkoutId.observeValues { cardState.setCheckoutID($0) }
-    paymentIntentClientSecret.observeValues { cardState.setIntentSecret($0) }
+    checkoutId.observeValues { value in
+      cardState.setCheckoutID(value)
+      appleState.setCheckoutID(value)
+    }
+    paymentIntentClientSecret.observeValues { value in
+      cardState.setIntentSecret(value)
+      appleState.setIntentSecret(value)
+    }
     let validateCheckoutExistingCard = self.cardValidation.events(feature: feature)
 
     // MARK: ApplePay
@@ -281,19 +320,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
      6) Validate checkout using the checkoutId, payment source id, and payment intent
      */
 
-    // Ensure all required data exists before assuming apple pay flow starts.
-    let startApplePayFlow = Signal.combineLatest(project, pledgeTotal, checkoutId, backingId)
-      .takeWhen(self.applePayButtonTappedSignal)
-
-    let paymentIntentClientSecretForApplePay: Signal<String, Never> = paymentIntentClientSecret
-      .takeWhen(startApplePayFlow)
-
-    let validateApplePayRequests = Signal.combineLatest(
-      paymentIntentClientSecretForApplePay,
-      checkoutId,
-      self.applePayPaymentMethodIdSignal.signal
-    )
-    .takeWhen(self.applePayContextDidCompleteSignal)
     let validateCheckoutWithApplePay = self.applePayValidation.events(feature: feature)
 
     let validateCheckoutError = Signal
@@ -323,32 +349,11 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
           )
       }
 
-    let completeCheckoutWithApplePayInput: Signal<GraphAPI.CompleteOnSessionCheckoutInput, Never> = Signal
-      .combineLatest(paymentIntentClientSecretForApplePay, checkoutId)
-      .takeWhen(validateCheckoutWithApplePay.values())
-      .map {
-        (
-          clientSecret: String,
-          checkoutId: String
-        ) -> GraphAPI.CompleteOnSessionCheckoutInput in
-        GraphAPI
-          .CompleteOnSessionCheckoutInput(
-            checkoutId: encodeToBase64("Checkout-\(checkoutId)"),
-            paymentIntentClientSecret: clientSecret,
-            paymentSourceId: nil,
-            paymentSourceReusable: false,
-            /* We are no longer sending ApplePay parameters to the backend, because Stripe Tokens are
-              considered deprecated and are incompatible with PaymentIntent-based payments.
-
-              In the future, we may use the other parameters in the ApplePayParams object, but for now,
-              send nil.
-              */
-            applePay: nil
-          )
-      }
-
+    let completeApplePayPipe = Signal<GraphAPI.CompleteOnSessionCheckoutInput, Never>.pipe()
+    appleState.onComplete = { completeApplePayPipe.input.send(value: $0) }
+    validateCheckoutWithApplePay.values().observeValues { _ in appleState.validationSucceeded() }
     let completeCheckoutRequests = Signal.merge(
-      completeCheckoutWithCreditCardInput, completeCheckoutWithApplePayInput
+      completeCheckoutWithCreditCardInput, completeApplePayPipe.output
     )
     let completionIdentity = self.completionIdentity
     let checkoutCompleteSignal = self.completionEvents.output
@@ -375,7 +380,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
     cardState.onReady = { ctaState.setEnabled(true) }
 
-    startApplePayFlow.observeValues { [weak self] _ in self?.onProcessingHidden?(false) }
+    appleState.onStart = { [weak self] in self?.onProcessingHidden?(false) }
     paymentIntentErrors.observeValues { [weak self] _ in self?.onProcessingHidden?(true) }
     validateCheckoutError.observeValues { [weak self] _ in self?.onProcessingHidden?(true) }
     checkoutCompleteSignal.observeValues { [weak self] _ in self?.onProcessingHidden?(true) }
@@ -438,7 +443,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       self?.cardValidation.start(feature: feature, checkoutID: checkoutID,
                                  sourceID: card.stripePaymentMethodId ?? "", secret: secret)
     }
-    self.applePayValidationObservation = validateApplePayRequests.observeValues { [weak self] secret, checkoutID, paymentMethodID in
+    appleState.onValidate = { [weak self] checkoutID, paymentMethodID, secret in
       self?.applePayValidation.start(feature: feature, checkoutID: checkoutID,
                                      sourceID: paymentMethodID, secret: secret)
     }
@@ -509,7 +514,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       guard let self, let validation = cardState.validation else { return }
       self.onValidateCheckout?(validation)
     }
-    paymentIntentClientSecretForApplePay.observeValues { [weak self] secret in
+    appleState.onAuthorize = { [weak self] secret in
       guard let self, let data = self.activeCheckoutData, let reward = data.rewards.first else { return }
       let amounts = PostCampaignAmounts(data)
       let bonus = data.bonusSupport ?? 0
@@ -593,6 +598,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private let initialDataEvents = Signal<PledgeViewData, Never>.pipe()
   private let ctaState = PostCampaignCTAState()
   private let cardState = PostCampaignCardState()
+  private let applePayState = PostCampaignApplePayState()
 
   public func configure(with data: PledgeViewData) {
     self.configuredData = data
@@ -646,21 +652,17 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     self.ctaState.setEnabled(false)
   }
 
-  private let (applePayButtonTappedSignal, applePayButtonTappedObserver) = Signal<Void, Never>.pipe()
   public func applePayButtonTapped() {
-    self.applePayButtonTappedObserver.send(value: ())
+    self.applePayState.start()
     self.trackSubmission(isApplePay: true)
   }
 
-  private let (applePayPaymentMethodIdSignal, applePayPaymentMethodIdObserver) = Signal<String, Never>.pipe()
   public func applePayContextDidCreatePayment(with paymentMethodId: String) {
-    self.applePayPaymentMethodIdObserver.send(value: paymentMethodId)
+    self.applePayState.setPaymentMethodID(paymentMethodId)
   }
 
-  private let (applePayContextDidCompleteSignal, applePayContextDidCompleteObserver)
-    = Signal<Void, Never>.pipe()
   public func applePayContextDidComplete() {
-    self.applePayContextDidCompleteObserver.send(value: ())
+    self.applePayState.validate()
   }
 
   // MARK: - Outputs
@@ -699,7 +701,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private var completionTask: Task<Void, Never>?
   private let cardValidation = CheckoutValidationLane()
   private let applePayValidation = CheckoutValidationLane()
-  private var applePayValidationObservation: (any Disposable)?
   private let paymentIntentPipe = Signal<Signal<PaymentIntentEnvelope, ErrorEnvelope>.Event, Never>.pipe()
   private var paymentIntentObservation: (any Disposable)?
   private var paymentIntentTask: Task<Void, Never>?
@@ -708,7 +709,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     self.checkoutTask?.cancel()
     self.completionObservation?.dispose()
     self.completionTask?.cancel()
-    self.applePayValidationObservation?.dispose()
     self.paymentIntentObservation?.dispose()
     self.paymentIntentTask?.cancel()
   }
