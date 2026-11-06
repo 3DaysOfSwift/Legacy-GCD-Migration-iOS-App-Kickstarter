@@ -1,4 +1,3 @@
-import ReactiveSwift
 import UIKit
 @testable import Kickstarter_iOS
 
@@ -46,7 +45,6 @@ internal final class ProjectPageViewControllerConversionTests: TestCase {
       let (parent, _) = traitControllers(device: Device.phone4_7inch, orientation: .portrait, child: vc)
       parent.view.frame.size.height = 900
 
-      self.scheduler.run()
 
       assertSnapshot(
         matching: parent.view,
@@ -65,7 +63,6 @@ internal final class ProjectPageViewControllerConversionTests: TestCase {
       let (parent, _) = traitControllers(device: Device.phone4_7inch, orientation: .portrait, child: vc)
       parent.view.frame.size.height = 900
 
-      self.scheduler.run()
 
       assertSnapshot(
         matching: parent.view,
@@ -89,7 +86,6 @@ internal final class ProjectPageViewControllerConversionTests: TestCase {
       let (parent, _) = traitControllers(device: Device.phone4_7inch, orientation: .portrait, child: vc)
       parent.view.frame.size.height = 900
 
-      self.scheduler.run()
 
       assertSnapshot(
         matching: parent.view,
@@ -113,7 +109,6 @@ internal final class ProjectPageViewControllerConversionTests: TestCase {
       let (parent, _) = traitControllers(device: Device.phone4_7inch, orientation: .portrait, child: vc)
       parent.view.frame.size.height = 900
 
-      self.scheduler.run()
 
       assertSnapshot(
         matching: parent.view,
@@ -148,7 +143,6 @@ internal final class ProjectPageViewControllerConversionTests: TestCase {
       let (parent, _) = traitControllers(device: Device.phone4_7inch, orientation: .portrait, child: vc)
       parent.view.frame.size.height = 900
 
-      self.scheduler.run()
 
       assertSnapshot(
         matching: parent.view,
@@ -178,7 +172,6 @@ internal final class ProjectPageViewControllerConversionTests: TestCase {
       let (parent, _) = traitControllers(device: Device.phone4_7inch, orientation: .portrait, child: vc)
       parent.view.frame.size.height = 900
 
-      self.scheduler.run()
 
       assertSnapshot(
         matching: parent.view,
@@ -203,7 +196,6 @@ internal final class ProjectPageViewControllerConversionTests: TestCase {
       let (parent, _) = traitControllers(device: Device.phone4_7inch, orientation: .portrait, child: vc)
       parent.view.frame.size.height = 900
 
-      self.scheduler.run()
 
       assertSnapshot(
         matching: parent.view,
@@ -228,7 +220,6 @@ internal final class ProjectPageViewControllerConversionTests: TestCase {
       let (parent, _) = traitControllers(device: Device.phone4_7inch, orientation: .portrait, child: vc)
       parent.view.frame.size.height = 900
 
-      self.scheduler.run()
 
       assertSnapshot(
         matching: parent.view,
@@ -253,7 +244,6 @@ internal final class ProjectPageViewControllerConversionTests: TestCase {
       let (parent, _) = traitControllers(device: Device.phone4_7inch, orientation: .portrait, child: vc)
       parent.view.frame.size.height = 900
 
-      self.scheduler.run()
 
       assertSnapshot(
         matching: parent.view,

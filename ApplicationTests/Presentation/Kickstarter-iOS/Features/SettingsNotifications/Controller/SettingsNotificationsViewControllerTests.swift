@@ -1,4 +1,3 @@
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -41,7 +40,6 @@ final class SettingsNotificationsViewControllerTests: TestCase {
         )
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
-        self.scheduler.run()
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }
@@ -71,7 +69,6 @@ final class SettingsNotificationsViewControllerTests: TestCase {
         )
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
-        self.scheduler.run()
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }

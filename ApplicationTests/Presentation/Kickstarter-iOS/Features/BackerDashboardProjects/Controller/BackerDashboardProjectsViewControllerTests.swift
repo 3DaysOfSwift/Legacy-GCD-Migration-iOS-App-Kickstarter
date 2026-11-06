@@ -1,5 +1,4 @@
 import UIKit
-import ReactiveSwift
 @testable import Kickstarter_iOS
 import ApolloTestSupport
 import GraphAPI
@@ -56,7 +55,6 @@ internal final class BackerDashboardProjectsViewControllerTests: TestCase {
       ) {
         let controller = BackerDashboardProjectsViewController
           .configuredWith(projectsType: .backed)
-        self.scheduler.run()
 
         assertSnapshot(forController: controller, withType: type)
       }
@@ -74,7 +72,6 @@ internal final class BackerDashboardProjectsViewControllerTests: TestCase {
       ) {
         let controller = BackerDashboardProjectsViewController
           .configuredWith(projectsType: .backed)
-        self.scheduler.run()
 
         assertSnapshot(forController: controller, withType: type)
       }
@@ -92,7 +89,6 @@ internal final class BackerDashboardProjectsViewControllerTests: TestCase {
       ) {
         let controller = BackerDashboardProjectsViewController
           .configuredWith(projectsType: .saved)
-        self.scheduler.run()
 
         assertSnapshot(forController: controller, withType: type)
       }

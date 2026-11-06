@@ -1,5 +1,4 @@
 import UIKit
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -42,7 +41,6 @@ internal final class ProjectNotificationsViewControllerTests: TestCase {
         let vc = ProjectNotificationsViewController.instantiate()
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,

@@ -1,4 +1,3 @@
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -85,7 +84,6 @@ internal final class FindFriendsViewControllerTests: TestCase {
           let controller = FindFriendsViewController.configuredWith(source: FriendsSource.settings)
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
-          self.scheduler.run()
 
           assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
         }

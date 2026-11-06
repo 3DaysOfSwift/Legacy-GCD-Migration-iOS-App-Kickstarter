@@ -1,5 +1,4 @@
 import UIKit
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -31,7 +30,6 @@ final class PledgeOverTimePaymentScheduleViewControllerTest: TestCase {
 
         controller.configure(with: increments)
 
-        self.scheduler.advance(by: .seconds(1))
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }
@@ -64,7 +62,6 @@ final class PledgeOverTimePaymentScheduleViewControllerTest: TestCase {
         controller.configure(with: increments)
         controller.collapseToggle()
 
-        self.scheduler.advance(by: .seconds(1))
 
         assertSnapshot(
           matching: parent.view,

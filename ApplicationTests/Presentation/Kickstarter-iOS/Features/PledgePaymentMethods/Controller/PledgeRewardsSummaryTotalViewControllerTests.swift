@@ -1,4 +1,3 @@
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -38,7 +37,6 @@ final class PledgeRewardsSummaryTotalViewControllerTests: TestCase {
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
           parent.view.frame.size.height = 200
 
-          self.scheduler.advance(by: .seconds(1))
 
           assertSnapshot(
             matching: parent.view,
@@ -70,7 +68,6 @@ final class PledgeRewardsSummaryTotalViewControllerTests: TestCase {
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
           parent.view.frame.size.height = 180
 
-          self.scheduler.advance(by: .seconds(1))
 
           assertSnapshot(
             matching: parent.view,
@@ -111,7 +108,6 @@ final class PledgeRewardsSummaryTotalViewControllerTests: TestCase {
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
           parent.view.frame.size.height = 180
 
-          self.scheduler.advance(by: .seconds(1))
 
           assertSnapshot(
             matching: parent.view,
@@ -152,7 +148,6 @@ final class PledgeRewardsSummaryTotalViewControllerTests: TestCase {
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
           parent.view.frame.size.height = 180
 
-          self.scheduler.advance(by: .seconds(1))
 
           assertSnapshot(
             matching: parent.view,

@@ -1,4 +1,3 @@
-import ReactiveSwift
 import UIKit
 @testable import Kickstarter_iOS
 
@@ -41,7 +40,6 @@ internal final class CommentsViewControllerTests: TestCase {
 
         parent.view.frame.size.height = 1_100
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -72,7 +70,6 @@ internal final class CommentsViewControllerTests: TestCase {
 
         parent.view.frame.size.height = 1_100
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -95,7 +92,6 @@ internal final class CommentsViewControllerTests: TestCase {
 
         parent.view.frame.size.height = 1_100
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -120,7 +116,6 @@ internal final class CommentsViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 1_100
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -142,7 +137,6 @@ internal final class CommentsViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 1_100
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -164,14 +158,12 @@ internal final class CommentsViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 600
 
-        self.scheduler.advance()
 
         withEnvironment(
           apiService: MockService(fetchProjectCommentsEnvelopeResult: .failure(.couldNotParseJSON))
         ) {
           controller.viewModel.inputs.willDisplayRow(3, outOf: 4)
 
-          self.scheduler.advance()
 
           assertSnapshot(
             matching: parent.view,
@@ -198,7 +190,6 @@ internal final class CommentsViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 1_100
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -223,7 +214,6 @@ internal final class CommentsViewControllerTests: TestCase {
         let controller = CommentsViewController.configuredWith(project: .template)
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -262,7 +252,6 @@ internal final class CommentsViewControllerTests: TestCase {
           child: controller
         )
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,

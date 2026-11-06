@@ -1,4 +1,3 @@
-import ReactiveSwift
 import UIKit
 @testable import Kickstarter_iOS
 import Foundation
@@ -20,7 +19,6 @@ internal final class ResetPasswordViewControllerTests: TestCase {
           .configuredWith(email: "americasnexttopmodulus@example.com")
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,

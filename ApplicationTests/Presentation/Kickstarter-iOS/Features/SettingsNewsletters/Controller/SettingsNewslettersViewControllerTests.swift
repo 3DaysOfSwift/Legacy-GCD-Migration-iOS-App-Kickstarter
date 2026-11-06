@@ -1,4 +1,3 @@
-import ReactiveSwift
 import UIKit
 @testable import Kickstarter_iOS
 
@@ -33,7 +32,6 @@ internal final class SettingsNewslettersViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 1_300
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,

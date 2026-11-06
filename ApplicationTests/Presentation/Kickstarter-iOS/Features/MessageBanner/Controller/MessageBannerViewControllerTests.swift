@@ -1,4 +1,3 @@
-import ReactiveSwift
 import UIKit
 @testable import Kickstarter_iOS
 
@@ -35,8 +34,6 @@ internal final class MessageBannerViewControllerTests: TestCase {
 
         messageBannerVC.showBanner(with: .success, message: Strings.Got_it_your_changes_have_been_saved())
 
-        scheduler.run()
-        scheduler.advance()
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }
@@ -58,8 +55,6 @@ internal final class MessageBannerViewControllerTests: TestCase {
 
         messageBannerVC.showBanner(with: .error, message: Strings.Something_went_wrong_please_try_again())
 
-        scheduler.run()
-        scheduler.advance()
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }
@@ -81,8 +76,6 @@ internal final class MessageBannerViewControllerTests: TestCase {
 
         messageBannerVC.showBanner(with: .info, message: Strings.Verification_email_sent())
 
-        scheduler.run()
-        scheduler.advance()
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }

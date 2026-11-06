@@ -1,5 +1,4 @@
 import UIKit
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -21,7 +20,6 @@ internal final class TwoFactorViewControllerTests: TestCase {
         let controller = Storyboard.Login.instantiate(TwoFactorViewController.self)
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,

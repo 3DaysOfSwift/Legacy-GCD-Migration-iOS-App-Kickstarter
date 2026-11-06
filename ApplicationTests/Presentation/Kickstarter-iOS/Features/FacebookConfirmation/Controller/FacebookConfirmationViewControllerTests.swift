@@ -1,4 +1,3 @@
-import ReactiveSwift
 import UIKit
 @testable import Kickstarter_iOS
 import Foundation
@@ -18,7 +17,6 @@ internal final class FacebookConfirmationViewControllerTests: TestCase {
             .configuredWith(facebookUserEmail: "hello@example.com", facebookAccessToken: "")
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
-          self.scheduler.run()
 
           assertSnapshot(
             matching: parent.view,

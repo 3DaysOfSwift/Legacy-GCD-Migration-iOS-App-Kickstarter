@@ -1,5 +1,4 @@
 import UIKit
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -74,7 +73,6 @@ internal final class MessageThreadViewControllerTests: TestCase {
 
       let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
-      self.scheduler.run()
 
       assertSnapshot(matching: parent.view, as: .image, named: "device_\(device)")
     }

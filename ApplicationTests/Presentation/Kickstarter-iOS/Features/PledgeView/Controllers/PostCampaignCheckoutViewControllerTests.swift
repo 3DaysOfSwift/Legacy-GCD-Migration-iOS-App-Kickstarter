@@ -1,4 +1,3 @@
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -72,7 +71,6 @@ final class PostCampaignCheckoutViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 1_200
 
-        self.scheduler.advance(by: .seconds(1))
 
         self.allowLayoutPass()
 
@@ -135,7 +133,6 @@ final class PostCampaignCheckoutViewControllerTests: TestCase {
           controller.configure(with: data)
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
-          self.scheduler.advance(by: .seconds(1))
 
           self.allowLayoutPass()
 
@@ -182,7 +179,6 @@ final class PostCampaignCheckoutViewControllerTests: TestCase {
           controller.configure(with: data)
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
-          self.scheduler.advance(by: .seconds(1))
 
           self.allowLayoutPass()
 

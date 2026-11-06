@@ -1,5 +1,4 @@
 import Experimentation
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -62,7 +61,6 @@ internal final class DiscoveryPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 750
 
-        self.scheduler.run()
 
         let styleDescription = style == .light ? "light" : "dark"
 
@@ -98,7 +96,6 @@ internal final class DiscoveryPageViewControllerTests: TestCase {
 
         controller.change(filter: self.magicParams)
 
-        self.scheduler.run()
 
         controller.tableView.layoutIfNeeded()
         controller.tableView.reloadData()
@@ -135,7 +132,6 @@ internal final class DiscoveryPageViewControllerTests: TestCase {
 
           controller.change(filter: self.magicParams)
 
-          self.scheduler.run()
 
           controller.tableView.layoutIfNeeded()
           controller.tableView.reloadData()
@@ -166,7 +162,6 @@ internal final class DiscoveryPageViewControllerTests: TestCase {
 
         controller.change(filter: self.magicParams)
 
-        self.scheduler.run()
 
         controller.tableView.layoutIfNeeded()
         controller.tableView.reloadData()
@@ -204,7 +199,6 @@ internal final class DiscoveryPageViewControllerTests: TestCase {
 
           controller.change(filter: self.magicParams)
 
-          self.scheduler.run()
 
           controller.tableView.layoutIfNeeded()
           controller.tableView.reloadData()
@@ -245,7 +239,6 @@ internal final class DiscoveryPageViewControllerTests: TestCase {
 
           controller.change(filter: starredParams)
 
-          self.scheduler.run()
 
           controller.tableView.layoutIfNeeded()
           controller.tableView.reloadData()
@@ -275,7 +268,6 @@ internal final class DiscoveryPageViewControllerTests: TestCase {
         parent.view.frame.size.height = 210
 
         controller.change(filter: self.magicParams)
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -299,7 +291,6 @@ internal final class DiscoveryPageViewControllerTests: TestCase {
         parent.view.frame.size.height = 210
 
         controller.change(filter: self.magicParams)
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,

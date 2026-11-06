@@ -1,5 +1,4 @@
 import UIKit
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -31,7 +30,6 @@ internal final class SortPagerViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 50
 
-        self.scheduler.advance(by: .milliseconds(100))
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)")
       }
@@ -47,7 +45,6 @@ internal final class SortPagerViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: .pad, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 50
 
-        self.scheduler.advance(by: .milliseconds(100))
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)")
       }
@@ -63,7 +60,6 @@ internal final class SortPagerViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: .pad, orientation: .landscape, child: controller)
         parent.view.frame.size.height = 50
 
-        self.scheduler.advance(by: .milliseconds(100))
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)")
       }

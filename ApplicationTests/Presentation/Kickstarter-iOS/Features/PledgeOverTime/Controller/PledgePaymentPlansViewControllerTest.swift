@@ -1,4 +1,3 @@
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -29,7 +28,6 @@ final class PledgePaymentPlansViewControllerTest: TestCase {
         parent.view.frame.size.height = 100
         parent.view.frame.size.width = 300
 
-        self.scheduler.advance(by: .seconds(1))
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }
@@ -52,7 +50,6 @@ final class PledgePaymentPlansViewControllerTest: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 400
 
-        self.scheduler.advance(by: .seconds(1))
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }
@@ -84,7 +81,6 @@ final class PledgePaymentPlansViewControllerTest: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 400
 
-        self.scheduler.advance(by: .seconds(1))
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }
@@ -109,7 +105,6 @@ final class PledgePaymentPlansViewControllerTest: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 120
 
-        self.scheduler.advance(by: .seconds(1))
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }

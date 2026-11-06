@@ -1,4 +1,3 @@
-import ReactiveSwift
 import UIKit
 @testable import Kickstarter_iOS
 import Foundation
@@ -15,7 +14,6 @@ internal final class LoginViewControllerTests: TestCase {
         let controller = Storyboard.Login.instantiate(LoginViewController.self)
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,

@@ -1,4 +1,3 @@
-import ReactiveSwift
 import UIKit
 @testable import Kickstarter_iOS
 
@@ -34,7 +33,6 @@ internal final class SettingsAccountViewControllerTests: TestCase {
           let vc = SettingsAccountViewController.instantiate()
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
 
-          self.scheduler.run()
 
           assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
         }
@@ -54,7 +52,6 @@ internal final class SettingsAccountViewControllerTests: TestCase {
         let vc = SettingsAccountViewController.instantiate()
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
 
-        self.scheduler.run()
 
         assertSnapshot(matching: parent.view, as: .image, named: "device_\(device)")
       }
@@ -71,7 +68,6 @@ internal final class SettingsAccountViewControllerTests: TestCase {
         let vc = SettingsAccountViewController.instantiate()
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
 
-        self.scheduler.run()
 
         assertSnapshot(matching: parent.view, as: .image, named: "device_\(device)")
       }
@@ -84,7 +80,6 @@ internal final class SettingsAccountViewControllerTests: TestCase {
         let vc = SettingsAccountViewController.instantiate()
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
 
-        self.scheduler.run()
 
         assertSnapshot(matching: parent.view, as: .image, named: "device_\(device)")
       }

@@ -1,4 +1,3 @@
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -64,7 +63,6 @@ final class RewardAddOnSelectionViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 600
 
-        self.scheduler.advance()
         let styleDescription = style == .light ? "light" : "dark"
 
         assertSnapshot(
@@ -108,7 +106,6 @@ final class RewardAddOnSelectionViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 600
 
-        self.scheduler.advance()
 
         assertSnapshot(
           matching: parent.view,
@@ -148,7 +145,6 @@ final class RewardAddOnSelectionViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 600
 
-        self.scheduler.advance()
 
         assertSnapshot(
           matching: parent.view,
@@ -239,9 +235,7 @@ final class RewardAddOnSelectionViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 600
 
-        self.scheduler.advance()
 
-        self.scheduler.advance(by: .seconds(1))
 
         assertSnapshot(
           matching: parent.view,
@@ -282,7 +276,6 @@ final class RewardAddOnSelectionViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 600
 
-        self.scheduler.advance()
 
         assertSnapshot(
           matching: parent.view,
@@ -334,7 +327,6 @@ final class RewardAddOnSelectionViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 600
 
-        self.scheduler.advance()
 
         assertSnapshot(
           matching: parent.view,
@@ -386,7 +378,6 @@ final class RewardAddOnSelectionViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 950
 
-        self.scheduler.advance()
 
         assertSnapshot(
           matching: parent.view,

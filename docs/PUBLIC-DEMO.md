@@ -22,7 +22,7 @@ the private-secrets bootstrap just to enable this demo.
 - Project details, a short fictional story, FAQ, and illustrative rewards.
 - Empty search results and an explicit failure: search for `demo:error`, then
   change the query to recover.
-- ReactiveSwift, async GraphQL, and Combine discovery entry points.
+- Async GraphQL and Combine discovery entry points.
 
 Dates are relative to the catalogue's creation date: live projects have 2–25
 days remaining, successful projects ended three days earlier, and illustrative

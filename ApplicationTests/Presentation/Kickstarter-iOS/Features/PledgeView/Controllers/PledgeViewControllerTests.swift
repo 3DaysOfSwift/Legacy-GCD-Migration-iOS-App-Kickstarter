@@ -1,4 +1,3 @@
-import ReactiveSwift
 @testable import Kickstarter_iOS
 import GraphAPI
 
@@ -58,7 +57,6 @@ final class PledgeViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 1_200
 
-        self.scheduler.advance(by: .seconds(1))
 
         self.allowLayoutPass()
 
@@ -110,7 +108,6 @@ final class PledgeViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 800
 
-        self.scheduler.advance(by: .seconds(1))
 
         self.allowLayoutPass()
 
@@ -144,7 +141,6 @@ final class PledgeViewControllerTests: TestCase {
           controller.configure(with: data)
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
-          self.scheduler.advance(by: .seconds(1))
 
           self.allowLayoutPass()
 
@@ -183,7 +179,6 @@ final class PledgeViewControllerTests: TestCase {
           controller.configure(with: data)
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
-          self.scheduler.advance(by: .seconds(1))
 
           self.allowLayoutPass()
 
@@ -229,7 +224,6 @@ final class PledgeViewControllerTests: TestCase {
           let controller = PledgeViewController.instantiate()
           controller.configure(with: data)
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
-          self.scheduler.advance(by: .seconds(1))
 
           self.allowLayoutPass()
 
@@ -273,7 +267,6 @@ final class PledgeViewControllerTests: TestCase {
         controller.configure(with: data)
         controller.overrideUserInterfaceStyle = style
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
-        self.scheduler.advance(by: .seconds(1))
 
         self.allowLayoutPass()
 
@@ -324,7 +317,6 @@ final class PledgeViewControllerTests: TestCase {
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
           parent.view.frame.size.height = 1_250
 
-          self.scheduler.advance(by: .seconds(1))
 
           self.allowLayoutPass()
 
@@ -373,7 +365,6 @@ final class PledgeViewControllerTests: TestCase {
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
           parent.view.frame.size.height = 1_250
 
-          self.scheduler.advance(by: .seconds(1))
 
           self.allowLayoutPass()
 
@@ -429,7 +420,6 @@ final class PledgeViewControllerTests: TestCase {
             didSelectPaymentPlan: .pledgeOverTime
           )
 
-          self.scheduler.advance(by: .seconds(1))
 
           self.allowLayoutPass()
 

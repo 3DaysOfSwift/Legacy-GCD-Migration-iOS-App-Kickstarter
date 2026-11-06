@@ -1,4 +1,3 @@
-import ReactiveSwift
 import UIKit
 @testable import Kickstarter_iOS
 
@@ -44,7 +43,6 @@ internal final class ProjectPageNavigationTests: TestCase {
 
       parent.view.frame.size.height = 44
 
-      scheduler.run()
 
       assertSnapshot(matching: parent.view, as: .image, named: "unwatched")
     }
@@ -74,7 +72,6 @@ internal final class ProjectPageNavigationTests: TestCase {
 
       parent.view.frame.size.height = 44
 
-      scheduler.run()
 
       assertSnapshot(matching: parent.view, as: .image, named: "watched")
     }
@@ -105,7 +102,6 @@ internal final class ProjectPageNavigationTests: TestCase {
 
       parent.view.frame.size.height = 44
 
-      scheduler.run()
 
       assertSnapshot(matching: parent.view, as: .image, named: "dark")
     }

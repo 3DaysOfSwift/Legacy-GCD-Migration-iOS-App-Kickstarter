@@ -1,4 +1,3 @@
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -52,7 +51,6 @@ class PaymentMethodSettingsViewControllerTests: TestCase {
 
         parent.view.layoutIfNeeded()
 
-        self.scheduler.advance()
 
         assertSnapshot(
           matching: parent.view,

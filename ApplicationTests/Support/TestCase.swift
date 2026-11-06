@@ -4,7 +4,6 @@ import KDS
 @testable import KsApi
 
 import Prelude
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -35,7 +34,6 @@ class TestCase: XCTestCase {
 
   internal let remoteConfigClient = MockRemoteConfigClient()
   internal let reachability = ConnectivityState(.wifi)
-  internal let scheduler = TestScheduler(startDate: MockDate().date)
   internal let segmentTrackingClient = MockTrackingClient()
   internal let ubiquitousStore = MockKeyValueStore()
   internal let userDefaults = MockKeyValueStore()
@@ -57,7 +55,6 @@ class TestCase: XCTestCase {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: "GMT")!
 
-    TestSchedulerContext.current = self.scheduler
     AppEnvironment.pushEnvironment(
       apiService: self.apiService,
       apiDelayInterval: .seconds(0),
@@ -100,7 +97,6 @@ class TestCase: XCTestCase {
 
   override func tearDown() async throws {
     AppEnvironment.popEnvironment()
-    TestSchedulerContext.current = QueueScheduler.main
     try await super.tearDown()
   }
 

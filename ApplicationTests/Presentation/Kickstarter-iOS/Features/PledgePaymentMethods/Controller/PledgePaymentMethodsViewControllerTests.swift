@@ -1,4 +1,3 @@
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -59,7 +58,6 @@ final class PledgePaymentMethodsViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 400
 
-        self.scheduler.advance(by: .seconds(1))
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }
@@ -99,11 +97,9 @@ final class PledgePaymentMethodsViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
         parent.view.frame.size.height = 400
 
-        self.scheduler.advance(by: .seconds(1))
 
         controller.cancelModalPresentation(false)
 
-        self.scheduler.advance(by: .seconds(1))
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }

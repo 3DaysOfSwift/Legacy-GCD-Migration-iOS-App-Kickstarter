@@ -1,5 +1,4 @@
 import UIKit
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -28,7 +27,6 @@ internal final class HelpViewControllerTests: TestCase {
         let vc = HelpViewController.instantiate()
         let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: vc)
 
-        self.scheduler.run()
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)")
       }

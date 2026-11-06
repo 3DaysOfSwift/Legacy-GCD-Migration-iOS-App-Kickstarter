@@ -1,4 +1,3 @@
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -26,7 +25,6 @@ final class BetaToolsViewControllerTests: TestCase {
       let controller = BetaToolsViewController.instantiate()
       let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: controller)
 
-      self.scheduler.run()
 
       assertSnapshot(matching: parent.view, as: .image)
     }

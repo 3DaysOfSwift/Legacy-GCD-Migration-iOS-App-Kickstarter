@@ -1,4 +1,3 @@
-import ReactiveSwift
 import UIKit
 import CoreMedia
 @testable import Kickstarter_iOS
@@ -122,7 +121,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -173,7 +171,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -222,7 +219,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -268,7 +264,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -317,7 +312,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
       let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
       parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-      scheduler.run()
 
       assertSnapshot(
         matching: parent.view,
@@ -360,7 +354,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -406,7 +399,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -447,7 +439,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -489,7 +480,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -542,7 +532,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -595,7 +584,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -648,7 +636,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -701,7 +688,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -745,7 +731,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -789,7 +774,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -830,7 +814,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -869,7 +852,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -911,7 +893,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -960,7 +941,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -994,7 +974,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -1036,7 +1015,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
           parent.view.frame.size.height = 2_300
         }
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -1073,12 +1051,10 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.advance()
 
         // INFO: We are not testing that the navigation selector view changed, simply the content of the view controller.
         vc.projectNavigationSelectorViewDidSelect(ProjectNavigationSelectorView(), index: 1)
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -1120,12 +1096,10 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.advance()
 
         // INFO: We are not testing that the navigation selector view changed, simply the content of the view controller.
         vc.projectNavigationSelectorViewDidSelect(ProjectNavigationSelectorView(), index: 3)
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -1168,12 +1142,10 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.advance()
 
         // INFO: We are not testing that the navigation selector view, just the content of the view controller after the tab selection occurs.
         vc.projectNavigationSelectorViewDidSelect(ProjectNavigationSelectorView(), index: 2)
 
-        scheduler.advance()
 
         let faqSelectionIndexPath = IndexPath(
           row: 0,
@@ -1182,7 +1154,6 @@ internal final class ProjectPageViewControllerTests: TestCase {
 
         vc.tableView(UITableView(), didSelectRowAt: faqSelectionIndexPath)
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -1304,12 +1275,10 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.advance()
 
         // INFO: We are not testing that the navigation selector view, just the content of the view controller after the tab selection occurs.
         vc.projectNavigationSelectorViewDidSelect(ProjectNavigationSelectorView(), index: 4)
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -1351,12 +1320,10 @@ internal final class ProjectPageViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
 
-        scheduler.advance()
 
         // INFO: We are not testing that the navigation selector view, just the content of the view controller after the tab selection occurs.
         vc.projectNavigationSelectorViewDidSelect(ProjectNavigationSelectorView(), index: 5)
 
-        scheduler.run()
 
         assertSnapshot(
           matching: parent.view,

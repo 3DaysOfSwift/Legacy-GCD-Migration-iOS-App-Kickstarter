@@ -1,4 +1,3 @@
-import ReactiveSwift
 import UIKit
 @testable import Kickstarter_iOS
 
@@ -150,7 +149,6 @@ internal final class ActivitiesViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = 2_360
 
-        self.scheduler.run()
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }
@@ -188,7 +186,6 @@ internal final class ActivitiesViewControllerTests: TestCase {
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = 900
 
-        self.scheduler.run()
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }

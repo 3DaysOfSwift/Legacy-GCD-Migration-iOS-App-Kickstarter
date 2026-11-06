@@ -1,4 +1,3 @@
-import ReactiveSwift
 @testable import Kickstarter_iOS
 import Foundation
 import GraphAPI
@@ -37,7 +36,6 @@ final class RewardsCollectionViewControllerTests: TestCase {
 
         vc.pledgeShippingLocationViewController(PledgeShippingLocationViewController(), didSelect: .usa)
 
-        self.scheduler.run()
 
         let deviceSize = type.device.deviceSize(in: type.orientation)
         let size = CGSize(
@@ -91,7 +89,6 @@ final class RewardsCollectionViewControllerTests: TestCase {
 
         vc.pledgeShippingLocationViewController(PledgeShippingLocationViewController(), didSelect: .usa)
 
-        self.scheduler.run()
 
         let deviceSize = type.device.deviceSize(in: type.orientation)
         let size = CGSize(

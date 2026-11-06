@@ -2,7 +2,6 @@
 import Foundation
 
 
-import ReactiveSwift
 import SnapshotTesting
 import SwiftUI
 import UIKit
@@ -145,9 +144,6 @@ internal func assertSnapshot(
 
     controller.overrideUserInterfaceStyle = type.style
 
-    if let testScheduler = TestSchedulerContext.current as? TestScheduler {
-      testScheduler.run()
-    }
 
     let name = snapshotName(
       file: file,
@@ -252,9 +248,6 @@ internal func assertSnapshot(
     parent.view.frame.size = targetSize
     containerController.view.frame.size = targetSize
 
-    if let testScheduler = TestSchedulerContext.current as? TestScheduler {
-      testScheduler.run()
-    }
     parent.view.setNeedsLayout()
     parent.view.layoutIfNeeded()
     parent.view.setNeedsDisplay()

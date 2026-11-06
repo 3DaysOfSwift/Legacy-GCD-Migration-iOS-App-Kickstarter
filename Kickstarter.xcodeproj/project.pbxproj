@@ -1278,10 +1278,6 @@
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
 		};
-		"62FC13E6133613DED3E1071F" = {
-			"isa" = "PBXBuildFile";
-			"productRef" = "7C5047323B7F64F32764F762";
-		};
 		"D75D39E282F96BD4EF03A8CF" = {
 			"name" = "VideoViewModel.swift";
 			"path" = "Kickstarter-iOS/1 - View/Views/ProjectPage/Controller/VideoViewModel.swift";
@@ -7111,7 +7107,6 @@
 				"AAFCED082F20399B00EAC2FE",
 				"AAFCECFC2F2038EE00EAC2FE",
 				"BD8CDEC76A8F4F31F051BB8C",
-				"D01C4218B2AFD0569E6CCE41",
 				"37EADD2C011BC83E7F3C9B16",
 				"5B4AEE46E8246ABCDDDA29A6",
 				"F44D525AB72C26FF915EDB26",
@@ -13223,10 +13218,6 @@
 			);
 			"sourceTree" = "<group>";
 		};
-		"296FCCFB162143F3E32CA8AF" = {
-			"isa" = "PBXBuildFile";
-			"productRef" = "A212673728B13CB39C2280B6";
-		};
 		"72A78017A7456221BDE7E3F4" = {
 			"name" = "SettingsAccountHeaderView.swift";
 			"path" = "Kickstarter-iOS/1 - View/Shared Views/HeaderFooterViews/SettingsAccountHeaderView.swift";
@@ -13413,11 +13404,6 @@
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "sourcecode.swift";
 			"sourceTree" = "<group>";
-		};
-		"549830B37812CD5AE375CD2A" = {
-			"isa" = "XCSwiftPackageProductDependency";
-			"productName" = "ReactiveSwift";
-			"package" = "A3C65249AEB7076A9CE8C3D6";
 		};
 		"C2DFFE8CAE797B912E8187D4" = {
 			"path" = "GraphAPI/GraphAPITestMocks/PledgedProjectsOverviewPledgesConnection+Mock.graphql.swift";
@@ -14400,7 +14386,6 @@
 				"AAFCED072F20399B00EAC2FE",
 				"39AE634D2F6C581800481A76",
 				"1C711FCC57C3630B2E5AF681",
-				"549830B37812CD5AE375CD2A",
 				"E0B6E461090C3162C913C6A2",
 				"8F9E2E1CA70145C5CF827FFB",
 				"85BB6A82A37E4C196059F619",
@@ -16817,7 +16802,6 @@
 				"BC20882121833C9F0A720BA2",
 				"BA3D84568451D85236C6EDA3",
 				"AAFF48F056295E988F270D18",
-				"A212673728B13CB39C2280B6",
 				"53C87C7B6D33D28645F0A5BD",
 				"B0049AC4036DF9ABCDC1D905",
 				"16224DFB26763424AE3C170B",
@@ -17309,7 +17293,6 @@
 				"335F2F1B34139D26F193F42B",
 				"B3188C0FA0FF6B6B0588EC4B",
 				"4BA2B5BABAF8B1470A0AB44A",
-				"A3C65249AEB7076A9CE8C3D6",
 			);
 			"targets" = (
 				"A7D1F9441C850B7C000D41D5",
@@ -17814,11 +17797,6 @@
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
-		};
-		"A212673728B13CB39C2280B6" = {
-			"isa" = "XCSwiftPackageProductDependency";
-			"productName" = "ReactiveSwift";
-			"package" = "A3C65249AEB7076A9CE8C3D6";
 		};
 		"60B846F7504D015DCA9A643D" = {
 			"isa" = "PBXBuildFile";
@@ -20644,7 +20622,6 @@
 				"B1EF038070C918A81831F687",
 				"1A9403D75BE3EF6D6DC2ECBF",
 				"B5D67B676A7EB8DB7232DCF6",
-				"296FCCFB162143F3E32CA8AF",
 				"45A0CA9AA156093F279A5F4C",
 				"BA813197236EA608061F0E9E",
 				"CE6CE9C0AC27E1166B0CFBC8",
@@ -20979,11 +20956,6 @@
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
-		};
-		"7C5047323B7F64F32764F762" = {
-			"isa" = "XCSwiftPackageProductDependency";
-			"productName" = "ReactiveSwift";
-			"package" = "A3C65249AEB7076A9CE8C3D6";
 		};
 		"AAF548302F2445C0001DB5AC" = {
 			"path" = "ErroredBackingViewViewModelTests.swift";
@@ -22703,10 +22675,6 @@
 			"lastKnownFileType" = "sourcecode.swift";
 			"sourceTree" = "<group>";
 		};
-		"D01C4218B2AFD0569E6CCE41" = {
-			"isa" = "PBXBuildFile";
-			"productRef" = "549830B37812CD5AE375CD2A";
-		};
 		"A943DE897728D3C1FAFE15C0" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "6DB51B6F6A4655C6F1ECAF8E";
@@ -22746,7 +22714,6 @@
 				"052EB1E6BA9822AF59437776",
 				"1F3EAB972A613E6C26136CF4",
 				"ADA704A2CF3BD3E3B0C06E3C",
-				"62FC13E6133613DED3E1071F",
 				"ED4811F2F9438C30E8CC6269",
 				"2E3050A4C1EC84CCC8034400",
 				"F8DA582688F647A78D293385",
@@ -22807,7 +22774,6 @@
 				"F563C31C4C5B9B2268742C39",
 				"40F2AECCFA55E650529E1A5B",
 				"0617D9B76006A5D04E069A0D",
-				"7C5047323B7F64F32764F762",
 				"053B11C62E21046F24A0E17A",
 				"5264490BA87B8122649F3EB0",
 				"E4671AB64474A2B8056C1141",
@@ -22946,14 +22912,6 @@
 		"0FA5A9495F29DD192BE2F456" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "FEA32E15B06A74594D63EFDA";
-		};
-		"A3C65249AEB7076A9CE8C3D6" = {
-			"isa" = "XCRemoteSwiftPackageReference";
-			"repositoryURL" = "https://github.com/ReactiveCocoa/ReactiveSwift";
-			"requirement" = {
-				"kind" = "upToNextMajorVersion";
-				"minimumVersion" = "7.1.1";
-			};
 		};
 		"D136F05A0523337E7A54D051" = {
 			"path" = "GraphAPI/GraphAPITestMocks/ShipStationConfiguration+Mock.graphql.swift";

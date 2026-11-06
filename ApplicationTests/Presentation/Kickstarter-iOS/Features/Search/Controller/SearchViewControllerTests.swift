@@ -1,6 +1,5 @@
 import UIKit
 import Experimentation
-import ReactiveSwift
 @testable import Kickstarter_iOS
 import GraphAPI
 
@@ -62,7 +61,6 @@ internal final class SearchViewContollerTests: TestCase {
       ) {
         controller.viewWillAppear(true)
 
-        self.scheduler.run()
       }
 
       let lastIndex = IndexPath(
@@ -83,7 +81,6 @@ internal final class SearchViewContollerTests: TestCase {
           )
         )
 
-        self.scheduler.run()
 
         // Force a layout pass so the footer is displayed
         parent.view.layoutIfNeeded()
@@ -121,7 +118,6 @@ internal final class SearchViewContollerTests: TestCase {
           controller.viewWillAppear(true)
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
-          self.scheduler.run()
 
           assertSnapshot(
             matching: parent.view,
@@ -166,7 +162,6 @@ internal final class SearchViewContollerTests: TestCase {
         }
         emptyStateTypeIterator += 1
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -201,7 +196,6 @@ internal final class SearchViewContollerTests: TestCase {
 
         controller.viewModel.inputs.searchTextChanged("abcdefgh")
 
-        self.scheduler.run()
 
         let styleDescription = style == .light ? "light" : "dark"
 
@@ -233,7 +227,6 @@ internal final class SearchViewContollerTests: TestCase {
 
           controller.viewModel.inputs.searchTextChanged("abcdefgh")
 
-          self.scheduler.run()
 
           assertSnapshot(
             matching: parent.view,
@@ -271,7 +264,6 @@ internal final class SearchViewContollerTests: TestCase {
 
         controller.viewModel.inputs.searchTextChanged("abcdefgh")
 
-        self.scheduler.run()
 
         let traits = UITraitCollection.init(userInterfaceStyle: interfaceStyle)
 

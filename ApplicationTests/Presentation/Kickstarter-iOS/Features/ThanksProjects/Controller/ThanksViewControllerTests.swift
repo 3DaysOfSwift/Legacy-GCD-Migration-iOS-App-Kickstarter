@@ -1,4 +1,3 @@
-import ReactiveSwift
 @testable import Kickstarter_iOS
 
 @testable import KsApi
@@ -47,7 +46,6 @@ class ThanksViewControllerTests: TestCase {
         controller.beginAppearanceTransition(true, animated: false)
         controller.endAppearanceTransition()
 
-        self.scheduler.run()
 
         assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
       }

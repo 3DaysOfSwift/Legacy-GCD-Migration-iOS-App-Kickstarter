@@ -1,4 +1,3 @@
-import ReactiveSwift
 import UIKit
 @testable import Kickstarter_iOS
 
@@ -42,7 +41,6 @@ final class CommentRepliesViewControllerTests: TestCase {
 
         parent.view.frame.size.height = 1_100
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -77,7 +75,6 @@ final class CommentRepliesViewControllerTests: TestCase {
 
         parent.view.frame.size.height = 1_100
 
-        self.scheduler.run()
         assertSnapshot(
           matching: parent.view,
           as: .image(perceptualPrecision: 0.99),
@@ -111,7 +108,6 @@ final class CommentRepliesViewControllerTests: TestCase {
 
         parent.view.frame.size.height = 1_100
 
-        self.scheduler.run()
         assertSnapshot(
           matching: parent.view,
           as: .image(perceptualPrecision: 0.99),
@@ -148,7 +144,6 @@ final class CommentRepliesViewControllerTests: TestCase {
 
         parent.view.frame.size.height = 1_100
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -182,14 +177,12 @@ final class CommentRepliesViewControllerTests: TestCase {
         )
         parent.view.frame.size.height = 1_100
 
-        self.scheduler.advance()
 
         withEnvironment(
           apiService: MockService(fetchCommentRepliesEnvelopeResult: .failure(.couldNotParseJSON))
         ) {
           controller.viewModel.inputs.paginateOrErrorCellWasTapped()
 
-          self.scheduler.advance()
 
           assertSnapshot(
             matching: parent.view,
@@ -224,7 +217,6 @@ final class CommentRepliesViewControllerTests: TestCase {
         )
         parent.view.frame.size.height = 1_100
 
-        self.scheduler.advance()
 
         assertSnapshot(
           matching: parent.view,

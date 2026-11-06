@@ -1,4 +1,3 @@
-import ReactiveSwift
 @testable import Kickstarter_iOS
 // swiftlint:disable file_length
 
@@ -65,10 +64,8 @@ final class ManagePledgeViewControllerTests: TestCase {
         parent.view.frame.size.height = 1_200
 
         // Network request completes
-        self.scheduler.advance()
 
         // endRefreshing is delayed by 300ms for animation duration
-        self.scheduler.advance(by: .milliseconds(300))
 
         controller.tableView.layoutIfNeeded()
         controller.tableView.reloadData()
@@ -132,10 +129,8 @@ final class ManagePledgeViewControllerTests: TestCase {
         parent.view.frame.size.height = 1_600
 
         // Network request completes
-        self.scheduler.advance()
 
         // endRefreshing is delayed by 300ms for animation duration
-        self.scheduler.advance(by: .milliseconds(300))
 
         controller.tableView.layoutIfNeeded()
         controller.tableView.reloadData()
@@ -203,10 +198,8 @@ final class ManagePledgeViewControllerTests: TestCase {
         )
 
         // Network request completes
-        self.scheduler.advance()
 
         // endRefreshing is delayed by 300ms for animation duration
-        self.scheduler.advance(by: .milliseconds(300))
 
         controller.tableView.layoutIfNeeded()
         controller.tableView.reloadData()
@@ -273,10 +266,8 @@ final class ManagePledgeViewControllerTests: TestCase {
         )
 
         // Network request completes
-        self.scheduler.advance()
 
         // endRefreshing is delayed by 300ms for animation duration
-        self.scheduler.advance(by: .milliseconds(300))
 
         controller.tableView.layoutIfNeeded()
         controller.tableView.reloadData()
@@ -332,10 +323,8 @@ final class ManagePledgeViewControllerTests: TestCase {
         )
 
         // Network request completes
-        self.scheduler.advance()
 
         // endRefreshing is delayed by 300ms for animation duration
-        self.scheduler.advance(by: .milliseconds(300))
 
         controller.tableView.layoutIfNeeded()
         controller.tableView.reloadData()
@@ -395,10 +384,8 @@ final class ManagePledgeViewControllerTests: TestCase {
         parent.view.frame.size.height = 1_700
 
         // Network request completes
-        self.scheduler.advance()
 
         // endRefreshing is delayed by 300ms for animation duration
-        self.scheduler.advance(by: .milliseconds(300))
 
         controller.tableView.layoutIfNeeded()
         controller.tableView.reloadData()
@@ -467,10 +454,8 @@ final class ManagePledgeViewControllerTests: TestCase {
         parent.view.frame.size.height = 1_700
 
         // Network request completes
-        self.scheduler.advance()
 
         // endRefreshing is delayed by 300ms for animation duration
-        self.scheduler.advance(by: .milliseconds(300))
 
         controller.tableView.layoutIfNeeded()
         controller.tableView.reloadData()
@@ -542,10 +527,8 @@ final class ManagePledgeViewControllerTests: TestCase {
         parent.view.frame.size.height = 1_600
 
         // Network request completes
-        self.scheduler.advance()
 
         // endRefreshing is delayed by 300ms for animation duration
-        self.scheduler.advance(by: .milliseconds(300))
 
         controller.tableView.layoutIfNeeded()
         controller.tableView.reloadData()
@@ -608,10 +591,8 @@ final class ManagePledgeViewControllerTests: TestCase {
         parent.view.frame.size.height = 1_200
 
         // Network request completes
-        self.scheduler.advance()
 
         // endRefreshing is delayed by 300ms for animation duration
-        self.scheduler.advance(by: .milliseconds(300))
 
         controller.tableView.layoutIfNeeded()
         controller.tableView.reloadData()
@@ -684,12 +665,10 @@ final class ManagePledgeViewControllerTests: TestCase {
         parent.view.frame.size.height = 1_300
 
         // Network request completes
-        self.scheduler.advance()
 
         controller.plotPaymentScheduleToggle()
 
         // endRefreshing is delayed by 300ms for animation duration
-        self.scheduler.advance(by: .milliseconds(300))
 
         controller.tableView.layoutIfNeeded()
         controller.tableView.reloadData()
@@ -748,10 +727,8 @@ final class ManagePledgeViewControllerTests: TestCase {
         parent.view.frame.size.height = 1_400
 
         // Network request completes
-        self.scheduler.advance()
 
         // endRefreshing is delayed by 300ms for animation duration
-        self.scheduler.advance(by: .milliseconds(300))
 
         controller.tableView.layoutIfNeeded()
         controller.tableView.reloadData()

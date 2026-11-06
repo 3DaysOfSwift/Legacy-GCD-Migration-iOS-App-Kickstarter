@@ -1,4 +1,3 @@
-import ReactiveSwift
 import UIKit
 @testable import Kickstarter_iOS
 
@@ -39,7 +38,6 @@ internal final class SettingsPrivacyViewControllerTests: TestCase {
 
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
@@ -69,7 +67,6 @@ internal final class SettingsPrivacyViewControllerTests: TestCase {
 
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
 
-        self.scheduler.run()
 
         assertSnapshot(
           matching: parent.view,
