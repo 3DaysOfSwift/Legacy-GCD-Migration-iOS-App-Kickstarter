@@ -67,7 +67,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private var isLoaded = false
   private let addOnsRoute = UUID()
   private var addOnsTask: Task<Void, Never>?
-  private let selectedQuantitiesEvents = Signal<SelectedRewardQuantities, Never>.pipe()
   private var changedQuantities: SelectedRewardQuantities = [:]
   private var displayedChanges: SelectedRewardQuantities?
   private var backedQuantities: SelectedRewardQuantities?
@@ -148,13 +147,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       baseReward.filter { reward in !reward.shipping.enabled }.mapConst(nil)
     )
 
-    let selectedQuantities = self.selectedQuantitiesEvents.output
-
-    let latestSelectedQuantities = Signal.merge(
-      baseRewardQuantities,
-      selectedQuantities
-    )
-
     // MARK: - Bonus support
 
     /// Initial pledge amount is zero if not backed.
@@ -208,10 +200,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       self?.validationAmount = value
       self?.publishValidity()
     }
-    _ = latestSelectedQuantities.observeValues { [weak self] value in
-      self?.validationQuantities = value
-      self?.publishValidity()
-    }
     _ = shippingRule.observeValues { [weak self] value in
       self?.validationShipping = value
       self?.hasValidationShipping = true
@@ -221,10 +209,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       if let amount = project.personalization.backing?.amount {
         self?.receivePledgeTotal(amount)
       }
-    }
-    _ = selectedQuantities.observeValues { [weak self] quantities in
-      self?.totalQuantities = quantities
-      self?.publishPledgeTotal()
     }
     _ = additionalPledgeAmount.observeValues { [weak self] amount in
       self?.totalBonus = amount
@@ -239,23 +223,14 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       self?.currentAddOnRewards = []
       self?.publishRewardSelection()
     }
-    _ = latestSelectedQuantities.observeValues { [weak self] quantities in
-      self?.currentRewardQuantities = quantities
-      self?.publishRewardSelection()
-    }
     _ = headerTitle.observeValues { [weak self] value in self?.onHeaderTitle?(value) }
     _ = pageTitle.observeValues { [weak self] value in self?.onPageTitle?(value) }
-    _ = latestSelectedQuantities.observeValues { [weak self] quantities in
-      self?.latestCardQuantities = quantities
-      self?.publishCards(reload: false)
-    }
     _ = configData.observeValues { [weak self] in self?.checkoutConfiguration = $0 }
     _ = additionalPledgeAmount.observeValues { [weak self] in self?.checkoutBonus = $0 }
     _ = shippingRule.observeValues { [weak self] value in
       self?.checkoutShipping = value
       self?.hasCheckoutShipping = true
     }
-    _ = selectedQuantities.observeValues { [weak self] in self?.checkoutQuantities = $0 }
     _ = selectedLocationId.observeValues { [weak self] value in
       self?.checkoutLocationID = value
       self?.hasCheckoutLocation = true
@@ -271,6 +246,9 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     _ = project.observeValues { [weak self] project in
       self?.backedQuantities = project.personalization.backing.map(selectedRewardQuantities(in:)) ?? [:]
       self?.publishSelectedQuantities()
+    }
+    _ = baseRewardQuantities.observeValues { [weak self] quantities in
+      self?.receiveLatestQuantities(quantities)
     }
     _ = baseRewardQuantities.observeValues { [weak self] quantities in
       self?.baseQuantities = quantities
@@ -478,10 +456,23 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     self.publishSelectedQuantities()
   }
 
+  private func receiveLatestQuantities(_ quantities: SelectedRewardQuantities) {
+    self.validationQuantities = quantities
+    self.publishValidity()
+    self.currentRewardQuantities = quantities
+    self.publishRewardSelection()
+    self.latestCardQuantities = quantities
+    self.publishCards(reload: false)
+  }
+
   private func publishSelectedQuantities() {
     guard let backed = self.backedQuantities, let changed = self.displayedChanges,
           let base = self.baseQuantities else { return }
-    self.selectedQuantitiesEvents.input.send(value: backed.withAllValuesFrom(changed).withAllValuesFrom(base))
+    let quantities = backed.withAllValuesFrom(changed).withAllValuesFrom(base)
+    self.receiveLatestQuantities(quantities)
+    self.totalQuantities = quantities
+    self.publishPledgeTotal()
+    self.checkoutQuantities = quantities
   }
 
   // MARK: - Outputs
