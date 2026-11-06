@@ -73,6 +73,8 @@ private final class ManagePledgeReadIdentity {
 public final class ManagePledgeViewModel:
   ManagePledgeViewModelType, ManagePledgeViewModelInputs, ManagePledgeViewModelOutputs {
   private let feature: PledgeFeature
+  private var currentMenuOptions: [ManagePledgeAlertAction]?
+  private var currentFixPaymentMethodData: PledgeViewData?
   private let projectRoute = UUID()
   private let projectReadEvents = Signal<(Signal<Project, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
   private var projectReadTask: Task<Void, Never>?
@@ -296,9 +298,6 @@ public final class ManagePledgeViewModel:
     let menuOptions = Signal.combineLatest(project, backing, userIsCreatorOfProject)
       .map(actionSheetMenuOptionsFor(project:backing:userIsCreatorOfProject:))
 
-    let showActionSheetMenuWithOptions = menuOptions
-      .takeWhen(self.menuButtonTappedSignal)
-
     let backedRewards = loadProjectAndRewardsIntoDataSource.map(second)
 
     let goToRewards = project
@@ -327,8 +326,7 @@ public final class ManagePledgeViewModel:
       }
       .map(pledgeViewData)
 
-    let goToFixPaymentMethod = Signal.combineLatest(project, backing, backedRewards)
-      .takeWhen(self.fixButtonTappedSignal)
+    let fixPaymentMethodData = Signal.combineLatest(project, backing, backedRewards)
       .map { project, backing, rewards in
         (project, backing, rewards, .fixPaymentMethod)
       }
@@ -417,13 +415,13 @@ public final class ManagePledgeViewModel:
     _ = goToCancelPledge.observeValues { [weak self] value in self?.onCancelPledge?(value) }
     _ = goToChangePaymentMethod.observeValues { [weak self] value in self?.onChangePaymentMethod?(value) }
     _ = goToContactCreator.observeValues { [weak self] first, second in self?.onContactCreator?(first, second) }
-    _ = goToFixPaymentMethod.observeValues { [weak self] value in self?.onFixPaymentMethod?(value) }
+    _ = fixPaymentMethodData.observeValues { [weak self] value in self?.currentFixPaymentMethodData = value }
     _ = goToRewards.observeValues { [weak self] value in self?.onRewards?(value) }
     _ = goToEditPledgeOverTime.observeValues { [weak self] value in self?.onEditPledgeOverTime?(value) }
     _ = loadProjectAndRewardsIntoDataSource.observeValues { [weak self] first, second in self?.onLoadProjectAndRewards?(first, second) }
     _ = loadPullToRefreshHeaderView.observeValues { [weak self] _ in self?.onLoadRefreshHeader?() }
     _ = notifyDelegateManagePledgeViewControllerFinishedWithMessage.observeValues { [weak self] value in self?.onFinish?(value) }
-    _ = showActionSheetMenuWithOptions.observeValues { [weak self] value in self?.onShowMenu?(value) }
+    _ = menuOptions.observeValues { [weak self] value in self?.currentMenuOptions = value }
     _ = showErrorBannerWithMessage.observeValues { [weak self] value in self?.onShowError?(value) }
     _ = startRefreshing.observeValues { [weak self] _ in self?.onStartRefreshing?() }
     _ = title.observeValues { [weak self] in self?.onTitle?($0) }
@@ -504,14 +502,14 @@ public final class ManagePledgeViewModel:
     self.onFinish?(message)
   }
 
-  private let (fixButtonTappedSignal, fixButtonTappedObserver) = Signal<Void, Never>.pipe()
   public func fixButtonTapped() {
-    self.fixButtonTappedObserver.send(value: ())
+    guard let data = self.currentFixPaymentMethodData else { return }
+    self.onFixPaymentMethod?(data)
   }
 
-  private let (menuButtonTappedSignal, menuButtonTappedObserver) = Signal<Void, Never>.pipe()
   public func menuButtonTapped() {
-    self.menuButtonTappedObserver.send(value: ())
+    guard let options = self.currentMenuOptions else { return }
+    self.onShowMenu?(options)
   }
 
   private let (menuOptionSelectedSignal, menuOptionSelectedObserver) = Signal<ManagePledgeAlertAction, Never>
