@@ -181,12 +181,6 @@ public final class ManagePledgeViewModel:
       self?.setRightBarHidden(false)
     }
     _ = project.observeValues { [weak self] value in self?.currentProject = value }
-    _ = backing.observeValues { [weak self] value in
-      guard let self else { return }
-      if !value.cancelable { self.hasSeenDisallowedCancellation = true }
-      if self.backingHasLoaded { self.onFinish?(nil) }
-      self.backingHasLoaded = true
-    }
     _ = project.observeValues { [weak self] value in
       self?.titleProject = value
       self?.updateTitle()
@@ -194,9 +188,6 @@ public final class ManagePledgeViewModel:
     _ = userIsCreatorOfProject.observeValues { [weak self] value in
       self?.titleIsCreator = value
       self?.updateTitle()
-    }
-    _ = backing.observeValues { [weak self] backing in
-      self?.onPaymentMethod?(managePledgePaymentMethodViewData(with: backing))
     }
     project.combineLatest(with: backing).observeValues { [weak self] project, backing in
       let rewards = distinctRewards([backing.reward ?? .noReward] + (backing.addOns ?? []))
@@ -217,20 +208,24 @@ public final class ManagePledgeViewModel:
         rewardReceivedWithData: received, rewardReceivedViewControllerViewIsHidden: latestDelivery == 0
       ) { self?.onPledgeSummary?(data) }
     }
-    _ = backing.observeValues { [weak self] backing in
-      self?.visibilityBacking = backing
-      self?.updatePaymentMethodVisibility()
-    }
     _ = userIsCreatorOfProject.observeValues { [weak self] isCreator in
       self?.visibilityIsCreator = isCreator
       self?.updatePaymentMethodVisibility()
       self?.onPledgeDetailsLabel?(isCreator ? Strings.Pledge_details() : Strings.Your_pledge_details())
     }
-    _ = backing.observeValues { [weak self] backing in
-      let enabled = isPledgeOverTime(with: backing)
-      self?.onPlotScheduleHidden?(!enabled)
-      if enabled { self?.onPlotSchedule?(backing.paymentIncrements) }
-    }
+
+  }
+
+  private func presentBacking(_ backing: Backing) {
+    if !backing.cancelable { self.hasSeenDisallowedCancellation = true }
+    if self.backingHasLoaded { self.onFinish?(nil) }
+    self.backingHasLoaded = true
+    self.onPaymentMethod?(managePledgePaymentMethodViewData(with: backing))
+    self.visibilityBacking = backing
+    self.updatePaymentMethodVisibility()
+    let enabled = isPledgeOverTime(with: backing)
+    self.onPlotScheduleHidden?(!enabled)
+    if enabled { self.onPlotSchedule?(backing.paymentIncrements) }
   }
 
   private func scheduleReadResult(_ action: @escaping @MainActor () -> Void) {
@@ -266,6 +261,7 @@ public final class ManagePledgeViewModel:
           guard let self, self.backingReadIdentity.id == id,
                 feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
           self.backingValues.input.send(value: backing)
+          self.presentBacking(backing)
           self.scheduleRefreshEnd()
         }
       } catch is CancellationError {
