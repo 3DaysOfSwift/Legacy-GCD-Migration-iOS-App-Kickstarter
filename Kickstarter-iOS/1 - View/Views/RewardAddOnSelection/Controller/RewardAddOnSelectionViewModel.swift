@@ -70,6 +70,9 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private var displayedChanges: SelectedRewardQuantities?
   private var backedQuantities: SelectedRewardQuantities?
   private var baseQuantities: SelectedRewardQuantities?
+  private let cardItems = Signal<[RewardAddOnSelectionDataSourceItem], Never>.pipe()
+  private var latestCardData: ([Reward], Project, Reward, PledgeViewContext, ShippingRule?)?
+  private var latestCardQuantities: SelectedRewardQuantities?
   private var addOnsRequestID: UUID?
   deinit {
     self.addOnsTask?.cancel()
@@ -142,27 +145,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       )
     }
 
-    let reloadRewardsIntoDataSource =
-      rewardAddOnCardsViewData
-      .withLatest(from: latestSelectedQuantities)
-      .map(unpack)
-      .map(rewardsData)
-
-    let loadAddOnRewardsIntoDataSourceAndReloadTableView = Signal.merge(
-      reloadRewardsIntoDataSource,
-      requestErrored.filter(isTrue).mapConst([.emptyState(.errorPullToRefresh)])
-    )
-
-    let loadAddOnRewardsIntoDataSource =
-      rewardAddOnCardsViewData
-      .takePairWhen(latestSelectedQuantities)
-      .map(unpack)
-      .map(rewardsData)
-
-    let dataSourceItems = Signal.merge(
-      loadAddOnRewardsIntoDataSourceAndReloadTableView,
-      loadAddOnRewardsIntoDataSource
-    )
+    let dataSourceItems = self.cardItems.output
 
     let allAddOnRewards = Signal.merge(
       // All add-ons from the data source.
@@ -362,8 +345,19 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     _ = pageTitle.observeValues { [weak self] value in self?.onPageTitle?(value) }
     _ = startRefreshing.observeValues { [weak self] _ in self?.onStartRefreshing?() }
     _ = endRefreshing.observeValues { [weak self] _ in self?.onEndRefreshing?() }
-    _ = loadAddOnRewardsIntoDataSourceAndReloadTableView.observeValues { [weak self] value in self?.onLoadAndReloadRewards?(value) }
-    _ = loadAddOnRewardsIntoDataSource.observeValues { [weak self] value in self?.onLoadRewards?(value) }
+    _ = rewardAddOnCardsViewData.observeValues { [weak self] data in
+      self?.latestCardData = data
+      self?.publishCards(reload: true)
+    }
+    _ = latestSelectedQuantities.observeValues { [weak self] quantities in
+      self?.latestCardQuantities = quantities
+      self?.publishCards(reload: false)
+    }
+    _ = requestErrored.filter(isTrue).observeValues { [weak self] _ in
+      let items: [RewardAddOnSelectionDataSourceItem] = [.emptyState(.errorPullToRefresh)]
+      self?.cardItems.input.send(value: items)
+      self?.onLoadAndReloadRewards?(items)
+    }
     _ = configurePledgeAmountViewWithData.observeValues { [weak self] value in self?.onConfigureAmount?(value) }
     _ = goToPledge.observeValues { [weak self] value in self?.onGoToPledge?(value) }
     _ = configureContinueCTAViewWithData.observeValues { [weak self] value in self?.onConfigureContinue?(value) }
@@ -382,6 +376,17 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     _ = refreshAddons.observeValues { [weak self] data in
       self?.loadAddOns(for: data)
     }
+  }
+
+  private func publishCards(reload: Bool) {
+    guard let data = self.latestCardData, let quantities = self.latestCardQuantities else { return }
+    let items = rewardsData(
+      addOns: data.0, project: data.1, baseReward: data.2,
+      context: data.3, shippingRule: data.4, selectedQuantities: quantities
+    )
+    self.cardItems.input.send(value: items)
+    if reload { self.onLoadAndReloadRewards?(items) }
+    else { self.onLoadRewards?(items) }
   }
 
   private func loadAddOns(for data: PledgeViewData) {
@@ -463,15 +468,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 }
 
 // MARK: - Functions
-
-private func unpack(
-  rewardsData: ([Reward], Project, Reward, PledgeViewContext, ShippingRule?),
-  selectedQuantities: SelectedRewardQuantities
-) -> ([Reward], Project, Reward, PledgeViewContext, ShippingRule?, SelectedRewardQuantities) {
-  return (
-    rewardsData.0, rewardsData.1, rewardsData.2, rewardsData.3, rewardsData.4, selectedQuantities
-  )
-}
 
 private func rewardsData(
   addOns: [Reward],
