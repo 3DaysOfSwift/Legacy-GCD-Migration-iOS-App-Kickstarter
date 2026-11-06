@@ -82,6 +82,12 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private var totalRewards: [Reward]?
   private var totalQuantities: SelectedRewardQuantities?
   private var totalBonus: Double?
+  private var ctaCount: Int?
+  private var ctaValid: Bool?
+  private var ctaHasAddOns: Bool?
+  private var ctaTotal: NSAttributedString?
+  private var hasCTATotal = false
+  private var sentInitialCTA = false
   private let validityEvents = Signal<Bool, Never>.pipe()
   private var validationProject: Project?
   private var validationInitialBonus: Double?
@@ -224,16 +230,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 
     let attibutedPledgeTotal = Signal.combineLatest(project, pledgeTotal).map(attributedCurrency)
 
-    let configureContinueCTAViewWithData = Signal.merge(
-      // Updated values.
-      Signal.combineLatest(totalSelectedAddOnsQuantity, enableContinueButton, attibutedPledgeTotal)
-        .map { qty, isValid, total in (qty, isValid, false, total) },
-      // Initial values. Note that button only loads if there are add-ons to fetch.
-      Signal.combineLatest(hasAddOns, attibutedPledgeTotal)
-        .map { hasAddOns, total in (0, true, hasAddOns, total) }
-        .take(first: 1)
-    )
-
     // MARK: - Tracking
 
     // shippingRule needs to be set for the event is fired
@@ -372,7 +368,24 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     }
     _ = configurePledgeAmountViewWithData.observeValues { [weak self] value in self?.onConfigureAmount?(value) }
     _ = goToPledge.observeValues { [weak self] value in self?.onGoToPledge?(value) }
-    _ = configureContinueCTAViewWithData.observeValues { [weak self] value in self?.onConfigureContinue?(value) }
+    _ = totalSelectedAddOnsQuantity.observeValues { [weak self] value in
+      self?.ctaCount = value
+      self?.publishUpdatedCTA()
+    }
+    _ = enableContinueButton.observeValues { [weak self] value in
+      self?.ctaValid = value
+      self?.publishUpdatedCTA()
+    }
+    _ = hasAddOns.observeValues { [weak self] value in
+      self?.ctaHasAddOns = value
+      self?.publishInitialCTA()
+    }
+    _ = attibutedPledgeTotal.observeValues { [weak self] value in
+      self?.ctaTotal = value
+      self?.hasCTATotal = true
+      self?.publishUpdatedCTA()
+      self?.publishInitialCTA()
+    }
     _ = project.observeValues { [weak self] project in
       self?.backedQuantities = project.personalization.backing.map(selectedRewardQuantities(in:)) ?? [:]
       self?.publishSelectedQuantities()
@@ -388,6 +401,17 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     _ = refreshAddons.observeValues { [weak self] data in
       self?.loadAddOns(for: data)
     }
+  }
+
+  private func publishInitialCTA() {
+    guard !self.sentInitialCTA, self.hasCTATotal, let hasAddOns = self.ctaHasAddOns else { return }
+    self.sentInitialCTA = true
+    self.onConfigureContinue?((0, true, hasAddOns, self.ctaTotal))
+  }
+
+  private func publishUpdatedCTA() {
+    guard self.hasCTATotal, let count = self.ctaCount, let valid = self.ctaValid else { return }
+    self.onConfigureContinue?((count, valid, false, self.ctaTotal))
   }
 
   private func publishValidity() {
