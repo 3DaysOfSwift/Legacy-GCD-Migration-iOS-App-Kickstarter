@@ -200,6 +200,8 @@ public protocol AppDelegateViewModelType {
 @MainActor
 public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateViewModelInputs,
   AppDelegateViewModelOutputs {
+  private let navigationEvents = Signal<Navigation, Never>.pipe()
+  private let urlEvents = Signal<URL, Never>.pipe()
   private let lifecycleFeature: AppLifecycleFeature
   private let navigationRoute = UUID()
   @MainActor private final class RedirectObservation {
@@ -243,54 +245,9 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     let lifecycleFeature = lifecycleFeature ?? AppModel.shared.appLifecycleFeature
     self.lifecycleFeature = lifecycleFeature
     let settingsFeature = lifecycleFeature.settingsFeature
-    let openUrl = self.applicationOpenUrlProperty.signal.skipNil()
-
-    // Deep links. For more information, see
-    // https://app.getguru.com/card/cyRdjqgi/How-iOS-Universal-Links-work
-
-    let deepLinkFromNotification = self.remoteNotificationProperty.signal.skipNil()
-      .map { navigation(fromPushEnvelope: $0) }
-
-    let urlFromBraze = self.brazeNotificationURLProperty.signal.skipNil()
-
-    let deepLinkFromBraze = urlFromBraze.map { Navigation.deepLinkMatch($0) }
-
-    let continueUserActivity = self.applicationContinueUserActivityProperty.signal.skipNil()
-
-    let deepLinkUrl = Signal
-      .merge(
-        openUrl.map { $0.url },
-        self.foundRedirectUrlProperty.signal.skipNil(),
-        continueUserActivity
-          .filter { $0.activityType == NSUserActivityTypeBrowsingWeb }
-          .map { $0.webpageURL }
-          .skipNil()
-      )
-
-    let deepLinkFromUrl = deepLinkUrl.map { Navigation.match($0) }
-
-    let performShortcutItem = Signal.merge(
-      self.performActionForShortcutItemProperty.signal.skipNil(),
-      self.applicationLaunchOptionsProperty.signal
-        .map { $0?.options?[UIApplication.LaunchOptionsKey.shortcutItem] as? UIApplicationShortcutItem }
-        .skipNil()
-    )
-    .map { ShortcutItem(typeString: $0.type) }
-    .skipNil()
-
-    let deepLinkFromShortcut = performShortcutItem
-      .switchMap(navigation(fromShortcutItem:))
-
-    let deeplinkActivated = Signal
-      .merge(
-        deepLinkFromUrl,
-        deepLinkFromNotification,
-        deepLinkFromBraze,
-        deepLinkFromShortcut
-      )
-      .skipNil()
-
-    let deepLink = deeplinkActivated
+    // Transitional streams for the two remaining asynchronous settings operations.
+    let deepLink = self.navigationEvents.output
+    let deepLinkUrl = self.urlEvents.output
     let updatedUserNotificationSettings = deepLink.filter { nav in
       guard case .settings(.notifications) = nav else { return false }
       return true
@@ -329,10 +286,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       if Navigation.match(url) == .emailClick { self?.onFindRedirectUrl?(url) }
       if shouldOpenUrlInBrowser(url) { self?.onGoToMobileSafari?(url) }
     }
-    urlFromBraze.observeValues { [weak self] url in
-      if shouldOpenUrlInBrowser(url) { self?.onGoToMobileSafari?(url) }
-    }
-
     deepLink.observeValues { [weak self] navigation in
       if navigation == .tab(.activity) { self?.onGoToActivity?() }
       if navigation == .tab(.search) { self?.onGoToSearch?() }
@@ -598,25 +551,24 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     }
   }
 
-  fileprivate let applicationContinueUserActivityProperty = MutableProperty<NSUserActivity?>(nil)
   public func applicationContinueUserActivity(_ userActivity: NSUserActivity) -> Bool {
     if userActivity.activityType == NSUserActivityTypeBrowsingWeb {
       self.continueUserActivityReturnValue = userActivity.webpageURL.flatMap { Navigation.match($0) } != nil
     }
-    self.applicationContinueUserActivityProperty.value = userActivity
+    if userActivity.activityType == NSUserActivityTypeBrowsingWeb, let url = userActivity.webpageURL {
+      self.handleURL(url)
+    }
     return self.continueUserActivityReturnValue
   }
 
-  fileprivate typealias ApplicationWithOptions = (
-    application: UIApplication?, options: [UIApplication.LaunchOptionsKey: Any]?
-  )
-  fileprivate let applicationLaunchOptionsProperty = MutableProperty<ApplicationWithOptions?>(nil)
   public func applicationDidFinishLaunching(
     application: UIApplication?,
     launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) {
     self.applicationDidFinishLaunchingReturnValue = launchOptions?[UIApplication.LaunchOptionsKey.shortcutItem] == nil
-    self.applicationLaunchOptionsProperty.value = (application, launchOptions)
+    if let item = launchOptions?[.shortcutItem] as? UIApplicationShortcutItem {
+      self.applicationPerformActionForShortcutItem(item)
+    }
     self.checkPushAuthorizationForLaunch()
     self.checkPushAuthorizationForBadge()
     self.hasLaunchEvent = true
@@ -653,9 +605,9 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public func applicationDidReceiveMemoryWarning() {
   }
 
-  fileprivate let performActionForShortcutItemProperty = MutableProperty<UIApplicationShortcutItem?>(nil)
   public func applicationPerformActionForShortcutItem(_ item: UIApplicationShortcutItem) {
-    self.performActionForShortcutItemProperty.value = item
+    guard let shortcut = ShortcutItem(typeString: item.type) else { return }
+    self.navigationEvents.input.send(value: navigation(fromShortcutItem: shortcut))
   }
 
   public func currentUserUpdatedInEnvironment() {
@@ -673,13 +625,14 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.onSegmentEnabled?(enabled)
   }
 
-  fileprivate let remoteNotificationProperty = MutableProperty<PushEnvelope?>(nil)
   public func didReceive(remoteNotification notification: [AnyHashable: Any]) {
-    self.remoteNotificationProperty.value = PushEnvelope.decodeJSONDictionary(notification)
+    if let envelope = PushEnvelope.decodeJSONDictionary(notification) { self.didReceive(pushEnvelope: envelope) }
   }
 
   public func didReceive(pushEnvelope: PushEnvelope) {
-    self.remoteNotificationProperty.value = pushEnvelope
+    if let navigation = navigation(fromPushEnvelope: pushEnvelope) {
+      self.navigationEvents.input.send(value: navigation)
+    }
   }
 
   public func didRegisterForRemoteNotifications(withDeviceTokenData data: Data) {
@@ -723,27 +676,20 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.onPostNotification?(Notification(name: .ksr_remoteConfigClientConfigured, object: nil))
   }
 
-  private let foundRedirectUrlProperty = MutableProperty<URL?>(nil)
   public func foundRedirectUrl(_ url: URL) {
-    self.foundRedirectUrlProperty.value = url
+    self.handleURL(url)
   }
 
   public func goToLoginSignup(from intent: LoginIntent) {
     self.onGoToLoginWithIntent?(intent)
   }
 
-  fileprivate typealias ApplicationOpenUrl = (
-    application: UIApplication?,
-    url: URL,
-    options: [UIApplication.OpenURLOptionsKey: Any]
-  )
-  fileprivate let applicationOpenUrlProperty = MutableProperty<ApplicationOpenUrl?>(nil)
   public func applicationOpenUrl(
     application: UIApplication?,
     url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any]
   ) -> Bool {
-    self.applicationOpenUrlProperty.value = (application, url, options)
+    self.handleURL(url)
     return true
   }
 
@@ -765,9 +711,15 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.refreshConfiguration()
   }
 
-  fileprivate let brazeNotificationURLProperty = MutableProperty<URL?>(nil)
   public func urlFromBrazeNotification(_ url: URL?) {
-    self.brazeNotificationURLProperty.value = url
+    guard let url else { return }
+    if let navigation = Navigation.deepLinkMatch(url) { self.navigationEvents.input.send(value: navigation) }
+    if shouldOpenUrlInBrowser(url) { self.onGoToMobileSafari?(url) }
+  }
+
+  private func handleURL(_ url: URL) {
+    if let navigation = Navigation.match(url) { self.navigationEvents.input.send(value: navigation) }
+    self.urlEvents.input.send(value: url)
   }
 
   public private(set) var applicationDidFinishLaunchingReturnValue = true
@@ -914,22 +866,22 @@ private func navigation(fromPushEnvelope envelope: PushEnvelope) -> Navigation? 
 }
 
 // Figures out a `Navigation` to route the user to from a shortcut item.
-private func navigation(fromShortcutItem shortcutItem: ShortcutItem) -> SignalProducer<Navigation?, Never> {
+private func navigation(fromShortcutItem shortcutItem: ShortcutItem) -> Navigation {
   switch shortcutItem {
   case .recommendedForYou:
     let params = .defaults
       |> DiscoveryParams.lens.recommended .~ true
       |> DiscoveryParams.lens.sort .~ .magic
-    return SignalProducer(value: .tab(.discovery(params.queryParams)))
+    return .tab(.discovery(params.queryParams))
 
   case .projectsWeLove:
     let params = .defaults
       |> DiscoveryParams.lens.staffPicks .~ true
       |> DiscoveryParams.lens.sort .~ .magic
-    return SignalProducer(value: .tab(.discovery(params.queryParams)))
+    return .tab(.discovery(params.queryParams))
 
   case .search:
-    return SignalProducer(value: .tab(.search))
+    return .tab(.search)
   }
 }
 
