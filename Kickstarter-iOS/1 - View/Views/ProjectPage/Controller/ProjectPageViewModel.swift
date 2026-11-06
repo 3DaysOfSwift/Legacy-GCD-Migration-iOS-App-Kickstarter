@@ -310,7 +310,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   private var projectDetailsObservation: MainActorObservation?
   private let projectRoute = UUID()
   private var latestProject: Project?
-  private let featureBindings = ScopedDisposable(CompositeDisposable())
+  private var requestRefTag: RefTag?
   internal private(set) var loadingTask: Task<Void, Never>?
 
   public init(projectDetailsFeature: ProjectDetailsFeature? = nil, projectMediaFeature: ProjectMediaFeature? = nil) {
@@ -719,7 +719,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
       }
 
     let route = self.projectRoute
-    var requestRefTag: RefTag?
     self.projectDetailsObservation = projectDetailsFeature.observe { [weak self] update in
       guard let self else { return }
       switch update {
@@ -730,26 +729,20 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         case let .success(project):
           self.latestProject = project
           self.onProjectFlagged?(project.flagging ?? false)
-          completion.input.send(value: .value((project, requestRefTag)))
+          completion.input.send(value: .value((project, self.requestRefTag)))
         case let .failure(error): completion.input.send(value: .failed(error))
         }
       default: break
       }
     }
-    let loadRequests = Signal.merge(
-      self.viewDidLoadProperty.signal.mapConst(false),
-      self.userSessionStartedProperty.signal.mapConst(true),
-      self.didBackProjectProperty.signal.mapConst(true),
-      self.managePledgeViewControllerFinishedWithMessageProperty.signal.mapConst(true),
-      self.pledgeRetryButtonTappedProperty.signal.mapConst(false)
+  }
+
+  private func loadProject(force: Bool) {
+    guard let (projectOrParam, refInfo, token) = self.configDataProperty.value else { return }
+    self.requestRefTag = refInfo?.refTag.map(cleanUp(refTag:))
+    self.loadingTask = self.projectDetailsFeature.requestLoad(
+      route: self.projectRoute, param: projectOrParam.param.param, secretRewardToken: token, force: force
     )
-    self.featureBindings += loadRequests.observeValues { [weak self] force in
-      guard let self, let (projectOrParam, refInfo, token) = self.configDataProperty.value else { return }
-      requestRefTag = refInfo?.refTag.map(cleanUp(refTag:))
-      self.loadingTask = projectDetailsFeature.requestLoad(
-        route: route, param: projectOrParam.param.param, secretRewardToken: token, force: force
-      )
-    }
   }
 
   internal func waitForBlocking() async {
@@ -831,10 +824,9 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.configureWith(projectOrParam: projectOrParam, refInfo: refInfo, secretRewardToken: nil)
   }
 
-  private let didBackProjectProperty = MutableProperty<Void>(())
   public func didBackProject() {
     self.onNavigateBackToProjectPage?()
-    self.didBackProjectProperty.value = ()
+    self.loadProject(force: true)
   }
 
   fileprivate let didSelectFAQsRowAtProperty = MutableProperty<(Int, [Bool])?>(nil)
@@ -849,6 +841,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   private let managePledgeViewControllerFinishedWithMessageProperty = MutableProperty<String?>(nil)
   public func managePledgeViewControllerFinished(with message: String?) {
     self.managePledgeViewControllerFinishedWithMessageProperty.value = message
+    self.loadProject(force: true)
   }
 
   private let pledgeCTAButtonTappedProperty = MutableProperty<PledgeStateCTAType?>(nil)
@@ -856,9 +849,8 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.pledgeCTAButtonTappedProperty.value = state
   }
 
-  private let pledgeRetryButtonTappedProperty = MutableProperty(())
   public func pledgeRetryButtonTapped() {
-    self.pledgeRetryButtonTappedProperty.value = ()
+    self.loadProject(force: false)
   }
 
   private let prepareImageAtProperty = MutableProperty<IndexPath?>(nil)
@@ -904,14 +896,14 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.onGoToReportProject?((project.flagging ?? false, "\(project.graphID)", project.urls.web.project))
   }
 
-  fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
-    self.userSessionStartedProperty.value = ()
+    self.loadProject(force: true)
   }
 
   fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
+    self.loadProject(force: false)
   }
 
   fileprivate let viewDidAppearAnimatedProperty = MutableProperty(false)
