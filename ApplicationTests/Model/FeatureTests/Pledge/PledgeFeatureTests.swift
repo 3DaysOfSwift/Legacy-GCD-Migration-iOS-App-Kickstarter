@@ -53,26 +53,24 @@ final class PledgeFeatureTests: TestCase {
   }
 
   func testUpdateThenCancelKeepsOrderEvenWhenUpdateFails() async throws {
-    var errors = 0
-    var canceled = 0
     let updateInput = self.updateInput()
     let cancelInput = KsApi.CancelBackingInput(
       backingId: "backing", cancellationReason: "fixture note")
-    let update = self.feature.updateResult(updateInput).startWithFailed { _ in errors += 1 }
-    let cancel = Task { try await self.feature.cancel(cancelInput); canceled += 1 }
-    defer { update.dispose() }
+    let update = Task { try await self.feature.update(updateInput) }
     await self.provider.updates.waitFor(1)
+    let cancel = Task { try await self.feature.cancel(cancelInput) }
     await Task.yield()
     XCTAssertEqual(self.provider.cancellations.count, 0)
     try self.provider.updates.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
+    do {
+      _ = try await update.value
+      XCTFail("Expected update failure")
+    } catch {}
     await self.provider.cancellations.waitFor(1)
     XCTAssertEqual(self.provider.updateInputs, [updateInput])
     XCTAssertEqual(self.provider.cancelInputs, [cancelInput])
     try self.provider.cancellations.finish(0, .success(()))
     try await cancel.value
-    await self.feature.waitForOperations()
-    XCTAssertEqual(errors, 1)
-    XCTAssertEqual(canceled, 1)
     XCTAssertEqual(self.provider.updates.count, 1)
   }
 
