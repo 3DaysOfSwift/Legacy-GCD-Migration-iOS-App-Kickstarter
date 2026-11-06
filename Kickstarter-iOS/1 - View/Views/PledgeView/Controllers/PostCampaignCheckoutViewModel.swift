@@ -271,19 +271,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       return (rewardsData, bonus, pledgeData)
     }
 
-    let stripeConfiguration = Signal.combineLatest(
-      initialData,
-      context
-    )
-    .filter { !$1.paymentMethodsViewHidden }
-    .ignoreValues()
-    .map { _ in
-      (
-        Secrets.ApplePay.merchantIdentifier,
-        AppEnvironment.current.environmentType.stripePublishableKey
-      )
-    }
-
     self.configureEstimatedShippingView = Signal.combineLatest(
       project,
       rewards,
@@ -649,7 +636,13 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       }
     }
 
-    _ = stripeConfiguration.observeValues { [weak self] in self?.onConfigureStripe?($0.0, $0.1) }
+    _ = initialData.observeValues { [weak self] data in
+      guard !data.context.paymentMethodsViewHidden else { return }
+      self?.onConfigureStripe?(
+        Secrets.ApplePay.merchantIdentifier,
+        AppEnvironment.current.environmentType.stripePublishableKey
+      )
+    }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
     paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
