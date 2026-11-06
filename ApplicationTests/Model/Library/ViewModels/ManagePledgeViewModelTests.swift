@@ -88,6 +88,23 @@ internal final class ManagePledgeViewModelTests: TestCase {
     }
   }
 
+  func testNavigationActionsWaitForPledgeData() {
+    self.vm.inputs.menuButtonTapped()
+    self.vm.inputs.fixButtonTapped()
+    self.vm.inputs.menuOptionSelected(with: .changePaymentMethod)
+    self.vm.inputs.menuOptionSelected(with: .chooseAnotherReward)
+    self.vm.inputs.menuOptionSelected(with: .contactCreator)
+    self.vm.inputs.menuOptionSelected(with: .cancelPledge)
+
+    self.showActionSheetMenuWithOptions.assertDidNotEmitValue()
+    self.goToFixPaymentMethod.assertDidNotEmitValue()
+    self.goToChangePaymentMethod.assertDidNotEmitValue()
+    self.goToRewards.assertDidNotEmitValue()
+    self.goToContactCreatorSubject.assertDidNotEmitValue()
+    self.goToCancelPledge.assertDidNotEmitValue()
+    self.showErrorBannerWithMessage.assertDidNotEmitValue()
+  }
+
   func testNavigationBarTitle_LiveProject() async {
     self.title.assertDidNotEmitValue()
 
