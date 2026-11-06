@@ -155,7 +155,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var pushTokenSuccessfullyRegistered: Signal<String, Never> { get }
 
   /// Emits when we should register the device push token in Braze.
-  var registerPushTokenInBraze: Signal<Data, Never> { get }
+  var onRegisterPushTokenInBraze: ((Data) -> Void)? { get set }
 
   /// Emits when application didFinishLaunchingWithOptions.
   var requestATTrackingAuthorizationStatus: Signal<Void, Never> { get }
@@ -179,7 +179,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var triggerOnboardingFlow: Signal<(), Never> { get }
 
   /// Emits when we should unregister the user from notifications.
-  var unregisterForRemoteNotifications: Signal<(), Never> { get }
+  var onUnregisterForRemoteNotifications: (() -> Void)? { get set }
 
   /// Emits a fresh user to be updated in the app environment.
   var updateCurrentUserInEnvironment: Signal<User, Never> { get }
@@ -301,7 +301,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       .ignoreValues()
 
 
-    self.unregisterForRemoteNotifications = self.userSessionEndedProperty.signal
 
     self.pushTokenSuccessfullyRegistered = self.deviceTokenDataProperty.signal
       .map(deviceToken(fromData:))
@@ -311,7 +310,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
         return lifecycleResult(feature: lifecycleFeature) { try await request.value }.demoteErrors()
       }
 
-    self.registerPushTokenInBraze = self.deviceTokenDataProperty.signal
 
     // MARK: - Onboarding Flow
 
@@ -659,6 +657,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   fileprivate let deviceTokenDataProperty = MutableProperty(Data())
   public func didRegisterForRemoteNotifications(withDeviceTokenData data: Data) {
     self.deviceTokenDataProperty.value = data
+    self.onRegisterPushTokenInBraze?(data)
   }
 
   fileprivate let didAcceptReceivingRemoteNotificationsProperty = MutableProperty(())
@@ -710,6 +709,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   fileprivate let userSessionEndedProperty = MutableProperty(())
   public func userSessionEnded() {
     self.userSessionEndedProperty.value = ()
+    self.onUnregisterForRemoteNotifications?()
   }
 
   fileprivate let userSessionStartedProperty = MutableProperty(())
@@ -748,7 +748,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public let presentViewController: Signal<UIViewController, Never>
   public let pushTokenRegistrationStarted: Signal<(), Never>
   public let pushTokenSuccessfullyRegistered: Signal<String, Never>
-  public let registerPushTokenInBraze: Signal<Data, Never>
+  public var onRegisterPushTokenInBraze: ((Data) -> Void)?
   public let requestATTrackingAuthorizationStatus: Signal<Void, Never>
   public let segmentIsEnabled: Signal<Bool, Never>
   public let setApplicationShortcutItems: Signal<[ShortcutItem], Never>
@@ -756,7 +756,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public var onSynchronizeUbiquitousStore: (() -> Void)?
   public let trackingAuthorizationStatus: SignalProducer<AppTrackingAuthorization, Never>
   public let triggerOnboardingFlow: Signal<(), Never>
-  public let unregisterForRemoteNotifications: Signal<(), Never>
+  public var onUnregisterForRemoteNotifications: (() -> Void)?
   public let updateCurrentUserInEnvironment: Signal<User, Never>
   public let notificationSettingsUpdated: Signal<Void, Never>
   public let updateConfigInEnvironment: Signal<Config, Never>

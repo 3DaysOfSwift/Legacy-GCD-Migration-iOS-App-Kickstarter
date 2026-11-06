@@ -216,11 +216,9 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
         print("📲 [Push Registration] Push token successfully registered (\(token)) ✨")
       }
 
-    self.viewModel.outputs.registerPushTokenInBraze
-      .observeForUI()
-      .observeValues { token in
-        self.braze?.notifications.register(deviceToken: token)
-      }
+    self.viewModel.outputs.onRegisterPushTokenInBraze = { [weak self] token in
+      DispatchQueue.main.async { [weak self] in self?.braze?.notifications.register(deviceToken: token) }
+    }
 
     self.viewModel.outputs.triggerOnboardingFlow
       .observeForUI()
@@ -251,9 +249,9 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       DispatchQueue.main.async { [weak self] in self?.presentContextualPermissionAlert(notification) }
     }
 
-    self.viewModel.outputs.unregisterForRemoteNotifications
-      .observeForUI()
-      .observeValues(UIApplication.shared.unregisterForRemoteNotifications)
+    self.viewModel.outputs.onUnregisterForRemoteNotifications = {
+      DispatchQueue.main.async { UIApplication.shared.unregisterForRemoteNotifications() }
+    }
 
     #if RELEASE || INTERNAL_BUILD
       self.viewModel.outputs.onConfigureFirebase = { [weak self] in

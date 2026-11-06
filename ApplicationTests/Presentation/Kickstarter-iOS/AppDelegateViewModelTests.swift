@@ -131,7 +131,7 @@ final class AppDelegateViewModelTests: TestCase {
       .observe(self.presentViewController.observer)
     self.vm.outputs.pushTokenRegistrationStarted.observe(self.pushRegistrationStarted.observer)
     self.vm.outputs.pushTokenSuccessfullyRegistered.observe(self.pushTokenSuccessfullyRegistered.observer)
-    self.vm.outputs.registerPushTokenInBraze.observe(self.registerPushTokenInBraze.observer)
+    self.vm.outputs.onRegisterPushTokenInBraze = { [weak self] in self?.registerPushTokenInBraze.observer.send(value: $0) }
     self.vm.outputs.requestATTrackingAuthorizationStatus
       .observe(self.requestATTrackingAuthorizationStatus.observer)
     self.vm.outputs.setApplicationShortcutItems.observe(self.setApplicationShortcutItems.observer)
@@ -140,7 +140,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.disposables
       .append(self.vm.outputs.trackingAuthorizationStatus.start(self.trackingAuthorizationStatus.observer))
     self.vm.outputs.triggerOnboardingFlow.observe(self.triggerOnboardingFlow.observer)
-    self.vm.outputs.unregisterForRemoteNotifications.observe(self.unregisterForRemoteNotifications.observer)
+    self.vm.outputs.onUnregisterForRemoteNotifications = { [weak self] in self?.unregisterForRemoteNotifications.observer.send(value: ()) }
     self.vm.outputs.updateCurrentUserInEnvironment.observe(self.updateCurrentUserInEnvironment.observer)
     self.vm.outputs.updateConfigInEnvironment.observe(self.updateConfigInEnvironment.observer)
   }
