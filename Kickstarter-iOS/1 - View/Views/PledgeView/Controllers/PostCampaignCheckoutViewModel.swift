@@ -376,15 +376,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       }
       .map { event, _, _, _ in event }
 
-    let thanksPageData = Signal.combineLatest(project, baseReward, pledgeTotal)
-      .compactMap { project, baseReward, pledgeTotal -> ThanksPageData in
-        (project, baseReward, nil, pledgeTotal)
-      }
-
-    let checkoutComplete: Signal<ThanksPageData, Never> = thanksPageData
-      .takeWhen(checkoutCompleteSignal.values())
-      .map { $0 }
-
     let checkoutErrors = checkoutCompleteSignal.errors()
 
     // MARK: - Error handling
@@ -598,7 +589,10 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     _ = checkoutErrors.observeValues { [weak self] in self?.onCheckoutError?($0) }
     _ = validateCheckoutSuccess.observeValues { [weak self] in self?.onValidateCheckout?($0) }
     _ = goToApplePayPaymentAuthorization.observeValues { [weak self] in self?.onApplePayAuthorization?($0) }
-    _ = checkoutComplete.observeValues { [weak self] in self?.onCheckoutComplete?($0) }
+    checkoutCompleteSignal.values().observeValues { [weak self] _ in
+      guard let self, let data = self.activeCheckoutData, let reward = data.rewards.first else { return }
+      self.onCheckoutComplete?((data.project, reward, nil, PostCampaignAmounts(data).total))
+    }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
     paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
