@@ -97,6 +97,8 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private var ctaValid: Bool?
   private var ctaHasAddOns: Bool?
   private var ctaTotal: NSAttributedString?
+  private var currencyProject: Project?
+  private var currencyTotal: Double?
   private var hasCTATotal = false
   private var sentInitialCTA = false
   private var checkoutConfiguration: PledgeViewData?
@@ -224,8 +226,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 
     let pledgeTotal = self.pledgeTotalEvents.output
 
-    let attibutedPledgeTotal = Signal.combineLatest(project, pledgeTotal).map(attributedCurrency)
-
     _ = project.observeValues { [weak self] value in
       guard let self, !self.trackedPage else { return }
       if self.initialTrackingProject == nil { self.initialTrackingProject = value }
@@ -349,11 +349,13 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       self?.ctaHasAddOns = value
       self?.publishInitialCTA()
     }
-    _ = attibutedPledgeTotal.observeValues { [weak self] value in
-      self?.ctaTotal = value
-      self?.hasCTATotal = true
-      self?.publishUpdatedCTA()
-      self?.publishInitialCTA()
+    _ = project.observeValues { [weak self] value in
+      self?.currencyProject = value
+      self?.publishCurrencyTotal()
+    }
+    _ = pledgeTotal.observeValues { [weak self] value in
+      self?.currencyTotal = value
+      self?.publishCurrencyTotal()
     }
     _ = project.observeValues { [weak self] project in
       self?.backedQuantities = project.personalization.backing.map(selectedRewardQuantities(in:)) ?? [:]
@@ -386,6 +388,14 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     AppEnvironment.current.ksrAnalytics.trackAddOnsPageViewed(
       project: project, reward: reward, checkoutData: data, refTag: config.refTag
     )
+  }
+
+  private func publishCurrencyTotal() {
+    guard let project = self.currencyProject, let total = self.currencyTotal else { return }
+    self.ctaTotal = attributedCurrency(withProject: project, total: total)
+    self.hasCTATotal = true
+    self.publishUpdatedCTA()
+    self.publishInitialCTA()
   }
 
   private func publishInitialCTA() {
