@@ -67,6 +67,9 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private var addOnsTask: Task<Void, Never>?
   private let selectedQuantitiesEvents = Signal<SelectedRewardQuantities, Never>.pipe()
   private var changedQuantities: SelectedRewardQuantities = [:]
+  private var displayedChanges: SelectedRewardQuantities?
+  private var backedQuantities: SelectedRewardQuantities?
+  private var baseQuantities: SelectedRewardQuantities?
   private var addOnsRequestID: UUID?
   deinit {
     self.addOnsTask?.cancel()
@@ -121,32 +124,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 
     let requestErrored = addOnsEvent.map(\.error).map(isNotNil)
 
-    // Configuration resets the displayed selection; individual changes are owned directly.
-    let updatedSelectedQuantities = self.selectedQuantitiesEvents.output
-
-    let backedQuantities = project.map { project -> SelectedRewardQuantities in
-      guard let backing = project.personalization.backing else { return [:] }
-
-      return selectedRewardQuantities(in: backing)
-    }
-
-    // Backed quantities overwritten by user-selected quantities.
-    let selectedAddOnQuantities = Signal.combineLatest(
-      updatedSelectedQuantities,
-      backedQuantities
-    )
-    .map { updatedSelectedQuantities, backedQuantities in
-      backedQuantities.withAllValuesFrom(updatedSelectedQuantities)
-    }
-
-    // User-selected and backed quantities combined with the base reward selection.
-    let selectedQuantities = Signal.combineLatest(
-      selectedAddOnQuantities,
-      baseRewardQuantities
-    )
-    .map { selectedAddOnQuantities, baseRewardQuantities in
-      selectedAddOnQuantities.withAllValuesFrom(baseRewardQuantities)
-    }
+    let selectedQuantities = self.selectedQuantitiesEvents.output
 
     let latestSelectedQuantities = Signal.merge(
       baseRewardQuantities,
@@ -389,8 +367,17 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     _ = configurePledgeAmountViewWithData.observeValues { [weak self] value in self?.onConfigureAmount?(value) }
     _ = goToPledge.observeValues { [weak self] value in self?.onGoToPledge?(value) }
     _ = configureContinueCTAViewWithData.observeValues { [weak self] value in self?.onConfigureContinue?(value) }
+    _ = project.observeValues { [weak self] project in
+      self?.backedQuantities = project.personalization.backing.map(selectedRewardQuantities(in:)) ?? [:]
+      self?.publishSelectedQuantities()
+    }
+    _ = baseRewardQuantities.observeValues { [weak self] quantities in
+      self?.baseQuantities = quantities
+      self?.publishSelectedQuantities()
+    }
     _ = configData.observeValues { [weak self] _ in
-      self?.selectedQuantitiesEvents.input.send(value: [:])
+      self?.displayedChanges = [:]
+      self?.publishSelectedQuantities()
     }
     _ = refreshAddons.observeValues { [weak self] data in
       self?.loadAddOns(for: data)
@@ -449,7 +436,14 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     rewardId: SelectedRewardId
   ) {
     self.changedQuantities[rewardId] = quantity
-    self.selectedQuantitiesEvents.input.send(value: self.changedQuantities)
+    self.displayedChanges = self.changedQuantities
+    self.publishSelectedQuantities()
+  }
+
+  private func publishSelectedQuantities() {
+    guard let backed = self.backedQuantities, let changed = self.displayedChanges,
+          let base = self.baseQuantities else { return }
+    self.selectedQuantitiesEvents.input.send(value: backed.withAllValuesFrom(changed).withAllValuesFrom(base))
   }
 
   // MARK: - Outputs
