@@ -4,8 +4,6 @@
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import UIKit
 import XCTest
 
@@ -18,15 +16,15 @@ final class RootViewModelTests: TestCase {
   private lazy var vm = RootViewModel(profileFeature: ProfileFeature(
     sessionFeature: self.sessionFeature,
     makeProvider: { AsyncProfileProvider(service: AppEnvironment.current.apiService) }))
-  let viewControllerNames = TestObserver<[String], Never>()
-  let filterDiscovery = TestObserver<DiscoveryParams, Never>()
-  let floatingTabBarEnabled = TestObserver<Bool, Never>()
-  let selectedIndex = TestObserver<RootViewControllerIndex, Never>()
-  let setBadgeValueAtIndexValue = TestObserver<String?, Never>()
-  let setBadgeValueAtIndexIndex = TestObserver<RootViewControllerIndex, Never>()
-  let scrollToTopControllerName = TestObserver<String, Never>()
-  let tabBarItemsData = TestObserver<TabBarItemsData, Never>()
-  let updateUserInEnvironment = TestObserver<User, Never>()
+  let viewControllerNames = ValueRecorder<[String]>()
+  let filterDiscovery = ValueRecorder<DiscoveryParams>()
+  let floatingTabBarEnabled = ValueRecorder<Bool>()
+  let selectedIndex = ValueRecorder<RootViewControllerIndex>()
+  let setBadgeValueAtIndexValue = ValueRecorder<String?>()
+  let setBadgeValueAtIndexIndex = ValueRecorder<RootViewControllerIndex>()
+  let scrollToTopControllerName = ValueRecorder<String>()
+  let tabBarItemsData = ValueRecorder<TabBarItemsData>()
+  let updateUserInEnvironment = ValueRecorder<User>()
 
   func testAvatarLogoutSuppressesLateImage() async throws {
     let gate = RootAvatarRequestGate<Data>()
@@ -68,24 +66,24 @@ final class RootViewModelTests: TestCase {
 
     MainActor.assumeIsolated {
       self.vm.outputs.onSetViewControllers = { [weak self] in
-        self?.viewControllerNames.observer.send(value: extractRootNames($0))
+        self?.viewControllerNames.record(extractRootNames($0))
       }
 
-      self.vm.outputs.onFilterDiscovery = { [weak self] in self?.filterDiscovery.observer.send(value: $0.1) }
-      self.vm.outputs.onFloatingTabBarEnabled = { [weak self] in self?.floatingTabBarEnabled.observer.send(value: $0) }
-      self.vm.outputs.onSelectedIndex = { [weak self] in self?.selectedIndex.observer.send(value: $0) }
+      self.vm.outputs.onFilterDiscovery = { [weak self] in self?.filterDiscovery.record($0.1) }
+      self.vm.outputs.onFloatingTabBarEnabled = { [weak self] in self?.floatingTabBarEnabled.record($0) }
+      self.vm.outputs.onSelectedIndex = { [weak self] in self?.selectedIndex.record($0) }
       self.vm.outputs.onSetBadgeValue = { [weak self] data in
-        self?.setBadgeValueAtIndexValue.observer.send(value: data.0)
-        self?.setBadgeValueAtIndexIndex.observer.send(value: data.1)
+        self?.setBadgeValueAtIndexValue.record(data.0)
+        self?.setBadgeValueAtIndexIndex.record(data.1)
       }
-      self.vm.outputs.onUserUpdated = { [weak self] in self?.updateUserInEnvironment.observer.send(value: $0) }
+      self.vm.outputs.onUserUpdated = { [weak self] in self?.updateUserInEnvironment.record($0) }
 
       self.vm.outputs.onScrollToTop = { [weak self] index in
         guard let self, let names = self.viewControllerNames.lastValue, !names.isEmpty else { return }
-        self.scrollToTopControllerName.observer.send(value: names[clamp(0, names.count - 1)(index)])
+        self.scrollToTopControllerName.record(names[clamp(0, names.count - 1)(index)])
       }
 
-      self.vm.outputs.onTabBarItemsData = { [weak self] in self?.tabBarItemsData.observer.send(value: $0) }
+      self.vm.outputs.onTabBarItemsData = { [weak self] in self?.tabBarItemsData.record($0) }
     }
   }
 
@@ -127,7 +125,6 @@ final class RootViewModelTests: TestCase {
       self.vm.applicationWillEnterForeground()
       self.vm.didSelect(index: 1)
       await self.vm.waitForBadgeUpdate()
-      await self.scheduler.advance()
       self.setBadgeValueAtIndexValue.assertValues(["5", nil])
       self.updateUserInEnvironment.assertValueCount(0)
       XCTAssertEqual(AppEnvironment.current.currentUser?.unseenActivityCount, 5)
@@ -303,7 +300,6 @@ final class RootViewModelTests: TestCase {
       self.setBadgeValueAtIndexValue.assertValues(["99+", nil])
       self.setBadgeValueAtIndexIndex.assertValues([1, 1])
 
-      self.scheduler.advance()
 
       self.updateUserInEnvironment.assertValues([])
       self.setBadgeValueAtIndexValue.assertValues(["99+", nil])
@@ -371,12 +367,12 @@ final class RootViewModelTests: TestCase {
   }
 
   func testSetViewControllers() {
-    let viewControllerNames = TestObserver<[String], Never>()
+    let viewControllerNames = ValueRecorder<[String]>()
 
     let previousHandler = self.vm.outputs.onSetViewControllers
     self.vm.outputs.onSetViewControllers = { data in
       previousHandler?(data)
-      viewControllerNames.observer.send(value: extractRootNames(data))
+      viewControllerNames.record(extractRootNames(data))
     }
 
     self.vm.inputs.viewDidLoad()
@@ -424,11 +420,11 @@ final class RootViewModelTests: TestCase {
   }
 
   func testViewControllersDontOverEmit() {
-    let viewControllerNames = TestObserver<[String], Never>()
+    let viewControllerNames = ValueRecorder<[String]>()
     let previousHandler = self.vm.outputs.onSetViewControllers
     self.vm.outputs.onSetViewControllers = { data in
       previousHandler?(data)
-      viewControllerNames.observer.send(value: extractRootNames(data))
+      viewControllerNames.record(extractRootNames(data))
     }
 
     self.vm.inputs.viewDidLoad()
@@ -443,11 +439,11 @@ final class RootViewModelTests: TestCase {
   }
 
   func testUpdateUserLocalePreferences() {
-    let viewControllerNames = TestObserver<[String], Never>()
+    let viewControllerNames = ValueRecorder<[String]>()
     let previousHandler = self.vm.outputs.onSetViewControllers
     self.vm.outputs.onSetViewControllers = { data in
       previousHandler?(data)
-      viewControllerNames.observer.send(value: extractRootNames(data))
+      viewControllerNames.record(extractRootNames(data))
     }
 
     withEnvironment(language: .en, locale: Locale(identifier: "en")) {
@@ -630,11 +626,11 @@ final class RootViewModelTests: TestCase {
   func testSetViewControllers_DoesNotFilterDiscovery() {
     self.filterDiscovery.assertValueCount(0)
 
-    let viewControllerNames = TestObserver<[String], Never>()
+    let viewControllerNames = ValueRecorder<[String]>()
     let previousHandler = self.vm.outputs.onSetViewControllers
     self.vm.outputs.onSetViewControllers = { data in
       previousHandler?(data)
-      viewControllerNames.observer.send(value: extractRootNames(data))
+      viewControllerNames.record(extractRootNames(data))
     }
 
     self.vm.inputs.viewDidLoad()

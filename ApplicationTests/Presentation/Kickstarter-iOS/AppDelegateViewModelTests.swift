@@ -8,9 +8,8 @@ import GraphAPI
 
 import Prelude
 import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import UserNotifications
+import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -34,35 +33,35 @@ final class AppDelegateViewModelTests: TestCase {
   )
   var vm: AppDelegateViewModelType!
 
-  private let applicationIconBadgeNumber = TestObserver<Int, Never>()
-  private let configureFirebase = TestObserver<(), Never>()
-  private let configureSegmentWithBraze = TestObserver<String, Never>()
-  private let didAcceptReceivingRemoteNotifications = TestObserver<(), Never>()
-  private let emailVerificationCompletedMessage = TestObserver<String, Never>()
-  private let emailVerificationCompletedSuccess = TestObserver<Bool, Never>()
-  private let findRedirectUrl = TestObserver<URL, Never>()
-  private let forceLogout = TestObserver<(), Never>()
-  private let goToActivity = TestObserver<(), Never>()
-  private let goToDiscovery = TestObserver<DiscoveryParams?, Never>()
-  private let goToLoginWithIntent = TestObserver<LoginIntent, Never>()
-  private let goToProfile = TestObserver<(), Never>()
-  private let goToMobileSafari = TestObserver<URL, Never>()
-  private let goToSearch = TestObserver<(), Never>()
-  private let postNotificationName = TestObserver<Notification.Name, Never>()
-  private let presentViewController = TestObserver<Int, Never>()
-  private let pushRegistrationStarted = TestObserver<(), Never>()
-  private let pushTokenSuccessfullyRegistered = TestObserver<String, Never>()
-  private let registerPushTokenInBraze = TestObserver<Data, Never>()
-  private let requestATTrackingAuthorizationStatus = TestObserver<Void, Never>()
-  private let setApplicationShortcutItems = TestObserver<[ShortcutItem], Never>()
-  private let segmentIsEnabled = TestObserver<Bool, Never>()
-  private let showAlert = TestObserver<Notification, Never>()
-  private let trackingAuthorizationStatus = TestObserver<AppTrackingAuthorization, Never>()
-  private let triggerOnboardingFlow = TestObserver<(), Never>()
-  private let unregisterForRemoteNotifications = TestObserver<(), Never>()
-  private let updateCurrentUserInEnvironment = TestObserver<User, Never>()
-  private let notificationSettingsUpdated = TestObserver<Void, Never>()
-  private let updateConfigInEnvironment = TestObserver<Config, Never>()
+  private let applicationIconBadgeNumber = ValueRecorder<Int>()
+  private let configureFirebase = ValueRecorder<()>()
+  private let configureSegmentWithBraze = ValueRecorder<String>()
+  private let didAcceptReceivingRemoteNotifications = ValueRecorder<()>()
+  private let emailVerificationCompletedMessage = ValueRecorder<String>()
+  private let emailVerificationCompletedSuccess = ValueRecorder<Bool>()
+  private let findRedirectUrl = ValueRecorder<URL>()
+  private let forceLogout = ValueRecorder<()>()
+  private let goToActivity = ValueRecorder<()>()
+  private let goToDiscovery = ValueRecorder<DiscoveryParams?>()
+  private let goToLoginWithIntent = ValueRecorder<LoginIntent>()
+  private let goToProfile = ValueRecorder<()>()
+  private let goToMobileSafari = ValueRecorder<URL>()
+  private let goToSearch = ValueRecorder<()>()
+  private let postNotificationName = ValueRecorder<Notification.Name>()
+  private let presentViewController = ValueRecorder<Int>()
+  private let pushRegistrationStarted = ValueRecorder<()>()
+  private let pushTokenSuccessfullyRegistered = ValueRecorder<String>()
+  private let registerPushTokenInBraze = ValueRecorder<Data>()
+  private let requestATTrackingAuthorizationStatus = ValueRecorder<Void>()
+  private let setApplicationShortcutItems = ValueRecorder<[ShortcutItem]>()
+  private let segmentIsEnabled = ValueRecorder<Bool>()
+  private let showAlert = ValueRecorder<Notification>()
+  private let trackingAuthorizationStatus = ValueRecorder<AppTrackingAuthorization>()
+  private let triggerOnboardingFlow = ValueRecorder<()>()
+  private let unregisterForRemoteNotifications = ValueRecorder<()>()
+  private let updateCurrentUserInEnvironment = ValueRecorder<User>()
+  private let notificationSettingsUpdated = ValueRecorder<Void>()
+  private let updateConfigInEnvironment = ValueRecorder<Config>()
 
   private var defaultRootCategoriesTemplate: RootCategoriesEnvelope {
     RootCategoriesEnvelope.template
@@ -109,44 +108,44 @@ final class AppDelegateViewModelTests: TestCase {
   private func bindOutputs() {
     self.vm = AppDelegateViewModel(lifecycleFeature: self.lifecycleFeature, pushDebounce: { try Task.checkCancellation() }, userDebounce: { try Task.checkCancellation() }, trackingDelay: { try Task.checkCancellation() })
     (self.vm as? AppDelegateViewModel)?.settingsPresentationDelay = { _ in try Task.checkCancellation() }
-    self.vm.outputs.onNotificationSettingsUpdated = { [weak self] in self?.notificationSettingsUpdated.observer.send(value: ()) }
+    self.vm.outputs.onNotificationSettingsUpdated = { [weak self] in self?.notificationSettingsUpdated.record(()) }
 
-    self.vm.outputs.onApplicationIconBadgeNumber = { [weak self] in self?.applicationIconBadgeNumber.observer.send(value: $0) }
-    self.vm.outputs.onConfigureFirebase = { [weak self] in self?.configureFirebase.observer.send(value: ()) }
-    self.vm.outputs.onConfigureSegmentWithBraze = { [weak self] in self?.configureSegmentWithBraze.observer.send(value: $0) }
+    self.vm.outputs.onApplicationIconBadgeNumber = { [weak self] in self?.applicationIconBadgeNumber.record($0) }
+    self.vm.outputs.onConfigureFirebase = { [weak self] in self?.configureFirebase.record(()) }
+    self.vm.outputs.onConfigureSegmentWithBraze = { [weak self] in self?.configureSegmentWithBraze.record($0) }
     self.vm.outputs.onEmailVerificationCompleted = { [weak self] message, success in
-      self?.emailVerificationCompletedMessage.observer.send(value: message)
-      self?.emailVerificationCompletedSuccess.observer.send(value: success)
+      self?.emailVerificationCompletedMessage.record(message)
+      self?.emailVerificationCompletedSuccess.record(success)
     }
-    self.vm.outputs.onFindRedirectUrl = { [weak self] in self?.findRedirectUrl.observer.send(value: $0) }
-    self.vm.outputs.onForceLogout = { [weak self] in self?.forceLogout.observer.send(value: ()) }
-    self.vm.outputs.onGoToActivity = { [weak self] in self?.goToActivity.observer.send(value: ()) }
-    self.vm.outputs.onGoToDiscovery = { [weak self] in self?.goToDiscovery.observer.send(value: $0) }
-    self.vm.outputs.onGoToLoginWithIntent = { [weak self] in self?.goToLoginWithIntent.observer.send(value: $0) }
-    self.vm.outputs.onGoToProfile = { [weak self] in self?.goToProfile.observer.send(value: ()) }
-    self.vm.outputs.onGoToMobileSafari = { [weak self] in self?.goToMobileSafari.observer.send(value: $0) }
-    self.vm.outputs.onGoToSearch = { [weak self] in self?.goToSearch.observer.send(value: ()) }
-    self.vm.outputs.onPostNotification = { [weak self] in self?.postNotificationName.observer.send(value: $0.name) }
+    self.vm.outputs.onFindRedirectUrl = { [weak self] in self?.findRedirectUrl.record($0) }
+    self.vm.outputs.onForceLogout = { [weak self] in self?.forceLogout.record(()) }
+    self.vm.outputs.onGoToActivity = { [weak self] in self?.goToActivity.record(()) }
+    self.vm.outputs.onGoToDiscovery = { [weak self] in self?.goToDiscovery.record($0) }
+    self.vm.outputs.onGoToLoginWithIntent = { [weak self] in self?.goToLoginWithIntent.record($0) }
+    self.vm.outputs.onGoToProfile = { [weak self] in self?.goToProfile.record(()) }
+    self.vm.outputs.onGoToMobileSafari = { [weak self] in self?.goToMobileSafari.record($0) }
+    self.vm.outputs.onGoToSearch = { [weak self] in self?.goToSearch.record(()) }
+    self.vm.outputs.onPostNotification = { [weak self] in self?.postNotificationName.record($0.name) }
     self.vm.outputs.onPresentViewController = { [weak self] controller in
       guard let navigation = controller as? UINavigationController else { return }
-      self?.presentViewController.observer.send(value: navigation.viewControllers.count)
+      self?.presentViewController.record(navigation.viewControllers.count)
     }
-    self.vm.outputs.onPushTokenRegistrationStarted = { [weak self] in self?.pushRegistrationStarted.observer.send(value: ()) }
-    self.vm.outputs.onPushTokenSuccessfullyRegistered = { [weak self] in self?.pushTokenSuccessfullyRegistered.observer.send(value: $0) }
-    self.vm.outputs.onRegisterPushTokenInBraze = { [weak self] in self?.registerPushTokenInBraze.observer.send(value: $0) }
+    self.vm.outputs.onPushTokenRegistrationStarted = { [weak self] in self?.pushRegistrationStarted.record(()) }
+    self.vm.outputs.onPushTokenSuccessfullyRegistered = { [weak self] in self?.pushTokenSuccessfullyRegistered.record($0) }
+    self.vm.outputs.onRegisterPushTokenInBraze = { [weak self] in self?.registerPushTokenInBraze.record($0) }
     self.vm.outputs.onRequestTrackingAuthorization = { [weak self] in
-      self?.requestATTrackingAuthorizationStatus.observer.send(value: ())
+      self?.requestATTrackingAuthorizationStatus.record(())
     }
-    self.vm.outputs.onSetApplicationShortcutItems = { [weak self] in self?.setApplicationShortcutItems.observer.send(value: $0) }
-    self.vm.outputs.onShowAlert = { [weak self] in self?.showAlert.observer.send(value: $0) }
-    self.vm.outputs.onSegmentEnabled = { [weak self] in self?.segmentIsEnabled.observer.send(value: $0) }
+    self.vm.outputs.onSetApplicationShortcutItems = { [weak self] in self?.setApplicationShortcutItems.record($0) }
+    self.vm.outputs.onShowAlert = { [weak self] in self?.showAlert.record($0) }
+    self.vm.outputs.onSegmentEnabled = { [weak self] in self?.segmentIsEnabled.record($0) }
     self.vm.outputs.onTrackingAuthorizationStatus = { [weak self] in
-      self?.trackingAuthorizationStatus.observer.send(value: $0)
+      self?.trackingAuthorizationStatus.record($0)
     }
-    self.vm.outputs.onTriggerOnboardingFlow = { [weak self] in self?.triggerOnboardingFlow.observer.send(value: ()) }
-    self.vm.outputs.onUnregisterForRemoteNotifications = { [weak self] in self?.unregisterForRemoteNotifications.observer.send(value: ()) }
-    self.vm.outputs.onUpdateCurrentUser = { [weak self] in self?.updateCurrentUserInEnvironment.observer.send(value: $0) }
-    self.vm.outputs.onUpdateConfig = { [weak self] in self?.updateConfigInEnvironment.observer.send(value: $0) }
+    self.vm.outputs.onTriggerOnboardingFlow = { [weak self] in self?.triggerOnboardingFlow.record(()) }
+    self.vm.outputs.onUnregisterForRemoteNotifications = { [weak self] in self?.unregisterForRemoteNotifications.record(()) }
+    self.vm.outputs.onUpdateCurrentUser = { [weak self] in self?.updateCurrentUserInEnvironment.record($0) }
+    self.vm.outputs.onUpdateConfig = { [weak self] in self?.updateConfigInEnvironment.record($0) }
   }
 
   func testResetApplicationIconBadgeNumber_registeredForPushNotifications_WillEnterForeground() async {

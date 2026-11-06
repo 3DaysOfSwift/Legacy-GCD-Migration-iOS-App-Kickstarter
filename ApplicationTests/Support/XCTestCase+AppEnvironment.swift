@@ -7,6 +7,32 @@ import ReactiveSwift
 import XCTest
 
 @MainActor
+final class ValueRecorder<Value> {
+  private(set) var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    self.assertValueCount(0, message, file: file, line: line)
+  }
+}
+
+extension ValueRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
+  }
+  func assertValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    self.assertValues([expected], message, file: file, line: line)
+  }
+  func assertLastValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.last, expected, message, file: file, line: line)
+  }
+}
+
+@MainActor
 internal enum TestSchedulerContext {
   static var current: DateScheduler = QueueScheduler.main
 }
