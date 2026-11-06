@@ -167,7 +167,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       refTag
     )
 
-    let createCheckoutEvents = Signal.combineLatest(
+    let createCheckoutInput = Signal.combineLatest(
       self.loginStatePipe.output,
       pledgeDetailsData
     )
@@ -201,10 +201,15 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
         refParam: refTag?.stringTag
       )
     }
-    .switchMap { input in
-      feature.delayedResult(feature.openCheckoutResult(input))
-        .materialize()
-    }
+
+
+    let checkoutIdentity = self.checkoutIdentity
+    let createCheckoutEvents = self.checkoutEvents.output
+      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      .filter { [feature, checkoutIdentity] _, userID, generation, id in
+        checkoutIdentity.id == id && feature.sessionFeature.isCurrent(userID: userID, generation: generation)
+      }
+      .map { event, _, _, _ in event }
 
     let checkoutId = createCheckoutEvents.values()
       .map { values in
@@ -579,6 +584,25 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
           refTag: data.refTag
         )
       }
+    self.checkoutObservation = createCheckoutInput.observeValues { [weak self] input in
+      guard let self else { return }
+      self.checkoutTask?.cancel()
+      let userID = feature.sessionFeature.currentUser?.id
+      let generation = feature.sessionFeature.generation
+      let id = UUID()
+      self.checkoutIdentity.id = id
+      let request = feature.startOpenCheckout(input)
+      self.checkoutTask = Task { [weak self] in
+        do {
+          let checkout = try await request.value
+          guard !Task.isCancelled else { return }
+          self?.checkoutEvents.input.send(value: (.value(checkout), userID, generation, id))
+        } catch {
+          guard !Task.isCancelled, !(error is CancellationError) else { return }
+          self?.checkoutEvents.input.send(value: (.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), userID, generation, id))
+        }
+      }
+    }
     self.paymentIntentObservation = paymentIntentInput.observeValues { [weak self] project, total, checkoutID, backingID in
       guard let self else { return }
       self.paymentIntentTask?.cancel()
@@ -756,11 +780,17 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   // MARK: - Use cases
 
   private let loginSignupUseCase: LoginSignupUseCase
+  private let checkoutEvents = Signal<(Signal<CreateCheckoutEnvelope, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
+  private let checkoutIdentity = CheckoutRequestIdentity()
+  private var checkoutObservation: (any Disposable)?
+  private var checkoutTask: Task<Void, Never>?
   private let paymentIntentPipe = Signal<Signal<PaymentIntentEnvelope, ErrorEnvelope>.Event, Never>.pipe()
   private var paymentIntentObservation: (any Disposable)?
   private var paymentIntentTask: Task<Void, Never>?
 
   deinit {
+    self.checkoutObservation?.dispose()
+    self.checkoutTask?.cancel()
     self.paymentIntentObservation?.dispose()
     self.paymentIntentTask?.cancel()
   }
@@ -770,4 +800,9 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private let paymentMethodsUseCase: PaymentMethodsUseCase
   private let paymentSelectedPipe = Signal<PaymentSourceSelected?, Never>.pipe()
   private let paymentValidPipe = Signal<Bool, Never>.pipe()
+}
+
+@MainActor
+private final class CheckoutRequestIdentity {
+  var id = UUID()
 }

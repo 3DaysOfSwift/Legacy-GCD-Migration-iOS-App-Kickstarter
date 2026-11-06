@@ -263,6 +263,16 @@ public final class PledgeFeature {
   {
     try Self.checkout(await self.execute(.openCheckout(input)))
   }
+  func startOpenCheckout(_ input: KsApi.CreateCheckoutInput) -> Task<CreateCheckoutEnvelope, Error> {
+    let session = self.session
+    let command = self.request(.openCheckout(input))
+    return Task {
+      let value = try await command.value
+      try self.requireCurrent(session)
+      return try Self.checkout(value)
+    }
+  }
+
   public func validateCheckout(checkoutID: String, sourceID: String, secret: String) async throws
     -> ValidateCheckoutEnvelope
   {

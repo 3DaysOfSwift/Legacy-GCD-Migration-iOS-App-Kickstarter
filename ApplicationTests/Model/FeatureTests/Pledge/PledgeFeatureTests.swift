@@ -235,6 +235,27 @@ final class PledgeFeatureTests: TestCase {
     } catch {}
   }
 
+  func testNativeCheckoutAdmissionSurvivesCancelledWaiterAndSharesRequest() async throws {
+    let input = KsApi.CreateCheckoutInput(
+      projectId: "p", amount: "10.00", locationId: nil, rewardIds: [], refParam: nil)
+    let first = self.feature.startOpenCheckout(input)
+    let second = self.feature.startOpenCheckout(input)
+    first.cancel()
+    await self.provider.checkouts.waitFor(1)
+    XCTAssertEqual(self.provider.checkoutInputs, [input])
+    try self.provider.checkouts.finish(
+      0, .success(.init(checkout: .init(id: "checkout", paymentUrl: "fixture", backingId: "b"))))
+    let checkout = try await second.value
+    XCTAssertEqual(checkout.checkout.id, "checkout")
+    do {
+      _ = try await first.value
+      XCTFail("The cancelled waiter should not deliver a result")
+    } catch is CancellationError {} catch {
+      XCTFail("Unexpected error: \(error)")
+    }
+    XCTAssertEqual(self.provider.checkouts.count, 1)
+  }
+
   func testCheckoutSharesEquivalentPendingInputsAndQueuesChangedAmount() async throws {
     let input = KsApi.CreateCheckoutInput(
       projectId: "p", amount: "10.00", locationId: "l", rewardIds: ["r", "r"], refParam: "ref")
