@@ -275,38 +275,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     let paymentIntentClientSecretForApplePay: Signal<String, Never> = paymentIntentClientSecret
       .takeWhen(startApplePayFlow)
 
-    let goToApplePayPaymentAuthorization: Signal<PostCampaignPaymentAuthorizationData, Never> = Signal.combineLatest(
-      project,
-      baseReward,
-      allRewardsTotal,
-      bonusAmount,
-      allRewardsShippingTotal,
-      pledgeTotal,
-      paymentIntentClientSecretForApplePay
-    )
-    .map { (
-      project,
-      baseReward,
-      allRewardsTotal,
-      bonusAmount,
-      allRewardsShippingTotal,
-      pledgeTotal,
-      paymentIntent: String
-    ) -> PostCampaignPaymentAuthorizationData? in
-
-      PostCampaignPaymentAuthorizationData(
-        project: project,
-        hasNoReward: baseReward.isNoReward,
-        subtotal: baseReward.isNoReward ? bonusAmount : allRewardsTotal,
-        bonus: baseReward.isNoReward ? 0.0 : bonusAmount,
-        shipping: allRewardsShippingTotal,
-        total: pledgeTotal,
-        merchantIdentifier: Secrets.ApplePay.merchantIdentifier,
-        paymentIntent: paymentIntent
-      )
-    }
-    .skipNil()
-
     let validateApplePayRequests = Signal.combineLatest(
       paymentIntentClientSecretForApplePay,
       checkoutId,
@@ -525,7 +493,17 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     _ = errorMessages.observeValues { [weak self] in self?.onShowError?($0) }
     _ = checkoutErrors.observeValues { [weak self] in self?.onCheckoutError?($0) }
     _ = validateCheckoutSuccess.observeValues { [weak self] in self?.onValidateCheckout?($0) }
-    _ = goToApplePayPaymentAuthorization.observeValues { [weak self] in self?.onApplePayAuthorization?($0) }
+    paymentIntentClientSecretForApplePay.observeValues { [weak self] secret in
+      guard let self, let data = self.activeCheckoutData, let reward = data.rewards.first else { return }
+      let amounts = PostCampaignAmounts(data)
+      let bonus = data.bonusSupport ?? 0
+      self.onApplePayAuthorization?(PostCampaignPaymentAuthorizationData(
+        project: data.project, hasNoReward: reward.isNoReward,
+        subtotal: reward.isNoReward ? bonus : amounts.rewards, bonus: reward.isNoReward ? 0 : bonus,
+        shipping: amounts.shipping, total: amounts.total,
+        merchantIdentifier: Secrets.ApplePay.merchantIdentifier, paymentIntent: secret
+      ))
+    }
     checkoutCompleteSignal.values().observeValues { [weak self] _ in
       guard let self, let data = self.activeCheckoutData, let reward = data.rewards.first else { return }
       self.onCheckoutComplete?((data.project, reward, nil, PostCampaignAmounts(data).total))
