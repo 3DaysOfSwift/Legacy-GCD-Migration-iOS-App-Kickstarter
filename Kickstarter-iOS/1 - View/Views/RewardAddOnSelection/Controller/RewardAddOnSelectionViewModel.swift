@@ -66,7 +66,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private var pendingConfiguration: PledgeViewData?
   private var isLoaded = false
   private let addOnsRoute = UUID()
-  private let addOnsEvents = Signal<Signal<([Reward]?, PledgeViewData), ErrorEnvelope>.Event, Never>.pipe()
   private var addOnsTask: Task<Void, Never>?
   private let selectedQuantitiesEvents = Signal<SelectedRewardQuantities, Never>.pipe()
   private var changedQuantities: SelectedRewardQuantities = [:]
@@ -154,29 +153,12 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       baseReward.filter { reward in !reward.shipping.enabled }.mapConst(nil)
     )
 
-    let addOnsEvent = self.addOnsEvents.output
-
-    let endRefreshing = addOnsEvent.filter { $0.isTerminating }.ignoreValues()
-
-    let requestErrored = addOnsEvent.map(\.error).map(isNotNil)
-
     let selectedQuantities = self.selectedQuantitiesEvents.output
 
     let latestSelectedQuantities = Signal.merge(
       baseRewardQuantities,
       selectedQuantities
     )
-
-    let rewardAddOnCardsViewData = addOnsEvent.values().compactMap {
-      response
-        -> ([Reward], Project, Reward, PledgeViewContext, ShippingRule?)? in
-      let (addOns, data) = response
-      guard let addOns, let reward = data.rewards.first else { return nil }
-      return (
-        addOns, data.project, reward, data.context,
-        reward.shipping.enabled ? data.selectedShippingRule : nil
-      )
-    }
 
     let dataSourceItems = self.cardItems.output
 
@@ -304,19 +286,9 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     }
     _ = headerTitle.observeValues { [weak self] value in self?.onHeaderTitle?(value) }
     _ = pageTitle.observeValues { [weak self] value in self?.onPageTitle?(value) }
-    _ = endRefreshing.observeValues { [weak self] _ in self?.onEndRefreshing?() }
-    _ = rewardAddOnCardsViewData.observeValues { [weak self] data in
-      self?.latestCardData = data
-      self?.publishCards(reload: true)
-    }
     _ = latestSelectedQuantities.observeValues { [weak self] quantities in
       self?.latestCardQuantities = quantities
       self?.publishCards(reload: false)
-    }
-    _ = requestErrored.filter(isTrue).observeValues { [weak self] _ in
-      let items: [RewardAddOnSelectionDataSourceItem] = [.emptyState(.errorPullToRefresh)]
-      self?.cardItems.input.send(value: items)
-      self?.onLoadAndReloadRewards?(items)
     }
     _ = configData.observeValues { [weak self] in self?.checkoutConfiguration = $0 }
     _ = selectedRewards.observeValues { [weak self] in self?.checkoutRewards = $0 }
@@ -462,11 +434,19 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       guard let self, self.addOnsRequestID == id else { return }
       switch result {
       case let .success(rewards):
-        self.addOnsEvents.input.send(value: .value((rewards, data)))
-        self.addOnsEvents.input.send(value: .completed)
-      case let .failure(error):
-        self.addOnsEvents.input.send(value: .failed((error as? ErrorEnvelope) ?? .couldNotParseJSON))
+        if let rewards, let reward = data.rewards.first {
+          self.latestCardData = (
+            rewards, data.project, reward, data.context,
+            reward.shipping.enabled ? data.selectedShippingRule : nil
+          )
+          self.publishCards(reload: true)
+        }
+      case .failure:
+        let items: [RewardAddOnSelectionDataSourceItem] = [.emptyState(.errorPullToRefresh)]
+        self.cardItems.input.send(value: items)
+        self.onLoadAndReloadRewards?(items)
       }
+      self.onEndRefreshing?()
     }
   }
 
