@@ -103,7 +103,7 @@ final class PledgeViewModelTests: TestCase {
 
       self.vm.outputs.onBeginSCA = { [weak self] in self?.beginSCAFlowWithClientSecret.observer.send(value: $0) }
 
-      self.vm.outputs.configureLocalPickupViewWithData.observe(self.configureLocalPickupViewWithData.observer)
+      self.vm.outputs.onLocalPickupData = { [weak self] in self?.configureLocalPickupViewWithData.observer.send(value: $0) }
       self.vm.outputs.onConfigurePaymentMethods = { [weak self] value in
         self?.configurePaymentMethodsViewControllerWithUser.observer.send(value: value.0)
         self?.configurePaymentMethodsViewControllerWithProject.observer.send(value: value.1)
@@ -132,18 +132,14 @@ final class PledgeViewModelTests: TestCase {
         self?.configureStripeIntegrationPublishableKey.observer.send(value: key)
       }
 
-      self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.project }
-        .observe(self.goToApplePayPaymentAuthorizationProject.observer)
-      self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.reward }
-        .observe(self.goToApplePayPaymentAuthorizationReward.observer)
-      self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.allRewardsTotal }
-        .observe(self.goToApplePayPaymentAuthorizationAllRewardsTotal.observer)
-      self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.additionalPledgeAmount }
-        .observe(self.goToApplePayPaymentAuthorizationAdditionalPledgeAmount.observer)
-      self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.allRewardsShippingTotal }
-        .observe(self.goToApplePayPaymentAuthorizationAllRewardsShippingTotal.observer)
-      self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.merchantIdentifier }
-        .observe(self.goToApplePayPaymentAuthorizationMerchantId.observer)
+      self.vm.outputs.onApplePayAuthorization = { [weak self] data in
+        self?.goToApplePayPaymentAuthorizationProject.observer.send(value: data.project)
+        self?.goToApplePayPaymentAuthorizationReward.observer.send(value: data.reward)
+        self?.goToApplePayPaymentAuthorizationAllRewardsTotal.observer.send(value: data.allRewardsTotal)
+        self?.goToApplePayPaymentAuthorizationAdditionalPledgeAmount.observer.send(value: data.additionalPledgeAmount)
+        self?.goToApplePayPaymentAuthorizationAllRewardsShippingTotal.observer.send(value: data.allRewardsShippingTotal)
+        self?.goToApplePayPaymentAuthorizationMerchantId.observer.send(value: data.merchantIdentifier)
+      }
 
       self.vm.outputs.onGoToThanks = { [weak self] data in
         self?.goToThanksProject.observer.send(value: data.project)

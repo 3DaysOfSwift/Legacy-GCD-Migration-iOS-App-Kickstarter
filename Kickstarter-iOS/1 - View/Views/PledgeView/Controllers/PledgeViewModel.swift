@@ -83,14 +83,14 @@ public protocol PledgeViewModelInputs {
 public protocol PledgeViewModelOutputs: AnyObject {
   var onBeginSCA: ((String) -> Void)? { get set }
   var onEstimatedShipping: ((String?, String?) -> Void)? { get set }
-  var configureLocalPickupViewWithData: Signal<PledgeLocalPickupViewData, Never> { get }
+  var onLocalPickupData: ((PledgeLocalPickupViewData) -> Void)? { get set }
   var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)? { get set }
-  var configurePledgeAmountSummaryViewControllerWithData: Signal<PledgeAmountSummaryViewData, Never> { get }
+  var onPledgeAmountSummary: ((PledgeAmountSummaryViewData) -> Void)? { get set }
   var onPledgeRewardsSummary: ((PostCampaignRewardsSummaryViewData, Double?, PledgeSummaryViewData) -> Void)? { get set }
   var onPledgeCTA: ((PledgeViewCTAContainerViewData) -> Void)? { get set }
   var onConfigureStripe: ((String, String) -> Void)? { get set }
   var onEstimatedShippingHidden: ((Bool) -> Void)? { get set }
-  var goToApplePayPaymentAuthorization: Signal<PaymentAuthorizationData, Never> { get }
+  var onApplePayAuthorization: ((PaymentAuthorizationData) -> Void)? { get set }
   var onGoToThanks: ((ThanksPageData) -> Void)? { get set }
   var onGoToLoginSignup: ((LoginIntent) -> Void)? { get set }
   var onLocalPickupHidden: ((Bool) -> Void)? { get set }
@@ -225,7 +225,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         return r
       }
 
-    self.configureLocalPickupViewWithData = projectAndReward
+    let localPickupData = projectAndReward
       .switchMap { projectAndReward -> SignalProducer<PledgeLocalPickupViewData?, Never> in
         guard let locationName = projectAndReward.1.localPickup?.displayableName else {
           return SignalProducer(value: nil)
@@ -328,7 +328,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       return (rewardsData, additionalPledgeAmount, pledgeData)
     }
 
-    self.configurePledgeAmountSummaryViewControllerWithData = Signal.combineLatest(
+    let pledgeAmountSummary = Signal.combineLatest(
       projectAndReward,
       allRewardsTotal,
       additionalPledgeAmount,
@@ -373,7 +373,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       return r
     }
 
-    self.goToApplePayPaymentAuthorization = paymentAuthorizationData
+    let applePayAuthorization = paymentAuthorizationData
       .takeWhen(self.applePayButtonTappedSignal)
 
     let applePayStatusSuccess = self.applePaySuccessPipe.output
@@ -901,6 +901,9 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         AppEnvironment.current.environmentType.stripePublishableKey
       )
     }
+    _ = localPickupData.observeValues { [weak self] in self?.onLocalPickupData?($0) }
+    _ = pledgeAmountSummary.observeValues { [weak self] in self?.onPledgeAmountSummary?($0) }
+    _ = applePayAuthorization.observeValues { [weak self] in self?.onApplePayAuthorization?($0) }
     _ = pledgeRewardsSummary.observeValues { [weak self] in self?.onPledgeRewardsSummary?($0.0, $0.1, $0.2) }
     _ = pledgeCTA.observeValues { [weak self] in self?.onPledgeCTA?($0) }
     processingState.onChange = { [weak self] in self?.onProcessingHidden?($0) }
@@ -1055,15 +1058,15 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
   public var onBeginSCA: ((String) -> Void)?
   public var onEstimatedShipping: ((String?, String?) -> Void)?
-  public let configureLocalPickupViewWithData: Signal<PledgeLocalPickupViewData, Never>
+  public var onLocalPickupData: ((PledgeLocalPickupViewData) -> Void)?
   public var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)?
 
-  public let configurePledgeAmountSummaryViewControllerWithData: Signal<PledgeAmountSummaryViewData, Never>
+  public var onPledgeAmountSummary: ((PledgeAmountSummaryViewData) -> Void)?
   public var onPledgeRewardsSummary: ((PostCampaignRewardsSummaryViewData, Double?, PledgeSummaryViewData) -> Void)?
   public var onPledgeCTA: ((PledgeViewCTAContainerViewData) -> Void)?
   public var onConfigureStripe: ((String, String) -> Void)?
   public var onEstimatedShippingHidden: ((Bool) -> Void)?
-  public let goToApplePayPaymentAuthorization: Signal<PaymentAuthorizationData, Never>
+  public var onApplePayAuthorization: ((PaymentAuthorizationData) -> Void)?
   public var onGoToThanks: ((ThanksPageData) -> Void)?
   public var onGoToLoginSignup: ((LoginIntent) -> Void)?
 

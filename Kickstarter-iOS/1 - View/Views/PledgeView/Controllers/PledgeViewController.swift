@@ -271,9 +271,7 @@ final class PledgeViewController: UIViewController,
         self?.beginSCAFlow(withClientSecret: secret)
       }
 
-    self.viewModel.outputs.configureLocalPickupViewWithData
-      .observeForUI()
-      .observeValues { [weak self] data in
+    self.viewModel.outputs.onLocalPickupData = { [weak self] data in
         self?.localPickupLocationView.configure(with: data)
       }
 
@@ -299,9 +297,7 @@ final class PledgeViewController: UIViewController,
         self?.pledgeRewardsSummaryViewController.configureWith(pledgeOverTimeData: data)
       }
 
-    self.viewModel.outputs.configurePledgeAmountSummaryViewControllerWithData
-      .observeForUI()
-      .observeValues { [weak self] data in
+    self.viewModel.outputs.onPledgeAmountSummary = { [weak self] data in
         self?.pledgeAmountSummaryViewController.configureWith(data)
       }
 
@@ -331,9 +327,7 @@ final class PledgeViewController: UIViewController,
       self?.viewModel.inputs.userSessionDidChange()
     }
 
-    self.viewModel.outputs.goToApplePayPaymentAuthorization
-      .observeForControllerAction()
-      .observeValues { [weak self] paymentAuthorizationData in
+    self.viewModel.outputs.onApplePayAuthorization = { [weak self] paymentAuthorizationData in
         self?.goToPaymentAuthorization(paymentAuthorizationData)
       }
 
