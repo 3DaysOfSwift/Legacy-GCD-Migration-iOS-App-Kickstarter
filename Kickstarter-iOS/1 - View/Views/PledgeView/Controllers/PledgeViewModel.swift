@@ -463,7 +463,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     // Captures the checkoutId immediately and avoids a race condition further down the chain.
     let checkoutIdProperty = MutableProperty<Int?>(nil)
-    let processingViewIsHidden = MutableProperty<Bool>(true)
+    let processingState = PledgeProcessingState()
 
     let createBackingEvents = createBackingDataAndIsApplePay
       .map(CreateBackingInput.input(from:isApplePay:))
@@ -471,10 +471,10 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         feature.delayedResult(feature.createResult(input))
           .on(
             starting: {
-              processingViewIsHidden.value = false
+              processingState.setHidden(false)
             },
             terminated: {
-              processingViewIsHidden.value = true
+              processingState.setHidden(true)
             }
           )
           .map { envelope -> StripeSCARequiring in
@@ -549,10 +549,10 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         feature.delayedResult(feature.updateResult(input))
           .on(
             starting: {
-              processingViewIsHidden.value = false
+              processingState.setHidden(false)
             },
             terminated: {
-              processingViewIsHidden.value = true
+              processingState.setHidden(true)
             }
           )
           .map { $0 as StripeSCARequiring }
@@ -888,7 +888,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     }
     _ = pledgeRewardsSummary.observeValues { [weak self] in self?.onPledgeRewardsSummary?($0.0, $0.1, $0.2) }
     _ = pledgeCTA.observeValues { [weak self] in self?.onPledgeCTA?($0) }
-    _ = processingViewIsHidden.signal.observeValues { [weak self] in self?.onProcessingHidden?($0) }
+    processingState.onChange = { [weak self] in self?.onProcessingHidden?($0) }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
     paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
@@ -1109,5 +1109,14 @@ private final class ApplePayAuthorization {
     self.onParams?(ApplePayParams(paymentInstrumentName: payment.displayName, paymentNetwork: payment.network, transactionIdentifier: payment.transactionIdentifier, token: token))
     self.onSuccess?()
     return .success
+  }
+}
+
+@MainActor
+private final class PledgeProcessingState {
+  var onChange: ((Bool) -> Void)?
+
+  func setHidden(_ hidden: Bool) {
+    self.onChange?(hidden)
   }
 }
