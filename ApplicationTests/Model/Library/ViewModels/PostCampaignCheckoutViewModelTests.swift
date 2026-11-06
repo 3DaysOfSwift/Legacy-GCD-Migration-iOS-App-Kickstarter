@@ -2,7 +2,6 @@
 import Apollo
 import GraphAPI
 import Prelude
-import ReactiveSwift
 import XCTest
 
 @testable import KsApi
@@ -12,25 +11,14 @@ import XCTest
 final class PostCampaignCheckoutViewModelTests: TestCase {
 
   private func advancePayments(by interval: DispatchTimeInterval = .seconds(0)) async {
+    await self.vm.waitForOperations()
     await self.pledgeFeature.waitForOperations()
     await self.mockStripeIntentService.paymentsFeature.waitForOperations()
-    await self.pledgeFeature.waitForOperations()
-    await self.scheduler.advance(by: interval)
-    // A successful store can trigger a card reload during delivery.
-    await self.pledgeFeature.waitForOperations()
-    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
-    await self.pledgeFeature.waitForOperations()
-    await self.scheduler.advance()
+    await self.vm.waitForOperations()
   }
+
   private func runPayments() async {
-    await self.pledgeFeature.waitForOperations()
-    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
-    await self.pledgeFeature.waitForOperations()
-    await self.scheduler.run()
-    await self.pledgeFeature.waitForOperations()
-    await self.mockStripeIntentService.paymentsFeature.waitForOperations()
-    await self.pledgeFeature.waitForOperations()
-    await self.scheduler.run()
+    await self.advancePayments()
   }
 
   override var requiresSnapshotReferenceSimulator: Bool { false }

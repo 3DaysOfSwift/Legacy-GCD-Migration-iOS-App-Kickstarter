@@ -612,6 +612,14 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private let applePayValidation = CheckoutValidationLane()
   private var paymentIntentTask: Task<Void, Never>?
 
+  func waitForOperations() async {
+    await self.checkoutTask?.value
+    await self.paymentIntentTask?.value
+    await self.cardValidation.waitForOperation()
+    await self.applePayValidation.waitForOperation()
+    await self.completionTask?.value
+  }
+
   deinit {
     self.checkoutTask?.cancel()
     self.completionTask?.cancel()
@@ -639,6 +647,8 @@ private final class CheckoutValidationLane {
   private var task: Task<Void, Never>?
 
   deinit { self.task?.cancel() }
+
+  func waitForOperation() async { await self.task?.value }
 
   func start(feature: PledgeFeature, checkoutID: String, sourceID: String, secret: String) {
     self.task?.cancel()
