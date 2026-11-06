@@ -104,16 +104,13 @@ final class PledgeViewModelTests: TestCase {
       self.vm.outputs.beginSCAFlowWithClientSecret.observe(self.beginSCAFlowWithClientSecret.observer)
 
       self.vm.outputs.configureLocalPickupViewWithData.observe(self.configureLocalPickupViewWithData.observer)
-      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.0 }
-        .observe(self.configurePaymentMethodsViewControllerWithUser.observer)
-      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.1 }
-        .observe(self.configurePaymentMethodsViewControllerWithProject.observer)
-      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.2 }
-        .observe(self.configurePaymentMethodsViewControllerWithCheckoutId.observer)
-      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.3 }
-        .observe(self.configurePaymentMethodsViewControllerWithReward.observer)
-      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.4 }
-        .observe(self.configurePaymentMethodsViewControllerWithContext.observer)
+      self.vm.outputs.onConfigurePaymentMethods = { [weak self] value in
+        self?.configurePaymentMethodsViewControllerWithUser.observer.send(value: value.0)
+        self?.configurePaymentMethodsViewControllerWithProject.observer.send(value: value.1)
+        self?.configurePaymentMethodsViewControllerWithCheckoutId.observer.send(value: value.2)
+        self?.configurePaymentMethodsViewControllerWithReward.observer.send(value: value.3)
+        self?.configurePaymentMethodsViewControllerWithContext.observer.send(value: value.4)
+      }
 
       self.vm.outputs.configurePledgeRewardsSummaryViewWithData.map(\.0.rewards)
         .observe(self.configurePledgeRewardsSummaryViewRewards.observer)
@@ -161,7 +158,7 @@ final class PledgeViewModelTests: TestCase {
       self.vm.outputs.notifyDelegateUpdatePledgeDidSucceedWithMessage
         .observe(self.notifyDelegateUpdatePledgeDidSucceedWithMessage.observer)
 
-      self.vm.outputs.paymentMethodsViewHidden.observe(self.paymentMethodsViewHidden.observer)
+      self.vm.outputs.onPaymentMethodsHidden = { [weak self] in self?.paymentMethodsViewHidden.observer.send(value: $0) }
       self.vm.outputs.pledgeAmountSummaryViewHidden.observe(self.pledgeAmountSummaryViewHidden.observer)
       self.vm.outputs.popToRootViewController.observe(self.popToRootViewController.observer)
       self.vm.outputs.processingViewIsHidden.observe(self.processingViewIsHidden.observer)

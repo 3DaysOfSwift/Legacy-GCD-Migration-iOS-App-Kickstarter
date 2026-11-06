@@ -341,9 +341,7 @@ final class PledgeViewController: UIViewController,
         self?.pledgeCTAContainerView.configureWith(value: value)
       }
 
-    self.viewModel.outputs.configurePaymentMethodsViewControllerWithValue
-      .observeForUI()
-      .observeValues { [weak self] value in
+    self.viewModel.outputs.onConfigurePaymentMethods = { [weak self] value in
         self?.paymentMethodsViewController.configure(with: value)
       }
 
@@ -387,8 +385,10 @@ final class PledgeViewController: UIViewController,
       }
 
     self.localPickupLocationView.rac.hidden = self.viewModel.outputs.localPickupViewHidden
-    self.paymentMethodsViewController.view.rac.hidden = self.viewModel.outputs.paymentMethodsViewHidden
-    self.paymentSectionLabel.rac.hidden = self.viewModel.outputs.paymentMethodsViewHidden
+    self.viewModel.outputs.onPaymentMethodsHidden = { [weak self] hidden in
+      self?.paymentMethodsViewController.view.isHidden = hidden
+      self?.paymentSectionLabel.isHidden = hidden
+    }
 
     self.viewModel.outputs.title
       .observeForUI()

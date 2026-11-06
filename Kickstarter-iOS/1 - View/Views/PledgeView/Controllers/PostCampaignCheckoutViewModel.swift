@@ -58,7 +58,7 @@ public protocol PostCampaignCheckoutViewModelInputs {
 @MainActor
 public protocol PostCampaignCheckoutViewModelOutputs: AnyObject {
   var configureEstimatedShippingView: Signal<(String?, String?), Never> { get }
-  var configurePaymentMethodsViewControllerWithValue: Signal<PledgePaymentMethodsValue, Never> { get }
+  var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)? { get set }
   var configurePledgeRewardsSummaryViewWithData: Signal<
     (PostCampaignRewardsSummaryViewData, Double?, PledgeSummaryViewData),
     Never
@@ -66,7 +66,7 @@ public protocol PostCampaignCheckoutViewModelOutputs: AnyObject {
   var configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never> { get }
   var configureStripeIntegration: Signal<StripeConfigurationData, Never> { get }
   var estimatedShippingViewHidden: Signal<Bool, Never> { get }
-  var paymentMethodsViewHidden: Signal<Bool, Never> { get }
+  var onPaymentMethodsHidden: ((Bool) -> Void)? { get set }
   var processingViewIsHidden: Signal<Bool, Never> { get }
   var onGoToLoginSignup: ((LoginIntent) -> Void)? { get set }
   var showErrorBannerWithMessage: Signal<String, Never> { get }
@@ -119,12 +119,8 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
     self.paymentMethodsUseCase = PaymentMethodsUseCase()
     let paymentMethods = self.paymentMethodsUseCase
-    let paymentHidden = self.paymentHiddenPipe
-    let paymentConfig = self.paymentConfigPipe
     let paymentSelected = self.paymentSelectedPipe
     let paymentValid = self.paymentValidPipe
-    paymentMethods.onHidden = { paymentHidden.input.send(value: $0) }
-    paymentMethods.onConfiguration = { paymentConfig.input.send(value: $0) }
     paymentMethods.onSelected = { paymentSelected.input.send(value: $0) }
     paymentMethods.onValidity = { paymentValid.input.send(value: $0) }
     initialData.observeValues { paymentMethods.configure($0) }
@@ -654,6 +650,8 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     }
 
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
+    paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
+    paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
   }
 
   // MARK: - Helpers
@@ -748,9 +746,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   // MARK: - Outputs
 
   public let configureEstimatedShippingView: Signal<(String?, String?), Never>
-  public var configurePaymentMethodsViewControllerWithValue: Signal<PledgePaymentMethodsValue, Never> {
-    return self.paymentConfigPipe.output
-  }
+  public var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)?
 
   public let configurePledgeRewardsSummaryViewWithData: Signal<(
     PostCampaignRewardsSummaryViewData,
@@ -765,9 +761,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   public let processingViewIsHidden: Signal<Bool, Never>
   public let showErrorBannerWithMessage: Signal<String, Never>
   public var onShowWebHelp: ((HelpType) -> Void)?
-  public var paymentMethodsViewHidden: Signal<Bool, Never> {
-    return self.paymentHiddenPipe.output
-  }
+  public var onPaymentMethodsHidden: ((Bool) -> Void)?
 
   public let validateCheckoutSuccess: Signal<PaymentSourceValidation, Never>
   public let goToApplePayPaymentAuthorization: Signal<PostCampaignPaymentAuthorizationData, Never>
@@ -792,8 +786,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private let loginStatePipe = Signal<Bool, Never>.pipe()
   private let loginSessionPipe = Signal<Void, Never>.pipe()
   private let paymentMethodsUseCase: PaymentMethodsUseCase
-  private let paymentHiddenPipe = Signal<Bool, Never>.pipe()
-  private let paymentConfigPipe = Signal<PledgePaymentMethodsValue, Never>.pipe()
   private let paymentSelectedPipe = Signal<PaymentSourceSelected?, Never>.pipe()
   private let paymentValidPipe = Signal<Bool, Never>.pipe()
 }

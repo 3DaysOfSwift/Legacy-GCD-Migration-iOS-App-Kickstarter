@@ -91,16 +91,13 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       self.vm.checkoutError.observe(self.checkoutError.observer)
       self.vm.outputs.onGoToLoginSignup = { [weak self] in self?.goToLoginSignup.observer.send(value: $0) }
 
-      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.0 }
-        .observe(self.configurePaymentMethodsViewControllerWithUser.observer)
-      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.1 }
-        .observe(self.configurePaymentMethodsViewControllerWithProject.observer)
-      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.2 }
-        .observe(self.configurePaymentMethodsViewControllerWithCheckoutId.observer)
-      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.3 }
-        .observe(self.configurePaymentMethodsViewControllerWithReward.observer)
-      self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.4 }
-        .observe(self.configurePaymentMethodsViewControllerWithContext.observer)
+      self.vm.outputs.onConfigurePaymentMethods = { [weak self] value in
+        self?.configurePaymentMethodsViewControllerWithUser.observer.send(value: value.0)
+        self?.configurePaymentMethodsViewControllerWithProject.observer.send(value: value.1)
+        self?.configurePaymentMethodsViewControllerWithCheckoutId.observer.send(value: value.2)
+        self?.configurePaymentMethodsViewControllerWithReward.observer.send(value: value.3)
+        self?.configurePaymentMethodsViewControllerWithContext.observer.send(value: value.4)
+      }
 
       self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.2 }
         .observe(self.configurePledgeViewCTAContainerViewIsLoggedIn.observer)

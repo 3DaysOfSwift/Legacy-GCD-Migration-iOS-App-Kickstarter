@@ -84,7 +84,7 @@ public protocol PledgeViewModelOutputs: AnyObject {
   var beginSCAFlowWithClientSecret: Signal<String, Never> { get }
   var configureEstimatedShippingView: Signal<(String?, String?), Never> { get }
   var configureLocalPickupViewWithData: Signal<PledgeLocalPickupViewData, Never> { get }
-  var configurePaymentMethodsViewControllerWithValue: Signal<PledgePaymentMethodsValue, Never> { get }
+  var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)? { get set }
   var configurePledgeAmountSummaryViewControllerWithData: Signal<PledgeAmountSummaryViewData, Never> { get }
   var configurePledgeRewardsSummaryViewWithData: Signal<
     (PostCampaignRewardsSummaryViewData, Double?, PledgeSummaryViewData),
@@ -99,7 +99,7 @@ public protocol PledgeViewModelOutputs: AnyObject {
   var onGoToLoginSignup: ((LoginIntent) -> Void)? { get set }
   var localPickupViewHidden: Signal<Bool, Never> { get }
   var notifyDelegateUpdatePledgeDidSucceedWithMessage: Signal<String, Never> { get }
-  var paymentMethodsViewHidden: Signal<Bool, Never> { get }
+  var onPaymentMethodsHidden: ((Bool) -> Void)? { get set }
   var pledgeAmountSummaryViewHidden: Signal<Bool, Never> { get }
   var popToRootViewController: Signal<(), Never> { get }
   var processingViewIsHidden: Signal<Bool, Never> { get }
@@ -152,12 +152,8 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     self.paymentMethodsUseCase = PaymentMethodsUseCase()
     let paymentMethods = self.paymentMethodsUseCase
-    let paymentHidden = self.paymentHiddenPipe
-    let paymentConfig = self.paymentConfigPipe
     let paymentSelected = self.paymentSelectedPipe
     let paymentValid = self.paymentValidPipe
-    paymentMethods.onHidden = { paymentHidden.input.send(value: $0) }
-    paymentMethods.onConfiguration = { paymentConfig.input.send(value: $0) }
     paymentMethods.onSelected = { paymentSelected.input.send(value: $0) }
     paymentMethods.onValidity = { paymentValid.input.send(value: $0) }
     initialData.observeValues { paymentMethods.configure($0) }
@@ -934,6 +930,8 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         )
       }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
+    paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
+    paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
   }
 
   // MARK: - Inputs
@@ -1012,9 +1010,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   public let beginSCAFlowWithClientSecret: Signal<String, Never>
   public let configureEstimatedShippingView: Signal<(String?, String?), Never>
   public let configureLocalPickupViewWithData: Signal<PledgeLocalPickupViewData, Never>
-  public var configurePaymentMethodsViewControllerWithValue: Signal<PledgePaymentMethodsValue, Never> {
-    self.paymentConfigPipe.output
-  }
+  public var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)?
 
   public let configurePledgeAmountSummaryViewControllerWithData: Signal<PledgeAmountSummaryViewData, Never>
   public let configurePledgeRewardsSummaryViewWithData: Signal<
@@ -1031,9 +1027,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
   public let localPickupViewHidden: Signal<Bool, Never>
   public let notifyDelegateUpdatePledgeDidSucceedWithMessage: Signal<String, Never>
-  public var paymentMethodsViewHidden: Signal<Bool, Never> {
-    self.paymentHiddenPipe.output
-  }
+  public var onPaymentMethodsHidden: ((Bool) -> Void)?
 
   public let pledgeAmountSummaryViewHidden: Signal<Bool, Never>
   public let popToRootViewController: Signal<(), Never>
@@ -1063,8 +1057,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   private let loginStatePipe = Signal<Bool, Never>.pipe()
   private let loginSessionPipe = Signal<Void, Never>.pipe()
   private let paymentMethodsUseCase: PaymentMethodsUseCase
-  private let paymentHiddenPipe = Signal<Bool, Never>.pipe()
-  private let paymentConfigPipe = Signal<PledgePaymentMethodsValue, Never>.pipe()
   private let paymentSelectedPipe = Signal<PaymentSourceSelected?, Never>.pipe()
   private let paymentValidPipe = Signal<Bool, Never>.pipe()
 }

@@ -224,7 +224,9 @@ final class PostCampaignCheckoutViewController: UIViewController,
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.paymentMethodsViewController.view.rac.hidden = self.viewModel.outputs.paymentMethodsViewHidden
+    self.viewModel.outputs.onPaymentMethodsHidden = { [weak self] hidden in
+      self?.paymentMethodsViewController.view.isHidden = hidden
+    }
 
     self.viewModel.outputs.configurePledgeRewardsSummaryViewWithData
       .observeForUI()
@@ -249,9 +251,7 @@ final class PostCampaignCheckoutViewController: UIViewController,
         }
       }
 
-    self.viewModel.outputs.configurePaymentMethodsViewControllerWithValue
-      .observeForUI()
-      .observeValues { [weak self] value in
+    self.viewModel.outputs.onConfigurePaymentMethods = { [weak self] value in
         self?.paymentMethodsViewController.configure(with: value)
       }
 
