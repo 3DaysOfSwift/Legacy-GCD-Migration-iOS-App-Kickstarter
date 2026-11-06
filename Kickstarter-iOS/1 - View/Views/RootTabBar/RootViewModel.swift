@@ -148,6 +148,11 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   private let profileFeature: ProfileFeature
   private var sessionFeature: SessionFeature { self.profileFeature.sessionFeature }
   private var latestSelectedIndex: RootViewControllerIndex?
+  private var lastUserSelectedIndex = 0
+  private var previousUserSelectedIndex = 0
+  private var hasUserSelection = false
+  private var latestTabBarData: TabBarItemsData?
+  private var lastSearchOrigin: KSRAnalytics.TabBarItemLabel?
   private var requestedIndex: RootViewControllerIndex?
   private var controllerCount: Int?
   private var latestLoginState: Bool?
@@ -247,53 +252,11 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
       tabData(forUser: user, isFloatingTabBarEnabled: isFloatingTabBarEnabled)
     }
 
-    // Tracks
-
-    let prevSelectedIndex = self.didSelectIndexProperty
-      .signal
-      .combinePrevious(0)
-      .map(first)
-
-    let prevSelectedTabBarItem = Signal
-      .combineLatest(prevSelectedIndex, self.tabBarItemsData)
-      .map { index, data -> KSRAnalytics.TabBarItemLabel in
-        guard index < data.items.count else { return tabBarItemLabel(for: data.items[0]) }
-
-        return tabBarItemLabel(for: data.items[index])
-      }
-
-    let searchTabBarSelected = Signal
-      .combineLatest(self.didSelectIndexProperty.signal, self.tabBarItemsData)
-      .filter { index, data in index < data.items.count }
-      .map { index, data in
-        tabBarItemLabel(for: data.items[index])
-      }
-      .filter { $0 == .search }
-
-    prevSelectedTabBarItem
-      .takeWhen(searchTabBarSelected)
-      .skipRepeats(==)
-      .observeValues { tabBarLabel in
-        AppEnvironment.current.ksrAnalytics
-          .trackSearchTabBarClicked(prevTabBarItemLabel: tabBarLabel)
-      }
-
-    self.tabBarItemsData
-      .combineLatest(with: prevSelectedTabBarItem.signal)
-      .takePairWhen(self.didSelectIndexProperty.signal)
-      .compactMap { dataAndPrevSelectedTabBarItem, index in
-        let (data, prevSelectedTabBarItem) = dataAndPrevSelectedTabBarItem
-        guard index < data.items.count else { return nil }
-
-        return (tabBarItemLabel(for: data.items[index]), prevSelectedTabBarItem)
-      }
-      .observeValues { tabBarItemLabel, prevSelectedTabBarItemLabel in
-        AppEnvironment.current.ksrAnalytics
-          .trackTabBarClicked(
-            tabBarItemLabel: tabBarItemLabel,
-            previousTabBarItemLabel: prevSelectedTabBarItemLabel
-          )
-      }
+    self.tabBarItemsData.observeValues { [weak self] data in
+      guard let self else { return }
+      self.latestTabBarData = data
+      self.trackSearchSelectionIfNeeded()
+    }
 
     loginState.observeValues { [weak self] in self?.latestLoginState = $0 }
     self.setViewControllers.observeValues { [weak self] controllers in
@@ -306,6 +269,30 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
       }
       if !self.loadingRootView { self.publishSelectedIndexIfReady() }
     }
+  }
+
+  private func trackSearchSelectionIfNeeded() {
+    guard self.hasUserSelection, let data = self.latestTabBarData, !data.items.isEmpty,
+          data.items.indices.contains(self.lastUserSelectedIndex),
+          tabBarItemLabel(for: data.items[self.lastUserSelectedIndex]) == .search else { return }
+    let previous = data.items.indices.contains(self.previousUserSelectedIndex) ? self.previousUserSelectedIndex : 0
+    let origin = tabBarItemLabel(for: data.items[previous])
+    guard self.lastSearchOrigin != origin else { return }
+    self.lastSearchOrigin = origin
+    AppEnvironment.current.ksrAnalytics.trackSearchTabBarClicked(prevTabBarItemLabel: origin)
+  }
+
+  private func trackTabSelection(_ index: Int) {
+    self.previousUserSelectedIndex = self.lastUserSelectedIndex
+    self.lastUserSelectedIndex = index
+    self.hasUserSelection = true
+    self.trackSearchSelectionIfNeeded()
+    guard let data = self.latestTabBarData, !data.items.isEmpty, data.items.indices.contains(index) else { return }
+    let previous = data.items.indices.contains(self.previousUserSelectedIndex) ? self.previousUserSelectedIndex : 0
+    AppEnvironment.current.ksrAnalytics.trackTabBarClicked(
+      tabBarItemLabel: tabBarItemLabel(for: data.items[index]),
+      previousTabBarItemLabel: tabBarItemLabel(for: data.items[previous])
+    )
   }
 
   private func selectIndex(_ index: RootViewControllerIndex) {
@@ -437,9 +424,8 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
     self.updateBadge(value, index: index)
   }
 
-  fileprivate let didSelectIndexProperty = MutableProperty(0)
   public func didSelect(index: Int) {
-    self.didSelectIndexProperty.value = index
+    self.trackTabSelection(index)
     self.selectIndex(index)
   }
 
