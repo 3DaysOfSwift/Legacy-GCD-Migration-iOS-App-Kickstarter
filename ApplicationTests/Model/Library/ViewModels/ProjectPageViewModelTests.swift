@@ -116,14 +116,17 @@ final class ProjectPageViewModelTests: TestCase {
         self?.dismissManagePledgeAndShowMessageBannerWithMessage.observer.send(value: $0)
       }
       self.vm.outputs.onGoToComments = { [weak self] in self?.goToComments.observer.send(value: $0) }
-      self.vm.outputs.goToLoginWithIntent.observe(self.goToLoginWithIntent.observer)
+      self.vm.outputs.onGoToLoginWithIntent = { [weak self] in self?.goToLoginWithIntent.observer.send(value: $0) }
       self.vm.outputs.goToManagePledge.map(first).observe(self.goToManagePledgeProjectParam.observer)
       self.vm.outputs.goToManagePledge.map(second).observe(self.goToManagePledgeBackingParam.observer)
       self.vm.outputs.goToPledgeManagementPledgeView.observe(self.goToPledgeManagementViewPledge.observer)
       self.vm.outputs.goToPledgeManager.observe(self.goToPledgeManager.observer)
       self.vm.outputs.onGoToReportProject = { [weak self] in self?.goToReportProject.observer.send(value: $0) }
-      self.vm.outputs.goToRewards.map(first).observe(self.goToRewardsProject.observer)
-      self.vm.outputs.goToRewards.map(second).observe(self.goToRewardsRefTag.observer)
+      self.vm.outputs.onGoToRewards = { [weak self] params in
+        let (project, refTag, _) = params
+        self?.goToRewardsProject.observer.send(value: project)
+        self?.goToRewardsRefTag.observer.send(value: refTag)
+      }
       self.vm.outputs.onGoToUpdates = { [weak self] in self?.goToUpdates.observer.send(value: $0) }
       self.vm.outputs.onGoToURL = { [weak self] in self?.goToURL.observer.send(value: $0) }
       self.vm.outputs.onPauseMedia = { [weak self] in self?.pauseMedia.observer.send(value: ()) }

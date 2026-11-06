@@ -155,7 +155,7 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var onGoToComments: ((Project) -> Void)? { get set }
 
   /// Emits `LoginIntent` to take the user to the `LoginToutViewController`
-  var goToLoginWithIntent: Signal<LoginIntent, Never> { get }
+  var onGoToLoginWithIntent: ((LoginIntent) -> Void)? { get set }
 
   /// Emits `ManagePledgeViewParamConfigData` to take the user to the `ManagePledgeViewController`
   var goToManagePledge: Signal<ManagePledgeViewParamConfigData, Never> { get }
@@ -175,7 +175,7 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var onGoToReportProject: (((Bool, String, String)) -> Void)? { get set }
 
   /// Emits a project and refTag to be used to navigate to the reward selection screen.
-  var goToRewards: Signal<(Project, RefTag?, String?), Never> { get }
+  var onGoToRewards: (((Project, RefTag?, String?)) -> Void)? { get set }
 
   /// Emits a URL that will be opened by an external Safari browser.
   var onGoToURL: ((URL) -> Void)? { get set }
@@ -307,6 +307,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   private var projectDetailsObservation: MainActorObservation?
   private let projectRoute = UUID()
   private var latestProject: Project?
+  private var latestProjectRefTag: RefTag?
   private var requestRefTag: RefTag?
   internal private(set) var loadingTask: Task<Void, Never>?
 
@@ -643,38 +644,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
     // MARK: Rewards
 
-    let secretRewardToken = self.configDataProperty.signal
-      .skipNil()
-      .map { _, _, secretRewardToken -> String? in
-        secretRewardToken
-      }
-
-    let shouldGoToRewards = ctaButtonTappedWithType
-      .filter { state in
-        switch state {
-        case .pledge, .viewRewards, .viewYourRewards:
-          return true
-        default:
-          return false
-        }
-      }
-      .ignoreValues()
-
     self.rewardsUseCase = RewardsUseCase()
-    let rewardsUseCase = self.rewardsUseCase
-    let rewardsNavigation = self.rewardsNavigationPipe
-    let rewardsLogin = self.rewardsLoginPipe
-    rewardsUseCase.onRewards = { rewardsNavigation.input.send(value: ()) }
-    rewardsUseCase.onLogin = { rewardsLogin.input.send(value: $0) }
-    secretRewardToken.observeValues { rewardsUseCase.configure(secretRewardToken: $0) }
-    shouldGoToRewards.observeValues { rewardsUseCase.goToRewardsTapped() }
-
-    self.goToRewards = freshProjectAndRefTag
-      .combineLatest(with: secretRewardToken)
-      .map(unpack)
-      .takeWhen(
-        self.rewardsNavigationPipe.output
-      )
 
     // MARK: - Pledge View
 
@@ -710,6 +680,12 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         self?.similarProjectsUseCase.projectIDLoaded(projectID: projectID)
       }
 
+    self.rewardsUseCase.onRewards = { [weak self] in
+      guard let self, let project = self.latestProject, let config = self.configDataProperty.value else { return }
+      self.onGoToRewards?((project, self.latestProjectRefTag, config.2))
+    }
+    self.rewardsUseCase.onLogin = { [weak self] in self?.onGoToLoginWithIntent?($0) }
+
     self.similarProjectsUseCase.onNavigate = { [weak self] in self?.onNavigateToSimilarProject?($0) }
 
     let route = self.projectRoute
@@ -722,6 +698,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         switch result {
         case let .success(project):
           self.latestProject = project
+          self.latestProjectRefTag = self.requestRefTag
           self.onProjectFlagged?(project.flagging ?? false)
           completion.input.send(value: .value((project, self.requestRefTag)))
         case let .failure(error): completion.input.send(value: .failed(error))
@@ -808,6 +785,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.cancelMediaPreparation()
     self.cancelImagePreparation()
     self.configDataProperty.value = (projectOrParam, refInfo, secretRewardToken)
+    self.rewardsUseCase.configure(secretRewardToken: secretRewardToken)
   }
 
   /// Convenience overload for `configureWith` that defaults the `secretRewardToken` to `nil`.
@@ -840,6 +818,12 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   private let pledgeCTAButtonTappedProperty = MutableProperty<PledgeStateCTAType?>(nil)
   public func pledgeCTAButtonTapped(with state: PledgeStateCTAType) {
     self.pledgeCTAButtonTappedProperty.value = state
+    switch state {
+    case .pledge, .viewRewards, .viewYourRewards:
+      self.rewardsUseCase.goToRewardsTapped()
+    default:
+      break
+    }
   }
 
   public func pledgeRetryButtonTapped() {
@@ -920,9 +904,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   public var onManagePledgeFinishedWithMessage: ((String) -> Void)?
   public var onGoToComments: ((Project) -> Void)?
 
-  public var goToLoginWithIntent: Signal<LoginIntent, Never> {
-    self.rewardsLoginPipe.output
-  }
+  public var onGoToLoginWithIntent: ((LoginIntent) -> Void)?
 
   public let goToManagePledge: Signal<ManagePledgeViewParamConfigData, Never>
 
@@ -931,7 +913,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   public let goToPledgeManagementPledgeView: Signal<String, Never>
 
   public var onGoToRestrictedCreator: ((String) -> Void)?
-  public let goToRewards: Signal<(Project, RefTag?, String?), Never>
+  public var onGoToRewards: (((Project, RefTag?, String?)) -> Void)?
   public var onGoToUpdates: ((Project) -> Void)?
   public var onGoToReportProject: (((Bool, String, String)) -> Void)?
   public var onGoToURL: ((URL) -> Void)?
@@ -971,8 +953,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   // MARK: - RewardsUseCase
 
   private let rewardsUseCase: RewardsUseCase
-  private let rewardsNavigationPipe = Signal<Void, Never>.pipe()
-  private let rewardsLoginPipe = Signal<LoginIntent, Never>.pipe()
 }
 
 

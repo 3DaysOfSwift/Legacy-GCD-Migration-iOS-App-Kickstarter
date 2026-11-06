@@ -392,13 +392,12 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         self?.navigation.configureSaveWatchPrelaunchProject(with: prelaunchState)
       }
 
-    self.viewModel.outputs.goToRewards
-      .observeForControllerAction()
-      .observeValues { [weak self] params in
-        let (project, refTag, secretRewardToken) = params
-
+    self.viewModel.outputs.onGoToRewards = { [weak self] params in
+      let (project, refTag, secretRewardToken) = params
+      DispatchQueue.main.async { [weak self] in
         self?.goToRewards(project: project, refTag: refTag, secretRewardToken: secretRewardToken)
       }
+    }
 
     self.viewModel.outputs.goToManagePledge
       .observeForControllerAction()
@@ -464,17 +463,15 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
       DispatchQueue.main.async { [weak self] in self?.goToComments(project: project) }
     }
 
-    self.viewModel.outputs.goToLoginWithIntent
-      .observeForControllerAction()
-      .observeValues { [weak self] intent in
+    self.viewModel.outputs.onGoToLoginWithIntent = { [weak self] intent in
+      DispatchQueue.main.async { [weak self] in
         let loginTout = LoginToutViewController.configuredWith(loginIntent: intent)
-
         let isIpad = AppEnvironment.current.device.userInterfaceIdiom == .pad
         let nav = UINavigationController(rootViewController: loginTout)
           |> \.modalPresentationStyle .~ (isIpad ? .formSheet : .fullScreen)
-
         self?.present(nav, animated: true, completion: nil)
       }
+    }
 
     self.viewModel.outputs.onGoToReportProject = { [weak self] details in
       let (flagged, projectID, projectUrl) = details
