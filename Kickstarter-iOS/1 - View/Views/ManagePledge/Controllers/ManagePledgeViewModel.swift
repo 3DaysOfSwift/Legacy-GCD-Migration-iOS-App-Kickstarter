@@ -80,6 +80,7 @@ public final class ManagePledgeViewModel:
   private var configuredBackingWasProvided = false
   private var currentBackingParam: Param?
   private var rightBarHidden: Bool?
+  private var backingHasLoaded = false
   private var currentProject: Project?
   private var currentCancellation: (Project, Backing)?
   private var currentChangePaymentMethodData: PledgeViewData?
@@ -209,10 +210,6 @@ public final class ManagePledgeViewModel:
       rewards.map { $0.estimatedDeliveryOn }.allSatisfy(isNil) || userIsCreatorOfProject
     }
 
-    let pledgeDetailsSectionLabelText = userIsCreatorOfProject.map {
-      $0 ? Strings.Pledge_details() : Strings.Your_pledge_details()
-    }
-
     // MARK: - ManageViewPledgeRewardReceivedViewData
 
     let latestRewardDeliveryDate = loadProjectAndRewardsIntoDataSource.map { _, rewards in
@@ -277,9 +274,6 @@ public final class ManagePledgeViewModel:
       }
       .map(pledgeViewData)
 
-    let notifyDelegateManagePledgeViewControllerFinishedWithMessage = backing.skip(first: 1)
-      .mapConst(nil as String?)
-
     let rewardReceivedViewControllerViewIsHidden: Signal<Bool, Never> = latestRewardDeliveryDate
       .map { $0 == 0 }
 
@@ -337,11 +331,13 @@ public final class ManagePledgeViewModel:
       self?.onLoadRefreshHeader?()
       self?.setRightBarHidden(true)
     }
-    _ = notifyDelegateManagePledgeViewControllerFinishedWithMessage.observeValues { [weak self] value in self?.onFinish?(value) }
     _ = menuOptions.observeValues { [weak self] value in self?.currentMenuOptions = value }
     _ = project.observeValues { [weak self] value in self?.currentProject = value }
     _ = backing.observeValues { [weak self] value in
-      if !value.cancelable { self?.hasSeenDisallowedCancellation = true }
+      guard let self else { return }
+      if !value.cancelable { self.hasSeenDisallowedCancellation = true }
+      if self.backingHasLoaded { self.onFinish?(nil) }
+      self.backingHasLoaded = true
     }
     _ = cancellationData.observeValues { [weak self] project, backing in
       self?.currentCancellation = (project, backing)
@@ -354,7 +350,9 @@ public final class ManagePledgeViewModel:
     }
     _ = configurePledgeSummaryView.observeValues { [weak self] in self?.onPledgeSummary?($0) }
     _ = paymentMethodViewHidden.observeValues { [weak self] in self?.onPaymentMethodHidden?($0) }
-    _ = pledgeDetailsSectionLabelText.observeValues { [weak self] in self?.onPledgeDetailsLabel?($0) }
+    _ = userIsCreatorOfProject.observeValues { [weak self] isCreator in
+      self?.onPledgeDetailsLabel?(isCreator ? Strings.Pledge_details() : Strings.Your_pledge_details())
+    }
     _ = backing.observeValues { [weak self] backing in
       let enabled = isPledgeOverTime(with: backing)
       self?.onPlotScheduleHidden?(!enabled)
