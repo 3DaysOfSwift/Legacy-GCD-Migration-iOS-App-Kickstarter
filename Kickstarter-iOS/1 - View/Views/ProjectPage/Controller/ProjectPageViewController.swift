@@ -492,11 +492,9 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
       DispatchQueue.main.async { [weak self] in self?.goToUpdates(project: project) }
     }
 
-    self.viewModel.outputs.goToURL
-      .observeForControllerAction()
-      .observeValues { url in
-        UIApplication.shared.open(url)
-      }
+    self.viewModel.outputs.onGoToURL = { url in
+      DispatchQueue.main.async { UIApplication.shared.open(url) }
+    }
 
     self.viewModel.outputs.prefetchImageURLs
       .observeForUI()
@@ -614,9 +612,8 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         self.navigateBackToProjectPage()
       }
 
-    self.viewModel.outputs.pauseMedia
-      .observeForUI()
-      .observeValues { [weak self] in
+    self.viewModel.outputs.onPauseMedia = { [weak self] in
+      DispatchQueue.main.async { [weak self] in
         guard let tableView = self?.tableView else { return }
 
         tableView.indexPathsForVisibleRows?.forEach { indexPath in
@@ -632,12 +629,11 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
           }
         }
       }
+    }
 
-    self.viewModel.outputs.reloadCampaignData
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.tableView.reloadData()
-      }
+    self.viewModel.outputs.onReloadCampaignData = { [weak self] in
+      DispatchQueue.main.async { [weak self] in self?.tableView.reloadData() }
+    }
 
     self.viewModel.outputs.projectFlagged
       .observeForUI()

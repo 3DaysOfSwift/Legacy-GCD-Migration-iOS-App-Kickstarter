@@ -178,10 +178,10 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var goToRewards: Signal<(Project, RefTag?, String?), Never> { get }
 
   /// Emits a URL that will be opened by an external Safari browser.
-  var goToURL: Signal<URL, Never> { get }
+  var onGoToURL: ((URL) -> Void)? { get set }
 
   /// Emits a signal when the app is no longer being actively used to pause any playing media.
-  var pauseMedia: Signal<Void, Never> { get }
+  var onPauseMedia: (() -> Void)? { get set }
 
   /// Emits when the Project page should be shown again (popping back in the stack and dismissing any modals).
   var onNavigateBackToProjectPage: (() -> Void)? { get set }
@@ -205,7 +205,7 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var projectFlagged: Signal<Bool, Never> { get }
 
   /// Emits a signal when an orientation change happens if the currently selected tab is campaign.
-  var reloadCampaignData: Signal<Void, Never> { get }
+  var onReloadCampaignData: (() -> Void)? { get set }
 
   /// Emits a `HelpType` to use when presenting a HelpWebViewController.
   var onShowHelp: ((HelpType) -> Void)? { get set }
@@ -626,13 +626,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         return (project, refTag, updatedValues)
       }
 
-    self.pauseMedia = self.applicationDidEnterBackgroundProperty.signal
-    self.reloadCampaignData = self.projectNavigationSelectorViewDidSelectProperty.signal.skipNil()
-      .takeWhen(self.viewWillTransitionProperty.signal)
-      .filter { NavigationSection(rawValue: $0) == .campaign }
-      .ignoreValues()
-
-    self.goToURL = self.didSelectCampaignImageLinkProperty.signal.skipNil()
 
     // MARK: Project notice
 
@@ -787,9 +780,8 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.onPresentMessageDialog?(project)
   }
 
-  fileprivate let applicationDidEnterBackgroundProperty = MutableProperty(())
   public func applicationDidEnterBackground() {
-    self.applicationDidEnterBackgroundProperty.value = ()
+    self.onPauseMedia?()
   }
 
   private let blockPresentation = DiscussionBlockPresentation()
@@ -852,9 +844,8 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.didSelectFAQsRowAtProperty.value = (row, values)
   }
 
-  fileprivate let didSelectCampaignImageLinkProperty = MutableProperty<URL?>(nil)
   public func didSelectCampaignImageLink(url: URL) {
-    self.didSelectCampaignImageLinkProperty.value = url
+    self.onGoToURL?(url)
   }
 
   private let managePledgeViewControllerFinishedWithMessageProperty = MutableProperty<String?>(nil)
@@ -930,9 +921,10 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.viewDidAppearAnimatedProperty.value = animated
   }
 
-  fileprivate let viewWillTransitionProperty = MutableProperty(())
   public func viewWillTransition() {
-    self.viewWillTransitionProperty.value = ()
+    guard let index = self.projectNavigationSelectorViewDidSelectProperty.value,
+          NavigationSection(rawValue: index) == .campaign else { return }
+    self.onReloadCampaignData?()
   }
 
   public let configureDataSource: Signal<
@@ -959,8 +951,8 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   public let goToRewards: Signal<(Project, RefTag?, String?), Never>
   public var onGoToUpdates: ((Project) -> Void)?
   public var onGoToReportProject: (((Bool, String, String)) -> Void)?
-  public let goToURL: Signal<URL, Never>
-  public let pauseMedia: Signal<Void, Never>
+  public var onGoToURL: ((URL) -> Void)?
+  public var onPauseMedia: (() -> Void)?
   public var onNavigateBackToProjectPage: (() -> Void)?
   public var onPresentMessageDialog: ((Project) -> Void)?
   public let precreateAudioVideoURLs: Signal<(AudioVideoViewElement, IndexPath), Never>
@@ -968,7 +960,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   public let prefetchImageURLs: Signal<([URL], IndexPath), Never>
   public let prefetchImageURLsOnFirstLoad: Signal<[ImageViewElement], Never>
   public let projectFlagged: Signal<Bool, Never>
-  public let reloadCampaignData: Signal<Void, Never>
+  public var onReloadCampaignData: (() -> Void)?
   public var onShowHelp: ((HelpType) -> Void)?
   public let showProjectPageTabWithData: Signal<
     (NavigationSection, Project, RefTag?, [Bool], [URL], SimilarProjectsState, ProjectPageContentView),

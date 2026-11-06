@@ -124,8 +124,8 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.outputs.goToRewards.map(first).observe(self.goToRewardsProject.observer)
       self.vm.outputs.goToRewards.map(second).observe(self.goToRewardsRefTag.observer)
       self.vm.outputs.onGoToUpdates = { [weak self] in self?.goToUpdates.observer.send(value: $0) }
-      self.vm.outputs.goToURL.observe(self.goToURL.observer)
-      self.vm.outputs.pauseMedia.observe(self.pauseMedia.observer)
+      self.vm.outputs.onGoToURL = { [weak self] in self?.goToURL.observer.send(value: $0) }
+      self.vm.outputs.onPauseMedia = { [weak self] in self?.pauseMedia.observer.send(value: ()) }
       self.vm.outputs.onNavigateBackToProjectPage = { [weak self] in self?.navigateBackToProjectPage.observer.send(value: ()) }
       self.vm.outputs.onPresentMessageDialog = { [weak self] in self?.presentMessageDialog.observer.send(value: $0) }
       self.vm.outputs.precreateAudioVideoURLs.observe(self.precreateAudioVideoURLs.observer)
@@ -134,7 +134,7 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.outputs.prefetchImageURLs.observe(self.prefetchImageURLs.observer)
       self.vm.outputs.prefetchImageURLsOnFirstLoad.observe(self.prefetchImageURLsFirstLoad.observer)
       self.vm.outputs.projectFlagged.observe(self.projectFlagged.observer)
-      self.vm.outputs.reloadCampaignData.observe(self.reloadCampaignData.observer)
+      self.vm.outputs.onReloadCampaignData = { [weak self] in self?.reloadCampaignData.observer.send(value: ()) }
       self.vm.outputs.onShowHelp = { [weak self] in self?.showHelpWebViewController.observer.send(value: $0) }
       self.vm.outputs.showProjectPageTabWithData.map { $0.0 }
         .observe(self.showProjectPageTabWithDataNavigationSection.observer)
