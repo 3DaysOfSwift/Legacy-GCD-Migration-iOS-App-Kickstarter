@@ -464,23 +464,35 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     let checkoutIdProperty = MutableProperty<Int?>(nil)
     let processingState = PledgeProcessingState()
 
-    let createBackingEvents = createBackingDataAndIsApplePay
+    let createBackingRequests = createBackingDataAndIsApplePay
       .map(CreateBackingInput.input(from:isApplePay:))
-      .switchMap { [checkoutIdProperty] input in
-        feature.delayedResult(feature.createResult(input))
-          .on(
-            starting: {
-              processingState.setHidden(false)
-            },
-            terminated: {
-              processingState.setHidden(true)
-            }
-          )
-          .map { envelope -> StripeSCARequiring in
-            checkoutIdProperty.value = decompose(id: envelope.createBacking.checkout.id)
-            return envelope as StripeSCARequiring
-          }
-          .materialize()
+    let createIdentity = self.createIdentity
+    let createBackingEvents: Signal<Signal<StripeSCARequiring, ErrorEnvelope>.Event, Never> = self.createEvents.output
+      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      .filter { [feature, createIdentity] _, userID, generation, id in
+        guard createIdentity.id == id else { return false }
+        guard feature.sessionFeature.isCurrent(userID: userID, generation: generation) else {
+          createIdentity.id = UUID()
+          processingState.setHidden(true)
+          return false
+        }
+        return true
+      }
+      .map { event, _, _, _ in
+        switch event {
+        case let .value(envelope):
+          checkoutIdProperty.value = decompose(id: envelope.createBacking.checkout.id)
+          return .value(envelope as StripeSCARequiring)
+        case let .failed(error):
+          processingState.setHidden(true)
+          return .failed(error)
+        case .completed:
+          processingState.setHidden(true)
+          return .completed
+        case .interrupted:
+          processingState.setHidden(true)
+          return .interrupted
+        }
       }
 
     // MARK: - Update Backing
@@ -883,6 +895,30 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     _ = pledgeRewardsSummary.observeValues { [weak self] in self?.onPledgeRewardsSummary?($0.0, $0.1, $0.2) }
     _ = pledgeCTA.observeValues { [weak self] in self?.onPledgeCTA?($0) }
     processingState.onChange = { [weak self] in self?.onProcessingHidden?($0) }
+    self.createObservation = createBackingRequests.observeValues { [weak self] input in
+      guard let self else { return }
+      self.createTask?.cancel()
+      let userID = feature.sessionFeature.currentUser?.id
+      let generation = feature.sessionFeature.generation
+      let id = UUID()
+      self.createIdentity.id = id
+      let request = feature.startCreate(input)
+      processingState.setHidden(false)
+      self.createTask = Task { [weak self] in
+        do {
+          let result = try await request.value
+          guard !Task.isCancelled else { return }
+          self?.createEvents.input.send(value: (.value(result), userID, generation, id))
+          self?.createEvents.input.send(value: (.completed, userID, generation, id))
+        } catch {
+          if Task.isCancelled || error is CancellationError {
+            if self?.createIdentity.id == id { processingState.setHidden(true) }
+            return
+          }
+          self?.createEvents.input.send(value: (.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), userID, generation, id))
+        }
+      }
+    }
     _ = updateBackingCompletionEvents.observeValues { [weak self] in
       self?.onPledgeUpdateSucceeded?(Strings.Got_it_your_changes_have_been_saved())
     }
@@ -1013,6 +1049,16 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
   // MARK: - Use cases
 
+  private let createEvents = Signal<(Signal<CreateBackingEnvelope, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
+  private let createIdentity = PledgeWriteIdentity()
+  private var createObservation: (any Disposable)?
+  private var createTask: Task<Void, Never>?
+
+  deinit {
+    self.createObservation?.dispose()
+    self.createTask?.cancel()
+  }
+
   private let pledgeOverTimeUseCase: PledgeOverTimeUseCase
   private let planShowPipe = Signal<Bool, Never>.pipe()
   private let planLoadingPipe = Signal<Bool, Never>.pipe()
@@ -1116,4 +1162,9 @@ private final class PledgeProcessingState {
   func setHidden(_ hidden: Bool) {
     self.onChange?(hidden)
   }
+}
+
+@MainActor
+private final class PledgeWriteIdentity {
+  var id = UUID()
 }

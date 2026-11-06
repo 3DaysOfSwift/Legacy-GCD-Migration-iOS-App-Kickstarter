@@ -26,10 +26,9 @@ final class PledgeFeatureTests: TestCase {
 
   func testEquivalentCreateSharesPendingWriteAndPreservesSCACheckout() async throws {
     let input = self.createInput()
-    let first = Task { try await self.feature.create(input) }
+    let first = self.feature.startCreate(input)
+    let duplicate = self.feature.startCreate(input)
     await self.provider.creates.waitFor(1)
-    let duplicate = Task { try await self.feature.create(input) }
-    await Task.yield()
     XCTAssertEqual(self.provider.createInputs, [input])
     try self.provider.creates.finish(0, .success(self.created()))
     let values = try await [first.value, duplicate.value]
