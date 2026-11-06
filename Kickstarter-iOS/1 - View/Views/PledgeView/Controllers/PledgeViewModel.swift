@@ -164,7 +164,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       .map { $1.isCreating }
       .filter(isTrue)
     let applePaySuccess = self.applePaySuccessPipe
-    self.applePayAuthorization.onSuccess = { applePaySuccess.input.send(value: ()) }
     self.applePayAuthorization.onParams = { requestState.setApplePayParams($0) }
 
     // MARK: Pledge Over Time
@@ -199,8 +198,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     let checkoutIdProperty = MutableProperty<Int?>(nil)
     let processingState = PledgeProcessingState()
 
-    let createBackingRequests = createBackingDataAndIsApplePay
-      .map(CreateBackingInput.input(from:isApplePay:))
     let createIdentity = self.createIdentity
     let createBackingEvents: Signal<Signal<StripeSCARequiring, ErrorEnvelope>.Event, Never> = self.createEvents.output
       .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
@@ -241,20 +238,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     .map { $1.isUpdating }
     .filter(isTrue)
 
-    let updateButtonTapped = context
-      .takeWhen(self.submitButtonTappedSignal)
-      .filter { context in context.isUpdating }
-      .ignoreValues()
-
-    let updateBackingDataAndIsApplePay = updateBackingData.takePairWhen(
-      Signal.merge(
-        updateButtonTapped.mapConst(false),
-        willUpdateApplePayBacking
-      )
-    )
-
-    let updateBackingRequests = updateBackingDataAndIsApplePay
-      .map(UpdateBackingInput.input(from:isApplePay:))
     let updateIdentity = self.updateIdentity
     let updateBackingEvents: Signal<Signal<StripeSCARequiring, ErrorEnvelope>.Event, Never> = self.updateEvents.output
       .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
@@ -482,6 +465,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     .map { $0 as PledgeViewCTAContainerViewData }
 
     _ = createBackingData.observeValues { [weak self] in self?.latestCreateBackingData = $0 }
+    _ = updateBackingData.observeValues { [weak self] in self?.latestUpdateBackingData = $0 }
     _ = initialData.observeValues { [weak self] data in
       self?.onTitle?(data.context.title)
       let amounts = PledgeAmounts(data)
@@ -543,8 +527,9 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     }
     _ = pledgeCTA.observeValues { [weak self] in self?.onPledgeCTA?($0) }
     processingState.onChange = { [weak self] in self?.onProcessingHidden?($0) }
-    self.createObservation = createBackingRequests.observeValues { [weak self] input in
+    self.startCreate = { [weak self] data, isApplePay in
       guard let self else { return }
+      let input = CreateBackingInput.input(from: data, isApplePay: isApplePay)
       self.createTask?.cancel()
       let userID = feature.sessionFeature.currentUser?.id
       let generation = feature.sessionFeature.generation
@@ -567,8 +552,9 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         }
       }
     }
-    self.updateObservation = updateBackingRequests.observeValues { [weak self] input in
+    self.startUpdate = { [weak self] data, isApplePay in
       guard let self else { return }
+      let input = UpdateBackingInput.input(from: data, isApplePay: isApplePay)
       self.updateTask?.cancel()
       let userID = feature.sessionFeature.currentUser?.id
       let generation = feature.sessionFeature.generation
@@ -597,6 +583,10 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     _ = errorMessages.observeValues { [weak self] in self?.onShowError?($0) }
     _ = beginSCAFlowWithClientSecret.observeValues { [weak self] in self?.onBeginSCA?($0) }
     _ = goToThanks.observeValues { [weak self] in self?.onGoToThanks?($0) }
+    self.applePayAuthorization.onSuccess = { [weak self] in
+      applePaySuccess.input.send(value: ())
+      self?.startBacking(isApplePay: true)
+    }
     planUseCase.onShow = { [weak self] in self?.onShowPledgeOverTime?($0) }
     planUseCase.onConfig = { [weak self] data in
       requestState.selectPlan(data?.selectedPlan ?? .pledgeInFull)
@@ -624,6 +614,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
   private var configuredData: PledgeViewData?
   private var latestCreateBackingData: CreateBackingData?
+  private var latestUpdateBackingData: UpdateBackingData?
   private var hasLoadedView = false
   private let initialDataEvents = Signal<PledgeViewData, Never>.pipe()
   private let viewDidLoadEvents = Signal<Void, Never>.pipe()
@@ -687,7 +678,17 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   private let (submitButtonTappedSignal, submitButtonTappedObserver) = Signal<Void, Never>.pipe()
   public func submitButtonTapped() {
     self.submitButtonTappedObserver.send(value: ())
+    self.startBacking(isApplePay: false)
     self.trackPledgeSubmission(isApplePay: false)
+  }
+
+  private func startBacking(isApplePay: Bool) {
+    guard self.hasLoadedView, let context = self.configuredData?.context else { return }
+    if context.isCreating, let data = self.latestCreateBackingData {
+      self.startCreate?(data, isApplePay)
+    } else if context.isUpdating, let data = self.latestUpdateBackingData {
+      self.startUpdate?(data, isApplePay)
+    }
   }
 
   private func trackPledgeSubmission(isApplePay: Bool) {
@@ -758,18 +759,16 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
   private let createEvents = Signal<(Signal<CreateBackingEnvelope, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
   private let createIdentity = PledgeWriteIdentity()
-  private var createObservation: (any Disposable)?
+  private var startCreate: ((CreateBackingData, Bool) -> Void)?
   private var createTask: Task<Void, Never>?
 
   private let updateEvents = Signal<(Signal<UpdateBackingEnvelope, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
   private let updateIdentity = PledgeWriteIdentity()
-  private var updateObservation: (any Disposable)?
+  private var startUpdate: ((UpdateBackingData, Bool) -> Void)?
   private var updateTask: Task<Void, Never>?
 
   deinit {
-    self.updateObservation?.dispose()
     self.updateTask?.cancel()
-    self.createObservation?.dispose()
     self.createTask?.cancel()
   }
 
