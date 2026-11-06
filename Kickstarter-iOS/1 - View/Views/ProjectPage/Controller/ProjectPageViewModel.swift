@@ -229,11 +229,8 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   /// Emits when a block user request fails.
   var onDidBlockUserError: (() -> Void)? { get set }
 
-  /// The current state of similar projects.
-  var similarProjects: Property<SimilarProjectsState> { get }
-
-  /// Signal that emits when a user taps on a similar project.
-  var navigateToSimilarProject: Signal<ProjectCardProperties, Never> { get }
+  /// Called when a user taps a similar project.
+  var onNavigateToSimilarProject: ((ProjectCardProperties) -> Void)? { get set }
 }
 
 @MainActor
@@ -319,9 +316,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.projectDetailsFeature = projectDetailsFeature
     self.similarProjectsUseCase = SimilarProjectsUseCase(projectDetailsFeature: projectDetailsFeature)
     let relatedState = self.relatedState
-    let relatedNavigation = self.relatedNavigation
     self.similarProjectsUseCase.onState = { relatedState.value = $0 }
-    self.similarProjectsUseCase.onNavigate = { relatedNavigation.input.send(value: $0) }
     let isLoading = MutableProperty(false)
 
 
@@ -715,6 +710,8 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         self?.similarProjectsUseCase.projectIDLoaded(projectID: projectID)
       }
 
+    self.similarProjectsUseCase.onNavigate = { [weak self] in self?.onNavigateToSimilarProject?($0) }
+
     let route = self.projectRoute
     self.projectDetailsObservation = projectDetailsFeature.observe { [weak self] update in
       guard let self else { return }
@@ -964,19 +961,12 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
   private let similarProjectsUseCase: SimilarProjectsUseCase
   private let relatedState = MutableProperty<SimilarProjectsState>(.loading)
-  private let relatedNavigation = Signal<ProjectCardProperties, Never>.pipe()
 
   public func similarProjectTapped(project: ProjectCardProperties) {
     self.similarProjectsUseCase.projectTapped(project: project)
   }
 
-  public var similarProjects: Property<SimilarProjectsState> {
-    Property(self.relatedState)
-  }
-
-  public var navigateToSimilarProject: Signal<ProjectCardProperties, Never> {
-    self.relatedNavigation.output
-  }
+  public var onNavigateToSimilarProject: ((ProjectCardProperties) -> Void)?
 
   // MARK: - RewardsUseCase
 

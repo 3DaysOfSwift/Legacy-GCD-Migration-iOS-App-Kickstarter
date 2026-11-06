@@ -648,12 +648,11 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         messageBanner.showBanner(with: .error, message: Strings.Block_user_fail())
       }
 
-    self.viewModel.outputs.navigateToSimilarProject
-      .observeForUI()
-      .observeValues { [weak self] project in
-        guard let self else { return }
-        self.goToSimilarProject(project.projectPageParam)
+    self.viewModel.outputs.onNavigateToSimilarProject = { [weak self] project in
+      DispatchQueue.main.async { [weak self] in
+        self?.goToSimilarProject(project.projectPageParam)
       }
+    }
   }
 
   private func showTableView() {
