@@ -284,11 +284,6 @@ public final class PledgeFeature {
   {
     try Self.completed(await self.execute(.completeCheckout(input)))
   }
-  public func openCheckoutResult(_ input: KsApi.CreateCheckoutInput) -> SignalProducer<
-    CreateCheckoutEnvelope, ErrorEnvelope
-  > {
-    self.result(.openCheckout(input), transform: Self.checkout)
-  }
   public func validateCheckoutResult(checkoutID: String, sourceID: String, secret: String)
     -> SignalProducer<ValidateCheckoutEnvelope, ErrorEnvelope>
   {

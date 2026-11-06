@@ -261,27 +261,9 @@ final class PledgeFeatureTests: TestCase {
       projectId: "p", amount: "10.00", locationId: "l", rewardIds: ["r", "r"], refParam: "ref")
     let changed = KsApi.CreateCheckoutInput(
       projectId: "p", amount: "20.00", locationId: "l", rewardIds: ["r", "r"], refParam: "ref")
-    var ids: [String] = []
-    let a = self.feature.openCheckoutResult(input).startWithResult {
-      if case .success(let value) = $0 {
-        ids.append(value.checkout.id)
-      } else {
-        XCTFail("Expected checkout")
-      }
-    }
-    let b = self.feature.openCheckoutResult(input).startWithResult {
-      if case .success(let value) = $0 {
-        ids.append(value.checkout.id)
-      } else {
-        XCTFail("Expected checkout")
-      }
-    }
-    let c = self.feature.openCheckoutResult(changed).start()
-    defer {
-      a.dispose()
-      b.dispose()
-      c.dispose()
-    }
+    let first = self.feature.startOpenCheckout(input)
+    let duplicate = self.feature.startOpenCheckout(input)
+    let changedRequest = self.feature.startOpenCheckout(changed)
     await self.provider.checkouts.waitFor(1)
     XCTAssertEqual(self.provider.checkoutInputs, [input])
     try self.provider.checkouts.finish(
@@ -289,8 +271,12 @@ final class PledgeFeatureTests: TestCase {
     await self.provider.checkouts.waitFor(2)
     XCTAssertEqual(self.provider.checkoutInputs, [input, changed])
     try self.provider.checkouts.finish(1, .failure(ErrorEnvelope.couldNotParseJSON))
-    await self.feature.waitForOperations()
-    XCTAssertEqual(ids, ["checkout", "checkout"])
+    let values = try await [first.value, duplicate.value]
+    XCTAssertEqual(values.map { $0.checkout.id }, ["checkout", "checkout"])
+    do {
+      _ = try await changedRequest.value
+      XCTFail("Expected changed checkout to fail")
+    } catch {}
   }
 
   func testValidationIdentityIncludesCardAndIntentAndPreservesFailure() async throws {
@@ -342,25 +328,25 @@ final class PledgeFeatureTests: TestCase {
   }
 
   func testSessionChangeSuppressesCheckoutAndRejectsQueuedCompletion() async throws {
-    var delivered = false
-    let a = self.feature.openCheckoutResult(
-      .init(projectId: "p", amount: "10", locationId: nil, rewardIds: [], refParam: nil)
-    )
-    .startWithResult { _ in delivered = true }
-    let b = self.feature.completeCheckoutResult(
+    var completionDelivered = false
+    let checkout = self.feature.startOpenCheckout(
+      .init(projectId: "p", amount: "10", locationId: nil, rewardIds: [], refParam: nil))
+    let completion = self.feature.completeCheckoutResult(
       .init(checkoutId: "c", paymentIntentClientSecret: "fixture")
-    )
-    .startWithResult { _ in delivered = true }
-    defer {
-      a.dispose()
-      b.dispose()
-    }
+    ).startWithResult { _ in completionDelivered = true }
+    defer { completion.dispose() }
     await self.provider.checkouts.waitFor(1)
     self.session.sessionChanged()
     self.feature.reset()
     try self.provider.checkouts.finish(0, .failure(ErrorEnvelope.couldNotParseJSON))
+    do {
+      _ = try await checkout.value
+      XCTFail("A replaced session must not receive a checkout")
+    } catch is CancellationError {} catch {
+      XCTFail("Expected cancellation after session change: \(error)")
+    }
     await self.feature.waitForOperations()
-    XCTAssertFalse(delivered)
+    XCTAssertFalse(completionDelivered)
     XCTAssertEqual(self.provider.completions.count, 0)
   }
 
