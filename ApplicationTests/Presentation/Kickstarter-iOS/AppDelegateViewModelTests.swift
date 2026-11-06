@@ -117,13 +117,13 @@ final class AppDelegateViewModelTests: TestCase {
       .observe(self.emailVerificationCompletedMessage.observer)
     self.vm.outputs.emailVerificationCompleted.map(second)
       .observe(self.emailVerificationCompletedSuccess.observer)
-    self.vm.outputs.findRedirectUrl.observe(self.findRedirectUrl.observer)
+    self.vm.outputs.onFindRedirectUrl = { [weak self] in self?.findRedirectUrl.observer.send(value: $0) }
     self.vm.outputs.onForceLogout = { [weak self] in self?.forceLogout.observer.send(value: ()) }
     self.vm.outputs.onGoToActivity = { [weak self] in self?.goToActivity.observer.send(value: ()) }
     self.vm.outputs.onGoToDiscovery = { [weak self] in self?.goToDiscovery.observer.send(value: $0) }
-    self.vm.outputs.goToLoginWithIntent.observe(self.goToLoginWithIntent.observer)
+    self.vm.outputs.onGoToLoginWithIntent = { [weak self] in self?.goToLoginWithIntent.observer.send(value: $0) }
     self.vm.outputs.onGoToProfile = { [weak self] in self?.goToProfile.observer.send(value: ()) }
-    self.vm.outputs.goToMobileSafari.observe(self.goToMobileSafari.observer)
+    self.vm.outputs.onGoToMobileSafari = { [weak self] in self?.goToMobileSafari.observer.send(value: $0) }
     self.vm.outputs.onGoToSearch = { [weak self] in self?.goToSearch.observer.send(value: ()) }
     self.vm.outputs.onPostNotification = { [weak self] in self?.postNotificationName.observer.send(value: $0.name) }
     self.vm.outputs.onPresentViewController = { [weak self] controller in

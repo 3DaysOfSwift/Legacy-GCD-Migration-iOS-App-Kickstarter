@@ -116,7 +116,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
 
   /// Emits when the view needs to figure out the redirect URL for the emitted URL.
   /// Required in order to handle email links.
-  var findRedirectUrl: Signal<URL, Never> { get }
+  var onFindRedirectUrl: ((URL) -> Void)? { get set }
 
   /// Emits when opening the app with an invalid access token.
   var onForceLogout: (() -> Void)? { get set }
@@ -128,7 +128,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var onGoToDiscovery: ((DiscoveryParams?) -> Void)? { get set }
 
   /// Emits when the root view controller should present the login modal.
-  var goToLoginWithIntent: Signal<LoginIntent, Never> { get }
+  var onGoToLoginWithIntent: ((LoginIntent) -> Void)? { get set }
 
   /// Emits a message thread when we should navigate to it.
   var onGoToMessageThread: ((MessageThread) -> Void)? { get set }
@@ -137,7 +137,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var onGoToProfile: (() -> Void)? { get set }
 
   /// Emits a URL when we should open it in the safari browser.
-  var goToMobileSafari: Signal<URL, Never> { get }
+  var onGoToMobileSafari: ((URL) -> Void)? { get set }
 
   /// Emits when the root view controller should navigate to search.
   var onGoToSearch: (() -> Void)? { get set }
@@ -320,37 +320,24 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       .map(emailVerificationCompletionData)
       .skipNil()
 
-    self.findRedirectUrl = deepLinkUrl
-      .filter { Navigation.match($0) == .emailClick }
-
-    let fixErroredPledgeLinkAndNeedsToLogIn = deepLink
-      .filter { link in
-        guard case let .project(_, subpage, _, _) = link else { return false }
-        guard case .pledge(.manage) = subpage else { return false }
-
-        return AppEnvironment.current.currentUser == nil
-      }
-
-    let goToLogin = deepLink
-      .filter { $0 == .tab(.login) }
-      .ignoreValues()
-
-    self.goToLoginWithIntent = Signal.merge(
-      fixErroredPledgeLinkAndNeedsToLogIn.mapConst(.erroredPledge),
-      goToLogin.mapConst(.generic),
-      self.goToLoginSignupProperty.signal.skipNil()
-    )
-
-    self.goToMobileSafari = Signal.merge(
-      deepLinkUrl,
-      urlFromBraze
-    )
-    .filter { shouldOpenUrlInBrowser($0) }
+    deepLinkUrl.observeValues { [weak self] url in
+      if Navigation.match(url) == .emailClick { self?.onFindRedirectUrl?(url) }
+      if shouldOpenUrlInBrowser(url) { self?.onGoToMobileSafari?(url) }
+    }
+    urlFromBraze.observeValues { [weak self] url in
+      if shouldOpenUrlInBrowser(url) { self?.onGoToMobileSafari?(url) }
+    }
 
     deepLink.observeValues { [weak self] navigation in
       if navigation == .tab(.activity) { self?.onGoToActivity?() }
       if navigation == .tab(.search) { self?.onGoToSearch?() }
       if navigation == .tab(.me) { self?.onGoToProfile?() }
+      if navigation == .tab(.login) { self?.onGoToLoginWithIntent?(.generic) }
+      if case let .project(_, subpage, _, _) = navigation,
+         case .pledge(.manage) = subpage,
+         AppEnvironment.current.currentUser == nil {
+        self?.onGoToLoginWithIntent?(.erroredPledge)
+      }
       self?.resolveDestination(navigation)
     }
 
@@ -740,9 +727,8 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.foundRedirectUrlProperty.value = url
   }
 
-  private let goToLoginSignupProperty = MutableProperty<LoginIntent?>(nil)
   public func goToLoginSignup(from intent: LoginIntent) {
-    self.goToLoginSignupProperty.value = intent
+    self.onGoToLoginWithIntent?(intent)
   }
 
   fileprivate typealias ApplicationOpenUrl = (
@@ -799,14 +785,14 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public var onConfigureStatsig: ((StatsigClientSDKKey) -> Void)?
   public private(set) var continueUserActivityReturnValue = false
   public let emailVerificationCompleted: Signal<(String, Bool), Never>
-  public let findRedirectUrl: Signal<URL, Never>
+  public var onFindRedirectUrl: ((URL) -> Void)?
   public var onForceLogout: (() -> Void)?
   public var onGoToActivity: (() -> Void)?
   public var onGoToDiscovery: ((DiscoveryParams?) -> Void)?
-  public let goToLoginWithIntent: Signal<LoginIntent, Never>
+  public var onGoToLoginWithIntent: ((LoginIntent) -> Void)?
   public var onGoToMessageThread: ((MessageThread) -> Void)?
   public var onGoToProfile: (() -> Void)?
-  public let goToMobileSafari: Signal<URL, Never>
+  public var onGoToMobileSafari: ((URL) -> Void)?
   public var onGoToSearch: (() -> Void)?
   public var onPostNotification: ((Notification) -> Void)?
   public var onPresentViewController: ((UIViewController) -> Void)?

@@ -169,9 +169,8 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       DispatchQueue.main.async { [weak self] in self?.rootTabBarController?.switchToActivities() }
     }
 
-    self.viewModel.outputs.goToLoginWithIntent
-      .observeForControllerAction()
-      .observeValues { [weak self] intent in
+    self.viewModel.outputs.onGoToLoginWithIntent = { [weak self] intent in
+      DispatchQueue.main.async { [weak self] in
         /// Dismiss OnboardingView if present so that we can correctly present the LoginToutViewController.
         if let onboardingView = self?.rootTabBarController?
           .presentedViewController as? UIHostingController<OnboardingView> {
@@ -185,6 +184,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
 
         self?.rootTabBarController?.present(nav, animated: true, completion: nil)
       }
+    }
 
     self.viewModel.outputs.onGoToMessageThread = { [weak self] thread in
       DispatchQueue.main.async { [weak self] in self?.goToMessageThread(thread) }
@@ -194,9 +194,9 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       DispatchQueue.main.async { [weak self] in self?.rootTabBarController?.switchToSearch() }
     }
 
-    self.viewModel.outputs.goToMobileSafari
-      .observeForUI()
-      .observeValues { UIApplication.shared.open($0) }
+    self.viewModel.outputs.onGoToMobileSafari = { url in
+      DispatchQueue.main.async { UIApplication.shared.open(url) }
+    }
 
     self.viewModel.outputs.onApplicationIconBadgeNumber = { value in
       DispatchQueue.main.async { UIApplication.shared.applicationIconBadgeNumber = value }
@@ -284,9 +284,9 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       }
     }
 
-    self.viewModel.outputs.findRedirectUrl
-      .observeForUI()
-      .observeValues { [weak self] in self?.viewModel.inputs.resolveEmailRedirect($0) }
+    self.viewModel.outputs.onFindRedirectUrl = { [weak self] url in
+      DispatchQueue.main.async { [weak self] in self?.viewModel.inputs.resolveEmailRedirect(url) }
+    }
 
     self.viewModel.outputs.emailVerificationCompleted
       .observeForUI()
