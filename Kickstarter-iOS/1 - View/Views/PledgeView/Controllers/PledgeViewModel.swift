@@ -574,41 +574,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     let title: Signal<String, Never> = context.map { $0.title }
 
-    let trackCheckoutPageViewData = Signal.zip(
-      project,
-      baseReward,
-      rewards,
-      selectedQuantities,
-      refTag,
-      additionalPledgeAmount,
-      pledgeTotal,
-      context
-    )
-
     // MARK: - Tracking
-
-    trackCheckoutPageViewData
-      .observeValues { project, baseReward, rewards, selectedQuantities, refTag, additionalPledgeAmount, pledgeTotal, pledgeViewContext in
-        let checkoutData = checkoutProperties(
-          from: project,
-          baseReward: baseReward,
-          addOnRewards: rewards,
-          selectedQuantities: selectedQuantities,
-          additionalPledgeAmount: additionalPledgeAmount,
-          pledgeTotal: pledgeTotal,
-          shippingTotal: 0,
-          checkoutId: nil,
-          isApplePay: false
-        )
-
-        AppEnvironment.current.ksrAnalytics.trackCheckoutPaymentPageViewed(
-          project: project,
-          reward: baseReward,
-          pledgeViewContext: pledgeViewContext,
-          checkoutData: checkoutData,
-          refTag: refTag
-        )
-      }
 
     let pledgeSubmitEventsSignal = Signal.combineLatest(
       createBackingData,
@@ -823,6 +789,16 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   private func publishInitialDataWhenReady() {
     guard self.hasLoadedView, let data = self.configuredData else { return }
     self.initialDataEvents.input.send(value: data)
+    guard let reward = data.rewards.first, let total = PledgeAmounts(data).total else { return }
+    let checkoutData = checkoutProperties(
+      from: data.project, baseReward: reward, addOnRewards: data.rewards,
+      selectedQuantities: data.selectedQuantities, additionalPledgeAmount: PledgeAmounts(data).bonus,
+      pledgeTotal: total, shippingTotal: 0, checkoutId: nil, isApplePay: false
+    )
+    AppEnvironment.current.ksrAnalytics.trackCheckoutPaymentPageViewed(
+      project: data.project, reward: reward, pledgeViewContext: data.context,
+      checkoutData: checkoutData, refTag: data.refTag
+    )
   }
 
   public func creditCardSelected(with paymentSourceData: PaymentSourceSelected) {
