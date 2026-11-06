@@ -152,9 +152,9 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
         self?.viewModel.inputs.didUpdateConfig(config)
       }
 
-    self.viewModel.outputs.postNotification
-      .observeForUI()
-      .observeValues(NotificationCenter.default.post)
+    self.viewModel.outputs.onPostNotification = { notification in
+      DispatchQueue.main.async { NotificationCenter.default.post(notification) }
+    }
 
     self.viewModel.outputs.presentViewController
       .observeForUI()

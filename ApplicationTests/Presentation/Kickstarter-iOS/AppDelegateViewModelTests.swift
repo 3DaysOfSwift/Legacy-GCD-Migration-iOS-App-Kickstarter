@@ -126,7 +126,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.outputs.goToProfile.observe(self.goToProfile.observer)
     self.vm.outputs.goToMobileSafari.observe(self.goToMobileSafari.observer)
     self.vm.outputs.goToSearch.observe(self.goToSearch.observer)
-    self.vm.outputs.postNotification.map { $0.name }.observe(self.postNotificationName.observer)
+    self.vm.outputs.onPostNotification = { [weak self] in self?.postNotificationName.observer.send(value: $0.name) }
     self.vm.outputs.presentViewController.map { ($0 as! UINavigationController).viewControllers.count }
       .observe(self.presentViewController.observer)
     self.vm.outputs.pushTokenRegistrationStarted.observe(self.pushRegistrationStarted.observer)

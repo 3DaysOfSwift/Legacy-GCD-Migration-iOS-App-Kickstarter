@@ -92,7 +92,7 @@ public protocol AppDelegateViewModelInputs {
 }
 
 @MainActor
-public protocol AppDelegateViewModelOutputs {
+public protocol AppDelegateViewModelOutputs: AnyObject {
   /// The value to return from the delegate's `application:didFinishLaunchingWithOptions:` method.
   var applicationDidFinishLaunchingReturnValue: Bool { get }
 
@@ -143,7 +143,7 @@ public protocol AppDelegateViewModelOutputs {
   var goToSearch: Signal<(), Never> { get }
 
   /// Emits an Notification that should be immediately posted.
-  var postNotification: Signal<Notification, Never> { get }
+  var onPostNotification: ((Notification) -> Void)? { get set }
 
   /// Emits when a view controller should be presented.
   var presentViewController: Signal<UIViewController, Never> { get }
@@ -273,31 +273,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       return lifecycleResult(feature: lifecycleFeature) { try await request.value }.demoteErrors()
     }
     .map { configRetainingDebugFeatureFlags($0) }
-
-    let currentUserUpdatedNotification = self.currentUserUpdatedInEnvironmentProperty.signal
-      .mapConst(Notification(name: .ksr_userUpdated, object: nil))
-
-    let configUpdatedNotification = self.didUpdateConfigProperty.signal
-      .skipNil()
-      .mapConst(Notification(name: .ksr_configUpdated, object: nil))
-
-    let remoteConfigClientConfiguredNotification = self.didUpdateRemoteConfigClientProperty.signal
-      .mapConst(Notification(name: .ksr_remoteConfigClientConfigured, object: nil))
-
-    let remoteConfigClientConfigurationFailedNotification = self.remoteConfigClientConfigurationFailedProperty
-      .signal
-      .mapConst(Notification(name: .ksr_remoteConfigClientConfigurationFailed, object: nil))
-
-    let appEnteredBackgroundNotification = self.applicationDidEnterBackgroundProperty.signal
-      .mapConst(Notification(name: .ksr_applicationDidEnterBackground, object: nil))
-
-    self.postNotification = Signal.merge(
-      currentUserUpdatedNotification,
-      configUpdatedNotification,
-      remoteConfigClientConfiguredNotification,
-      remoteConfigClientConfigurationFailedNotification,
-      appEnteredBackgroundNotification
-    )
 
     let openUrl = self.applicationOpenUrlProperty.signal.skipNil()
 
@@ -664,9 +639,8 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.applicationActiveProperty.value = state
   }
 
-  fileprivate let applicationDidEnterBackgroundProperty = MutableProperty(())
   public func applicationDidEnterBackground() {
-    self.applicationDidEnterBackgroundProperty.value = ()
+    self.onPostNotification?(Notification(name: .ksr_applicationDidEnterBackground, object: nil))
   }
 
   fileprivate let applicationDidReceiveMemoryWarningProperty = MutableProperty(())
@@ -679,9 +653,8 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.performActionForShortcutItemProperty.value = item
   }
 
-  fileprivate let currentUserUpdatedInEnvironmentProperty = MutableProperty(())
   public func currentUserUpdatedInEnvironment() {
-    self.currentUserUpdatedInEnvironmentProperty.value = ()
+    self.onPostNotification?(Notification(name: .ksr_userUpdated, object: nil))
   }
 
   private let configUpdatedNotificationObservedProperty = MutableProperty(())
@@ -711,11 +684,11 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   fileprivate let didUpdateConfigProperty = MutableProperty<Config?>(nil)
   public func didUpdateConfig(_ config: Config) {
     self.didUpdateConfigProperty.value = config
+    self.onPostNotification?(Notification(name: .ksr_configUpdated, object: nil))
   }
 
-  fileprivate let didUpdateRemoteConfigClientProperty = MutableProperty(())
   public func didUpdateRemoteConfigClient() {
-    self.didUpdateRemoteConfigClientProperty.value = ()
+    self.onPostNotification?(Notification(name: .ksr_remoteConfigClientConfigured, object: nil))
   }
 
   private let foundRedirectUrlProperty = MutableProperty<URL?>(nil)
@@ -765,9 +738,8 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
   public private(set) var applicationDidFinishLaunchingReturnValue = true
 
-  fileprivate let remoteConfigClientConfigurationFailedProperty = MutableProperty(())
   public func remoteConfigClientConfigurationFailed() {
-    self.remoteConfigClientConfigurationFailedProperty.value = ()
+    self.onPostNotification?(Notification(name: .ksr_remoteConfigClientConfigurationFailed, object: nil))
   }
 
   public let applicationIconBadgeNumber: Signal<Int, Never>
@@ -786,7 +758,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public let goToProfile: Signal<(), Never>
   public let goToMobileSafari: Signal<URL, Never>
   public let goToSearch: Signal<(), Never>
-  public let postNotification: Signal<Notification, Never>
+  public var onPostNotification: ((Notification) -> Void)?
   public let presentViewController: Signal<UIViewController, Never>
   public let pushTokenRegistrationStarted: Signal<(), Never>
   public let pushTokenSuccessfullyRegistered: Signal<String, Never>
