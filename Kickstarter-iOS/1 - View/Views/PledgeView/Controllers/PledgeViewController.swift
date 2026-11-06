@@ -356,19 +356,11 @@ final class PledgeViewController: UIViewController,
         self?.goToThanks(data: data)
       }
 
-    self.viewModel.outputs.notifyDelegateUpdatePledgeDidSucceedWithMessage
-      .observeForUI()
-      .observeValues { [weak self] message in
-        guard let self = self else { return }
-        self.delegate?.pledgeViewControllerDidUpdatePledge(self, message: message)
-      }
-
-    // This is currently called when a pledge is being *edited*.
-    self.viewModel.outputs.popToRootViewController
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        self?.navigationController?.popToRootViewController(animated: true)
-      }
+    self.viewModel.outputs.onPledgeUpdateSucceeded = { [weak self] message in
+      guard let self else { return }
+      self.delegate?.pledgeViewControllerDidUpdatePledge(self, message: message)
+      self.navigationController?.popToRootViewController(animated: true)
+    }
 
     self.keyboardObservation = Keyboard.observe { [weak self] change in
         self?.rootScrollView.handleKeyboardVisibilityDidChange(change)

@@ -94,10 +94,9 @@ public protocol PledgeViewModelOutputs: AnyObject {
   var goToThanks: Signal<ThanksPageData, Never> { get }
   var onGoToLoginSignup: ((LoginIntent) -> Void)? { get set }
   var onLocalPickupHidden: ((Bool) -> Void)? { get set }
-  var notifyDelegateUpdatePledgeDidSucceedWithMessage: Signal<String, Never> { get }
+  var onPledgeUpdateSucceeded: ((String) -> Void)? { get set }
   var onPaymentMethodsHidden: ((Bool) -> Void)? { get set }
   var onPledgeAmountSummaryHidden: ((Bool) -> Void)? { get set }
-  var popToRootViewController: Signal<(), Never> { get }
   var onProcessingHidden: ((Bool) -> Void)? { get set }
   var showErrorBannerWithMessage: Signal<String, Never> { get }
   var onShowWebHelp: ((HelpType) -> Void)? { get set }
@@ -723,9 +722,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       scaFlowCompletedWithSuccess.combineLatest(with: updatingContext).ignoreValues()
     )
 
-    self.notifyDelegateUpdatePledgeDidSucceedWithMessage = updateBackingCompletionEvents
-      .mapConst(Strings.Got_it_your_changes_have_been_saved())
-
     let graphErrors = Signal.merge(
       createOrUpdateApplePayBackingError,
       createOrUpdateBackingError
@@ -738,8 +734,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       graphErrors,
       scaErrors
     )
-
-    self.popToRootViewController = self.notifyDelegateUpdatePledgeDidSucceedWithMessage.ignoreValues()
 
     let willRetryPaymentMethod = Signal.combineLatest(
       context,
@@ -889,6 +883,9 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     _ = pledgeRewardsSummary.observeValues { [weak self] in self?.onPledgeRewardsSummary?($0.0, $0.1, $0.2) }
     _ = pledgeCTA.observeValues { [weak self] in self?.onPledgeCTA?($0) }
     processingState.onChange = { [weak self] in self?.onProcessingHidden?($0) }
+    _ = updateBackingCompletionEvents.observeValues { [weak self] in
+      self?.onPledgeUpdateSucceeded?(Strings.Got_it_your_changes_have_been_saved())
+    }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
     paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
@@ -993,11 +990,10 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   public var onGoToLoginSignup: ((LoginIntent) -> Void)?
 
   public var onLocalPickupHidden: ((Bool) -> Void)?
-  public let notifyDelegateUpdatePledgeDidSucceedWithMessage: Signal<String, Never>
+  public var onPledgeUpdateSucceeded: ((String) -> Void)?
   public var onPaymentMethodsHidden: ((Bool) -> Void)?
 
   public var onPledgeAmountSummaryHidden: ((Bool) -> Void)?
-  public let popToRootViewController: Signal<(), Never>
   public var onProcessingHidden: ((Bool) -> Void)?
   public let showErrorBannerWithMessage: Signal<String, Never>
   public var onShowWebHelp: ((HelpType) -> Void)?

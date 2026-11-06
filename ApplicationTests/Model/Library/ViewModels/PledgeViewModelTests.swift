@@ -150,12 +150,13 @@ final class PledgeViewModelTests: TestCase {
       self.vm.outputs.goToThanks.map { $0.checkoutData }.observe(self.goToThanksCheckoutData.observer)
       self.vm.outputs.onLocalPickupHidden = { [weak self] in self?.localPickupViewHidden.observer.send(value: $0) }
 
-      self.vm.outputs.notifyDelegateUpdatePledgeDidSucceedWithMessage
-        .observe(self.notifyDelegateUpdatePledgeDidSucceedWithMessage.observer)
+      self.vm.outputs.onPledgeUpdateSucceeded = { [weak self] message in
+        self?.notifyDelegateUpdatePledgeDidSucceedWithMessage.observer.send(value: message)
+        self?.popToRootViewController.observer.send(value: ())
+      }
 
       self.vm.outputs.onPaymentMethodsHidden = { [weak self] in self?.paymentMethodsViewHidden.observer.send(value: $0) }
       self.vm.outputs.onPledgeAmountSummaryHidden = { [weak self] in self?.pledgeAmountSummaryViewHidden.observer.send(value: $0) }
-      self.vm.outputs.popToRootViewController.observe(self.popToRootViewController.observer)
       self.vm.outputs.onProcessingHidden = { [weak self] in self?.processingViewIsHidden.observer.send(value: $0) }
 
       self.vm.outputs.onShowWebHelp = { [weak self] in self?.showWebHelp.observer.send(value: $0) }
