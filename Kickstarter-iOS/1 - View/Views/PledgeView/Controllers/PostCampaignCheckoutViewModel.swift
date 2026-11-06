@@ -209,47 +209,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
     // MARK: Configure views
 
-    let pledgeRewardsSummary = Signal.combineLatest(
-      initialData,
-      allRewardsShippingTotal,
-      pledgeTotal
-    )
-    .compactMap { data, shippingTotal, pledgeTotal in
-      var rewards = data.rewards
-      var bonus = data.bonusSupport
-      if let reward = rewards.first, reward.isNoReward, let bonusAmount = bonus {
-        rewards[0] = reward
-          |> Reward.lens.minimum .~ bonusAmount
-          |> Reward.lens.title .~ Strings.Pledge_without_a_reward()
-        bonus = 0
-      }
-      let omitUSCurrencyCode = data.project.stats.omitUSCurrencyCode
-      let projectCurrency = data.project.statsCurrency
-      let shippingSummary = data.selectedShippingRule.flatMap {
-        PledgeShippingSummaryViewData(
-          locationName: $0.location.localizedName,
-          omitUSCurrencyCode: omitUSCurrencyCode,
-          currencyCode: projectCurrency,
-          total: shippingTotal
-        )
-      }
-      let rewardsData = PostCampaignRewardsSummaryViewData(
-        rewards: data.rewards,
-        selectedQuantities: data.selectedQuantities,
-        currencyCode: projectCurrency,
-        omitCurrencyCode: omitUSCurrencyCode,
-        shipping: shippingSummary,
-        useLatePledgeCosts: true
-      )
-      let pledgeData = PledgeSummaryViewData(
-        project: data.project,
-        total: pledgeTotal,
-        confirmationLabelHidden: true,
-        pledgeHasNoReward: pledgeHasNoRewards(rewards: rewardsData.rewards)
-      )
-      return (rewardsData, bonus, pledgeData)
-    }
-
     // MARK: Create Payment Intent
 
     /// Called once on viewDidLoad. All signals, except checkoutId and backingId, are linked ot initialData.
@@ -618,6 +577,21 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     }
 
     _ = initialData.observeValues { [weak self] data in
+      let amounts = PostCampaignAmounts(data)
+      let bonus = data.rewards.first?.isNoReward == true && data.bonusSupport != nil ? 0 : data.bonusSupport
+      let shippingSummary = data.selectedShippingRule.map {
+        PledgeShippingSummaryViewData(locationName: $0.location.localizedName,
+          omitUSCurrencyCode: data.project.stats.omitUSCurrencyCode,
+          currencyCode: data.project.statsCurrency, total: amounts.shipping)
+      }
+      let rewardsData = PostCampaignRewardsSummaryViewData(
+        rewards: data.rewards, selectedQuantities: data.selectedQuantities,
+        currencyCode: data.project.statsCurrency, omitCurrencyCode: data.project.stats.omitUSCurrencyCode,
+        shipping: shippingSummary, useLatePledgeCosts: true
+      )
+      let pledgeData = PledgeSummaryViewData(project: data.project, total: amounts.total,
+        confirmationLabelHidden: true, pledgeHasNoReward: pledgeHasNoRewards(rewards: data.rewards))
+      self?.onPledgeRewardsSummary?(rewardsData, bonus, pledgeData)
       let shipping: String?
       let conversion: String?
       if let rule = data.selectedShippingRule {
@@ -639,7 +613,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
         AppEnvironment.current.environmentType.stripePublishableKey
       )
     }
-    _ = pledgeRewardsSummary.observeValues { [weak self] in self?.onPledgeRewardsSummary?($0.0, $0.1, $0.2) }
     _ = pledgeCTA.observeValues { [weak self] in self?.onPledgeCTA?($0) }
     _ = processingViewIsHidden.observeValues { [weak self] in self?.onProcessingHidden?($0) }
     _ = errorMessages.observeValues { [weak self] in self?.onShowError?($0) }
