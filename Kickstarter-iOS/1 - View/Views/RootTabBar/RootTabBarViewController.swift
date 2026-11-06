@@ -95,19 +95,16 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
   public override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.floatingTabBarEnabled
-      .observeForUI()
-      .observeValues { [weak self] enabled in
-        self?.applyFloatingTabBar(enabled: enabled)
-      }
+    self.viewModel.outputs.onFloatingTabBarEnabled = { [weak self] enabled in
+      DispatchQueue.main.async { [weak self] in self?.applyFloatingTabBar(enabled: enabled) }
+    }
 
-    self.viewModel.outputs.setViewControllers
-      .observeForUI()
-      .map { $0.map { RootTabBarViewController.viewController(from: $0) }.compact() }
-      .map { $0.map(UINavigationController.init(rootViewController:)) }
-      .observeValues { [weak self] in
-        self?.setViewControllers($0, animated: false)
+    self.viewModel.outputs.onSetViewControllers = { [weak self] data in
+      DispatchQueue.main.async { [weak self] in
+        let controllers = data.map { RootTabBarViewController.viewController(from: $0) }.compact()
+        self?.setViewControllers(controllers.map(UINavigationController.init(rootViewController:)), animated: false)
       }
+    }
 
     self.viewModel.outputs.onSelectedIndex = { [weak self] index in
       DispatchQueue.main.async { [weak self] in self?.selectedIndex = index }
@@ -133,9 +130,9 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
           ?|> UITabBarItem.lens.selectedImage .~ selected
       }
 
-    self.viewModel.outputs.tabBarItemsData
-      .observeForUI()
-      .observeValues { [weak self] in self?.setTabBarItemStyles(withData: $0) }
+    self.viewModel.outputs.onTabBarItemsData = { [weak self] data in
+      DispatchQueue.main.async { [weak self] in self?.setTabBarItemStyles(withData: data) }
+    }
 
     self.viewModel.outputs.onFilterDiscovery = { [weak self] data in
       let (index, params) = data

@@ -67,12 +67,12 @@ final class RootViewModelTests: TestCase {
     try await super.setUp()
 
     MainActor.assumeIsolated {
-      self.vm.outputs.setViewControllers
-        .map(extractRootNames)
-        .observe(self.viewControllerNames.observer)
+      self.vm.outputs.onSetViewControllers = { [weak self] in
+        self?.viewControllerNames.observer.send(value: extractRootNames($0))
+      }
 
       self.vm.outputs.onFilterDiscovery = { [weak self] in self?.filterDiscovery.observer.send(value: $0.1) }
-      self.vm.outputs.floatingTabBarEnabled.observe(self.floatingTabBarEnabled.observer)
+      self.vm.outputs.onFloatingTabBarEnabled = { [weak self] in self?.floatingTabBarEnabled.observer.send(value: $0) }
       self.vm.outputs.onSelectedIndex = { [weak self] in self?.selectedIndex.observer.send(value: $0) }
       self.vm.outputs.onSetBadgeValue = { [weak self] data in
         self?.setBadgeValueAtIndexValue.observer.send(value: data.0)
@@ -85,7 +85,7 @@ final class RootViewModelTests: TestCase {
         self.scrollToTopControllerName.observer.send(value: names[clamp(0, names.count - 1)(index)])
       }
 
-      self.vm.outputs.tabBarItemsData.observe(self.tabBarItemsData.observer)
+      self.vm.outputs.onTabBarItemsData = { [weak self] in self?.tabBarItemsData.observer.send(value: $0) }
     }
   }
 
@@ -373,8 +373,11 @@ final class RootViewModelTests: TestCase {
   func testSetViewControllers() {
     let viewControllerNames = TestObserver<[String], Never>()
 
-    self.vm.outputs.setViewControllers.map(extractRootNames)
-      .observe(viewControllerNames.observer)
+    let previousHandler = self.vm.outputs.onSetViewControllers
+    self.vm.outputs.onSetViewControllers = { data in
+      previousHandler?(data)
+      viewControllerNames.observer.send(value: extractRootNames(data))
+    }
 
     self.vm.inputs.viewDidLoad()
 
@@ -422,8 +425,11 @@ final class RootViewModelTests: TestCase {
 
   func testViewControllersDontOverEmit() {
     let viewControllerNames = TestObserver<[String], Never>()
-    self.vm.outputs.setViewControllers.map(extractRootNames)
-      .observe(viewControllerNames.observer)
+    let previousHandler = self.vm.outputs.onSetViewControllers
+    self.vm.outputs.onSetViewControllers = { data in
+      previousHandler?(data)
+      viewControllerNames.observer.send(value: extractRootNames(data))
+    }
 
     self.vm.inputs.viewDidLoad()
 
@@ -438,8 +444,11 @@ final class RootViewModelTests: TestCase {
 
   func testUpdateUserLocalePreferences() {
     let viewControllerNames = TestObserver<[String], Never>()
-    self.vm.outputs.setViewControllers.map(extractRootNames)
-      .observe(viewControllerNames.observer)
+    let previousHandler = self.vm.outputs.onSetViewControllers
+    self.vm.outputs.onSetViewControllers = { data in
+      previousHandler?(data)
+      viewControllerNames.observer.send(value: extractRootNames(data))
+    }
 
     withEnvironment(language: .en, locale: Locale(identifier: "en")) {
       self.vm.inputs.viewDidLoad()
@@ -622,8 +631,11 @@ final class RootViewModelTests: TestCase {
     self.filterDiscovery.assertValueCount(0)
 
     let viewControllerNames = TestObserver<[String], Never>()
-    self.vm.outputs.setViewControllers.map(extractRootNames)
-      .observe(viewControllerNames.observer)
+    let previousHandler = self.vm.outputs.onSetViewControllers
+    self.vm.outputs.onSetViewControllers = { data in
+      previousHandler?(data)
+      viewControllerNames.observer.send(value: extractRootNames(data))
+    }
 
     self.vm.inputs.viewDidLoad()
 

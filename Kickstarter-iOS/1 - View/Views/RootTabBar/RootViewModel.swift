@@ -1,6 +1,5 @@
 import KsApi
 import Prelude
-import ReactiveSwift
 import UIKit
 
 public typealias RootViewControllerIndex = Int
@@ -124,17 +123,17 @@ public protocol RootViewModelOutputs: AnyObject {
   var onSetBadgeValue: ((RootTabBarItemBadgeValueData) -> Void)? { get set }
 
   /// Emits the array of view controllers that should be set on the tab bar.
-  var setViewControllers: Signal<[RootViewControllerData], Never> { get }
+  var onSetViewControllers: (([RootViewControllerData]) -> Void)? { get set }
 
   /// Emits data for setting tab bar item styles.
   var onAvatarImage: ((Data, URL, Int) -> Void)? { get set }
-  var tabBarItemsData: Signal<TabBarItemsData, Never> { get }
+  var onTabBarItemsData: ((TabBarItemsData) -> Void)? { get set }
 
   /// Emits an already committed User for the existing user-updated notification.
   var onUserUpdated: ((User) -> Void)? { get set }
 
   /// Emits when the floating tab bar feature is enabled or disabled.
-  var floatingTabBarEnabled: Signal<Bool, Never> { get }
+  var onFloatingTabBarEnabled: ((Bool) -> Void)? { get set }
 }
 
 @MainActor
@@ -156,6 +155,11 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   private var requestedIndex: RootViewControllerIndex?
   private var controllerCount: Int?
   private var latestLoginState: Bool?
+  private var latestCurrentUser: User?
+  private var hasCurrentUserSnapshot = false
+  private var lastObservedFloatingFlag: Bool?
+  private var publishedFloatingFlag: Bool?
+  private var hasTabItemsTrigger = false
   private var hasLoadedRootView = false
   private var loadingRootView = false
   private var discoveryIndex: RootViewControllerIndex?
@@ -173,102 +177,56 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   public init(profileFeature: ProfileFeature? = nil) {
     let profileFeature = profileFeature ?? AppModel.shared.profileFeature
     self.profileFeature = profileFeature
-    let currentUser = Signal.merge(
-      self.viewDidLoadProperty.signal,
-      self.userSessionStartedProperty.signal,
-      self.userSessionEndedProperty.signal,
-      self.currentUserUpdatedProperty.signal
-    )
-    .map { _ in AppEnvironment.current.currentUser }
+  }
 
-    let loginState: Signal<Bool, Never> = currentUser
-      .map {
-        $0 != nil
-      }
-      .skipRepeats(==)
+  private func refreshCurrentUser() {
+    let user = AppEnvironment.current.currentUser
+    let loggedIn = user != nil
+    let loginChanged = self.latestLoginState != loggedIn
+    self.latestCurrentUser = user
+    self.hasCurrentUserSnapshot = true
+    self.latestLoginState = loggedIn
+    if loginChanged { self.rebuildViewControllers() }
+    self.publishTabItemsIfReady()
+  }
 
+  private func publishFloatingFlagIfChanged(_ enabled: Bool) {
+    guard self.publishedFloatingFlag != enabled else { return }
+    self.publishedFloatingFlag = enabled
+    self.onFloatingTabBarEnabled?(enabled)
+    self.rebuildViewControllers()
+    self.publishTabItemsIfReady()
+  }
 
-    /// This flag allows us to control the refresh of the tab bar when toggling on the Remote Config floating tab bar FF.
-    /// On first launch we intentionally default to the standard tab bar.
-    /// The flag is refreshed when the app returns to the foreground.
-    let featuredFlagChanged = Signal.merge(
-      self.viewDidLoadProperty.signal,
-      self.applicationWillEnterForegroundSignal.signal
-    )
-    .map { _ in featureFloatingTabBarEnabled() }
-    .skipRepeats()
-    .skip(first: 1)
+  private func observeFloatingFlag() {
+    let enabled = featureFloatingTabBarEnabled()
+    defer { self.lastObservedFloatingFlag = enabled }
+    guard let previous = self.lastObservedFloatingFlag, previous != enabled else { return }
+    self.publishFloatingFlagIfChanged(enabled)
+    self.hasTabItemsTrigger = true
+    self.rebuildViewControllers()
+    self.publishTabItemsIfReady()
+  }
 
-    let floatingTabBarEnabled = Signal.merge(
-      self.viewDidLoadProperty.signal,
-      featuredFlagChanged.ignoreValues()
-    )
-    .map { _ in featureFloatingTabBarEnabled() }
-    .skipRepeats()
-
-    self.floatingTabBarEnabled = floatingTabBarEnabled
-
-    let standardViewControllers: Signal<[RootViewControllerData], Never> = Signal
-      .combineLatest(loginState, floatingTabBarEnabled)
-      .map { isLoggedIn, isFloatingTabBarEnabled -> [RootViewControllerData] in
-        generateViewControllers(
-          isLoggedIn: isLoggedIn,
-          isFloatingTabBarEnabled: isFloatingTabBarEnabled
-        )
-      }
-
-    self.setViewControllers = Signal.merge(
-      standardViewControllers,
-      // FIXME: Look at moving the userLocalePreferencesChangedProperty signal into the currentUser signal
-      // https://kickstarter.atlassian.net/browse/MBL-2053
-      Signal
-        .combineLatest(loginState, floatingTabBarEnabled)
-        .takeWhen(
-          Signal.merge(
-            self.userLocalePreferencesChangedProperty.signal,
-            featuredFlagChanged.ignoreValues()
-          )
-        )
-        .map { isLoggedIn, isFloatingTabBarEnabled -> [RootViewControllerData] in
-          generateViewControllers(
-            isLoggedIn: isLoggedIn,
-            isFloatingTabBarEnabled: isFloatingTabBarEnabled
-          )
-        }
-    )
-
-    // FIXME: This signal always needs to happen when setViewControllers happens.
-    // Should they be combined into one signal with a tuple? Explicitly made dependent on one another?
-    // See https://kickstarter.atlassian.net/browse/MBL-2053
-    self.tabBarItemsData = Signal.combineLatest(
-      currentUser, floatingTabBarEnabled, .merge(
-        self.viewDidLoadProperty.signal,
-        featuredFlagChanged.ignoreValues(),
-        self.userLocalePreferencesChangedProperty.signal
-      )
-    )
-    .map { user, isFloatingTabBarEnabled, _ in (user, isFloatingTabBarEnabled) }
-    .map { user, isFloatingTabBarEnabled in
-      tabData(forUser: user, isFloatingTabBarEnabled: isFloatingTabBarEnabled)
+  private func rebuildViewControllers() {
+    guard let loggedIn = self.latestLoginState, let floating = self.publishedFloatingFlag else { return }
+    let controllers = generateViewControllers(isLoggedIn: loggedIn, isFloatingTabBarEnabled: floating)
+    self.controllerCount = controllers.count
+    if let index = controllers.firstIndex(of: .discovery) { self.discoveryIndex = index }
+    if let index = controllers.firstIndex(where: \.isActivity) {
+      self.activityIndex = index
+      self.clearBadgeIfActivitySelected()
     }
+    self.onSetViewControllers?(controllers)
+    if !self.loadingRootView { self.publishSelectedIndexIfReady() }
+  }
 
-    self.tabBarItemsData.observeValues { [weak self] data in
-      guard let self else { return }
-      self.latestTabBarData = data
-      self.trackSearchSelectionIfNeeded()
-    }
-
-    loginState.observeValues { [weak self] in self?.latestLoginState = $0 }
-    self.setViewControllers.observeValues { [weak self] controllers in
-      guard let self else { return }
-      self.controllerCount = controllers.count
-      if let index = controllers.firstIndex(of: .discovery) { self.discoveryIndex = index }
-      if let index = controllers.firstIndex(where: \.isActivity) {
-        self.activityIndex = index
-        self.clearBadgeIfActivitySelected()
-      }
-      if !self.loadingRootView { self.publishSelectedIndexIfReady() }
-    }
+  private func publishTabItemsIfReady() {
+    guard self.hasCurrentUserSnapshot, self.hasTabItemsTrigger, let floating = self.publishedFloatingFlag else { return }
+    let data = tabData(forUser: self.latestCurrentUser, isFloatingTabBarEnabled: floating)
+    self.latestTabBarData = data
+    self.onTabBarItemsData?(data)
+    self.trackSearchSelectionIfNeeded()
   }
 
   private func trackSearchSelectionIfNeeded() {
@@ -401,19 +359,16 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
     self.avatarTask?.cancel()
   }
 
-  private let (applicationWillEnterForegroundSignal, applicationWillEnterForegroundObserver)
-    = Signal<(), Never>.pipe()
   public func applicationWillEnterForeground() {
     let previousIndex = self.activityIndex
-    self.applicationWillEnterForegroundObserver.send(value: ())
+    self.observeFloatingFlag()
     if let index = previousIndex {
       self.updateBadge(AppEnvironment.current.application.applicationIconBadgeNumber, index: index)
     }
   }
 
-  fileprivate let currentUserUpdatedProperty = MutableProperty(())
   public func currentUserUpdated() {
-    self.currentUserUpdatedProperty.value = ()
+    self.refreshCurrentUser()
     if self.latestSelectedIndex != nil, let index = self.activityIndex {
       self.updateBadge(currentUserActivitiesAndErroredPledgeCount(), index: index)
     }
@@ -457,27 +412,29 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
     self.selectIndex(2)
   }
 
-  fileprivate let userLocalePreferencesChangedProperty = MutableProperty(())
   public func userLocalePreferencesChanged() {
-    self.userLocalePreferencesChangedProperty.value = ()
+    self.hasTabItemsTrigger = true
+    self.rebuildViewControllers()
+    self.publishTabItemsIfReady()
   }
 
-  fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
-    self.userSessionStartedProperty.value = ()
+    self.refreshCurrentUser()
   }
 
-  fileprivate let userSessionEndedProperty = MutableProperty(())
   public func userSessionEnded() {
-    self.userSessionEndedProperty.value = ()
+    self.refreshCurrentUser()
     if let index = self.activityIndex { self.updateBadge(nil, index: index) }
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     let previousIndex = self.activityIndex
     self.loadingRootView = true
-    self.viewDidLoadProperty.value = ()
+    self.refreshCurrentUser()
+    self.observeFloatingFlag()
+    self.publishFloatingFlagIfChanged(featureFloatingTabBarEnabled())
+    self.hasTabItemsTrigger = true
+    self.publishTabItemsIfReady()
     self.loadingRootView = false
     self.hasLoadedRootView = true
     self.selectIndex(0)
@@ -494,10 +451,10 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   public var onScrollToTop: ((RootViewControllerIndex) -> Void)?
   public var onSelectedIndex: ((RootViewControllerIndex) -> Void)?
   public var onSetBadgeValue: ((RootTabBarItemBadgeValueData) -> Void)?
-  public let setViewControllers: Signal<[RootViewControllerData], Never>
-  public let tabBarItemsData: Signal<TabBarItemsData, Never>
+  public var onSetViewControllers: (([RootViewControllerData]) -> Void)?
+  public var onTabBarItemsData: ((TabBarItemsData) -> Void)?
   public var onUserUpdated: ((User) -> Void)?
-  public let floatingTabBarEnabled: Signal<Bool, Never>
+  public var onFloatingTabBarEnabled: ((Bool) -> Void)?
 
   public var inputs: RootViewModelInputs { return self }
   public var outputs: RootViewModelOutputs { return self }
