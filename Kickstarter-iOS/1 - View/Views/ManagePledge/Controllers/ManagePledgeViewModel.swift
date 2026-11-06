@@ -84,6 +84,8 @@ public final class ManagePledgeViewModel:
   private var visibilityIsCreator: Bool?
   private var backingHasLoaded = false
   private var currentProject: Project?
+  private var titleProject: Project?
+  private var titleIsCreator: Bool?
   private var currentRewards: [Reward]?
   private var hasSeenDisallowedCancellation = false
   private let projectRoute = UUID()
@@ -167,9 +169,6 @@ public final class ManagePledgeViewModel:
 
         return (project, reward)
       }
-
-    let title = project.combineLatest(with: userIsCreatorOfProject)
-      .map(navigationBarTitle(with:userIsCreatorOfProject:))
 
     let loadProjectAndRewardsIntoDataSource = projectAndReward.combineLatest(with: backing)
       .map(unpack)
@@ -286,7 +285,14 @@ public final class ManagePledgeViewModel:
     }
     _ = fetchProjectEvent.errors().observeValues { [weak self] _ in self?.handleLoadError() }
     _ = graphBackingEvent.errors().observeValues { [weak self] _ in self?.handleLoadError() }
-    _ = title.observeValues { [weak self] in self?.onTitle?($0) }
+    _ = project.observeValues { [weak self] value in
+      self?.titleProject = value
+      self?.updateTitle()
+    }
+    _ = userIsCreatorOfProject.observeValues { [weak self] value in
+      self?.titleIsCreator = value
+      self?.updateTitle()
+    }
     _ = backing.observeValues { [weak self] backing in
       self?.onPaymentMethod?(managePledgePaymentMethodViewData(with: backing))
     }
@@ -376,6 +382,11 @@ public final class ManagePledgeViewModel:
     self.setRightBarHidden(true)
     self.onStartRefreshing?()
     self.fetchProjectIfNeeded()
+  }
+
+  private func updateTitle() {
+    guard let project = self.titleProject, let isCreator = self.titleIsCreator else { return }
+    self.onTitle?(navigationBarTitle(with: project, userIsCreatorOfProject: isCreator))
   }
 
   private func handleLoadError() {
