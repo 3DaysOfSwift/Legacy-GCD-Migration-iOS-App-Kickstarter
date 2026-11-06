@@ -145,14 +145,12 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.outputs.onProjectFlagged = { [weak self] in self?.projectFlagged.observer.send(value: $0) }
       self.vm.outputs.onReloadCampaignData = { [weak self] in self?.reloadCampaignData.observer.send(value: ()) }
       self.vm.outputs.onShowHelp = { [weak self] in self?.showHelpWebViewController.observer.send(value: $0) }
-      self.vm.outputs.showProjectPageTabWithData.map { $0.0 }
-        .observe(self.showProjectPageTabWithDataNavigationSection.observer)
-      self.vm.outputs.showProjectPageTabWithData.map { $0.1 }
-        .observe(self.showProjectPageTabWithDataProject.observer)
-      self.vm.outputs.showProjectPageTabWithData.map { $0.4 }
-        .observe(self.showProjectPageTabWithDataImageURLS.observer)
-      self.vm.outputs.showProjectPageTabWithData.map { $0.6 }
-        .observe(self.showProjectPageTabWithDataContentView.observer)
+      self.vm.outputs.onShowProjectPageTab = { [weak self] data in
+        self?.showProjectPageTabWithDataNavigationSection.observer.send(value: data.0)
+        self?.showProjectPageTabWithDataProject.observer.send(value: data.1)
+        self?.showProjectPageTabWithDataImageURLS.observer.send(value: data.4)
+        self?.showProjectPageTabWithDataContentView.observer.send(value: data.6)
+      }
       self.vm.outputs.onUpdateFAQs = { [weak self] data in
         self?.updateFAQsInDataSourceProject.observer.send(value: data.0)
         self?.updateFAQsInDataSourceIsExpandedValues.observer.send(value: data.2)
@@ -2124,7 +2122,9 @@ final class ProjectPageViewModelTests: TestCase {
     )
     await withEnvironment(apiService: service) {
       let updated = expectation(description: "Related-project failure presented")
-      let observation = self.vm.outputs.showProjectPageTabWithData.observeValues { data in
+      let previousHandler = self.vm.outputs.onShowProjectPageTab
+      self.vm.outputs.onShowProjectPageTab = { data in
+        previousHandler?(data)
         if case .error = data.5 {
           XCTAssertEqual(data.0, .campaign)
           XCTAssertEqual(data.1.id, project.id)
@@ -2132,7 +2132,7 @@ final class ProjectPageViewModelTests: TestCase {
           updated.fulfill()
         }
       }
-      defer { observation?.dispose() }
+      defer { self.vm.outputs.onShowProjectPageTab = previousHandler }
       self.vm.configureAndLoad(.left(project))
       self.vm.inputs.projectNavigationSelectorViewDidSelect(index: NavigationSection.campaign.rawValue)
       await self.vm.loadingTask?.value

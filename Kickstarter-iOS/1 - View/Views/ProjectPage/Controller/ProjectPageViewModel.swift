@@ -206,10 +206,7 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
 
   /// Emits a tuple of a `NavigationSection`, `Project`, `RefTag?`, `[Bool]` (isExpanded values) and `[URL]` for campaign data to instruct the data source which section it is loading. Also a
   /// `SimilarProjectsState` for loading the Similar Projects Carousel.
-  var showProjectPageTabWithData: Signal<
-    (NavigationSection, Project, RefTag?, [Bool], [URL], SimilarProjectsState, ProjectPageContentView),
-    Never
-  > { get }
+  var onShowProjectPageTab: (((NavigationSection, Project, RefTag?, [Bool], [URL], SimilarProjectsState, ProjectPageContentView)) -> Void)? { get set }
 
   /// Emits a tuple of `Project`, `RefTag?` and `[Bool]` (isExpanded values) for the FAQs.
   var onUpdateFAQs: (((Project, RefTag?, [Bool])) -> Void)? { get set }
@@ -307,6 +304,10 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   private var latestImageElements: [ImageViewElement]?
   private var latestImageIndexPath: IndexPath?
   private var latestFAQSelection: (Int, [Bool])?
+  private var selectedNavigationIndex: Int?
+  private var latestNavigationSection: NavigationSection?
+  private var relatedState: SimilarProjectsState = .loading
+  private var hasRelatedStateEmission = false
   private var requestRefTag: RefTag?
   internal private(set) var loadingTask: Task<Void, Never>?
 
@@ -315,8 +316,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     let projectDetailsFeature = projectDetailsFeature ?? AppModel.shared.projectDetailsFeature
     self.projectDetailsFeature = projectDetailsFeature
     self.similarProjectsUseCase = SimilarProjectsUseCase(projectDetailsFeature: projectDetailsFeature)
-    let relatedState = self.relatedState
-    self.similarProjectsUseCase.onState = { relatedState.value = $0 }
 
 
     // Output-only adapter: the Feature owns execution and completion.
@@ -428,63 +427,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
 
 
-    let dataSourceUpdate = self.projectNavigationSelectorViewDidSelectProperty.signal
-      .skipNil()
-      .skipRepeats()
-      .map { index in NavigationSection(rawValue: index) }
-      .skipNil()
-      .combineLatest(with: freshProjectAndRefTag)
-      .map { navSection, projectAndRefTag in
-        let (project, refTag) = projectAndRefTag
-        let initialIsExpandedArray = Array(
-          repeating: false,
-          count: project.extendedProjectProperties?.faqs.count ?? 0
-        )
-
-        var urls: [URL] = []
-        var contentView: ProjectPageContentView = .tableView
-
-        switch navSection {
-        case .campaign:
-          contentView = {
-            guard navSection == .campaign,
-                  featureProjectStoryRichTextEnabled(),
-                  let richText = project.extendedProjectProperties?.story.richText
-            else {
-              return .tableView
-            }
-            return .richTextView(richText)
-          }()
-
-          let imageViewElements = project.extendedProjectProperties?.story.htmlViewElements
-            .compactMap { $0 as? ImageViewElement } ?? []
-
-          if imageViewElements.count > 0 {
-            let urlStrings = imageViewElements.map { $0.src }
-            urls = urlStrings.compactMap { URL(string: $0) }
-          }
-        default:
-          break
-        }
-
-        return (navSection, project, refTag, initialIsExpandedArray, urls, contentView)
-      }
-
-    let similarProjectsState = self.relatedState.signal
-      .merge(
-        with: self.relatedState.producer
-          .takeWhen(self.viewDidLoadProperty.signal)
-      )
-
-    self.showProjectPageTabWithData = Signal.combineLatest(
-      dataSourceUpdate,
-      similarProjectsState
-    )
-    .map { dataSource, similarProjects in
-      let (navSection, project, refTag, initialIsExpandedArray, urls, contentView) = dataSource
-      return (navSection, project, refTag, initialIsExpandedArray, urls, similarProjects, contentView)
-    }
-
     // MARK: Project notice
 
 
@@ -532,6 +474,13 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     }
     self.rewardsUseCase.onLogin = { [weak self] in self?.onGoToLoginWithIntent?($0) }
 
+    self.similarProjectsUseCase.onState = { [weak self] state in
+      guard let self else { return }
+      self.relatedState = state
+      self.hasRelatedStateEmission = true
+      self.showSelectedProjectTabIfReady()
+    }
+
     self.similarProjectsUseCase.onNavigate = { [weak self] in self?.onNavigateToSimilarProject?($0) }
 
     let route = self.projectRoute
@@ -556,6 +505,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
           }
           completion.input.send(value: .value((project, self.requestRefTag)))
           self.updateFAQsIfReady()
+          self.showSelectedProjectTabIfReady()
           if let elements = project.extendedProjectProperties?.story.htmlViewElements {
             self.latestImageElements = elements.compactMap { $0 as? ImageViewElement }
             self.prefetchImageRowIfNeeded()
@@ -720,7 +670,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   }
 
   private func prefetchImageRowIfNeeded() {
-    guard let section = self.projectNavigationSelectorViewDidSelectProperty.value,
+    guard let section = self.selectedNavigationIndex,
           NavigationSection(rawValue: section) == .campaign,
           let indexPath = self.latestImageIndexPath,
           let elements = self.latestImageElements, !elements.isEmpty else { return }
@@ -740,9 +690,29 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     if let help = HelpType.helpType(from: url) { self.onShowHelp?(help) }
   }
 
-  private let projectNavigationSelectorViewDidSelectProperty = MutableProperty<Int?>(nil)
   public func projectNavigationSelectorViewDidSelect(index: Int) {
-    self.projectNavigationSelectorViewDidSelectProperty.value = index
+    guard self.selectedNavigationIndex != index else { return }
+    self.selectedNavigationIndex = index
+    guard let section = NavigationSection(rawValue: index) else { return }
+    self.latestNavigationSection = section
+    self.showSelectedProjectTabIfReady()
+  }
+
+  private func showSelectedProjectTabIfReady() {
+    guard self.hasRelatedStateEmission, let section = self.latestNavigationSection,
+          let project = self.latestProject else { return }
+    let expanded = Array(repeating: false, count: project.extendedProjectProperties?.faqs.count ?? 0)
+    var urls: [URL] = []
+    var contentView: ProjectPageContentView = .tableView
+    if section == .campaign {
+      if featureProjectStoryRichTextEnabled(), let richText = project.extendedProjectProperties?.story.richText {
+        contentView = .richTextView(richText)
+      }
+      urls = (project.extendedProjectProperties?.story.htmlViewElements ?? [])
+        .compactMap { $0 as? ImageViewElement }
+        .compactMap { URL(string: $0.src) }
+    }
+    self.onShowProjectPageTab?((section, project, self.latestProjectRefTag, expanded, urls, self.relatedState, contentView))
   }
 
   public func projectRisksDisclaimerCellDidTapURL(_ url: URL) {
@@ -768,10 +738,10 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.loadProject(force: true)
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.hasLoadedView = true
-    self.viewDidLoadProperty.value = ()
+    self.hasRelatedStateEmission = true
+    self.showSelectedProjectTabIfReady()
     if let (projectOrParam, refInfo, _) = self.configDataProperty.value, projectOrParam.canDisplayProjectPreview {
       self.onConfigureDataSource?((.overview, projectOrParam, refInfo?.refTag))
     }
@@ -787,7 +757,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   }
 
   public func viewWillTransition() {
-    guard let index = self.projectNavigationSelectorViewDidSelectProperty.value,
+    guard let index = self.selectedNavigationIndex,
           NavigationSection(rawValue: index) == .campaign else { return }
     self.onReloadCampaignData?()
   }
@@ -821,10 +791,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   public var onProjectFlagged: ((Bool) -> Void)?
   public var onReloadCampaignData: (() -> Void)?
   public var onShowHelp: ((HelpType) -> Void)?
-  public let showProjectPageTabWithData: Signal<
-    (NavigationSection, Project, RefTag?, [Bool], [URL], SimilarProjectsState, ProjectPageContentView),
-    Never
-  >
+  public var onShowProjectPageTab: (((NavigationSection, Project, RefTag?, [Bool], [URL], SimilarProjectsState, ProjectPageContentView)) -> Void)?
   public var onUpdateFAQs: (((Project, RefTag?, [Bool])) -> Void)?
   public var onUpdateWatchProject: ((PledgeCTAPrelaunchState) -> Void)?
   public var onDidBlockUser: (() -> Void)?
@@ -836,7 +803,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   // MARK: - Similar Projects
 
   private let similarProjectsUseCase: SimilarProjectsUseCase
-  private let relatedState = MutableProperty<SimilarProjectsState>(.loading)
 
   public func similarProjectTapped(project: ProjectCardProperties) {
     self.similarProjectsUseCase.projectTapped(project: project)

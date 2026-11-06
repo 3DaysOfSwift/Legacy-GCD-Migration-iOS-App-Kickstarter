@@ -553,9 +553,8 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         self?.presentHelpWebViewController(with: helpType, presentationStyle: .formSheet)
       }
 
-    self.viewModel.outputs.showProjectPageTabWithData
-      .observeForUI()
-      .observeValues { [weak self] data in
+    self.viewModel.outputs.onShowProjectPageTab = { [weak self] data in
+      DispatchQueue.main.async { [weak self] in
         let (navSection, project, refTag, initialIsExpandedArray, _, similarProjectsState, contentView) = data
 
         self?.pausePlayingMainCellVideo(navSection: navSection)
@@ -576,6 +575,7 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
 
         self?.showContentView(contentView)
       }
+    }
 
     self.viewModel.outputs.onUpdateFAQs = { [weak self] data in
       let (project, refTag, isExpandedValues) = data
