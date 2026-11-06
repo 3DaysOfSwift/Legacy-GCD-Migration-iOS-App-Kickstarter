@@ -273,15 +273,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     // MARK: CompleteOnSessionCheckout
 
     validateCheckoutWithApplePay.values().observeValues { _ in appleState.validationSucceeded() }
-    let completionIdentity = self.completionIdentity
-    let checkoutCompleteSignal = self.completionEvents.output
-      .filter { [feature, completionIdentity] _, userID, generation, id in
-        completionIdentity.id == id && feature.sessionFeature.isCurrent(userID: userID, generation: generation)
-      }
-      .map { event, _, _, _ in event }
-
-    let checkoutErrors = checkoutCompleteSignal.errors()
-
     // MARK: - Error handling
 
     let errorMessages = validateCheckoutError
@@ -300,7 +291,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
     appleState.onStart = { [weak self] in self?.onProcessingHidden?(false) }
     validateCheckoutError.observeValues { [weak self] _ in self?.onProcessingHidden?(true) }
-    checkoutCompleteSignal.observeValues { [weak self] _ in self?.onProcessingHidden?(true) }
 
     openingState.onOpen = { [weak self] input in
       guard let self, let data = self.configuredData else { return }
@@ -339,12 +329,18 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       self.completionTask = Task { [weak self] in
         do {
           try await request.value
-          guard !Task.isCancelled else { return }
-          self?.completionEvents.input.send(value: (.value(()), userID, generation, id))
-          self?.completionEvents.input.send(value: (.completed, userID, generation, id))
+          guard !Task.isCancelled, let self, self.completionIdentity.id == id,
+                feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+          self.onProcessingHidden?(true)
+          if let data = self.activeCheckoutData, let reward = data.rewards.first {
+            self.onCheckoutComplete?((data.project, reward, nil, PostCampaignAmounts(data).total))
+          }
+          self.onProcessingHidden?(true)
         } catch {
-          guard !Task.isCancelled, !(error is CancellationError) else { return }
-          self?.completionEvents.input.send(value: (.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), userID, generation, id))
+          guard !Task.isCancelled, !(error is CancellationError), let self, self.completionIdentity.id == id,
+                feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+          self.onProcessingHidden?(true)
+          self.onCheckoutError?((error as? ErrorEnvelope) ?? .couldNotParseJSON)
         }
       }
     }
@@ -454,7 +450,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     }
     ctaState.onChange = { [weak self] in self?.onPledgeCTA?($0) }
     _ = errorMessages.observeValues { [weak self] in self?.onShowError?($0) }
-    _ = checkoutErrors.observeValues { [weak self] in self?.onCheckoutError?($0) }
     validateCheckoutExistingCard.values().observeValues { [weak self] _ in
       guard let self, let validation = cardState.validation else { return }
       self.onValidateCheckout?(validation)
@@ -469,10 +464,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
         shipping: amounts.shipping, total: amounts.total,
         merchantIdentifier: Secrets.ApplePay.merchantIdentifier, paymentIntent: secret
       ))
-    }
-    checkoutCompleteSignal.values().observeValues { [weak self] _ in
-      guard let self, let data = self.activeCheckoutData, let reward = data.rewards.first else { return }
-      self.onCheckoutComplete?((data.project, reward, nil, PostCampaignAmounts(data).total))
     }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
@@ -647,7 +638,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private var deliverCheckout: ((Result<CreateCheckoutEnvelope, ErrorEnvelope>) -> Void)?
   private let checkoutIdentity = CheckoutRequestIdentity()
   private var checkoutTask: Task<Void, Never>?
-  private let completionEvents = Signal<(Signal<Void, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
   private let completionIdentity = CheckoutRequestIdentity()
   private var startCompletion: ((GraphAPI.CompleteOnSessionCheckoutInput) -> Void)?
   private var completionTask: Task<Void, Never>?
