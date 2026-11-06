@@ -109,7 +109,7 @@ public protocol AppDelegateViewModelOutputs {
   var configureStatsig: Signal<StatsigClientSDKKey, Never> { get }
 
   /// Return this value in the delegate method.
-  var continueUserActivityReturnValue: MutableProperty<Bool> { get }
+  var continueUserActivityReturnValue: Bool { get }
 
   /// Emits the response from email verification with a message and success/failure.
   var emailVerificationCompleted: Signal<(String, Bool), Never> { get }
@@ -375,12 +375,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
     let continueUserActivity = self.applicationContinueUserActivityProperty.signal.skipNil()
 
-    let continueUserActivityWithNavigation = continueUserActivity
-      .filter { $0.activityType == NSUserActivityTypeBrowsingWeb }
-      .map { activity in (activity, activity.webpageURL.flatMap { Navigation.match($0) }) }
-
-    self.continueUserActivityReturnValue <~ continueUserActivityWithNavigation.map(second >>> isNotNil)
-
     let deepLinkUrl = Signal
       .merge(
         openUrl.map { $0.url },
@@ -644,8 +638,11 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
   fileprivate let applicationContinueUserActivityProperty = MutableProperty<NSUserActivity?>(nil)
   public func applicationContinueUserActivity(_ userActivity: NSUserActivity) -> Bool {
+    if userActivity.activityType == NSUserActivityTypeBrowsingWeb {
+      self.continueUserActivityReturnValue = userActivity.webpageURL.flatMap { Navigation.match($0) } != nil
+    }
     self.applicationContinueUserActivityProperty.value = userActivity
-    return self.continueUserActivityReturnValue.value
+    return self.continueUserActivityReturnValue
   }
 
   fileprivate typealias ApplicationWithOptions = (
@@ -782,7 +779,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public let configureFirebase: Signal<(), Never>
   public let configureSegmentWithBraze: Signal<String, Never>
   public let configureStatsig: Signal<StatsigClientSDKKey, Never>
-  public let continueUserActivityReturnValue = MutableProperty(false)
+  public private(set) var continueUserActivityReturnValue = false
   public let emailVerificationCompleted: Signal<(String, Bool), Never>
   public let findRedirectUrl: Signal<URL, Never>
   public let forceLogout: Signal<(), Never>

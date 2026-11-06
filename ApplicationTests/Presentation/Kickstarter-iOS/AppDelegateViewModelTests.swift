@@ -1357,13 +1357,13 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.inputs.applicationDidFinishLaunching(application: .shared, launchOptions: [:])
 
     self.goToActivity.assertValueCount(0)
-    XCTAssertFalse(self.vm.outputs.continueUserActivityReturnValue.value)
+    XCTAssertFalse(self.vm.outputs.continueUserActivityReturnValue)
 
     let result = self.vm.inputs.applicationContinueUserActivity(userActivity)
     XCTAssertTrue(result)
 
     self.goToActivity.assertValueCount(1)
-    XCTAssertTrue(self.vm.outputs.continueUserActivityReturnValue.value)
+    XCTAssertTrue(self.vm.outputs.continueUserActivityReturnValue)
   }
 
   func testContinueUserActivity_InvalidActivity() async {
@@ -1373,7 +1373,7 @@ final class AppDelegateViewModelTests: TestCase {
     let result = self.vm.inputs.applicationContinueUserActivity(userActivity)
     XCTAssertFalse(result)
 
-    XCTAssertFalse(self.vm.outputs.continueUserActivityReturnValue.value)
+    XCTAssertFalse(self.vm.outputs.continueUserActivityReturnValue)
   }
 
   func testContinueUserActivity_Success() async {
@@ -1384,12 +1384,12 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationDidFinishLaunching(application: .shared, launchOptions: [:])
 
       self.goToActivity.assertValueCount(0)
-      XCTAssertFalse(self.vm.outputs.continueUserActivityReturnValue.value)
+      XCTAssertFalse(self.vm.outputs.continueUserActivityReturnValue)
 
       let result = self.vm.inputs.applicationContinueUserActivity(userActivity)
       XCTAssertTrue(result)
 
-      XCTAssertTrue(self.vm.outputs.continueUserActivityReturnValue.value)
+      XCTAssertTrue(self.vm.outputs.continueUserActivityReturnValue)
       self.goToActivity.assertValueCount(1)
     }
   }
