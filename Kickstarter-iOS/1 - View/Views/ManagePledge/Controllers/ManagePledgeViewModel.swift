@@ -106,14 +106,7 @@ public final class ManagePledgeViewModel:
     let backingReadIdentity = self.backingReadIdentity
     let params = self.paramsEvents.output
 
-    let projectParam = params.map(first)
-
     let shouldBeginRefresh = self.beginRefreshSignal
-
-    let shouldFetchProjectWithParam = Signal.merge(
-      projectParam,
-      projectParam.takeWhen(shouldBeginRefresh)
-    )
 
     let fetchProjectEvent = self.projectReadEvents.output
       .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
@@ -387,10 +380,6 @@ public final class ManagePledgeViewModel:
       if enabled { self?.onPlotSchedule?(backing.paymentIncrements) }
     }
     _ = rightBarButtonItemHidden.observeValues { [weak self] in self?.onRightBarButtonHidden?($0) }
-    _ = shouldFetchProjectWithParam.observeValues { [weak self] param in
-      guard let self, !self.projectHasLoaded else { return }
-      self.loadProject(param)
-    }
     _ = shouldFetchGraphBackingWithParam.map(\.id).skipNil()
       .observeValues { [weak self] id in self?.loadBacking(id) }
   }
@@ -446,6 +435,7 @@ public final class ManagePledgeViewModel:
   private let (beginRefreshSignal, beginRefreshObserver) = Signal<Void, Never>.pipe()
   public func beginRefresh() {
     self.beginRefreshObserver.send(value: ())
+    self.fetchProjectIfNeeded()
   }
 
   public func configureWith(_ params: ManagePledgeViewParamConfigData) {
@@ -456,6 +446,12 @@ public final class ManagePledgeViewModel:
   private func publishParamsWhenReady() {
     guard self.hasLoadedView, let params = self.configuredParams else { return }
     self.paramsEvents.input.send(value: params)
+    self.fetchProjectIfNeeded()
+  }
+
+  private func fetchProjectIfNeeded() {
+    guard self.hasLoadedView, !self.projectHasLoaded, let params = self.configuredParams else { return }
+    self.loadProject(params.projectParam)
   }
 
   public func cancelPledgeDidFinish(with message: String) {
@@ -499,7 +495,7 @@ public final class ManagePledgeViewModel:
   }
 
   public func pledgeViewControllerDidUpdatePledgeWithMessage(_ message: String) {
-    self.beginRefreshObserver.send(value: ())
+    self.beginRefresh()
     self.onShowSuccess?(message)
   }
 
