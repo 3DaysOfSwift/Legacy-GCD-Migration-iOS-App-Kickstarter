@@ -280,16 +280,21 @@ public final class PledgeFeature {
       await self.execute(
         .validateCheckout(checkoutID: checkoutID, sourceID: sourceID, secret: secret)))
   }
+  func startValidateCheckout(checkoutID: String, sourceID: String, secret: String)
+    -> Task<ValidateCheckoutEnvelope, Error>
+  {
+    let session = self.session
+    let command = self.request(.validateCheckout(checkoutID: checkoutID, sourceID: sourceID, secret: secret))
+    return Task {
+      let value = try await command.value
+      try self.requireCurrent(session)
+      return try Self.validated(value)
+    }
+  }
+
   public func completeCheckout(_ input: GraphAPI.CompleteOnSessionCheckoutInput) async throws
   {
     try Self.completed(await self.execute(.completeCheckout(input)))
-  }
-  public func validateCheckoutResult(checkoutID: String, sourceID: String, secret: String)
-    -> SignalProducer<ValidateCheckoutEnvelope, ErrorEnvelope>
-  {
-    self.result(
-      .validateCheckout(checkoutID: checkoutID, sourceID: sourceID, secret: secret),
-      transform: Self.validated)
   }
   public func completeCheckoutResult(_ input: GraphAPI.CompleteOnSessionCheckoutInput)
     -> SignalProducer<Void, ErrorEnvelope>

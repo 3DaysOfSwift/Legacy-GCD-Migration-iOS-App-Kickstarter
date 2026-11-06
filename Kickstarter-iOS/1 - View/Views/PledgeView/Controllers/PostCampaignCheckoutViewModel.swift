@@ -294,21 +294,9 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       )
 
     // Runs validation for pre-existing cards that were created with setup intents originally but require payment intents for late pledges.
-    let validateCheckoutExistingCard = validateCheckoutExistingCardInput
+    let validateExistingCardRequests = validateCheckoutExistingCardInput
       .takeWhen(self.submitButtonTappedProperty.signal)
-      .switchMap { checkoutId, selectedCard, paymentIntentClientSecret in
-
-        assert(
-          selectedCard.stripePaymentMethodId.isSome && selectedCard.stripePaymentMethodId != "",
-          "Payment method ID should not be missing in a late pledge context."
-        )
-
-        return feature.delayedResult(feature.validateCheckoutResult(
-            checkoutID: checkoutId, sourceID: selectedCard.stripePaymentMethodId ?? "",
-            secret: paymentIntentClientSecret
-          ))
-          .materialize()
-      }
+    let validateCheckoutExistingCard = self.cardValidation.events(feature: feature)
 
     self.validateCheckoutSuccess = Signal
       .combineLatest(paymentIntentClientSecretForExistingCards, selectedCard)
@@ -373,18 +361,13 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     }
     .skipNil()
 
-    let validateCheckoutWithApplePay = Signal.combineLatest(
+    let validateApplePayRequests = Signal.combineLatest(
       paymentIntentClientSecretForApplePay,
       checkoutId,
       self.applePayPaymentMethodIdSignal.signal
     )
     .takeWhen(self.applePayContextDidCompleteSignal)
-    .switchMap { (clientSecret: String, checkoutId: String, paymentMethodId: String) in
-      feature.delayedResult(feature.validateCheckoutResult(
-          checkoutID: checkoutId, sourceID: paymentMethodId, secret: clientSecret
-        ))
-        .materialize()
-    }
+    let validateCheckoutWithApplePay = self.applePayValidation.events(feature: feature)
 
     let validateCheckoutError = Signal
       .merge(
@@ -603,6 +586,16 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
         }
       }
     }
+    self.cardValidationObservation = validateExistingCardRequests.observeValues { [weak self] checkoutID, card, secret in
+      assert(card.stripePaymentMethodId.isSome && card.stripePaymentMethodId != "",
+             "Payment method ID should not be missing in a late pledge context.")
+      self?.cardValidation.start(feature: feature, checkoutID: checkoutID,
+                                 sourceID: card.stripePaymentMethodId ?? "", secret: secret)
+    }
+    self.applePayValidationObservation = validateApplePayRequests.observeValues { [weak self] secret, checkoutID, paymentMethodID in
+      self?.applePayValidation.start(feature: feature, checkoutID: checkoutID,
+                                     sourceID: paymentMethodID, secret: secret)
+    }
     self.paymentIntentObservation = paymentIntentInput.observeValues { [weak self] project, total, checkoutID, backingID in
       guard let self else { return }
       self.paymentIntentTask?.cancel()
@@ -784,6 +777,10 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private let checkoutIdentity = CheckoutRequestIdentity()
   private var checkoutObservation: (any Disposable)?
   private var checkoutTask: Task<Void, Never>?
+  private let cardValidation = CheckoutValidationLane()
+  private let applePayValidation = CheckoutValidationLane()
+  private var cardValidationObservation: (any Disposable)?
+  private var applePayValidationObservation: (any Disposable)?
   private let paymentIntentPipe = Signal<Signal<PaymentIntentEnvelope, ErrorEnvelope>.Event, Never>.pipe()
   private var paymentIntentObservation: (any Disposable)?
   private var paymentIntentTask: Task<Void, Never>?
@@ -791,6 +788,8 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   deinit {
     self.checkoutObservation?.dispose()
     self.checkoutTask?.cancel()
+    self.cardValidationObservation?.dispose()
+    self.applePayValidationObservation?.dispose()
     self.paymentIntentObservation?.dispose()
     self.paymentIntentTask?.cancel()
   }
@@ -805,4 +804,42 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 @MainActor
 private final class CheckoutRequestIdentity {
   var id = UUID()
+}
+
+@MainActor
+private final class CheckoutValidationLane {
+  private let output = Signal<(Signal<ValidateCheckoutEnvelope, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
+  private let identity = CheckoutRequestIdentity()
+  private var task: Task<Void, Never>?
+
+  deinit { self.task?.cancel() }
+
+  func events(feature: PledgeFeature) -> Signal<Signal<ValidateCheckoutEnvelope, ErrorEnvelope>.Event, Never> {
+    let identity = self.identity
+    return self.output.output
+      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      .filter { [feature, identity] _, userID, generation, id in
+        identity.id == id && feature.sessionFeature.isCurrent(userID: userID, generation: generation)
+      }
+      .map { event, _, _, _ in event }
+  }
+
+  func start(feature: PledgeFeature, checkoutID: String, sourceID: String, secret: String) {
+    self.task?.cancel()
+    let userID = feature.sessionFeature.currentUser?.id
+    let generation = feature.sessionFeature.generation
+    let id = UUID()
+    self.identity.id = id
+    let request = feature.startValidateCheckout(checkoutID: checkoutID, sourceID: sourceID, secret: secret)
+    self.task = Task { [weak self] in
+      do {
+        let result = try await request.value
+        guard !Task.isCancelled else { return }
+        self?.output.input.send(value: (.value(result), userID, generation, id))
+      } catch {
+        guard !Task.isCancelled, !(error is CancellationError) else { return }
+        self?.output.input.send(value: (.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), userID, generation, id))
+      }
+    }
+  }
 }

@@ -280,30 +280,22 @@ final class PledgeFeatureTests: TestCase {
   }
 
   func testValidationIdentityIncludesCardAndIntentAndPreservesFailure() async throws {
-    var errors = 0
-    let a = self.feature.validateCheckoutResult(
-      checkoutID: "c", sourceID: "card-a", secret: "intent-a"
-    ).startWithFailed { _ in errors += 1 }
-    let duplicate = self.feature.validateCheckoutResult(
-      checkoutID: "c", sourceID: "card-a", secret: "intent-a"
-    ).start()
-    let b = self.feature.validateCheckoutResult(
-      checkoutID: "c", sourceID: "card-b", secret: "intent-b"
-    ).start()
-    defer {
-      a.dispose()
-      duplicate.dispose()
-      b.dispose()
-    }
+    let first = self.feature.startValidateCheckout(checkoutID: "c", sourceID: "card-a", secret: "intent-a")
+    let duplicate = self.feature.startValidateCheckout(checkoutID: "c", sourceID: "card-a", secret: "intent-a")
+    let changed = self.feature.startValidateCheckout(checkoutID: "c", sourceID: "card-b", secret: "intent-b")
     await self.provider.validations.waitFor(1)
-    try self.provider.validations.finish(
-      0, .failure(ErrorEnvelope.validateCheckoutError(["declined"])))
+    try self.provider.validations.finish(0, .failure(ErrorEnvelope.validateCheckoutError(["declined"])))
+    for task in [first, duplicate] {
+      do {
+        _ = try await task.value
+        XCTFail("Expected validation failure")
+      } catch {}
+    }
     await self.provider.validations.waitFor(2)
     XCTAssertEqual(self.provider.validationInputs.map { $0.1 }, ["card-a", "card-b"])
     XCTAssertEqual(self.provider.validationInputs.map { $0.2 }, ["intent-a", "intent-b"])
     try self.provider.validations.finish(1, .success(.init(messages: [])))
-    await self.feature.waitForOperations()
-    XCTAssertEqual(errors, 1)
+    _ = try await changed.value
   }
 
   func testCheckoutCompletionSurvivesDisposedObserverAndSharesPendingSubmission() async throws {
