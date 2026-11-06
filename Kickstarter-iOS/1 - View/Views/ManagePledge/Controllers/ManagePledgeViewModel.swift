@@ -73,7 +73,6 @@ private final class ManagePledgeReadIdentity {
 public final class ManagePledgeViewModel:
   ManagePledgeViewModelType, ManagePledgeViewModelInputs, ManagePledgeViewModelOutputs {
   private let feature: PledgeFeature
-  private var currentMenuOptions: [ManagePledgeAlertAction]?
   private var projectHasLoaded = false
   private var configuredParams: ManagePledgeViewParamConfigData?
   private var hasLoadedView = false
@@ -172,16 +171,6 @@ public final class ManagePledgeViewModel:
     let title = project.combineLatest(with: userIsCreatorOfProject)
       .map(navigationBarTitle(with:userIsCreatorOfProject:))
 
-    let projectOrBackingFailedToLoad = Signal.merge(
-      fetchProjectEvent.map { $0.error as Error? },
-      graphBackingEvent.map { $0.error as Error? }
-    )
-    .filter(isNotNil)
-
-    let loadPullToRefreshHeaderView = projectOrBackingFailedToLoad
-      .take(until: backing.ignoreValues())
-      .ignoreValues()
-
     let loadProjectAndRewardsIntoDataSource = projectAndReward.combineLatest(with: backing)
       .map(unpack)
       .map { project, reward, backing -> (Project, [Reward]) in
@@ -241,11 +230,6 @@ public final class ManagePledgeViewModel:
       )
     }
 
-    // MARK: - Menu options
-
-    let menuOptions = Signal.combineLatest(project, backing, userIsCreatorOfProject)
-      .map(actionSheetMenuOptionsFor(project:backing:userIsCreatorOfProject:))
-
     let rewardReceivedViewControllerViewIsHidden: Signal<Bool, Never> = latestRewardDeliveryDate
       .map { $0 == 0 }
 
@@ -261,12 +245,6 @@ public final class ManagePledgeViewModel:
         rewardReceivedViewControllerViewIsHidden: $0.3
       )
     }
-
-    let networkErrorMessage = Signal.merge(
-      fetchProjectEvent.errors().ignoreValues(),
-      graphBackingEvent.errors().ignoreValues()
-    )
-    .map { _ in Strings.Something_went_wrong_please_try_again() }
 
     // Tracking
 
@@ -299,11 +277,6 @@ public final class ManagePledgeViewModel:
       self?.onLoadProjectAndRewards?(first, second)
       self?.setRightBarHidden(false)
     }
-    _ = loadPullToRefreshHeaderView.observeValues { [weak self] _ in
-      self?.onLoadRefreshHeader?()
-      self?.setRightBarHidden(true)
-    }
-    _ = menuOptions.observeValues { [weak self] value in self?.currentMenuOptions = value }
     _ = project.observeValues { [weak self] value in self?.currentProject = value }
     _ = backing.observeValues { [weak self] value in
       guard let self else { return }
@@ -311,7 +284,8 @@ public final class ManagePledgeViewModel:
       if self.backingHasLoaded { self.onFinish?(nil) }
       self.backingHasLoaded = true
     }
-    _ = networkErrorMessage.observeValues { [weak self] value in self?.onShowError?(value) }
+    _ = fetchProjectEvent.errors().observeValues { [weak self] _ in self?.handleLoadError() }
+    _ = graphBackingEvent.errors().observeValues { [weak self] _ in self?.handleLoadError() }
     _ = title.observeValues { [weak self] in self?.onTitle?($0) }
     _ = backing.observeValues { [weak self] backing in
       self?.onPaymentMethod?(managePledgePaymentMethodViewData(with: backing))
@@ -404,6 +378,14 @@ public final class ManagePledgeViewModel:
     self.fetchProjectIfNeeded()
   }
 
+  private func handleLoadError() {
+    if !self.backingHasLoaded {
+      self.onLoadRefreshHeader?()
+      self.setRightBarHidden(true)
+    }
+    self.onShowError?(Strings.Something_went_wrong_please_try_again())
+  }
+
   private func paymentMethodData(context: PledgeViewContext) -> PledgeViewData? {
     guard let project = self.currentProject, let backing = self.visibilityBacking,
           let rewards = self.currentRewards else { return nil }
@@ -439,8 +421,9 @@ public final class ManagePledgeViewModel:
   }
 
   public func menuButtonTapped() {
-    guard let options = self.currentMenuOptions else { return }
-    self.onShowMenu?(options)
+    guard let project = self.currentProject, let backing = self.visibilityBacking,
+          let isCreator = self.visibilityIsCreator else { return }
+    self.onShowMenu?(actionSheetMenuOptionsFor(project: project, backing: backing, userIsCreatorOfProject: isCreator))
   }
 
   public func menuOptionSelected(with action: ManagePledgeAlertAction) {
