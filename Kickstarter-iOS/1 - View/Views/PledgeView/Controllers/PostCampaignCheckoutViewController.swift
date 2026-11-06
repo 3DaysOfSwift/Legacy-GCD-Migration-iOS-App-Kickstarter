@@ -280,9 +280,7 @@ final class PostCampaignCheckoutViewController: UIViewController,
         self.confirmPayment(with: validation)
       }
 
-    self.viewModel.outputs.showErrorBannerWithMessage
-      .observeForControllerAction()
-      .observeValues { [weak self] errorMessage in
+    self.viewModel.outputs.onShowError = { [weak self] errorMessage in
         self?.messageBannerViewController?.showBanner(
           with: .error,
           message: errorMessage,
@@ -308,9 +306,7 @@ final class PostCampaignCheckoutViewController: UIViewController,
         self?.navigationController?.pushViewController(thanksVC, animated: true)
       }
 
-    self.viewModel.outputs.checkoutError
-      .observeForUI()
-      .observeValues { [weak self] error in
+    self.viewModel.outputs.onCheckoutError = { [weak self] error in
 
         #if DEBUG
           let serverError = error.errorMessages.first ?? "Unknown server error"

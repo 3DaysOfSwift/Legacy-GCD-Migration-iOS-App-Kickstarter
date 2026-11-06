@@ -160,7 +160,7 @@ final class PledgeViewModelTests: TestCase {
       self.vm.outputs.onProcessingHidden = { [weak self] in self?.processingViewIsHidden.observer.send(value: $0) }
 
       self.vm.outputs.onShowWebHelp = { [weak self] in self?.showWebHelp.observer.send(value: $0) }
-      self.vm.outputs.showErrorBannerWithMessage.observe(self.showErrorBannerWithMessage.observer)
+      self.vm.outputs.onShowError = { [weak self] in self?.showErrorBannerWithMessage.observer.send(value: $0) }
 
       self.vm.outputs.title.observe(self.title.observer)
 

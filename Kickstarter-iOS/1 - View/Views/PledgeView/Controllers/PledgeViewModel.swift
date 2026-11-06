@@ -98,7 +98,7 @@ public protocol PledgeViewModelOutputs: AnyObject {
   var onPaymentMethodsHidden: ((Bool) -> Void)? { get set }
   var onPledgeAmountSummaryHidden: ((Bool) -> Void)? { get set }
   var onProcessingHidden: ((Bool) -> Void)? { get set }
-  var showErrorBannerWithMessage: Signal<String, Never> { get }
+  var onShowError: ((String) -> Void)? { get set }
   var onShowWebHelp: ((HelpType) -> Void)? { get set }
   var title: Signal<String, Never> { get }
   var showPledgeOverTimeUI: Signal<Bool, Never> { get }
@@ -730,7 +730,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     let scaErrors = scaFlowCompletedWithError.map { $0.localizedDescription }
 
-    self.showErrorBannerWithMessage = Signal.merge(
+    let errorMessages = Signal.merge(
       graphErrors,
       scaErrors
     )
@@ -886,6 +886,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     _ = updateBackingCompletionEvents.observeValues { [weak self] in
       self?.onPledgeUpdateSucceeded?(Strings.Got_it_your_changes_have_been_saved())
     }
+    _ = errorMessages.observeValues { [weak self] in self?.onShowError?($0) }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
     paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
@@ -995,7 +996,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
   public var onPledgeAmountSummaryHidden: ((Bool) -> Void)?
   public var onProcessingHidden: ((Bool) -> Void)?
-  public let showErrorBannerWithMessage: Signal<String, Never>
+  public var onShowError: ((String) -> Void)?
   public var onShowWebHelp: ((HelpType) -> Void)?
   public let title: Signal<String, Never>
 

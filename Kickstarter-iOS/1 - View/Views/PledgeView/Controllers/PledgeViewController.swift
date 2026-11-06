@@ -398,9 +398,7 @@ final class PledgeViewController: UIViewController,
 
     // MARK: Errors
 
-    self.viewModel.outputs.showErrorBannerWithMessage
-      .observeForControllerAction()
-      .observeValues { [weak self] errorMessage in
+    self.viewModel.outputs.onShowError = { [weak self] errorMessage in
         self?.messageBannerViewController?.showBanner(with: .error, message: errorMessage)
       }
   }

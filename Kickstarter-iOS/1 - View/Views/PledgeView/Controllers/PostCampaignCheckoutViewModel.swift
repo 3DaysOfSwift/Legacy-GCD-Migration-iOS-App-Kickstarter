@@ -66,12 +66,12 @@ public protocol PostCampaignCheckoutViewModelOutputs: AnyObject {
   var onPaymentMethodsHidden: ((Bool) -> Void)? { get set }
   var onProcessingHidden: ((Bool) -> Void)? { get set }
   var onGoToLoginSignup: ((LoginIntent) -> Void)? { get set }
-  var showErrorBannerWithMessage: Signal<String, Never> { get }
+  var onShowError: ((String) -> Void)? { get set }
   var onShowWebHelp: ((HelpType) -> Void)? { get set }
   var validateCheckoutSuccess: Signal<PaymentSourceValidation, Never> { get }
   var goToApplePayPaymentAuthorization: Signal<PostCampaignPaymentAuthorizationData, Never> { get }
   var checkoutComplete: Signal<ThanksPageData, Never> { get }
-  var checkoutError: Signal<ErrorEnvelope, Never> { get }
+  var onCheckoutError: ((ErrorEnvelope) -> Void)? { get set }
 }
 
 @MainActor
@@ -450,11 +450,11 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       .takeWhen(checkoutCompleteSignal.signal.values())
       .map { $0 }
 
-    self.checkoutError = checkoutCompleteSignal.signal.errors()
+    let checkoutErrors = checkoutCompleteSignal.signal.errors()
 
     // MARK: - Error handling
 
-    self.showErrorBannerWithMessage = Signal.merge(createCheckoutErrors, validateCheckoutError)
+    let errorMessages = Signal.merge(createCheckoutErrors, validateCheckoutError)
       .map { error in
         switch error.ksrCode {
         case .ValidateCheckoutError:
@@ -622,6 +622,8 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     _ = pledgeRewardsSummary.observeValues { [weak self] in self?.onPledgeRewardsSummary?($0.0, $0.1, $0.2) }
     _ = pledgeCTA.observeValues { [weak self] in self?.onPledgeCTA?($0) }
     _ = processingViewIsHidden.observeValues { [weak self] in self?.onProcessingHidden?($0) }
+    _ = errorMessages.observeValues { [weak self] in self?.onShowError?($0) }
+    _ = checkoutErrors.observeValues { [weak self] in self?.onCheckoutError?($0) }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
     paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
@@ -739,14 +741,14 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   public var onGoToLoginSignup: ((LoginIntent) -> Void)?
 
   public var onProcessingHidden: ((Bool) -> Void)?
-  public let showErrorBannerWithMessage: Signal<String, Never>
+  public var onShowError: ((String) -> Void)?
   public var onShowWebHelp: ((HelpType) -> Void)?
   public var onPaymentMethodsHidden: ((Bool) -> Void)?
 
   public let validateCheckoutSuccess: Signal<PaymentSourceValidation, Never>
   public let goToApplePayPaymentAuthorization: Signal<PostCampaignPaymentAuthorizationData, Never>
   public let checkoutComplete: Signal<ThanksPageData, Never>
-  public let checkoutError: Signal<ErrorEnvelope, Never>
+  public var onCheckoutError: ((ErrorEnvelope) -> Void)?
 
   public var inputs: PostCampaignCheckoutViewModelInputs { return self }
   public var outputs: PostCampaignCheckoutViewModelOutputs { return self }
