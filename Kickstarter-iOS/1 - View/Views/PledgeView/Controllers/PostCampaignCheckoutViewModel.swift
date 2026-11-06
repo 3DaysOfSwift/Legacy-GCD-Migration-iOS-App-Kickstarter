@@ -39,6 +39,27 @@ public struct PostCampaignPaymentAuthorizationData: Equatable {
 }
 
 @MainActor
+private final class PostCampaignCTAState {
+  var onChange: ((PledgeViewCTAContainerViewData) -> Void)?
+  private var data: PledgeViewData?
+  private var loggedIn: Bool?
+  private var enabled: Bool?
+
+  func configure(_ data: PledgeViewData) { self.data = data; publish() }
+  func setLoggedIn(_ value: Bool) { loggedIn = value; publish() }
+  func setEnabled(_ value: Bool) {
+    guard enabled != value else { return }
+    enabled = value
+    publish()
+  }
+
+  private func publish() {
+    guard let data, let loggedIn, let enabled else { return }
+    onChange?((data.project, PostCampaignAmounts(data).total, loggedIn, enabled, data.context, false))
+  }
+}
+
+@MainActor
 private final class PostCampaignOpeningState {
   var onOpen: ((KsApi.CreateCheckoutInput) -> Void)?
   private var data: PledgeViewData?
@@ -125,6 +146,8 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     self.stripeIntentService = stripeIntentService
 
     let initialData = self.initialDataEvents.output
+    let ctaState = self.ctaState
+    initialData.observeValues { ctaState.configure($0) }
 
     let context = initialData.map(\.context)
     let rewards = initialData.map(\.rewards)
@@ -137,11 +160,10 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
     self.loginSignupUseCase = LoginSignupUseCase(withLoginIntent: .backProject)
     let login = self.loginSignupUseCase
-    let loginState = self.loginStatePipe
     let openingState = PostCampaignOpeningState()
     let loginSession = self.loginSessionPipe
     login.onLoginState = { value in
-      loginState.input.send(value: value)
+      ctaState.setLoggedIn(value)
       openingState.setLoggedIn(value)
     }
     login.onSessionChanged = { loginSession.input.send(value: ()) }
@@ -153,11 +175,13 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     self.paymentMethodsUseCase = PaymentMethodsUseCase()
     let paymentMethods = self.paymentMethodsUseCase
     let paymentSelected = self.paymentSelectedPipe
-    let paymentValid = self.paymentValidPipe
     paymentMethods.onSelected = { paymentSelected.input.send(value: $0) }
-    paymentMethods.onValidity = { paymentValid.input.send(value: $0) }
     initialData.observeValues { paymentMethods.configure($0) }
-    self.loginStatePipe.output.observeValues { paymentMethods.loginChanged($0) }
+    let previousLoginHandler = login.onLoginState
+    login.onLoginState = { value in
+      previousLoginHandler?(value)
+      paymentMethods.loginChanged(value)
+    }
 
     // MARK: Calculate totals
 
@@ -377,32 +401,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
     // MARK: - UI related to checkout flow
 
-    let existingCardActivatesPledgeButton = validateCheckoutExistingCardInput
-      .mapConst(true)
-
-    let pledgeButtonEnabled = Signal.merge(
-      self.viewDidLoadEvents.output.mapConst(false),
-      existingCardActivatesPledgeButton
-    )
-    .skipRepeats()
-
-    let pledgeCTA: Signal<PledgeViewCTAContainerViewData, Never> = Signal.combineLatest(
-      project,
-      pledgeTotal,
-      pledgeButtonEnabled,
-      context,
-      self.loginStatePipe.output
-    )
-    .map { project, pledgeTotal, pledgeButtonEnabled, context, isLoggedIn in
-      PledgeViewCTAContainerViewData(
-        project: project,
-        total: pledgeTotal,
-        isLoggedIn: isLoggedIn,
-        isEnabled: pledgeButtonEnabled,
-        context: context,
-        willRetryPaymentMethod: false // Only retry in the `fixPaymentMethod` context.
-      )
-    }
+    validateCheckoutExistingCardInput.observeValues { _ in ctaState.setEnabled(true) }
 
     let processingViewIsHidden = Signal.merge(
       // Processing view starts hidden, so show at the start of a pledge flow.
@@ -600,7 +599,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
         AppEnvironment.current.environmentType.stripePublishableKey
       )
     }
-    _ = pledgeCTA.observeValues { [weak self] in self?.onPledgeCTA?($0) }
+    ctaState.onChange = { [weak self] in self?.onPledgeCTA?($0) }
     _ = processingViewIsHidden.observeValues { [weak self] in self?.onProcessingHidden?($0) }
     _ = errorMessages.observeValues { [weak self] in self?.onShowError?($0) }
     _ = checkoutErrors.observeValues { [weak self] in self?.onCheckoutError?($0) }
@@ -647,7 +646,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private var activeCheckoutData: PledgeViewData?
   private var hasLoadedView = false
   private let initialDataEvents = Signal<PledgeViewData, Never>.pipe()
-  private let viewDidLoadEvents = Signal<Void, Never>.pipe()
+  private let ctaState = PostCampaignCTAState()
 
   public func configure(with data: PledgeViewData) {
     self.configuredData = data
@@ -694,7 +693,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   public func viewDidLoad() {
     self.hasLoadedView = true
     self.publishInitialDataWhenReady()
-    self.viewDidLoadEvents.input.send(value: ())
+    self.ctaState.setEnabled(false)
   }
 
   private let (applePayButtonTappedSignal, applePayButtonTappedObserver) = Signal<Void, Never>.pipe()
@@ -765,11 +764,9 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     self.paymentIntentTask?.cancel()
   }
 
-  private let loginStatePipe = Signal<Bool, Never>.pipe()
   private let loginSessionPipe = Signal<Void, Never>.pipe()
   private let paymentMethodsUseCase: PaymentMethodsUseCase
   private let paymentSelectedPipe = Signal<PaymentSourceSelected?, Never>.pipe()
-  private let paymentValidPipe = Signal<Bool, Never>.pipe()
 }
 
 @MainActor
