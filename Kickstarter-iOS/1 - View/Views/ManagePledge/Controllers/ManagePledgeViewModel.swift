@@ -80,6 +80,9 @@ public final class ManagePledgeViewModel:
   private var configuredBackingWasProvided = false
   private var currentBackingParam: Param?
   private var rightBarHidden: Bool?
+  private var paymentMethodHidden: Bool?
+  private var visibilityBacking: Backing?
+  private var visibilityIsCreator: Bool?
   private var backingHasLoaded = false
   private var currentProject: Project?
   private var currentCancellation: (Project, Backing)?
@@ -180,20 +183,6 @@ public final class ManagePledgeViewModel:
     let loadPullToRefreshHeaderView = projectOrBackingFailedToLoad
       .take(until: backing.ignoreValues())
       .ignoreValues()
-
-    let paymentMethodViewHidden = Signal.combineLatest(
-      userIsCreatorOfProject,
-      backing
-    )
-    .map { userIsCreatorOfProject, backing in
-      // Never show payment method view if the user is the creator.
-      if userIsCreatorOfProject { return true }
-      // Always show payment method view if the fix button should be shown.
-      if shouldShowFixPaymentMethodButton(for: backing) { return false }
-      // Otherwise, show payment method view if we have a payment method to display.
-      return backing.paymentSource == nil
-    }
-    .skipRepeats()
 
     let loadProjectAndRewardsIntoDataSource = projectAndReward.combineLatest(with: backing)
       .map(unpack)
@@ -349,8 +338,13 @@ public final class ManagePledgeViewModel:
       self?.onPaymentMethod?(managePledgePaymentMethodViewData(with: backing))
     }
     _ = configurePledgeSummaryView.observeValues { [weak self] in self?.onPledgeSummary?($0) }
-    _ = paymentMethodViewHidden.observeValues { [weak self] in self?.onPaymentMethodHidden?($0) }
+    _ = backing.observeValues { [weak self] backing in
+      self?.visibilityBacking = backing
+      self?.updatePaymentMethodVisibility()
+    }
     _ = userIsCreatorOfProject.observeValues { [weak self] isCreator in
+      self?.visibilityIsCreator = isCreator
+      self?.updatePaymentMethodVisibility()
       self?.onPledgeDetailsLabel?(isCreator ? Strings.Pledge_details() : Strings.Your_pledge_details())
     }
     _ = backing.observeValues { [weak self] backing in
@@ -429,6 +423,14 @@ public final class ManagePledgeViewModel:
     self.setRightBarHidden(true)
     self.onStartRefreshing?()
     self.fetchProjectIfNeeded()
+  }
+
+  private func updatePaymentMethodVisibility() {
+    guard let backing = self.visibilityBacking, let isCreator = self.visibilityIsCreator else { return }
+    let hidden = isCreator || (!shouldShowFixPaymentMethodButton(for: backing) && backing.paymentSource == nil)
+    guard self.paymentMethodHidden != hidden else { return }
+    self.paymentMethodHidden = hidden
+    self.onPaymentMethodHidden?(hidden)
   }
 
   private func setRightBarHidden(_ hidden: Bool) {
