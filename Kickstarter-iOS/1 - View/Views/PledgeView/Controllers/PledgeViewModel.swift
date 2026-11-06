@@ -82,7 +82,7 @@ public protocol PledgeViewModelInputs {
 @MainActor
 public protocol PledgeViewModelOutputs: AnyObject {
   var beginSCAFlowWithClientSecret: Signal<String, Never> { get }
-  var configureEstimatedShippingView: Signal<(String?, String?), Never> { get }
+  var onEstimatedShipping: ((String?, String?) -> Void)? { get set }
   var configureLocalPickupViewWithData: Signal<PledgeLocalPickupViewData, Never> { get }
   var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)? { get set }
   var configurePledgeAmountSummaryViewControllerWithData: Signal<PledgeAmountSummaryViewData, Never> { get }
@@ -92,7 +92,7 @@ public protocol PledgeViewModelOutputs: AnyObject {
   > { get }
   var configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never> { get }
   var onConfigureStripe: ((String, String) -> Void)? { get set }
-  var estimatedShippingViewHidden: Signal<Bool, Never> { get }
+  var onEstimatedShippingHidden: ((Bool) -> Void)? { get set }
   var goToApplePayPaymentAuthorization: Signal<PaymentAuthorizationData, Never> { get }
   var goToThanks: Signal<ThanksPageData, Never> { get }
   var onGoToLoginSignup: ((LoginIntent) -> Void)? { get set }
@@ -348,37 +348,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       initialDataUnpacked,
       initialDataUnpacked.takeWhen(self.loginSessionPipe.output)
     )
-
-    self.configureEstimatedShippingView = Signal.combineLatest(
-      project,
-      rewards,
-      selectedShippingRule,
-      selectedQuantities
-    )
-    .map { project, rewards, shippingRule, selectedQuantities in
-      guard let rule = shippingRule else { return (nil, nil) }
-
-      return (
-        estimatedShippingText(
-          for: rewards,
-          project: project,
-          locationId: rule.location.id,
-          selectedQuantities: selectedQuantities
-        ),
-        estimatedShippingConversionText(
-          for: rewards,
-          project: project,
-          locationId: rule.location.id,
-          selectedQuantities: selectedQuantities
-        )
-      )
-    }
-
-    self.estimatedShippingViewHidden = Signal.combineLatest(self.configureEstimatedShippingView, baseReward)
-      .map { estimatedShippingStrings, reward in
-        let (estimatedShipping, _) = estimatedShippingStrings
-        return reward.shipping.enabled == false || estimatedShipping == nil
-      }
 
     // MARK: - Apple Pay
 
@@ -898,6 +867,21 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         )
       }
     _ = initialData.observeValues { [weak self] data in
+      let shipping: String?
+      let conversion: String?
+      if let rule = data.selectedShippingRule {
+        shipping = estimatedShippingText(for: data.rewards, project: data.project,
+          locationId: rule.location.id, selectedQuantities: data.selectedQuantities)
+        conversion = estimatedShippingConversionText(for: data.rewards, project: data.project,
+          locationId: rule.location.id, selectedQuantities: data.selectedQuantities)
+      } else {
+        shipping = nil
+        conversion = nil
+      }
+      self?.onEstimatedShipping?(shipping, conversion)
+      if let reward = data.rewards.first {
+        self?.onEstimatedShippingHidden?(!reward.shipping.enabled || shipping == nil)
+      }
       self?.onPledgeAmountSummaryHidden?(data.context.pledgeAmountSummaryViewHidden)
       if let reward = data.rewards.first { self?.onLocalPickupHidden?(!isRewardLocalPickup(reward)) }
       guard !data.context.paymentMethodsViewHidden else { return }
@@ -996,7 +980,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   // MARK: - Outputs
 
   public let beginSCAFlowWithClientSecret: Signal<String, Never>
-  public let configureEstimatedShippingView: Signal<(String?, String?), Never>
+  public var onEstimatedShipping: ((String?, String?) -> Void)?
   public let configureLocalPickupViewWithData: Signal<PledgeLocalPickupViewData, Never>
   public var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)?
 
@@ -1007,7 +991,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   >
   public let configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never>
   public var onConfigureStripe: ((String, String) -> Void)?
-  public let estimatedShippingViewHidden: Signal<Bool, Never>
+  public var onEstimatedShippingHidden: ((Bool) -> Void)?
   public let goToApplePayPaymentAuthorization: Signal<PaymentAuthorizationData, Never>
   public let goToThanks: Signal<ThanksPageData, Never>
   public var onGoToLoginSignup: ((LoginIntent) -> Void)?

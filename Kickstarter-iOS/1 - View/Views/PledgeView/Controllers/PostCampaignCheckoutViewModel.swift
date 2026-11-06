@@ -57,7 +57,7 @@ public protocol PostCampaignCheckoutViewModelInputs {
 
 @MainActor
 public protocol PostCampaignCheckoutViewModelOutputs: AnyObject {
-  var configureEstimatedShippingView: Signal<(String?, String?), Never> { get }
+  var onEstimatedShipping: ((String?, String?) -> Void)? { get set }
   var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)? { get set }
   var configurePledgeRewardsSummaryViewWithData: Signal<
     (PostCampaignRewardsSummaryViewData, Double?, PledgeSummaryViewData),
@@ -65,7 +65,7 @@ public protocol PostCampaignCheckoutViewModelOutputs: AnyObject {
   > { get }
   var configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never> { get }
   var onConfigureStripe: ((String, String) -> Void)? { get set }
-  var estimatedShippingViewHidden: Signal<Bool, Never> { get }
+  var onEstimatedShippingHidden: ((Bool) -> Void)? { get set }
   var onPaymentMethodsHidden: ((Bool) -> Void)? { get set }
   var processingViewIsHidden: Signal<Bool, Never> { get }
   var onGoToLoginSignup: ((LoginIntent) -> Void)? { get set }
@@ -265,37 +265,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       )
       return (rewardsData, bonus, pledgeData)
     }
-
-    self.configureEstimatedShippingView = Signal.combineLatest(
-      project,
-      rewards,
-      selectedShippingRule,
-      selectedQuantities
-    )
-    .map { project, rewards, shippingRule, selectedQuantities in
-      guard let rule = shippingRule else { return (nil, nil) }
-
-      return (
-        estimatedShippingText(
-          for: rewards,
-          project: project,
-          locationId: rule.location.id,
-          selectedQuantities: selectedQuantities
-        ),
-        estimatedShippingConversionText(
-          for: rewards,
-          project: project,
-          locationId: rule.location.id,
-          selectedQuantities: selectedQuantities
-        )
-      )
-    }
-
-    self.estimatedShippingViewHidden = Signal.combineLatest(self.configureEstimatedShippingView, baseReward)
-      .map { estimatedShippingStrings, reward in
-        let (estimatedShipping, _) = estimatedShippingStrings
-        return reward.shipping.enabled == false || estimatedShipping == nil
-      }
 
     // MARK: Create Payment Intent
 
@@ -632,6 +601,21 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     }
 
     _ = initialData.observeValues { [weak self] data in
+      let shipping: String?
+      let conversion: String?
+      if let rule = data.selectedShippingRule {
+        shipping = estimatedShippingText(for: data.rewards, project: data.project,
+          locationId: rule.location.id, selectedQuantities: data.selectedQuantities)
+        conversion = estimatedShippingConversionText(for: data.rewards, project: data.project,
+          locationId: rule.location.id, selectedQuantities: data.selectedQuantities)
+      } else {
+        shipping = nil
+        conversion = nil
+      }
+      self?.onEstimatedShipping?(shipping, conversion)
+      if let reward = data.rewards.first {
+        self?.onEstimatedShippingHidden?(!reward.shipping.enabled || shipping == nil)
+      }
       guard !data.context.paymentMethodsViewHidden else { return }
       self?.onConfigureStripe?(
         Secrets.ApplePay.merchantIdentifier,
@@ -745,7 +729,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
   // MARK: - Outputs
 
-  public let configureEstimatedShippingView: Signal<(String?, String?), Never>
+  public var onEstimatedShipping: ((String?, String?) -> Void)?
   public var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)?
 
   public let configurePledgeRewardsSummaryViewWithData: Signal<(
@@ -755,7 +739,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   ), Never>
   public let configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never>
   public var onConfigureStripe: ((String, String) -> Void)?
-  public let estimatedShippingViewHidden: Signal<Bool, Never>
+  public var onEstimatedShippingHidden: ((Bool) -> Void)?
   public var onGoToLoginSignup: ((LoginIntent) -> Void)?
 
   public let processingViewIsHidden: Signal<Bool, Never>

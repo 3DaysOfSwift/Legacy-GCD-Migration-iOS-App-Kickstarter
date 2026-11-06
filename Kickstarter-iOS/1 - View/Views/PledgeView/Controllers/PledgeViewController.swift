@@ -319,17 +319,13 @@ final class PledgeViewController: UIViewController,
         self?.pledgeAmountSummaryViewController.configureWith(data)
       }
 
-    self.viewModel.outputs.configureEstimatedShippingView
-      .observeForUI()
-      .observeValues { [weak self] estimatedShippingText, estimatedConversionText in
+    self.viewModel.outputs.onEstimatedShipping = { [weak self] estimatedShippingText, estimatedConversionText in
         guard let shippingText = estimatedShippingText else { return }
 
         self?.configureEstimatedShippingView(shippingText, estimatedConversionText)
       }
 
-    self.viewModel.outputs.estimatedShippingViewHidden
-      .observeForUI()
-      .observeValues { [weak self] isHidden in
+    self.viewModel.outputs.onEstimatedShippingHidden = { [weak self] isHidden in
         self?.estimatedShippingViewContainer.view.isHidden = isHidden
       }
 

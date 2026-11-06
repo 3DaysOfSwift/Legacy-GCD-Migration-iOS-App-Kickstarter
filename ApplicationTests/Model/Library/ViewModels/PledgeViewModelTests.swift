@@ -181,6 +181,27 @@ final class PledgeViewModelTests: TestCase {
     }
   }
 
+  func testShippingIsHiddenWithoutAShippingRule() async {
+    await withEnvironment(apiService: MockService()) {
+      var hidden: [Bool] = []
+      var shipping: [String?] = []
+      self.vm.outputs.onEstimatedShippingHidden = { hidden.append($0) }
+      self.vm.outputs.onEstimatedShipping = { value, _ in shipping.append(value) }
+      let reward = Reward.template
+      let data = PledgeViewData(
+        project: .template, rewards: [reward], bonusSupport: nil,
+        selectedShippingRule: nil, selectedQuantities: [reward.id: 1],
+        selectedLocationId: nil, refTag: nil, context: .pledge
+      )
+      self.vm.inputs.configure(with: data)
+      self.vm.inputs.viewDidLoad()
+      XCTAssertEqual(hidden, [true])
+      XCTAssertEqual(shipping.count, 1)
+      XCTAssertNil(shipping.first ?? nil)
+      await self.feature.waitForOperations()
+    }
+  }
+
   func testShowWebHelp() async {
     self.vm.inputs.viewDidLoad()
 
