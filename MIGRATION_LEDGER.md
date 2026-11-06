@@ -17,6 +17,9 @@ all 39 keychain tests passed. These counts are separate runs.
 
 Snapshot comparisons remain unverified: the checked-in reference gate requires
 an iPad mini (A17 Pro) running iOS 18.6, which is not currently installed.
+On iPhone Air (iOS 26.2), the signed public-demo app also launched and displayed
+the Explore screen and fictional project data. A simulator Apple Account prompt
+obscured part of the screen; interaction and snapshot parity were not checked.
 Physical-device testing and live payment operations also remain deferred. These
 limits do not establish visual parity or live-service correctness.
 
