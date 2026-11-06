@@ -3,7 +3,6 @@ import Foundation
 import GraphAPI
 import KsApi
 import Prelude
-import ReactiveSwift
 import ServerDrivenUI
 import UIKit
 
@@ -309,6 +308,11 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   private var relatedState: SimilarProjectsState = .loading
   private var hasRelatedStateEmission = false
   private var requestRefTag: RefTag?
+  private var pendingViewedProjects: [(Project, RefTag?)] = []
+  private var pendingAppearances = 0
+  private var didRecordAttribution = false
+  private var didInspectFirstCookie = false
+  private var lastRelatedProjectID: String?
   internal private(set) var loadingTask: Task<Void, Never>?
 
   public init(projectDetailsFeature: ProjectDetailsFeature? = nil, projectMediaFeature: ProjectMediaFeature? = nil) {
@@ -316,115 +320,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     let projectDetailsFeature = projectDetailsFeature ?? AppModel.shared.projectDetailsFeature
     self.projectDetailsFeature = projectDetailsFeature
     self.similarProjectsUseCase = SimilarProjectsUseCase(projectDetailsFeature: projectDetailsFeature)
-
-
-    // Output-only adapter: the Feature owns execution and completion.
-    let completion = Signal<Signal<(Project, RefTag?), ErrorEnvelope>.Event, Never>.pipe()
-    let freshProjectAndRefTagEvent = completion.output
-
-    let freshProjectAndRefTag: Signal<(Project, RefTag?), Never> = freshProjectAndRefTagEvent.values()
-
-    let freshProject = freshProjectAndRefTag
-      .map(first)
-
-    let cookieRefTag: Signal<RefTag?, Never> = freshProjectAndRefTag
-      .map { project, refTag -> RefTag? in
-        let r = cookieRefTagFor(project: project) ?? refTag
-        return r
-      }
-      .take(first: 1)
-
-
-
-
-
-
-
-    let trackFreshProjectAndRefTagViewed: Signal<(Project, RefTag?), Never> = Signal.zip(
-      freshProjectAndRefTag,
-      self.viewDidAppearAnimatedProperty.signal.ignoreValues()
-    )
-    .map(unpack)
-    .map { project, refTag, _ in
-      (project: project, refTag: refTag)
-    }
-
-    trackFreshProjectAndRefTagViewed
-      .observeValues { project, refTag in
-        AppEnvironment.current.ksrAnalytics.trackProjectViewed(
-          project,
-          refTag: refTag,
-          sectionContext: .overview
-        )
-      }
-
-    // Facebook CAPI + Google Analytics
-    trackFreshProjectAndRefTagViewed
-      .observeValues { projectAndRefTag in
-        let (project, _) = projectAndRefTag
-
-        AppEnvironment.current.appTrackingTransparency.updateAdvertisingIdentifier()
-
-        guard let externalId = AppEnvironment.current.appTrackingTransparency.advertisingIdentifier
-        else { return }
-
-        var userId = ""
-
-        if let userValue = AppEnvironment.current.currentUser {
-          userId = "\(userValue.id)"
-        }
-
-        let projectId = "\(project.id)"
-
-        var extInfo = Array(repeating: "", count: 16)
-        extInfo[0] = "i2"
-        extInfo[4] = AppEnvironment.current.mainBundle.platformVersion
-
-        _ = AppEnvironment
-          .current
-          .apiService
-          .prepareThirdPartyEvent(
-            input: .init(
-              deviceId: externalId,
-              eventName: ThirdPartyEventInputName.ProjectPageViewed.rawValue,
-              projectId: projectId,
-              pledgeAmount: nil,
-              shipping: nil,
-              transactionId: nil,
-              userId: userId,
-              appData: .init(
-                advertiserTrackingEnabled: true,
-                applicationTrackingEnabled: true,
-                extinfo: extInfo
-              ),
-              clientMutationId: ""
-            )
-          )
-      }
-
-    // Event attribution tracking
-    self.configDataProperty.signal
-      .skipNil()
-      .combineLatest(with: freshProjectAndRefTag)
-      .map { projectAndRefInfo, freshProjectAndRefTag in
-        let (_, refInfo, _) = projectAndRefInfo
-        let (project, _) = freshProjectAndRefTag
-        return (project.graphID, refInfo)
-      }
-      .take(first: 1)
-      .observeValues { [projectRoute = self.projectRoute] graphId, refInfo in
-        projectDetailsFeature.recordAttribution(
-          route: projectRoute, projectID: graphId,
-          properties: AttributionTracking.eventParametersString(refInfo: refInfo)
-        )
-      }
-
-    Signal.combineLatest(cookieRefTag.skipNil(), freshProjectAndRefTag.map(first))
-      .take(first: 1)
-      .map(cookieFrom(refTag:project:))
-      .skipNil()
-      .observeValues { AppEnvironment.current.cookieStorage.setCookie($0) }
-
 
 
     // MARK: Project notice
@@ -446,9 +341,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
             targetUserId: "\(blockedUserId)"
           )
     }
-    _ = freshProject.signal.observeValues { project in
-      blockAnalytics.receive(project: project)
-    }
 
 
 
@@ -460,16 +352,8 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
     // MARK: Similar Projects
 
-    freshProjectAndRefTag
-      .map { project, _ in "\(project.id)" }
-      .skipRepeats()
-      .observeForControllerAction()
-      .observeValues { [weak self] projectID in
-        self?.similarProjectsUseCase.projectIDLoaded(projectID: projectID)
-      }
-
     self.rewardsUseCase.onRewards = { [weak self] in
-      guard let self, let project = self.latestProject, let config = self.configDataProperty.value else { return }
+      guard let self, let project = self.latestProject, let config = self.configData else { return }
       self.onGoToRewards?((project, self.latestProjectRefTag, config.2))
     }
     self.rewardsUseCase.onLogin = { [weak self] in self?.onGoToLoginWithIntent?($0) }
@@ -503,7 +387,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
           if self.hasLoadedView {
             self.onConfigureDataSource?((.overview, .left(project), self.requestRefTag))
           }
-          completion.input.send(value: .value((project, self.requestRefTag)))
+          self.recordProjectLoaded(project, refTag: self.requestRefTag)
           self.updateFAQsIfReady()
           self.showSelectedProjectTabIfReady()
           if let elements = project.extendedProjectProperties?.story.htmlViewElements {
@@ -514,15 +398,73 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
           }
         case let .failure(error):
           self.onConfigurePledgeCTA?(.error(error))
-          completion.input.send(value: .failed(error))
         }
       default: break
       }
     }
   }
 
+  private func recordProjectLoaded(_ project: Project, refTag: RefTag?) {
+    self.blockAnalytics.receive(project: project)
+    self.pendingViewedProjects.append((project, refTag))
+    self.flushProjectViews()
+    self.recordAttributionIfReady()
+    if !self.didInspectFirstCookie {
+      self.didInspectFirstCookie = true
+      if let tag = cookieRefTagFor(project: project) ?? refTag,
+         let cookie = cookieFrom(refTag: tag, project: project) {
+        AppEnvironment.current.cookieStorage.setCookie(cookie)
+      }
+    }
+    let projectID = "\(project.id)"
+    if self.lastRelatedProjectID != projectID {
+      self.lastRelatedProjectID = projectID
+      DispatchQueue.main.async { [weak self] in
+        self?.similarProjectsUseCase.projectIDLoaded(projectID: projectID)
+      }
+    }
+  }
+
+  private func recordAttributionIfReady() {
+    guard !self.didRecordAttribution, let project = self.latestProject,
+          let (_, refInfo, _) = self.configData else { return }
+    self.didRecordAttribution = true
+    self.projectDetailsFeature.recordAttribution(
+      route: self.projectRoute, projectID: project.graphID,
+      properties: AttributionTracking.eventParametersString(refInfo: refInfo)
+    )
+  }
+
+  private func flushProjectViews() {
+    while self.pendingAppearances > 0, !self.pendingViewedProjects.isEmpty {
+      self.pendingAppearances -= 1
+      let (project, refTag) = self.pendingViewedProjects.removeFirst()
+      AppEnvironment.current.ksrAnalytics.trackProjectViewed(project, refTag: refTag, sectionContext: .overview)
+      self.recordThirdPartyProjectView(project)
+    }
+  }
+
+  private func recordThirdPartyProjectView(_ project: Project) {
+    AppEnvironment.current.appTrackingTransparency.updateAdvertisingIdentifier()
+    guard let externalID = AppEnvironment.current.appTrackingTransparency.advertisingIdentifier else { return }
+    let userID = AppEnvironment.current.currentUser.map { "\($0.id)" } ?? ""
+    var extInfo = Array(repeating: "", count: 16)
+    extInfo[0] = "i2"
+    extInfo[4] = AppEnvironment.current.mainBundle.platformVersion
+    _ = AppEnvironment.current.apiService.prepareThirdPartyEvent(
+      input: .init(
+        deviceId: externalID,
+        eventName: ThirdPartyEventInputName.ProjectPageViewed.rawValue,
+        projectId: "\(project.id)", pledgeAmount: nil, shipping: nil, transactionId: nil,
+        userId: userID,
+        appData: .init(advertiserTrackingEnabled: true, applicationTrackingEnabled: true, extinfo: extInfo),
+        clientMutationId: ""
+      )
+    )
+  }
+
   private func loadProject(force: Bool) {
-    guard let (projectOrParam, refInfo, token) = self.configDataProperty.value else { return }
+    guard let (projectOrParam, refInfo, token) = self.configData else { return }
     self.requestRefTag = refInfo?.refTag.map(cleanUp(refTag:))
     self.loadingTask = self.projectDetailsFeature.requestLoad(
       route: self.projectRoute, param: projectOrParam.param.param, secretRewardToken: token, force: force
@@ -585,11 +527,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     }
   }
 
-  private let configDataProperty = MutableProperty<(
-    Either<Project, any ProjectPageParam>,
-    RefInfo?,
-    String?
-  )?>(nil)
+  private var configData: (Either<Project, any ProjectPageParam>, RefInfo?, String?)?
   public func configureWith(
     projectOrParam: Either<Project, any ProjectPageParam>,
     refInfo: RefInfo?,
@@ -597,7 +535,8 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   ) {
     self.cancelMediaPreparation()
     self.cancelImagePreparation()
-    self.configDataProperty.value = (projectOrParam, refInfo, secretRewardToken)
+    self.configData = (projectOrParam, refInfo, secretRewardToken)
+    self.recordAttributionIfReady()
     self.rewardsUseCase.configure(secretRewardToken: secretRewardToken)
   }
 
@@ -742,7 +681,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.hasLoadedView = true
     self.hasRelatedStateEmission = true
     self.showSelectedProjectTabIfReady()
-    if let (projectOrParam, refInfo, _) = self.configDataProperty.value, projectOrParam.canDisplayProjectPreview {
+    if let (projectOrParam, refInfo, _) = self.configData, projectOrParam.canDisplayProjectPreview {
       self.onConfigureDataSource?((.overview, projectOrParam, refInfo?.refTag))
     }
     if let project = self.latestProject {
@@ -751,9 +690,9 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.loadProject(force: false)
   }
 
-  fileprivate let viewDidAppearAnimatedProperty = MutableProperty(false)
   public func viewDidAppear(animated: Bool) {
-    self.viewDidAppearAnimatedProperty.value = animated
+    self.pendingAppearances += 1
+    self.flushProjectViews()
   }
 
   public func viewWillTransition() {
