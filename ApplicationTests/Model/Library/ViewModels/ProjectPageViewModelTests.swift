@@ -156,8 +156,9 @@ final class ProjectPageViewModelTests: TestCase {
         .observe(self.updateFAQsInDataSourceProject.observer)
       self.vm.outputs.updateFAQsInDataSource.map { $0.2 }
         .observe(self.updateFAQsInDataSourceIsExpandedValues.observer)
-      self.vm.outputs.updateWatchProjectWithPrelaunchProjectState.map { $0 }
-        .observe(self.updateWatchProjectWithPrelaunchProjectState.observer)
+      self.vm.outputs.onUpdateWatchProject = { [weak self] in
+        self?.updateWatchProjectWithPrelaunchProjectState.observer.send(value: $0)
+      }
     }
   }
 

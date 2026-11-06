@@ -221,7 +221,7 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var updateFAQsInDataSource: Signal<(Project, RefTag?, [Bool]), Never> { get }
 
   /// Emits a prelaunch save state that updates the navigation bar's watch project state.
-  var updateWatchProjectWithPrelaunchProjectState: Signal<PledgeCTAPrelaunchState, Never> { get }
+  var onUpdateWatchProject: ((PledgeCTAPrelaunchState) -> Void)? { get set }
 
   /// Emits when a block user request is successful.
   var onDidBlockUser: (() -> Void)? { get set }
@@ -395,30 +395,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         return (.overview, .left(project), refTag)
       }
       .merge(with: staleProjectDataSource)
-
-    let ctaButtonTappedWithType = self.pledgeCTAButtonTappedProperty.signal
-      .skipNil()
-
-    let shouldUpdateWatchProjectOnPrelaunch = ctaButtonTappedWithType
-      .filter { state in
-        switch state {
-        case .prelaunch:
-          return true
-        default:
-          return false
-        }
-      }
-
-    self.updateWatchProjectWithPrelaunchProjectState = shouldUpdateWatchProjectOnPrelaunch
-      .map { pledgeCTAType -> PledgeCTAPrelaunchState? in
-        switch pledgeCTAType {
-        case let .prelaunch(saved, watchesCount):
-          return PledgeCTAPrelaunchState(prelaunch: true, saved: saved, watchesCount: watchesCount)
-        default:
-          return nil
-        }
-      }
-      .skipNil()
 
     self.configurePledgeCTAView = Signal.merge(
       // Successful fetch
@@ -787,10 +763,12 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.loadProject(force: true)
   }
 
-  private let pledgeCTAButtonTappedProperty = MutableProperty<PledgeStateCTAType?>(nil)
   public func pledgeCTAButtonTapped(with state: PledgeStateCTAType) {
-    self.pledgeCTAButtonTappedProperty.value = state
     switch state {
+    case let .prelaunch(saved, watchesCount):
+      self.onUpdateWatchProject?(
+        PledgeCTAPrelaunchState(prelaunch: true, saved: saved, watchesCount: watchesCount)
+      )
     case .pledge, .viewRewards, .viewYourRewards:
       self.rewardsUseCase.goToRewardsTapped()
     case .pledgeManager:
@@ -915,7 +893,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     Never
   >
   public let updateFAQsInDataSource: Signal<(Project, RefTag?, [Bool]), Never>
-  public let updateWatchProjectWithPrelaunchProjectState: Signal<PledgeCTAPrelaunchState, Never>
+  public var onUpdateWatchProject: ((PledgeCTAPrelaunchState) -> Void)?
   public var onDidBlockUser: (() -> Void)?
   public var onDidBlockUserError: (() -> Void)?
 

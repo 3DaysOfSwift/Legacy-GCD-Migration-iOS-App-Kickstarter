@@ -386,11 +386,11 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
   }
 
   private func bindProjectPageViewModel() {
-    self.viewModel.outputs.updateWatchProjectWithPrelaunchProjectState
-      .observeForUI()
-      .observeValues { [weak self] prelaunchState in
+    self.viewModel.outputs.onUpdateWatchProject = { [weak self] prelaunchState in
+      DispatchQueue.main.async { [weak self] in
         self?.navigation.configureSaveWatchPrelaunchProject(with: prelaunchState)
       }
+    }
 
     self.viewModel.outputs.onGoToRewards = { [weak self] params in
       let (project, refTag, secretRewardToken) = params
