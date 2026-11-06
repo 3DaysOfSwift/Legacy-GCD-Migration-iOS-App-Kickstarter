@@ -7,7 +7,6 @@ import GraphAPI
 import PassKit
 import Prelude
 import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
@@ -60,58 +59,56 @@ final class PledgeViewModelTests: TestCase {
     await delayGate.sleep($0)
   })
 
-  private let beginSCAFlowWithClientSecret = TestObserver<String, Never>()
+  private let beginSCAFlowWithClientSecret = ValueRecorder<String>()
 
-  private let configureLocalPickupViewWithData = TestObserver<PledgeLocalPickupViewData, Never>()
-  private let configurePaymentMethodsViewControllerWithUser = TestObserver<User, Never>()
-  private let configurePaymentMethodsViewControllerWithProject = TestObserver<Project, Never>()
-  private let configurePaymentMethodsViewControllerWithCheckoutId = TestObserver<String, Never>()
-  private let configurePaymentMethodsViewControllerWithReward = TestObserver<Reward, Never>()
-  private let configurePaymentMethodsViewControllerWithContext = TestObserver<PledgeViewContext, Never>()
+  private let configureLocalPickupViewWithData = ValueRecorder<PledgeLocalPickupViewData>()
+  private let configurePaymentMethodsViewControllerWithUser = ValueRecorder<User>()
+  private let configurePaymentMethodsViewControllerWithProject = ValueRecorder<Project>()
+  private let configurePaymentMethodsViewControllerWithCheckoutId = ValueRecorder<String>()
+  private let configurePaymentMethodsViewControllerWithReward = ValueRecorder<Reward>()
+  private let configurePaymentMethodsViewControllerWithContext = ValueRecorder<PledgeViewContext>()
 
-  private let configurePledgeRewardsSummaryViewRewards = TestObserver<[Reward], Never>()
+  private let configurePledgeRewardsSummaryViewRewards = ValueRecorder<[Reward]>()
   private let configurePledgeRewardsSummaryViewSelectedQuantities
-    = TestObserver<SelectedRewardQuantities, Never>()
-  private let configurePledgeRewardsSummaryViewProjectCurrency = TestObserver<
-    String,
-    Never
+    = ValueRecorder<SelectedRewardQuantities>()
+  private let configurePledgeRewardsSummaryViewProjectCurrency = ValueRecorder<
+    String
   >()
-  private let configurePledgeRewardsSummaryViewOmitCurrencyCode = TestObserver<Bool, Never>()
-  private let configurePledgeRewardsSummaryViewShipping = TestObserver<
-    PledgeShippingSummaryViewData?,
-    Never
+  private let configurePledgeRewardsSummaryViewOmitCurrencyCode = ValueRecorder<Bool>()
+  private let configurePledgeRewardsSummaryViewShipping = ValueRecorder<
+    PledgeShippingSummaryViewData?
   >()
 
-  private let configurePledgeViewCTAContainerViewIsLoggedIn = TestObserver<Bool, Never>()
-  private let configurePledgeViewCTAContainerViewIsEnabled = TestObserver<Bool, Never>()
-  private let configurePledgeViewCTAContainerViewContext = TestObserver<PledgeViewContext, Never>()
-  private let configurePledgeViewCTAContainerViewWillRetryPaymentMethod = TestObserver<Bool, Never>()
+  private let configurePledgeViewCTAContainerViewIsLoggedIn = ValueRecorder<Bool>()
+  private let configurePledgeViewCTAContainerViewIsEnabled = ValueRecorder<Bool>()
+  private let configurePledgeViewCTAContainerViewContext = ValueRecorder<PledgeViewContext>()
+  private let configurePledgeViewCTAContainerViewWillRetryPaymentMethod = ValueRecorder<Bool>()
 
-  private let configureStripeIntegrationMerchantId = TestObserver<String, Never>()
-  private let configureStripeIntegrationPublishableKey = TestObserver<String, Never>()
+  private let configureStripeIntegrationMerchantId = ValueRecorder<String>()
+  private let configureStripeIntegrationPublishableKey = ValueRecorder<String>()
 
-  private let goToApplePayPaymentAuthorizationProject = TestObserver<Project, Never>()
-  private let goToApplePayPaymentAuthorizationReward = TestObserver<Reward, Never>()
-  private let goToApplePayPaymentAuthorizationAllRewardsTotal = TestObserver<Double, Never>()
-  private let goToApplePayPaymentAuthorizationAdditionalPledgeAmount = TestObserver<Double, Never>()
-  private let goToApplePayPaymentAuthorizationAllRewardsShippingTotal = TestObserver<Double, Never>()
-  private let goToApplePayPaymentAuthorizationMerchantId = TestObserver<String, Never>()
-  private let goToThanksCheckoutData = TestObserver<KSRAnalytics.CheckoutPropertiesData?, Never>()
-  private let goToThanksProject = TestObserver<Project, Never>()
-  private let goToThanksReward = TestObserver<Reward, Never>()
-  private let localPickupViewHidden = TestObserver<Bool, Never>()
-  private let notifyDelegateUpdatePledgeDidSucceedWithMessage = TestObserver<String, Never>()
+  private let goToApplePayPaymentAuthorizationProject = ValueRecorder<Project>()
+  private let goToApplePayPaymentAuthorizationReward = ValueRecorder<Reward>()
+  private let goToApplePayPaymentAuthorizationAllRewardsTotal = ValueRecorder<Double>()
+  private let goToApplePayPaymentAuthorizationAdditionalPledgeAmount = ValueRecorder<Double>()
+  private let goToApplePayPaymentAuthorizationAllRewardsShippingTotal = ValueRecorder<Double>()
+  private let goToApplePayPaymentAuthorizationMerchantId = ValueRecorder<String>()
+  private let goToThanksCheckoutData = ValueRecorder<KSRAnalytics.CheckoutPropertiesData?>()
+  private let goToThanksProject = ValueRecorder<Project>()
+  private let goToThanksReward = ValueRecorder<Reward>()
+  private let localPickupViewHidden = ValueRecorder<Bool>()
+  private let notifyDelegateUpdatePledgeDidSucceedWithMessage = ValueRecorder<String>()
 
-  private let paymentMethodsViewHidden = TestObserver<Bool, Never>()
-  private let pledgeAmountSummaryViewHidden = TestObserver<Bool, Never>()
-  private let popToRootViewController = TestObserver<(), Never>()
-  private let processingViewIsHidden = TestObserver<Bool, Never>()
-  private let showErrorBannerWithMessage = TestObserver<String, Never>()
-  private let showWebHelp = TestObserver<HelpType, Never>()
-  private let title = TestObserver<String, Never>()
-  private let showPledgeOverTimeUI = TestObserver<Bool, Never>()
-  private let plotSelectedPlan = TestObserver<PledgePaymentPlansType, Never>()
-  private let pledgeOverTimeConfigData = TestObserver<PledgePaymentPlansAndSelectionData, Never>()
+  private let paymentMethodsViewHidden = ValueRecorder<Bool>()
+  private let pledgeAmountSummaryViewHidden = ValueRecorder<Bool>()
+  private let popToRootViewController = ValueRecorder<()>()
+  private let processingViewIsHidden = ValueRecorder<Bool>()
+  private let showErrorBannerWithMessage = ValueRecorder<String>()
+  private let showWebHelp = ValueRecorder<HelpType>()
+  private let title = ValueRecorder<String>()
+  private let showPledgeOverTimeUI = ValueRecorder<Bool>()
+  private let plotSelectedPlan = ValueRecorder<PledgePaymentPlansType>()
+  private let pledgeOverTimeConfigData = ValueRecorder<PledgePaymentPlansAndSelectionData>()
 
   let shippingRule = ShippingRule.template
     |> ShippingRule.lens.location .~ (.template |> Location.lens.id .~ 55)
@@ -120,73 +117,73 @@ final class PledgeViewModelTests: TestCase {
     try await super.setUp()
     MainActor.assumeIsolated {
 
-      self.vm.outputs.onBeginSCA = { [weak self] in self?.beginSCAFlowWithClientSecret.observer.send(value: $0) }
+      self.vm.outputs.onBeginSCA = { [weak self] in self?.beginSCAFlowWithClientSecret.record($0) }
 
-      self.vm.outputs.onLocalPickupData = { [weak self] in self?.configureLocalPickupViewWithData.observer.send(value: $0) }
+      self.vm.outputs.onLocalPickupData = { [weak self] in self?.configureLocalPickupViewWithData.record($0) }
       self.vm.outputs.onConfigurePaymentMethods = { [weak self] value in
-        self?.configurePaymentMethodsViewControllerWithUser.observer.send(value: value.0)
-        self?.configurePaymentMethodsViewControllerWithProject.observer.send(value: value.1)
-        self?.configurePaymentMethodsViewControllerWithCheckoutId.observer.send(value: value.2)
-        self?.configurePaymentMethodsViewControllerWithReward.observer.send(value: value.3)
-        self?.configurePaymentMethodsViewControllerWithContext.observer.send(value: value.4)
+        self?.configurePaymentMethodsViewControllerWithUser.record(value.0)
+        self?.configurePaymentMethodsViewControllerWithProject.record(value.1)
+        self?.configurePaymentMethodsViewControllerWithCheckoutId.record(value.2)
+        self?.configurePaymentMethodsViewControllerWithReward.record(value.3)
+        self?.configurePaymentMethodsViewControllerWithContext.record(value.4)
       }
 
       self.vm.outputs.onPledgeRewardsSummary = { [weak self] data, _, _ in
-        self?.configurePledgeRewardsSummaryViewRewards.observer.send(value: data.rewards)
-        self?.configurePledgeRewardsSummaryViewSelectedQuantities.observer.send(value: data.selectedQuantities)
-        self?.configurePledgeRewardsSummaryViewProjectCurrency.observer.send(value: data.currencyCode)
-        self?.configurePledgeRewardsSummaryViewOmitCurrencyCode.observer.send(value: data.omitCurrencyCode)
-        self?.configurePledgeRewardsSummaryViewShipping.observer.send(value: data.shipping)
+        self?.configurePledgeRewardsSummaryViewRewards.record(data.rewards)
+        self?.configurePledgeRewardsSummaryViewSelectedQuantities.record(data.selectedQuantities)
+        self?.configurePledgeRewardsSummaryViewProjectCurrency.record(data.currencyCode)
+        self?.configurePledgeRewardsSummaryViewOmitCurrencyCode.record(data.omitCurrencyCode)
+        self?.configurePledgeRewardsSummaryViewShipping.record(data.shipping)
       }
 
       self.vm.outputs.onPledgeCTA = { [weak self] value in
-        self?.configurePledgeViewCTAContainerViewIsLoggedIn.observer.send(value: value.2)
-        self?.configurePledgeViewCTAContainerViewIsEnabled.observer.send(value: value.3)
-        self?.configurePledgeViewCTAContainerViewContext.observer.send(value: value.4)
-        self?.configurePledgeViewCTAContainerViewWillRetryPaymentMethod.observer.send(value: value.5)
+        self?.configurePledgeViewCTAContainerViewIsLoggedIn.record(value.2)
+        self?.configurePledgeViewCTAContainerViewIsEnabled.record(value.3)
+        self?.configurePledgeViewCTAContainerViewContext.record(value.4)
+        self?.configurePledgeViewCTAContainerViewWillRetryPaymentMethod.record(value.5)
       }
 
       self.vm.outputs.onConfigureStripe = { [weak self] merchant, key in
-        self?.configureStripeIntegrationMerchantId.observer.send(value: merchant)
-        self?.configureStripeIntegrationPublishableKey.observer.send(value: key)
+        self?.configureStripeIntegrationMerchantId.record(merchant)
+        self?.configureStripeIntegrationPublishableKey.record(key)
       }
 
       self.vm.outputs.onApplePayAuthorization = { [weak self] data in
-        self?.goToApplePayPaymentAuthorizationProject.observer.send(value: data.project)
-        self?.goToApplePayPaymentAuthorizationReward.observer.send(value: data.reward)
-        self?.goToApplePayPaymentAuthorizationAllRewardsTotal.observer.send(value: data.allRewardsTotal)
-        self?.goToApplePayPaymentAuthorizationAdditionalPledgeAmount.observer.send(value: data.additionalPledgeAmount)
-        self?.goToApplePayPaymentAuthorizationAllRewardsShippingTotal.observer.send(value: data.allRewardsShippingTotal)
-        self?.goToApplePayPaymentAuthorizationMerchantId.observer.send(value: data.merchantIdentifier)
+        self?.goToApplePayPaymentAuthorizationProject.record(data.project)
+        self?.goToApplePayPaymentAuthorizationReward.record(data.reward)
+        self?.goToApplePayPaymentAuthorizationAllRewardsTotal.record(data.allRewardsTotal)
+        self?.goToApplePayPaymentAuthorizationAdditionalPledgeAmount.record(data.additionalPledgeAmount)
+        self?.goToApplePayPaymentAuthorizationAllRewardsShippingTotal.record(data.allRewardsShippingTotal)
+        self?.goToApplePayPaymentAuthorizationMerchantId.record(data.merchantIdentifier)
       }
 
       self.vm.outputs.onGoToThanks = { [weak self] data in
-        self?.goToThanksProject.observer.send(value: data.project)
-        self?.goToThanksReward.observer.send(value: data.reward)
-        self?.goToThanksCheckoutData.observer.send(value: data.checkoutData)
+        self?.goToThanksProject.record(data.project)
+        self?.goToThanksReward.record(data.reward)
+        self?.goToThanksCheckoutData.record(data.checkoutData)
       }
-      self.vm.outputs.onLocalPickupHidden = { [weak self] in self?.localPickupViewHidden.observer.send(value: $0) }
+      self.vm.outputs.onLocalPickupHidden = { [weak self] in self?.localPickupViewHidden.record($0) }
 
       self.vm.outputs.onPledgeUpdateSucceeded = { [weak self] message in
-        self?.notifyDelegateUpdatePledgeDidSucceedWithMessage.observer.send(value: message)
-        self?.popToRootViewController.observer.send(value: ())
+        self?.notifyDelegateUpdatePledgeDidSucceedWithMessage.record(message)
+        self?.popToRootViewController.record(())
       }
 
-      self.vm.outputs.onPaymentMethodsHidden = { [weak self] in self?.paymentMethodsViewHidden.observer.send(value: $0) }
-      self.vm.outputs.onPledgeAmountSummaryHidden = { [weak self] in self?.pledgeAmountSummaryViewHidden.observer.send(value: $0) }
-      self.vm.outputs.onProcessingHidden = { [weak self] in self?.processingViewIsHidden.observer.send(value: $0) }
+      self.vm.outputs.onPaymentMethodsHidden = { [weak self] in self?.paymentMethodsViewHidden.record($0) }
+      self.vm.outputs.onPledgeAmountSummaryHidden = { [weak self] in self?.pledgeAmountSummaryViewHidden.record($0) }
+      self.vm.outputs.onProcessingHidden = { [weak self] in self?.processingViewIsHidden.record($0) }
 
-      self.vm.outputs.onShowWebHelp = { [weak self] in self?.showWebHelp.observer.send(value: $0) }
-      self.vm.outputs.onShowError = { [weak self] in self?.showErrorBannerWithMessage.observer.send(value: $0) }
+      self.vm.outputs.onShowWebHelp = { [weak self] in self?.showWebHelp.record($0) }
+      self.vm.outputs.onShowError = { [weak self] in self?.showErrorBannerWithMessage.record($0) }
 
-      self.vm.outputs.onTitle = { [weak self] in self?.title.observer.send(value: $0) }
+      self.vm.outputs.onTitle = { [weak self] in self?.title.record($0) }
 
-      self.vm.outputs.onShowPledgeOverTime = { [weak self] in self?.showPledgeOverTimeUI.observer.send(value: $0) }
+      self.vm.outputs.onShowPledgeOverTime = { [weak self] in self?.showPledgeOverTimeUI.record($0) }
 
       self.vm.outputs.onPledgeOverTimeConfig = { [weak self] data in
         guard let data else { return }
-        self?.plotSelectedPlan.observer.send(value: data.selectedPlan)
-        self?.pledgeOverTimeConfigData.observer.send(value: data)
+        self?.plotSelectedPlan.record(data.selectedPlan)
+        self?.pledgeOverTimeConfigData.record(data)
       }
     }
   }

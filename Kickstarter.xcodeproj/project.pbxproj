@@ -1452,11 +1452,6 @@
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
 		};
-		"AAFCED052F2038FC00EAC2FE" = {
-			"isa" = "XCSwiftPackageProductDependency";
-			"package" = "194C593E28F5E7FF00453249";
-			"productName" = "ReactiveExtensions-TestHelpers";
-		};
 		"ABC9BB7BD64EE3FE2D0077E2" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "3CC92B359C8B29F2CC49218E";
@@ -4176,15 +4171,6 @@
 			"name" = "Base.xcconfig";
 			"lastKnownFileType" = "text.xcconfig";
 			"sourceTree" = "SOURCE_ROOT";
-		};
-		"73E6187F3BA27EAB4F94BACC" = {
-			"isa" = "PBXBuildFile";
-			"productRef" = "2E0EF8FD6478EFD398EF85D3";
-		};
-		"C3A1844ABFD7123EAD008A11" = {
-			"isa" = "XCSwiftPackageProductDependency";
-			"productName" = "ReactiveExtensions-TestHelpers";
-			"package" = "194C593E28F5E7FF00453249";
 		};
 		"F6E3C9AC6960D89C29D39B11" = {
 			"name" = "ProjectStyles.swift";
@@ -7138,7 +7124,6 @@
 				"39AE634E2F6C581800481A76",
 				"AAFCED082F20399B00EAC2FE",
 				"AAFCECFC2F2038EE00EAC2FE",
-				"AAFCED062F2038FC00EAC2FE",
 				"BD8CDEC76A8F4F31F051BB8C",
 				"D01C4218B2AFD0569E6CCE41",
 				"C0D69AB16F4EE4805F651B22",
@@ -8530,11 +8515,6 @@
 			"isa" = "PBXBuildFile";
 			"productRef" = "EB4FCA33F77108B1236C50FA";
 		};
-		"2E0EF8FD6478EFD398EF85D3" = {
-			"isa" = "XCSwiftPackageProductDependency";
-			"productName" = "ReactiveExtensions-TestHelpers";
-			"package" = "194C593E28F5E7FF00453249";
-		};
 		"E10BE8D62B02975C00F73DC9" = {
 			"isa" = "XCBuildConfiguration";
 			"buildSettings" = {
@@ -9052,10 +9032,6 @@
 		"7FFB8310293B4D9C3AE3D6CA" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "2927FDB7638C895EE3528FFD";
-		};
-		"DEEF9504B8BD9876F1A1EB60" = {
-			"isa" = "PBXBuildFile";
-			"productRef" = "C3A1844ABFD7123EAD008A11";
 		};
 		"6C86A7EA373F6594D21C3522" = {
 			"name" = "UIFont.swift";
@@ -14450,7 +14426,6 @@
 			"buildConfigurationList" = "AAF3BB5B2F1845A200DAE921";
 			"packageProductDependencies" = (
 				"AAFCECFB2F2038EE00EAC2FE",
-				"AAFCED052F2038FC00EAC2FE",
 				"AAFCED072F20399B00EAC2FE",
 				"39AE634D2F6C581800481A76",
 				"1C711FCC57C3630B2E5AF681",
@@ -16869,7 +16844,6 @@
 			"buildConfigurationList" = "E113BD8C2B7D255000D3A809";
 			"packageProductDependencies" = (
 				"3ABDA3A909AF7AB5DE727952",
-				"C3A1844ABFD7123EAD008A11",
 				"BC20882121833C9F0A720BA2",
 				"BA3D84568451D85236C6EDA3",
 				"AAFF48F056295E988F270D18",
@@ -17473,10 +17447,6 @@
 				"CFA027900000000000000002",
 			);
 			"sourceTree" = "<group>";
-		};
-		"AAFCED062F2038FC00EAC2FE" = {
-			"isa" = "PBXBuildFile";
-			"productRef" = "AAFCED052F2038FC00EAC2FE";
 		};
 		"C308ED7F0F01E915CA5EC733" = {
 			"path" = "Kickstarter-iOS/1 - View/Views/SettingsPrivacy/Views/Cells/SettingsPrivacySwitchCell.xib";
@@ -20703,7 +20673,6 @@
 			"buildActionMask" = "2147483647";
 			"files" = (
 				"947AE5755CC3050D95BAFBCC",
-				"DEEF9504B8BD9876F1A1EB60",
 				"B1EF038070C918A81831F687",
 				"1A9403D75BE3EF6D6DC2ECBF",
 				"B5D67B676A7EB8DB7232DCF6",
@@ -22819,7 +22788,6 @@
 			"buildActionMask" = "2147483647";
 			"files" = (
 				"0247CD608F03845BBC500BE7",
-				"73E6187F3BA27EAB4F94BACC",
 				"052EB1E6BA9822AF59437776",
 				"1F3EAB972A613E6C26136CF4",
 				"ADA704A2CF3BD3E3B0C06E3C",
@@ -22882,7 +22850,6 @@
 			"buildConfigurationList" = "56B8A9E4E001F3DAACF36EBB";
 			"packageProductDependencies" = (
 				"C2D110BD2270FB063E4546DE",
-				"2E0EF8FD6478EFD398EF85D3",
 				"F563C31C4C5B9B2268742C39",
 				"40F2AECCFA55E650529E1A5B",
 				"0617D9B76006A5D04E069A0D",

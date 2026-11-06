@@ -4,7 +4,6 @@ import AVFoundation
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 

@@ -15,6 +15,9 @@ final class ValueRecorder<Value> {
   func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
     XCTAssertEqual(self.values.count, count, message, file: file, line: line)
   }
+  func assertDidEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertFalse(self.values.isEmpty, message, file: file, line: line)
+  }
   func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
     self.assertValueCount(0, message, file: file, line: line)
   }

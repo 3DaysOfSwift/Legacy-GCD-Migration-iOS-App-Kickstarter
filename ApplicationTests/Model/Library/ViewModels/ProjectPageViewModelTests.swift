@@ -6,7 +6,6 @@ import GraphAPI
 
 
 import Prelude
-import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
@@ -52,43 +51,43 @@ final class ProjectPageViewModelTests: TestCase {
       projectNotice: nil
     )
 
-  private let configureDataSourceNavigationSection = TestObserver<NavigationSection, Never>()
-  private let configureDataSourceProject = TestObserver<Either<Project, any ProjectPageParam>, Never>()
-  private let configureChildViewControllersWithProject = TestObserver<Project, Never>()
-  private let configureChildViewControllersWithRefTag = TestObserver<RefTag?, Never>()
-  private let configurePledgeCTAView = TestObserver<PledgeCTAContainerViewData, Never>()
-  private let configureProjectNavigationSelectorView = TestObserver<(Project, RefTag?), Never>()
-  private let didBlockUser = TestObserver<(), Never>()
-  private let didBlockUserError = TestObserver<(), Never>()
-  private let dismissManagePledgeAndShowMessageBannerWithMessage = TestObserver<String, Never>()
-  private let goToComments = TestObserver<Project, Never>()
-  private let goToLoginWithIntent = TestObserver<LoginIntent, Never>()
-  private let goToManagePledgeProjectParam = TestObserver<Param, Never>()
-  private let goToManagePledgeBackingParam = TestObserver<Param?, Never>()
-  private let goToPledgeManagementViewPledge = TestObserver<String, Never>()
-  private let goToPledgeManager = TestObserver<String, Never>()
-  private let goToReportProject = TestObserver<(Bool, String, String), Never>()
-  private let goToRewardsProject = TestObserver<Project, Never>()
-  private let goToRewardsRefTag = TestObserver<RefTag?, Never>()
-  private let goToUpdates = TestObserver<Project, Never>()
-  private let goToURL = TestObserver<URL, Never>()
-  private let pauseMedia = TestObserver<(), Never>()
-  private let navigateBackToProjectPage = TestObserver<(), Never>()
-  private let presentMessageDialog = TestObserver<Project, Never>()
-  private let prefetchImageURLs = TestObserver<([URL], IndexPath), Never>()
-  private let prefetchImageURLsFirstLoad = TestObserver<[ImageViewElement], Never>()
-  private let precreateAudioVideoURLs = TestObserver<(AudioVideoViewElement, IndexPath), Never>()
-  private let precreateAudioVideoURLsFirstLoad = TestObserver<[AudioVideoViewElement], Never>()
-  private let projectFlagged = TestObserver<Bool, Never>()
-  private let reloadCampaignData = TestObserver<(), Never>()
-  private let showHelpWebViewController = TestObserver<HelpType, Never>()
-  private let showProjectPageTabWithDataNavigationSection = TestObserver<NavigationSection, Never>()
-  private let showProjectPageTabWithDataProject = TestObserver<Project, Never>()
-  private let showProjectPageTabWithDataImageURLS = TestObserver<[URL], Never>()
-  private let showProjectPageTabWithDataContentView = TestObserver<ProjectPageContentView, Never>()
-  private let updateFAQsInDataSourceProject = TestObserver<Project, Never>()
-  private let updateFAQsInDataSourceIsExpandedValues = TestObserver<[Bool], Never>()
-  private let updateWatchProjectWithPrelaunchProjectState = TestObserver<PledgeCTAPrelaunchState, Never>()
+  private let configureDataSourceNavigationSection = ValueRecorder<NavigationSection>()
+  private let configureDataSourceProject = ValueRecorder<Either<Project, any ProjectPageParam>>()
+  private let configureChildViewControllersWithProject = ValueRecorder<Project>()
+  private let configureChildViewControllersWithRefTag = ValueRecorder<RefTag?>()
+  private let configurePledgeCTAView = ValueRecorder<PledgeCTAContainerViewData>()
+  private let configureProjectNavigationSelectorView = ValueRecorder<(Project, RefTag?)>()
+  private let didBlockUser = ValueRecorder<()>()
+  private let didBlockUserError = ValueRecorder<()>()
+  private let dismissManagePledgeAndShowMessageBannerWithMessage = ValueRecorder<String>()
+  private let goToComments = ValueRecorder<Project>()
+  private let goToLoginWithIntent = ValueRecorder<LoginIntent>()
+  private let goToManagePledgeProjectParam = ValueRecorder<Param>()
+  private let goToManagePledgeBackingParam = ValueRecorder<Param?>()
+  private let goToPledgeManagementViewPledge = ValueRecorder<String>()
+  private let goToPledgeManager = ValueRecorder<String>()
+  private let goToReportProject = ValueRecorder<(Bool, String, String)>()
+  private let goToRewardsProject = ValueRecorder<Project>()
+  private let goToRewardsRefTag = ValueRecorder<RefTag?>()
+  private let goToUpdates = ValueRecorder<Project>()
+  private let goToURL = ValueRecorder<URL>()
+  private let pauseMedia = ValueRecorder<()>()
+  private let navigateBackToProjectPage = ValueRecorder<()>()
+  private let presentMessageDialog = ValueRecorder<Project>()
+  private let prefetchImageURLs = ValueRecorder<([URL], IndexPath)>()
+  private let prefetchImageURLsFirstLoad = ValueRecorder<[ImageViewElement]>()
+  private let precreateAudioVideoURLs = ValueRecorder<(AudioVideoViewElement, IndexPath)>()
+  private let precreateAudioVideoURLsFirstLoad = ValueRecorder<[AudioVideoViewElement]>()
+  private let projectFlagged = ValueRecorder<Bool>()
+  private let reloadCampaignData = ValueRecorder<()>()
+  private let showHelpWebViewController = ValueRecorder<HelpType>()
+  private let showProjectPageTabWithDataNavigationSection = ValueRecorder<NavigationSection>()
+  private let showProjectPageTabWithDataProject = ValueRecorder<Project>()
+  private let showProjectPageTabWithDataImageURLS = ValueRecorder<[URL]>()
+  private let showProjectPageTabWithDataContentView = ValueRecorder<ProjectPageContentView>()
+  private let updateFAQsInDataSourceProject = ValueRecorder<Project>()
+  private let updateFAQsInDataSourceIsExpandedValues = ValueRecorder<[Bool]>()
+  private let updateWatchProjectWithPrelaunchProjectState = ValueRecorder<PledgeCTAPrelaunchState>()
 
   internal override func setUp() async throws {
     try await super.setUp()
@@ -96,67 +95,67 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm = ProjectPageViewModel(projectDetailsFeature: ProjectPageViewModelTests.isolatedFeature())
 
       self.vm.outputs.onConfigureDataSource = { [weak self] data in
-        self?.configureDataSourceNavigationSection.observer.send(value: data.0)
-        self?.configureDataSourceProject.observer.send(value: data.1)
+        self?.configureDataSourceNavigationSection.record(data.0)
+        self?.configureDataSourceProject.record(data.1)
       }
       self.vm.outputs.onConfigureProject = { [weak self] data in
-        self?.configureChildViewControllersWithProject.observer.send(value: data.0)
-        self?.configureChildViewControllersWithRefTag.observer.send(value: data.1)
-        self?.configureProjectNavigationSelectorView.observer.send(value: data)
+        self?.configureChildViewControllersWithProject.record(data.0)
+        self?.configureChildViewControllersWithRefTag.record(data.1)
+        self?.configureProjectNavigationSelectorView.record(data)
       }
 
       self.vm.outputs.onConfigurePledgeCTA = { [weak self] in
-        self?.configurePledgeCTAView.observer.send(value: $0)
+        self?.configurePledgeCTAView.record($0)
       }
 
 
-      self.vm.outputs.onDidBlockUser = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
-      self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }
+      self.vm.outputs.onDidBlockUser = { [weak self] in self?.didBlockUser.record(()) }
+      self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.record(()) }
       self.vm.outputs.onManagePledgeFinishedWithMessage = { [weak self] in
-        self?.dismissManagePledgeAndShowMessageBannerWithMessage.observer.send(value: $0)
+        self?.dismissManagePledgeAndShowMessageBannerWithMessage.record($0)
       }
-      self.vm.outputs.onGoToComments = { [weak self] in self?.goToComments.observer.send(value: $0) }
-      self.vm.outputs.onGoToLoginWithIntent = { [weak self] in self?.goToLoginWithIntent.observer.send(value: $0) }
+      self.vm.outputs.onGoToComments = { [weak self] in self?.goToComments.record($0) }
+      self.vm.outputs.onGoToLoginWithIntent = { [weak self] in self?.goToLoginWithIntent.record($0) }
       self.vm.outputs.onGoToManagePledge = { [weak self] params in
-        self?.goToManagePledgeProjectParam.observer.send(value: params.0)
-        self?.goToManagePledgeBackingParam.observer.send(value: params.1)
+        self?.goToManagePledgeProjectParam.record(params.0)
+        self?.goToManagePledgeBackingParam.record(params.1)
       }
       self.vm.outputs.onGoToPledgeManagementPledgeView = { [weak self] in
-        self?.goToPledgeManagementViewPledge.observer.send(value: $0)
+        self?.goToPledgeManagementViewPledge.record($0)
       }
-      self.vm.outputs.onGoToPledgeManager = { [weak self] in self?.goToPledgeManager.observer.send(value: $0) }
-      self.vm.outputs.onGoToReportProject = { [weak self] in self?.goToReportProject.observer.send(value: $0) }
+      self.vm.outputs.onGoToPledgeManager = { [weak self] in self?.goToPledgeManager.record($0) }
+      self.vm.outputs.onGoToReportProject = { [weak self] in self?.goToReportProject.record($0) }
       self.vm.outputs.onGoToRewards = { [weak self] params in
         let (project, refTag, _) = params
-        self?.goToRewardsProject.observer.send(value: project)
-        self?.goToRewardsRefTag.observer.send(value: refTag)
+        self?.goToRewardsProject.record(project)
+        self?.goToRewardsRefTag.record(refTag)
       }
-      self.vm.outputs.onGoToUpdates = { [weak self] in self?.goToUpdates.observer.send(value: $0) }
-      self.vm.outputs.onGoToURL = { [weak self] in self?.goToURL.observer.send(value: $0) }
-      self.vm.outputs.onPauseMedia = { [weak self] in self?.pauseMedia.observer.send(value: ()) }
-      self.vm.outputs.onNavigateBackToProjectPage = { [weak self] in self?.navigateBackToProjectPage.observer.send(value: ()) }
-      self.vm.outputs.onPresentMessageDialog = { [weak self] in self?.presentMessageDialog.observer.send(value: $0) }
-      self.vm.outputs.onPrepareAudioVideo = { [weak self] in self?.precreateAudioVideoURLs.observer.send(value: $0) }
+      self.vm.outputs.onGoToUpdates = { [weak self] in self?.goToUpdates.record($0) }
+      self.vm.outputs.onGoToURL = { [weak self] in self?.goToURL.record($0) }
+      self.vm.outputs.onPauseMedia = { [weak self] in self?.pauseMedia.record(()) }
+      self.vm.outputs.onNavigateBackToProjectPage = { [weak self] in self?.navigateBackToProjectPage.record(()) }
+      self.vm.outputs.onPresentMessageDialog = { [weak self] in self?.presentMessageDialog.record($0) }
+      self.vm.outputs.onPrepareAudioVideo = { [weak self] in self?.precreateAudioVideoURLs.record($0) }
       self.vm.outputs.onPreloadAudioVideo = { [weak self] in
-        self?.precreateAudioVideoURLsFirstLoad.observer.send(value: $0)
+        self?.precreateAudioVideoURLsFirstLoad.record($0)
       }
-      self.vm.outputs.onPrefetchImageRow = { [weak self] in self?.prefetchImageURLs.observer.send(value: $0) }
-      self.vm.outputs.onPrefetchImages = { [weak self] in self?.prefetchImageURLsFirstLoad.observer.send(value: $0) }
-      self.vm.outputs.onProjectFlagged = { [weak self] in self?.projectFlagged.observer.send(value: $0) }
-      self.vm.outputs.onReloadCampaignData = { [weak self] in self?.reloadCampaignData.observer.send(value: ()) }
-      self.vm.outputs.onShowHelp = { [weak self] in self?.showHelpWebViewController.observer.send(value: $0) }
+      self.vm.outputs.onPrefetchImageRow = { [weak self] in self?.prefetchImageURLs.record($0) }
+      self.vm.outputs.onPrefetchImages = { [weak self] in self?.prefetchImageURLsFirstLoad.record($0) }
+      self.vm.outputs.onProjectFlagged = { [weak self] in self?.projectFlagged.record($0) }
+      self.vm.outputs.onReloadCampaignData = { [weak self] in self?.reloadCampaignData.record(()) }
+      self.vm.outputs.onShowHelp = { [weak self] in self?.showHelpWebViewController.record($0) }
       self.vm.outputs.onShowProjectPageTab = { [weak self] data in
-        self?.showProjectPageTabWithDataNavigationSection.observer.send(value: data.0)
-        self?.showProjectPageTabWithDataProject.observer.send(value: data.1)
-        self?.showProjectPageTabWithDataImageURLS.observer.send(value: data.4)
-        self?.showProjectPageTabWithDataContentView.observer.send(value: data.6)
+        self?.showProjectPageTabWithDataNavigationSection.record(data.0)
+        self?.showProjectPageTabWithDataProject.record(data.1)
+        self?.showProjectPageTabWithDataImageURLS.record(data.4)
+        self?.showProjectPageTabWithDataContentView.record(data.6)
       }
       self.vm.outputs.onUpdateFAQs = { [weak self] data in
-        self?.updateFAQsInDataSourceProject.observer.send(value: data.0)
-        self?.updateFAQsInDataSourceIsExpandedValues.observer.send(value: data.2)
+        self?.updateFAQsInDataSourceProject.record(data.0)
+        self?.updateFAQsInDataSourceIsExpandedValues.record(data.2)
       }
       self.vm.outputs.onUpdateWatchProject = { [weak self] in
-        self?.updateWatchProjectWithPrelaunchProjectState.observer.send(value: $0)
+        self?.updateWatchProjectWithPrelaunchProjectState.record($0)
       }
     }
   }
@@ -1901,8 +1900,8 @@ final class ProjectPageViewModelTests: TestCase {
         projectNotice: nil
       )
 
-    let prefetchImageElementsOnFirstLoad = TestObserver<[ImageViewElement], Never>()
-    self.vm.outputs.onPrefetchImages = { prefetchImageElementsOnFirstLoad.observer.send(value: $0) }
+    let prefetchImageElementsOnFirstLoad = ValueRecorder<[ImageViewElement]>()
+    self.vm.outputs.onPrefetchImages = { prefetchImageElementsOnFirstLoad.record($0) }
 
     await ProjectPageViewModelTests.mockNetworkRequests(project: projectWithImageElement) {
       // When we configure with a project ID parameter and load the view
