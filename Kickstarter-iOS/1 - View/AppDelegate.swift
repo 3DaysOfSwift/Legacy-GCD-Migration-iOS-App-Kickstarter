@@ -154,16 +154,16 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       DispatchQueue.main.async { NotificationCenter.default.post(notification) }
     }
 
-    self.viewModel.outputs.presentViewController
-      .observeForUI()
-      .observeValues { [weak self] in
+    self.viewModel.outputs.onPresentViewController = { [weak self] controller in
+      DispatchQueue.main.async { [weak self] in
         self?.rootTabBarController?.dismiss(animated: true, completion: nil)
-        self?.rootTabBarController?.present($0, animated: true, completion: nil)
+        self?.rootTabBarController?.present(controller, animated: true, completion: nil)
       }
+    }
 
-    self.viewModel.outputs.goToDiscovery
-      .observeForUI()
-      .observeValues { [weak self] in self?.rootTabBarController?.switchToDiscovery(params: $0) }
+    self.viewModel.outputs.onGoToDiscovery = { [weak self] params in
+      DispatchQueue.main.async { [weak self] in self?.rootTabBarController?.switchToDiscovery(params: params) }
+    }
 
     self.viewModel.outputs.goToActivity
       .observeForUI()
@@ -186,9 +186,9 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
         self?.rootTabBarController?.present(nav, animated: true, completion: nil)
       }
 
-    self.viewModel.outputs.goToMessageThread
-      .observeForUI()
-      .observeValues { [weak self] in self?.goToMessageThread($0) }
+    self.viewModel.outputs.onGoToMessageThread = { [weak self] thread in
+      DispatchQueue.main.async { [weak self] in self?.goToMessageThread(thread) }
+    }
 
     self.viewModel.outputs.goToSearch
       .observeForUI()

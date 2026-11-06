@@ -125,13 +125,13 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var goToActivity: Signal<(), Never> { get }
 
   /// Emits when the root view controller should navigate to the discovery screen.
-  var goToDiscovery: Signal<DiscoveryParams?, Never> { get }
+  var onGoToDiscovery: ((DiscoveryParams?) -> Void)? { get set }
 
   /// Emits when the root view controller should present the login modal.
   var goToLoginWithIntent: Signal<LoginIntent, Never> { get }
 
   /// Emits a message thread when we should navigate to it.
-  var goToMessageThread: Signal<MessageThread, Never> { get }
+  var onGoToMessageThread: ((MessageThread) -> Void)? { get set }
 
   /// Emits when the root view controller should navigate to the user's profile.
   var goToProfile: Signal<(), Never> { get }
@@ -146,7 +146,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var onPostNotification: ((Notification) -> Void)? { get set }
 
   /// Emits when a view controller should be presented.
-  var presentViewController: Signal<UIViewController, Never> { get }
+  var onPresentViewController: ((UIViewController) -> Void)? { get set }
 
   /// Emits when the push token registration begins.
   var onPushTokenRegistrationStarted: (() -> Void)? { get set }
@@ -223,6 +223,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   private var pushPresentationTask: Task<Void, Never>?
   private var configurationTask: Task<Void, Never>?
   private var shortcutTask: Task<Void, Never>?
+  private var destinationTask: Task<Void, Never>?
   private var setupRequest: Task<GraphUserSetup, Error>?
   private var setupObservation: Task<Void, Never>?
   private var lastSegmentEnabled: Bool?
@@ -241,8 +242,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.trackingDelay = trackingDelay
     let lifecycleFeature = lifecycleFeature ?? AppModel.shared.appLifecycleFeature
     self.lifecycleFeature = lifecycleFeature
-    let route = self.navigationRoute
-    let redirectObservation = self.redirectObservation
     let settingsFeature = lifecycleFeature.settingsFeature
     let openUrl = self.applicationOpenUrlProperty.signal.skipNil()
 
@@ -292,14 +291,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       .skipNil()
 
     let deepLink = deeplinkActivated
-    let destinations = deepLink.switchMap { navigation -> SignalProducer<AppLifecycleFeature.Destination, Never> in
-      if navigation == .emailClick { return .empty }
-      redirectObservation.cancel()
-      // Admit synchronously so every newer link invalidates old work immediately.
-      let request = lifecycleFeature.requestDestination(navigation, route: route)
-      return lifecycleResult(feature: lifecycleFeature) { try await request.value }.demoteErrors().skipNil()
-    }
-
     let updatedUserNotificationSettings = deepLink.filter { nav in
       guard case .settings(.notifications) = nav else { return false }
       return true
@@ -332,13 +323,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.findRedirectUrl = deepLinkUrl
       .filter { Navigation.match($0) == .emailClick }
 
-    self.goToDiscovery = destinations
-      .map { destination -> DiscoveryParams?? in
-        guard case let .discovery(params) = destination else { return nil }
-        return .some(params)
-      }
-      .skipNil()
-
     let fixErroredPledgeLinkAndNeedsToLogIn = deepLink
       .filter { link in
         guard case let .project(_, subpage, _, _) = link else { return false }
@@ -365,11 +349,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       self.goToLoginSignupProperty.signal.skipNil()
     )
 
-    self.goToMessageThread = destinations.map { destination -> MessageThread? in
-      guard case let .message(thread) = destination else { return nil }
-      return thread
-    }.skipNil()
-
     self.goToProfile = deepLink
       .filter { $0 == .tab(.me) }
       .ignoreValues()
@@ -380,40 +359,9 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     )
     .filter { shouldOpenUrlInBrowser($0) }
 
-    let pledgeManagerLink = destinations
-      .map { destination -> String? in
-        guard case let .survey(url) = destination else { return nil }
-        return url
-      }.skipNil()
-      .observeForUI()
-      .map { url -> UINavigationController in
-        let pm = PledgeManagerWebViewController.configuredWith(url: url)
-        let navigation = UINavigationController(rootViewController: pm)
-        navigation.modalPresentationStyle = .pageSheet
-        return navigation
-      }
-
-    let projectLinks = destinations
-      .map { destination -> AppLifecycleFeature.ProjectDestination? in
-        guard case let .project(project) = destination else { return nil }
-        return project
-      }.skipNil().observeForUI()
-      .map(ProjectDeepLink.viewController).skipNil()
-
-    self.presentViewController = Signal.merge(
-      projectLinks,
-      pledgeManagerLink
-    ).map { $0 as UIViewController }
-
-
-
-
-
-
-
-
-
-
+    deepLink.observeValues { [weak self] navigation in
+      self?.resolveDestination(navigation)
+    }
 
   }
 
@@ -427,6 +375,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.trackingDelayTasks.values.forEach { $0.cancel() }
     self.configurationTask?.cancel()
     self.shortcutTask?.cancel()
+    self.destinationTask?.cancel()
     self.setupObservation?.cancel()
     self.setupRequest?.cancel()
     let redirectObservation = self.redirectObservation
@@ -442,6 +391,33 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
   public var inputs: AppDelegateViewModelInputs { return self }
   public var outputs: AppDelegateViewModelOutputs { return self }
+
+  private func resolveDestination(_ navigation: Navigation) {
+    self.destinationTask?.cancel()
+    guard navigation != .emailClick else { return }
+    self.redirectObservation.cancel()
+    let request = self.lifecycleFeature.requestDestination(navigation, route: self.navigationRoute)
+    self.destinationTask = Task { [weak self] in
+      do {
+        let destination = try await request.value
+        try Task.checkCancellation()
+        guard let self, let destination else { return }
+        switch destination {
+        case let .discovery(params): self.onGoToDiscovery?(params)
+        case let .message(thread): self.onGoToMessageThread?(thread)
+        case let .survey(url):
+          let controller = PledgeManagerWebViewController.configuredWith(url: url)
+          let navigation = UINavigationController(rootViewController: controller)
+          navigation.modalPresentationStyle = .pageSheet
+          self.onPresentViewController?(navigation)
+        case let .project(project):
+          if let controller = ProjectDeepLink.viewController(project) { self.onPresentViewController?(controller) }
+        }
+      } catch { /* Invalid, cancelled or failed links do not navigate. */ }
+    }
+  }
+
+  func waitForDestination() async { await self.destinationTask?.value }
 
   private final class PushOperationState {
     var finished = false
@@ -835,14 +811,14 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public let findRedirectUrl: Signal<URL, Never>
   public var onForceLogout: (() -> Void)?
   public let goToActivity: Signal<(), Never>
-  public let goToDiscovery: Signal<DiscoveryParams?, Never>
+  public var onGoToDiscovery: ((DiscoveryParams?) -> Void)?
   public let goToLoginWithIntent: Signal<LoginIntent, Never>
-  public let goToMessageThread: Signal<MessageThread, Never>
+  public var onGoToMessageThread: ((MessageThread) -> Void)?
   public let goToProfile: Signal<(), Never>
   public let goToMobileSafari: Signal<URL, Never>
   public let goToSearch: Signal<(), Never>
   public var onPostNotification: ((Notification) -> Void)?
-  public let presentViewController: Signal<UIViewController, Never>
+  public var onPresentViewController: ((UIViewController) -> Void)?
   public var onPushTokenRegistrationStarted: (() -> Void)?
   public var onPushTokenSuccessfullyRegistered: ((String) -> Void)?
   public var onRegisterPushTokenInBraze: ((Data) -> Void)?

@@ -90,8 +90,8 @@ final class AppDelegateViewModelTests: TestCase {
 
   func testMessageDeepLinkLoadsThroughSharedFeature() async throws {
     var threads: [MessageThread] = []
-    let observation = self.vm.outputs.goToMessageThread.observeValues { threads.append($0) }
-    defer { observation?.dispose() }
+    self.vm.outputs.onGoToMessageThread = { threads.append($0) }
+    defer { self.vm.outputs.onGoToMessageThread = nil }
     self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: [:])
     let accepted = self.vm.inputs.applicationOpenUrl(
       application: UIApplication.shared,
@@ -120,14 +120,16 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.outputs.findRedirectUrl.observe(self.findRedirectUrl.observer)
     self.vm.outputs.onForceLogout = { [weak self] in self?.forceLogout.observer.send(value: ()) }
     self.vm.outputs.goToActivity.observe(self.goToActivity.observer)
-    self.vm.outputs.goToDiscovery.observe(self.goToDiscovery.observer)
+    self.vm.outputs.onGoToDiscovery = { [weak self] in self?.goToDiscovery.observer.send(value: $0) }
     self.vm.outputs.goToLoginWithIntent.observe(self.goToLoginWithIntent.observer)
     self.vm.outputs.goToProfile.observe(self.goToProfile.observer)
     self.vm.outputs.goToMobileSafari.observe(self.goToMobileSafari.observer)
     self.vm.outputs.goToSearch.observe(self.goToSearch.observer)
     self.vm.outputs.onPostNotification = { [weak self] in self?.postNotificationName.observer.send(value: $0.name) }
-    self.vm.outputs.presentViewController.map { ($0 as! UINavigationController).viewControllers.count }
-      .observe(self.presentViewController.observer)
+    self.vm.outputs.onPresentViewController = { [weak self] controller in
+      guard let navigation = controller as? UINavigationController else { return }
+      self?.presentViewController.observer.send(value: navigation.viewControllers.count)
+    }
     self.vm.outputs.onPushTokenRegistrationStarted = { [weak self] in self?.pushRegistrationStarted.observer.send(value: ()) }
     self.vm.outputs.onPushTokenSuccessfullyRegistered = { [weak self] in self?.pushTokenSuccessfullyRegistered.observer.send(value: $0) }
     self.vm.outputs.onRegisterPushTokenInBraze = { [weak self] in self?.registerPushTokenInBraze.observer.send(value: $0) }
@@ -834,8 +836,12 @@ final class AppDelegateViewModelTests: TestCase {
 
   func testGoToDiscoveryWithCategoryId_ValidCategoryId_RoutesToCategory() async {
     let routed = expectation(description: "Category discovery route delivered")
-    let observation = self.vm.outputs.goToDiscovery.observeValues { _ in routed.fulfill() }
-    defer { observation?.dispose() }
+    let previousHandler = self.vm.outputs.onGoToDiscovery
+    self.vm.outputs.onGoToDiscovery = { params in
+      previousHandler?(params)
+      routed.fulfill()
+    }
+    defer { self.vm.outputs.onGoToDiscovery = previousHandler }
     let mockService = MockService(fetchGraphCategoriesResult: .success(defaultRootCategoriesTemplate))
 
     await withEnvironment(apiService: mockService) {
