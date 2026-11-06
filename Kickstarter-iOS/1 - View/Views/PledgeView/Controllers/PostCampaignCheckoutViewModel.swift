@@ -60,7 +60,7 @@ public protocol PostCampaignCheckoutViewModelOutputs: AnyObject {
   var onEstimatedShipping: ((String?, String?) -> Void)? { get set }
   var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)? { get set }
   var onPledgeRewardsSummary: ((PostCampaignRewardsSummaryViewData, Double?, PledgeSummaryViewData) -> Void)? { get set }
-  var configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never> { get }
+  var onPledgeCTA: ((PledgeViewCTAContainerViewData) -> Void)? { get set }
   var onConfigureStripe: ((String, String) -> Void)? { get set }
   var onEstimatedShippingHidden: ((Bool) -> Void)? { get set }
   var onPaymentMethodsHidden: ((Bool) -> Void)? { get set }
@@ -475,7 +475,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     )
     .skipRepeats()
 
-    self.configurePledgeViewCTAContainerView = Signal.combineLatest(
+    let pledgeCTA: Signal<PledgeViewCTAContainerViewData, Never> = Signal.combineLatest(
       project,
       pledgeTotal,
       pledgeButtonEnabled,
@@ -620,6 +620,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       )
     }
     _ = pledgeRewardsSummary.observeValues { [weak self] in self?.onPledgeRewardsSummary?($0.0, $0.1, $0.2) }
+    _ = pledgeCTA.observeValues { [weak self] in self?.onPledgeCTA?($0) }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
     paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
@@ -731,7 +732,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   public var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)?
 
   public var onPledgeRewardsSummary: ((PostCampaignRewardsSummaryViewData, Double?, PledgeSummaryViewData) -> Void)?
-  public let configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never>
+  public var onPledgeCTA: ((PledgeViewCTAContainerViewData) -> Void)?
   public var onConfigureStripe: ((String, String) -> Void)?
   public var onEstimatedShippingHidden: ((Bool) -> Void)?
   public var onGoToLoginSignup: ((LoginIntent) -> Void)?

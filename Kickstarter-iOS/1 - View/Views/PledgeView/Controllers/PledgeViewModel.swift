@@ -87,7 +87,7 @@ public protocol PledgeViewModelOutputs: AnyObject {
   var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)? { get set }
   var configurePledgeAmountSummaryViewControllerWithData: Signal<PledgeAmountSummaryViewData, Never> { get }
   var onPledgeRewardsSummary: ((PostCampaignRewardsSummaryViewData, Double?, PledgeSummaryViewData) -> Void)? { get set }
-  var configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never> { get }
+  var onPledgeCTA: ((PledgeViewCTAContainerViewData) -> Void)? { get set }
   var onConfigureStripe: ((String, String) -> Void)? { get set }
   var onEstimatedShippingHidden: ((Bool) -> Void)? { get set }
   var goToApplePayPaymentAuthorization: Signal<PaymentAuthorizationData, Never> { get }
@@ -754,7 +754,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     }
     .skipRepeats()
 
-    self.configurePledgeViewCTAContainerView = Signal.combineLatest(
+    let pledgeCTA: Signal<PledgeViewCTAContainerViewData, Never> = Signal.combineLatest(
       project,
       pledgeTotal.skipRepeats(),
       self.loginStatePipe.output,
@@ -888,6 +888,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       )
     }
     _ = pledgeRewardsSummary.observeValues { [weak self] in self?.onPledgeRewardsSummary?($0.0, $0.1, $0.2) }
+    _ = pledgeCTA.observeValues { [weak self] in self?.onPledgeCTA?($0) }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
     paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
@@ -984,7 +985,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
   public let configurePledgeAmountSummaryViewControllerWithData: Signal<PledgeAmountSummaryViewData, Never>
   public var onPledgeRewardsSummary: ((PostCampaignRewardsSummaryViewData, Double?, PledgeSummaryViewData) -> Void)?
-  public let configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never>
+  public var onPledgeCTA: ((PledgeViewCTAContainerViewData) -> Void)?
   public var onConfigureStripe: ((String, String) -> Void)?
   public var onEstimatedShippingHidden: ((Bool) -> Void)?
   public let goToApplePayPaymentAuthorization: Signal<PaymentAuthorizationData, Never>

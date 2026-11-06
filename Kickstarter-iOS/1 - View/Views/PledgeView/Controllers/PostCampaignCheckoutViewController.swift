@@ -233,9 +233,7 @@ final class PostCampaignCheckoutViewController: UIViewController,
           .configureWith(rewardsData: rewardsData, bonusAmount: bonusAmount, pledgeData: pledgeData)
       }
 
-    self.viewModel.outputs.configurePledgeViewCTAContainerView
-      .observeForUI()
-      .observeValues { [weak self] value in
+    self.viewModel.outputs.onPledgeCTA = { [weak self] value in
         self?.pledgeCTAContainerView.configureWith(value: value)
       }
 

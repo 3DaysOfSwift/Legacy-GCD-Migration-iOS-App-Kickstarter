@@ -327,9 +327,7 @@ final class PledgeViewController: UIViewController,
         self?.estimatedShippingViewContainer.view.isHidden = isHidden
       }
 
-    self.viewModel.outputs.configurePledgeViewCTAContainerView
-      .observeForUI()
-      .observeValues { [weak self] value in
+    self.viewModel.outputs.onPledgeCTA = { [weak self] value in
         self?.pledgeCTAContainerView.configureWith(value: value)
       }
 

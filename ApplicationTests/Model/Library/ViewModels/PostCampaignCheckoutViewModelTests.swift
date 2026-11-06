@@ -99,12 +99,11 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
         self?.configurePaymentMethodsViewControllerWithContext.observer.send(value: value.4)
       }
 
-      self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.2 }
-        .observe(self.configurePledgeViewCTAContainerViewIsLoggedIn.observer)
-      self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.3 }
-        .observe(self.configurePledgeViewCTAContainerViewIsEnabled.observer)
-      self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.4 }
-        .observe(self.configurePledgeViewCTAContainerViewContext.observer)
+      self.vm.outputs.onPledgeCTA = { [weak self] value in
+        self?.configurePledgeViewCTAContainerViewIsLoggedIn.observer.send(value: value.2)
+        self?.configurePledgeViewCTAContainerViewIsEnabled.observer.send(value: value.3)
+        self?.configurePledgeViewCTAContainerViewContext.observer.send(value: value.4)
+      }
 
       self.vm.outputs.onConfigureStripe = { [weak self] merchant, key in
         self?.configureStripeIntegrationMerchantId.observer.send(value: merchant)

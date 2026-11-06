@@ -120,14 +120,12 @@ final class PledgeViewModelTests: TestCase {
         self?.configurePledgeRewardsSummaryViewShipping.observer.send(value: data.shipping)
       }
 
-      self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.2 }
-        .observe(self.configurePledgeViewCTAContainerViewIsLoggedIn.observer)
-      self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.3 }
-        .observe(self.configurePledgeViewCTAContainerViewIsEnabled.observer)
-      self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.4 }
-        .observe(self.configurePledgeViewCTAContainerViewContext.observer)
-      self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.5 }
-        .observe(self.configurePledgeViewCTAContainerViewWillRetryPaymentMethod.observer)
+      self.vm.outputs.onPledgeCTA = { [weak self] value in
+        self?.configurePledgeViewCTAContainerViewIsLoggedIn.observer.send(value: value.2)
+        self?.configurePledgeViewCTAContainerViewIsEnabled.observer.send(value: value.3)
+        self?.configurePledgeViewCTAContainerViewContext.observer.send(value: value.4)
+        self?.configurePledgeViewCTAContainerViewWillRetryPaymentMethod.observer.send(value: value.5)
+      }
 
       self.vm.outputs.onConfigureStripe = { [weak self] merchant, key in
         self?.configureStripeIntegrationMerchantId.observer.send(value: merchant)
