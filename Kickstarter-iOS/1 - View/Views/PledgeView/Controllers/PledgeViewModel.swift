@@ -121,21 +121,16 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     let baseReward = initialData.map(\.rewards).map(\.first).skipNil()
     let rewards = initialData.map(\.rewards)
     let selectedQuantities = initialData.map(\.selectedQuantities)
-    let selectedLocationId = initialData.map(\.selectedLocationId)
     let selectedShippingRule = initialData.map(\.selectedShippingRule)
     let refTag = initialData.map(\.refTag)
     let context = initialData.map(\.context)
-
-    let initialDataUnpacked = Signal.zip(project, baseReward, refTag, context)
 
     let backing = project.map { $0.personalization.backing }.skipNil()
 
     self.loginSignupUseCase = LoginSignupUseCase(withLoginIntent: .backProject)
     let login = self.loginSignupUseCase
     let loginState = self.loginStatePipe
-    let loginSession = self.loginSessionPipe
     login.onLoginState = { loginState.input.send(value: $0) }
-    login.onSessionChanged = { loginSession.input.send(value: ()) }
     initialData.observeValues { _ in login.initialDataAvailable() }
 
     self.paymentMethodsUseCase = PaymentMethodsUseCase()
@@ -151,16 +146,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     let allRewardsShippingTotal = amounts.map(\.shipping)
     let additionalPledgeAmount = amounts.map(\.bonus)
     let pledgeTotal = amounts.map(\.total).skipNil()
-
-    let projectAndConfirmationLabelHidden = Signal.combineLatest(
-      project,
-      context.map { $0.confirmationLabelHidden }
-    )
-
-    let configurePaymentMethodsViewController = Signal.merge(
-      initialDataUnpacked,
-      initialDataUnpacked.takeWhen(self.loginSessionPipe.output)
-    )
 
     // MARK: - Apple Pay
 
@@ -917,7 +902,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   private let planConfigPipe = Signal<PledgePaymentPlansAndSelectionData?, Never>.pipe()
   private let loginSignupUseCase: LoginSignupUseCase
   private let loginStatePipe = Signal<Bool, Never>.pipe()
-  private let loginSessionPipe = Signal<Void, Never>.pipe()
   private let paymentMethodsUseCase: PaymentMethodsUseCase
   private let paymentSelectedPipe = Signal<PaymentSourceSelected?, Never>.pipe()
   private let paymentValidPipe = Signal<Bool, Never>.pipe()
