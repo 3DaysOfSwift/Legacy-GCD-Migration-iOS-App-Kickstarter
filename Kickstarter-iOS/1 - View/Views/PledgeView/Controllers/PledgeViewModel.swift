@@ -559,69 +559,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     let title: Signal<String, Never> = context.map { $0.title }
 
-    // MARK: - Tracking
-
-    let pledgeSubmitEventsSignal = Signal.combineLatest(
-      createBackingData,
-      baseReward,
-      additionalPledgeAmount
-    )
-
-    // Pledge pledge_submit event
-    pledgeSubmitEventsSignal
-      .takeWhen(self.submitButtonTappedSignal)
-      .map { data, baseReward, additionalPledgeAmount in
-        let checkoutData = checkoutProperties(
-          from: data.project,
-          baseReward: baseReward,
-          addOnRewards: data.rewards,
-          selectedQuantities: data.selectedQuantities,
-          additionalPledgeAmount: additionalPledgeAmount,
-          pledgeTotal: data.pledgeTotal,
-          shippingTotal: 0,
-          checkoutId: nil,
-          isApplePay: false
-        )
-
-        return (data.project, baseReward, data.refTag, checkoutData)
-      }
-      .observeValues { project, reward, refTag, checkoutData in
-        AppEnvironment.current.ksrAnalytics.trackPledgeSubmitButtonClicked(
-          project: project,
-          reward: reward,
-          typeContext: .creditCard,
-          checkoutData: checkoutData,
-          refTag: refTag
-        )
-      }
-
-    // Pay With Apple pledge_submit event
-    pledgeSubmitEventsSignal
-      .takeWhen(self.applePayButtonTappedSignal)
-      .map { data, baseReward, additionalPledgeAmount in
-        let checkoutData = checkoutProperties(
-          from: data.project,
-          baseReward: baseReward,
-          addOnRewards: data.rewards,
-          selectedQuantities: data.selectedQuantities,
-          additionalPledgeAmount: additionalPledgeAmount,
-          pledgeTotal: data.pledgeTotal,
-          shippingTotal: 0,
-          checkoutId: nil,
-          isApplePay: true
-        )
-
-        return (data.project, baseReward, data.refTag, checkoutData)
-      }
-      .observeValues { project, reward, refTag, checkoutData in
-        AppEnvironment.current.ksrAnalytics.trackPledgeSubmitButtonClicked(
-          project: project,
-          reward: reward,
-          typeContext: .applePay,
-          checkoutData: checkoutData,
-          refTag: refTag
-        )
-      }
+    _ = createBackingData.observeValues { [weak self] in self?.latestCreateBackingData = $0 }
     _ = initialData.observeValues { [weak self] data in
       let amounts = PledgeAmounts(data)
       let rewardsTotal = amounts.rewards
@@ -757,11 +695,13 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     }
     let amounts = PledgeAmounts(data)
     self.applePayButtonTappedObserver.send(value: ())
+    self.trackPledgeSubmission(isApplePay: true)
     self.onApplePayAuthorization?((data.project, reward, amounts.rewards, amounts.bonus, amounts.shipping,
                                    Secrets.ApplePay.merchantIdentifier))
   }
 
   private var configuredData: PledgeViewData?
+  private var latestCreateBackingData: CreateBackingData?
   private var hasLoadedView = false
   private let initialDataEvents = Signal<PledgeViewData, Never>.pipe()
   private let viewDidLoadEvents = Signal<Void, Never>.pipe()
@@ -826,6 +766,21 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   private let (submitButtonTappedSignal, submitButtonTappedObserver) = Signal<Void, Never>.pipe()
   public func submitButtonTapped() {
     self.submitButtonTappedObserver.send(value: ())
+    self.trackPledgeSubmission(isApplePay: false)
+  }
+
+  private func trackPledgeSubmission(isApplePay: Bool) {
+    guard let data = self.latestCreateBackingData, let configuredData = self.configuredData,
+          let reward = configuredData.rewards.first else { return }
+    let checkoutData = checkoutProperties(
+      from: data.project, baseReward: reward, addOnRewards: data.rewards,
+      selectedQuantities: data.selectedQuantities, additionalPledgeAmount: PledgeAmounts(configuredData).bonus,
+      pledgeTotal: data.pledgeTotal, shippingTotal: 0, checkoutId: nil, isApplePay: isApplePay
+    )
+    AppEnvironment.current.ksrAnalytics.trackPledgeSubmitButtonClicked(
+      project: data.project, reward: reward, typeContext: isApplePay ? .applePay : .creditCard,
+      checkoutData: checkoutData, refTag: data.refTag
+    )
   }
 
   public func stripeTokenCreated(token: String?, error: Error?) -> PKPaymentAuthorizationStatus {
