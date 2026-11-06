@@ -49,7 +49,7 @@ private func cleanUp(refTagString: String) -> String {
 // Constructs a cookie from a ref tag and project.
 @MainActor
 public func cookieFrom(refTag: RefTag, project: Project) -> HTTPCookie? {
-  let timestamp = Int(AppEnvironment.current.scheduler.currentDate.timeIntervalSince1970)
+  let timestamp = Int(AppEnvironment.current.dateType.init().timeIntervalSince1970)
 
   var properties: [HTTPCookiePropertyKey: Any] = [:]
   properties[.name] = cookieName(project)

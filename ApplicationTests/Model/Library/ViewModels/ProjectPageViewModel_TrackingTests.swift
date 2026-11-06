@@ -227,7 +227,7 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
     }
   }
 
-  func testMockCookieStorageSet_SeparateSchedulers() async {
+  func testMockCookieStorageSet_SeparateDates() async {
     let project = Project.template
     let scheduler1 = TestScheduler(startDate: MockDate().date)
     let scheduler2 = TestScheduler(startDate: scheduler1.currentDate.addingTimeInterval(1))
@@ -249,7 +249,7 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
       }
 
       await withEnvironment(
-        scheduler: scheduler2
+        dateType: LaterMockDate.self, scheduler: scheduler2
       ) {
         let newVm: ProjectPageViewModel =
           ProjectPageViewModel(projectDetailsFeature: ProjectPageViewModelTests.isolatedFeature())
@@ -260,12 +260,12 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
         await scheduler2.advance()
 
-        XCTAssertEqual(2, self.cookieStorage.cookies?.count, "Two cookies are set on separate schedulers.")
+        XCTAssertEqual(2, self.cookieStorage.cookies?.count, "Two cookies are set at separate times.")
       }
     }
   }
 
-  func testMockCookieStorageSet_SameScheduler() async {
+  func testMockCookieStorageSet_SameDate() async {
     let project = Project.template
     let scheduler1 = TestScheduler(startDate: MockDate().date)
 
@@ -295,7 +295,7 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
         XCTAssertEqual(
           1, self.cookieStorage.cookies?.count,
-          "A single cookie has been set on the same scheduler."
+          "A single cookie has been set at the same time."
         )
       }
     }
@@ -553,5 +553,16 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
       XCTAssertEqual(segmentClient.properties(forKey: "context_type"), [nil, "initiate", "confirm"])
       XCTAssertEqual(segmentClient.properties(forKey: "interaction_target_uid"), [nil, "111", "111"])
     }
+  }
+}
+
+private struct LaterMockDate: DateProtocol {
+  private let value: Date
+  init() { self.value = MockDate().date.addingTimeInterval(1) }
+  init(timeIntervalSince1970: TimeInterval) { self.value = Date(timeIntervalSince1970: timeIntervalSince1970) }
+  var date: Date { self.value }
+  var timeIntervalSince1970: TimeInterval { self.value.timeIntervalSince1970 }
+  func addingTimeInterval(_ interval: TimeInterval) -> LaterMockDate {
+    LaterMockDate(timeIntervalSince1970: self.value.timeIntervalSince1970 + interval)
   }
 }
