@@ -45,23 +45,18 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     try await super.setUp()
     MainActor.assumeIsolated {
 
-      self.vm.outputs.configureContinueCTAViewWithData.map(\.selectedQuantity)
-        .observe(self.configureContinueCTAViewWithDataQuantity.observer)
-      self.vm.outputs.configureContinueCTAViewWithData.map(\.isValid)
-        .observe(self.configureContinueCTAViewWithDataIsValid.observer)
-      self.vm.outputs.configureContinueCTAViewWithData.map(\.isLoading)
-        .observe(self.configureContinueCTAViewWithDataIsLoading.observer)
-      self.vm.outputs.configureContinueCTAViewWithData.map(\.pledgeAmount)
-        .observe(self.configureContinueCTAViewWithDataPledgeAmount.observer)
-      self.vm.outputs.configurePledgeAmountViewWithData
-        .observe(self.configurePledgeAmountViewWithData.observer)
-      self.vm.outputs.endRefreshing.observe(self.endRefreshing.observer)
-      self.vm.outputs.goToPledge.observe(self.goToPledge.observer)
-      self.vm.outputs.loadAddOnRewardsIntoDataSource.observe(
-        self.loadAddOnRewardsIntoDataSource.observer)
-      self.vm.outputs.loadAddOnRewardsIntoDataSourceAndReloadTableView
-        .observe(self.loadAddOnRewardsIntoDataSourceAndReloadTableView.observer)
-      self.vm.outputs.startRefreshing.observe(self.startRefreshing.observer)
+      self.vm.outputs.onConfigureContinue = { [weak self] data in
+        self?.configureContinueCTAViewWithDataQuantity.observer.send(value: data.selectedQuantity)
+        self?.configureContinueCTAViewWithDataIsValid.observer.send(value: data.isValid)
+        self?.configureContinueCTAViewWithDataIsLoading.observer.send(value: data.isLoading)
+        self?.configureContinueCTAViewWithDataPledgeAmount.observer.send(value: data.pledgeAmount)
+      }
+      self.vm.outputs.onConfigureAmount = { [weak self] in self?.configurePledgeAmountViewWithData.observer.send(value: $0) }
+      self.vm.outputs.onEndRefreshing = { [weak self] in self?.endRefreshing.observer.send(value: ()) }
+      self.vm.outputs.onGoToPledge = { [weak self] in self?.goToPledge.observer.send(value: $0) }
+      self.vm.outputs.onLoadRewards = { [weak self] in self?.loadAddOnRewardsIntoDataSource.observer.send(value: $0) }
+      self.vm.outputs.onLoadAndReloadRewards = { [weak self] in self?.loadAddOnRewardsIntoDataSourceAndReloadTableView.observer.send(value: $0) }
+      self.vm.outputs.onStartRefreshing = { [weak self] in self?.startRefreshing.observer.send(value: ()) }
     }
   }
 

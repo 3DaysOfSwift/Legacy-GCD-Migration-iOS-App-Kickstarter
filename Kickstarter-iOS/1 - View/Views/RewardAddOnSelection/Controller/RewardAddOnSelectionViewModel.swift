@@ -38,20 +38,16 @@ public protocol RewardAddOnSelectionViewModelInputs {
 }
 
 @MainActor
-public protocol RewardAddOnSelectionViewModelOutputs {
-  var configureContinueCTAViewWithData: Signal<RewardAddOnSelectionContinueCTAViewData, Never> {
-    get
-  }
-  var configurePledgeAmountViewWithData: Signal<PledgeAmountViewConfigData, Never> { get }
-  var endRefreshing: Signal<(), Never> { get }
-  var goToPledge: Signal<PledgeViewData, Never> { get }
-  var headerTitle: Signal<String, Never> { get }
-  var pageTitle: Signal<String, Never> { get }
-  var loadAddOnRewardsIntoDataSource: Signal<[RewardAddOnSelectionDataSourceItem], Never> { get }
-  var loadAddOnRewardsIntoDataSourceAndReloadTableView:
-    Signal<[RewardAddOnSelectionDataSourceItem], Never>
-  { get }
-  var startRefreshing: Signal<(), Never> { get }
+public protocol RewardAddOnSelectionViewModelOutputs: AnyObject {
+  var onConfigureContinue: ((RewardAddOnSelectionContinueCTAViewData) -> Void)? { get set }
+  var onConfigureAmount: ((PledgeAmountViewConfigData) -> Void)? { get set }
+  var onEndRefreshing: (() -> Void)? { get set }
+  var onGoToPledge: ((PledgeViewData) -> Void)? { get set }
+  var onHeaderTitle: ((String) -> Void)? { get set }
+  var onPageTitle: ((String) -> Void)? { get set }
+  var onLoadRewards: (([RewardAddOnSelectionDataSourceItem]) -> Void)? { get set }
+  var onLoadAndReloadRewards: (([RewardAddOnSelectionDataSourceItem]) -> Void)? { get set }
+  var onStartRefreshing: (() -> Void)? { get set }
 }
 
 @MainActor
@@ -99,13 +95,13 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       configData.takeWhen(self.beginRefreshSignal)
     )
 
-    self.headerTitle = hasAddOns.map { (hasAddons: Bool) -> String in
+    let headerTitle = hasAddOns.map { (hasAddons: Bool) -> String in
       hasAddons
         ? Strings.Customize_your_reward_with_optional_addons()
         : Strings.Customize_your_reward()
     }
 
-    self.pageTitle = hasAddOns.map { (hasAddOns: Bool) -> String in
+    let pageTitle = hasAddOns.map { (hasAddOns: Bool) -> String in
       hasAddOns
         ? Strings.Pledge_flow_navigation_bar_titles_Addons()
         : Strings.Pledge_flow_navigation_bar_titles_Bonus_support()
@@ -118,8 +114,8 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 
     let addOnsEvent = self.addOnsEvents.output
 
-    self.startRefreshing = self.beginRefreshSignal
-    self.endRefreshing = addOnsEvent.filter { $0.isTerminating }.ignoreValues()
+    let startRefreshing = self.beginRefreshSignal
+    let endRefreshing = addOnsEvent.filter { $0.isTerminating }.ignoreValues()
 
     let requestErrored = addOnsEvent.map(\.error).map(isNotNil)
 
@@ -182,20 +178,20 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       .map(unpack)
       .map(rewardsData)
 
-    self.loadAddOnRewardsIntoDataSourceAndReloadTableView = Signal.merge(
+    let loadAddOnRewardsIntoDataSourceAndReloadTableView = Signal.merge(
       reloadRewardsIntoDataSource,
       requestErrored.filter(isTrue).mapConst([.emptyState(.errorPullToRefresh)])
     )
 
-    self.loadAddOnRewardsIntoDataSource =
+    let loadAddOnRewardsIntoDataSource =
       rewardAddOnCardsViewData
       .takePairWhen(latestSelectedQuantities)
       .map(unpack)
       .map(rewardsData)
 
     let dataSourceItems = Signal.merge(
-      self.loadAddOnRewardsIntoDataSourceAndReloadTableView,
-      self.loadAddOnRewardsIntoDataSource
+      loadAddOnRewardsIntoDataSourceAndReloadTableView,
+      loadAddOnRewardsIntoDataSource
     )
 
     let allAddOnRewards = Signal.merge(
@@ -221,7 +217,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       $0.personalization.backing?.bonusAmount ?? 0.0
     }
 
-    self.configurePledgeAmountViewWithData = Signal.combineLatest(
+    let configurePledgeAmountViewWithData = Signal.combineLatest(
       project,
       baseReward,
       initialAdditionalPledgeAmount
@@ -280,7 +276,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       shippingRule.map { $0?.location.id }
     )
 
-    self.goToPledge = Signal.combineLatest(
+    let goToPledge = Signal.combineLatest(
       project,
       selectedRewards,
       additionalPledgeAmount,
@@ -313,7 +309,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 
     let attibutedPledgeTotal = Signal.combineLatest(project, pledgeTotal).map(attributedCurrency)
 
-    self.configureContinueCTAViewWithData = Signal.merge(
+    let configureContinueCTAViewWithData = Signal.merge(
       // Updated values.
       Signal.combineLatest(totalSelectedAddOnsQuantity, enableContinueButton, attibutedPledgeTotal)
         .map { qty, isValid, total in (qty, isValid, false, total) },
@@ -392,6 +388,15 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
         )
       }
 
+    _ = headerTitle.observeValues { [weak self] value in self?.onHeaderTitle?(value) }
+    _ = pageTitle.observeValues { [weak self] value in self?.onPageTitle?(value) }
+    _ = startRefreshing.observeValues { [weak self] _ in self?.onStartRefreshing?() }
+    _ = endRefreshing.observeValues { [weak self] _ in self?.onEndRefreshing?() }
+    _ = loadAddOnRewardsIntoDataSourceAndReloadTableView.observeValues { [weak self] value in self?.onLoadAndReloadRewards?(value) }
+    _ = loadAddOnRewardsIntoDataSource.observeValues { [weak self] value in self?.onLoadRewards?(value) }
+    _ = configurePledgeAmountViewWithData.observeValues { [weak self] value in self?.onConfigureAmount?(value) }
+    _ = goToPledge.observeValues { [weak self] value in self?.onGoToPledge?(value) }
+    _ = configureContinueCTAViewWithData.observeValues { [weak self] value in self?.onConfigureContinue?(value) }
     _ = refreshAddons.observeValues { [weak self] data in
       self?.loadAddOns(for: data)
     }
@@ -456,17 +461,15 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 
   // MARK: - Outputs
 
-  public let configureContinueCTAViewWithData:
-    Signal<RewardAddOnSelectionContinueCTAViewData, Never>
-  public let configurePledgeAmountViewWithData: Signal<PledgeAmountViewConfigData, Never>
-  public let endRefreshing: Signal<(), Never>
-  public let goToPledge: Signal<PledgeViewData, Never>
-  public let headerTitle: Signal<String, Never>
-  public let pageTitle: Signal<String, Never>
-  public let loadAddOnRewardsIntoDataSource: Signal<[RewardAddOnSelectionDataSourceItem], Never>
-  public let loadAddOnRewardsIntoDataSourceAndReloadTableView:
-    Signal<[RewardAddOnSelectionDataSourceItem], Never>
-  public let startRefreshing: Signal<(), Never>
+  public var onConfigureContinue: ((RewardAddOnSelectionContinueCTAViewData) -> Void)?
+  public var onConfigureAmount: ((PledgeAmountViewConfigData) -> Void)?
+  public var onEndRefreshing: (() -> Void)?
+  public var onGoToPledge: ((PledgeViewData) -> Void)?
+  public var onHeaderTitle: ((String) -> Void)?
+  public var onPageTitle: ((String) -> Void)?
+  public var onLoadRewards: (([RewardAddOnSelectionDataSourceItem]) -> Void)?
+  public var onLoadAndReloadRewards: (([RewardAddOnSelectionDataSourceItem]) -> Void)?
+  public var onStartRefreshing: (() -> Void)?
 
   public var inputs: RewardAddOnSelectionViewModelInputs { return self }
   public var outputs: RewardAddOnSelectionViewModelOutputs { return self }

@@ -462,10 +462,9 @@ extension RewardsFeatureTests {
     defer { fixture.provider.gate.releaseAll() }
     let vm = RewardAddOnSelectionViewModel(feature: fixture.feature)
     var cards: [RewardAddOnCardViewData] = []
-    let subscription = vm.outputs.loadAddOnRewardsIntoDataSourceAndReloadTableView.observeValues {
+    vm.outputs.onLoadAndReloadRewards = {
       cards.append(contentsOf: $0.compactMap(\.rewardAddOnCardViewData))
     }
-    defer { subscription?.dispose() }
     var project = Project.template
     let reward = Reward.digitalReward
       |> Reward.lens.hasAddOns .~ true

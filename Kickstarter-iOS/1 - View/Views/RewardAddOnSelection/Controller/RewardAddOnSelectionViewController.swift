@@ -150,62 +150,22 @@ final class RewardAddOnSelectionViewController: UIViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.headerLabel.rac.text = self.viewModel.outputs.headerTitle
-
-    self.viewModel.outputs.pageTitle
-      .observeForUI()
-      .observeValues { [weak self] title in
-        self?.navigationItem.title = title
-      }
-
-    self.viewModel.outputs.configureContinueCTAViewWithData
-      .observeForUI()
-      .observeValues { [weak self] data in
-        self?.continueCTAView.configure(with: data)
-      }
-
-    self.viewModel.outputs.configurePledgeAmountViewWithData
-      .observeForUI()
-      .observeValues { [weak self] data in
-        self?.pledgeAmountViewController.configureWith(value: data)
-      }
-
-    self.viewModel.outputs.loadAddOnRewardsIntoDataSourceAndReloadTableView
-      .observeForUI()
-      .observeValues { [weak self] items in
-        self?.dataSource.load(items)
-        self?.tableView.reloadData()
-      }
-
-    self.viewModel.outputs.loadAddOnRewardsIntoDataSource
-      .observeForUI()
-      .observeValues { [weak self] items in
-        self?.dataSource.load(items)
-      }
-
-    self.viewModel.outputs.goToPledge
-      .observeForControllerAction()
-      .observeValues { [weak self] data in
-        guard let self else { return }
-
-        if data.context == .latePledge {
-          self.goToLatePledge(data: data)
-        } else {
-          self.goToPledge(data: data)
-        }
-      }
-
-    self.viewModel.outputs.startRefreshing
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.refreshControl.beginRefreshingAfterLayout()
-      }
-
-    self.viewModel.outputs.endRefreshing
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.refreshControl.endRefreshing()
-      }
+    self.viewModel.outputs.onHeaderTitle = { [weak self] in self?.headerLabel.text = $0 }
+    self.viewModel.outputs.onPageTitle = { [weak self] in self?.navigationItem.title = $0 }
+    self.viewModel.outputs.onConfigureContinue = { [weak self] in self?.continueCTAView.configure(with: $0) }
+    self.viewModel.outputs.onConfigureAmount = { [weak self] in self?.pledgeAmountViewController.configureWith(value: $0) }
+    self.viewModel.outputs.onLoadAndReloadRewards = { [weak self] items in
+      self?.dataSource.load(items)
+      self?.tableView.reloadData()
+    }
+    self.viewModel.outputs.onLoadRewards = { [weak self] in self?.dataSource.load($0) }
+    self.viewModel.outputs.onGoToPledge = { [weak self] data in
+      guard let self else { return }
+      if data.context == .latePledge { self.goToLatePledge(data: data) }
+      else { self.goToPledge(data: data) }
+    }
+    self.viewModel.outputs.onStartRefreshing = { [weak self] in self?.refreshControl.beginRefreshingAfterLayout() }
+    self.viewModel.outputs.onEndRefreshing = { [weak self] in self?.refreshControl.endRefreshing() }
   }
 
   // MARK: - Actions
