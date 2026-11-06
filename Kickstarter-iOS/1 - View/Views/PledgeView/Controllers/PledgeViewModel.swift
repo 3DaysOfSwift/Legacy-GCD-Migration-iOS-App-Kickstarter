@@ -115,27 +115,13 @@ public protocol PledgeViewModelType {
 public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   PledgeViewModelOutputs {
   public init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
-    let initialData = self.initialDataEvents.output
-
-    let project = initialData.map(\.project)
-    let context = initialData.map(\.context)
     let formState = self.formState
     let ctaState = PledgeCTAState()
-    formState.onChange = { ctaState.setEnabled($0) }
-    initialData.observeValues { data in
-      ctaState.configure(data)
-      formState.configure()
-    }
     let requestState = PledgeRequestState()
-    let createDataPipe = Signal<CreateBackingData, Never>.pipe()
-    let updateDataPipe = Signal<UpdateBackingData, Never>.pipe()
-    requestState.onCreate = { createDataPipe.input.send(value: $0) }
-    requestState.onUpdate = { updateDataPipe.input.send(value: $0) }
-    initialData.observeValues { requestState.configure($0) }
+    formState.onChange = { ctaState.setEnabled($0) }
 
     self.loginSignupUseCase = LoginSignupUseCase(withLoginIntent: .backProject)
     let login = self.loginSignupUseCase
-    initialData.observeValues { _ in login.initialDataAvailable() }
 
     self.paymentMethodsUseCase = PaymentMethodsUseCase()
     let paymentMethods = self.paymentMethodsUseCase
@@ -144,14 +130,10 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       requestState.selectPayment(value)
     }
     paymentMethods.onValidity = { formState.setPaymentValid($0) }
-    initialData.observeValues { paymentMethods.configure($0) }
     login.onLoginState = { value in
       ctaState.setLoggedIn(value)
       paymentMethods.loginChanged(value)
     }
-
-    let amounts = initialData.map(PledgeAmounts.init)
-    let pledgeTotal = amounts.map(\.total).skipNil()
 
     // MARK: - Apple Pay
 
@@ -162,15 +144,8 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     self.pledgeOverTimeUseCase = PledgeOverTimeUseCase(feature: feature)
     let planUseCase = self.pledgeOverTimeUseCase
     planUseCase.onLoading = { formState.setPlanLoading($0) }
-    initialData.observeValues { data in
-      planUseCase.updateProject(data.project)
-      if let total = PledgeAmounts(data).total { planUseCase.updateTotal(total) }
-      planUseCase.updateContext(data.context)
-    }
 
     // MARK: - Create Backing
-
-    let createBackingData = createDataPipe.output
 
     let thanksState = self.thanksState
     let processingState = PledgeProcessingState()
@@ -206,8 +181,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       }
 
     // MARK: - Update Backing
-
-    let updateBackingData = updateDataPipe.output
 
     let updateIdentity = self.updateIdentity
     let updateBackingEvents: Signal<Signal<StripeSCARequiring, ErrorEnvelope>.Event, Never> = self.updateEvents.output
@@ -254,9 +227,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       }
     }
 
-    _ = createBackingData.observeValues { [weak self] in self?.latestCreateBackingData = $0 }
-    _ = updateBackingData.observeValues { [weak self] in self?.latestUpdateBackingData = $0 }
-    _ = initialData.observeValues { [weak self] data in
+    self.presentData = { [weak self] data in
       self?.onTitle?(data.context.title)
       self?.completionState.setContext(data.context)
       let amounts = PledgeAmounts(data)
@@ -315,6 +286,18 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         Secrets.ApplePay.merchantIdentifier,
         AppEnvironment.current.environmentType.stripePublishableKey
       )
+    }
+    requestState.onCreate = { [weak self] in self?.latestCreateBackingData = $0 }
+    requestState.onUpdate = { [weak self] in self?.latestUpdateBackingData = $0 }
+    self.configureState = { data in
+      ctaState.configure(data)
+      formState.configure()
+      requestState.configure(data)
+      login.initialDataAvailable()
+      paymentMethods.configure(data)
+      planUseCase.updateProject(data.project)
+      if let total = PledgeAmounts(data).total { planUseCase.updateTotal(total) }
+      planUseCase.updateContext(data.context)
     }
     ctaState.onChange = { [weak self] in self?.onPledgeCTA?($0) }
     processingState.onChange = { [weak self] in self?.onProcessingHidden?($0) }
@@ -406,7 +389,8 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   private let thanksState = PledgeThanksState()
   private let completionState = PledgeCompletionState()
   private var hasLoadedView = false
-  private let initialDataEvents = Signal<PledgeViewData, Never>.pipe()
+  private var configureState: ((PledgeViewData) -> Void)?
+  private var presentData: ((PledgeViewData) -> Void)?
   private let formState = PledgeFormState()
 
   public func configure(with data: PledgeViewData) {
@@ -419,7 +403,8 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
   private func publishInitialDataWhenReady() {
     guard self.hasLoadedView, let data = self.configuredData else { return }
-    self.initialDataEvents.input.send(value: data)
+    self.configureState?(data)
+    self.presentData?(data)
     guard let reward = data.rewards.first, let total = PledgeAmounts(data).total else { return }
     let checkoutData = checkoutProperties(
       from: data.project, baseReward: reward, addOnRewards: data.rewards,
