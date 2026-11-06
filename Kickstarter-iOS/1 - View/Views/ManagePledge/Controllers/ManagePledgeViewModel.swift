@@ -74,6 +74,7 @@ public final class ManagePledgeViewModel:
   ManagePledgeViewModelType, ManagePledgeViewModelInputs, ManagePledgeViewModelOutputs {
   private let feature: PledgeFeature
   private var currentMenuOptions: [ManagePledgeAlertAction]?
+  private var projectHasLoaded = false
   private var currentProject: Project?
   private var currentCancellation: (Project, Backing)?
   private var currentChangePaymentMethodData: PledgeViewData?
@@ -108,13 +109,7 @@ public final class ManagePledgeViewModel:
 
     let projectParam = params.map(first)
 
-    let shouldBeginRefresh = Signal.merge(
-      self.pledgeViewControllerDidUpdatePledgeWithMessageSignal.ignoreValues(),
-      self.beginRefreshSignal
-    )
-
-    // Keep track of whether the project has successfully loaded at least once.
-    let projectLoaded = MutableProperty<Bool>(false)
+    let shouldBeginRefresh = self.beginRefreshSignal
 
     let shouldFetchProjectWithParam = Signal.merge(
       projectParam,
@@ -129,8 +124,7 @@ public final class ManagePledgeViewModel:
       .map { event, _, _, _ in event }
 
     let initialProject = fetchProjectEvent.values()
-      // Once we know we have a project value, keep track of that.
-      .on(value: { [projectLoaded] _ in projectLoaded.value = true })
+      .on(value: { [weak self] _ in self?.projectHasLoaded = true })
 
     let backingParamFromConfigData = params.map(second)
       .skipNil()
@@ -394,9 +388,10 @@ public final class ManagePledgeViewModel:
       if enabled { self?.onPlotSchedule?(backing.paymentIncrements) }
     }
     _ = rightBarButtonItemHidden.observeValues { [weak self] in self?.onRightBarButtonHidden?($0) }
-    _ = shouldFetchProjectWithParam
-      .filter { [projectLoaded] _ in !projectLoaded.value }
-      .observeValues { [weak self] param in self?.loadProject(param) }
+    _ = shouldFetchProjectWithParam.observeValues { [weak self] param in
+      guard let self, !self.projectHasLoaded else { return }
+      self.loadProject(param)
+    }
     _ = shouldFetchGraphBackingWithParam.map(\.id).skipNil()
       .observeValues { [weak self] id in self?.loadBacking(id) }
   }
@@ -500,12 +495,8 @@ public final class ManagePledgeViewModel:
     self.onShowHelp?(helpType)
   }
 
-  private let (
-    pledgeViewControllerDidUpdatePledgeWithMessageSignal,
-    pledgeViewControllerDidUpdatePledgeWithMessageObserver
-  ) = Signal<String, Never>.pipe()
   public func pledgeViewControllerDidUpdatePledgeWithMessage(_ message: String) {
-    self.pledgeViewControllerDidUpdatePledgeWithMessageObserver.send(value: message)
+    self.beginRefreshObserver.send(value: ())
     self.onShowSuccess?(message)
   }
 
