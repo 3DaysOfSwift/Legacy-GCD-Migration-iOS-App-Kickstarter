@@ -198,15 +198,13 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       .observeForUI()
       .observeValues { UIApplication.shared.open($0) }
 
-    self.viewModel.outputs.applicationIconBadgeNumber
-      .observeForUI()
-      .observeValues { UIApplication.shared.applicationIconBadgeNumber = $0 }
+    self.viewModel.outputs.onApplicationIconBadgeNumber = { value in
+      DispatchQueue.main.async { UIApplication.shared.applicationIconBadgeNumber = value }
+    }
 
-    self.viewModel.outputs.pushTokenRegistrationStarted
-      .observeForUI()
-      .observeValues {
-        print("📲 [Push Registration] Push token registration started 🚀")
-      }
+    self.viewModel.outputs.onPushTokenRegistrationStarted = {
+      DispatchQueue.main.async { print("📲 [Push Registration] Push token registration started 🚀") }
+    }
 
     self.viewModel.outputs.onPushTokenSuccessfullyRegistered = { token in
       DispatchQueue.main.async { print("📲 [Push Registration] Push token successfully registered (\(token)) ✨") }
@@ -216,9 +214,8 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       DispatchQueue.main.async { [weak self] in self?.braze?.notifications.register(deviceToken: token) }
     }
 
-    self.viewModel.outputs.triggerOnboardingFlow
-      .observeForUI()
-      .observeValues { [weak self] in
+    self.viewModel.outputs.onTriggerOnboardingFlow = { [weak self] in
+      DispatchQueue.main.async { [weak self] in
         guard let rootTabBarController = self?.rootTabBarController else { return }
 
         let onboardingVC = UIHostingController(rootView: OnboardingView())
@@ -229,6 +226,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
         rootTabBarController.navigationController?.isNavigationBarHidden = true
         rootTabBarController.present(onboardingVC, animated: true, completion: nil)
       }
+    }
 
     NotificationCenter.default
       .addObserver(

@@ -110,7 +110,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm = AppDelegateViewModel(lifecycleFeature: self.lifecycleFeature, pushDebounce: { try Task.checkCancellation() }, userDebounce: { try Task.checkCancellation() }, trackingDelay: { try Task.checkCancellation() })
     self.vm.outputs.notificationSettingsUpdated.observe(self.notificationSettingsUpdated.observer)
 
-    self.vm.outputs.applicationIconBadgeNumber.observe(self.applicationIconBadgeNumber.observer)
+    self.vm.outputs.onApplicationIconBadgeNumber = { [weak self] in self?.applicationIconBadgeNumber.observer.send(value: $0) }
     self.vm.outputs.onConfigureFirebase = { [weak self] in self?.configureFirebase.observer.send(value: ()) }
     self.vm.outputs.onConfigureSegmentWithBraze = { [weak self] in self?.configureSegmentWithBraze.observer.send(value: $0) }
     self.vm.outputs.emailVerificationCompleted.map(first)
@@ -128,7 +128,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.outputs.onPostNotification = { [weak self] in self?.postNotificationName.observer.send(value: $0.name) }
     self.vm.outputs.presentViewController.map { ($0 as! UINavigationController).viewControllers.count }
       .observe(self.presentViewController.observer)
-    self.vm.outputs.pushTokenRegistrationStarted.observe(self.pushRegistrationStarted.observer)
+    self.vm.outputs.onPushTokenRegistrationStarted = { [weak self] in self?.pushRegistrationStarted.observer.send(value: ()) }
     self.vm.outputs.onPushTokenSuccessfullyRegistered = { [weak self] in self?.pushTokenSuccessfullyRegistered.observer.send(value: $0) }
     self.vm.outputs.onRegisterPushTokenInBraze = { [weak self] in self?.registerPushTokenInBraze.observer.send(value: $0) }
     self.vm.outputs.onRequestTrackingAuthorization = { [weak self] in
@@ -140,7 +140,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.outputs.onTrackingAuthorizationStatus = { [weak self] in
       self?.trackingAuthorizationStatus.observer.send(value: $0)
     }
-    self.vm.outputs.triggerOnboardingFlow.observe(self.triggerOnboardingFlow.observer)
+    self.vm.outputs.onTriggerOnboardingFlow = { [weak self] in self?.triggerOnboardingFlow.observer.send(value: ()) }
     self.vm.outputs.onUnregisterForRemoteNotifications = { [weak self] in self?.unregisterForRemoteNotifications.observer.send(value: ()) }
     self.vm.outputs.onUpdateCurrentUser = { [weak self] in self?.updateCurrentUserInEnvironment.observer.send(value: $0) }
     self.vm.outputs.onUpdateConfig = { [weak self] in self?.updateConfigInEnvironment.observer.send(value: $0) }

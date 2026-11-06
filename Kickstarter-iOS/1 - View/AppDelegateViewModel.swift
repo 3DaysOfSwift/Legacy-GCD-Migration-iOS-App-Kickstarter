@@ -97,7 +97,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var applicationDidFinishLaunchingReturnValue: Bool { get }
 
   /// Emits the application icon badge number
-  var applicationIconBadgeNumber: Signal<Int, Never> { get }
+  var onApplicationIconBadgeNumber: ((Int) -> Void)? { get set }
 
   /// Emits when the application should configure Firebase
   var onConfigureFirebase: (() -> Void)? { get set }
@@ -149,7 +149,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var presentViewController: Signal<UIViewController, Never> { get }
 
   /// Emits when the push token registration begins.
-  var pushTokenRegistrationStarted: Signal<(), Never> { get }
+  var onPushTokenRegistrationStarted: (() -> Void)? { get set }
 
   /// Emits the push token that has been successfully registered on the server.
   var onPushTokenSuccessfullyRegistered: ((String) -> Void)? { get set }
@@ -176,7 +176,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var onTrackingAuthorizationStatus: ((AppTrackingAuthorization) -> Void)? { get set }
 
   /// Emits when application didFinishLaunchingWithOptions and the Onboarding Flow feature flag is enabled.
-  var triggerOnboardingFlow: Signal<(), Never> { get }
+  var onTriggerOnboardingFlow: (() -> Void)? { get set }
 
   /// Emits when we should unregister the user from notifications.
   var onUnregisterForRemoteNotifications: (() -> Void)? { get set }
@@ -226,6 +226,8 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   private var setupRequest: Task<GraphUserSetup, Error>?
   private var setupObservation: Task<Void, Never>?
   private var lastSegmentEnabled: Bool?
+  private var pushTasks: [UUID: Task<Void, Never>] = [:]
+  private var hasDeniedPushAuthorization = false
   private var trackingObserver: ((any AppTrackingTransparencyType), UUID)?
 
   public init(
@@ -243,50 +245,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     let redirectObservation = self.redirectObservation
     let settingsFeature = lifecycleFeature.settingsFeature
     let openUrl = self.applicationOpenUrlProperty.signal.skipNil()
-
-    // iCloud
-
-
-    // Push notifications
-
-    let pushNotificationsPreviouslyAuthorized = self.applicationLaunchOptionsProperty.signal
-      .flatMap { _ in pushAuthorizationStatusProducer() }
-
-    let pushTokenRegistrationStartedEvents = Signal.merge(
-      self.didAcceptReceivingRemoteNotificationsProperty.signal,
-      pushNotificationsPreviouslyAuthorized
-        .filter { isPreviouslyAuthorzied in isPreviouslyAuthorzied }
-        .ignoreValues()
-    )
-    .flatMap {
-      pushRegistrationProducer()
-        .materialize()
-    }
-
-    let pushTokenRegistrationStartedValues = pushTokenRegistrationStartedEvents.values()
-
-    self.pushTokenRegistrationStarted = pushTokenRegistrationStartedValues
-      .ignoreValues()
-
-
-
-
-
-    // MARK: - Onboarding Flow
-
-    /// Trigger if the user hasn't authorized or denied Push Notification or AppTrackingTransparency permissions yet and hasn't seen the onboarding flow already..
-    self.triggerOnboardingFlow = Signal.combineLatest(
-      self.applicationLaunchOptionsProperty.signal.ignoreValues(),
-      pushNotificationsPreviouslyAuthorized.filter { isFalse($0) }
-    )
-    .filter { _ in
-      let shouldRequestAppTracking = AppEnvironment.current.appTrackingTransparency
-        .shouldRequestAuthorizationStatus() == true
-      let hasNotSeenOnboarding = AppEnvironment.current.userDefaults.hasSeenOnboarding == false
-
-      return shouldRequestAppTracking && hasNotSeenOnboarding
-    }
-    .mapConst(())
 
     // Deep links. For more information, see
     // https://app.getguru.com/card/cyRdjqgi/How-iOS-Universal-Links-work
@@ -451,13 +409,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
 
 
-    self.applicationIconBadgeNumber = Signal.merge(
-      self.applicationWillEnterForegroundProperty.signal,
-      self.applicationLaunchOptionsProperty.signal.ignoreValues()
-    )
-    .flatMap { pushAuthorizationStatusProducer() }
-    .filter(isTrue)
-    .mapConst(0)
+
 
 
 
@@ -471,6 +423,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.userDebounceTask?.cancel()
     self.userReadTask?.cancel()
     self.userRequest?.cancel()
+    self.pushTasks.values.forEach { $0.cancel() }
     self.trackingDelayTasks.values.forEach { $0.cancel() }
     self.configurationTask?.cancel()
     self.shortcutTask?.cancel()
@@ -489,6 +442,59 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
   public var inputs: AppDelegateViewModelInputs { return self }
   public var outputs: AppDelegateViewModelOutputs { return self }
+
+  private final class PushOperationState {
+    var finished = false
+  }
+
+  private func performPushOperation(
+    _ start: (@escaping @MainActor (Bool) -> Void) -> Task<Void, Never>?,
+    completion: @escaping @MainActor (Bool) -> Void
+  ) {
+    let id = UUID()
+    let state = PushOperationState()
+    let task = start { [weak self] value in
+      state.finished = true
+      self?.pushTasks[id] = nil
+      completion(value)
+    }
+    if let task, !state.finished { self.pushTasks[id] = task }
+  }
+
+  private func checkPushAuthorizationForLaunch() {
+    if self.hasDeniedPushAuthorization { self.triggerOnboardingIfEligible() }
+    self.performPushOperation({ completion in
+      AppEnvironment.current.pushRegistrationType.hasAuthorizedNotifications(completion: completion)
+    }) { [weak self] authorized in
+      guard let self else { return }
+      if authorized {
+        self.beginPushRegistration()
+      } else {
+        self.hasDeniedPushAuthorization = true
+        self.triggerOnboardingIfEligible()
+      }
+    }
+  }
+
+  private func checkPushAuthorizationForBadge() {
+    self.performPushOperation({ completion in
+      AppEnvironment.current.pushRegistrationType.hasAuthorizedNotifications(completion: completion)
+    }) { [weak self] authorized in
+      if authorized { self?.onApplicationIconBadgeNumber?(0) }
+    }
+  }
+
+  private func beginPushRegistration() {
+    self.performPushOperation({ completion in
+      AppEnvironment.current.pushRegistrationType.register(for: [.alert, .sound, .badge], completion: completion)
+    }) { [weak self] _ in self?.onPushTokenRegistrationStarted?() }
+  }
+
+  private func triggerOnboardingIfEligible() {
+    guard AppEnvironment.current.appTrackingTransparency.shouldRequestAuthorizationStatus(),
+          !AppEnvironment.current.userDefaults.hasSeenOnboarding else { return }
+    self.onTriggerOnboardingFlow?()
+  }
 
   private func scheduleTrackingRequestIfNeeded() {
     guard self.hasLaunchEvent, let active = self.latestActiveState,
@@ -652,6 +658,8 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   ) {
     self.applicationDidFinishLaunchingReturnValue = launchOptions?[UIApplication.LaunchOptionsKey.shortcutItem] == nil
     self.applicationLaunchOptionsProperty.value = (application, launchOptions)
+    self.checkPushAuthorizationForLaunch()
+    self.checkPushAuthorizationForBadge()
     self.hasLaunchEvent = true
     self.scheduleTrackingRequestIfNeeded()
     self.observeTrackingAuthorization()
@@ -669,6 +677,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   fileprivate let applicationWillEnterForegroundProperty = MutableProperty(())
   public func applicationWillEnterForeground() {
     self.applicationWillEnterForegroundProperty.value = ()
+    self.checkPushAuthorizationForBadge()
     self.scheduleUserRefresh()
     self.refreshUserSetup()
     self.refreshConfiguration()
@@ -746,9 +755,8 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     await self.pushPresentationTask?.value
   }
 
-  fileprivate let didAcceptReceivingRemoteNotificationsProperty = MutableProperty(())
   public func didAcceptReceivingRemoteNotifications() {
-    self.didAcceptReceivingRemoteNotificationsProperty.value = ()
+    self.beginPushRegistration()
   }
 
   public func didUpdateConfig(_ config: Config) {
@@ -818,7 +826,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.onPostNotification?(Notification(name: .ksr_remoteConfigClientConfigurationFailed, object: nil))
   }
 
-  public let applicationIconBadgeNumber: Signal<Int, Never>
+  public var onApplicationIconBadgeNumber: ((Int) -> Void)?
   public var onConfigureFirebase: (() -> Void)?
   public var onConfigureSegmentWithBraze: ((String) -> Void)?
   public var onConfigureStatsig: ((StatsigClientSDKKey) -> Void)?
@@ -835,7 +843,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public let goToSearch: Signal<(), Never>
   public var onPostNotification: ((Notification) -> Void)?
   public let presentViewController: Signal<UIViewController, Never>
-  public let pushTokenRegistrationStarted: Signal<(), Never>
+  public var onPushTokenRegistrationStarted: (() -> Void)?
   public var onPushTokenSuccessfullyRegistered: ((String) -> Void)?
   public var onRegisterPushTokenInBraze: ((Data) -> Void)?
   public var onRequestTrackingAuthorization: (() -> Void)?
@@ -844,7 +852,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public var onShowAlert: ((Notification) -> Void)?
   public var onSynchronizeUbiquitousStore: (() -> Void)?
   public var onTrackingAuthorizationStatus: ((AppTrackingAuthorization) -> Void)?
-  public let triggerOnboardingFlow: Signal<(), Never>
+  public var onTriggerOnboardingFlow: (() -> Void)?
   public var onUnregisterForRemoteNotifications: (() -> Void)?
   public var onUpdateCurrentUser: ((User) -> Void)?
   public let notificationSettingsUpdated: Signal<Void, Never>
@@ -1181,27 +1189,4 @@ private func statsigSDKKey() -> StatsigClientSDKKey {
   }
 
   return .stagingTier(Secrets.Statsig.sandbox)
-}
-
-// Temporary presentation adapters; the registration service itself owns native tasks.
-@MainActor
-private func pushAuthorizationStatusProducer() -> SignalProducer<Bool, Never> {
-  SignalProducer { observer, lifetime in
-    let task = AppEnvironment.current.pushRegistrationType.hasAuthorizedNotifications { value in
-      observer.send(value: value)
-      observer.sendCompleted()
-    }
-    lifetime.observeEnded { task?.cancel() }
-  }
-}
-
-@MainActor
-private func pushRegistrationProducer() -> SignalProducer<Bool, Never> {
-  SignalProducer { observer, lifetime in
-    let task = AppEnvironment.current.pushRegistrationType.register(for: [.alert, .sound, .badge]) { value in
-      observer.send(value: value)
-      observer.sendCompleted()
-    }
-    lifetime.observeEnded { task?.cancel() }
-  }
 }
