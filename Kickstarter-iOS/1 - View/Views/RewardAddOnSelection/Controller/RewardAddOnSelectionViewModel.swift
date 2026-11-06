@@ -72,7 +72,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private var displayedChanges: SelectedRewardQuantities?
   private var backedQuantities: SelectedRewardQuantities?
   private var baseQuantities: SelectedRewardQuantities?
-  private let cardItems = Signal<[RewardAddOnSelectionDataSourceItem], Never>.pipe()
   private var latestCardData: ([Reward], Project, Reward, PledgeViewContext, ShippingRule?)?
   private var latestCardQuantities: SelectedRewardQuantities?
   private let selectedRewardsEvents = Signal<[Reward], Never>.pipe()
@@ -158,19 +157,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     let latestSelectedQuantities = Signal.merge(
       baseRewardQuantities,
       selectedQuantities
-    )
-
-    let dataSourceItems = self.cardItems.output
-
-    let allAddOnRewards = Signal.merge(
-      // All add-ons from the data source.
-      dataSourceItems.map { items in
-        items.compactMap {
-          item -> Reward? in item.rewardAddOnCardViewData?.reward
-        }
-      },
-      // No add-ons (and data source is not initialized) if the reward doesn't have add-ons.
-      hasAddOns.filter(isFalse).mapConst([])
     )
 
     // MARK: - Bonus support
@@ -276,8 +262,8 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       self?.publishRewardSelection()
       self?.publishAmountConfiguration()
     }
-    _ = allAddOnRewards.observeValues { [weak self] rewards in
-      self?.currentAddOnRewards = rewards
+    _ = hasAddOns.filter(isFalse).observeValues { [weak self] _ in
+      self?.currentAddOnRewards = []
       self?.publishRewardSelection()
     }
     _ = latestSelectedQuantities.observeValues { [weak self] quantities in
@@ -412,13 +398,18 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     self.selectedAddOnCountEvents.input.send(value: count)
   }
 
+  private func receiveCardItems(_ items: [RewardAddOnSelectionDataSourceItem]) {
+    self.currentAddOnRewards = items.compactMap { $0.rewardAddOnCardViewData?.reward }
+    self.publishRewardSelection()
+  }
+
   private func publishCards(reload: Bool) {
     guard let data = self.latestCardData, let quantities = self.latestCardQuantities else { return }
     let items = rewardsData(
       addOns: data.0, project: data.1, baseReward: data.2,
       context: data.3, shippingRule: data.4, selectedQuantities: quantities
     )
-    self.cardItems.input.send(value: items)
+    self.receiveCardItems(items)
     if reload { self.onLoadAndReloadRewards?(items) }
     else { self.onLoadRewards?(items) }
   }
@@ -443,7 +434,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
         }
       case .failure:
         let items: [RewardAddOnSelectionDataSourceItem] = [.emptyState(.errorPullToRefresh)]
-        self.cardItems.input.send(value: items)
+        self.receiveCardItems(items)
         self.onLoadAndReloadRewards?(items)
       }
       self.onEndRefreshing?()
