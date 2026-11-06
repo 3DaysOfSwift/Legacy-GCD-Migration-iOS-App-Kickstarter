@@ -82,6 +82,13 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private var totalRewards: [Reward]?
   private var totalQuantities: SelectedRewardQuantities?
   private var totalBonus: Double?
+  private let validityEvents = Signal<Bool, Never>.pipe()
+  private var validationProject: Project?
+  private var validationInitialBonus: Double?
+  private var validationAmount: PledgeAmountData?
+  private var validationQuantities: SelectedRewardQuantities?
+  private var validationShipping: ShippingRule?
+  private var hasValidationShipping = false
   private var addOnsRequestID: UUID?
   deinit {
     self.addOnsTask?.cancel()
@@ -191,14 +198,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 
     let totalSelectedAddOnsQuantity = self.selectedAddOnCountEvents.output
 
-    let enableContinueButton = Signal.combineLatest(
-      project,
-      initialAdditionalPledgeAmount,
-      self.pledgeAmountDataSignal,
-      latestSelectedQuantities,
-      shippingRule
-    )
-    .map(isValid)
+    let enableContinueButton = self.validityEvents.output
 
     let selectedRewards = self.selectedRewardsEvents.output
 
@@ -303,6 +303,27 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
         )
       }
 
+    _ = project.observeValues { [weak self] value in
+      self?.validationProject = value
+      self?.publishValidity()
+    }
+    _ = initialAdditionalPledgeAmount.observeValues { [weak self] value in
+      self?.validationInitialBonus = value
+      self?.publishValidity()
+    }
+    _ = self.pledgeAmountDataSignal.observeValues { [weak self] value in
+      self?.validationAmount = value
+      self?.publishValidity()
+    }
+    _ = latestSelectedQuantities.observeValues { [weak self] value in
+      self?.validationQuantities = value
+      self?.publishValidity()
+    }
+    _ = shippingRule.observeValues { [weak self] value in
+      self?.validationShipping = value
+      self?.hasValidationShipping = true
+      self?.publishValidity()
+    }
     _ = project.observeValues { [weak self] project in
       if let amount = project.personalization.backing?.amount {
         self?.pledgeTotalEvents.input.send(value: amount)
@@ -367,6 +388,17 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     _ = refreshAddons.observeValues { [weak self] data in
       self?.loadAddOns(for: data)
     }
+  }
+
+  private func publishValidity() {
+    guard let project = self.validationProject, let initialBonus = self.validationInitialBonus,
+          let amount = self.validationAmount, let quantities = self.validationQuantities,
+          self.hasValidationShipping else { return }
+    self.validityEvents.input.send(value: isValid(
+      project: project, initialAdditionalPledgeAmount: initialBonus,
+      pledgeAmountData: amount, latestSelectedQuantities: quantities,
+      selectedShippingRule: self.validationShipping
+    ))
   }
 
   private func publishPledgeTotal() {
