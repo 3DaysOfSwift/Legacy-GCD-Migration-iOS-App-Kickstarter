@@ -2,7 +2,6 @@
 import Apollo
 import GraphAPI
 import Prelude
-import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
@@ -49,32 +48,27 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
     checkout: CreateCheckoutEnvelope.Checkout(id: "19", paymentUrl: "fake", backingId: "93")
   )
 
-  private let goToApplePayPaymentAuthorization = TestObserver<
-    PostCampaignPaymentAuthorizationData,
-    Never
-  >()
-  private let checkoutComplete = TestObserver<ThanksPageData, Never>()
-  private let processingViewIsHidden = TestObserver<Bool, Never>()
-  private let validateCheckoutSuccess = TestObserver<PaymentSourceValidation, Never>()
-  private let checkoutError = TestObserver<ErrorEnvelope, Never>()
-  private let goToLoginSignup = TestObserver<LoginIntent, Never>()
+  private let goToApplePayPaymentAuthorization = PostCheckoutRecorder<PostCampaignPaymentAuthorizationData>()
+  private let checkoutComplete = PostCheckoutRecorder<ThanksPageData>()
+  private let processingViewIsHidden = PostCheckoutRecorder<Bool>()
+  private let validateCheckoutSuccess = PostCheckoutRecorder<PaymentSourceValidation>()
+  private let checkoutError = PostCheckoutRecorder<ErrorEnvelope>()
+  private let goToLoginSignup = PostCheckoutRecorder<LoginIntent>()
 
-  private let configurePaymentMethodsViewControllerWithUser = TestObserver<User, Never>()
-  private let configurePaymentMethodsViewControllerWithProject = TestObserver<Project, Never>()
-  private let configurePaymentMethodsViewControllerWithCheckoutId = TestObserver<String, Never>()
-  private let configurePaymentMethodsViewControllerWithReward = TestObserver<Reward, Never>()
-  private let configurePaymentMethodsViewControllerWithContext = TestObserver<
-    PledgeViewContext, Never
-  >()
+  private let configurePaymentMethodsViewControllerWithUser = PostCheckoutRecorder<User>()
+  private let configurePaymentMethodsViewControllerWithProject = PostCheckoutRecorder<Project>()
+  private let configurePaymentMethodsViewControllerWithCheckoutId = PostCheckoutRecorder<String>()
+  private let configurePaymentMethodsViewControllerWithReward = PostCheckoutRecorder<Reward>()
+  private let configurePaymentMethodsViewControllerWithContext = PostCheckoutRecorder<PledgeViewContext>()
 
-  private let configurePledgeViewCTAContainerViewIsLoggedIn = TestObserver<Bool, Never>()
-  private let configurePledgeViewCTAContainerViewIsEnabled = TestObserver<Bool, Never>()
-  private let configurePledgeViewCTAContainerViewContext = TestObserver<PledgeViewContext, Never>()
+  private let configurePledgeViewCTAContainerViewIsLoggedIn = PostCheckoutRecorder<Bool>()
+  private let configurePledgeViewCTAContainerViewIsEnabled = PostCheckoutRecorder<Bool>()
+  private let configurePledgeViewCTAContainerViewContext = PostCheckoutRecorder<PledgeViewContext>()
 
-  private let configureStripeIntegrationMerchantId = TestObserver<String, Never>()
-  private let configureStripeIntegrationPublishableKey = TestObserver<String, Never>()
+  private let configureStripeIntegrationMerchantId = PostCheckoutRecorder<String>()
+  private let configureStripeIntegrationPublishableKey = PostCheckoutRecorder<String>()
 
-  private let showWebHelp = TestObserver<HelpType, Never>()
+  private let showWebHelp = PostCheckoutRecorder<HelpType>()
 
   override func setUp() async throws {
     try await super.setUp()
@@ -83,33 +77,33 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       self.vm = PostCampaignCheckoutViewModel(
         stripeIntentService: self.mockStripeIntentService, feature: self.pledgeFeature)
 
-      self.vm.outputs.onApplePayAuthorization = { [weak self] in self?.goToApplePayPaymentAuthorization.observer.send(value: $0) }
-      self.vm.outputs.onCheckoutComplete = { [weak self] in self?.checkoutComplete.observer.send(value: $0) }
-      self.vm.outputs.onProcessingHidden = { [weak self] in self?.processingViewIsHidden.observer.send(value: $0) }
-      self.vm.outputs.onValidateCheckout = { [weak self] in self?.validateCheckoutSuccess.observer.send(value: $0) }
-      self.vm.outputs.onCheckoutError = { [weak self] in self?.checkoutError.observer.send(value: $0) }
-      self.vm.outputs.onGoToLoginSignup = { [weak self] in self?.goToLoginSignup.observer.send(value: $0) }
+      self.vm.outputs.onApplePayAuthorization = { [weak self] in self?.goToApplePayPaymentAuthorization.record($0) }
+      self.vm.outputs.onCheckoutComplete = { [weak self] in self?.checkoutComplete.record($0) }
+      self.vm.outputs.onProcessingHidden = { [weak self] in self?.processingViewIsHidden.record($0) }
+      self.vm.outputs.onValidateCheckout = { [weak self] in self?.validateCheckoutSuccess.record($0) }
+      self.vm.outputs.onCheckoutError = { [weak self] in self?.checkoutError.record($0) }
+      self.vm.outputs.onGoToLoginSignup = { [weak self] in self?.goToLoginSignup.record($0) }
 
       self.vm.outputs.onConfigurePaymentMethods = { [weak self] value in
-        self?.configurePaymentMethodsViewControllerWithUser.observer.send(value: value.0)
-        self?.configurePaymentMethodsViewControllerWithProject.observer.send(value: value.1)
-        self?.configurePaymentMethodsViewControllerWithCheckoutId.observer.send(value: value.2)
-        self?.configurePaymentMethodsViewControllerWithReward.observer.send(value: value.3)
-        self?.configurePaymentMethodsViewControllerWithContext.observer.send(value: value.4)
+        self?.configurePaymentMethodsViewControllerWithUser.record(value.0)
+        self?.configurePaymentMethodsViewControllerWithProject.record(value.1)
+        self?.configurePaymentMethodsViewControllerWithCheckoutId.record(value.2)
+        self?.configurePaymentMethodsViewControllerWithReward.record(value.3)
+        self?.configurePaymentMethodsViewControllerWithContext.record(value.4)
       }
 
       self.vm.outputs.onPledgeCTA = { [weak self] value in
-        self?.configurePledgeViewCTAContainerViewIsLoggedIn.observer.send(value: value.2)
-        self?.configurePledgeViewCTAContainerViewIsEnabled.observer.send(value: value.3)
-        self?.configurePledgeViewCTAContainerViewContext.observer.send(value: value.4)
+        self?.configurePledgeViewCTAContainerViewIsLoggedIn.record(value.2)
+        self?.configurePledgeViewCTAContainerViewIsEnabled.record(value.3)
+        self?.configurePledgeViewCTAContainerViewContext.record(value.4)
       }
 
       self.vm.outputs.onConfigureStripe = { [weak self] merchant, key in
-        self?.configureStripeIntegrationMerchantId.observer.send(value: merchant)
-        self?.configureStripeIntegrationPublishableKey.observer.send(value: key)
+        self?.configureStripeIntegrationMerchantId.record(merchant)
+        self?.configureStripeIntegrationPublishableKey.record(key)
       }
 
-      self.vm.outputs.onShowWebHelp = { [weak self] in self?.showWebHelp.observer.send(value: $0) }
+      self.vm.outputs.onShowWebHelp = { [weak self] in self?.showWebHelp.record($0) }
     }
   }
 
@@ -1067,5 +1061,32 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       await self.mockStripeIntentService.paymentsFeature.waitForOperations()
       await self.pledgeFeature.waitForOperations()
     }
+  }
+}
+
+private final class PostCheckoutRecorder<Value> {
+  private(set) var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, message, file: file, line: line)
+  }
+  func assertDidEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertFalse(self.values.isEmpty, message, file: file, line: line)
+  }
+}
+
+private extension PostCheckoutRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
+  }
+  func assertValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, [expected], message, file: file, line: line)
+  }
+  func assertLastValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.last, expected, message, file: file, line: line)
   }
 }
