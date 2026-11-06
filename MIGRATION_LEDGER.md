@@ -2,6 +2,24 @@
 
 Author: Matthew Thomas. Updated 3 November 2026.
 
+## ReactiveSwift removal — 7 November 2026
+
+ReactiveSwift and ReactiveExtensions were removed from the app and test target
+package dependencies and the checked-in package lockfiles. First-party Swift
+source no longer imports either package or uses their signal/property APIs.
+The app's former reactive scheduler was removed; tests use explicit operation
+waits, and the checkout tests await the presentation tasks they exercise.
+
+Verification on iPhone Air, iOS 26.2: the app built; 1,944 non-snapshot model
+tests and 183 non-snapshot presentation tests passed. The keychain target initially
+crashed with status -34018 when signing was disabled; with local ad-hoc signing,
+all 39 keychain tests passed. These counts are separate runs.
+
+Snapshot comparisons remain unverified: the checked-in reference gate requires
+an iPad mini (A17 Pro) running iOS 18.6, which is not currently installed.
+Physical-device testing and live payment operations also remain deferred. These
+limits do not establish visual parity or live-service correctness.
+
 ## Post-migration review: UIKit file placement — 3 November 2026
 
 Moved all 43 storyboards/XIBs out of App Resources and into `1 - View`.
