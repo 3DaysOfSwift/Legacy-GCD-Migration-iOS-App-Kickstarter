@@ -120,12 +120,7 @@ public protocol PledgeViewModelType {
 public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   PledgeViewModelOutputs {
   public init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
-    let initialData = Signal.combineLatest(
-      self.configureWithDataProperty.signal,
-      self.viewDidLoadProperty.signal
-    )
-    .map(first)
-    .skipNil()
+    let initialData = self.initialDataEvents.output
 
     let project = initialData.map(\.project)
     let baseReward = initialData.map(\.rewards).map(\.first).skipNil()
@@ -631,7 +626,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     let didCreateOrUpdateBacking = createOrUpdateEvent.filter { $0.isTerminating }
 
     let isEnabled = Signal.merge(
-      self.viewDidLoadProperty.signal.mapConst(false)
+      self.viewDidLoadEvents.output.mapConst(false)
         .take(until: valuesChangedAndValid.ignoreValues()),
       valuesChangedAndValid,
       self.submitButtonTappedSignal.mapConst(false),
@@ -935,9 +930,19 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     self.applePayButtonTappedObserver.send(value: ())
   }
 
-  private let configureWithDataProperty = MutableProperty<PledgeViewData?>(nil)
+  private var configuredData: PledgeViewData?
+  private var hasLoadedView = false
+  private let initialDataEvents = Signal<PledgeViewData, Never>.pipe()
+  private let viewDidLoadEvents = Signal<Void, Never>.pipe()
+
   public func configure(with data: PledgeViewData) {
-    self.configureWithDataProperty.value = data
+    self.configuredData = data
+    self.publishInitialDataWhenReady()
+  }
+
+  private func publishInitialDataWhenReady() {
+    guard self.hasLoadedView, let data = self.configuredData else { return }
+    self.initialDataEvents.input.send(value: data)
   }
 
   public func creditCardSelected(with paymentSourceData: PaymentSourceSelected) {
@@ -990,9 +995,10 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     self.onShowWebHelp?(helpType)
   }
 
-  private let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    self.hasLoadedView = true
+    self.publishInitialDataWhenReady()
+    self.viewDidLoadEvents.input.send(value: ())
   }
 
   public func userSessionDidChange() {

@@ -91,12 +91,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   public init(stripeIntentService: StripeIntentServiceType, feature: PledgeFeature = AppModel.shared.pledgeFeature) {
     self.stripeIntentService = stripeIntentService
 
-    let initialData = Signal.combineLatest(
-      self.configureWithDataProperty.signal,
-      self.viewDidLoadProperty.signal
-    )
-    .map(first)
-    .skipNil()
+    let initialData = self.initialDataEvents.output
 
     let context = initialData.map(\.context)
     let rewards = initialData.map(\.rewards)
@@ -509,7 +504,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       .mapConst(true)
 
     let pledgeButtonEnabled = Signal.merge(
-      self.viewDidLoadProperty.signal.mapConst(false),
+      self.viewDidLoadEvents.output.mapConst(false),
       existingCardActivatesPledgeButton
     )
     .skipRepeats()
@@ -679,9 +674,19 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     self.checkoutTerminatedProperty.value = ()
   }
 
-  private let configureWithDataProperty = MutableProperty<PledgeViewData?>(nil)
+  private var configuredData: PledgeViewData?
+  private var hasLoadedView = false
+  private let initialDataEvents = Signal<PledgeViewData, Never>.pipe()
+  private let viewDidLoadEvents = Signal<Void, Never>.pipe()
+
   public func configure(with data: PledgeViewData) {
-    self.configureWithDataProperty.value = data
+    self.configuredData = data
+    self.publishInitialDataWhenReady()
+  }
+
+  private func publishInitialDataWhenReady() {
+    guard self.hasLoadedView, let data = self.configuredData else { return }
+    self.initialDataEvents.input.send(value: data)
   }
 
   private let confirmPaymentSuccessfulProperty = MutableProperty<String?>(nil)
@@ -716,9 +721,10 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     self.loginSignupUseCase.userSessionDidChange()
   }
 
-  private let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    self.hasLoadedView = true
+    self.publishInitialDataWhenReady()
+    self.viewDidLoadEvents.input.send(value: ())
   }
 
   private let (applePayButtonTappedSignal, applePayButtonTappedObserver) = Signal<Void, Never>.pipe()
