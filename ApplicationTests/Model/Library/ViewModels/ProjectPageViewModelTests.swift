@@ -104,8 +104,9 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.outputs.configureChildViewControllersWithProject.map(second)
         .observe(self.configureChildViewControllersWithRefTag.observer)
 
-      self.vm.outputs.configurePledgeCTAView
-        .observe(self.configurePledgeCTAView.observer)
+      self.vm.outputs.onConfigurePledgeCTA = { [weak self] in
+        self?.configurePledgeCTAView.observer.send(value: $0)
+      }
 
       self.vm.outputs.configureProjectNavigationSelectorView
         .observe(self.configureProjectNavigationSelectorView.observer)

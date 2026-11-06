@@ -143,7 +143,7 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var configureChildViewControllersWithProject: Signal<(Project, RefTag?), Never> { get }
 
   /// Emits PledgeCTAContainerViewData to configure PledgeCTAContainerView
-  var configurePledgeCTAView: Signal<PledgeCTAContainerViewData, Never> { get }
+  var onConfigurePledgeCTA: ((PledgeCTAContainerViewData) -> Void)? { get set }
 
   /// Emits `(Project, RefTag?)` to configure `ProjectNavigationSelectorView`
   var configureProjectNavigationSelectorView: Signal<(Project, RefTag?), Never> { get }
@@ -322,7 +322,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.similarProjectsUseCase = SimilarProjectsUseCase(projectDetailsFeature: projectDetailsFeature)
     let relatedState = self.relatedState
     self.similarProjectsUseCase.onState = { relatedState.value = $0 }
-    let isLoading = MutableProperty(false)
 
 
     // Output-only adapter: the Feature owns execution and completion.
@@ -356,16 +355,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         return (.overview, .left(project), refTag)
       }
       .merge(with: staleProjectDataSource)
-
-    self.configurePledgeCTAView = Signal.merge(
-      // Successful fetch
-      freshProject.map { .project($0) },
-      // Errored fetch
-      freshProjectAndRefTagEvent.errors().map { .error($0) },
-      // Loading
-      isLoading.signal.filter { $0 == true }.mapConst(.loading)
-    )
-    .skipRepeats()
 
     self.configureChildViewControllersWithProject = freshProjectAndRefTag
       .map { project, refTag in (project, refTag) }
@@ -587,7 +576,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
       guard let self else { return }
       switch update {
       case let .loading(updateRoute, loading) where updateRoute == route:
-        isLoading.value = loading
+        if loading { self.onConfigurePledgeCTA?(.loading) }
       case let .completion(updateRoute, result) where updateRoute == route:
         switch result {
         case let .success(project):
@@ -597,6 +586,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
           }
           self.latestProjectRefTag = self.requestRefTag
           self.onProjectFlagged?(project.flagging ?? false)
+          self.onConfigurePledgeCTA?(.project(project))
           completion.input.send(value: .value((project, self.requestRefTag)))
           self.updateFAQsIfReady()
           if let elements = project.extendedProjectProperties?.story.htmlViewElements {
@@ -605,7 +595,9 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
             self.onPrefetchImages?(elements.compactMap { $0 as? ImageViewElement })
             self.onPreloadAudioVideo?(elements.compactMap { $0 as? AudioVideoViewElement })
           }
-        case let .failure(error): completion.input.send(value: .failed(error))
+        case let .failure(error):
+          self.onConfigurePledgeCTA?(.error(error))
+          completion.input.send(value: .failed(error))
         }
       default: break
       }
@@ -831,7 +823,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     Never
   >
   public let configureChildViewControllersWithProject: Signal<(Project, RefTag?), Never>
-  public let configurePledgeCTAView: Signal<PledgeCTAContainerViewData, Never>
+  public var onConfigurePledgeCTA: ((PledgeCTAContainerViewData) -> Void)?
   public let configureProjectNavigationSelectorView: Signal<(Project, RefTag?), Never>
   public var onManagePledgeFinishedWithMessage: ((String) -> Void)?
   public var onGoToComments: ((Project) -> Void)?

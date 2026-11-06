@@ -433,11 +433,11 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         self?.tableView.reloadData()
       }
 
-    self.viewModel.outputs.configurePledgeCTAView
-      .observeForUI()
-      .observeValues { [weak self] value in
+    self.viewModel.outputs.onConfigurePledgeCTA = { [weak self] value in
+      DispatchQueue.main.async { [weak self] in
         self?.pledgeCTAContainerView.configureWith(value: value)
       }
+    }
 
     self.viewModel.outputs.configureProjectNavigationSelectorView
       .observeForUI()
