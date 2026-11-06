@@ -120,6 +120,10 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     let project = initialData.map(\.project)
     let baseReward = initialData.map(\.rewards).map(\.first).skipNil()
     let context = initialData.map(\.context)
+    let formState = self.formState
+    let enabledPipe = Signal<Bool, Never>.pipe()
+    formState.onChange = { enabledPipe.input.send(value: $0) }
+    initialData.observeValues { _ in formState.configure() }
     let requestState = PledgeRequestState()
     let createDataPipe = Signal<CreateBackingData, Never>.pipe()
     let updateDataPipe = Signal<UpdateBackingData, Never>.pipe()
@@ -136,12 +140,11 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     self.paymentMethodsUseCase = PaymentMethodsUseCase()
     let paymentMethods = self.paymentMethodsUseCase
     let paymentSelected = self.paymentSelectedPipe
-    let paymentValid = self.paymentValidPipe
     paymentMethods.onSelected = { value in
       paymentSelected.input.send(value: value)
       requestState.selectPayment(value)
     }
-    paymentMethods.onValidity = { paymentValid.input.send(value: $0) }
+    paymentMethods.onValidity = { formState.setPaymentValid($0) }
     initialData.observeValues { paymentMethods.configure($0) }
     self.loginStatePipe.output.observeValues { paymentMethods.loginChanged($0) }
 
@@ -170,8 +173,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     self.pledgeOverTimeUseCase = PledgeOverTimeUseCase(feature: feature)
     let planUseCase = self.pledgeOverTimeUseCase
-    let planLoading = self.planLoadingPipe
-    planUseCase.onLoading = { planLoading.input.send(value: $0) }
+    planUseCase.onLoading = { formState.setPlanLoading($0) }
     initialData.observeValues { data in
       planUseCase.updateProject(data.project)
       if let total = PledgeAmounts(data).total { planUseCase.updateTotal(total) }
@@ -273,23 +275,10 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     // MARK: - Form Validation
 
-    let valuesChangedAndValid = Signal.combineLatest(
-      self.paymentValidPipe.output,
-      self.planLoadingPipe.output,
-      context
-    )
-    .map(allValuesChangedAndValid)
-
-    let didCreateOrUpdateBacking = createOrUpdateEvent.filter { $0.isTerminating }
-
-    let isEnabled = Signal.merge(
-      self.viewDidLoadEvents.output.mapConst(false)
-        .take(until: valuesChangedAndValid.ignoreValues()),
-      valuesChangedAndValid,
-      self.submitButtonTappedSignal.mapConst(false),
-      valuesChangedAndValid.takeWhen(didCreateOrUpdateBacking)
-    )
-    .skipRepeats()
+    let isEnabled = enabledPipe.output
+    createOrUpdateEvent.observeValues { event in
+      if event.isTerminating { formState.requestFinished() }
+    }
 
     let isCreateOrUpdateBacking = Signal.merge(
       self.submitButtonTappedSignal.mapConst(true),
@@ -617,7 +606,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   private var latestUpdateBackingData: UpdateBackingData?
   private var hasLoadedView = false
   private let initialDataEvents = Signal<PledgeViewData, Never>.pipe()
-  private let viewDidLoadEvents = Signal<Void, Never>.pipe()
+  private let formState = PledgeFormState()
 
   public func configure(with data: PledgeViewData) {
     // A request from the previous configuration must never be submitted for this pledge.
@@ -680,6 +669,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
   private let (submitButtonTappedSignal, submitButtonTappedObserver) = Signal<Void, Never>.pipe()
   public func submitButtonTapped() {
+    self.formState.submitted()
     self.submitButtonTappedObserver.send(value: ())
     self.startBacking(isApplePay: false)
     self.trackPledgeSubmission(isApplePay: false)
@@ -719,7 +709,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   public func viewDidLoad() {
     self.hasLoadedView = true
     self.publishInitialDataWhenReady()
-    self.viewDidLoadEvents.input.send(value: ())
+    self.formState.viewLoaded()
   }
 
   public func userSessionDidChange() {
@@ -776,12 +766,10 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   }
 
   private let pledgeOverTimeUseCase: PledgeOverTimeUseCase
-  private let planLoadingPipe = Signal<Bool, Never>.pipe()
   private let loginSignupUseCase: LoginSignupUseCase
   private let loginStatePipe = Signal<Bool, Never>.pipe()
   private let paymentMethodsUseCase: PaymentMethodsUseCase
   private let paymentSelectedPipe = Signal<PaymentSourceSelected?, Never>.pipe()
-  private let paymentValidPipe = Signal<Bool, Never>.pipe()
 }
 
 // MARK: - Functions
@@ -813,15 +801,34 @@ private func shippingRuleValid(
   return backing.locationId != shippingRule.location.id
 }
 
-private func allValuesChangedAndValid(
-  paymentSourceValid: Bool,
-  pledgeOverTimeIsLoading: Bool,
-  context _: PledgeViewContext
-) -> Bool {
-  return paymentSourceValid && !pledgeOverTimeIsLoading
-}
-
 // MARK: - Helper Functions
+
+@MainActor
+private final class PledgeFormState {
+  var onChange: ((Bool) -> Void)?
+  private var hasContext = false
+  private var paymentValid: Bool?
+  private var planLoading: Bool?
+  private var lastEmitted: Bool?
+
+  func configure() { hasContext = true; publishCurrent() }
+  func setPaymentValid(_ value: Bool) { paymentValid = value; publishCurrent() }
+  func setPlanLoading(_ value: Bool) { planLoading = value; publishCurrent() }
+  func submitted() { publish(false) }
+  func requestFinished() { publishCurrent() }
+  func viewLoaded() { if lastEmitted == nil { publish(false) } }
+
+  private func publishCurrent() {
+    guard hasContext, let paymentValid, let planLoading else { return }
+    publish(paymentValid && !planLoading)
+  }
+
+  private func publish(_ value: Bool) {
+    guard lastEmitted != value else { return }
+    lastEmitted = value
+    onChange?(value)
+  }
+}
 
 @MainActor
 final class PledgeRequestState {
