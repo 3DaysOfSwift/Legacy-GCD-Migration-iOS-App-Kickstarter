@@ -126,7 +126,7 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.outputs.goToUpdates.observe(self.goToUpdates.observer)
       self.vm.outputs.goToURL.observe(self.goToURL.observer)
       self.vm.outputs.pauseMedia.observe(self.pauseMedia.observer)
-      self.vm.outputs.navigateBackToProjectPage.observe(self.navigateBackToProjectPage.observer)
+      self.vm.outputs.onNavigateBackToProjectPage = { [weak self] in self?.navigateBackToProjectPage.observer.send(value: ()) }
       self.vm.outputs.presentMessageDialog.observe(self.presentMessageDialog.observer)
       self.vm.outputs.precreateAudioVideoURLs.observe(self.precreateAudioVideoURLs.observer)
       self.vm.outputs.precreateAudioVideoURLsOnFirstLoad
@@ -135,7 +135,7 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.outputs.prefetchImageURLsOnFirstLoad.observe(self.prefetchImageURLsFirstLoad.observer)
       self.vm.outputs.projectFlagged.observe(self.projectFlagged.observer)
       self.vm.outputs.reloadCampaignData.observe(self.reloadCampaignData.observer)
-      self.vm.outputs.showHelpWebViewController.observe(self.showHelpWebViewController.observer)
+      self.vm.outputs.onShowHelp = { [weak self] in self?.showHelpWebViewController.observer.send(value: $0) }
       self.vm.outputs.showProjectPageTabWithData.map { $0.0 }
         .observe(self.showProjectPageTabWithDataNavigationSection.observer)
       self.vm.outputs.showProjectPageTabWithData.map { $0.1 }

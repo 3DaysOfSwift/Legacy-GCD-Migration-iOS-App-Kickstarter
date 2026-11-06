@@ -576,9 +576,7 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         self?.presentMessageDialog(project: project)
       }
 
-    self.viewModel.outputs.showHelpWebViewController
-      .observeForControllerAction()
-      .observeValues { [weak self] helpType in
+    self.viewModel.outputs.onShowHelp = { [weak self] helpType in
         self?.presentHelpWebViewController(with: helpType, presentationStyle: .formSheet)
       }
 
@@ -618,9 +616,7 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         self?.tableView.reloadData()
       }
 
-    self.viewModel.outputs.navigateBackToProjectPage
-      .observeForControllerAction()
-      .observeValues { [weak self] in
+    self.viewModel.outputs.onNavigateBackToProjectPage = { [weak self] in
         guard let self = self else { return }
         self.navigateBackToProjectPage()
       }

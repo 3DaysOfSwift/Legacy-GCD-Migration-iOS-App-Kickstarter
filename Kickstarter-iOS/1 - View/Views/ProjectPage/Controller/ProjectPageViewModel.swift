@@ -184,7 +184,7 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var pauseMedia: Signal<Void, Never> { get }
 
   /// Emits when the Project page should be shown again (popping back in the stack and dismissing any modals).
-  var navigateBackToProjectPage: Signal<(), Never> { get }
+  var onNavigateBackToProjectPage: (() -> Void)? { get set }
 
   /// Emits `Project` when the MessageDialogViewController should be presented
   var presentMessageDialog: Signal<Project, Never> { get }
@@ -208,7 +208,7 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var reloadCampaignData: Signal<Void, Never> { get }
 
   /// Emits a `HelpType` to use when presenting a HelpWebViewController.
-  var showHelpWebViewController: Signal<HelpType, Never> { get }
+  var onShowHelp: ((HelpType) -> Void)? { get set }
 
   /// Emits a tuple of a `NavigationSection`, `Project`, `RefTag?`, `[Bool]` (isExpanded values) and `[URL]` for campaign data to instruct the data source which section it is loading. Also a
   /// `SimilarProjectsState` for loading the Similar Projects Carousel.
@@ -323,7 +323,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.similarProjectsUseCase.onNavigate = { relatedNavigation.input.send(value: $0) }
     let isLoading = MutableProperty(false)
 
-    self.navigateBackToProjectPage = self.didBackProjectProperty.signal.ignoreValues()
 
     // Output-only adapter: the Feature owns execution and completion.
     let completion = Signal<Signal<(Project, RefTag?), ErrorEnvelope>.Event, Never>.pipe()
@@ -563,17 +562,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
     self.presentMessageDialog = freshProject
       .takeWhen(self.askAQuestionCellTappedProperty.signal)
-
-    let tappableCellURLs = Signal.merge(
-      self.projectTabDisclaimerCellDidTapURLProperty.signal,
-      self.projectRisksDisclaimerCellDidTapURLProperty.signal
-    )
-    .skipNil()
-
-    self.showHelpWebViewController =
-      tappableCellURLs
-        .map(HelpType.helpType)
-        .skipNil()
 
     let dataSourceUpdate = self.projectNavigationSelectorViewDidSelectProperty.signal
       .skipNil()
@@ -861,6 +849,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
   private let didBackProjectProperty = MutableProperty<Void>(())
   public func didBackProject() {
+    self.onNavigateBackToProjectPage?()
     self.didBackProjectProperty.value = ()
   }
 
@@ -904,9 +893,8 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.projectNoticeDetailsRequestedProperty.value = ()
   }
 
-  fileprivate let projectTabDisclaimerCellDidTapURLProperty = MutableProperty<URL?>(nil)
   public func projectTabDisclaimerCellDidTapURL(_ url: URL) {
-    self.projectTabDisclaimerCellDidTapURLProperty.value = url
+    if let help = HelpType.helpType(from: url) { self.onShowHelp?(help) }
   }
 
   private let projectNavigationSelectorViewDidSelectProperty = MutableProperty<Int?>(nil)
@@ -914,9 +902,8 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.projectNavigationSelectorViewDidSelectProperty.value = index
   }
 
-  fileprivate let projectRisksDisclaimerCellDidTapURLProperty = MutableProperty<URL?>(nil)
   public func projectRisksDisclaimerCellDidTapURL(_ url: URL) {
-    self.projectRisksDisclaimerCellDidTapURLProperty.value = url
+    if let help = HelpType.helpType(from: url) { self.onShowHelp?(help) }
   }
 
   fileprivate let tappedCommentsProperty = MutableProperty(())
@@ -980,7 +967,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   public let goToReportProject: Signal<(Bool, String, String), Never>
   public let goToURL: Signal<URL, Never>
   public let pauseMedia: Signal<Void, Never>
-  public let navigateBackToProjectPage: Signal<(), Never>
+  public var onNavigateBackToProjectPage: (() -> Void)?
   public let presentMessageDialog: Signal<Project, Never>
   public let precreateAudioVideoURLs: Signal<(AudioVideoViewElement, IndexPath), Never>
   public let precreateAudioVideoURLsOnFirstLoad: Signal<[AudioVideoViewElement], Never>
@@ -988,7 +975,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   public let prefetchImageURLsOnFirstLoad: Signal<[ImageViewElement], Never>
   public let projectFlagged: Signal<Bool, Never>
   public let reloadCampaignData: Signal<Void, Never>
-  public let showHelpWebViewController: Signal<HelpType, Never>
+  public var onShowHelp: ((HelpType) -> Void)?
   public let showProjectPageTabWithData: Signal<
     (NavigationSection, Project, RefTag?, [Bool], [URL], SimilarProjectsState, ProjectPageContentView),
     Never
