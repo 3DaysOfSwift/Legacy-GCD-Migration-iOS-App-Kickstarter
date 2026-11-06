@@ -620,6 +620,9 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   private let viewDidLoadEvents = Signal<Void, Never>.pipe()
 
   public func configure(with data: PledgeViewData) {
+    // A request from the previous configuration must never be submitted for this pledge.
+    self.latestCreateBackingData = nil
+    self.latestUpdateBackingData = nil
     self.configuredData = data
     self.publishInitialDataWhenReady()
   }

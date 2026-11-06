@@ -4264,6 +4264,33 @@ final class PledgeViewModelTests: TestCase {
     await self.feature.waitForOperations()
   }
 
+  func testReconfigurationWithoutBackingCannotSubmitPreviousUpdate() async {
+    let reward = Reward.template
+    let backed = Project.template |> Project.lens.personalization.backing .~ Backing.template
+    let unbacked = Project.template |> Project.lens.personalization.backing .~ nil
+    func pledge(_ project: Project) -> PledgeViewData {
+      PledgeViewData(project: project, rewards: [reward], bonusSupport: nil, selectedShippingRule: nil,
+                     selectedQuantities: [reward.id: 1], selectedLocationId: nil, refTag: nil,
+                     context: .changePaymentMethod)
+    }
+    await withEnvironment(apiService: MockService(), currentUser: .template) {
+      self.vm.inputs.configure(with: pledge(backed))
+      self.vm.inputs.viewDidLoad()
+      await self.feature.waitForOperations()
+      self.vm.inputs.creditCardSelected(with: .savedCreditCard("card", "pm"))
+      var processing: [Bool] = []
+      self.vm.outputs.onProcessingHidden = { processing.append($0) }
+      self.vm.inputs.submitButtonTapped()
+      await self.feature.waitForOperations()
+      XCTAssertTrue(processing.contains(false), "The original backed pledge must be ready to submit")
+      processing.removeAll()
+      self.vm.inputs.configure(with: pledge(unbacked))
+      self.vm.inputs.submitButtonTapped()
+      await self.feature.waitForOperations()
+      XCTAssertFalse(processing.contains(false), "A stale update must not start for a project without a backing")
+    }
+  }
+
   func testRequestStateWaitsForPaymentAndPlanAndClearsApplePayOnReconfigure() {
     let state = PledgeRequestState()
     let reward = Reward.template
