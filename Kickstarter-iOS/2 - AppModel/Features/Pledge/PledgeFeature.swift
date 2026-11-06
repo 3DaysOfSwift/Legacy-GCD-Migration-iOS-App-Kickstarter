@@ -240,6 +240,16 @@ public final class PledgeFeature {
   public func update(_ input: KsApi.UpdateBackingInput) async throws -> UpdateBackingEnvelope {
     try Self.updated(await self.execute(.update(input)))
   }
+  func startUpdate(_ input: KsApi.UpdateBackingInput) -> Task<UpdateBackingEnvelope, Error> {
+    let session = self.session
+    let command = self.request(.update(input))
+    return Task {
+      let value = try await command.value
+      try self.requireCurrent(session)
+      return try Self.updated(value)
+    }
+  }
+
   public func cancel(_ input: KsApi.CancelBackingInput) async throws {
     _ = try await self.execute(.cancel(input))
   }

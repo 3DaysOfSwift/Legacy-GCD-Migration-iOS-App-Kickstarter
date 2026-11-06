@@ -554,20 +554,33 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       )
     )
 
-    let updateBackingEvents = updateBackingDataAndIsApplePay
+    let updateBackingRequests = updateBackingDataAndIsApplePay
       .map(UpdateBackingInput.input(from:isApplePay:))
-      .switchMap { input in
-        feature.delayedResult(feature.updateResult(input))
-          .on(
-            starting: {
-              processingState.setHidden(false)
-            },
-            terminated: {
-              processingState.setHidden(true)
-            }
-          )
-          .map { $0 as StripeSCARequiring }
-          .materialize()
+    let updateIdentity = self.updateIdentity
+    let updateBackingEvents: Signal<Signal<StripeSCARequiring, ErrorEnvelope>.Event, Never> = self.updateEvents.output
+      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      .filter { [feature, updateIdentity] _, userID, generation, id in
+        guard updateIdentity.id == id else { return false }
+        guard feature.sessionFeature.isCurrent(userID: userID, generation: generation) else {
+          updateIdentity.id = UUID()
+          processingState.setHidden(true)
+          return false
+        }
+        return true
+      }
+      .map { event, _, _, _ in
+        switch event {
+        case let .value(envelope): return .value(envelope as StripeSCARequiring)
+        case let .failed(error):
+          processingState.setHidden(true)
+          return .failed(error)
+        case .completed:
+          processingState.setHidden(true)
+          return .completed
+        case .interrupted:
+          processingState.setHidden(true)
+          return .interrupted
+        }
       }
 
     let createOrUpdateEvent = Signal.merge(
@@ -919,6 +932,30 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         }
       }
     }
+    self.updateObservation = updateBackingRequests.observeValues { [weak self] input in
+      guard let self else { return }
+      self.updateTask?.cancel()
+      let userID = feature.sessionFeature.currentUser?.id
+      let generation = feature.sessionFeature.generation
+      let id = UUID()
+      self.updateIdentity.id = id
+      let request = feature.startUpdate(input)
+      processingState.setHidden(false)
+      self.updateTask = Task { [weak self] in
+        do {
+          let result = try await request.value
+          guard !Task.isCancelled else { return }
+          self?.updateEvents.input.send(value: (.value(result), userID, generation, id))
+          self?.updateEvents.input.send(value: (.completed, userID, generation, id))
+        } catch {
+          if Task.isCancelled || error is CancellationError {
+            if self?.updateIdentity.id == id { processingState.setHidden(true) }
+            return
+          }
+          self?.updateEvents.input.send(value: (.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), userID, generation, id))
+        }
+      }
+    }
     _ = updateBackingCompletionEvents.observeValues { [weak self] in
       self?.onPledgeUpdateSucceeded?(Strings.Got_it_your_changes_have_been_saved())
     }
@@ -1054,7 +1091,14 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   private var createObservation: (any Disposable)?
   private var createTask: Task<Void, Never>?
 
+  private let updateEvents = Signal<(Signal<UpdateBackingEnvelope, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
+  private let updateIdentity = PledgeWriteIdentity()
+  private var updateObservation: (any Disposable)?
+  private var updateTask: Task<Void, Never>?
+
   deinit {
+    self.updateObservation?.dispose()
+    self.updateTask?.cancel()
     self.createObservation?.dispose()
     self.createTask?.cancel()
   }

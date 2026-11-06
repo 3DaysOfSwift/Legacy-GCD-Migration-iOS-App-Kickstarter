@@ -55,7 +55,7 @@ final class PledgeFeatureTests: TestCase {
     let updateInput = self.updateInput()
     let cancelInput = KsApi.CancelBackingInput(
       backingId: "backing", cancellationReason: "fixture note")
-    let update = Task { try await self.feature.update(updateInput) }
+    let update = self.feature.startUpdate(updateInput)
     await self.provider.updates.waitFor(1)
     let cancel = Task { try await self.feature.cancel(cancelInput) }
     await Task.yield()
