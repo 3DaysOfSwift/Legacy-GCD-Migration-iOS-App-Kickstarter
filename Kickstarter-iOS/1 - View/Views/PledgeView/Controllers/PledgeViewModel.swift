@@ -118,7 +118,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     let initialData = self.initialDataEvents.output
 
     let project = initialData.map(\.project)
-    let baseReward = initialData.map(\.rewards).map(\.first).skipNil()
     let context = initialData.map(\.context)
     let formState = self.formState
     let ctaState = PledgeCTAState()
@@ -152,8 +151,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     }
 
     let amounts = initialData.map(PledgeAmounts.init)
-    let allRewardsShippingTotal = amounts.map(\.shipping)
-    let additionalPledgeAmount = amounts.map(\.bonus)
     let pledgeTotal = amounts.map(\.total).skipNil()
 
     // MARK: - Apple Pay
@@ -187,20 +184,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     let createBackingData = createDataPipe.output
 
-    let createButtonTapped = context
-      .takeWhen(self.submitButtonTappedSignal)
-      .filter { context in context.isCreating }
-      .ignoreValues()
-
-    let createBackingDataAndIsApplePay = createBackingData.takePairWhen(
-      Signal.merge(
-        createButtonTapped.mapConst(false),
-        willCreateApplePayBacking
-      )
-    )
-
-    // Captures the checkoutId immediately and avoids a race condition further down the chain.
-    let checkoutIdProperty = MutableProperty<Int?>(nil)
+    let thanksState = self.thanksState
     let processingState = PledgeProcessingState()
 
     let createIdentity = self.createIdentity
@@ -218,7 +202,8 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       .map { event, _, _, _ in
         switch event {
         case let .value(envelope):
-          checkoutIdProperty.value = decompose(id: envelope.createBacking.checkout.id)
+          thanksState.checkoutID = decompose(id: envelope.createBacking.checkout.id)
+          thanksState.hasCheckoutResult = true
           return .value(envelope as StripeSCARequiring)
         case let .failed(error):
           processingState.setHidden(true)
@@ -346,56 +331,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       createOrUpdateBackingDidCompleteNoSCA.combineLatest(with: creatingContext).ignoreValues(),
       scaFlowCompletedWithSuccess.combineLatest(with: creatingContext).ignoreValues()
     )
-
-    let thanksPageData = Signal.combineLatest(
-      createBackingDataAndIsApplePay,
-      checkoutIdProperty.signal,
-      baseReward,
-      additionalPledgeAmount,
-      allRewardsShippingTotal
-    )
-    .map { dataAndIsApplePay, checkoutId, baseReward, additionalPledgeAmount, shippingTotal
-      -> (CreateBackingData, Bool, String?, Reward, Double, Double) in
-      let (data, isApplePay) = dataAndIsApplePay
-      guard let checkoutId = checkoutId else {
-        return (
-          data,
-          isApplePay,
-          nil,
-          baseReward,
-          additionalPledgeAmount,
-          shippingTotal
-        )
-      }
-      return (
-        data,
-        isApplePay,
-        String(checkoutId),
-        baseReward,
-        additionalPledgeAmount,
-        shippingTotal
-      )
-    }
-    .map { data, isApplePay, checkoutId, baseReward, additionalPledgeAmount, shippingTotal
-      -> ThanksPageData? in
-      let checkoutPropsData = checkoutProperties(
-        from: data.project,
-        baseReward: baseReward,
-        addOnRewards: data.rewards,
-        selectedQuantities: data.selectedQuantities,
-        additionalPledgeAmount: additionalPledgeAmount,
-        pledgeTotal: data.pledgeTotal,
-        shippingTotal: shippingTotal,
-        checkoutId: checkoutId,
-        isApplePay: isApplePay
-      )
-
-      return (data.project, baseReward, checkoutPropsData, data.pledgeTotal)
-    }
-    .skipNil()
-
-    let goToThanks: Signal<ThanksPageData, Never> = thanksPageData
-      .takeWhen(createBackingCompletionEvents)
 
     let errorsOrNil = Signal.merge(
       createOrUpdateEvent.errors().wrapInOptional(),
@@ -551,7 +486,10 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     }
     _ = errorMessages.observeValues { [weak self] in self?.onShowError?($0) }
     _ = beginSCAFlowWithClientSecret.observeValues { [weak self] in self?.onBeginSCA?($0) }
-    _ = goToThanks.observeValues { [weak self] in self?.onGoToThanks?($0) }
+    _ = createBackingCompletionEvents.observeValues { [weak self] in
+      guard let self, let data = self.thanksState.pageData() else { return }
+      self.onGoToThanks?(data)
+    }
     self.applePayAuthorization.onSuccess = { [weak self] in
       applePaySuccess.input.send(value: ())
       self?.startBacking(isApplePay: true)
@@ -584,6 +522,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   private var configuredData: PledgeViewData?
   private var latestCreateBackingData: CreateBackingData?
   private var latestUpdateBackingData: UpdateBackingData?
+  private let thanksState = PledgeThanksState()
   private var hasLoadedView = false
   private let initialDataEvents = Signal<PledgeViewData, Never>.pipe()
   private let formState = PledgeFormState()
@@ -658,6 +597,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   private func startBacking(isApplePay: Bool) {
     guard self.hasLoadedView, let context = self.configuredData?.context else { return }
     if context.isCreating, let data = self.latestCreateBackingData {
+      self.thanksState.configure(data: data, pledge: self.configuredData, isApplePay: isApplePay)
       self.startCreate?(data, isApplePay)
     } else if context.isUpdating, let data = self.latestUpdateBackingData {
       self.startUpdate?(data, isApplePay)
@@ -780,6 +720,35 @@ private func shippingRuleValid(
 }
 
 // MARK: - Helper Functions
+
+@MainActor
+private final class PledgeThanksState {
+  var checkoutID: Int?
+  var hasCheckoutResult = false
+  private var data: CreateBackingData?
+  private var pledge: PledgeViewData?
+  private var isApplePay = false
+
+  func configure(data: CreateBackingData, pledge: PledgeViewData?, isApplePay: Bool) {
+    self.data = data
+    self.pledge = pledge
+    self.isApplePay = isApplePay
+    checkoutID = nil
+    hasCheckoutResult = false
+  }
+
+  func pageData() -> ThanksPageData? {
+    guard hasCheckoutResult, let data, let pledge, let reward = pledge.rewards.first else { return nil }
+    let amounts = PledgeAmounts(pledge)
+    let checkout = checkoutProperties(
+      from: data.project, baseReward: reward, addOnRewards: data.rewards,
+      selectedQuantities: data.selectedQuantities, additionalPledgeAmount: amounts.bonus,
+      pledgeTotal: data.pledgeTotal, shippingTotal: amounts.shipping,
+      checkoutId: checkoutID.map(String.init), isApplePay: isApplePay
+    )
+    return (data.project, reward, checkout, data.pledgeTotal)
+  }
+}
 
 @MainActor
 private final class PledgeCTAState {
