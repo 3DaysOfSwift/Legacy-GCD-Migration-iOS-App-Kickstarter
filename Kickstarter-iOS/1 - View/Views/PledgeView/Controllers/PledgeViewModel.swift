@@ -121,9 +121,12 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     let baseReward = initialData.map(\.rewards).map(\.first).skipNil()
     let context = initialData.map(\.context)
     let formState = self.formState
-    let enabledPipe = Signal<Bool, Never>.pipe()
-    formState.onChange = { enabledPipe.input.send(value: $0) }
-    initialData.observeValues { _ in formState.configure() }
+    let ctaState = PledgeCTAState()
+    formState.onChange = { ctaState.setEnabled($0) }
+    initialData.observeValues { data in
+      ctaState.configure(data)
+      formState.configure()
+    }
     let requestState = PledgeRequestState()
     let createDataPipe = Signal<CreateBackingData, Never>.pipe()
     let updateDataPipe = Signal<UpdateBackingData, Never>.pipe()
@@ -133,20 +136,20 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     self.loginSignupUseCase = LoginSignupUseCase(withLoginIntent: .backProject)
     let login = self.loginSignupUseCase
-    let loginState = self.loginStatePipe
-    login.onLoginState = { loginState.input.send(value: $0) }
     initialData.observeValues { _ in login.initialDataAvailable() }
 
     self.paymentMethodsUseCase = PaymentMethodsUseCase()
     let paymentMethods = self.paymentMethodsUseCase
-    let paymentSelected = self.paymentSelectedPipe
     paymentMethods.onSelected = { value in
-      paymentSelected.input.send(value: value)
+      ctaState.selectPayment(value)
       requestState.selectPayment(value)
     }
     paymentMethods.onValidity = { formState.setPaymentValid($0) }
     initialData.observeValues { paymentMethods.configure($0) }
-    self.loginStatePipe.output.observeValues { paymentMethods.loginChanged($0) }
+    login.onLoginState = { value in
+      ctaState.setLoggedIn(value)
+      paymentMethods.loginChanged(value)
+    }
 
     let amounts = initialData.map(PledgeAmounts.init)
     let allRewardsShippingTotal = amounts.map(\.shipping)
@@ -275,7 +278,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     // MARK: - Form Validation
 
-    let isEnabled = enabledPipe.output
     createOrUpdateEvent.observeValues { event in
       if event.isTerminating { formState.requestFinished() }
     }
@@ -431,28 +433,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       scaErrors
     )
 
-    let willRetryPaymentMethod = Signal.combineLatest(
-      context,
-      project,
-      self.paymentSelectedPipe.output
-    )
-    .map { context, project, selectedPaymentSource -> Bool in
-
-      context == .fixPaymentMethod
-        && project.personalization.backing?.paymentSource?.id == selectedPaymentSource?.savedCreditCardId
-    }
-    .skipRepeats()
-
-    let pledgeCTA: Signal<PledgeViewCTAContainerViewData, Never> = Signal.combineLatest(
-      project,
-      pledgeTotal.skipRepeats(),
-      self.loginStatePipe.output,
-      isEnabled,
-      context,
-      willRetryPaymentMethod
-    )
-    .map { $0 as PledgeViewCTAContainerViewData }
-
     _ = createBackingData.observeValues { [weak self] in self?.latestCreateBackingData = $0 }
     _ = updateBackingData.observeValues { [weak self] in self?.latestUpdateBackingData = $0 }
     _ = initialData.observeValues { [weak self] data in
@@ -514,7 +494,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         AppEnvironment.current.environmentType.stripePublishableKey
       )
     }
-    _ = pledgeCTA.observeValues { [weak self] in self?.onPledgeCTA?($0) }
+    ctaState.onChange = { [weak self] in self?.onPledgeCTA?($0) }
     processingState.onChange = { [weak self] in self?.onProcessingHidden?($0) }
     self.startCreate = { [weak self] data, isApplePay in
       guard let self else { return }
@@ -767,9 +747,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
   private let pledgeOverTimeUseCase: PledgeOverTimeUseCase
   private let loginSignupUseCase: LoginSignupUseCase
-  private let loginStatePipe = Signal<Bool, Never>.pipe()
   private let paymentMethodsUseCase: PaymentMethodsUseCase
-  private let paymentSelectedPipe = Signal<PaymentSourceSelected?, Never>.pipe()
 }
 
 // MARK: - Functions
@@ -802,6 +780,39 @@ private func shippingRuleValid(
 }
 
 // MARK: - Helper Functions
+
+@MainActor
+private final class PledgeCTAState {
+  var onChange: ((PledgeViewCTAContainerViewData) -> Void)?
+  private var data: PledgeViewData?
+  private var loggedIn: Bool?
+  private var enabled: Bool?
+  private var payment: PaymentSourceSelected?
+  private var hasPaymentSelection = false
+
+  func configure(_ data: PledgeViewData) { self.data = data; publish() }
+  func setLoggedIn(_ value: Bool) { loggedIn = value; publish() }
+  func setEnabled(_ value: Bool) { enabled = value; publish() }
+  func selectPayment(_ value: PaymentSourceSelected?) {
+    let previousRetry = retryState
+    let hadSelection = hasPaymentSelection
+    payment = value
+    hasPaymentSelection = true
+    if !hadSelection || previousRetry != retryState { publish() }
+  }
+
+  private var retryState: Bool {
+    guard let data else { return false }
+    return data.context == .fixPaymentMethod &&
+      data.project.personalization.backing?.paymentSource?.id == payment?.savedCreditCardId
+  }
+
+  private func publish() {
+    guard let data, let total = PledgeAmounts(data).total, let loggedIn, let enabled,
+          hasPaymentSelection else { return }
+    onChange?((data.project, total, loggedIn, enabled, data.context, retryState))
+  }
+}
 
 @MainActor
 private final class PledgeFormState {
