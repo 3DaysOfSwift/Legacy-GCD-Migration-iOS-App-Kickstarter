@@ -6,7 +6,6 @@ import GraphAPITestMocks
 
 
 import Prelude
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -21,7 +20,6 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
   )
   private lazy var vm = BackerDashboardProjectsViewModel(profileFeature: self.feature)
   private func advanceRequests() async {
-    await self.scheduler.advance()
     await self.vm.pageTask?.value
   }
 

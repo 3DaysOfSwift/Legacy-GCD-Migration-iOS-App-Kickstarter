@@ -4,7 +4,6 @@ import AppTrackingTransparency
 
 
 import Prelude
-import ReactiveSwift
 import XCTest
 
 @MainActor

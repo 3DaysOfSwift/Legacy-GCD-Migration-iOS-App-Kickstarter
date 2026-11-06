@@ -6,7 +6,6 @@ import Foundation
 
 import Observation
 import Prelude
-import ReactiveSwift
 import XCTest
 import UIKit
 
@@ -331,7 +330,6 @@ final class ProjectMediaFeatureTests: TestCase {
       vm.saveButtonTapped(selected: false)
       XCTAssertEqual(feature.cached(original).personalization.isStarred, true)
       vm.configure(with: (replacement, .project, nil))
-      await self.scheduler.advance(by: .seconds(1))
       await feature.waitForOperations()
       XCTAssertTrue(provider.watches.isEmpty)
       XCTAssertEqual(feature.cached(original).personalization.isStarred, false)

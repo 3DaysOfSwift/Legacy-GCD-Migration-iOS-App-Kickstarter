@@ -3,7 +3,6 @@ import GraphAPI
 @testable import KsApi
 
 
-import ReactiveSwift
 
 import XCTest
 
@@ -45,7 +44,6 @@ final class ReportProjectFormViewModelTests: TestCase {
       }
 
       await vm.inputs.viewDidLoad().value
-      await self.scheduler.advance()
 
       XCTAssertEqual(userEmail.events.count, 2)
 

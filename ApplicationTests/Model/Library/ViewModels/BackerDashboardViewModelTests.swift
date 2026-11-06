@@ -3,7 +3,6 @@
 
 
 import Prelude
-import ReactiveSwift // The legacy test environment owns the scheduler.
 import XCTest
 
 @MainActor
@@ -18,7 +17,6 @@ internal final class BackerDashboardViewModelTests: TestCase {
   )
   private lazy var vm = BackerDashboardViewModel(profileFeature: self.feature)
   private func advanceRequests() async {
-    await self.scheduler.advance()
     await self.vm.headerTask?.value
   }
 
