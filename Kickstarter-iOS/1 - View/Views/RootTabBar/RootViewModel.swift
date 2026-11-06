@@ -115,7 +115,7 @@ public protocol RootViewModelOutputs: AnyObject {
 
   /// Emits a controller index that should be scrolled to the top. This requires figuring out what kind of
   /// controller it is, and setting its `contentOffset`.
-  var scrollToTop: Signal<RootViewControllerIndex, Never> { get }
+  var onScrollToTop: ((RootViewControllerIndex) -> Void)? { get set }
 
   /// Emits an index that the tab bar should be switched to.
   var selectedIndex: Signal<RootViewControllerIndex, Never> { get }
@@ -147,6 +147,7 @@ public protocol RootViewModelType {
 public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootViewModelOutputs {
   private let profileFeature: ProfileFeature
   private var sessionFeature: SessionFeature { self.profileFeature.sessionFeature }
+  private var latestSelectedIndex: RootViewControllerIndex?
   private var avatarTask: Task<Void, Never>?
   private var avatarID: UUID?
   private var avatarInput: (URL, Int, Int)?
@@ -325,13 +326,6 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
     currentBadgeValue <~ self.setBadgeValueAtIndex.map { $0.0 }
 
 
-    let shouldSelectIndex = self.shouldSelectIndexProperty.signal
-      .skipNil()
-
-    self.scrollToTop = self.selectedIndex
-      .takePairWhen(shouldSelectIndex)
-      .filter { prev, next in prev == next }
-      .map { $1 }
 
     // FIXME: This signal always needs to happen when setViewControllers happens.
     // Should they be combined into one signal with a tuple? Explicitly made dependent on one another?
@@ -396,6 +390,7 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
           )
       }
 
+    self.selectedIndex.observeValues { [weak self] in self?.latestSelectedIndex = $0 }
     clearBadgeValueOnActivitiesTabSelected.observeValues { [weak self] _ in
       self?.clearActivityBadge()
     }
@@ -499,9 +494,9 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
     self.didSelectIndexProperty.value = index
   }
 
-  fileprivate let shouldSelectIndexProperty = MutableProperty<Int?>(nil)
   public func shouldSelect(index: Int?) {
-    self.shouldSelectIndexProperty.value = index
+    guard let index, index == self.latestSelectedIndex else { return }
+    self.onScrollToTop?(index)
   }
 
   fileprivate let switchToActivitiesProperty = MutableProperty(())
@@ -555,7 +550,7 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   }
 
   public let filterDiscovery: Signal<(RootViewControllerIndex, DiscoveryParams), Never>
-  public let scrollToTop: Signal<RootViewControllerIndex, Never>
+  public var onScrollToTop: ((RootViewControllerIndex) -> Void)?
   public let selectedIndex: Signal<RootViewControllerIndex, Never>
   public let setBadgeValueAtIndex: Signal<RootTabBarItemBadgeValueData, Never>
   public let setViewControllers: Signal<[RootViewControllerData], Never>

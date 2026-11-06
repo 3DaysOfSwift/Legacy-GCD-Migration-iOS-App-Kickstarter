@@ -78,13 +78,10 @@ final class RootViewModelTests: TestCase {
       self.vm.outputs.setBadgeValueAtIndex.map { $0.1 }.observe(self.setBadgeValueAtIndexIndex.observer)
       self.vm.outputs.onUserUpdated = { [weak self] in self?.updateUserInEnvironment.observer.send(value: $0) }
 
-      let viewControllers = self.vm.outputs.setViewControllers
-        .map { $0.map(RootTabBarViewController.viewController(from:)).compact() }
-
-      Signal.combineLatest(viewControllers, self.vm.outputs.scrollToTop)
-        .map { vcs, idx in vcs[clamp(0, vcs.count - 1)(idx)] }
-        .map(extractName)
-        .observe(self.scrollToTopControllerName.observer)
+      self.vm.outputs.onScrollToTop = { [weak self] index in
+        guard let self, let names = self.viewControllerNames.lastValue, !names.isEmpty else { return }
+        self.scrollToTopControllerName.observer.send(value: names[clamp(0, names.count - 1)(index)])
+      }
 
       self.vm.outputs.tabBarItemsData.observe(self.tabBarItemsData.observer)
     }

@@ -113,16 +113,12 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
       .observeForUI()
       .observeValues { [weak self] in self?.selectedIndex = $0 }
 
-    self.viewModel.outputs.scrollToTop
-      .observeForControllerAction()
-      .map { [weak self] index -> UIViewController? in
-        guard let vcs = self?.viewControllers else { return nil }
-
-        return vcs[clamp(0, vcs.count - 1)(index)]
+    self.viewModel.outputs.onScrollToTop = { [weak self] index in
+      DispatchQueue.main.async { [weak self] in
+        guard let vcs = self?.viewControllers, !vcs.isEmpty else { return }
+        scrollToTop(extractViewController(vcs[clamp(0, vcs.count - 1)(index)]))
       }
-      .skipNil()
-      .map(extractViewController)
-      .observeValues(scrollToTop)
+    }
 
     self.viewModel.outputs.onAvatarImage = { [weak self] data, url, index in
         guard let self, let current = self.lastTabBarItemsData, current.isLoggedIn,
