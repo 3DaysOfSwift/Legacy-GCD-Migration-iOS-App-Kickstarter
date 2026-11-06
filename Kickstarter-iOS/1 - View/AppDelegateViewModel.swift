@@ -164,7 +164,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var onSegmentEnabled: ((Bool) -> Void)? { get set }
 
   /// Emits an array of short cut items to put into the shared application.
-  var setApplicationShortcutItems: Signal<[ShortcutItem], Never> { get }
+  var onSetApplicationShortcutItems: (([ShortcutItem]) -> Void)? { get set }
 
   /// Emits when an alert should be shown.
   var onShowAlert: ((Notification) -> Void)? { get set }
@@ -213,6 +213,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   private var pushDebounceTask: Task<Void, Never>?
   private var pushPresentationTask: Task<Void, Never>?
   private var configurationTask: Task<Void, Never>?
+  private var shortcutTask: Task<Void, Never>?
   private var setupRequest: Task<GraphUserSetup, Error>?
   private var setupObservation: Task<Void, Never>?
   private var lastSegmentEnabled: Bool?
@@ -456,9 +457,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
 
 
-    self.setApplicationShortcutItems = currentUserEvent
-      .values()
-      .switchMap { user in shortcutItems(forUser: user, feature: lifecycleFeature) }
 
 
     self.applicationIconBadgeNumber = Signal.merge(
@@ -512,12 +510,17 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
           }
         }
       }
+
+    currentUserEvent.values().observeValues { [weak self] user in
+      self?.refreshShortcutItems(for: user)
+    }
   }
 
   deinit {
     self.pushDebounceTask?.cancel()
     self.pushPresentationTask?.cancel()
     self.configurationTask?.cancel()
+    self.shortcutTask?.cancel()
     self.setupObservation?.cancel()
     self.setupRequest?.cancel()
     let redirectObservation = self.redirectObservation
@@ -531,6 +534,22 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
   public var inputs: AppDelegateViewModelInputs { return self }
   public var outputs: AppDelegateViewModelOutputs { return self }
+
+  private func refreshShortcutItems(for user: User?) {
+    self.shortcutTask?.cancel()
+    let feature = self.lifecycleFeature
+    self.shortcutTask = Task { [weak self] in
+      do {
+        let recommendations = try await feature.hasRecommendations(for: user)
+        try Task.checkCancellation()
+        let items = shortcutItems(isProjectMember: (user?.stats.memberProjectsCount ?? 0) > 0,
+                                  hasRecommendations: recommendations)
+        self?.onSetApplicationShortcutItems?(items)
+      } catch { /* Failed recommendation reads leave existing shortcuts in place. */ }
+    }
+  }
+
+  func waitForShortcutUpdate() async { await self.shortcutTask?.value }
 
   private func refreshUserSetup() {
     self.setupObservation?.cancel()
@@ -780,7 +799,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public var onRegisterPushTokenInBraze: ((Data) -> Void)?
   public let requestATTrackingAuthorizationStatus: Signal<Void, Never>
   public var onSegmentEnabled: ((Bool) -> Void)?
-  public let setApplicationShortcutItems: Signal<[ShortcutItem], Never>
+  public var onSetApplicationShortcutItems: (([ShortcutItem]) -> Void)?
   public var onShowAlert: ((Notification) -> Void)?
   public var onSynchronizeUbiquitousStore: (() -> Void)?
   public let trackingAuthorizationStatus: SignalProducer<AppTrackingAuthorization, Never>
@@ -955,14 +974,6 @@ private func lifecycleResult<Value>(
       lifetime.observeEnded { task.cancel() }
     }
   }
-}
-
-// Rendering policy remains unchanged; the Feature owns the recommendation read.
-@MainActor
-private func shortcutItems(forUser user: User?, feature: AppLifecycleFeature) -> SignalProducer<[ShortcutItem], Never> {
-  lifecycleResult(feature: feature) { try await feature.hasRecommendations(for: user) }
-    .map { shortcutItems(isProjectMember: (user?.stats.memberProjectsCount ?? 0) > 0, hasRecommendations: $0) }
-    .demoteErrors()
 }
 
 // Figures out which shortcut items to show to a user based on whether they are a project member and/or

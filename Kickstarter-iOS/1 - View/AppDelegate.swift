@@ -285,11 +285,11 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       }
     }
 
-    self.viewModel.outputs.setApplicationShortcutItems
-      .observeForUI()
-      .observeValues { shortcutItems in
+    self.viewModel.outputs.onSetApplicationShortcutItems = { shortcutItems in
+      DispatchQueue.main.async {
         UIApplication.shared.shortcutItems = shortcutItems.map { $0.applicationShortcutItem }
       }
+    }
 
     self.viewModel.outputs.findRedirectUrl
       .observeForUI()

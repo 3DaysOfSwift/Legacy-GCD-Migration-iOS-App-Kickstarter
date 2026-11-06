@@ -134,7 +134,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.outputs.onRegisterPushTokenInBraze = { [weak self] in self?.registerPushTokenInBraze.observer.send(value: $0) }
     self.vm.outputs.requestATTrackingAuthorizationStatus
       .observe(self.requestATTrackingAuthorizationStatus.observer)
-    self.vm.outputs.setApplicationShortcutItems.observe(self.setApplicationShortcutItems.observer)
+    self.vm.outputs.onSetApplicationShortcutItems = { [weak self] in self?.setApplicationShortcutItems.observer.send(value: $0) }
     self.vm.outputs.onShowAlert = { [weak self] in self?.showAlert.observer.send(value: $0) }
     self.vm.outputs.onSegmentEnabled = { [weak self] in self?.segmentIsEnabled.observer.send(value: $0) }
     self.disposables
@@ -1431,6 +1431,7 @@ final class AppDelegateViewModelTests: TestCase {
     await self.settingsFeature.waitForOperations()
 
     await self.lifecycleFeature.waitForOperations()
+    await (self.vm as? AppDelegateViewModel)?.waitForShortcutUpdate()
     self.setApplicationShortcutItems.assertValues([[.projectsWeLove, .search]])
 
     self.vm.inputs.applicationDidEnterBackground()
@@ -1439,6 +1440,7 @@ final class AppDelegateViewModelTests: TestCase {
     await self.settingsFeature.waitForOperations()
 
     await self.lifecycleFeature.waitForOperations()
+    await (self.vm as? AppDelegateViewModel)?.waitForShortcutUpdate()
     self.setApplicationShortcutItems.assertValues(
       [
         [.projectsWeLove, .search],
@@ -1465,6 +1467,7 @@ final class AppDelegateViewModelTests: TestCase {
       await self.settingsFeature.waitForOperations()
 
       await self.lifecycleFeature.waitForOperations()
+      await (self.vm as? AppDelegateViewModel)?.waitForShortcutUpdate()
       self.setApplicationShortcutItems.assertValues([
         [.recommendedForYou, .projectsWeLove, .search]
       ])
@@ -1489,6 +1492,7 @@ final class AppDelegateViewModelTests: TestCase {
       await self.settingsFeature.waitForOperations()
 
       await self.lifecycleFeature.waitForOperations()
+      await (self.vm as? AppDelegateViewModel)?.waitForShortcutUpdate()
       self.setApplicationShortcutItems.assertValues([
         [.recommendedForYou, .projectsWeLove, .search]
       ])
