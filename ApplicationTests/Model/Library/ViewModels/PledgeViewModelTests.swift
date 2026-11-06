@@ -4264,6 +4264,24 @@ final class PledgeViewModelTests: TestCase {
     await self.feature.waitForOperations()
   }
 
+  func testPledgeAmountSummaryUsesConfiguredBackingAndBonus() async {
+    let backing = Backing.template |> Backing.lens.bonusAmount .~ 80
+    let project = Project.template |> Project.lens.personalization.backing .~ backing
+    let reward = Reward.template |> Reward.lens.minimum .~ 10
+    let data = PledgeViewData(
+      project: project, rewards: [reward], bonusSupport: 15, selectedShippingRule: nil,
+      selectedQuantities: [reward.id: 1], selectedLocationId: nil, refTag: nil,
+      context: .changePaymentMethod
+    )
+    var summaries: [PledgeAmountSummaryViewData] = []
+    self.vm.outputs.onPledgeAmountSummary = { summaries.append($0) }
+    self.vm.inputs.configure(with: data)
+    self.vm.inputs.viewDidLoad()
+    XCTAssertEqual(summaries.last?.bonusAmount, 15)
+    XCTAssertEqual(summaries.last?.rewardMinimum, 10)
+    await self.feature.waitForOperations()
+  }
+
   func testConfigureLocalPickupViewWithData_Success() async {
     self.configureLocalPickupViewWithData.assertDidNotEmitValue()
 

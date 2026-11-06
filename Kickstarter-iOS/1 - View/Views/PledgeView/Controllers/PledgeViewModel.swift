@@ -188,43 +188,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       }
     }
 
-    let projectAndReward = Signal.zip(project, baseReward)
-
-    /**
-     Shipping location selector is hidden if the context hides it,
-     if the base reward has no shipping, when add-ons were selected or when base reward has local pickup option.
-     */
-    let nonLocalPickupShippingLocationViewHidden = Signal.combineLatest(baseReward, rewards, context)
-      .map { baseReward, rewards, context in
-        [
-          context.shippingLocationViewHidden,
-          !baseReward.shipping.enabled,
-          rewards.count > 1
-        ].contains(true)
-      }
-
-    /**
-     if the base reward has no shipping, when NO add-ons were selected or when base reward has local pickup option.
-     */
-    let nonLocalPickupShippingSummaryViewHidden = Signal.combineLatest(baseReward, rewards, context)
-      .map { baseReward, rewards, context in
-        [
-          context.isAny(of: .changePaymentMethod, .fixPaymentMethod),
-          !baseReward.shipping.enabled,
-          rewards.count == 1
-        ].contains(true)
-      }
-
-    let shippingViewsHiddenConditionsForPledgeAmountSummary: Signal<Bool, Never> = Signal
-      .combineLatest(
-        nonLocalPickupShippingLocationViewHidden,
-        nonLocalPickupShippingSummaryViewHidden
-      )
-      .map { a, b -> Bool in
-        let r = a && b
-        return r
-      }
-
     /**
      * The total pledge amount that will be used to create the backing.
      * For a regular reward this includes the bonus support amount,
@@ -315,18 +278,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       )
       return (rewardsData, additionalPledgeAmount, pledgeData)
     }
-
-    let pledgeAmountSummary = Signal.combineLatest(
-      projectAndReward,
-      allRewardsTotal,
-      additionalPledgeAmount,
-      shippingViewsHiddenConditionsForPledgeAmountSummary
-    )
-    .map { projectAndReward, allRewardsTotal, amount, shippingViewsHidden in
-      (projectAndReward.0, projectAndReward.1, allRewardsTotal, amount, shippingViewsHidden)
-    }
-    .map(pledgeAmountSummaryViewData)
-    .skipNil()
 
     let configurePaymentMethodsViewController = Signal.merge(
       initialDataUnpacked,
@@ -866,6 +817,23 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         )
       }
     _ = initialData.observeValues { [weak self] data in
+      if let reward = data.rewards.first {
+        let locationHidden = data.context.shippingLocationViewHidden || !reward.shipping.enabled || data.rewards.count > 1
+        let summaryHidden = data.context.isAny(of: .changePaymentMethod, .fixPaymentMethod) ||
+          !reward.shipping.enabled || data.rewards.count == 1
+        let total: Double
+        if data.context == .fixPaymentMethod, let amount = data.project.personalization.backing?.rewardsAmount {
+          total = amount
+        } else {
+          total = calculateAllRewardsTotal(addOnRewards: data.rewards, selectedQuantities: data.selectedQuantities)
+        }
+        let bonus = data.bonusSupport ?? data.project.personalization.backing?.bonusAmount ?? 0
+        if let summary = pledgeAmountSummaryViewData(with: data.project, reward: reward, allRewardsTotal: total,
+                                                     additionalPledgeAmount: bonus,
+                                                     shippingViewsHidden: locationHidden && summaryHidden) {
+          self?.onPledgeAmountSummary?(summary)
+        }
+      }
       if let locationName = data.rewards.first?.localPickup?.displayableName {
         self?.onLocalPickupData?(PledgeLocalPickupViewData(locationName: locationName))
       }
@@ -892,7 +860,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         AppEnvironment.current.environmentType.stripePublishableKey
       )
     }
-    _ = pledgeAmountSummary.observeValues { [weak self] in self?.onPledgeAmountSummary?($0) }
     _ = applePayAuthorization.observeValues { [weak self] in self?.onApplePayAuthorization?($0) }
     _ = pledgeRewardsSummary.observeValues { [weak self] in self?.onPledgeRewardsSummary?($0.0, $0.1, $0.2) }
     _ = pledgeCTA.observeValues { [weak self] in self?.onPledgeCTA?($0) }
