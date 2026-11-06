@@ -112,8 +112,9 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.outputs.onDidBlockUser = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
       self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }
-      self.vm.outputs.dismissManagePledgeAndShowMessageBannerWithMessage
-        .observe(self.dismissManagePledgeAndShowMessageBannerWithMessage.observer)
+      self.vm.outputs.onManagePledgeFinishedWithMessage = { [weak self] in
+        self?.dismissManagePledgeAndShowMessageBannerWithMessage.observer.send(value: $0)
+      }
       self.vm.outputs.onGoToComments = { [weak self] in self?.goToComments.observer.send(value: $0) }
       self.vm.outputs.goToLoginWithIntent.observe(self.goToLoginWithIntent.observer)
       self.vm.outputs.goToManagePledge.map(first).observe(self.goToManagePledgeProjectParam.observer)

@@ -452,13 +452,13 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         self?.projectNavigationSelectorView.configure(with: projectAndRefTag)
       }
 
-    self.viewModel.outputs.dismissManagePledgeAndShowMessageBannerWithMessage
-      .observeForControllerAction()
-      .observeValues { [weak self] message in
+    self.viewModel.outputs.onManagePledgeFinishedWithMessage = { [weak self] message in
+      DispatchQueue.main.async { [weak self] in
         self?.dismiss(animated: true, completion: {
           self?.messageBannerViewController?.showBanner(with: .success, message: message)
         })
       }
+    }
 
     self.viewModel.outputs.onGoToComments = { [weak self] project in
       DispatchQueue.main.async { [weak self] in self?.goToComments(project: project) }

@@ -149,7 +149,7 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var configureProjectNavigationSelectorView: Signal<(Project, RefTag?), Never> { get }
 
   /// Emits a message to show on `MessageBannerViewController`
-  var dismissManagePledgeAndShowMessageBannerWithMessage: Signal<String, Never> { get }
+  var onManagePledgeFinishedWithMessage: ((String) -> Void)? { get set }
 
   /// Emits a `Project` when the comments are to be rendered.
   var onGoToComments: ((Project) -> Void)? { get set }
@@ -446,9 +446,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.configureChildViewControllersWithProject = freshProjectAndRefTag
       .map { project, refTag in (project, refTag) }
 
-    self.dismissManagePledgeAndShowMessageBannerWithMessage
-      = self.managePledgeViewControllerFinishedWithMessageProperty.signal
-      .skipNil()
 
     let cookieRefTag: Signal<RefTag?, Never> = freshProjectAndRefTag
       .map { project, refTag -> RefTag? in
@@ -838,9 +835,8 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.onGoToURL?(url)
   }
 
-  private let managePledgeViewControllerFinishedWithMessageProperty = MutableProperty<String?>(nil)
   public func managePledgeViewControllerFinished(with message: String?) {
-    self.managePledgeViewControllerFinishedWithMessageProperty.value = message
+    if let message { self.onManagePledgeFinishedWithMessage?(message) }
     self.loadProject(force: true)
   }
 
@@ -924,7 +920,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   public let configureChildViewControllersWithProject: Signal<(Project, RefTag?), Never>
   public let configurePledgeCTAView: Signal<PledgeCTAContainerViewData, Never>
   public let configureProjectNavigationSelectorView: Signal<(Project, RefTag?), Never>
-  public let dismissManagePledgeAndShowMessageBannerWithMessage: Signal<String, Never>
+  public var onManagePledgeFinishedWithMessage: ((String) -> Void)?
   public var onGoToComments: ((Project) -> Void)?
 
   public var goToLoginWithIntent: Signal<LoginIntent, Never> {
