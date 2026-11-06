@@ -225,18 +225,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         return r
       }
 
-    let localPickupData = projectAndReward
-      .switchMap { projectAndReward -> SignalProducer<PledgeLocalPickupViewData?, Never> in
-        guard let locationName = projectAndReward.1.localPickup?.displayableName else {
-          return SignalProducer(value: nil)
-        }
-
-        let localPickupLocationData = PledgeLocalPickupViewData(locationName: locationName)
-
-        return SignalProducer(value: localPickupLocationData)
-      }
-      .skipNil()
-
     /**
      * The total pledge amount that will be used to create the backing.
      * For a regular reward this includes the bonus support amount,
@@ -878,6 +866,9 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         )
       }
     _ = initialData.observeValues { [weak self] data in
+      if let locationName = data.rewards.first?.localPickup?.displayableName {
+        self?.onLocalPickupData?(PledgeLocalPickupViewData(locationName: locationName))
+      }
       let shipping: String?
       let conversion: String?
       if let rule = data.selectedShippingRule {
@@ -901,7 +892,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         AppEnvironment.current.environmentType.stripePublishableKey
       )
     }
-    _ = localPickupData.observeValues { [weak self] in self?.onLocalPickupData?($0) }
     _ = pledgeAmountSummary.observeValues { [weak self] in self?.onPledgeAmountSummary?($0) }
     _ = applePayAuthorization.observeValues { [weak self] in self?.onApplePayAuthorization?($0) }
     _ = pledgeRewardsSummary.observeValues { [weak self] in self?.onPledgeRewardsSummary?($0.0, $0.1, $0.2) }
