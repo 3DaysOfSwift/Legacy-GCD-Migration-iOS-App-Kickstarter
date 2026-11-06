@@ -219,33 +219,16 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   public init(stripeIntentService: StripeIntentServiceType, feature: PledgeFeature = AppModel.shared.pledgeFeature) {
     self.stripeIntentService = stripeIntentService
 
-    let initialData = self.initialDataEvents.output
     let ctaState = self.ctaState
     let cardState = self.cardState
     let appleState = self.applePayState
-    initialData.observeValues { ctaState.configure($0) }
-
-    let context = initialData.map(\.context)
-    let rewards = initialData.map(\.rewards)
-    let baseReward = initialData.map(\.rewards).map(\.first).skipNil()
-    let project = initialData.map(\.project)
-    let selectedShippingRule = initialData.map(\.selectedShippingRule)
-    let selectedQuantities = initialData.map(\.selectedQuantities)
-    let refTag = initialData.map(\.refTag)
-    let bonusAmount = initialData.map { $0.bonusSupport ?? 0.0 }
 
     self.loginSignupUseCase = LoginSignupUseCase(withLoginIntent: .backProject)
     let login = self.loginSignupUseCase
     let openingState = PostCampaignOpeningState()
-    let loginSession = self.loginSessionPipe
     login.onLoginState = { value in
       ctaState.setLoggedIn(value)
       openingState.setLoggedIn(value)
-    }
-    login.onSessionChanged = { loginSession.input.send(value: ()) }
-    initialData.observeValues { data in
-      openingState.configure(data)
-      login.initialDataAvailable()
     }
 
     self.paymentMethodsUseCase = PaymentMethodsUseCase()
@@ -253,19 +236,11 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     paymentMethods.onSelected = { value in
       cardState.select(value)
     }
-    initialData.observeValues { paymentMethods.configure($0) }
     let previousLoginHandler = login.onLoginState
     login.onLoginState = { value in
       previousLoginHandler?(value)
       paymentMethods.loginChanged(value)
     }
-
-    // MARK: Calculate totals
-
-    let amounts = initialData.map(PostCampaignAmounts.init)
-    let allRewardsShippingTotal = amounts.map(\.shipping)
-    let allRewardsTotal = amounts.map(\.rewards)
-    let pledgeTotal = amounts.map(\.total)
 
     // MARK: Create checkout
 
@@ -451,7 +426,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       }
     }
 
-    _ = initialData.observeValues { [weak self] data in
+    self.presentData = { [weak self] data in
       let amounts = PostCampaignAmounts(data)
       let bonus = data.rewards.first?.isNoReward == true && data.bonusSupport != nil ? 0 : data.bonusSupport
       let shippingSummary = data.selectedShippingRule.map {
@@ -487,6 +462,12 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
         Secrets.ApplePay.merchantIdentifier,
         AppEnvironment.current.environmentType.stripePublishableKey
       )
+    }
+    self.configureState = { data in
+      ctaState.configure(data)
+      openingState.configure(data)
+      login.initialDataAvailable()
+      paymentMethods.configure(data)
     }
     ctaState.onChange = { [weak self] in self?.onPledgeCTA?($0) }
     _ = errorMessages.observeValues { [weak self] in self?.onShowError?($0) }
@@ -576,7 +557,8 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private var hasTrackedCheckoutError = false
   private var hasTrackedPage = false
   private var hasLoadedView = false
-  private let initialDataEvents = Signal<PledgeViewData, Never>.pipe()
+  private var configureState: ((PledgeViewData) -> Void)?
+  private var presentData: ((PledgeViewData) -> Void)?
   private let ctaState = PostCampaignCTAState()
   private let cardState = PostCampaignCardState()
   private let applePayState = PostCampaignApplePayState()
@@ -588,7 +570,8 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
   private func publishInitialDataWhenReady() {
     guard self.hasLoadedView, let data = self.configuredData else { return }
-    self.initialDataEvents.input.send(value: data)
+    self.configureState?(data)
+    self.presentData?(data)
     self.trackPageIfReady()
   }
 
@@ -611,9 +594,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     self.onShowWebHelp?(.trust)
   }
 
-  private let submitButtonTappedProperty = MutableProperty(())
   public func submitButtonTapped() {
-    self.submitButtonTappedProperty.value = ()
     self.cardState.submit()
     self.trackSubmission(isApplePay: false)
     self.onProcessingHidden?(false)
@@ -693,7 +674,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     self.paymentIntentTask?.cancel()
   }
 
-  private let loginSessionPipe = Signal<Void, Never>.pipe()
   private let paymentMethodsUseCase: PaymentMethodsUseCase
 }
 
