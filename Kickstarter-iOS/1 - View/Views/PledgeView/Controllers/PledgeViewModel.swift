@@ -113,7 +113,13 @@ public protocol PledgeViewModelType {
 @MainActor
 public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   PledgeViewModelOutputs {
-  public init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
+  public init(
+    feature: PledgeFeature = AppModel.shared.pledgeFeature,
+    sleep: @escaping @MainActor (TimeInterval) async throws -> Void = { seconds in
+      if seconds.isInfinite { try await Task.sleep(nanoseconds: UInt64.max) }
+      else if seconds > 0 { try await Task.sleep(for: .seconds(seconds)) }
+    }
+  ) {
     let formState = self.formState
     let ctaState = PledgeCTAState()
     let requestState = PledgeRequestState()
@@ -148,41 +154,38 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     let processingState = PledgeProcessingState()
     let completionState = self.completionState
-    let scheduler = AppEnvironment.current.scheduler
-    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
-    let scheduleResponse: (PledgeResponse, Bool, Int?, Int, UUID) -> Void = { [weak self] response, isCreate, userID, generation, id in
-      let action = { [weak self] in
-        MainActor.assumeIsolated {
-          guard let self else { return }
-          let identity = isCreate ? self.createIdentity : self.updateIdentity
-          guard identity.id == id else { return }
-          guard feature.sessionFeature.isCurrent(userID: userID, generation: generation) else {
-            identity.id = UUID()
-            processingState.setHidden(true)
-            return
-          }
-          switch response {
-          case let .created(envelope):
-            self.thanksState.checkoutID = decompose(id: envelope.createBacking.checkout.id)
-            self.thanksState.hasCheckoutResult = true
-            completionState.received(envelope)
-            processingState.setHidden(true)
-            formState.requestFinished()
-            completionState.requestFinished()
-          case let .updated(envelope):
-            completionState.received(envelope)
-            processingState.setHidden(true)
-            formState.requestFinished()
-            completionState.requestFinished()
-          case let .failed(error):
-            processingState.setHidden(true)
-            formState.requestFinished()
-            completionState.failed(error)
-          }
-        }
+    let deliverResponse: @MainActor (PledgeResponse, Bool, Int?, Int, UUID) -> Void = { [weak self] response, isCreate, userID, generation, id in
+      guard let self else { return }
+      let identity = isCreate ? self.createIdentity : self.updateIdentity
+      guard identity.id == id else { return }
+      guard feature.sessionFeature.isCurrent(userID: userID, generation: generation) else {
+        identity.id = UUID()
+        processingState.setHidden(true)
+        return
       }
-      if delay.isInfinite { return }
-      _ = scheduler.schedule(after: scheduler.currentDate.addingTimeInterval(max(0, delay)), action: action)
+      switch response {
+      case let .created(envelope):
+        self.thanksState.checkoutID = decompose(id: envelope.createBacking.checkout.id)
+        self.thanksState.hasCheckoutResult = true
+        completionState.received(envelope)
+        processingState.setHidden(true)
+        formState.requestFinished()
+        completionState.requestFinished()
+      case let .updated(envelope):
+        completionState.received(envelope)
+        processingState.setHidden(true)
+        formState.requestFinished()
+        completionState.requestFinished()
+      case let .failed(error):
+        processingState.setHidden(true)
+        formState.requestFinished()
+        completionState.failed(error)
+      }
+    }
+    let scheduleResponse: @MainActor (PledgeResponse, Bool, Int?, Int, UUID) async throws -> Void = { response, isCreate, userID, generation, id in
+      try await sleep(AppEnvironment.current.apiDelayInterval.searchDelaySeconds)
+      try Task.checkCancellation()
+      deliverResponse(response, isCreate, userID, generation, id)
     }
 
     self.presentData = { [weak self] data in
@@ -273,13 +276,13 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         do {
           let result = try await request.value
           guard !Task.isCancelled else { return }
-          scheduleResponse(.created(result), true, userID, generation, id)
+          try await scheduleResponse(.created(result), true, userID, generation, id)
         } catch {
           if Task.isCancelled || error is CancellationError {
             if self?.createIdentity.id == id { processingState.setHidden(true) }
             return
           }
-          scheduleResponse(.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), true, userID, generation, id)
+          try? await scheduleResponse(.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), true, userID, generation, id)
         }
       }
     }
@@ -297,13 +300,13 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         do {
           let result = try await request.value
           guard !Task.isCancelled else { return }
-          scheduleResponse(.updated(result), false, userID, generation, id)
+          try await scheduleResponse(.updated(result), false, userID, generation, id)
         } catch {
           if Task.isCancelled || error is CancellationError {
             if self?.updateIdentity.id == id { processingState.setHidden(true) }
             return
           }
-          scheduleResponse(.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), false, userID, generation, id)
+          try? await scheduleResponse(.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), false, userID, generation, id)
         }
       }
     }

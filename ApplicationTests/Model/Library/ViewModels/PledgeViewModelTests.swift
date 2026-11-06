@@ -11,6 +11,22 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
+@MainActor
+private final class PledgeTestDelayGate {
+  private var continuation: CheckedContinuation<Void, Never>?
+  var isWaiting: Bool { continuation != nil }
+
+  func sleep(_ seconds: TimeInterval) async {
+    guard seconds > 0 else { return }
+    await withCheckedContinuation { continuation = $0 }
+  }
+
+  func resume() {
+    continuation?.resume()
+    continuation = nil
+  }
+}
+
 private struct MockStripePaymentHandlerActionStatus: StripePaymentHandlerActionStatusType {
   let status: StripePaymentHandlerActionStatus
 }
@@ -39,7 +55,10 @@ final class PledgeViewModelTests: TestCase {
       return AsyncPledgeProvider(service: AppEnvironment.current.apiService)
     }
   )
-  private lazy var vm: PledgeViewModelType = PledgeViewModel(feature: self.feature)
+  private let delayGate = PledgeTestDelayGate()
+  private lazy var vm: PledgeViewModelType = PledgeViewModel(feature: self.feature, sleep: { [delayGate] in
+    await delayGate.sleep($0)
+  })
 
   private let beginSCAFlowWithClientSecret = TestObserver<String, Never>()
 
@@ -1230,9 +1249,9 @@ final class PledgeViewModelTests: TestCase {
       XCTAssertEqual(self.vm.inputs.stripeTokenCreated(token: "stripe_token", error: nil), .success)
       self.vm.inputs.paymentAuthorizationViewControllerDidFinish()
       await self.feature.waitForOperations()
-      await Task.yield()
+      while !self.delayGate.isWaiting { await Task.yield() }
       self.feature.sessionFeature.sessionChanged()
-      await self.scheduler.advance(by: 1)
+      self.delayGate.resume()
       await Task.yield()
       self.goToThanksProject.assertDidNotEmitValue()
       self.beginSCAFlowWithClientSecret.assertDidNotEmitValue()
