@@ -286,18 +286,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       if Navigation.match(url) == .emailClick { self?.onFindRedirectUrl?(url) }
       if shouldOpenUrlInBrowser(url) { self?.onGoToMobileSafari?(url) }
     }
-    deepLink.observeValues { [weak self] navigation in
-      if navigation == .tab(.activity) { self?.onGoToActivity?() }
-      if navigation == .tab(.search) { self?.onGoToSearch?() }
-      if navigation == .tab(.me) { self?.onGoToProfile?() }
-      if navigation == .tab(.login) { self?.onGoToLoginWithIntent?(.generic) }
-      if case let .project(_, subpage, _, _) = navigation,
-         case .pledge(.manage) = subpage,
-         AppEnvironment.current.currentUser == nil {
-        self?.onGoToLoginWithIntent?(.erroredPledge)
-      }
-      self?.resolveDestination(navigation)
-    }
+
 
   }
 
@@ -607,7 +596,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
   public func applicationPerformActionForShortcutItem(_ item: UIApplicationShortcutItem) {
     guard let shortcut = ShortcutItem(typeString: item.type) else { return }
-    self.navigationEvents.input.send(value: navigation(fromShortcutItem: shortcut))
+    self.handleNavigation(navigation(fromShortcutItem: shortcut))
   }
 
   public func currentUserUpdatedInEnvironment() {
@@ -631,7 +620,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
   public func didReceive(pushEnvelope: PushEnvelope) {
     if let navigation = navigation(fromPushEnvelope: pushEnvelope) {
-      self.navigationEvents.input.send(value: navigation)
+      self.handleNavigation(navigation)
     }
   }
 
@@ -713,12 +702,26 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
   public func urlFromBrazeNotification(_ url: URL?) {
     guard let url else { return }
-    if let navigation = Navigation.deepLinkMatch(url) { self.navigationEvents.input.send(value: navigation) }
+    if let navigation = Navigation.deepLinkMatch(url) { self.handleNavigation(navigation) }
     if shouldOpenUrlInBrowser(url) { self.onGoToMobileSafari?(url) }
   }
 
+  private func handleNavigation(_ navigation: Navigation) {
+    self.navigationEvents.input.send(value: navigation)
+    if navigation == .tab(.activity) { self.onGoToActivity?() }
+    if navigation == .tab(.search) { self.onGoToSearch?() }
+    if navigation == .tab(.me) { self.onGoToProfile?() }
+    if navigation == .tab(.login) { self.onGoToLoginWithIntent?(.generic) }
+    if case let .project(_, subpage, _, _) = navigation,
+       case .pledge(.manage) = subpage,
+       AppEnvironment.current.currentUser == nil {
+      self.onGoToLoginWithIntent?(.erroredPledge)
+    }
+    self.resolveDestination(navigation)
+  }
+
   private func handleURL(_ url: URL) {
-    if let navigation = Navigation.match(url) { self.navigationEvents.input.send(value: navigation) }
+    if let navigation = Navigation.match(url) { self.handleNavigation(navigation) }
     self.urlEvents.input.send(value: url)
   }
 
