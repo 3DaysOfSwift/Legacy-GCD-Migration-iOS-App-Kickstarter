@@ -284,9 +284,7 @@ final class PledgeViewController: UIViewController,
         self?.localPickupLocationView.configure(with: data)
       }
 
-    self.viewModel.outputs.configureStripeIntegration
-      .observeForUI()
-      .observeValues { merchantIdentifier, publishableKey in
+    self.viewModel.outputs.onConfigureStripe = { merchantIdentifier, publishableKey in
         STPAPIClient.shared.publishableKey = publishableKey
         STPAPIClient.shared.configuration.appleMerchantIdentifier = merchantIdentifier
       }

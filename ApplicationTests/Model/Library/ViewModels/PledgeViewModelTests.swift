@@ -132,10 +132,10 @@ final class PledgeViewModelTests: TestCase {
       self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.5 }
         .observe(self.configurePledgeViewCTAContainerViewWillRetryPaymentMethod.observer)
 
-      self.vm.outputs.configureStripeIntegration.map(first)
-        .observe(self.configureStripeIntegrationMerchantId.observer)
-      self.vm.outputs.configureStripeIntegration.map(second)
-        .observe(self.configureStripeIntegrationPublishableKey.observer)
+      self.vm.outputs.onConfigureStripe = { [weak self] merchant, key in
+        self?.configureStripeIntegrationMerchantId.observer.send(value: merchant)
+        self?.configureStripeIntegrationPublishableKey.observer.send(value: key)
+      }
 
       self.vm.outputs.goToApplePayPaymentAuthorization.map { $0.project }
         .observe(self.goToApplePayPaymentAuthorizationProject.observer)

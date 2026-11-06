@@ -106,10 +106,10 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.4 }
         .observe(self.configurePledgeViewCTAContainerViewContext.observer)
 
-      self.vm.outputs.configureStripeIntegration.map(first)
-        .observe(self.configureStripeIntegrationMerchantId.observer)
-      self.vm.outputs.configureStripeIntegration.map(second)
-        .observe(self.configureStripeIntegrationPublishableKey.observer)
+      self.vm.outputs.onConfigureStripe = { [weak self] merchant, key in
+        self?.configureStripeIntegrationMerchantId.observer.send(value: merchant)
+        self?.configureStripeIntegrationPublishableKey.observer.send(value: key)
+      }
 
       self.vm.outputs.onShowWebHelp = { [weak self] in self?.showWebHelp.observer.send(value: $0) }
     }

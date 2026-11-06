@@ -64,7 +64,7 @@ public protocol PostCampaignCheckoutViewModelOutputs: AnyObject {
     Never
   > { get }
   var configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never> { get }
-  var configureStripeIntegration: Signal<StripeConfigurationData, Never> { get }
+  var onConfigureStripe: ((String, String) -> Void)? { get set }
   var estimatedShippingViewHidden: Signal<Bool, Never> { get }
   var onPaymentMethodsHidden: ((Bool) -> Void)? { get set }
   var processingViewIsHidden: Signal<Bool, Never> { get }
@@ -271,7 +271,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       return (rewardsData, bonus, pledgeData)
     }
 
-    self.configureStripeIntegration = Signal.combineLatest(
+    let stripeConfiguration = Signal.combineLatest(
       initialData,
       context
     )
@@ -649,6 +649,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       }
     }
 
+    _ = stripeConfiguration.observeValues { [weak self] in self?.onConfigureStripe?($0.0, $0.1) }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
     paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
@@ -754,7 +755,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     PledgeSummaryViewData
   ), Never>
   public let configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never>
-  public let configureStripeIntegration: Signal<StripeConfigurationData, Never>
+  public var onConfigureStripe: ((String, String) -> Void)?
   public let estimatedShippingViewHidden: Signal<Bool, Never>
   public var onGoToLoginSignup: ((LoginIntent) -> Void)?
 

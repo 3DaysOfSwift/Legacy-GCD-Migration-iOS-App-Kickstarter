@@ -91,7 +91,7 @@ public protocol PledgeViewModelOutputs: AnyObject {
     Never
   > { get }
   var configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never> { get }
-  var configureStripeIntegration: Signal<StripeConfigurationData, Never> { get }
+  var onConfigureStripe: ((String, String) -> Void)? { get set }
   var descriptionSectionSeparatorHidden: Signal<Bool, Never> { get }
   var estimatedShippingViewHidden: Signal<Bool, Never> { get }
   var goToApplePayPaymentAuthorization: Signal<PaymentAuthorizationData, Never> { get }
@@ -368,7 +368,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       initialDataUnpacked.takeWhen(self.loginSessionPipe.output)
     )
 
-    self.configureStripeIntegration = Signal.combineLatest(
+    let stripeConfiguration = Signal.combineLatest(
       initialData,
       context
     )
@@ -929,6 +929,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
           refTag: refTag
         )
       }
+    _ = stripeConfiguration.observeValues { [weak self] in self?.onConfigureStripe?($0.0, $0.1) }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
     paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
@@ -1018,7 +1019,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     Never
   >
   public let configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never>
-  public let configureStripeIntegration: Signal<StripeConfigurationData, Never>
+  public var onConfigureStripe: ((String, String) -> Void)?
   public let descriptionSectionSeparatorHidden: Signal<Bool, Never>
   public let estimatedShippingViewHidden: Signal<Bool, Never>
   public let goToApplePayPaymentAuthorization: Signal<PaymentAuthorizationData, Never>
