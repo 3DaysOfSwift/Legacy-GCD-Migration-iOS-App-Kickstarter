@@ -403,16 +403,10 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
     validateCheckoutExistingCardInput.observeValues { _ in ctaState.setEnabled(true) }
 
-    let processingViewIsHidden = Signal.merge(
-      // Processing view starts hidden, so show at the start of a pledge flow.
-      self.submitButtonTappedProperty.signal.mapConst(false),
-      startApplePayFlow.mapConst(false),
-      // Hide view again whenever pledge flow is completed/cancelled/errors.
-      paymentIntentErrors.mapConst(true),
-      validateCheckoutError.mapConst(true),
-      self.checkoutTerminatedProperty.signal.mapConst(true),
-      checkoutCompleteSignal.mapConst(true)
-    )
+    startApplePayFlow.observeValues { [weak self] _ in self?.onProcessingHidden?(false) }
+    paymentIntentErrors.observeValues { [weak self] _ in self?.onProcessingHidden?(true) }
+    validateCheckoutError.observeValues { [weak self] _ in self?.onProcessingHidden?(true) }
+    checkoutCompleteSignal.observeValues { [weak self] _ in self?.onProcessingHidden?(true) }
 
     // MARK: - Tracking
 
@@ -600,7 +594,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       )
     }
     ctaState.onChange = { [weak self] in self?.onPledgeCTA?($0) }
-    _ = processingViewIsHidden.observeValues { [weak self] in self?.onProcessingHidden?($0) }
     _ = errorMessages.observeValues { [weak self] in self?.onShowError?($0) }
     _ = checkoutErrors.observeValues { [weak self] in self?.onCheckoutError?($0) }
     _ = validateCheckoutSuccess.observeValues { [weak self] in self?.onValidateCheckout?($0) }
@@ -637,9 +630,8 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
   // MARK: - Inputs
 
-  private let checkoutTerminatedProperty = MutableProperty(())
   public func checkoutTerminated() {
-    self.checkoutTerminatedProperty.value = ()
+    self.onProcessingHidden?(true)
   }
 
   private var configuredData: PledgeViewData?
@@ -680,6 +672,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private let submitButtonTappedProperty = MutableProperty(())
   public func submitButtonTapped() {
     self.submitButtonTappedProperty.value = ()
+    self.onProcessingHidden?(false)
   }
 
   public func termsOfUseTapped(with helpType: HelpType) {
