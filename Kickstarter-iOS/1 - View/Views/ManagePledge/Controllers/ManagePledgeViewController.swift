@@ -195,113 +195,79 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.pledgeDetailsSectionLabel.rac.text = self.viewModel.outputs.pledgeDetailsSectionLabelText
+    self.viewModel.outputs.onPledgeDetailsLabel = { [weak self] in self?.pledgeDetailsSectionLabel.text = $0 }
 
-    self.viewModel.outputs.paymentMethodViewHidden
-      .observeForUI()
-      .observeValues { [weak self] hidden in
+    self.viewModel.outputs.onPaymentMethodHidden = { [weak self] hidden in
         self?.paymentMethodViews.forEach { $0.isHidden = hidden }
       }
 
-    self.viewModel.outputs.rightBarButtonItemHidden
-      .observeForUI()
-      .observeValues { [weak self] hidden in
+    self.viewModel.outputs.onRightBarButtonHidden = { [weak self] hidden in
         self?.navigationItem.rightBarButtonItem = hidden ? nil : self?.menuButton
       }
 
-    self.viewModel.outputs.title
-      .observeForUI()
-      .observeValues { [weak self] title in
+    self.viewModel.outputs.onTitle = { [weak self] title in
         guard let self = self else { return }
         _ = self
           |> \.title .~ title
       }
 
-    self.viewModel.outputs.configurePaymentMethodView
-      .observeForUI()
-      .observeValues { [weak self] backing in
+    self.viewModel.outputs.onPaymentMethod = { [weak self] backing in
         self?.paymentMethodView.configure(with: backing)
       }
 
-    self.viewModel.outputs.configurePledgeSummaryView
-      .observeForUI()
-      .observeValues { [weak self] data in
+    self.viewModel.outputs.onPledgeSummary = { [weak self] data in
         self?.pledgeSummaryViewController.configureWith(data)
       }
 
-    self.viewModel.outputs.loadProjectAndRewardsIntoDataSource
-      .observeForUI()
-      .observeValues { [weak self] project, rewards in
+    self.viewModel.outputs.onLoadProjectAndRewards = { [weak self] project, rewards in
         self?.dataSource.load(project: project, rewards: rewards)
         self?.configureHeaderView()
         self?.tableView.reloadData()
         self?.tableView.setNeedsLayout()
       }
 
-    self.viewModel.outputs.loadPullToRefreshHeaderView
-      .observeForUI()
-      .observeValues { [weak self] in
+    self.viewModel.outputs.onLoadRefreshHeader = { [weak self] in
         self?.dataSource.clearValues()
         self?.configurePullToRefreshHeaderView()
       }
 
-    self.viewModel.outputs.startRefreshing
-      .observeForUI()
-      .observeValues { [weak self] in
+    self.viewModel.outputs.onStartRefreshing = { [weak self] in
         self?.refreshControl.beginRefreshingAfterLayout()
       }
 
-    self.viewModel.outputs.endRefreshing
-      .observeForUI()
-      .observeValues { [weak self] in
+    self.viewModel.outputs.onEndRefreshing = { [weak self] in
         self?.refreshControl.endRefreshing()
       }
 
-    self.viewModel.outputs.showActionSheetMenuWithOptions
-      .observeForControllerAction()
-      .observeValues { [weak self] options in
+    self.viewModel.outputs.onShowMenu = { [weak self] options in
         self?.showActionSheetMenuWithOptions(options)
       }
 
-    self.viewModel.outputs.goToRewards
-      .observeForControllerAction()
-      .observeValues { [weak self] project in
+    self.viewModel.outputs.onRewards = { [weak self] project in
         self?.goToRewards(project)
       }
 
-    self.viewModel.outputs.goToEditPledgeOverTime
-      .observeForControllerAction()
-      .observeValues { [weak self] project in
+    self.viewModel.outputs.onEditPledgeOverTime = { [weak self] project in
         self?.goToRewards(project)
       }
 
-    self.viewModel.outputs.goToChangePaymentMethod
-      .observeForControllerAction()
-      .observeValues { [weak self] data in
+    self.viewModel.outputs.onChangePaymentMethod = { [weak self] data in
         self?.goToChangePaymentMethod(data: data)
       }
 
-    self.viewModel.outputs.goToFixPaymentMethod
-      .observeForControllerAction()
-      .observeValues { [weak self] data in
+    self.viewModel.outputs.onFixPaymentMethod = { [weak self] data in
         self?.goToFixPaymentMethod(data: data)
       }
 
-    self.viewModel.outputs.goToContactCreator
-      .observeForControllerAction()
-      .observeValues { [weak self] messageSubject, context in
+    self.viewModel.outputs.onContactCreator = { [weak self] messageSubject, context in
         self?.goToContactCreator(messageSubject: messageSubject, context: context)
       }
 
-    self.viewModel.outputs.goToCancelPledge
-      .observeForControllerAction()
-      .observeValues { [weak self] data in
+    self.viewModel.outputs.onCancelPledge = { [weak self] data in
         self?.goToCancelPledge(with: data)
       }
 
-    self.viewModel.outputs.notifyDelegateManagePledgeViewControllerFinishedWithMessage
-      .observeForUI()
-      .observeValues { [weak self] message in
+    self.viewModel.outputs.onFinish = { [weak self] message in
         guard let self = self else { return }
         self.delegate?.managePledgeViewController(
           self,
@@ -309,31 +275,23 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
         )
       }
 
-    self.viewModel.outputs.showSuccessBannerWithMessage
-      .observeForControllerAction()
-      .observeValues { [weak self] message in
+    self.viewModel.outputs.onShowSuccess = { [weak self] message in
         guard let self = self else { return }
 
         self.messageBannerViewController?.showBanner(with: .success, message: message)
       }
 
-    self.viewModel.outputs.showErrorBannerWithMessage
-      .observeForControllerAction()
-      .observeValues { [weak self] errorMessage in
+    self.viewModel.outputs.onShowError = { [weak self] errorMessage in
         self?.messageBannerViewController?.showBanner(with: .error, message: errorMessage)
       }
 
-    self.plotPaymentScheduleStackView.rac.hidden = self.viewModel.outputs.plotPaymentScheduleViewHidden
+    self.viewModel.outputs.onPlotScheduleHidden = { [weak self] in self?.plotPaymentScheduleStackView.isHidden = $0 }
 
-    self.viewModel.outputs.configurePlotPaymentScheduleView
-      .observeForUI()
-      .observeValues { [weak self] increments in
+    self.viewModel.outputs.onPlotSchedule = { [weak self] increments in
         self?.plotPaymentScheduleViewController.configure(with: increments)
       }
 
-    self.viewModel.outputs.showWebHelp
-      .observeForControllerAction()
-      .observeValues { [weak self] helpType in
+    self.viewModel.outputs.onShowHelp = { [weak self] helpType in
         guard let self = self else { return }
         self.presentHelpWebViewController(with: helpType, presentationStyle: .formSheet)
       }

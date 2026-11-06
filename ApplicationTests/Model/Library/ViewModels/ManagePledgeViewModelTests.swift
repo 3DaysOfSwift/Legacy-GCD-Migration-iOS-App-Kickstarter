@@ -63,41 +63,28 @@ internal final class ManagePledgeViewModelTests: TestCase {
 
       self.vm = ManagePledgeViewModel(feature: self.pledgeFeature)
 
-      self.vm.outputs.title.observe(self.title.observer)
-      self.vm.outputs.configurePaymentMethodView
-        .observe(self.configurePaymentMethodView.observer)
-      self.vm.outputs.configurePledgeSummaryView
-        .observe(self.configurePledgeSummaryView.observer)
-      self.vm.outputs.loadProjectAndRewardsIntoDataSource.map(first)
-        .observe(self.loadProjectAndRewardsIntoDataSourceProject.observer)
-      self.vm.outputs.loadProjectAndRewardsIntoDataSource.map(second)
-        .observe(self.loadProjectAndRewardsIntoDataSourceReward.observer)
-      self.vm.outputs.loadPullToRefreshHeaderView.observe(self.loadPullToRefreshHeaderView.observer)
-      self.vm.outputs.endRefreshing.observe(self.endRefreshing.observer)
-      self.vm.outputs.goToCancelPledge.observe(self.goToCancelPledge.observer)
-      self.vm.outputs.goToChangePaymentMethod.observe(self.goToChangePaymentMethod.observer)
-      self.vm.outputs.goToContactCreator.map(first).observe(self.goToContactCreatorSubject.observer)
-      self.vm.outputs.goToContactCreator.map(second).observe(
-        self.goToContactCreatorContext.observer)
-      self.vm.outputs.goToFixPaymentMethod.observe(self.goToFixPaymentMethod.observer)
-      self.vm.outputs.goToRewards.observe(self.goToRewards.observer)
-      self.vm.outputs.notifyDelegateManagePledgeViewControllerFinishedWithMessage
-        .observe(self.notifyDelegateManagePledgeViewControllerFinishedWithMessage.observer)
-      self.vm.outputs.paymentMethodViewHidden.observe(self.paymentMethodViewHidden.observer)
-      self.vm.outputs.pledgeDetailsSectionLabelText.observe(
-        self.pledgeDetailsSectionLabelText.observer)
-      self.vm.outputs.rightBarButtonItemHidden.observe(self.rightBarButtonItemHidden.observer)
-      self.vm.outputs.showActionSheetMenuWithOptions.observe(
-        self.showActionSheetMenuWithOptions.observer)
-      self.vm.outputs.showErrorBannerWithMessage.observe(self.showErrorBannerWithMessage.observer)
-      self.vm.outputs.showSuccessBannerWithMessage.observe(
-        self.showSuccessBannerWithMessage.observer)
-      self.vm.outputs.startRefreshing.observe(self.startRefreshing.observer)
+      self.vm.outputs.onContactCreator = { [weak self] a, b in self?.goToContactCreatorSubject.observer.send(value: a); self?.goToContactCreatorContext.observer.send(value: b) }
+      self.vm.outputs.onLoadProjectAndRewards = { [weak self] a, b in self?.loadProjectAndRewardsIntoDataSourceProject.observer.send(value: a); self?.loadProjectAndRewardsIntoDataSourceReward.observer.send(value: b) }
+      self.vm.outputs.onTitle = { [weak self] in self?.title.observer.send(value: $0) }
+      self.vm.outputs.onPaymentMethod = { [weak self] in self?.configurePaymentMethodView.observer.send(value: $0) }
+      self.vm.outputs.onPledgeSummary = { [weak self] in self?.configurePledgeSummaryView.observer.send(value: $0) }
+      self.vm.outputs.onLoadRefreshHeader = { [weak self] in self?.loadPullToRefreshHeaderView.observer.send(value: ()) }
+      self.vm.outputs.onEndRefreshing = { [weak self] in self?.endRefreshing.observer.send(value: ()) }
+      self.vm.outputs.onCancelPledge = { [weak self] in self?.goToCancelPledge.observer.send(value: $0) }
+      self.vm.outputs.onChangePaymentMethod = { [weak self] in self?.goToChangePaymentMethod.observer.send(value: $0) }
+      self.vm.outputs.onFixPaymentMethod = { [weak self] in self?.goToFixPaymentMethod.observer.send(value: $0) }
+      self.vm.outputs.onRewards = { [weak self] in self?.goToRewards.observer.send(value: $0) }
+      self.vm.outputs.onFinish = { [weak self] in self?.notifyDelegateManagePledgeViewControllerFinishedWithMessage.observer.send(value: $0) }
+      self.vm.outputs.onPaymentMethodHidden = { [weak self] in self?.paymentMethodViewHidden.observer.send(value: $0) }
+      self.vm.outputs.onPledgeDetailsLabel = { [weak self] in self?.pledgeDetailsSectionLabelText.observer.send(value: $0) }
+      self.vm.outputs.onRightBarButtonHidden = { [weak self] in self?.rightBarButtonItemHidden.observer.send(value: $0) }
+      self.vm.outputs.onShowMenu = { [weak self] in self?.showActionSheetMenuWithOptions.observer.send(value: $0) }
+      self.vm.outputs.onShowError = { [weak self] in self?.showErrorBannerWithMessage.observer.send(value: $0) }
+      self.vm.outputs.onShowSuccess = { [weak self] in self?.showSuccessBannerWithMessage.observer.send(value: $0) }
+      self.vm.outputs.onStartRefreshing = { [weak self] in self?.startRefreshing.observer.send(value: ()) }
 
-      self.vm.outputs.configurePlotPaymentScheduleView.observe(
-        self.configurePlotPaymentScheduleView.observer)
-      self.vm.outputs.plotPaymentScheduleViewHidden.observe(
-        self.plotPaymentScheduleViewHidden.observer)
+      self.vm.outputs.onPlotSchedule = { [weak self] in self?.configurePlotPaymentScheduleView.observer.send(value: $0) }
+      self.vm.outputs.onPlotScheduleHidden = { [weak self] in self?.plotPaymentScheduleViewHidden.observer.send(value: $0) }
     }
   }
 

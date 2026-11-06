@@ -32,30 +32,30 @@ public protocol ManagePledgeViewModelInputs {
 }
 
 @MainActor
-public protocol ManagePledgeViewModelOutputs {
-  var configurePaymentMethodView: Signal<ManagePledgePaymentMethodViewData, Never> { get }
-  var configurePledgeSummaryView: Signal<ManagePledgeSummaryViewData, Never> { get }
-  var endRefreshing: Signal<Void, Never> { get }
-  var goToCancelPledge: Signal<CancelPledgeViewData, Never> { get }
-  var goToChangePaymentMethod: Signal<PledgeViewData, Never> { get }
-  var goToContactCreator: Signal<(MessageSubject, KSRAnalytics.MessageDialogContext), Never> { get }
-  var goToFixPaymentMethod: Signal<PledgeViewData, Never> { get }
-  var goToRewards: Signal<Project, Never> { get }
-  var goToEditPledgeOverTime: Signal<Project, Never> { get }
-  var loadProjectAndRewardsIntoDataSource: Signal<(Project, [Reward]), Never> { get }
-  var loadPullToRefreshHeaderView: Signal<(), Never> { get }
-  var notifyDelegateManagePledgeViewControllerFinishedWithMessage: Signal<String?, Never> { get }
-  var paymentMethodViewHidden: Signal<Bool, Never> { get }
-  var pledgeDetailsSectionLabelText: Signal<String, Never> { get }
-  var rightBarButtonItemHidden: Signal<Bool, Never> { get }
-  var showActionSheetMenuWithOptions: Signal<[ManagePledgeAlertAction], Never> { get }
-  var showErrorBannerWithMessage: Signal<String, Never> { get }
-  var showSuccessBannerWithMessage: Signal<String, Never> { get }
-  var showWebHelp: Signal<HelpType, Never> { get }
-  var startRefreshing: Signal<(), Never> { get }
-  var title: Signal<String, Never> { get }
-  var configurePlotPaymentScheduleView: Signal<[PledgePaymentIncrement], Never> { get }
-  var plotPaymentScheduleViewHidden: Signal<Bool, Never> { get }
+public protocol ManagePledgeViewModelOutputs: AnyObject {
+  var onPaymentMethod: ((ManagePledgePaymentMethodViewData) -> Void)? { get set }
+  var onPledgeSummary: ((ManagePledgeSummaryViewData) -> Void)? { get set }
+  var onEndRefreshing: (() -> Void)? { get set }
+  var onCancelPledge: ((CancelPledgeViewData) -> Void)? { get set }
+  var onChangePaymentMethod: ((PledgeViewData) -> Void)? { get set }
+  var onContactCreator: ((MessageSubject, KSRAnalytics.MessageDialogContext) -> Void)? { get set }
+  var onFixPaymentMethod: ((PledgeViewData) -> Void)? { get set }
+  var onRewards: ((Project) -> Void)? { get set }
+  var onEditPledgeOverTime: ((Project) -> Void)? { get set }
+  var onLoadProjectAndRewards: ((Project, [Reward]) -> Void)? { get set }
+  var onLoadRefreshHeader: (() -> Void)? { get set }
+  var onFinish: ((String?) -> Void)? { get set }
+  var onPaymentMethodHidden: ((Bool) -> Void)? { get set }
+  var onPledgeDetailsLabel: ((String) -> Void)? { get set }
+  var onRightBarButtonHidden: ((Bool) -> Void)? { get set }
+  var onShowMenu: (([ManagePledgeAlertAction]) -> Void)? { get set }
+  var onShowError: ((String) -> Void)? { get set }
+  var onShowSuccess: ((String) -> Void)? { get set }
+  var onShowHelp: ((HelpType) -> Void)? { get set }
+  var onStartRefreshing: (() -> Void)? { get set }
+  var onTitle: ((String) -> Void)? { get set }
+  var onPlotSchedule: (([PledgePaymentIncrement]) -> Void)? { get set }
+  var onPlotScheduleHidden: ((Bool) -> Void)? { get set }
 }
 
 @MainActor
@@ -160,7 +160,7 @@ public final class ManagePledgeViewModel:
       .ksr_delay(.milliseconds(300), on: AppEnvironment.current.scheduler)
       .ignoreValues()
 
-    self.endRefreshing = Signal.merge(
+    let endRefreshing = Signal.merge(
       endRefreshingWhenProjectFailed,
       endRefreshingWhenBackingCompleted
     )
@@ -187,10 +187,10 @@ public final class ManagePledgeViewModel:
         return (project, reward)
       }
 
-    self.title = project.combineLatest(with: userIsCreatorOfProject)
+    let title = project.combineLatest(with: userIsCreatorOfProject)
       .map(navigationBarTitle(with:userIsCreatorOfProject:))
 
-    self.configurePaymentMethodView = backing.map(managePledgePaymentMethodViewData)
+    let configurePaymentMethodView = backing.map(managePledgePaymentMethodViewData)
 
     let projectOrBackingFailedToLoad = Signal.merge(
       fetchProjectEvent.map { $0.error as Error? },
@@ -198,11 +198,11 @@ public final class ManagePledgeViewModel:
     )
     .filter(isNotNil)
 
-    self.loadPullToRefreshHeaderView = projectOrBackingFailedToLoad
+    let loadPullToRefreshHeaderView = projectOrBackingFailedToLoad
       .take(until: backing.ignoreValues())
       .ignoreValues()
 
-    self.paymentMethodViewHidden = Signal.combineLatest(
+    let paymentMethodViewHidden = Signal.combineLatest(
       userIsCreatorOfProject,
       backing
     )
@@ -216,21 +216,21 @@ public final class ManagePledgeViewModel:
     }
     .skipRepeats()
 
-    self.loadProjectAndRewardsIntoDataSource = projectAndReward.combineLatest(with: backing)
+    let loadProjectAndRewardsIntoDataSource = projectAndReward.combineLatest(with: backing)
       .map(unpack)
       .map { project, reward, backing -> (Project, [Reward]) in
         (project, distinctRewards([reward] + (backing.addOns ?? [])))
       }
 
-    self.rightBarButtonItemHidden = Signal.merge(
+    let rightBarButtonItemHidden = Signal.merge(
       params.mapConst(true),
-      self.loadPullToRefreshHeaderView.mapConst(true),
-      self.loadProjectAndRewardsIntoDataSource.mapConst(false)
+      loadPullToRefreshHeaderView.mapConst(true),
+      loadProjectAndRewardsIntoDataSource.mapConst(false)
     )
     .skipRepeats()
 
     let pledgeDisclaimerViewHidden = Signal.combineLatest(
-      self.loadProjectAndRewardsIntoDataSource,
+      loadProjectAndRewardsIntoDataSource,
       userIsCreatorOfProject
     )
     .map(unpack)
@@ -238,18 +238,18 @@ public final class ManagePledgeViewModel:
       rewards.map { $0.estimatedDeliveryOn }.allSatisfy(isNil) || userIsCreatorOfProject
     }
 
-    self.pledgeDetailsSectionLabelText = userIsCreatorOfProject.map {
+    let pledgeDetailsSectionLabelText = userIsCreatorOfProject.map {
       $0 ? Strings.Pledge_details() : Strings.Your_pledge_details()
     }
 
-    self.startRefreshing = Signal.merge(
+    let startRefreshing = Signal.merge(
       params.ignoreValues(),
       shouldBeginRefresh.ignoreValues()
     )
 
     // MARK: - ManageViewPledgeRewardReceivedViewData
 
-    let latestRewardDeliveryDate = self.loadProjectAndRewardsIntoDataSource.map { _, rewards in
+    let latestRewardDeliveryDate = loadProjectAndRewardsIntoDataSource.map { _, rewards in
       rewards
         .compactMap { $0.estimatedDeliveryOn }
         .reduce(0) { accum, value in max(accum, value) }
@@ -257,7 +257,7 @@ public final class ManagePledgeViewModel:
 
     let estimatedShipping = Signal.combineLatest(
       backing,
-      self.loadProjectAndRewardsIntoDataSource
+      loadProjectAndRewardsIntoDataSource
     )
     .map(unpack)
     .map { backing, project, rewards -> String? in
@@ -296,45 +296,45 @@ public final class ManagePledgeViewModel:
     let menuOptions = Signal.combineLatest(project, backing, userIsCreatorOfProject)
       .map(actionSheetMenuOptionsFor(project:backing:userIsCreatorOfProject:))
 
-    self.showActionSheetMenuWithOptions = menuOptions
+    let showActionSheetMenuWithOptions = menuOptions
       .takeWhen(self.menuButtonTappedSignal)
 
-    let backedRewards = self.loadProjectAndRewardsIntoDataSource.map(second)
+    let backedRewards = loadProjectAndRewardsIntoDataSource.map(second)
 
-    self.goToRewards = project
+    let goToRewards = project
       .takeWhen(self.menuOptionSelectedSignal.filter { $0 == .chooseAnotherReward || $0 == .viewRewards })
 
-    self.goToEditPledgeOverTime = project
+    let goToEditPledgeOverTime = project
       .takeWhen(self.menuOptionSelectedSignal.filter { $0 == .editPledgeOverTimePledge })
 
     let cancelPledgeSelected = self.menuOptionSelectedSignal
       .filter { $0 == .cancelPledge }
       .ignoreValues()
 
-    self.goToCancelPledge = Signal.combineLatest(project, backing)
+    let goToCancelPledge = Signal.combineLatest(project, backing)
       .takeWhen(cancelPledgeSelected)
       .filter { _, backing in backing.cancelable }
       .map(cancelPledgeViewData(with:backing:))
 
-    self.goToContactCreator = project
+    let goToContactCreator = project
       .takeWhen(self.menuOptionSelectedSignal.filter { $0 == .contactCreator })
-      .map { project in (MessageSubject.project(id: project.id, name: project.name), .backerModal) }
+      .map { project in (MessageSubject.project(id: project.id, name: project.name), KSRAnalytics.MessageDialogContext.backerModal) }
 
-    self.goToChangePaymentMethod = Signal.combineLatest(project, backing, backedRewards)
+    let goToChangePaymentMethod = Signal.combineLatest(project, backing, backedRewards)
       .takeWhen(self.menuOptionSelectedSignal.filter { $0 == .changePaymentMethod })
       .map { project, backing, rewards in
         (project, backing, rewards, .changePaymentMethod)
       }
       .map(pledgeViewData)
 
-    self.goToFixPaymentMethod = Signal.combineLatest(project, backing, backedRewards)
+    let goToFixPaymentMethod = Signal.combineLatest(project, backing, backedRewards)
       .takeWhen(self.fixButtonTappedSignal)
       .map { project, backing, rewards in
         (project, backing, rewards, .fixPaymentMethod)
       }
       .map(pledgeViewData)
 
-    self.notifyDelegateManagePledgeViewControllerFinishedWithMessage = Signal.merge(
+    let notifyDelegateManagePledgeViewControllerFinishedWithMessage = Signal.merge(
       self.cancelPledgeDidFinishWithMessageProperty.signal,
       backing.skip(first: 1).mapConst(nil)
     )
@@ -342,7 +342,7 @@ public final class ManagePledgeViewModel:
     let rewardReceivedViewControllerViewIsHidden: Signal<Bool, Never> = latestRewardDeliveryDate
       .map { $0 == 0 }
 
-    self.configurePledgeSummaryView = Signal.combineLatest(
+    let configurePledgeSummaryView = Signal.combineLatest(
       projectAndReward,
       backing,
       rewardReceivedWithData,
@@ -355,7 +355,7 @@ public final class ManagePledgeViewModel:
       )
     }
 
-    self.showSuccessBannerWithMessage = self.pledgeViewControllerDidUpdatePledgeWithMessageSignal
+    let showSuccessBannerWithMessage = self.pledgeViewControllerDidUpdatePledgeWithMessageSignal
 
     let cancelBackingDisallowed = backing
       .map { $0.cancelable }
@@ -375,14 +375,14 @@ public final class ManagePledgeViewModel:
     )
     .map { _ in Strings.Something_went_wrong_please_try_again() }
 
-    self.showErrorBannerWithMessage = Signal.merge(
+    let showErrorBannerWithMessage = Signal.merge(
       attemptedDisallowedCancelBackingMessage,
       networkErrorMessage
     )
 
     // Tracking
 
-    Signal.zip(self.loadProjectAndRewardsIntoDataSource, backing)
+    Signal.zip(loadProjectAndRewardsIntoDataSource, backing)
       .map(unpack)
       .observeValues { project, rewards, backing in
         guard let reward = backing.reward else { return }
@@ -411,13 +411,36 @@ public final class ManagePledgeViewModel:
       isPledgeOverTime(with: $0)
     }
 
-    self.plotPaymentScheduleViewHidden = pledgeOverTimeEnabled.negate()
+    let plotPaymentScheduleViewHidden = pledgeOverTimeEnabled.negate()
 
-    self.configurePlotPaymentScheduleView = backing
+    let configurePlotPaymentScheduleView = backing
       .filterWhenLatestFrom(pledgeOverTimeEnabled, satisfies: { $0 })
       .map { $0.paymentIncrements }
 
-    self.showWebHelp = self.termsOfUseTappedSignal
+    let showWebHelp = self.termsOfUseTappedSignal
+    _ = endRefreshing.observeValues { [weak self] _ in self?.onEndRefreshing?() }
+    _ = goToCancelPledge.observeValues { [weak self] value in self?.onCancelPledge?(value) }
+    _ = goToChangePaymentMethod.observeValues { [weak self] value in self?.onChangePaymentMethod?(value) }
+    _ = goToContactCreator.observeValues { [weak self] first, second in self?.onContactCreator?(first, second) }
+    _ = goToFixPaymentMethod.observeValues { [weak self] value in self?.onFixPaymentMethod?(value) }
+    _ = goToRewards.observeValues { [weak self] value in self?.onRewards?(value) }
+    _ = goToEditPledgeOverTime.observeValues { [weak self] value in self?.onEditPledgeOverTime?(value) }
+    _ = loadProjectAndRewardsIntoDataSource.observeValues { [weak self] first, second in self?.onLoadProjectAndRewards?(first, second) }
+    _ = loadPullToRefreshHeaderView.observeValues { [weak self] _ in self?.onLoadRefreshHeader?() }
+    _ = notifyDelegateManagePledgeViewControllerFinishedWithMessage.observeValues { [weak self] value in self?.onFinish?(value) }
+    _ = showActionSheetMenuWithOptions.observeValues { [weak self] value in self?.onShowMenu?(value) }
+    _ = showErrorBannerWithMessage.observeValues { [weak self] value in self?.onShowError?(value) }
+    _ = showSuccessBannerWithMessage.observeValues { [weak self] value in self?.onShowSuccess?(value) }
+    _ = showWebHelp.observeValues { [weak self] value in self?.onShowHelp?(value) }
+    _ = startRefreshing.observeValues { [weak self] _ in self?.onStartRefreshing?() }
+    _ = title.observeValues { [weak self] in self?.onTitle?($0) }
+    _ = configurePaymentMethodView.observeValues { [weak self] in self?.onPaymentMethod?($0) }
+    _ = configurePledgeSummaryView.observeValues { [weak self] in self?.onPledgeSummary?($0) }
+    _ = paymentMethodViewHidden.observeValues { [weak self] in self?.onPaymentMethodHidden?($0) }
+    _ = pledgeDetailsSectionLabelText.observeValues { [weak self] in self?.onPledgeDetailsLabel?($0) }
+    _ = plotPaymentScheduleViewHidden.observeValues { [weak self] in self?.onPlotScheduleHidden?($0) }
+    _ = configurePlotPaymentScheduleView.observeValues { [weak self] in self?.onPlotSchedule?($0) }
+    _ = rightBarButtonItemHidden.observeValues { [weak self] in self?.onRightBarButtonHidden?($0) }
     _ = shouldFetchProjectWithParam
       .filter { [projectLoaded] _ in !projectLoaded.value }
       .observeValues { [weak self] param in self?.loadProject(param) }
@@ -523,29 +546,29 @@ public final class ManagePledgeViewModel:
     self.viewDidLoadObserver.send(value: ())
   }
 
-  public let configurePaymentMethodView: Signal<ManagePledgePaymentMethodViewData, Never>
-  public let configurePledgeSummaryView: Signal<ManagePledgeSummaryViewData, Never>
-  public let configurePlotPaymentScheduleView: Signal<[PledgePaymentIncrement], Never>
-  public let endRefreshing: Signal<Void, Never>
-  public let goToCancelPledge: Signal<CancelPledgeViewData, Never>
-  public let goToChangePaymentMethod: Signal<PledgeViewData, Never>
-  public let goToContactCreator: Signal<(MessageSubject, KSRAnalytics.MessageDialogContext), Never>
-  public let goToFixPaymentMethod: Signal<PledgeViewData, Never>
-  public let goToRewards: Signal<Project, Never>
-  public let goToEditPledgeOverTime: Signal<Project, Never>
-  public let loadProjectAndRewardsIntoDataSource: Signal<(Project, [Reward]), Never>
-  public let loadPullToRefreshHeaderView: Signal<(), Never>
-  public let paymentMethodViewHidden: Signal<Bool, Never>
-  public let pledgeDetailsSectionLabelText: Signal<String, Never>
-  public let plotPaymentScheduleViewHidden: Signal<Bool, Never>
-  public let notifyDelegateManagePledgeViewControllerFinishedWithMessage: Signal<String?, Never>
-  public let rightBarButtonItemHidden: Signal<Bool, Never>
-  public let showActionSheetMenuWithOptions: Signal<[ManagePledgeAlertAction], Never>
-  public let showSuccessBannerWithMessage: Signal<String, Never>
-  public let showErrorBannerWithMessage: Signal<String, Never>
-  public let showWebHelp: Signal<HelpType, Never>
-  public let startRefreshing: Signal<(), Never>
-  public let title: Signal<String, Never>
+  public var onPaymentMethod: ((ManagePledgePaymentMethodViewData) -> Void)?
+  public var onPledgeSummary: ((ManagePledgeSummaryViewData) -> Void)?
+  public var onPlotSchedule: (([PledgePaymentIncrement]) -> Void)?
+  public var onEndRefreshing: (() -> Void)?
+  public var onCancelPledge: ((CancelPledgeViewData) -> Void)?
+  public var onChangePaymentMethod: ((PledgeViewData) -> Void)?
+  public var onContactCreator: ((MessageSubject, KSRAnalytics.MessageDialogContext) -> Void)?
+  public var onFixPaymentMethod: ((PledgeViewData) -> Void)?
+  public var onRewards: ((Project) -> Void)?
+  public var onEditPledgeOverTime: ((Project) -> Void)?
+  public var onLoadProjectAndRewards: ((Project, [Reward]) -> Void)?
+  public var onLoadRefreshHeader: (() -> Void)?
+  public var onPaymentMethodHidden: ((Bool) -> Void)?
+  public var onPledgeDetailsLabel: ((String) -> Void)?
+  public var onPlotScheduleHidden: ((Bool) -> Void)?
+  public var onFinish: ((String?) -> Void)?
+  public var onRightBarButtonHidden: ((Bool) -> Void)?
+  public var onShowMenu: (([ManagePledgeAlertAction]) -> Void)?
+  public var onShowSuccess: ((String) -> Void)?
+  public var onShowError: ((String) -> Void)?
+  public var onShowHelp: ((HelpType) -> Void)?
+  public var onStartRefreshing: (() -> Void)?
+  public var onTitle: ((String) -> Void)?
 
   public var inputs: ManagePledgeViewModelInputs { return self }
   public var outputs: ManagePledgeViewModelOutputs { return self }
