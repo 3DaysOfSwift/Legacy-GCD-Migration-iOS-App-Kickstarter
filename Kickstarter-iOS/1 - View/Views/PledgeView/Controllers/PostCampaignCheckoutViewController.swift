@@ -278,9 +278,7 @@ final class PostCampaignCheckoutViewController: UIViewController,
       self?.viewModel.inputs.userSessionDidChange()
     }
 
-    self.viewModel.outputs.goToLoginSignup
-      .observeForControllerAction()
-      .observeValues { [weak self] intent in
+    self.viewModel.outputs.onGoToLoginSignup = { [weak self] intent in
         self?.goToLoginSignup(with: intent)
       }
 

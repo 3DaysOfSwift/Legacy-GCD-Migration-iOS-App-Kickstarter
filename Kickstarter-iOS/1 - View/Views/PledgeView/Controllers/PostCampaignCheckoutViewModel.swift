@@ -68,7 +68,7 @@ public protocol PostCampaignCheckoutViewModelOutputs: AnyObject {
   var estimatedShippingViewHidden: Signal<Bool, Never> { get }
   var paymentMethodsViewHidden: Signal<Bool, Never> { get }
   var processingViewIsHidden: Signal<Bool, Never> { get }
-  var goToLoginSignup: Signal<LoginIntent, Never> { get }
+  var onGoToLoginSignup: ((LoginIntent) -> Void)? { get set }
   var showErrorBannerWithMessage: Signal<String, Never> { get }
   var onShowWebHelp: ((HelpType) -> Void)? { get set }
   var validateCheckoutSuccess: Signal<PaymentSourceValidation, Never> { get }
@@ -112,10 +112,8 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     self.loginSignupUseCase = LoginSignupUseCase(withLoginIntent: .backProject)
     let login = self.loginSignupUseCase
     let loginState = self.loginStatePipe
-    let loginNavigation = self.loginNavigationPipe
     let loginSession = self.loginSessionPipe
     login.onLoginState = { loginState.input.send(value: $0) }
-    login.onLogin = { loginNavigation.input.send(value: $0) }
     login.onSessionChanged = { loginSession.input.send(value: ()) }
     initialData.observeValues { _ in login.initialDataAvailable() }
 
@@ -655,6 +653,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       }
     }
 
+    login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
   }
 
   // MARK: - Helpers
@@ -761,9 +760,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   public let configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never>
   public let configureStripeIntegration: Signal<StripeConfigurationData, Never>
   public let estimatedShippingViewHidden: Signal<Bool, Never>
-  public var goToLoginSignup: Signal<LoginIntent, Never> {
-    self.loginNavigationPipe.output
-  }
+  public var onGoToLoginSignup: ((LoginIntent) -> Void)?
 
   public let processingViewIsHidden: Signal<Bool, Never>
   public let showErrorBannerWithMessage: Signal<String, Never>
@@ -793,7 +790,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   }
 
   private let loginStatePipe = Signal<Bool, Never>.pipe()
-  private let loginNavigationPipe = Signal<LoginIntent, Never>.pipe()
   private let loginSessionPipe = Signal<Void, Never>.pipe()
   private let paymentMethodsUseCase: PaymentMethodsUseCase
   private let paymentHiddenPipe = Signal<Bool, Never>.pipe()

@@ -347,9 +347,7 @@ final class PledgeViewController: UIViewController,
         self?.paymentMethodsViewController.configure(with: value)
       }
 
-    self.viewModel.outputs.goToLoginSignup
-      .observeForControllerAction()
-      .observeValues { [weak self] intent in
+    self.viewModel.outputs.onGoToLoginSignup = { [weak self] intent in
         self?.goToLoginSignup(with: intent)
       }
 

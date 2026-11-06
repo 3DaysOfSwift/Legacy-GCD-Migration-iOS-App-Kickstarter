@@ -89,7 +89,7 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       self.vm.processingViewIsHidden.observe(self.processingViewIsHidden.observer)
       self.vm.validateCheckoutSuccess.observe(self.validateCheckoutSuccess.observer)
       self.vm.checkoutError.observe(self.checkoutError.observer)
-      self.vm.goToLoginSignup.observe(self.goToLoginSignup.observer)
+      self.vm.outputs.onGoToLoginSignup = { [weak self] in self?.goToLoginSignup.observer.send(value: $0) }
 
       self.vm.outputs.configurePaymentMethodsViewControllerWithValue.map { $0.0 }
         .observe(self.configurePaymentMethodsViewControllerWithUser.observer)
