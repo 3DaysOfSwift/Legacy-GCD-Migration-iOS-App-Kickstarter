@@ -4,7 +4,6 @@ import AVFoundation
 
 
 import Prelude
-import ReactiveSwift
 import XCTest
 
 /// Contains just the tracking-related tests for `ProjectPageViewModel`.
@@ -41,7 +40,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       XCTAssertEqual(
         ["Page Viewed"],
@@ -79,7 +77,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       XCTAssertEqual(
         [
@@ -114,7 +111,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       XCTAssertEqual(
         ["Page Viewed"],
@@ -147,7 +143,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       XCTAssertEqual(
         [
@@ -179,7 +174,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       XCTAssertEqual(
         [],
@@ -197,7 +191,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       XCTAssertEqual(["Page Viewed"], self.segmentTrackingClient.events)
 
@@ -216,7 +209,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       XCTAssertEqual(["Page Viewed"], self.segmentTrackingClient.events)
 
@@ -228,13 +220,9 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
   func testMockCookieStorageSet_SeparateDates() async {
     let project = Project.template
-    let scheduler1 = TestScheduler(startDate: MockDate().date)
-    let scheduler2 = TestScheduler(startDate: scheduler1.currentDate.addingTimeInterval(1))
 
     await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
-      await withEnvironment(
-        scheduler: scheduler1
-      ) {
+      await withEnvironment() {
         let newVm: ProjectPageViewModel =
           ProjectPageViewModel(projectDetailsFeature: ProjectPageViewModelTests.isolatedFeature())
         newVm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.category))
@@ -242,13 +230,12 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
         newVm.inputs.viewDidAppear(animated: true)
         await newVm.loadingTask?.value
 
-        await scheduler1.advance()
 
         XCTAssertEqual(1, self.cookieStorage.cookies?.count, "A single cookie has been set.")
       }
 
       await withEnvironment(
-        dateType: LaterMockDate.self, scheduler: scheduler2
+        dateType: LaterMockDate.self
       ) {
         let newVm: ProjectPageViewModel =
           ProjectPageViewModel(projectDetailsFeature: ProjectPageViewModelTests.isolatedFeature())
@@ -257,7 +244,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
         newVm.inputs.viewDidAppear(animated: true)
         await newVm.loadingTask?.value
 
-        await scheduler2.advance()
 
         XCTAssertEqual(2, self.cookieStorage.cookies?.count, "Two cookies are set at separate times.")
       }
@@ -266,10 +252,9 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
   func testMockCookieStorageSet_SameDate() async {
     let project = Project.template
-    let scheduler1 = TestScheduler(startDate: MockDate().date)
 
     await ProjectPageViewModelTests.mockNetworkRequests {
-      await withEnvironment(scheduler: scheduler1) {
+      await withEnvironment() {
         let newVm: ProjectPageViewModel =
           ProjectPageViewModel(projectDetailsFeature: ProjectPageViewModelTests.isolatedFeature())
         newVm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.category))
@@ -277,12 +262,11 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
         newVm.inputs.viewDidAppear(animated: true)
         await newVm.loadingTask?.value
 
-        await scheduler1.advance()
 
         XCTAssertEqual(1, self.cookieStorage.cookies?.count, "A single cookie has been set.")
       }
 
-      await withEnvironment(scheduler: scheduler1) {
+      await withEnvironment() {
         let newVm: ProjectPageViewModel =
           ProjectPageViewModel(projectDetailsFeature: ProjectPageViewModelTests.isolatedFeature())
         newVm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.recommended))
@@ -290,7 +274,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
         newVm.inputs.viewDidAppear(animated: true)
         await newVm.loadingTask?.value
 
-        await scheduler1.advance()
 
         XCTAssertEqual(
           1, self.cookieStorage.cookies?.count,
@@ -317,7 +300,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       XCTAssertEqual(
         ["Page Viewed"],
@@ -355,7 +337,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       XCTAssertEqual(
         [
@@ -389,7 +370,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
     await self.vm.loadingTask?.value
 
-    await self.scheduler.advance()
 
     XCTAssertEqual([], self.segmentTrackingClient.events)
   }
@@ -416,7 +396,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         XCTAssertEqual(segmentClient.events, [])
       }
@@ -443,7 +422,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         XCTAssertEqual(segmentClient.events, ["Page Viewed"])
 
@@ -481,7 +459,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         XCTAssertEqual(segmentClient.events, ["Page Viewed"])
 
@@ -521,7 +498,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
       }
 
       XCTAssertEqual(segmentClient.events, ["Page Viewed"])
@@ -530,7 +506,6 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
       await self.vm.waitForBlocking()
 
-      await self.scheduler.advance()
 
       XCTAssertEqual(segmentClient.events, ["Page Viewed", "CTA Clicked", "CTA Clicked"])
 

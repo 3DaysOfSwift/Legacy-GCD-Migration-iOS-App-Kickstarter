@@ -6,7 +6,6 @@ import GraphAPI
 
 import PassKit
 import Prelude
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -34,15 +33,11 @@ final class PledgeViewModelTests: TestCase {
 
   private func advancePledges(by interval: DispatchTimeInterval = .seconds(0)) async {
     await self.feature.waitForOperations()
-    await self.scheduler.advance(by: interval)
     await self.feature.waitForOperations()
-    await self.scheduler.advance()
   }
   private func runPledges() async {
     await self.feature.waitForOperations()
-    await self.scheduler.run()
     await self.feature.waitForOperations()
-    await self.scheduler.run()
   }
 
   override var requiresSnapshotReferenceSimulator: Bool { false }

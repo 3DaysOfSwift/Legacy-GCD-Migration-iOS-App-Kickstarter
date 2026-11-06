@@ -6,7 +6,6 @@ import GraphAPI
 
 
 import Prelude
-import ReactiveSwift
 import XCTest
 
 /// Contains the input/output tests for the `ProjectPageViewModel`.
@@ -173,7 +172,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertValues([project])
       self.configureChildViewControllersWithRefTag.assertValues([refTag])
@@ -182,7 +180,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertValues([project, project])
       self.configureChildViewControllersWithRefTag.assertValues([refTag, refTag])
@@ -191,7 +188,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertValues([project, project, project])
       self.configureChildViewControllersWithRefTag.assertValues([refTag, refTag, refTag])
@@ -209,7 +205,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertValues([project])
       self.configureChildViewControllersWithRefTag.assertValues([nil])
@@ -218,7 +213,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertValues([project, project])
       self.configureChildViewControllersWithRefTag.assertValues([nil, nil])
@@ -227,7 +221,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertValues([project, project, project])
       self.configureChildViewControllersWithRefTag.assertValues([nil, nil, nil])
@@ -282,7 +275,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       XCTAssertEqual(
         self.configureDataSourceProject.lastValue?.left?.stats.projectCurrency,
@@ -315,7 +307,6 @@ final class ProjectPageViewModelTests: TestCase {
       await self.vm.waitForBlocking()
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       self.didBlockUser.assertValueCount(1)
       self.didBlockUserError.assertValueCount(0)
@@ -344,7 +335,6 @@ final class ProjectPageViewModelTests: TestCase {
       await self.vm.waitForBlocking()
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       self.didBlockUser.assertValueCount(0)
       self.didBlockUserError.assertValueCount(1)
@@ -379,7 +369,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       XCTAssertEqual(
         self.configureDataSourceProject.lastValue?.left?.stats.projectCurrency,
@@ -404,7 +393,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       self.configureProjectNavigationSelectorView.assertDidEmitValue()
     }
@@ -424,7 +412,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       self.configureProjectNavigationSelectorView.assertDidEmitValue()
     }
@@ -444,7 +431,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertValues([project])
     }
@@ -467,7 +453,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertValues([project])
     }
@@ -494,7 +479,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       XCTAssertEqual(
         self.configureChildViewControllersWithProject.values.last!.personalization.backing,
@@ -516,7 +500,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.goToComments.assertDidNotEmitValue()
 
@@ -536,7 +519,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.goToReportProject.assertDidNotEmitValue()
 
@@ -554,7 +536,6 @@ final class ProjectPageViewModelTests: TestCase {
       await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
         self.vm.configureAndLoad(.left(self.projectWithEmptyProperties))
         await self.vm.loadingTask?.value
-        await self.scheduler.advance()
 
         self.goToRewardsProject.assertDidNotEmitValue()
         self.goToRewardsRefTag.assertDidNotEmitValue()
@@ -596,7 +577,6 @@ final class ProjectPageViewModelTests: TestCase {
       await withEnvironment(config: .template, currentUser: nil, mainBundle: self.releaseBundle) {
         self.vm.configureAndLoad(.left(self.projectWithEmptyProperties))
         await self.vm.loadingTask?.value
-        await self.scheduler.advance()
 
         self.goToRewardsProject.assertDidNotEmitValue()
         self.goToRewardsRefTag.assertDidNotEmitValue()
@@ -653,7 +633,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.configureChildViewControllersWithProject.assertDidEmitValue()
         guard let loadedProject = self.configureChildViewControllersWithProject.lastValue else {
@@ -689,7 +668,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.configureChildViewControllersWithProject.assertDidEmitValue()
         guard let loadedProject = self.configureChildViewControllersWithProject.lastValue else {
@@ -728,7 +706,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       await self.vm.loadingTask?.value
 
-      await self.scheduler.advance()
 
       self.configureChildViewControllersWithProject.assertDidNotEmitValue()
     }
@@ -753,7 +730,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.vm.inputs.pledgeCTAButtonTapped(with: .pledge)
 
@@ -778,7 +754,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.goToRewardsProject.assertDidNotEmitValue()
         self.goToRewardsRefTag.assertDidNotEmitValue()
@@ -832,7 +807,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.goToManagePledgeProjectParam.assertDidNotEmitValue()
         self.goToManagePledgeBackingParam.assertDidNotEmitValue()
@@ -864,7 +838,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.goToManagePledgeProjectParam.assertDidNotEmitValue()
         self.goToManagePledgeBackingParam.assertDidNotEmitValue()
@@ -897,7 +870,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.goToManagePledgeProjectParam.assertDidNotEmitValue()
         self.goToManagePledgeBackingParam.assertDidNotEmitValue()
@@ -931,7 +903,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.goToManagePledgeProjectParam.assertDidNotEmitValue()
         self.goToManagePledgeBackingParam.assertDidNotEmitValue()
@@ -956,7 +927,6 @@ final class ProjectPageViewModelTests: TestCase {
     await ProjectPageViewModelTests.mockNetworkRequests(project: project) {
       self.vm.configureAndLoad(.left(self.projectWithEmptyProperties))
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.goToPledgeManager.assertDidNotEmitValue()
 
@@ -972,7 +942,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.goToUpdates.assertDidNotEmitValue()
 
@@ -1002,7 +971,6 @@ final class ProjectPageViewModelTests: TestCase {
         self.configurePledgeCTAView.assertValues([.loading])
 
         await self.vm.loadingTask?.value
-        await self.scheduler.run()
 
         self.configurePledgeCTAView.assertValues([.loading, .project(projectFull)])
       }
@@ -1027,7 +995,6 @@ final class ProjectPageViewModelTests: TestCase {
       self.configurePledgeCTAView.assertValues([.loading])
 
       await self.vm.loadingTask?.value
-      await self.scheduler.run()
 
       self.configurePledgeCTAView.assertValues([.loading, .error(.couldNotParseJSON)])
     }
@@ -1051,7 +1018,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.configurePledgeCTAView.assertValues([.loading, .project(projectFull)])
       }
@@ -1067,7 +1033,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         let projectWithBacking = project |> \.personalization.backing .~ .template
           |> \.personalization.isBacking .~ true
@@ -1108,7 +1073,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.configurePledgeCTAView.assertValues([.loading, .project(projectFull)])
       }
@@ -1127,7 +1091,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.configurePledgeCTAView.assertValues([
           .loading,
@@ -1159,7 +1122,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.configurePledgeCTAView.assertValues([.loading, .project(projectFull)])
       }
@@ -1175,7 +1137,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.configurePledgeCTAView.assertValues([
           .loading,
@@ -1192,7 +1153,6 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.inputs.configureWith(projectOrParam: .left(Project.template), refInfo: RefInfo(.discovery))
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.dismissManagePledgeAndShowMessageBannerWithMessage.assertDidNotEmitValue()
 
@@ -1207,7 +1167,6 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.inputs.configureWith(projectOrParam: .left(.template), refInfo: nil)
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.navigateBackToProjectPage.assertDidNotEmitValue()
 
@@ -1222,7 +1181,6 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.inputs.configureWith(projectOrParam: .left(.template), refInfo: nil)
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.presentMessageDialog.assertDidNotEmitValue()
 
@@ -1237,7 +1195,6 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.inputs.configureWith(projectOrParam: .left(.template), refInfo: nil)
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.projectFlagged.assertValues([false])
     }
@@ -1251,7 +1208,6 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.inputs.configureWith(projectOrParam: .left(self.projectWithEmptyProperties), refInfo: nil)
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.projectFlagged.assertValues([true])
     }
@@ -1262,7 +1218,6 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.inputs.configureWith(projectOrParam: .left(.template), refInfo: nil)
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.showHelpWebViewController.assertDidNotEmitValue()
 
@@ -1292,7 +1247,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.showProjectPageTabWithDataNavigationSection.assertDidNotEmitValue()
 
@@ -1317,7 +1271,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.showProjectPageTabWithDataProject.assertDidNotEmitValue()
       self.vm.inputs.projectNavigationSelectorViewDidSelect(index: overviewSection)
@@ -1345,7 +1298,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.showProjectPageTabWithDataProject.assertDidNotEmitValue()
 
@@ -1378,7 +1330,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.showProjectPageTabWithDataImageURLS.assertDidNotEmitValue()
       self.vm.inputs.projectNavigationSelectorViewDidSelect(index: overviewSection)
@@ -1422,7 +1373,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.showProjectPageTabWithDataImageURLS.assertDidNotEmitValue()
       self.vm.inputs.projectNavigationSelectorViewDidSelect(index: overviewSection)
@@ -1471,7 +1421,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.vm.inputs.projectNavigationSelectorViewDidSelect(index: campaignSection)
 
@@ -1520,7 +1469,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.vm.inputs.projectNavigationSelectorViewDidSelect(index: campaignSection)
 
@@ -1581,7 +1529,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.vm.inputs.projectNavigationSelectorViewDidSelect(index: campaignSection)
 
@@ -1633,7 +1580,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.vm.inputs.projectNavigationSelectorViewDidSelect(index: campaignSection)
 
@@ -1699,7 +1645,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.updateFAQsInDataSourceProject.assertDidNotEmitValue()
 
@@ -1758,7 +1703,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.updateFAQsInDataSourceIsExpandedValues.assertDidNotEmitValue()
 
@@ -1793,7 +1737,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.pauseMedia.assertDidNotEmitValue()
 
@@ -1826,7 +1769,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.reloadCampaignData.assertDidNotEmitValue()
 
@@ -1870,7 +1812,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.viewDidLoad()
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.goToURL.assertDidNotEmitValue()
 
@@ -1912,7 +1853,6 @@ final class ProjectPageViewModelTests: TestCase {
 
       // When the API response is processed
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       // Then the prefetch signal emits with the correct image element
       XCTAssertEqual(prefetchImageElementsOnFirstLoad.values.count, 1, "Should emit image elements once")
@@ -1940,7 +1880,6 @@ final class ProjectPageViewModelTests: TestCase {
         index: NavigationSection.campaign.rawValue
       )
       await self.vm.loadingTask?.value
-      await self.scheduler.advance()
 
       self.showProjectPageTabWithDataContentView.assertValues([.tableView])
     }
@@ -1961,7 +1900,6 @@ final class ProjectPageViewModelTests: TestCase {
           index: NavigationSection.campaign.rawValue
         )
         await self.vm.loadingTask?.value
-        await self.scheduler.advance()
 
         self.showProjectPageTabWithDataContentView.assertLastValue(
           .tableView,
@@ -1993,7 +1931,6 @@ final class ProjectPageViewModelTests: TestCase {
 
         await self.vm.loadingTask?.value
 
-        await self.scheduler.advance()
 
         self.configureChildViewControllersWithProject.assertValueCount(1)
         self.configureDataSourceProject.assertValueCount(1)
@@ -2017,7 +1954,6 @@ final class ProjectPageViewModelTests: TestCase {
           index: NavigationSection.campaign.rawValue
         )
         await self.vm.loadingTask?.value
-        await self.scheduler.advance()
 
         self.showProjectPageTabWithDataContentView.assertLastValue(
           .tableView,
@@ -2042,7 +1978,6 @@ final class ProjectPageViewModelTests: TestCase {
           index: NavigationSection.campaign.rawValue
         )
         await self.vm.loadingTask?.value
-        await self.scheduler.advance()
 
         self.showProjectPageTabWithDataContentView.assertValueCount(1)
         guard case .richTextView = self.showProjectPageTabWithDataContentView.values[0] else {
@@ -2064,17 +1999,14 @@ final class ProjectPageViewModelTests: TestCase {
         )
         self.vm.inputs.viewDidLoad()
         await self.vm.loadingTask?.value
-        await self.scheduler.advance()
         self.vm.inputs.projectNavigationSelectorViewDidSelect(
           index: NavigationSection.campaign.rawValue
         )
         await self.vm.loadingTask?.value
-        await self.scheduler.advance()
         self.vm.inputs.projectNavigationSelectorViewDidSelect(
           index: NavigationSection.overview.rawValue
         )
         await self.vm.loadingTask?.value
-        await self.scheduler.advance()
 
         self.showProjectPageTabWithDataContentView.assertValueCount(2)
         guard case .richTextView = self.showProjectPageTabWithDataContentView.values[0] else {
@@ -2103,7 +2035,6 @@ final class ProjectPageViewModelTests: TestCase {
           index: NavigationSection.campaign.rawValue
         )
         await self.vm.loadingTask?.value
-        await self.scheduler.advance()
 
         self.showProjectPageTabWithDataContentView.assertValueCount(
           1,
