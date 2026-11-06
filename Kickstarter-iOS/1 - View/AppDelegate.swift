@@ -10,10 +10,7 @@ import KDS
 #endif
 import Experimentation
 
-
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 import SafariServices
 import Segment
 import SegmentBrazeUI
