@@ -1,8 +1,5 @@
 @testable import Kickstarter_iOS
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @testable import KsApi
@@ -21,42 +18,36 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     feature: self.feature)
   private func advanceAddOns() async {
     await self.feature.waitForAddOns()
-    await self.scheduler.advance()
+
   }
 
-  private let configureContinueCTAViewWithDataIsLoading = TestObserver<Bool, Never>()
-  private let configureContinueCTAViewWithDataIsValid = TestObserver<Bool, Never>()
-  private let configureContinueCTAViewWithDataQuantity = TestObserver<Int, Never>()
-  private let configureContinueCTAViewWithDataPledgeAmount = TestObserver<
-    NSAttributedString?, Never
-  >()
-  private let configurePledgeAmountViewWithData = TestObserver<PledgeAmountViewConfigData, Never>()
-  private let endRefreshing = TestObserver<(), Never>()
-  private let goToPledge = TestObserver<PledgeViewData, Never>()
-  private let loadAddOnRewardsIntoDataSource = TestObserver<
-    [RewardAddOnSelectionDataSourceItem], Never
-  >()
-  private let loadAddOnRewardsIntoDataSourceAndReloadTableView = TestObserver<
-    [RewardAddOnSelectionDataSourceItem], Never
-  >()
-  private let startRefreshing = TestObserver<(), Never>()
+  private let configureContinueCTAViewWithDataIsLoading = AddOnRecorder<Bool>()
+  private let configureContinueCTAViewWithDataIsValid = AddOnRecorder<Bool>()
+  private let configureContinueCTAViewWithDataQuantity = AddOnRecorder<Int>()
+  private let configureContinueCTAViewWithDataPledgeAmount = AddOnRecorder<NSAttributedString?>()
+  private let configurePledgeAmountViewWithData = AddOnRecorder<PledgeAmountViewConfigData>()
+  private let endRefreshing = AddOnRecorder<()>()
+  private let goToPledge = AddOnRecorder<PledgeViewData>()
+  private let loadAddOnRewardsIntoDataSource = AddOnRecorder<[RewardAddOnSelectionDataSourceItem]>()
+  private let loadAddOnRewardsIntoDataSourceAndReloadTableView = AddOnRecorder<[RewardAddOnSelectionDataSourceItem]>()
+  private let startRefreshing = AddOnRecorder<()>()
 
   override func setUp() async throws {
     try await super.setUp()
     MainActor.assumeIsolated {
 
       self.vm.outputs.onConfigureContinue = { [weak self] data in
-        self?.configureContinueCTAViewWithDataQuantity.observer.send(value: data.selectedQuantity)
-        self?.configureContinueCTAViewWithDataIsValid.observer.send(value: data.isValid)
-        self?.configureContinueCTAViewWithDataIsLoading.observer.send(value: data.isLoading)
-        self?.configureContinueCTAViewWithDataPledgeAmount.observer.send(value: data.pledgeAmount)
+        self?.configureContinueCTAViewWithDataQuantity.record(data.selectedQuantity)
+        self?.configureContinueCTAViewWithDataIsValid.record(data.isValid)
+        self?.configureContinueCTAViewWithDataIsLoading.record(data.isLoading)
+        self?.configureContinueCTAViewWithDataPledgeAmount.record(data.pledgeAmount)
       }
-      self.vm.outputs.onConfigureAmount = { [weak self] in self?.configurePledgeAmountViewWithData.observer.send(value: $0) }
-      self.vm.outputs.onEndRefreshing = { [weak self] in self?.endRefreshing.observer.send(value: ()) }
-      self.vm.outputs.onGoToPledge = { [weak self] in self?.goToPledge.observer.send(value: $0) }
-      self.vm.outputs.onLoadRewards = { [weak self] in self?.loadAddOnRewardsIntoDataSource.observer.send(value: $0) }
-      self.vm.outputs.onLoadAndReloadRewards = { [weak self] in self?.loadAddOnRewardsIntoDataSourceAndReloadTableView.observer.send(value: $0) }
-      self.vm.outputs.onStartRefreshing = { [weak self] in self?.startRefreshing.observer.send(value: ()) }
+      self.vm.outputs.onConfigureAmount = { [weak self] in self?.configurePledgeAmountViewWithData.record($0) }
+      self.vm.outputs.onEndRefreshing = { [weak self] in self?.endRefreshing.record(()) }
+      self.vm.outputs.onGoToPledge = { [weak self] in self?.goToPledge.record($0) }
+      self.vm.outputs.onLoadRewards = { [weak self] in self?.loadAddOnRewardsIntoDataSource.record($0) }
+      self.vm.outputs.onLoadAndReloadRewards = { [weak self] in self?.loadAddOnRewardsIntoDataSourceAndReloadTableView.record($0) }
+      self.vm.outputs.onStartRefreshing = { [weak self] in self?.startRefreshing.record(()) }
     }
   }
 
@@ -1432,5 +1423,27 @@ final class RewardAddOnSelectionViewModelTests: TestCase {
     XCTAssertEqual(self.goToPledge.values.last?.selectedLocationId, shippingRule.location.id)
     XCTAssertEqual(self.goToPledge.values.last?.refTag, .activity)
     XCTAssertEqual(self.goToPledge.values.last?.context, .pledge)
+  }
+}
+
+@MainActor
+private final class AddOnRecorder<Value> {
+  private(set) var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, message, file: file, line: line)
+  }
+}
+
+private extension AddOnRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
+  }
+  func assertLastValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.last, expected, message, file: file, line: line)
   }
 }
