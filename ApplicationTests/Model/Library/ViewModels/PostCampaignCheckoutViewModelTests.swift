@@ -83,11 +83,10 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       self.vm = PostCampaignCheckoutViewModel(
         stripeIntentService: self.mockStripeIntentService, feature: self.pledgeFeature)
 
-      self.vm.goToApplePayPaymentAuthorization.observe(
-        self.goToApplePayPaymentAuthorization.observer)
-      self.vm.checkoutComplete.observe(self.checkoutComplete.observer)
+      self.vm.outputs.onApplePayAuthorization = { [weak self] in self?.goToApplePayPaymentAuthorization.observer.send(value: $0) }
+      self.vm.outputs.onCheckoutComplete = { [weak self] in self?.checkoutComplete.observer.send(value: $0) }
       self.vm.outputs.onProcessingHidden = { [weak self] in self?.processingViewIsHidden.observer.send(value: $0) }
-      self.vm.validateCheckoutSuccess.observe(self.validateCheckoutSuccess.observer)
+      self.vm.outputs.onValidateCheckout = { [weak self] in self?.validateCheckoutSuccess.observer.send(value: $0) }
       self.vm.outputs.onCheckoutError = { [weak self] in self?.checkoutError.observer.send(value: $0) }
       self.vm.outputs.onGoToLoginSignup = { [weak self] in self?.goToLoginSignup.observer.send(value: $0) }
 

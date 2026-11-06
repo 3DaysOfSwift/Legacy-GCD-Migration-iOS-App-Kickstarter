@@ -1,7 +1,6 @@
 @testable import Kickstarter_iOS
 import Foundation
 import GraphAPI
-import ReactiveSwift
 import XCTest
 
 @testable import KsApi

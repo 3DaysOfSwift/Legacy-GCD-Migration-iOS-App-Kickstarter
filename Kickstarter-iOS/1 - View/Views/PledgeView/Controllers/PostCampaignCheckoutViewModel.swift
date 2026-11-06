@@ -68,9 +68,9 @@ public protocol PostCampaignCheckoutViewModelOutputs: AnyObject {
   var onGoToLoginSignup: ((LoginIntent) -> Void)? { get set }
   var onShowError: ((String) -> Void)? { get set }
   var onShowWebHelp: ((HelpType) -> Void)? { get set }
-  var validateCheckoutSuccess: Signal<PaymentSourceValidation, Never> { get }
-  var goToApplePayPaymentAuthorization: Signal<PostCampaignPaymentAuthorizationData, Never> { get }
-  var checkoutComplete: Signal<ThanksPageData, Never> { get }
+  var onValidateCheckout: ((PaymentSourceValidation) -> Void)? { get set }
+  var onApplePayAuthorization: ((PostCampaignPaymentAuthorizationData) -> Void)? { get set }
+  var onCheckoutComplete: ((ThanksPageData) -> Void)? { get set }
   var onCheckoutError: ((ErrorEnvelope) -> Void)? { get set }
 }
 
@@ -298,7 +298,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       .takeWhen(self.submitButtonTappedProperty.signal)
     let validateCheckoutExistingCard = self.cardValidation.events(feature: feature)
 
-    self.validateCheckoutSuccess = Signal
+    let validateCheckoutSuccess: Signal<PaymentSourceValidation, Never> = Signal
       .combineLatest(paymentIntentClientSecretForExistingCards, selectedCard)
       .takeWhen(validateCheckoutExistingCard.values())
       .map { paymentIntentClientSecret, selectedCard in
@@ -329,7 +329,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     let paymentIntentClientSecretForApplePay: Signal<String, Never> = paymentIntentClientSecret
       .takeWhen(startApplePayFlow)
 
-    self.goToApplePayPaymentAuthorization = Signal.combineLatest(
+    let goToApplePayPaymentAuthorization: Signal<PostCampaignPaymentAuthorizationData, Never> = Signal.combineLatest(
       project,
       baseReward,
       allRewardsTotal,
@@ -435,7 +435,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
         (project, baseReward, nil, pledgeTotal)
       }
 
-    self.checkoutComplete = thanksPageData
+    let checkoutComplete: Signal<ThanksPageData, Never> = thanksPageData
       .takeWhen(checkoutCompleteSignal.values())
       .map { $0 }
 
@@ -662,6 +662,9 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     _ = processingViewIsHidden.observeValues { [weak self] in self?.onProcessingHidden?($0) }
     _ = errorMessages.observeValues { [weak self] in self?.onShowError?($0) }
     _ = checkoutErrors.observeValues { [weak self] in self?.onCheckoutError?($0) }
+    _ = validateCheckoutSuccess.observeValues { [weak self] in self?.onValidateCheckout?($0) }
+    _ = goToApplePayPaymentAuthorization.observeValues { [weak self] in self?.onApplePayAuthorization?($0) }
+    _ = checkoutComplete.observeValues { [weak self] in self?.onCheckoutComplete?($0) }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
     paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
@@ -783,9 +786,9 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   public var onShowWebHelp: ((HelpType) -> Void)?
   public var onPaymentMethodsHidden: ((Bool) -> Void)?
 
-  public let validateCheckoutSuccess: Signal<PaymentSourceValidation, Never>
-  public let goToApplePayPaymentAuthorization: Signal<PostCampaignPaymentAuthorizationData, Never>
-  public let checkoutComplete: Signal<ThanksPageData, Never>
+  public var onValidateCheckout: ((PaymentSourceValidation) -> Void)?
+  public var onApplePayAuthorization: ((PostCampaignPaymentAuthorizationData) -> Void)?
+  public var onCheckoutComplete: ((ThanksPageData) -> Void)?
   public var onCheckoutError: ((ErrorEnvelope) -> Void)?
 
   public var inputs: PostCampaignCheckoutViewModelInputs { return self }

@@ -272,9 +272,7 @@ final class PostCampaignCheckoutViewController: UIViewController,
         self?.goToLoginSignup(with: intent)
       }
 
-    self.viewModel.outputs.validateCheckoutSuccess
-      .observeForControllerAction()
-      .observeValues { [weak self] validation in
+    self.viewModel.outputs.onValidateCheckout = { [weak self] validation in
         guard let self else { return }
 
         self.confirmPayment(with: validation)
@@ -293,15 +291,11 @@ final class PostCampaignCheckoutViewController: UIViewController,
         STPAPIClient.shared.configuration.appleMerchantIdentifier = merchantIdentifier
       }
 
-    self.viewModel.outputs.goToApplePayPaymentAuthorization
-      .observeForControllerAction()
-      .observeValues { [weak self] paymentAuthorizationData in
+    self.viewModel.outputs.onApplePayAuthorization = { [weak self] paymentAuthorizationData in
         self?.goToPaymentAuthorization(paymentAuthorizationData)
       }
 
-    self.viewModel.outputs.checkoutComplete
-      .observeForUI()
-      .observeValues { [weak self] thanksPageData in
+    self.viewModel.outputs.onCheckoutComplete = { [weak self] thanksPageData in
         let thanksVC = ThanksViewController.configured(with: thanksPageData)
         self?.navigationController?.pushViewController(thanksVC, animated: true)
       }
