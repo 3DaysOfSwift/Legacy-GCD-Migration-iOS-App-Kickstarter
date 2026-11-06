@@ -7,7 +7,6 @@ import GraphAPI
 
 
 import Prelude
-import ReactiveExtensions
 import UserNotifications
 import ReactiveSwift
 import XCTest

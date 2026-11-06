@@ -3,7 +3,6 @@
 
 
 import Prelude
-import ReactiveExtensions
 import UIKit.UIActivity
 import XCTest
 

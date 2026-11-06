@@ -2756,10 +2756,6 @@
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
 		};
-		"C0D69AB16F4EE4805F651B22" = {
-			"isa" = "PBXBuildFile";
-			"productRef" = "D61ACBBDEA23C4D0F9FD210A";
-		};
 		"AAF547EF2F2445C0001DB5AC" = {
 			"path" = "PagedContainerViewModelTests.swift";
 			"isa" = "PBXFileReference";
@@ -3214,11 +3210,6 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "EC62C0BD9AC2D87E150078DB";
 		};
-		"796A3F828F52CBEEC28533CB" = {
-			"isa" = "XCSwiftPackageProductDependency";
-			"productName" = "ReactiveExtensions";
-			"package" = "194C593E28F5E7FF00453249";
-		};
 		"EAAD0B339435F2ED92AC60B3" = {
 			"path" = "GraphAPI/GraphAPITestMocks/UpdateBackingPayload+Mock.graphql.swift";
 			"isa" = "PBXFileReference";
@@ -3671,11 +3662,6 @@
 				"BA34D4B3E418B56B52E7DF9B",
 				"60D35199CE616947566006BA",
 			);
-		};
-		"D61ACBBDEA23C4D0F9FD210A" = {
-			"isa" = "XCSwiftPackageProductDependency";
-			"productName" = "ReactiveExtensions";
-			"package" = "194C593E28F5E7FF00453249";
 		};
 		"84B34D0FD13FC68ADD88BF60" = {
 			"isa" = "XCSwiftPackageProductDependency";
@@ -7126,7 +7112,6 @@
 				"AAFCECFC2F2038EE00EAC2FE",
 				"BD8CDEC76A8F4F31F051BB8C",
 				"D01C4218B2AFD0569E6CCE41",
-				"C0D69AB16F4EE4805F651B22",
 				"37EADD2C011BC83E7F3C9B16",
 				"5B4AEE46E8246ABCDDDA29A6",
 				"F44D525AB72C26FF915EDB26",
@@ -8640,10 +8625,6 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "AAF548A42F2445C0001DB5AC";
 		};
-		"70D06CB584A5721ECF33CB0E" = {
-			"isa" = "PBXBuildFile";
-			"productRef" = "17624CE1E78BC53C0656C089";
-		};
 		"E10FED153005D38600EAF400" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "E10FED143005D38600EAF400";
@@ -8861,11 +8842,6 @@
 		"73A133BF6505FD17ABBEF595" = {
 			"isa" = "PBXBuildFile";
 			"productRef" = "EEDB3B4F39FF6F96E362F9D2";
-		};
-		"AAFCED032F2038FC00EAC2FE" = {
-			"isa" = "XCSwiftPackageProductDependency";
-			"package" = "194C593E28F5E7FF00453249";
-			"productName" = "ReactiveExtensions";
 		};
 		"5264490BA87B8122649F3EB0" = {
 			"isa" = "XCSwiftPackageProductDependency";
@@ -11907,11 +11883,6 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "AAF548462F2445C0001DB5AC";
 		};
-		"17624CE1E78BC53C0656C089" = {
-			"isa" = "XCSwiftPackageProductDependency";
-			"productName" = "ReactiveExtensions";
-			"package" = "194C593E28F5E7FF00453249";
-		};
 		"C860A1CA8D06EA8BC518E1D9" = {
 			"path" = "KsApi/Sources/KsApiTestHelpers/CombineTestObserver.swift";
 			"isa" = "PBXFileReference";
@@ -14430,7 +14401,6 @@
 				"39AE634D2F6C581800481A76",
 				"1C711FCC57C3630B2E5AF681",
 				"549830B37812CD5AE375CD2A",
-				"D61ACBBDEA23C4D0F9FD210A",
 				"E0B6E461090C3162C913C6A2",
 				"8F9E2E1CA70145C5CF827FFB",
 				"85BB6A82A37E4C196059F619",
@@ -16848,7 +16818,6 @@
 				"BA3D84568451D85236C6EDA3",
 				"AAFF48F056295E988F270D18",
 				"A212673728B13CB39C2280B6",
-				"17624CE1E78BC53C0656C089",
 				"53C87C7B6D33D28645F0A5BD",
 				"B0049AC4036DF9ABCDC1D905",
 				"16224DFB26763424AE3C170B",
@@ -17329,7 +17298,6 @@
 				"60DA511028C96865002E2DF1",
 				"606754B728CF8A190033CD5E",
 				"19BF225F28D10497007F4197",
-				"194C593E28F5E7FF00453249",
 				"7049568E299D53ED00B273DF",
 				"E1B2146F2BFD184500109961",
 				"600A0EE92DD23BAA00954829",
@@ -20677,7 +20645,6 @@
 				"1A9403D75BE3EF6D6DC2ECBF",
 				"B5D67B676A7EB8DB7232DCF6",
 				"296FCCFB162143F3E32CA8AF",
-				"70D06CB584A5721ECF33CB0E",
 				"45A0CA9AA156093F279A5F4C",
 				"BA813197236EA608061F0E9E",
 				"CE6CE9C0AC27E1166B0CFBC8",
@@ -21023,10 +20990,6 @@
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "sourcecode.swift";
 			"sourceTree" = "<group>";
-		};
-		"36F04DDF0798E0321B091D95" = {
-			"isa" = "PBXBuildFile";
-			"productRef" = "796A3F828F52CBEEC28533CB";
 		};
 		"B63D5CE59D8131387FA79965" = {
 			"isa" = "PBXGroup";
@@ -22748,14 +22711,6 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "6DB51B6F6A4655C6F1ECAF8E";
 		};
-		"194C593E28F5E7FF00453249" = {
-			"isa" = "XCRemoteSwiftPackageReference";
-			"repositoryURL" = "https://github.com/kickstarter/Kickstarter-ReactiveExtensions";
-			"requirement" = {
-				"kind" = "upToNextMajorVersion";
-				"minimumVersion" = "2.0.0";
-			};
-		};
 		"7BDAD73D179D306C5F803B0F" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "F483751AC6C556EF1BA8932F";
@@ -22792,7 +22747,6 @@
 				"1F3EAB972A613E6C26136CF4",
 				"ADA704A2CF3BD3E3B0C06E3C",
 				"62FC13E6133613DED3E1071F",
-				"36F04DDF0798E0321B091D95",
 				"ED4811F2F9438C30E8CC6269",
 				"2E3050A4C1EC84CCC8034400",
 				"F8DA582688F647A78D293385",
@@ -22854,7 +22808,6 @@
 				"40F2AECCFA55E650529E1A5B",
 				"0617D9B76006A5D04E069A0D",
 				"7C5047323B7F64F32764F762",
-				"796A3F828F52CBEEC28533CB",
 				"053B11C62E21046F24A0E17A",
 				"5264490BA87B8122649F3EB0",
 				"E4671AB64474A2B8056C1141",
@@ -23829,10 +23782,6 @@
 			"children" = (
 				"E0B25A00E28A093AF90275B5",
 			);
-		};
-		"AAFCED042F2038FC00EAC2FE" = {
-			"isa" = "PBXBuildFile";
-			"productRef" = "AAFCED032F2038FC00EAC2FE";
 		};
 		"435262BC39AFBC41A548FEC3" = {
 			"isa" = "PBXBuildFile";

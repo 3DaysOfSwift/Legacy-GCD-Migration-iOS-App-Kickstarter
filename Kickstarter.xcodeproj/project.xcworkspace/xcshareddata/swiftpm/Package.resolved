@@ -172,15 +172,6 @@
       }
     },
     {
-      "identity" : "kickstarter-reactiveextensions",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kickstarter/Kickstarter-ReactiveExtensions",
-      "state" : {
-        "revision" : "36984ccbdbf1874728f801f29bc0e41706efdd0a",
-        "version" : "2.0.0"
-      }
-    },
-    {
       "identity" : "kingfisher",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/onevcat/Kingfisher",
