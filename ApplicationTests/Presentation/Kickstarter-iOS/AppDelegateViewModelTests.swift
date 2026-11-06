@@ -119,12 +119,12 @@ final class AppDelegateViewModelTests: TestCase {
       .observe(self.emailVerificationCompletedSuccess.observer)
     self.vm.outputs.findRedirectUrl.observe(self.findRedirectUrl.observer)
     self.vm.outputs.onForceLogout = { [weak self] in self?.forceLogout.observer.send(value: ()) }
-    self.vm.outputs.goToActivity.observe(self.goToActivity.observer)
+    self.vm.outputs.onGoToActivity = { [weak self] in self?.goToActivity.observer.send(value: ()) }
     self.vm.outputs.onGoToDiscovery = { [weak self] in self?.goToDiscovery.observer.send(value: $0) }
     self.vm.outputs.goToLoginWithIntent.observe(self.goToLoginWithIntent.observer)
-    self.vm.outputs.goToProfile.observe(self.goToProfile.observer)
+    self.vm.outputs.onGoToProfile = { [weak self] in self?.goToProfile.observer.send(value: ()) }
     self.vm.outputs.goToMobileSafari.observe(self.goToMobileSafari.observer)
-    self.vm.outputs.goToSearch.observe(self.goToSearch.observer)
+    self.vm.outputs.onGoToSearch = { [weak self] in self?.goToSearch.observer.send(value: ()) }
     self.vm.outputs.onPostNotification = { [weak self] in self?.postNotificationName.observer.send(value: $0.name) }
     self.vm.outputs.onPresentViewController = { [weak self] controller in
       guard let navigation = controller as? UINavigationController else { return }

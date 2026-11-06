@@ -165,9 +165,9 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       DispatchQueue.main.async { [weak self] in self?.rootTabBarController?.switchToDiscovery(params: params) }
     }
 
-    self.viewModel.outputs.goToActivity
-      .observeForUI()
-      .observeValues { [weak self] in self?.rootTabBarController?.switchToActivities() }
+    self.viewModel.outputs.onGoToActivity = { [weak self] in
+      DispatchQueue.main.async { [weak self] in self?.rootTabBarController?.switchToActivities() }
+    }
 
     self.viewModel.outputs.goToLoginWithIntent
       .observeForControllerAction()
@@ -190,9 +190,9 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       DispatchQueue.main.async { [weak self] in self?.goToMessageThread(thread) }
     }
 
-    self.viewModel.outputs.goToSearch
-      .observeForUI()
-      .observeValues { [weak self] in self?.rootTabBarController?.switchToSearch() }
+    self.viewModel.outputs.onGoToSearch = { [weak self] in
+      DispatchQueue.main.async { [weak self] in self?.rootTabBarController?.switchToSearch() }
+    }
 
     self.viewModel.outputs.goToMobileSafari
       .observeForUI()

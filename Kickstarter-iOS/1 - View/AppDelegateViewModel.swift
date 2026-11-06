@@ -122,7 +122,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var onForceLogout: (() -> Void)? { get set }
 
   /// Emits when the root view controller should navigate to activity.
-  var goToActivity: Signal<(), Never> { get }
+  var onGoToActivity: (() -> Void)? { get set }
 
   /// Emits when the root view controller should navigate to the discovery screen.
   var onGoToDiscovery: ((DiscoveryParams?) -> Void)? { get set }
@@ -134,13 +134,13 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var onGoToMessageThread: ((MessageThread) -> Void)? { get set }
 
   /// Emits when the root view controller should navigate to the user's profile.
-  var goToProfile: Signal<(), Never> { get }
+  var onGoToProfile: (() -> Void)? { get set }
 
   /// Emits a URL when we should open it in the safari browser.
   var goToMobileSafari: Signal<URL, Never> { get }
 
   /// Emits when the root view controller should navigate to search.
-  var goToSearch: Signal<(), Never> { get }
+  var onGoToSearch: (() -> Void)? { get set }
 
   /// Emits an Notification that should be immediately posted.
   var onPostNotification: ((Notification) -> Void)? { get set }
@@ -331,14 +331,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
         return AppEnvironment.current.currentUser == nil
       }
 
-    self.goToActivity = deepLink
-      .filter { $0 == .tab(.activity) }
-      .ignoreValues()
-
-    self.goToSearch = deepLink
-      .filter { $0 == .tab(.search) }
-      .ignoreValues()
-
     let goToLogin = deepLink
       .filter { $0 == .tab(.login) }
       .ignoreValues()
@@ -349,10 +341,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       self.goToLoginSignupProperty.signal.skipNil()
     )
 
-    self.goToProfile = deepLink
-      .filter { $0 == .tab(.me) }
-      .ignoreValues()
-
     self.goToMobileSafari = Signal.merge(
       deepLinkUrl,
       urlFromBraze
@@ -360,6 +348,9 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     .filter { shouldOpenUrlInBrowser($0) }
 
     deepLink.observeValues { [weak self] navigation in
+      if navigation == .tab(.activity) { self?.onGoToActivity?() }
+      if navigation == .tab(.search) { self?.onGoToSearch?() }
+      if navigation == .tab(.me) { self?.onGoToProfile?() }
       self?.resolveDestination(navigation)
     }
 
@@ -810,13 +801,13 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public let emailVerificationCompleted: Signal<(String, Bool), Never>
   public let findRedirectUrl: Signal<URL, Never>
   public var onForceLogout: (() -> Void)?
-  public let goToActivity: Signal<(), Never>
+  public var onGoToActivity: (() -> Void)?
   public var onGoToDiscovery: ((DiscoveryParams?) -> Void)?
   public let goToLoginWithIntent: Signal<LoginIntent, Never>
   public var onGoToMessageThread: ((MessageThread) -> Void)?
-  public let goToProfile: Signal<(), Never>
+  public var onGoToProfile: (() -> Void)?
   public let goToMobileSafari: Signal<URL, Never>
-  public let goToSearch: Signal<(), Never>
+  public var onGoToSearch: (() -> Void)?
   public var onPostNotification: ((Notification) -> Void)?
   public var onPresentViewController: ((UIViewController) -> Void)?
   public var onPushTokenRegistrationStarted: (() -> Void)?
