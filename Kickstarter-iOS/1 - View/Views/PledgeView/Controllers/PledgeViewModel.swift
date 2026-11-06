@@ -2,7 +2,6 @@ import Foundation
 import KsApi
 import PassKit
 import Prelude
-import ReactiveSwift
 
 public typealias PledgeViewCTAContainerViewData = (
   project: Project,
@@ -147,84 +146,43 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     // MARK: - Create Backing
 
-    let thanksState = self.thanksState
     let processingState = PledgeProcessingState()
-
-    let createIdentity = self.createIdentity
-    let createBackingEvents: Signal<Signal<StripeSCARequiring, ErrorEnvelope>.Event, Never> = self.createEvents.output
-      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-      .filter { [feature, createIdentity] _, userID, generation, id in
-        guard createIdentity.id == id else { return false }
-        guard feature.sessionFeature.isCurrent(userID: userID, generation: generation) else {
-          createIdentity.id = UUID()
-          processingState.setHidden(true)
-          return false
-        }
-        return true
-      }
-      .map { event, _, _, _ in
-        switch event {
-        case let .value(envelope):
-          thanksState.checkoutID = decompose(id: envelope.createBacking.checkout.id)
-          thanksState.hasCheckoutResult = true
-          return .value(envelope as StripeSCARequiring)
-        case let .failed(error):
-          processingState.setHidden(true)
-          return .failed(error)
-        case .completed:
-          processingState.setHidden(true)
-          return .completed
-        case .interrupted:
-          processingState.setHidden(true)
-          return .interrupted
-        }
-      }
-
-    // MARK: - Update Backing
-
-    let updateIdentity = self.updateIdentity
-    let updateBackingEvents: Signal<Signal<StripeSCARequiring, ErrorEnvelope>.Event, Never> = self.updateEvents.output
-      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-      .filter { [feature, updateIdentity] _, userID, generation, id in
-        guard updateIdentity.id == id else { return false }
-        guard feature.sessionFeature.isCurrent(userID: userID, generation: generation) else {
-          updateIdentity.id = UUID()
-          processingState.setHidden(true)
-          return false
-        }
-        return true
-      }
-      .map { event, _, _, _ in
-        switch event {
-        case let .value(envelope): return .value(envelope as StripeSCARequiring)
-        case let .failed(error):
-          processingState.setHidden(true)
-          return .failed(error)
-        case .completed:
-          processingState.setHidden(true)
-          return .completed
-        case .interrupted:
-          processingState.setHidden(true)
-          return .interrupted
-        }
-      }
-
-    let createOrUpdateEvent = Signal.merge(
-      createBackingEvents,
-      updateBackingEvents
-    )
-
-
-    // MARK: - Form Validation
-
     let completionState = self.completionState
-    createOrUpdateEvent.observeValues { event in
-      if event.isTerminating { formState.requestFinished() }
-      switch event {
-      case let .value(value): completionState.received(value)
-      case let .failed(error): completionState.failed(error)
-      case .completed, .interrupted: completionState.requestFinished()
+    let scheduler = AppEnvironment.current.scheduler
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    let scheduleResponse: (PledgeResponse, Bool, Int?, Int, UUID) -> Void = { [weak self] response, isCreate, userID, generation, id in
+      let action = { [weak self] in
+        MainActor.assumeIsolated {
+          guard let self else { return }
+          let identity = isCreate ? self.createIdentity : self.updateIdentity
+          guard identity.id == id else { return }
+          guard feature.sessionFeature.isCurrent(userID: userID, generation: generation) else {
+            identity.id = UUID()
+            processingState.setHidden(true)
+            return
+          }
+          switch response {
+          case let .created(envelope):
+            self.thanksState.checkoutID = decompose(id: envelope.createBacking.checkout.id)
+            self.thanksState.hasCheckoutResult = true
+            completionState.received(envelope)
+            processingState.setHidden(true)
+            formState.requestFinished()
+            completionState.requestFinished()
+          case let .updated(envelope):
+            completionState.received(envelope)
+            processingState.setHidden(true)
+            formState.requestFinished()
+            completionState.requestFinished()
+          case let .failed(error):
+            processingState.setHidden(true)
+            formState.requestFinished()
+            completionState.failed(error)
+          }
+        }
       }
+      if delay.isInfinite { return }
+      _ = scheduler.schedule(after: scheduler.currentDate.addingTimeInterval(max(0, delay)), action: action)
     }
 
     self.presentData = { [weak self] data in
@@ -315,14 +273,13 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         do {
           let result = try await request.value
           guard !Task.isCancelled else { return }
-          self?.createEvents.input.send(value: (.value(result), userID, generation, id))
-          self?.createEvents.input.send(value: (.completed, userID, generation, id))
+          scheduleResponse(.created(result), true, userID, generation, id)
         } catch {
           if Task.isCancelled || error is CancellationError {
             if self?.createIdentity.id == id { processingState.setHidden(true) }
             return
           }
-          self?.createEvents.input.send(value: (.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), userID, generation, id))
+          scheduleResponse(.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), true, userID, generation, id)
         }
       }
     }
@@ -340,14 +297,13 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         do {
           let result = try await request.value
           guard !Task.isCancelled else { return }
-          self?.updateEvents.input.send(value: (.value(result), userID, generation, id))
-          self?.updateEvents.input.send(value: (.completed, userID, generation, id))
+          scheduleResponse(.updated(result), false, userID, generation, id)
         } catch {
           if Task.isCancelled || error is CancellationError {
             if self?.updateIdentity.id == id { processingState.setHidden(true) }
             return
           }
-          self?.updateEvents.input.send(value: (.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), userID, generation, id))
+          scheduleResponse(.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), false, userID, generation, id)
         }
       }
     }
@@ -531,12 +487,10 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
   // MARK: - Use cases
 
-  private let createEvents = Signal<(Signal<CreateBackingEnvelope, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
   private let createIdentity = PledgeWriteIdentity()
   private var startCreate: ((CreateBackingData, Bool) -> Void)?
   private var createTask: Task<Void, Never>?
 
-  private let updateEvents = Signal<(Signal<UpdateBackingEnvelope, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
   private let updateIdentity = PledgeWriteIdentity()
   private var startUpdate: ((UpdateBackingData, Bool) -> Void)?
   private var updateTask: Task<Void, Never>?
@@ -577,6 +531,12 @@ private func shippingRuleValid(
 }
 
 // MARK: - Helper Functions
+
+private enum PledgeResponse {
+  case created(CreateBackingEnvelope)
+  case updated(UpdateBackingEnvelope)
+  case failed(ErrorEnvelope)
+}
 
 @MainActor
 private final class PledgeCompletionState {
