@@ -1,8 +1,6 @@
 import Foundation
 import KsApi
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 
 public typealias ManagePledgeViewParamConfigData = (
   projectParam: Param,
@@ -65,39 +63,6 @@ public protocol ManagePledgeViewModelType {
 }
 
 @MainActor
-private final class ManagePledgeTrackingState {
-  private var projects: [(Project, [Reward])] = []
-  private var backings: [Backing] = []
-
-  func addProject(_ project: Project, rewards: [Reward]) {
-    projects.append((project, rewards))
-    trackAvailablePairs()
-  }
-
-  func addBacking(_ backing: Backing) {
-    backings.append(backing)
-    trackAvailablePairs()
-  }
-
-  private func trackAvailablePairs() {
-    while !projects.isEmpty && !backings.isEmpty {
-      let (project, rewards) = projects.removeFirst()
-      let backing = backings.removeFirst()
-      guard let reward = backing.reward else { continue }
-      let checkoutData = checkoutProperties(
-        from: project, baseReward: reward, addOnRewards: rewards,
-        selectedQuantities: selectedRewardQuantities(in: backing), additionalPledgeAmount: backing.bonusAmount,
-        pledgeTotal: backing.amount, shippingTotal: Double(backing.shippingAmount ?? 0),
-        isApplePay: backing.paymentSource?.paymentType == .applePay
-      )
-      AppEnvironment.current.ksrAnalytics.trackManagePledgePageViewed(
-        project: project, reward: reward, checkoutData: checkoutData
-      )
-    }
-  }
-}
-
-@MainActor
 private final class ManagePledgeReadIdentity {
   var id: UUID?
 }
@@ -117,16 +82,16 @@ public final class ManagePledgeViewModel:
   private var visibilityIsCreator: Bool?
   private var backingHasLoaded = false
   private var currentProject: Project?
+  private var loadedProject: Project?
+  private var loadedBacking: Backing?
   private var titleProject: Project?
   private var titleIsCreator: Bool?
   private var currentRewards: [Reward]?
   private var hasSeenDisallowedCancellation = false
   private let projectRoute = UUID()
-  private let projectValues = Signal<Project, Never>.pipe()
   private var projectReadTask: Task<Void, Never>?
   private let projectReadIdentity = ManagePledgeReadIdentity()
   private let backingRoute = UUID()
-  private let backingValues = Signal<Backing, Never>.pipe()
   private var backingReadTask: Task<Void, Never>?
   private let backingReadIdentity = ManagePledgeReadIdentity()
   deinit {
@@ -140,80 +105,49 @@ public final class ManagePledgeViewModel:
   }
   public init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
     self.feature = feature
-    let initialProject = self.projectValues.output
-    let backing = self.backingValues.output
+  }
 
-    let project: Signal<Project, Never> = initialProject.combineLatest(with: backing)
-      .map { project, backing -> Project in
-        /**
-         Here we are updating the `Project`'s `Backing` with an updated one from GraphQL.
-         This is because, at the time of writing, v1 does not return add-ons or bonus amount but GraphQL does.
-         */
-        let p = (project |> Project.lens.personalization.backing .~ backing)
-        return p
-      }
+  private func presentCombined() {
+    guard let loadedProject, let backing = self.loadedBacking else { return }
+    let project = loadedProject |> Project.lens.personalization.backing .~ backing
+    let rewards = distinctRewards([backing.reward ?? .noReward] + (backing.addOns ?? []))
+    let isCreator = currentUserIsCreator(of: project)
+    self.currentProject = project
+    self.currentRewards = rewards
+    self.onLoadProjectAndRewards?(project, rewards)
+    self.setRightBarHidden(false)
+    self.titleProject = project
+    self.titleIsCreator = isCreator
+    self.updateTitle()
+    self.visibilityIsCreator = isCreator
+    self.updatePaymentMethodVisibility()
+    self.onPledgeDetailsLabel?(isCreator ? Strings.Pledge_details() : Strings.Your_pledge_details())
 
-    let userIsCreatorOfProject = project.map { project in
-      currentUserIsCreator(of: project)
-    }
-
-    let projectAndReward = Signal.combineLatest(project, backing)
-      .compactMap { project, backing -> (Project, Reward)? in
-        guard let reward = backing.reward else { return (project, .noReward) }
-
-        return (project, reward)
-      }
-
-    let loadProjectAndRewardsIntoDataSource = projectAndReward.combineLatest(with: backing)
-      .map(unpack)
-      .map { project, reward, backing -> (Project, [Reward]) in
-        (project, distinctRewards([reward] + (backing.addOns ?? [])))
-      }
-
-    // Pair loaded project data with backing events for analytics in arrival order.
-    let trackingState = ManagePledgeTrackingState()
-    loadProjectAndRewardsIntoDataSource.observeValues { trackingState.addProject($0, rewards: $1) }
-    backing.observeValues { trackingState.addBacking($0) }
-
-    _ = loadProjectAndRewardsIntoDataSource.observeValues { [weak self] first, second in
-      self?.currentRewards = second
-      self?.onLoadProjectAndRewards?(first, second)
-      self?.setRightBarHidden(false)
-    }
-    _ = project.observeValues { [weak self] value in self?.currentProject = value }
-    _ = project.observeValues { [weak self] value in
-      self?.titleProject = value
-      self?.updateTitle()
-    }
-    _ = userIsCreatorOfProject.observeValues { [weak self] value in
-      self?.titleIsCreator = value
-      self?.updateTitle()
-    }
-    project.combineLatest(with: backing).observeValues { [weak self] project, backing in
-      let rewards = distinctRewards([backing.reward ?? .noReward] + (backing.addOns ?? []))
-      let isCreator = currentUserIsCreator(of: project)
-      let latestDelivery = rewards.compactMap(\.estimatedDeliveryOn).reduce(0, max)
-      let estimatedShipping = backing.locationId.flatMap { locationID in
-        estimatedShippingText(for: rewards, project: project, locationId: locationID,
-                              selectedQuantities: selectedRewardQuantities(in: backing))
-      }.map { Strings.About_reward_amount(reward_amount: $0) }
-      let received = ManageViewPledgeRewardReceivedViewData(
-        project: project, backerCompleted: backing.backerCompleted ?? false,
-        estimatedDeliveryOn: latestDelivery, backingState: backing.status,
-        estimatedShipping: estimatedShipping,
-        pledgeDisclaimerViewHidden: rewards.allSatisfy { $0.estimatedDeliveryOn == nil } || isCreator
+    let latestDelivery = rewards.compactMap(\.estimatedDeliveryOn).reduce(0, max)
+    let shipping = backing.locationId.flatMap { locationID in
+      estimatedShippingText(for: rewards, project: project, locationId: locationID,
+                            selectedQuantities: selectedRewardQuantities(in: backing))
+    }.map { Strings.About_reward_amount(reward_amount: $0) }
+    let received = ManageViewPledgeRewardReceivedViewData(
+      project: project, backerCompleted: backing.backerCompleted ?? false,
+      estimatedDeliveryOn: latestDelivery, backingState: backing.status, estimatedShipping: shipping,
+      pledgeDisclaimerViewHidden: rewards.allSatisfy { $0.estimatedDeliveryOn == nil } || isCreator
+    )
+    if let summary = managePledgeSummaryViewData(
+      with: (project, backing.reward ?? .noReward), backing: backing,
+      rewardReceivedWithData: received, rewardReceivedViewControllerViewIsHidden: latestDelivery == 0
+    ) { self.onPledgeSummary?(summary) }
+    if let reward = backing.reward {
+      let checkout = checkoutProperties(
+        from: project, baseReward: reward, addOnRewards: rewards,
+        selectedQuantities: selectedRewardQuantities(in: backing), additionalPledgeAmount: backing.bonusAmount,
+        pledgeTotal: backing.amount, shippingTotal: Double(backing.shippingAmount ?? 0),
+        isApplePay: backing.paymentSource?.paymentType == .applePay
       )
-      if let data = managePledgeSummaryViewData(
-        with: (project, backing.reward ?? .noReward), backing: backing,
-        rewardReceivedWithData: received, rewardReceivedViewControllerViewIsHidden: latestDelivery == 0
-      ) { self?.onPledgeSummary?(data) }
+      AppEnvironment.current.ksrAnalytics.trackManagePledgePageViewed(
+        project: project, reward: reward, checkoutData: checkout
+      )
     }
-    _ = userIsCreatorOfProject.observeValues { [weak self] isCreator in
-      self?.visibilityIsCreator = isCreator
-      self?.updatePaymentMethodVisibility()
-      self?.onPledgeDetailsLabel?(isCreator ? Strings.Pledge_details() : Strings.Your_pledge_details())
-    }
-
   }
 
   private func presentBacking(_ backing: Backing) {
@@ -260,7 +194,8 @@ public final class ManagePledgeViewModel:
         self?.scheduleReadResult { [weak self] in
           guard let self, self.backingReadIdentity.id == id,
                 feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
-          self.backingValues.input.send(value: backing)
+          self.loadedBacking = backing
+          self.presentCombined()
           self.presentBacking(backing)
           self.scheduleRefreshEnd()
         }
@@ -299,7 +234,8 @@ public final class ManagePledgeViewModel:
             self.currentBackingParam = .id(backingID)
             self.loadBacking(backingID)
           }
-          self.projectValues.input.send(value: project)
+          self.loadedProject = project
+          self.presentCombined()
         }
       } catch is CancellationError {
         return

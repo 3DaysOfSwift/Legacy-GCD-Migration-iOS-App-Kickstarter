@@ -1143,10 +1143,10 @@ internal final class ManagePledgeViewModelTests: TestCase {
       ])
 
       self.loadProjectAndRewardsIntoDataSourceProject.assertValues([
-        project, project, project, project,
+        project, project,
       ])
       self.loadProjectAndRewardsIntoDataSourceReward.assertValues([
-        [.noReward], [.noReward], [.noReward], [.noReward],
+        [.noReward], [.noReward],
       ])
 
       let rewardReceivedWithData = self.configurePledgeSummaryView.values.map {
@@ -1155,7 +1155,7 @@ internal final class ManagePledgeViewModelTests: TestCase {
 
       XCTAssertEqual([rewardReceivedWithData.last], [expectedRewardReceivedData])
 
-      self.title.assertValues(["Manage your pledge", "Manage your pledge", "Manage your pledge"])
+      self.title.assertValues(["Manage your pledge", "Manage your pledge"])
       await self.pledgeFeature.waitForOperations()
     }
     await self.pledgeFeature.waitForOperations()
@@ -1470,10 +1470,10 @@ internal final class ManagePledgeViewModelTests: TestCase {
       self.startRefreshing.assertValueCount(2)
       self.endRefreshing.assertValueCount(1)
       self.loadProjectAndRewardsIntoDataSourceProject.assertValues([
-        project, project, project, project,
+        project, project,
       ])
       self.loadProjectAndRewardsIntoDataSourceReward.assertValues([
-        [reward], [reward], [reward], [reward],
+        [reward], [reward],
       ])
       self.rightBarButtonItemHidden.assertValues([true, false])
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
@@ -1485,10 +1485,10 @@ internal final class ManagePledgeViewModelTests: TestCase {
       self.startRefreshing.assertValueCount(2)
       self.endRefreshing.assertValueCount(2)
       self.loadProjectAndRewardsIntoDataSourceProject.assertValues([
-        project, project, project, project,
+        project, project,
       ])
       self.loadProjectAndRewardsIntoDataSourceReward.assertValues([
-        [reward], [reward], [reward], [reward],
+        [reward], [reward],
       ])
       self.rightBarButtonItemHidden.assertValues([true, false])
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
@@ -1503,10 +1503,10 @@ internal final class ManagePledgeViewModelTests: TestCase {
       self.startRefreshing.assertValueCount(3)
       self.endRefreshing.assertValueCount(2)
       self.loadProjectAndRewardsIntoDataSourceProject.assertValues(
-        [project, project, project, project, project, project, project]
+        [project, project, project]
       )
       self.loadProjectAndRewardsIntoDataSourceReward.assertValues([
-        [reward], [reward], [reward], [reward], [reward], [reward], [reward],
+        [reward], [reward], [reward],
       ])
       self.rightBarButtonItemHidden.assertValues([true, false])
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
@@ -1518,10 +1518,10 @@ internal final class ManagePledgeViewModelTests: TestCase {
       self.startRefreshing.assertValueCount(3)
       self.endRefreshing.assertValueCount(3)
       self.loadProjectAndRewardsIntoDataSourceProject.assertValues(
-        [project, project, project, project, project, project, project]
+        [project, project, project]
       )
       self.loadProjectAndRewardsIntoDataSourceReward.assertValues([
-        [reward], [reward], [reward], [reward], [reward], [reward], [reward],
+        [reward], [reward], [reward],
       ])
       self.rightBarButtonItemHidden.assertValues([true, false])
       self.showErrorBannerWithMessage.assertDidNotEmitValue()
@@ -1542,10 +1542,10 @@ internal final class ManagePledgeViewModelTests: TestCase {
         self.startRefreshing.assertValueCount(4)
         self.endRefreshing.assertValueCount(3)
         self.loadProjectAndRewardsIntoDataSourceProject.assertValues(
-          [project, project, project, project, project, project, project]
+          [project, project, project]
         )
         self.loadProjectAndRewardsIntoDataSourceReward.assertValues([
-          [reward], [reward], [reward], [reward], [reward], [reward], [reward],
+          [reward], [reward], [reward],
         ])
         self.rightBarButtonItemHidden.assertValues([true, false])
         self.showErrorBannerWithMessage.assertDidNotEmitValue()
@@ -1557,10 +1557,10 @@ internal final class ManagePledgeViewModelTests: TestCase {
         self.startRefreshing.assertValueCount(4)
         self.endRefreshing.assertValueCount(3)
         self.loadProjectAndRewardsIntoDataSourceProject.assertValues(
-          [project, project, project, project, project, project, project]
+          [project, project, project]
         )
         self.loadProjectAndRewardsIntoDataSourceReward.assertValues([
-          [reward], [reward], [reward], [reward], [reward], [reward], [reward],
+          [reward], [reward], [reward],
         ])
         self.rightBarButtonItemHidden.assertValues([true, false])
         self.showErrorBannerWithMessage.assertValues(["Something went wrong, please try again."])
@@ -1572,10 +1572,10 @@ internal final class ManagePledgeViewModelTests: TestCase {
         self.startRefreshing.assertValueCount(4)
         self.endRefreshing.assertValueCount(4, "End refresh on errors")
         self.loadProjectAndRewardsIntoDataSourceProject.assertValues(
-          [project, project, project, project, project, project, project]
+          [project, project, project]
         )
         self.loadProjectAndRewardsIntoDataSourceReward.assertValues([
-          [reward], [reward], [reward], [reward], [reward], [reward], [reward],
+          [reward], [reward], [reward],
         ])
         self.rightBarButtonItemHidden.assertValues([true, false])
         self.showErrorBannerWithMessage.assertValues(["Something went wrong, please try again."])
