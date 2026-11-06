@@ -136,7 +136,7 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.outputs.onPauseMedia = { [weak self] in self?.pauseMedia.observer.send(value: ()) }
       self.vm.outputs.onNavigateBackToProjectPage = { [weak self] in self?.navigateBackToProjectPage.observer.send(value: ()) }
       self.vm.outputs.onPresentMessageDialog = { [weak self] in self?.presentMessageDialog.observer.send(value: $0) }
-      self.vm.outputs.precreateAudioVideoURLs.observe(self.precreateAudioVideoURLs.observer)
+      self.vm.outputs.onPrepareAudioVideo = { [weak self] in self?.precreateAudioVideoURLs.observer.send(value: $0) }
       self.vm.outputs.precreateAudioVideoURLsOnFirstLoad
         .observe(self.precreateAudioVideoURLsFirstLoad.observer)
       self.vm.outputs.prefetchImageURLs.observe(self.prefetchImageURLs.observer)

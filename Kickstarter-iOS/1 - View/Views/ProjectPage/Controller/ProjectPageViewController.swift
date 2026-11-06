@@ -528,8 +528,8 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         }
       }
 
-    self.viewModel.outputs.precreateAudioVideoURLs
-      .observeValues { [weak self] element, indexPath in
+    self.viewModel.outputs.onPrepareAudioVideo = { [weak self] data in
+        let (element, indexPath) = data
         guard let url = URL(string: element.sourceURLString) else { return }
 
         var audioVideoThumbnailURL: URL?

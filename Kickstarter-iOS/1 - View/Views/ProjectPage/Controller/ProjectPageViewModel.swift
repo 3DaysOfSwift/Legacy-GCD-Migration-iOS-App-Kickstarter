@@ -190,7 +190,7 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var onPresentMessageDialog: ((Project) -> Void)? { get set }
 
   /// Emits `AudioVideoViewElement` and `IndexPath` when the project has campaign data to download for a row
-  var precreateAudioVideoURLs: Signal<(AudioVideoViewElement, IndexPath), Never> { get }
+  var onPrepareAudioVideo: (((AudioVideoViewElement, IndexPath)) -> Void)? { get set }
 
   /// Emits `[AudioVideoViewElement]` to preload the data source with `AVPlayer` objects for video player cells.
   var precreateAudioVideoURLsOnFirstLoad: Signal<[AudioVideoViewElement], Never> { get }
@@ -371,7 +371,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         return SignalProducer(value: audioVideoViewElements)
       }
 
-    self.precreateAudioVideoURLs = self.prepareAudioVideoAtProperty.signal.skipNil()
 
     // Project data that is passed when the ProjectPageViewController is initialized.
     // Used to show the Project overview page while we re-fetch the rest of the project data.
@@ -796,9 +795,8 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.prepareImageAtProperty.value = indexPath
   }
 
-  private let prepareAudioVideoAtProperty = MutableProperty<(AudioVideoViewElement, IndexPath)?>(nil)
   public func prepareAudioVideoAt(_ indexPath: IndexPath, with audioVideoViewElement: AudioVideoViewElement) {
-    self.prepareAudioVideoAtProperty.value = (audioVideoViewElement, indexPath)
+    self.onPrepareAudioVideo?((audioVideoViewElement, indexPath))
   }
 
   public func projectNoticeDetailsRequested() {
@@ -881,7 +879,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   public var onPauseMedia: (() -> Void)?
   public var onNavigateBackToProjectPage: (() -> Void)?
   public var onPresentMessageDialog: ((Project) -> Void)?
-  public let precreateAudioVideoURLs: Signal<(AudioVideoViewElement, IndexPath), Never>
+  public var onPrepareAudioVideo: (((AudioVideoViewElement, IndexPath)) -> Void)?
   public let precreateAudioVideoURLsOnFirstLoad: Signal<[AudioVideoViewElement], Never>
   public let prefetchImageURLs: Signal<([URL], IndexPath), Never>
   public let prefetchImageURLsOnFirstLoad: Signal<[ImageViewElement], Never>
