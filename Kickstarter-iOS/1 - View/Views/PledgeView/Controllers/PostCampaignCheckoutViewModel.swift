@@ -246,21 +246,8 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
     // MARK: Configure views
 
-    // MARK: Create Payment Intent
-
-    let paymentIntentEvent = self.paymentIntentPipe.output
-
-    let paymentIntentClientSecret = paymentIntentEvent.values()
-      .map { $0.clientSecret }
-
-    let paymentIntentErrors = paymentIntentEvent.errors()
-
     // MARK: Validate Existing Cards
 
-    paymentIntentClientSecret.observeValues { value in
-      cardState.setIntentSecret(value)
-      appleState.setIntentSecret(value)
-    }
     let validateCheckoutExistingCard = self.cardValidation.events(feature: feature)
 
     // MARK: ApplePay
@@ -312,13 +299,13 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     cardState.onReady = { ctaState.setEnabled(true) }
 
     appleState.onStart = { [weak self] in self?.onProcessingHidden?(false) }
-    paymentIntentErrors.observeValues { [weak self] _ in self?.onProcessingHidden?(true) }
     validateCheckoutError.observeValues { [weak self] _ in self?.onProcessingHidden?(true) }
     checkoutCompleteSignal.observeValues { [weak self] _ in self?.onProcessingHidden?(true) }
 
     openingState.onOpen = { [weak self] input in
       guard let self, let data = self.configuredData else { return }
       self.activeCheckoutData = data
+      self.paymentIntentTask?.cancel()
       self.checkoutTask?.cancel()
       let userID = feature.sessionFeature.currentUser?.id
       let generation = feature.sessionFeature.generation
@@ -402,14 +389,21 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
           for: data.project.graphID, backingId: checkout.checkout.backingId, checkoutId: decodedCheckoutID,
           pledgeTotal: PostCampaignAmounts(data).total
         )
+        let checkoutIdentity = self.checkoutIdentity.id
+        let userID = feature.sessionFeature.currentUser?.id
+        let generation = feature.sessionFeature.generation
         self.paymentIntentTask = Task { [weak self] in
           do {
             let intent = try await request.value
-            guard !Task.isCancelled else { return }
-            self?.paymentIntentPipe.input.send(value: .value(intent))
+            guard !Task.isCancelled, let self, self.checkoutIdentity.id == checkoutIdentity,
+                  feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+            cardState.setIntentSecret(intent.clientSecret)
+            appleState.setIntentSecret(intent.clientSecret)
           } catch {
-            guard !Task.isCancelled, !(error is CancellationError) else { return }
-            self?.paymentIntentPipe.input.send(value: .failed((error as? ErrorEnvelope) ?? .couldNotParseJSON))
+            guard !Task.isCancelled, !(error is CancellationError), let self,
+                  self.checkoutIdentity.id == checkoutIdentity,
+                  feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+            self.onProcessingHidden?(true)
           }
         }
       }
@@ -659,7 +653,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private var completionTask: Task<Void, Never>?
   private let cardValidation = CheckoutValidationLane()
   private let applePayValidation = CheckoutValidationLane()
-  private let paymentIntentPipe = Signal<Signal<PaymentIntentEnvelope, ErrorEnvelope>.Event, Never>.pipe()
   private var paymentIntentTask: Task<Void, Never>?
 
   deinit {
