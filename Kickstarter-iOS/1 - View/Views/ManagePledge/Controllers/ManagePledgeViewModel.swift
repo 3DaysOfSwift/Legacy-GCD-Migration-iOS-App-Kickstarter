@@ -65,6 +65,39 @@ public protocol ManagePledgeViewModelType {
 }
 
 @MainActor
+private final class ManagePledgeTrackingState {
+  private var projects: [(Project, [Reward])] = []
+  private var backings: [Backing] = []
+
+  func addProject(_ project: Project, rewards: [Reward]) {
+    projects.append((project, rewards))
+    trackAvailablePairs()
+  }
+
+  func addBacking(_ backing: Backing) {
+    backings.append(backing)
+    trackAvailablePairs()
+  }
+
+  private func trackAvailablePairs() {
+    while !projects.isEmpty && !backings.isEmpty {
+      let (project, rewards) = projects.removeFirst()
+      let backing = backings.removeFirst()
+      guard let reward = backing.reward else { continue }
+      let checkoutData = checkoutProperties(
+        from: project, baseReward: reward, addOnRewards: rewards,
+        selectedQuantities: selectedRewardQuantities(in: backing), additionalPledgeAmount: backing.bonusAmount,
+        pledgeTotal: backing.amount, shippingTotal: Double(backing.shippingAmount ?? 0),
+        isApplePay: backing.paymentSource?.paymentType == .applePay
+      )
+      AppEnvironment.current.ksrAnalytics.trackManagePledgePageViewed(
+        project: project, reward: reward, checkoutData: checkoutData
+      )
+    }
+  }
+}
+
+@MainActor
 private final class ManagePledgeReadIdentity {
   var id: UUID?
 }
@@ -176,30 +209,10 @@ public final class ManagePledgeViewModel:
         (project, distinctRewards([reward] + (backing.addOns ?? [])))
       }
 
-    // Tracking
-
-    Signal.zip(loadProjectAndRewardsIntoDataSource, backing)
-      .map(unpack)
-      .observeValues { project, rewards, backing in
-        guard let reward = backing.reward else { return }
-
-        let checkoutData = checkoutProperties(
-          from: project,
-          baseReward: reward,
-          addOnRewards: rewards,
-          selectedQuantities: selectedRewardQuantities(in: backing),
-          additionalPledgeAmount: backing.bonusAmount,
-          pledgeTotal: backing.amount,
-          shippingTotal: Double(backing.shippingAmount ?? 0),
-          isApplePay: backing.paymentSource?.paymentType == .applePay
-        )
-
-        AppEnvironment.current.ksrAnalytics.trackManagePledgePageViewed(
-          project: project,
-          reward: reward,
-          checkoutData: checkoutData
-        )
-      }
+    // Pair loaded project data with backing events for analytics in arrival order.
+    let trackingState = ManagePledgeTrackingState()
+    loadProjectAndRewardsIntoDataSource.observeValues { trackingState.addProject($0, rewards: $1) }
+    backing.observeValues { trackingState.addBacking($0) }
 
     _ = endRefreshing.observeValues { [weak self] _ in self?.onEndRefreshing?() }
     _ = loadProjectAndRewardsIntoDataSource.observeValues { [weak self] first, second in
