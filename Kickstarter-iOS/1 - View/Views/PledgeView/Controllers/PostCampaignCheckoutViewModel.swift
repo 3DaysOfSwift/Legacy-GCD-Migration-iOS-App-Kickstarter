@@ -93,6 +93,14 @@ private final class PostCampaignCardState {
     guard let checkoutID, let selectedCard, let selectedSecret else { return }
     onSubmit?(checkoutID, selectedCard, selectedSecret)
   }
+  func completionInput(clientSecret: String) -> GraphAPI.CompleteOnSessionCheckoutInput? {
+    guard let checkoutID, let selectedCard else { return nil }
+    return GraphAPI.CompleteOnSessionCheckoutInput(
+      checkoutId: encodeToBase64("Checkout-\(checkoutID)"), paymentIntentClientSecret: clientSecret,
+      paymentSourceId: GraphQLNullable.someOrNil(selectedCard.savedCreditCardId),
+      paymentSourceReusable: true, applePay: nil
+    )
+  }
   var validation: PaymentSourceValidation? {
     guard let selectedCard, let selectedSecret else { return nil }
     return PaymentSourceValidation(paymentIntentClientSecret: selectedSecret,
@@ -242,9 +250,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
     self.paymentMethodsUseCase = PaymentMethodsUseCase()
     let paymentMethods = self.paymentMethodsUseCase
-    let paymentSelected = self.paymentSelectedPipe
     paymentMethods.onSelected = { value in
-      paymentSelected.input.send(value: value)
       cardState.select(value)
     }
     initialData.observeValues { paymentMethods.configure($0) }
@@ -296,8 +302,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
     // MARK: Validate Existing Cards
 
-    let selectedCard = self.paymentSelectedPipe.output.skipNil()
-
     checkoutId.observeValues { value in
       cardState.setCheckoutID(value)
       appleState.setCheckoutID(value)
@@ -330,31 +334,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
     // MARK: CompleteOnSessionCheckout
 
-    let completeCheckoutWithCreditCardInput: Signal<GraphAPI.CompleteOnSessionCheckoutInput, Never> = Signal
-      .combineLatest(self.confirmPaymentSuccessfulProperty.signal.skipNil(), checkoutId, selectedCard)
-      .takeWhen(self.confirmPaymentSuccessfulProperty.signal.skipNil())
-      .map { (
-        clientSecret: String,
-        checkoutId: String,
-        selectedCard: PaymentSourceSelected
-      ) -> GraphAPI.CompleteOnSessionCheckoutInput in
-
-        GraphAPI
-          .CompleteOnSessionCheckoutInput(
-            checkoutId: encodeToBase64("Checkout-\(checkoutId)"),
-            paymentIntentClientSecret: clientSecret,
-            paymentSourceId: GraphQLNullable.someOrNil(selectedCard.savedCreditCardId),
-            paymentSourceReusable: true,
-            applePay: nil
-          )
-      }
-
-    let completeApplePayPipe = Signal<GraphAPI.CompleteOnSessionCheckoutInput, Never>.pipe()
-    appleState.onComplete = { completeApplePayPipe.input.send(value: $0) }
     validateCheckoutWithApplePay.values().observeValues { _ in appleState.validationSucceeded() }
-    let completeCheckoutRequests = Signal.merge(
-      completeCheckoutWithCreditCardInput, completeApplePayPipe.output
-    )
     let completionIdentity = self.completionIdentity
     let checkoutCompleteSignal = self.completionEvents.output
       .filter { [feature, completionIdentity] _, userID, generation, id in
@@ -417,7 +397,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
         }
       }
     }
-    self.completionObservation = completeCheckoutRequests.observeValues { [weak self] input in
+    self.startCompletion = { [weak self] input in
       guard let self else { return }
       self.completionTask?.cancel()
       let userID = feature.sessionFeature.currentUser?.id
@@ -437,6 +417,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
         }
       }
     }
+    appleState.onComplete = { [weak self] in self?.startCompletion?($0) }
     cardState.onSubmit = { [weak self] checkoutID, card, secret in
       assert(card.stripePaymentMethodId.isSome && card.stripePaymentMethodId != "",
              "Payment method ID should not be missing in a late pledge context.")
@@ -611,9 +592,9 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     self.trackPageIfReady()
   }
 
-  private let confirmPaymentSuccessfulProperty = MutableProperty<String?>(nil)
   public func confirmPaymentSuccessful(clientSecret: String) {
-    self.confirmPaymentSuccessfulProperty.value = clientSecret
+    guard let input = self.cardState.completionInput(clientSecret: clientSecret) else { return }
+    self.startCompletion?(input)
   }
 
   public func creditCardSelected(
@@ -697,7 +678,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private var checkoutTask: Task<Void, Never>?
   private let completionEvents = Signal<(Signal<Void, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
   private let completionIdentity = CheckoutRequestIdentity()
-  private var completionObservation: (any Disposable)?
+  private var startCompletion: ((GraphAPI.CompleteOnSessionCheckoutInput) -> Void)?
   private var completionTask: Task<Void, Never>?
   private let cardValidation = CheckoutValidationLane()
   private let applePayValidation = CheckoutValidationLane()
@@ -707,7 +688,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
   deinit {
     self.checkoutTask?.cancel()
-    self.completionObservation?.dispose()
     self.completionTask?.cancel()
     self.paymentIntentObservation?.dispose()
     self.paymentIntentTask?.cancel()
@@ -715,7 +695,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
   private let loginSessionPipe = Signal<Void, Never>.pipe()
   private let paymentMethodsUseCase: PaymentMethodsUseCase
-  private let paymentSelectedPipe = Signal<PaymentSourceSelected?, Never>.pipe()
 }
 
 @MainActor
