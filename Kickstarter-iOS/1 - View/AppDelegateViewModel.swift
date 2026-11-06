@@ -534,9 +534,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       .values()
       .switchMap { user in shortcutItems(forUser: user, feature: lifecycleFeature) }
 
-    self.applicationDidFinishLaunchingReturnValueProperty <~ self.applicationLaunchOptionsProperty.signal
-      .skipNil()
-      .map { _, options in options?[UIApplication.LaunchOptionsKey.shortcutItem] == nil }
 
     self.applicationIconBadgeNumber = Signal.merge(
       self.applicationWillEnterForegroundProperty.signal,
@@ -564,7 +561,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     /// Request AppTransparencyTracking outside of onboarding.
     self.requestATTrackingAuthorizationStatus = Signal
       .combineLatest(
-        self.applicationDidFinishLaunchingReturnValueProperty.signal.ignoreValues(),
+        self.applicationLaunchOptionsProperty.signal.ignoreValues(),
         self.applicationActiveProperty.signal
       )
       .map(second)
@@ -589,7 +586,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
     self.trackingAuthorizationStatus = SignalProducer
       .merge(
-        self.applicationDidFinishLaunchingReturnValueProperty.signal.ignoreValues(),
+        self.applicationLaunchOptionsProperty.signal.ignoreValues(),
         self.applicationActiveProperty.signal.ignoreValues()
       )
       .flatMap { () in
@@ -653,6 +650,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     application: UIApplication?,
     launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) {
+    self.applicationDidFinishLaunchingReturnValue = launchOptions?[UIApplication.LaunchOptionsKey.shortcutItem] == nil
     self.applicationLaunchOptionsProperty.value = (application, launchOptions)
   }
 
@@ -765,10 +763,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.brazeNotificationURLProperty.value = url
   }
 
-  fileprivate let applicationDidFinishLaunchingReturnValueProperty = MutableProperty(true)
-  public var applicationDidFinishLaunchingReturnValue: Bool {
-    return self.applicationDidFinishLaunchingReturnValueProperty.value
-  }
+  public private(set) var applicationDidFinishLaunchingReturnValue = true
 
   fileprivate let remoteConfigClientConfigurationFailedProperty = MutableProperty(())
   public func remoteConfigClientConfigurationFailed() {
