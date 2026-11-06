@@ -822,7 +822,7 @@ private func allValuesChangedAndValid(
 // MARK: - Helper Functions
 
 @MainActor
-private final class PledgeRequestState {
+final class PledgeRequestState {
   var onCreate: ((CreateBackingData) -> Void)?
   var onUpdate: ((UpdateBackingData) -> Void)?
   private var data: PledgeViewData?

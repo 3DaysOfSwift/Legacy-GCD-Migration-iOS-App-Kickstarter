@@ -4264,6 +4264,45 @@ final class PledgeViewModelTests: TestCase {
     await self.feature.waitForOperations()
   }
 
+  func testRequestStateWaitsForPaymentAndPlanAndClearsApplePayOnReconfigure() {
+    let state = PledgeRequestState()
+    let reward = Reward.template
+    let data = PledgeViewData(
+      project: .template, rewards: [reward], bonusSupport: 5, selectedShippingRule: nil,
+      selectedQuantities: [reward.id: 1], selectedLocationId: nil, refTag: nil, context: .pledge
+    )
+    let applePay = ApplePayParams(paymentInstrumentName: "Visa", paymentNetwork: "Visa",
+                                  transactionIdentifier: "transaction", token: "token")
+    var outputs: [CreateBackingData] = []
+    state.onCreate = { outputs.append($0) }
+    state.configure(data)
+    state.selectPayment(.savedCreditCard("card", "pm"))
+    XCTAssertTrue(outputs.isEmpty)
+    state.selectPlan(.pledgeOverTime)
+    XCTAssertEqual(outputs.last?.paymentSourceId, "card")
+    XCTAssertEqual(outputs.last?.incremental, true)
+    state.setApplePayParams(applePay)
+    XCTAssertEqual(outputs.last?.applePayParams, applePay)
+    state.configure(data)
+    XCTAssertNil(outputs.last?.applePayParams)
+  }
+
+  func testRequestStateRequiresBackingForUpdate() {
+    let state = PledgeRequestState()
+    let reward = Reward.template
+    let project = Project.template |> Project.lens.personalization.backing .~ nil
+    let data = PledgeViewData(
+      project: project, rewards: [reward], bonusSupport: nil, selectedShippingRule: nil,
+      selectedQuantities: [reward.id: 1], selectedLocationId: nil, refTag: nil, context: .pledge
+    )
+    var updateCount = 0
+    state.onUpdate = { _ in updateCount += 1 }
+    state.configure(data)
+    state.selectPayment(nil)
+    state.selectPlan(.pledgeInFull)
+    XCTAssertEqual(updateCount, 0)
+  }
+
   func testPledgeAmountSummaryUsesConfiguredBackingAndBonus() async {
     let backing = Backing.template |> Backing.lens.bonusAmount .~ 80
     let project = Project.template |> Project.lens.personalization.backing .~ backing
