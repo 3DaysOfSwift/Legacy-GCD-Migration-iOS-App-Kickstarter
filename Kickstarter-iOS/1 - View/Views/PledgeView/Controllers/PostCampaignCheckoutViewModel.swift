@@ -56,7 +56,7 @@ public protocol PostCampaignCheckoutViewModelInputs {
 }
 
 @MainActor
-public protocol PostCampaignCheckoutViewModelOutputs {
+public protocol PostCampaignCheckoutViewModelOutputs: AnyObject {
   var configureEstimatedShippingView: Signal<(String?, String?), Never> { get }
   var configurePaymentMethodsViewControllerWithValue: Signal<PledgePaymentMethodsValue, Never> { get }
   var configurePledgeRewardsSummaryViewWithData: Signal<
@@ -70,7 +70,7 @@ public protocol PostCampaignCheckoutViewModelOutputs {
   var processingViewIsHidden: Signal<Bool, Never> { get }
   var goToLoginSignup: Signal<LoginIntent, Never> { get }
   var showErrorBannerWithMessage: Signal<String, Never> { get }
-  var showWebHelp: Signal<HelpType, Never> { get }
+  var onShowWebHelp: ((HelpType) -> Void)? { get set }
   var validateCheckoutSuccess: Signal<PaymentSourceValidation, Never> { get }
   var goToApplePayPaymentAuthorization: Signal<PostCampaignPaymentAuthorizationData, Never> { get }
   var checkoutComplete: Signal<ThanksPageData, Never> { get }
@@ -235,11 +235,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     let createCheckoutErrors = createCheckoutEvents.errors()
 
     // MARK: Configure views
-
-    self.showWebHelp = Signal.merge(
-      self.termsOfUseTappedSignal,
-      self.pledgeDisclaimerViewDidTapLearnMoreSignal.mapConst(.trust)
-    )
 
     self.configurePledgeRewardsSummaryViewWithData = Signal.combineLatest(
       initialData,
@@ -713,10 +708,8 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     self.loginSignupUseCase.goToLoginSignupTapped()
   }
 
-  private let (pledgeDisclaimerViewDidTapLearnMoreSignal, pledgeDisclaimerViewDidTapLearnMoreObserver)
-    = Signal<Void, Never>.pipe()
   public func pledgeDisclaimerViewDidTapLearnMore() {
-    self.pledgeDisclaimerViewDidTapLearnMoreObserver.send(value: ())
+    self.onShowWebHelp?(.trust)
   }
 
   private let submitButtonTappedProperty = MutableProperty(())
@@ -724,9 +717,8 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     self.submitButtonTappedProperty.value = ()
   }
 
-  private let (termsOfUseTappedSignal, termsOfUseTappedObserver) = Signal<HelpType, Never>.pipe()
   public func termsOfUseTapped(with helpType: HelpType) {
-    self.termsOfUseTappedObserver.send(value: helpType)
+    self.onShowWebHelp?(helpType)
   }
 
   public func userSessionDidChange() {
@@ -775,7 +767,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
 
   public let processingViewIsHidden: Signal<Bool, Never>
   public let showErrorBannerWithMessage: Signal<String, Never>
-  public let showWebHelp: Signal<HelpType, Never>
+  public var onShowWebHelp: ((HelpType) -> Void)?
   public var paymentMethodsViewHidden: Signal<Bool, Never> {
     return self.paymentHiddenPipe.output
   }

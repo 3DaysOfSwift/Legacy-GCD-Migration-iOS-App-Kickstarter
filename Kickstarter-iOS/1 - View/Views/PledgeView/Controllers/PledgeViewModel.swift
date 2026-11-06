@@ -80,7 +80,7 @@ public protocol PledgeViewModelInputs {
 }
 
 @MainActor
-public protocol PledgeViewModelOutputs {
+public protocol PledgeViewModelOutputs: AnyObject {
   var beginSCAFlowWithClientSecret: Signal<String, Never> { get }
   var configureEstimatedShippingView: Signal<(String?, String?), Never> { get }
   var configureLocalPickupViewWithData: Signal<PledgeLocalPickupViewData, Never> { get }
@@ -104,7 +104,7 @@ public protocol PledgeViewModelOutputs {
   var popToRootViewController: Signal<(), Never> { get }
   var processingViewIsHidden: Signal<Bool, Never> { get }
   var showErrorBannerWithMessage: Signal<String, Never> { get }
-  var showWebHelp: Signal<HelpType, Never> { get }
+  var onShowWebHelp: ((HelpType) -> Void)? { get set }
   var title: Signal<String, Never> { get }
   var showPledgeOverTimeUI: Signal<Bool, Never> { get }
   var pledgeOverTimeConfigData: Signal<PledgePaymentPlansAndSelectionData?, Never> { get }
@@ -386,11 +386,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         AppEnvironment.current.environmentType.stripePublishableKey
       )
     }
-
-    self.showWebHelp = Signal.merge(
-      self.termsOfUseTappedSignal,
-      self.pledgeDisclaimerViewDidTapLearnMoreSignal.mapConst(.trust)
-    )
 
     self.configureEstimatedShippingView = Signal.combineLatest(
       project,
@@ -981,10 +976,8 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     self.loginSignupUseCase.goToLoginSignupTapped()
   }
 
-  private let (pledgeDisclaimerViewDidTapLearnMoreSignal, pledgeDisclaimerViewDidTapLearnMoreObserver)
-    = Signal<Void, Never>.pipe()
   public func pledgeDisclaimerViewDidTapLearnMore() {
-    self.pledgeDisclaimerViewDidTapLearnMoreObserver.send(value: ())
+    self.onShowWebHelp?(.trust)
   }
 
   private let (scaFlowCompletedWithResultSignal, scaFlowCompletedWithResultObserver)
@@ -1002,9 +995,8 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     self.applePayAuthorization.tokenCreated(token: token, error: error)
   }
 
-  private let (termsOfUseTappedSignal, termsOfUseTappedObserver) = Signal<HelpType, Never>.pipe()
   public func termsOfUseTapped(with helpType: HelpType) {
-    self.termsOfUseTappedObserver.send(value: helpType)
+    self.onShowWebHelp?(helpType)
   }
 
   private let viewDidLoadProperty = MutableProperty(())
@@ -1050,7 +1042,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   public let popToRootViewController: Signal<(), Never>
   public let processingViewIsHidden: Signal<Bool, Never>
   public let showErrorBannerWithMessage: Signal<String, Never>
-  public let showWebHelp: Signal<HelpType, Never>
+  public var onShowWebHelp: ((HelpType) -> Void)?
   public let title: Signal<String, Never>
 
   public var showPledgeOverTimeUI: Signal<Bool, Never> {

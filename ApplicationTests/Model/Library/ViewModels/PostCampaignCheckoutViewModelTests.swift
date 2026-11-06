@@ -114,7 +114,7 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       self.vm.outputs.configureStripeIntegration.map(second)
         .observe(self.configureStripeIntegrationPublishableKey.observer)
 
-      self.vm.outputs.showWebHelp.observe(self.showWebHelp.observer)
+      self.vm.outputs.onShowWebHelp = { [weak self] in self?.showWebHelp.observer.send(value: $0) }
     }
   }
 

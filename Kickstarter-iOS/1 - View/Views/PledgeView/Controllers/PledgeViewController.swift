@@ -410,9 +410,7 @@ final class PledgeViewController: UIViewController,
         }
       }
 
-    self.viewModel.outputs.showWebHelp
-      .observeForControllerAction()
-      .observeValues { [weak self] helpType in
+    self.viewModel.outputs.onShowWebHelp = { [weak self] helpType in
         guard let self = self else { return }
         self.paymentMethodsViewController.cancelModalPresentation(true)
         self.presentHelpWebViewController(with: helpType, presentationStyle: .formSheet)

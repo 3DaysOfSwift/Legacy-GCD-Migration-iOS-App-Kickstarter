@@ -166,7 +166,7 @@ final class PledgeViewModelTests: TestCase {
       self.vm.outputs.popToRootViewController.observe(self.popToRootViewController.observer)
       self.vm.outputs.processingViewIsHidden.observe(self.processingViewIsHidden.observer)
 
-      self.vm.outputs.showWebHelp.observe(self.showWebHelp.observer)
+      self.vm.outputs.onShowWebHelp = { [weak self] in self?.showWebHelp.observer.send(value: $0) }
       self.vm.outputs.showErrorBannerWithMessage.observe(self.showErrorBannerWithMessage.observer)
 
       self.vm.outputs.title.observe(self.title.observer)
