@@ -213,6 +213,8 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   private var pushDebounceTask: Task<Void, Never>?
   private var pushPresentationTask: Task<Void, Never>?
   private var configurationTask: Task<Void, Never>?
+  private var setupRequest: Task<GraphUserSetup, Error>?
+  private var setupObservation: Task<Void, Never>?
   private var lastSegmentEnabled: Bool?
 
   public init(
@@ -239,27 +241,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
         }
         let request = settingsFeature.requestRefresh(allowSessionRestore: AppEnvironment.current.apiService.isAuthenticated)
         return lifecycleReadResult(request).wrapInOptional().materialize()
-      }
-
-    let fetchUserSetupEvent = Signal
-      .merge(
-        self.applicationWillEnterForegroundProperty.signal,
-        self.applicationLaunchOptionsProperty.signal.ignoreValues(),
-        self.userSessionStartedProperty.signal
-      )
-      .switchMap { _ -> SignalProducer<Signal<GraphUserSetup?, ErrorEnvelope>.Event, Never> in
-        let request = settingsFeature.requestSetup()
-        return lifecycleResult(feature: lifecycleFeature) {
-          try await withTaskCancellationHandler { try await request.value } onCancel: { request.cancel() }
-        }.wrapInOptional().materialize()
-      }
-
-    self.fetchUserEmail = fetchUserSetupEvent.values()
-      .map { user in
-        // SessionFeature has already stored the guarded setup snapshot.
-        guard user?.email != nil else { return }
-
-        NotificationCenter.default.post(.init(name: .ksr_userUpdated))
       }
 
     self.forceLogout = currentUserEvent
@@ -537,6 +518,8 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.pushDebounceTask?.cancel()
     self.pushPresentationTask?.cancel()
     self.configurationTask?.cancel()
+    self.setupObservation?.cancel()
+    self.setupRequest?.cancel()
     let redirectObservation = self.redirectObservation
     let feature = self.lifecycleFeature
     let route = self.navigationRoute
@@ -548,6 +531,20 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
   public var inputs: AppDelegateViewModelInputs { return self }
   public var outputs: AppDelegateViewModelOutputs { return self }
+
+  private func refreshUserSetup() {
+    self.setupObservation?.cancel()
+    self.setupRequest?.cancel()
+    let request = self.lifecycleFeature.settingsFeature.requestSetup()
+    self.setupRequest = request
+    self.setupObservation = Task {
+      do {
+        let user = try await request.value
+        try Task.checkCancellation()
+        if user.email != nil { NotificationCenter.default.post(.init(name: .ksr_userUpdated)) }
+      } catch { /* Setup failures remain silent. */ }
+    }
+  }
 
   private func refreshConfiguration() {
     visitorCookies().forEach(AppEnvironment.current.cookieStorage.setCookie)
@@ -603,6 +600,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   ) {
     self.applicationDidFinishLaunchingReturnValue = launchOptions?[UIApplication.LaunchOptionsKey.shortcutItem] == nil
     self.applicationLaunchOptionsProperty.value = (application, launchOptions)
+    self.refreshUserSetup()
     self.refreshConfiguration()
     self.onSynchronizeUbiquitousStore?()
     self.onConfigureFirebase?()
@@ -615,6 +613,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   fileprivate let applicationWillEnterForegroundProperty = MutableProperty(())
   public func applicationWillEnterForeground() {
     self.applicationWillEnterForegroundProperty.value = ()
+    self.refreshUserSetup()
     self.refreshConfiguration()
   }
 
@@ -744,6 +743,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
     self.userSessionStartedProperty.value = ()
+    self.refreshUserSetup()
     self.refreshConfiguration()
   }
 
@@ -766,7 +766,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public let emailVerificationCompleted: Signal<(String, Bool), Never>
   public let findRedirectUrl: Signal<URL, Never>
   public let forceLogout: Signal<(), Never>
-  private let fetchUserEmail: Signal<(), Never>
   public let goToActivity: Signal<(), Never>
   public let goToDiscovery: Signal<DiscoveryParams?, Never>
   public let goToLoginWithIntent: Signal<LoginIntent, Never>

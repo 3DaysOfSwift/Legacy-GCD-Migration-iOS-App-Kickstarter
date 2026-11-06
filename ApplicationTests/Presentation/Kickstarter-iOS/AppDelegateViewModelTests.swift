@@ -826,6 +826,9 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testGoToDiscoveryWithCategoryId_ValidCategoryId_RoutesToCategory() async {
+    let routed = expectation(description: "Category discovery route delivered")
+    let observation = self.vm.outputs.goToDiscovery.observeValues { _ in routed.fulfill() }
+    defer { observation?.dispose() }
     let mockService = MockService(fetchGraphCategoriesResult: .success(defaultRootCategoriesTemplate))
 
     await withEnvironment(apiService: mockService) {
@@ -855,6 +858,7 @@ final class AppDelegateViewModelTests: TestCase {
         |> DiscoveryParams.lens.seed .~ 2_714_369
         |> DiscoveryParams.lens.page .~ 1
       await self.lifecycleFeature.waitForOperations()
+      await fulfillment(of: [routed], timeout: 2)
       self.goToDiscovery.assertValues([params])
     }
   }
