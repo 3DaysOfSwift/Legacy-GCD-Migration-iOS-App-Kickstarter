@@ -3,9 +3,6 @@
 
 
 import Prelude
-import ReactiveExtensions
-import ReactiveExtensions_TestHelpers
-import ReactiveSwift
 import XCTest
 
 @MainActor
@@ -15,48 +12,48 @@ internal final class CommentsViewModelTests: TestCase {
     AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
   }, sleep: { _ in try Task.checkCancellation() }))
 
-  private let beginOrEndRefreshing = TestObserver<Bool, Never>()
-  private let cellSeparatorHidden = TestObserver<Bool, Never>()
-  private let commentComposerViewHidden = TestObserver<Bool, Never>()
-  private let configureCommentComposerViewURL = TestObserver<URL?, Never>()
-  private let configureCommentComposerViewCanPostComment = TestObserver<Bool, Never>()
-  private let configureFooterViewWithState = TestObserver<CommentTableViewFooterViewState, Never>()
-  private let didBlockUser = TestObserver<(), Never>()
-  private let didBlockUserError = TestObserver<(), Never>()
-  private let goToCommentRepliesComment = TestObserver<Comment, Never>()
-  private let goToCommentRepliesProject = TestObserver<Project, Never>()
-  private let goToCommentRepliesUpdate = TestObserver<Update?, Never>()
-  private let goToCommentRepliesShowKeyboard = TestObserver<Bool, Never>()
-  private let loadCommentsAndProjectIntoDataSourceComments = TestObserver<[Comment], Never>()
-  private let loadCommentsAndProjectIntoDataSourceShouldShowErrorState = TestObserver<Bool, Never>()
-  private let loadCommentsAndProjectIntoDataSourceProject = TestObserver<Project, Never>()
-  private let showHelpWebViewController = TestObserver<HelpType, Never>()
+  private let beginOrEndRefreshing = CommentsRecorder<Bool>()
+  private let cellSeparatorHidden = CommentsRecorder<Bool>()
+  private let commentComposerViewHidden = CommentsRecorder<Bool>()
+  private let configureCommentComposerViewURL = CommentsRecorder<URL?>()
+  private let configureCommentComposerViewCanPostComment = CommentsRecorder<Bool>()
+  private let configureFooterViewWithState = CommentsRecorder<CommentTableViewFooterViewState>()
+  private let didBlockUser = CommentsRecorder<()>()
+  private let didBlockUserError = CommentsRecorder<()>()
+  private let goToCommentRepliesComment = CommentsRecorder<Comment>()
+  private let goToCommentRepliesProject = CommentsRecorder<Project>()
+  private let goToCommentRepliesUpdate = CommentsRecorder<Update?>()
+  private let goToCommentRepliesShowKeyboard = CommentsRecorder<Bool>()
+  private let loadCommentsAndProjectIntoDataSourceComments = CommentsRecorder<[Comment]>()
+  private let loadCommentsAndProjectIntoDataSourceShouldShowErrorState = CommentsRecorder<Bool>()
+  private let loadCommentsAndProjectIntoDataSourceProject = CommentsRecorder<Project>()
+  private let showHelpWebViewController = CommentsRecorder<HelpType>()
 
   override func setUp() async throws {
     try await super.setUp()
     MainActor.assumeIsolated {
-      self.vm.outputs.onRefreshing = { [weak self] in self?.beginOrEndRefreshing.observer.send(value: $0) }
-      self.vm.outputs.onSeparatorHidden = { [weak self] in self?.cellSeparatorHidden.observer.send(value: $0) }
+      self.vm.outputs.onRefreshing = { [weak self] in self?.beginOrEndRefreshing.record($0) }
+      self.vm.outputs.onSeparatorHidden = { [weak self] in self?.cellSeparatorHidden.record($0) }
       self.vm.outputs.onConfigureComposer = { [weak self] data in
-        self?.commentComposerViewHidden.observer.send(value: data.hidden)
-        self?.configureCommentComposerViewURL.observer.send(value: data.avatarURL)
-        self?.configureCommentComposerViewCanPostComment.observer.send(value: data.canPostComment)
+        self?.commentComposerViewHidden.record(data.hidden)
+        self?.configureCommentComposerViewURL.record(data.avatarURL)
+        self?.configureCommentComposerViewCanPostComment.record(data.canPostComment)
       }
-      self.vm.outputs.onDidBlockUser = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
-      self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }
-      self.vm.outputs.onFooterState = { [weak self] in self?.configureFooterViewWithState.observer.send(value: $0) }
+      self.vm.outputs.onDidBlockUser = { [weak self] in self?.didBlockUser.record(()) }
+      self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.record(()) }
+      self.vm.outputs.onFooterState = { [weak self] in self?.configureFooterViewWithState.record($0) }
       self.vm.outputs.onShowReplies = { [weak self] comment, project, update, firstResponder in
-        self?.goToCommentRepliesComment.observer.send(value: comment)
-        self?.goToCommentRepliesProject.observer.send(value: project)
-        self?.goToCommentRepliesUpdate.observer.send(value: update)
-        self?.goToCommentRepliesShowKeyboard.observer.send(value: firstResponder)
+        self?.goToCommentRepliesComment.record(comment)
+        self?.goToCommentRepliesProject.record(project)
+        self?.goToCommentRepliesUpdate.record(update)
+        self?.goToCommentRepliesShowKeyboard.record(firstResponder)
       }
       self.vm.outputs.onLoadComments = { [weak self] comments, project, error in
-        self?.loadCommentsAndProjectIntoDataSourceComments.observer.send(value: comments)
-        self?.loadCommentsAndProjectIntoDataSourceProject.observer.send(value: project)
-        self?.loadCommentsAndProjectIntoDataSourceShouldShowErrorState.observer.send(value: error)
+        self?.loadCommentsAndProjectIntoDataSourceComments.record(comments)
+        self?.loadCommentsAndProjectIntoDataSourceProject.record(project)
+        self?.loadCommentsAndProjectIntoDataSourceShouldShowErrorState.record(error)
       }
-      self.vm.outputs.onShowHelp = { [weak self] in self?.showHelpWebViewController.observer.send(value: $0) }
+      self.vm.outputs.onShowHelp = { [weak self] in self?.showHelpWebViewController.record($0) }
     }
   }
 
@@ -167,10 +164,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.didBlockUser.assertValueCount(1)
       self.didBlockUserError.assertValueCount(0)
@@ -197,10 +193,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.didBlockUser.assertValueCount(0)
       self.didBlockUserError.assertValueCount(1)
@@ -229,10 +224,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       XCTAssertEqual(segmentClient.events, ["CTA Clicked", "CTA Clicked"])
 
@@ -270,19 +264,17 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.showHelpWebViewController.assertDidNotEmitValue()
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.vm.inputs.commentRemovedCellDidTapURL(url)
 
@@ -466,10 +458,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadCommentsAndProjectIntoDataSourceComments.assertValues([envelope.comments])
       self.loadCommentsAndProjectIntoDataSourceProject.assertValues([project])
@@ -502,10 +493,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadCommentsAndProjectIntoDataSourceComments.assertValues([envelope.comments])
       self.loadCommentsAndProjectIntoDataSourceProject.assertValues([project])
@@ -536,10 +526,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadCommentsAndProjectIntoDataSourceComments
         .assertValues([envelope.comments], "New comments are emitted")
@@ -563,10 +552,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadCommentsAndProjectIntoDataSourceComments
         .assertValues([envelope.comments], "New comments are emitted")
@@ -586,10 +574,9 @@ internal final class CommentsViewModelTests: TestCase {
 
         await self.vm.waitForLoads()
 
-        await self.scheduler.advance()
         await self.vm.waitForLoads()
         await self.vm.waitForLoads()
-        await self.scheduler.advance()
+
 
         self.loadCommentsAndProjectIntoDataSourceComments
           .assertValues([envelope.comments, updatedEnvelope.comments], "New comments are emitted")
@@ -619,10 +606,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadCommentsAndProjectIntoDataSourceComments.assertValues(
         [envelope.comments],
@@ -649,10 +635,9 @@ internal final class CommentsViewModelTests: TestCase {
 
         await self.vm.waitForLoads()
 
-        await self.scheduler.advance()
         await self.vm.waitForLoads()
         await self.vm.waitForLoads()
-        await self.scheduler.advance()
+
 
         self.loadCommentsAndProjectIntoDataSourceComments.assertValueCount(2)
 
@@ -692,10 +677,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadCommentsAndProjectIntoDataSourceComments.assertValues(
         [envelope.comments],
@@ -724,10 +708,9 @@ internal final class CommentsViewModelTests: TestCase {
 
         await self.vm.waitForLoads()
 
-        await self.scheduler.advance()
         await self.vm.waitForLoads()
         await self.vm.waitForLoads()
-        await self.scheduler.advance()
+
 
         self.loadCommentsAndProjectIntoDataSourceComments.assertValueCount(2)
 
@@ -765,10 +748,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadCommentsAndProjectIntoDataSourceComments
         .assertValues([envelope.comments], "New comments are emitted")
@@ -797,10 +779,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
       self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
@@ -823,10 +804,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadCommentsAndProjectIntoDataSourceComments.assertValues([envelope.comments])
 
@@ -857,10 +837,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance(by: .seconds(1))
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       XCTAssertEqual(
         self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
@@ -890,10 +869,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadCommentsAndProjectIntoDataSourceComments.assertValues([envelope.comments])
 
@@ -918,10 +896,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance(by: .seconds(1))
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       let expectedFailedComment = expectedFailableComment
         |> \.status .~ .failed
@@ -954,10 +931,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance(by: .seconds(1))
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadCommentsAndProjectIntoDataSourceComments.assertValues([envelope.comments])
 
@@ -982,10 +958,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance(by: .seconds(1))
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       let expectedFailedComment = expectedFailableComment
         |> \.status .~ .failed
@@ -1030,10 +1005,9 @@ internal final class CommentsViewModelTests: TestCase {
 
         await self.vm.waitForLoads()
 
-        await self.scheduler.advance(by: .seconds(1))
         await self.vm.waitForLoads()
         await self.vm.waitForLoads()
-        await self.scheduler.advance()
+
 
         let expectedRetryingSuccessComment = expectedFailedComment
           |> \.body .~ bodyText
@@ -1046,10 +1020,9 @@ internal final class CommentsViewModelTests: TestCase {
 
         await self.vm.waitForLoads()
 
-        await self.scheduler.advance(by: .seconds(3))
         await self.vm.waitForLoads()
         await self.vm.waitForLoads()
-        await self.scheduler.advance()
+
 
         XCTAssertEqual(
           self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
@@ -1074,10 +1047,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance(by: .seconds(1))
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadCommentsAndProjectIntoDataSourceComments.assertValues([envelope.comments])
 
@@ -1102,10 +1074,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance(by: .seconds(1))
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       let expectedFailedComment = expectedFailableComment
         |> \.status .~ .failed
@@ -1142,10 +1113,9 @@ internal final class CommentsViewModelTests: TestCase {
 
         await self.vm.waitForLoads()
 
-        await self.scheduler.advance(by: .seconds(1))
         await self.vm.waitForLoads()
         await self.vm.waitForLoads()
-        await self.scheduler.advance()
+
 
         XCTAssertEqual(
           self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
@@ -1177,10 +1147,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadCommentsAndProjectIntoDataSourceComments.assertValues([envelope.comments])
       self.cellSeparatorHidden.assertValue(true)
@@ -1208,10 +1177,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadCommentsAndProjectIntoDataSourceComments.assertValues([envelope.comments])
       self.cellSeparatorHidden.assertValue(false)
@@ -1248,10 +1216,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.loadCommentsAndProjectIntoDataSourceShouldShowErrorState.assertValues([true])
 
@@ -1260,10 +1227,9 @@ internal final class CommentsViewModelTests: TestCase {
 
         await self.vm.waitForLoads()
 
-        await self.scheduler.advance()
         await self.vm.waitForLoads()
         await self.vm.waitForLoads()
-        await self.scheduler.advance()
+
 
         self.loadCommentsAndProjectIntoDataSourceShouldShowErrorState.assertLastValue(false)
       }
@@ -1283,10 +1249,9 @@ internal final class CommentsViewModelTests: TestCase {
 
       await self.vm.waitForLoads()
 
-      await self.scheduler.advance()
       await self.vm.waitForLoads()
       await self.vm.waitForLoads()
-      await self.scheduler.advance()
+
 
       self.configureFooterViewWithState.assertValues([.hidden])
 
@@ -1303,10 +1268,9 @@ internal final class CommentsViewModelTests: TestCase {
 
         await self.vm.waitForLoads()
 
-        await self.scheduler.advance()
         await self.vm.waitForLoads()
         await self.vm.waitForLoads()
-        await self.scheduler.advance()
+
 
         self.configureFooterViewWithState.assertValues(
           [.hidden, .activity, .hidden], "Returns to hidden."
@@ -1326,10 +1290,9 @@ internal final class CommentsViewModelTests: TestCase {
 
           await self.vm.waitForLoads()
 
-          await self.scheduler.advance()
           await self.vm.waitForLoads()
           await self.vm.waitForLoads()
-          await self.scheduler.advance()
+
 
           self.configureFooterViewWithState.assertValues(
             [.hidden, .activity, .hidden, .activity, .error], "Emits error state."
@@ -1348,10 +1311,9 @@ internal final class CommentsViewModelTests: TestCase {
 
             await self.vm.waitForLoads()
 
-            await self.scheduler.advance()
             await self.vm.waitForLoads()
             await self.vm.waitForLoads()
-            await self.scheduler.advance()
+
 
             self.configureFooterViewWithState.assertValues(
               [.hidden, .activity, .hidden, .activity, .error, .activity, .hidden],
@@ -1361,5 +1323,30 @@ internal final class CommentsViewModelTests: TestCase {
         }
       }
     }
+  }
+}
+
+@MainActor
+private final class CommentsRecorder<Value> {
+  private(set) var values: [Value] = []
+  var lastValue: Value? { self.values.last }
+  func record(_ value: Value) { self.values.append(value) }
+  func assertValueCount(_ count: Int, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.count, count, message, file: file, line: line)
+  }
+  func assertDidNotEmitValue(_ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(self.values.isEmpty, message, file: file, line: line)
+  }
+}
+
+private extension CommentsRecorder where Value: Equatable {
+  func assertValues(_ expected: [Value], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, expected, message, file: file, line: line)
+  }
+  func assertValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values, [expected], message, file: file, line: line)
+  }
+  func assertLastValue(_ expected: Value, _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(self.values.last, expected, message, file: file, line: line)
   }
 }
