@@ -73,6 +73,11 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private let cardItems = Signal<[RewardAddOnSelectionDataSourceItem], Never>.pipe()
   private var latestCardData: ([Reward], Project, Reward, PledgeViewContext, ShippingRule?)?
   private var latestCardQuantities: SelectedRewardQuantities?
+  private let selectedRewardsEvents = Signal<[Reward], Never>.pipe()
+  private let selectedAddOnCountEvents = Signal<Int, Never>.pipe()
+  private var currentBaseReward: Reward?
+  private var currentAddOnRewards: [Reward]?
+  private var currentRewardQuantities: SelectedRewardQuantities?
   private var addOnsRequestID: UUID?
   deinit {
     self.addOnsTask?.cancel()
@@ -158,11 +163,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       hasAddOns.filter(isFalse).mapConst([])
     )
 
-    let baseRewardAndAddOnRewards = Signal.combineLatest(
-      baseReward,
-      allAddOnRewards
-    )
-
     // MARK: - Bonus support
 
     /// Initial pledge amount is zero if not backed.
@@ -185,20 +185,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       self.pledgeAmountDataSignal.map { $0.amount }
     )
 
-    let totalSelectedAddOnsQuantity = Signal.combineLatest(
-      latestSelectedQuantities,
-      baseReward.map(\.id),
-      allAddOnRewards.map { $0.map(\.id) }
-    )
-    .map { quantities, baseRewardId, addOnRewardIds in
-      quantities
-        // Filter out the base reward for determining the add-on quantities
-        .filter { key, _ in key != baseRewardId && addOnRewardIds.contains(key) }
-        .reduce(0) { accum, keyValue in
-          let (_, value) = keyValue
-          return accum + value
-        }
-    }
+    let totalSelectedAddOnsQuantity = self.selectedAddOnCountEvents.output
 
     let enableContinueButton = Signal.combineLatest(
       project,
@@ -209,20 +196,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     )
     .map(isValid)
 
-    let selectedRewards =
-      baseRewardAndAddOnRewards
-      .combineLatest(with: latestSelectedQuantities)
-      .map(unpack)
-      .map { baseReward, addOnRewards, selectedQuantities -> [Reward] in
-        let selectedRewardIds =
-          selectedQuantities
-          .filter { _, qty in qty > 0 }
-          .keys
-
-        return [baseReward]
-          + addOnRewards
-          .filter { reward in selectedRewardIds.contains(reward.id) }
-      }
+    let selectedRewards = self.selectedRewardsEvents.output
 
     let selectedLocationId = Signal.merge(
       initialLocationId,
@@ -341,6 +315,18 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
         )
       }
 
+    _ = baseReward.observeValues { [weak self] reward in
+      self?.currentBaseReward = reward
+      self?.publishRewardSelection()
+    }
+    _ = allAddOnRewards.observeValues { [weak self] rewards in
+      self?.currentAddOnRewards = rewards
+      self?.publishRewardSelection()
+    }
+    _ = latestSelectedQuantities.observeValues { [weak self] quantities in
+      self?.currentRewardQuantities = quantities
+      self?.publishRewardSelection()
+    }
     _ = headerTitle.observeValues { [weak self] value in self?.onHeaderTitle?(value) }
     _ = pageTitle.observeValues { [weak self] value in self?.onPageTitle?(value) }
     _ = startRefreshing.observeValues { [weak self] _ in self?.onStartRefreshing?() }
@@ -376,6 +362,18 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     _ = refreshAddons.observeValues { [weak self] data in
       self?.loadAddOns(for: data)
     }
+  }
+
+  private func publishRewardSelection() {
+    guard let base = self.currentBaseReward, let addOns = self.currentAddOnRewards,
+          let quantities = self.currentRewardQuantities else { return }
+    let ids = Set(addOns.map(\.id))
+    let count = quantities.reduce(0) { total, entry in
+      total + (entry.key != base.id && ids.contains(entry.key) ? entry.value : 0)
+    }
+    let selected = [base] + addOns.filter { (quantities[$0.id] ?? 0) > 0 }
+    self.selectedRewardsEvents.input.send(value: selected)
+    self.selectedAddOnCountEvents.input.send(value: count)
   }
 
   private func publishCards(reload: Bool) {
