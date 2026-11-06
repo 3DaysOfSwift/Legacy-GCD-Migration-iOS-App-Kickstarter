@@ -99,17 +99,16 @@ final class ProjectPageViewModelTests: TestCase {
         .observe(self.configureDataSourceNavigationSection.observer)
       self.vm.outputs.configureDataSource.map(second)
         .observe(self.configureDataSourceProject.observer)
-      self.vm.outputs.configureChildViewControllersWithProject.map(first)
-        .observe(self.configureChildViewControllersWithProject.observer)
-      self.vm.outputs.configureChildViewControllersWithProject.map(second)
-        .observe(self.configureChildViewControllersWithRefTag.observer)
+      self.vm.outputs.onConfigureProject = { [weak self] data in
+        self?.configureChildViewControllersWithProject.observer.send(value: data.0)
+        self?.configureChildViewControllersWithRefTag.observer.send(value: data.1)
+        self?.configureProjectNavigationSelectorView.observer.send(value: data)
+      }
 
       self.vm.outputs.onConfigurePledgeCTA = { [weak self] in
         self?.configurePledgeCTAView.observer.send(value: $0)
       }
 
-      self.vm.outputs.configureProjectNavigationSelectorView
-        .observe(self.configureProjectNavigationSelectorView.observer)
 
       self.vm.outputs.onDidBlockUser = { [weak self] in self?.didBlockUser.observer.send(value: ()) }
       self.vm.outputs.onDidBlockUserError = { [weak self] in self?.didBlockUserError.observer.send(value: ()) }

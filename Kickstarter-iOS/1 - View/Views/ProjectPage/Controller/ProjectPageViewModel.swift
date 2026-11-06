@@ -140,13 +140,12 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   }
 
   /// Emits a project that should be used to configure all children view controllers.
-  var configureChildViewControllersWithProject: Signal<(Project, RefTag?), Never> { get }
+  var onConfigureProject: (((Project, RefTag?)) -> Void)? { get set }
 
   /// Emits PledgeCTAContainerViewData to configure PledgeCTAContainerView
   var onConfigurePledgeCTA: ((PledgeCTAContainerViewData) -> Void)? { get set }
 
   /// Emits `(Project, RefTag?)` to configure `ProjectNavigationSelectorView`
-  var configureProjectNavigationSelectorView: Signal<(Project, RefTag?), Never> { get }
 
   /// Emits a message to show on `MessageBannerViewController`
   var onManagePledgeFinishedWithMessage: ((String) -> Void)? { get set }
@@ -356,8 +355,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
       }
       .merge(with: staleProjectDataSource)
 
-    self.configureChildViewControllersWithProject = freshProjectAndRefTag
-      .map { project, refTag in (project, refTag) }
 
 
     let cookieRefTag: Signal<RefTag?, Never> = freshProjectAndRefTag
@@ -372,11 +369,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
 
 
-    self.configureProjectNavigationSelectorView = freshProjectAndRefTag
-      .map { projectAndRefTag in
-        let (project, refTag) = projectAndRefTag
-        return (project: project, refTag: refTag)
-      }
 
     let trackFreshProjectAndRefTagViewed: Signal<(Project, RefTag?), Never> = Signal.zip(
       freshProjectAndRefTag,
@@ -587,6 +579,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
           self.latestProjectRefTag = self.requestRefTag
           self.onProjectFlagged?(project.flagging ?? false)
           self.onConfigurePledgeCTA?(.project(project))
+          self.onConfigureProject?((project, self.requestRefTag))
           completion.input.send(value: .value((project, self.requestRefTag)))
           self.updateFAQsIfReady()
           if let elements = project.extendedProjectProperties?.story.htmlViewElements {
@@ -822,9 +815,8 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     (NavigationSection, Either<Project, any ProjectPageParam>, RefTag?),
     Never
   >
-  public let configureChildViewControllersWithProject: Signal<(Project, RefTag?), Never>
+  public var onConfigureProject: (((Project, RefTag?)) -> Void)?
   public var onConfigurePledgeCTA: ((PledgeCTAContainerViewData) -> Void)?
-  public let configureProjectNavigationSelectorView: Signal<(Project, RefTag?), Never>
   public var onManagePledgeFinishedWithMessage: ((String) -> Void)?
   public var onGoToComments: ((Project) -> Void)?
 

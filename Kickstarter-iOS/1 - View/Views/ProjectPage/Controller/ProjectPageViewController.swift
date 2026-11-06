@@ -411,15 +411,15 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
       DispatchQueue.main.async { [weak self] in self?.goToPledgeManagementWebViewController(with: value) }
     }
 
-    self.viewModel.outputs.configureChildViewControllersWithProject
-      .observeForUI()
-      .observeValues { [weak self] project, _ in
+    self.viewModel.outputs.onConfigureProject = { [weak self] data in
+      let (project, refTag) = data
+      DispatchQueue.main.async { [weak self] in
         self?.navigation.configureSharing(with: .project(project))
-
         let watchProjectValue = WatchProjectValue(project, KSRAnalytics.PageContext.project, nil)
-
         self?.navigation.configureWatchProject(with: watchProjectValue)
+        self?.projectNavigationSelectorView.configure(with: (project: project, refTag: refTag))
       }
+    }
 
     self.viewModel.outputs.configureDataSource
       .observeForUI()
@@ -439,11 +439,6 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
       }
     }
 
-    self.viewModel.outputs.configureProjectNavigationSelectorView
-      .observeForUI()
-      .observeValues { [weak self] projectAndRefTag in
-        self?.projectNavigationSelectorView.configure(with: projectAndRefTag)
-      }
 
     self.viewModel.outputs.onManagePledgeFinishedWithMessage = { [weak self] message in
       DispatchQueue.main.async { [weak self] in
