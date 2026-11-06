@@ -176,75 +176,6 @@ public final class ManagePledgeViewModel:
         (project, distinctRewards([reward] + (backing.addOns ?? [])))
       }
 
-    let pledgeDisclaimerViewHidden = Signal.combineLatest(
-      loadProjectAndRewardsIntoDataSource,
-      userIsCreatorOfProject
-    )
-    .map(unpack)
-    .map { _, rewards, userIsCreatorOfProject in
-      rewards.map { $0.estimatedDeliveryOn }.allSatisfy(isNil) || userIsCreatorOfProject
-    }
-
-    // MARK: - ManageViewPledgeRewardReceivedViewData
-
-    let latestRewardDeliveryDate = loadProjectAndRewardsIntoDataSource.map { _, rewards in
-      rewards
-        .compactMap { $0.estimatedDeliveryOn }
-        .reduce(0) { accum, value in max(accum, value) }
-    }
-
-    let estimatedShipping = Signal.combineLatest(
-      backing,
-      loadProjectAndRewardsIntoDataSource
-    )
-    .map(unpack)
-    .map { backing, project, rewards -> String? in
-      guard let locationId = backing.locationId,
-            let range = estimatedShippingText(
-              for: rewards,
-              project: project,
-              locationId: locationId,
-              selectedQuantities: selectedRewardQuantities(in: backing)
-            )
-      else { return nil }
-
-      return Strings.About_reward_amount(reward_amount: range)
-    }
-
-    let rewardReceivedWithData = Signal.combineLatest(
-      project,
-      backing,
-      latestRewardDeliveryDate,
-      estimatedShipping,
-      pledgeDisclaimerViewHidden
-    )
-    .map { project, backing, latestRewardDeliveryDate, estimatedShipping, pledgeDisclaimerViewHidden in
-      ManageViewPledgeRewardReceivedViewData(
-        project: project,
-        backerCompleted: backing.backerCompleted ?? false,
-        estimatedDeliveryOn: latestRewardDeliveryDate,
-        backingState: backing.status,
-        estimatedShipping: estimatedShipping,
-        pledgeDisclaimerViewHidden: pledgeDisclaimerViewHidden
-      )
-    }
-
-    let rewardReceivedViewControllerViewIsHidden: Signal<Bool, Never> = latestRewardDeliveryDate
-      .map { $0 == 0 }
-
-    let configurePledgeSummaryView = Signal.combineLatest(
-      projectAndReward,
-      backing,
-      rewardReceivedWithData,
-      rewardReceivedViewControllerViewIsHidden
-    )
-    .compactMap {
-      managePledgeSummaryViewData(
-        with: $0.0, backing: $0.1, rewardReceivedWithData: $0.2,
-        rewardReceivedViewControllerViewIsHidden: $0.3
-      )
-    }
-
     // Tracking
 
     Signal.zip(loadProjectAndRewardsIntoDataSource, backing)
@@ -296,7 +227,25 @@ public final class ManagePledgeViewModel:
     _ = backing.observeValues { [weak self] backing in
       self?.onPaymentMethod?(managePledgePaymentMethodViewData(with: backing))
     }
-    _ = configurePledgeSummaryView.observeValues { [weak self] in self?.onPledgeSummary?($0) }
+    project.combineLatest(with: backing).observeValues { [weak self] project, backing in
+      let rewards = distinctRewards([backing.reward ?? .noReward] + (backing.addOns ?? []))
+      let isCreator = currentUserIsCreator(of: project)
+      let latestDelivery = rewards.compactMap(\.estimatedDeliveryOn).reduce(0, max)
+      let estimatedShipping = backing.locationId.flatMap { locationID in
+        estimatedShippingText(for: rewards, project: project, locationId: locationID,
+                              selectedQuantities: selectedRewardQuantities(in: backing))
+      }.map { Strings.About_reward_amount(reward_amount: $0) }
+      let received = ManageViewPledgeRewardReceivedViewData(
+        project: project, backerCompleted: backing.backerCompleted ?? false,
+        estimatedDeliveryOn: latestDelivery, backingState: backing.status,
+        estimatedShipping: estimatedShipping,
+        pledgeDisclaimerViewHidden: rewards.allSatisfy { $0.estimatedDeliveryOn == nil } || isCreator
+      )
+      if let data = managePledgeSummaryViewData(
+        with: (project, backing.reward ?? .noReward), backing: backing,
+        rewardReceivedWithData: received, rewardReceivedViewControllerViewIsHidden: latestDelivery == 0
+      ) { self?.onPledgeSummary?(data) }
+    }
     _ = backing.observeValues { [weak self] backing in
       self?.visibilityBacking = backing
       self?.updatePaymentMethodVisibility()
