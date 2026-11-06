@@ -142,7 +142,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.outputs.triggerOnboardingFlow.observe(self.triggerOnboardingFlow.observer)
     self.vm.outputs.onUnregisterForRemoteNotifications = { [weak self] in self?.unregisterForRemoteNotifications.observer.send(value: ()) }
     self.vm.outputs.updateCurrentUserInEnvironment.observe(self.updateCurrentUserInEnvironment.observer)
-    self.vm.outputs.updateConfigInEnvironment.observe(self.updateConfigInEnvironment.observer)
+    self.vm.outputs.onUpdateConfig = { [weak self] in self?.updateConfigInEnvironment.observer.send(value: $0) }
   }
 
   func testResetApplicationIconBadgeNumber_registeredForPushNotifications_WillEnterForeground() async {
@@ -321,6 +321,7 @@ final class AppDelegateViewModelTests: TestCase {
         launchOptions: [:]
       )
       await self.lifecycleFeature.waitForOperations()
+      await (self.vm as? AppDelegateViewModel)?.waitForConfiguration()
       self.updateConfigInEnvironment.assertValues([config1])
 
       self.vm.inputs.didUpdateConfig(config1)
@@ -331,6 +332,7 @@ final class AppDelegateViewModelTests: TestCase {
     await withEnvironment(apiService: MockService(fetchConfigResponse: config2)) {
       self.vm.inputs.applicationWillEnterForeground()
       await self.lifecycleFeature.waitForOperations()
+      await (self.vm as? AppDelegateViewModel)?.waitForConfiguration()
       self.updateConfigInEnvironment.assertValues([config1, config2])
 
       self.vm.inputs.didUpdateConfig(config2)
@@ -341,6 +343,7 @@ final class AppDelegateViewModelTests: TestCase {
     await withEnvironment(apiService: MockService(fetchConfigResponse: config3)) {
       self.vm.inputs.userSessionEnded()
       await self.lifecycleFeature.waitForOperations()
+      await (self.vm as? AppDelegateViewModel)?.waitForConfiguration()
       self.updateConfigInEnvironment.assertValues([config1, config2, config3])
 
       self.vm.inputs.didUpdateConfig(config3)
@@ -351,6 +354,7 @@ final class AppDelegateViewModelTests: TestCase {
     await withEnvironment(apiService: MockService(fetchConfigResponse: config4)) {
       self.vm.inputs.userSessionStarted()
       await self.lifecycleFeature.waitForOperations()
+      await (self.vm as? AppDelegateViewModel)?.waitForConfiguration()
       self.updateConfigInEnvironment.assertValues([config1, config2, config3, config4])
 
       self.vm.inputs.didUpdateConfig(config4)
@@ -2236,6 +2240,7 @@ final class AppDelegateViewModelTests: TestCase {
       )
 
       await self.lifecycleFeature.waitForOperations()
+      await (self.vm as? AppDelegateViewModel)?.waitForConfiguration()
       self.updateConfigInEnvironment.assertValueCount(1)
 
       let updatedFeatures = self.updateConfigInEnvironment.lastValue?.features
@@ -2275,6 +2280,7 @@ final class AppDelegateViewModelTests: TestCase {
       )
 
       await self.lifecycleFeature.waitForOperations()
+      await (self.vm as? AppDelegateViewModel)?.waitForConfiguration()
       self.updateConfigInEnvironment.assertValueCount(1)
 
       let updatedFeatures = self.updateConfigInEnvironment.lastValue?.features

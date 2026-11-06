@@ -144,13 +144,12 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
         NotificationCenter.default.post(.init(name: .ksr_sessionEnded, object: nil))
       }
 
-    self.viewModel.outputs.updateConfigInEnvironment
-      .observeForUI()
-      .observeValues { [weak self] config in
+    self.viewModel.outputs.onUpdateConfig = { [weak self] config in
+      DispatchQueue.main.async { [weak self] in
         AppEnvironment.updateConfig(config)
-
         self?.viewModel.inputs.didUpdateConfig(config)
       }
+    }
 
     self.viewModel.outputs.onPostNotification = { notification in
       DispatchQueue.main.async { NotificationCenter.default.post(notification) }

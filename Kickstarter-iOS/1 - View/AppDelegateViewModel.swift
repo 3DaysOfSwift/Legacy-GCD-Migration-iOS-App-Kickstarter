@@ -188,7 +188,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var notificationSettingsUpdated: Signal<Void, Never> { get }
 
   /// Emits a config value that should be updated in the environment.
-  var updateConfigInEnvironment: Signal<Config, Never> { get }
+  var onUpdateConfig: ((Config) -> Void)? { get set }
 }
 
 @MainActor
@@ -212,6 +212,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   private let pushDebounce: @MainActor () async throws -> Void
   private var pushDebounceTask: Task<Void, Never>?
   private var pushPresentationTask: Task<Void, Never>?
+  private var configurationTask: Task<Void, Never>?
   private var lastSegmentEnabled: Bool?
 
   public init(
@@ -265,22 +266,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       .errors()
       .filter { $0.ksrCode == .AccessTokenInvalid }
       .ignoreValues()
-
-    self.updateConfigInEnvironment = Signal.merge(
-      [
-        self.applicationWillEnterForegroundProperty.signal,
-        self.applicationLaunchOptionsProperty.signal.ignoreValues(),
-        self.userSessionEndedProperty.signal,
-        self.userSessionStartedProperty.signal
-      ]
-    )
-    .switchMap { _ -> SignalProducer<Config, Never> in
-      visitorCookies().forEach(AppEnvironment.current.cookieStorage.setCookie)
-
-      let request = lifecycleFeature.requestConfiguration()
-      return lifecycleResult(feature: lifecycleFeature) { try await request.value }.demoteErrors()
-    }
-    .map { configRetainingDebugFeatureFlags($0) }
 
     let openUrl = self.applicationOpenUrlProperty.signal.skipNil()
 
@@ -551,6 +536,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   deinit {
     self.pushDebounceTask?.cancel()
     self.pushPresentationTask?.cancel()
+    self.configurationTask?.cancel()
     let redirectObservation = self.redirectObservation
     let feature = self.lifecycleFeature
     let route = self.navigationRoute
@@ -562,6 +548,21 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
   public var inputs: AppDelegateViewModelInputs { return self }
   public var outputs: AppDelegateViewModelOutputs { return self }
+
+  private func refreshConfiguration() {
+    visitorCookies().forEach(AppEnvironment.current.cookieStorage.setCookie)
+    self.configurationTask?.cancel()
+    let request = self.lifecycleFeature.requestConfiguration()
+    self.configurationTask = Task { [weak self] in
+      do {
+        let config = try await request.value
+        try Task.checkCancellation()
+        self?.onUpdateConfig?(configRetainingDebugFeatureFlags(config))
+      } catch { /* Configuration failures leave the current configuration in place. */ }
+    }
+  }
+
+  func waitForConfiguration() async { await self.configurationTask?.value }
 
   public func resolveEmailRedirect(_ url: URL) {
     if self.redirectObservation.input == url, self.redirectObservation.task != nil { return }
@@ -602,6 +603,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   ) {
     self.applicationDidFinishLaunchingReturnValue = launchOptions?[UIApplication.LaunchOptionsKey.shortcutItem] == nil
     self.applicationLaunchOptionsProperty.value = (application, launchOptions)
+    self.refreshConfiguration()
     self.onSynchronizeUbiquitousStore?()
     self.onConfigureFirebase?()
     self.onConfigureStatsig?(statsigSDKKey())
@@ -613,6 +615,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   fileprivate let applicationWillEnterForegroundProperty = MutableProperty(())
   public func applicationWillEnterForeground() {
     self.applicationWillEnterForegroundProperty.value = ()
+    self.refreshConfiguration()
   }
 
   fileprivate let applicationActiveProperty = MutableProperty<Bool>(false)
@@ -734,12 +737,14 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   fileprivate let userSessionEndedProperty = MutableProperty(())
   public func userSessionEnded() {
     self.userSessionEndedProperty.value = ()
+    self.refreshConfiguration()
     self.onUnregisterForRemoteNotifications?()
   }
 
   fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
     self.userSessionStartedProperty.value = ()
+    self.refreshConfiguration()
   }
 
   fileprivate let brazeNotificationURLProperty = MutableProperty<URL?>(nil)
@@ -784,7 +789,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public var onUnregisterForRemoteNotifications: (() -> Void)?
   public let updateCurrentUserInEnvironment: Signal<User, Never>
   public let notificationSettingsUpdated: Signal<Void, Never>
-  public let updateConfigInEnvironment: Signal<Config, Never>
+  public var onUpdateConfig: ((Config) -> Void)?
 }
 
 /// Handles the deeplink route with both an id and text based name for a deeplink to categories.
