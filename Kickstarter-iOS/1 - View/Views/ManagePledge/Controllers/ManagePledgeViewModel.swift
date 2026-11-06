@@ -122,11 +122,11 @@ public final class ManagePledgeViewModel:
   private var currentRewards: [Reward]?
   private var hasSeenDisallowedCancellation = false
   private let projectRoute = UUID()
-  private let projectReadEvents = Signal<(Signal<Project, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
+  private let projectValues = Signal<Project, Never>.pipe()
   private var projectReadTask: Task<Void, Never>?
   private let projectReadIdentity = ManagePledgeReadIdentity()
   private let backingRoute = UUID()
-  private let backingReadEvents = Signal<(Signal<Backing, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
+  private let backingValues = Signal<Backing, Never>.pipe()
   private var backingReadTask: Task<Void, Never>?
   private let backingReadIdentity = ManagePledgeReadIdentity()
   deinit {
@@ -140,47 +140,8 @@ public final class ManagePledgeViewModel:
   }
   public init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
     self.feature = feature
-    let projectReadIdentity = self.projectReadIdentity
-    let backingReadIdentity = self.backingReadIdentity
-    let fetchProjectEvent = self.projectReadEvents.output
-      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-      .filter { [projectReadIdentity, feature] _, userID, generation, id in
-        projectReadIdentity.id == id && feature.sessionFeature.isCurrent(userID: userID, generation: generation)
-      }
-      .map { event, _, _, _ in event }
-
-    let initialProject = fetchProjectEvent.values()
-      .on(value: { [weak self] project in
-        guard let self else { return }
-        self.projectHasLoaded = true
-        if !self.configuredBackingWasProvided, let id = project.personalization.backing?.id {
-          self.currentBackingParam = .id(id)
-          self.loadBacking(id)
-        }
-      })
-
-    let graphBackingEvent = self.backingReadEvents.output
-      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-      .filter { [backingReadIdentity, feature] _, userID, generation, id in
-        backingReadIdentity.id == id && feature.sessionFeature.isCurrent(userID: userID, generation: generation)
-      }
-      .map { event, _, _, _ in event }
-
-    let backing = graphBackingEvent.values()
-
-    let endRefreshingWhenProjectFailed = fetchProjectEvent.errors()
-      .ignoreValues()
-
-    let endRefreshingWhenBackingCompleted = graphBackingEvent
-      .filter { $0.isTerminating }
-      .ksr_delay(.milliseconds(300), on: AppEnvironment.current.scheduler)
-      .ignoreValues()
-
-    let endRefreshing = Signal.merge(
-      endRefreshingWhenProjectFailed,
-      endRefreshingWhenBackingCompleted
-    )
-    .ignoreValues()
+    let initialProject = self.projectValues.output
+    let backing = self.backingValues.output
 
     let project: Signal<Project, Never> = initialProject.combineLatest(with: backing)
       .map { project, backing -> Project in
@@ -214,7 +175,6 @@ public final class ManagePledgeViewModel:
     loadProjectAndRewardsIntoDataSource.observeValues { trackingState.addProject($0, rewards: $1) }
     backing.observeValues { trackingState.addBacking($0) }
 
-    _ = endRefreshing.observeValues { [weak self] _ in self?.onEndRefreshing?() }
     _ = loadProjectAndRewardsIntoDataSource.observeValues { [weak self] first, second in
       self?.currentRewards = second
       self?.onLoadProjectAndRewards?(first, second)
@@ -227,8 +187,6 @@ public final class ManagePledgeViewModel:
       if self.backingHasLoaded { self.onFinish?(nil) }
       self.backingHasLoaded = true
     }
-    _ = fetchProjectEvent.errors().observeValues { [weak self] _ in self?.handleLoadError() }
-    _ = graphBackingEvent.errors().observeValues { [weak self] _ in self?.handleLoadError() }
     _ = project.observeValues { [weak self] value in
       self?.titleProject = value
       self?.updateTitle()
@@ -275,6 +233,22 @@ public final class ManagePledgeViewModel:
     }
   }
 
+  private func scheduleReadResult(_ action: @escaping @MainActor () -> Void) {
+    let scheduler = AppEnvironment.current.scheduler
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    guard !delay.isInfinite else { return }
+    _ = scheduler.schedule(after: scheduler.currentDate.addingTimeInterval(max(0, delay))) {
+      MainActor.assumeIsolated { action() }
+    }
+  }
+
+  private func scheduleRefreshEnd() {
+    let scheduler = AppEnvironment.current.scheduler
+    _ = scheduler.schedule(after: scheduler.currentDate.addingTimeInterval(0.3)) { [weak self] in
+      MainActor.assumeIsolated { self?.onEndRefreshing?() }
+    }
+  }
+
   private func loadBacking(_ backingID: Int) {
     self.backingReadTask?.cancel()
     let feature = self.feature
@@ -288,13 +262,22 @@ public final class ManagePledgeViewModel:
         let backing = try await feature.backing(route: route, id: backingID)
         try Task.checkCancellation()
         guard feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
-        self?.backingReadEvents.input.send(value: (.value(backing), userID, generation, id))
-        self?.backingReadEvents.input.send(value: (.completed, userID, generation, id))
+        self?.scheduleReadResult { [weak self] in
+          guard let self, self.backingReadIdentity.id == id,
+                feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+          self.backingValues.input.send(value: backing)
+          self.scheduleRefreshEnd()
+        }
       } catch is CancellationError {
         return
       } catch {
         guard !Task.isCancelled, feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
-        self?.backingReadEvents.input.send(value: (.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), userID, generation, id))
+        self?.scheduleReadResult { [weak self] in
+          guard let self, self.backingReadIdentity.id == id,
+                feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+          self.handleLoadError()
+          self.scheduleRefreshEnd()
+        }
       }
     }
   }
@@ -312,13 +295,26 @@ public final class ManagePledgeViewModel:
         let project = try await feature.project(route: route, param: param)
         try Task.checkCancellation()
         guard feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
-        self?.projectReadEvents.input.send(value: (.value(project), userID, generation, id))
-        self?.projectReadEvents.input.send(value: (.completed, userID, generation, id))
+        self?.scheduleReadResult { [weak self] in
+          guard let self, self.projectReadIdentity.id == id,
+                feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+          self.projectHasLoaded = true
+          if !self.configuredBackingWasProvided, let backingID = project.personalization.backing?.id {
+            self.currentBackingParam = .id(backingID)
+            self.loadBacking(backingID)
+          }
+          self.projectValues.input.send(value: project)
+        }
       } catch is CancellationError {
         return
       } catch {
         guard !Task.isCancelled, feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
-        self?.projectReadEvents.input.send(value: (.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), userID, generation, id))
+        self?.scheduleReadResult { [weak self] in
+          guard let self, self.projectReadIdentity.id == id,
+                feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+          self.onEndRefreshing?()
+          self.handleLoadError()
+        }
       }
     }
   }
