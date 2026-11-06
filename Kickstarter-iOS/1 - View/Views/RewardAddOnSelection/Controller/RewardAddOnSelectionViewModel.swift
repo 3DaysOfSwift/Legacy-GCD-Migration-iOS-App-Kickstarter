@@ -2,7 +2,6 @@ import Experimentation
 import Foundation
 import KsApi
 import Prelude
-import ReactiveSwift
 
 public typealias SelectedRewardId = Int
 public typealias SelectedRewardQuantity = Int
@@ -62,7 +61,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   RewardAddOnSelectionViewModelOutputs
 {
   private let feature: RewardsFeature
-  private let configEvents = Signal<PledgeViewData, Never>.pipe()
   private var pendingConfiguration: PledgeViewData?
   private var isLoaded = false
   private let addOnsRoute = UUID()
@@ -118,149 +116,74 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   }
   public init(feature: RewardsFeature = AppModel.shared.rewardsFeature) {
     self.feature = feature
-    let configData = self.configEvents.output
+  }
 
-    let project = configData.map(\.project)
-    let baseReward = configData.map(\.rewards).map(\.first).skipNil()
-    let baseRewardQuantities = configData.map(\.selectedQuantities)
-    let context = configData.map(\.context)
-    let initialLocationId = configData.map(\.selectedLocationId)
-    let selectedShippingRule = configData.map(\.selectedShippingRule)
-
-    let hasAddOns = baseReward.map(\.hasAddOns)
-
-
-    let headerTitle = hasAddOns.map { (hasAddons: Bool) -> String in
-      hasAddons
-        ? Strings.Customize_your_reward_with_optional_addons()
-        : Strings.Customize_your_reward()
-    }
-
-    let pageTitle = hasAddOns.map { (hasAddOns: Bool) -> String in
-      hasAddOns
-        ? Strings.Pledge_flow_navigation_bar_titles_Addons()
-        : Strings.Pledge_flow_navigation_bar_titles_Bonus_support()
-    }
-
-    let shippingRule = Signal.merge(
-      selectedShippingRule,
-      baseReward.filter { reward in !reward.shipping.enabled }.mapConst(nil)
-    )
-
-    // MARK: - Bonus support
-
-    /// Initial pledge amount is zero if not backed.
-    let initialAdditionalPledgeAmount = project.map {
-      $0.personalization.backing?.bonusAmount ?? 0.0
-    }
-
-    /// Called when pledge or bonus is updated by backer
-    let additionalPledgeAmount = Signal.merge(
-      initialAdditionalPledgeAmount,
-      self.pledgeAmountDataSignal.map { $0.amount }
-    )
-
-    let selectedLocationId = Signal.merge(
-      initialLocationId,
-      shippingRule.map { $0?.location.id }
-    )
-
-    _ = project.observeValues { [weak self] value in
-      guard let self, !self.trackedPage else { return }
-      if self.initialTrackingProject == nil { self.initialTrackingProject = value }
+  private func applyConfiguration(_ data: PledgeViewData) {
+    let project = data.project
+    if !self.trackedPage {
+      if self.initialTrackingProject == nil { self.initialTrackingProject = project }
       self.trackPageIfReady()
     }
-    _ = baseReward.observeValues { [weak self] value in
-      guard let self, !self.trackedPage else { return }
-      if self.initialTrackingReward == nil { self.initialTrackingReward = value }
-      self.trackPageIfReady()
-    }
-    _ = configData.observeValues { [weak self] value in
-      guard let self, !self.trackedPage else { return }
-      if self.initialTrackingConfiguration == nil { self.initialTrackingConfiguration = value }
-      self.trackPageIfReady()
-    }
-    _ = additionalPledgeAmount.observeValues { [weak self] value in
-      guard let self, !self.trackedPage else { return }
-      if self.initialTrackingBonus == nil { self.initialTrackingBonus = value }
-      self.trackPageIfReady()
-    }
+    self.validationProject = project
+    self.publishValidity()
+    self.publishAmountConfiguration()
+    let initialBonus = project.personalization.backing?.bonusAmount ?? 0
+    self.validationInitialBonus = initialBonus
+    self.publishValidity()
+    self.publishAmountConfiguration()
+    self.receiveBonus(initialBonus)
+    if let amount = project.personalization.backing?.amount { self.receivePledgeTotal(amount) }
+    self.currencyProject = project
+    self.publishCurrencyTotal()
+    self.backedQuantities = project.personalization.backing.map(selectedRewardQuantities(in:)) ?? [:]
+    self.publishSelectedQuantities()
 
-    _ = project.observeValues { [weak self] value in
-      self?.validationProject = value
-      self?.publishValidity()
-      self?.publishAmountConfiguration()
-    }
-    _ = initialAdditionalPledgeAmount.observeValues { [weak self] value in
-      self?.validationInitialBonus = value
-      self?.publishValidity()
-      self?.publishAmountConfiguration()
-    }
-    _ = self.pledgeAmountDataSignal.observeValues { [weak self] value in
-      self?.validationAmount = value
-      self?.publishValidity()
-    }
-    _ = shippingRule.observeValues { [weak self] value in
-      self?.validationShipping = value
-      self?.hasValidationShipping = true
-      self?.publishValidity()
-    }
-    _ = project.observeValues { [weak self] project in
-      if let amount = project.personalization.backing?.amount {
-        self?.receivePledgeTotal(amount)
+    if let reward = data.rewards.first {
+      if !self.trackedPage, self.initialTrackingReward == nil { self.initialTrackingReward = reward }
+      self.trackPageIfReady()
+      self.currentBaseReward = reward
+      self.publishRewardSelection()
+      self.publishAmountConfiguration()
+      if !reward.hasAddOns {
+        self.currentAddOnRewards = []
+        self.publishRewardSelection()
       }
+      self.onHeaderTitle?(reward.hasAddOns ? Strings.Customize_your_reward_with_optional_addons() : Strings.Customize_your_reward())
+      self.onPageTitle?(reward.hasAddOns ? Strings.Pledge_flow_navigation_bar_titles_Addons() : Strings.Pledge_flow_navigation_bar_titles_Bonus_support())
+      self.ctaHasAddOns = reward.hasAddOns
+      self.publishInitialCTA()
     }
-    _ = additionalPledgeAmount.observeValues { [weak self] amount in
-      self?.totalBonus = amount
-      self?.publishPledgeTotal()
-    }
-    _ = baseReward.observeValues { [weak self] reward in
-      self?.currentBaseReward = reward
-      self?.publishRewardSelection()
-      self?.publishAmountConfiguration()
-    }
-    _ = hasAddOns.filter(isFalse).observeValues { [weak self] _ in
-      self?.currentAddOnRewards = []
-      self?.publishRewardSelection()
-    }
-    _ = headerTitle.observeValues { [weak self] value in self?.onHeaderTitle?(value) }
-    _ = pageTitle.observeValues { [weak self] value in self?.onPageTitle?(value) }
-    _ = configData.observeValues { [weak self] in self?.checkoutConfiguration = $0 }
-    _ = additionalPledgeAmount.observeValues { [weak self] in self?.checkoutBonus = $0 }
-    _ = shippingRule.observeValues { [weak self] value in
-      self?.checkoutShipping = value
-      self?.hasCheckoutShipping = true
-    }
-    _ = selectedLocationId.observeValues { [weak self] value in
-      self?.checkoutLocationID = value
-      self?.hasCheckoutLocation = true
-    }
-    _ = hasAddOns.observeValues { [weak self] value in
-      self?.ctaHasAddOns = value
-      self?.publishInitialCTA()
-    }
-    _ = project.observeValues { [weak self] value in
-      self?.currencyProject = value
-      self?.publishCurrencyTotal()
-    }
-    _ = project.observeValues { [weak self] project in
-      self?.backedQuantities = project.personalization.backing.map(selectedRewardQuantities(in:)) ?? [:]
-      self?.publishSelectedQuantities()
-    }
-    _ = baseRewardQuantities.observeValues { [weak self] quantities in
-      self?.receiveLatestQuantities(quantities)
-    }
-    _ = baseRewardQuantities.observeValues { [weak self] quantities in
-      self?.baseQuantities = quantities
-      self?.publishSelectedQuantities()
-    }
-    _ = configData.observeValues { [weak self] _ in
-      self?.displayedChanges = [:]
-      self?.publishSelectedQuantities()
-    }
-    _ = configData.observeValues { [weak self] data in
-      self?.loadAddOns(for: data)
-    }
+    self.receiveLatestQuantities(data.selectedQuantities)
+    self.baseQuantities = data.selectedQuantities
+    self.publishSelectedQuantities()
+    self.checkoutLocationID = data.selectedLocationId
+    self.hasCheckoutLocation = true
+    self.receiveShipping(data.selectedShippingRule)
+    if let reward = data.rewards.first, !reward.shipping.enabled { self.receiveShipping(nil) }
+    if !self.trackedPage, self.initialTrackingConfiguration == nil { self.initialTrackingConfiguration = data }
+    self.trackPageIfReady()
+    self.checkoutConfiguration = data
+    self.displayedChanges = [:]
+    self.publishSelectedQuantities()
+    self.loadAddOns(for: data)
+  }
+
+  private func receiveBonus(_ value: Double) {
+    if !self.trackedPage, self.initialTrackingBonus == nil { self.initialTrackingBonus = value }
+    self.trackPageIfReady()
+    self.totalBonus = value
+    self.publishPledgeTotal()
+    self.checkoutBonus = value
+  }
+
+  private func receiveShipping(_ value: ShippingRule?) {
+    self.validationShipping = value
+    self.hasValidationShipping = true
+    self.publishValidity()
+    self.checkoutShipping = value
+    self.hasCheckoutShipping = true
+    self.checkoutLocationID = value?.location.id
+    self.hasCheckoutLocation = true
   }
 
   private func trackPageIfReady() {
@@ -406,7 +329,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 
   public func configure(with data: PledgeViewData) {
     self.pendingConfiguration = data
-    if self.isLoaded { self.configEvents.input.send(value: data) }
+    if self.isLoaded { self.applyConfiguration(data) }
   }
 
   public func continueButtonTapped() {
@@ -436,15 +359,15 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     )
   }
 
-  private let (pledgeAmountDataSignal, pledgeAmountObserver) = Signal<PledgeAmountData, Never>
-    .pipe()
   public func pledgeAmountViewControllerDidUpdate(with data: PledgeAmountData) {
-    self.pledgeAmountObserver.send(value: data)
+    self.receiveBonus(data.amount)
+    self.validationAmount = data
+    self.publishValidity()
   }
 
   public func viewDidLoad() {
     self.isLoaded = true
-    if let data = self.pendingConfiguration { self.configEvents.input.send(value: data) }
+    if let data = self.pendingConfiguration { self.applyConfiguration(data) }
   }
 
   public func rewardAddOnCardViewDidSelectQuantity(
