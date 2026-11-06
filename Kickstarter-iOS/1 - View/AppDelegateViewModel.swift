@@ -152,7 +152,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var pushTokenRegistrationStarted: Signal<(), Never> { get }
 
   /// Emits the push token that has been successfully registered on the server.
-  var pushTokenSuccessfullyRegistered: Signal<String, Never> { get }
+  var onPushTokenSuccessfullyRegistered: ((String) -> Void)? { get set }
 
   /// Emits when we should register the device push token in Braze.
   var onRegisterPushTokenInBraze: ((Data) -> Void)? { get set }
@@ -209,9 +209,16 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     func cancel() { self.task?.cancel(); self.task = nil; self.input = nil; self.id = nil }
   }
   private let redirectObservation = RedirectObservation()
+  private let pushDebounce: @MainActor () async throws -> Void
+  private var pushDebounceTask: Task<Void, Never>?
+  private var pushPresentationTask: Task<Void, Never>?
   private var lastSegmentEnabled: Bool?
 
-  public init(lifecycleFeature: AppLifecycleFeature? = nil) {
+  public init(
+    lifecycleFeature: AppLifecycleFeature? = nil,
+    pushDebounce: @escaping @MainActor () async throws -> Void = { try await Task.sleep(for: .seconds(5)) }
+  ) {
+    self.pushDebounce = pushDebounce
     let lifecycleFeature = lifecycleFeature ?? AppModel.shared.appLifecycleFeature
     self.lifecycleFeature = lifecycleFeature
     let route = self.navigationRoute
@@ -303,13 +310,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
 
 
-    self.pushTokenSuccessfullyRegistered = self.deviceTokenDataProperty.signal
-      .map(deviceToken(fromData:))
-      .ksr_debounce(.seconds(5), on: AppEnvironment.current.scheduler)
-      .switchMap { token in
-        let request = lifecycleFeature.requestPushRegistration(token: token)
-        return lifecycleResult(feature: lifecycleFeature) { try await request.value }.demoteErrors()
-      }
 
 
     // MARK: - Onboarding Flow
@@ -549,6 +549,8 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   }
 
   deinit {
+    self.pushDebounceTask?.cancel()
+    self.pushPresentationTask?.cancel()
     let redirectObservation = self.redirectObservation
     let feature = self.lifecycleFeature
     let route = self.navigationRoute
@@ -656,10 +658,32 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.remoteNotificationProperty.value = pushEnvelope
   }
 
-  fileprivate let deviceTokenDataProperty = MutableProperty(Data())
   public func didRegisterForRemoteNotifications(withDeviceTokenData data: Data) {
-    self.deviceTokenDataProperty.value = data
     self.onRegisterPushTokenInBraze?(data)
+    self.pushDebounceTask?.cancel()
+    let token = deviceToken(fromData: data)
+    let debounce = self.pushDebounce
+    self.pushDebounceTask = Task { [weak self] in
+      do {
+        try await debounce()
+        try Task.checkCancellation()
+        guard let self else { return }
+        self.pushPresentationTask?.cancel()
+        let request = self.lifecycleFeature.requestPushRegistration(token: token)
+        self.pushPresentationTask = Task { [weak self] in
+          do {
+            let registeredToken = try await request.value
+            try Task.checkCancellation()
+            self?.onPushTokenSuccessfullyRegistered?(registeredToken)
+          } catch { /* Keep registration failures silent. */ }
+        }
+      } catch { /* A newer token superseded this debounce. */ }
+    }
+  }
+
+  func waitForPushRegistration() async {
+    await self.pushDebounceTask?.value
+    await self.pushPresentationTask?.value
   }
 
   fileprivate let didAcceptReceivingRemoteNotificationsProperty = MutableProperty(())
@@ -748,7 +772,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public var onPostNotification: ((Notification) -> Void)?
   public let presentViewController: Signal<UIViewController, Never>
   public let pushTokenRegistrationStarted: Signal<(), Never>
-  public let pushTokenSuccessfullyRegistered: Signal<String, Never>
+  public var onPushTokenSuccessfullyRegistered: ((String) -> Void)?
   public var onRegisterPushTokenInBraze: ((Data) -> Void)?
   public let requestATTrackingAuthorizationStatus: Signal<Void, Never>
   public var onSegmentEnabled: ((Bool) -> Void)?

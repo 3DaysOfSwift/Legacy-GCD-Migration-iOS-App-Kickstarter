@@ -108,7 +108,7 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   private func bindOutputs() {
-    self.vm = AppDelegateViewModel(lifecycleFeature: self.lifecycleFeature)
+    self.vm = AppDelegateViewModel(lifecycleFeature: self.lifecycleFeature, pushDebounce: { try Task.checkCancellation() })
     self.vm.outputs.notificationSettingsUpdated.observe(self.notificationSettingsUpdated.observer)
 
     self.vm.outputs.applicationIconBadgeNumber.observe(self.applicationIconBadgeNumber.observer)
@@ -130,7 +130,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.outputs.presentViewController.map { ($0 as! UINavigationController).viewControllers.count }
       .observe(self.presentViewController.observer)
     self.vm.outputs.pushTokenRegistrationStarted.observe(self.pushRegistrationStarted.observer)
-    self.vm.outputs.pushTokenSuccessfullyRegistered.observe(self.pushTokenSuccessfullyRegistered.observer)
+    self.vm.outputs.onPushTokenSuccessfullyRegistered = { [weak self] in self?.pushTokenSuccessfullyRegistered.observer.send(value: $0) }
     self.vm.outputs.onRegisterPushTokenInBraze = { [weak self] in self?.registerPushTokenInBraze.observer.send(value: $0) }
     self.vm.outputs.requestATTrackingAuthorizationStatus
       .observe(self.requestATTrackingAuthorizationStatus.observer)
@@ -1031,6 +1031,7 @@ final class AppDelegateViewModelTests: TestCase {
       await self.scheduler.advance(by: .seconds(5))
       await self.settingsFeature.waitForOperations()
 
+      await (self.vm as? AppDelegateViewModel)?.waitForPushRegistration()
       await self.lifecycleFeature.waitForOperations()
       self.pushTokenSuccessfullyRegistered.assertValueCount(1)
 
@@ -1063,6 +1064,7 @@ final class AppDelegateViewModelTests: TestCase {
       await self.scheduler.advance(by: .seconds(5))
       await self.settingsFeature.waitForOperations()
 
+      await (self.vm as? AppDelegateViewModel)?.waitForPushRegistration()
       await self.lifecycleFeature.waitForOperations()
       self.pushTokenSuccessfullyRegistered.assertValueCount(1)
 
@@ -1094,6 +1096,7 @@ final class AppDelegateViewModelTests: TestCase {
       await self.scheduler.advance(by: .seconds(5))
       await self.settingsFeature.waitForOperations()
 
+      await (self.vm as? AppDelegateViewModel)?.waitForPushRegistration()
       await self.lifecycleFeature.waitForOperations()
       self.pushTokenSuccessfullyRegistered.assertValueCount(1)
 
@@ -1131,8 +1134,23 @@ final class AppDelegateViewModelTests: TestCase {
       await self.scheduler.advance(by: .seconds(5))
       await self.settingsFeature.waitForOperations()
 
+      await (self.vm as? AppDelegateViewModel)?.waitForPushRegistration()
       await self.lifecycleFeature.waitForOperations()
       self.pushTokenSuccessfullyRegistered.assertValueCount(1)
+    }
+  }
+
+  func testPushRegistrationDebounceAdmitsLatestToken() async {
+    await withEnvironment(currentUser: .template) {
+      let model = AppDelegateViewModel(lifecycleFeature: self.lifecycleFeature, pushDebounce: {
+        try Task.checkCancellation()
+      })
+      var registered: [String] = []
+      model.outputs.onPushTokenSuccessfullyRegistered = { registered.append($0) }
+      model.inputs.didRegisterForRemoteNotifications(withDeviceTokenData: Data([0x01]))
+      model.inputs.didRegisterForRemoteNotifications(withDeviceTokenData: Data([0x02]))
+      await model.waitForPushRegistration()
+      XCTAssertEqual(registered, ["02"])
     }
   }
 

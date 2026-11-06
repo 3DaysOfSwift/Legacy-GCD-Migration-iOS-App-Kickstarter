@@ -210,11 +210,9 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
         print("📲 [Push Registration] Push token registration started 🚀")
       }
 
-    self.viewModel.outputs.pushTokenSuccessfullyRegistered
-      .observeForUI()
-      .observeValues { token in
-        print("📲 [Push Registration] Push token successfully registered (\(token)) ✨")
-      }
+    self.viewModel.outputs.onPushTokenSuccessfullyRegistered = { token in
+      DispatchQueue.main.async { print("📲 [Push Registration] Push token successfully registered (\(token)) ✨") }
+    }
 
     self.viewModel.outputs.onRegisterPushTokenInBraze = { [weak self] token in
       DispatchQueue.main.async { [weak self] in self?.braze?.notifications.register(deviceToken: token) }
