@@ -152,6 +152,7 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   private var avatarInput: (URL, Int, Int)?
   public var onAvatarImage: ((Data, URL, Int) -> Void)?
   private var badgeTask: Task<Void, Never>?
+  private var badgePresentationTasks: [UUID: Task<Void, Never>] = [:]
   private var badgeIdentity: (userID: Int, generation: Int, token: UUID)?
 
   public init(profileFeature: ProfileFeature? = nil) {
@@ -420,37 +421,32 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
         let user = try await request.value
         try Task.checkCancellation()
         guard sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
-        let scheduler = AppEnvironment.current.scheduler
-        let delay: TimeInterval
-        switch AppEnvironment.current.apiDelayInterval {
-        case let .seconds(value): delay = TimeInterval(value)
-        case let .milliseconds(value): delay = TimeInterval(value) / 1_000
-        case let .microseconds(value): delay = TimeInterval(value) / 1_000_000
-        case let .nanoseconds(value): delay = TimeInterval(value) / 1_000_000_000
-        case .never: return
-        @unknown default: return
-        }
-        let date = scheduler.currentDate.addingTimeInterval(delay)
-        scheduler.schedule(after: date) { [weak self] in
-          if Thread.isMainThread {
-            MainActor.assumeIsolated {
-              guard sessionFeature.isCurrent(userID: user.id, generation: generation) else { return }
-              self?.onUserUpdated?(user)
-            }
-          } else {
-            Task { @MainActor [weak self] in
-              guard sessionFeature.isCurrent(userID: user.id, generation: generation) else { return }
-              self?.onUserUpdated?(user)
-            }
-          }
-        }
+        self?.scheduleBadgePresentation(user, generation: generation)
       } catch {
         // Preserve silent badge-save failure; the shared throwing command is tested separately.
       }
     }
   }
 
+  private func scheduleBadgePresentation(_ user: User, generation: Int) {
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    guard !delay.isInfinite else { return }
+    let id = UUID()
+    self.badgePresentationTasks[id] = Task { [weak self] in
+      defer { self?.badgePresentationTasks[id] = nil }
+      do {
+        if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
+        try Task.checkCancellation()
+        guard let self, self.sessionFeature.isCurrent(userID: user.id, generation: generation) else { return }
+        self.onUserUpdated?(user)
+      } catch { /* Cancellation ends pending presentation. */ }
+    }
+  }
+
   func waitForBadgeUpdate() async { await self.badgeTask?.value }
+  func waitForBadgePresentation() async {
+    for task in self.badgePresentationTasks.values { await task.value }
+  }
 
   @discardableResult public func requestAvatar(url: URL?, index: Int, isLoggedIn: Bool) -> Task<Void, Never>? {
     let generation = self.sessionFeature.generation
@@ -476,7 +472,11 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
     return self.avatarTask
   }
 
-  deinit { self.badgeTask?.cancel(); self.avatarTask?.cancel() }
+  deinit {
+    self.badgeTask?.cancel()
+    self.badgePresentationTasks.values.forEach { $0.cancel() }
+    self.avatarTask?.cancel()
+  }
 
   private let (applicationWillEnterForegroundSignal, applicationWillEnterForegroundObserver)
     = Signal<(), Never>.pipe()

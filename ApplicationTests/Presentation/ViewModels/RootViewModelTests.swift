@@ -110,7 +110,7 @@ final class RootViewModelTests: TestCase {
       await self.vm.waitForBadgeUpdate()
       XCTAssertEqual(AppEnvironment.current.currentUser?.unseenActivityCount, 0)
       self.sessionFeature.sessionChanged()
-      await self.scheduler.advance(by: .seconds(2))
+      await self.vm.waitForBadgePresentation()
       self.updateUserInEnvironment.assertValueCount(0)
     }
   }
@@ -267,7 +267,7 @@ final class RootViewModelTests: TestCase {
       self.setBadgeValueAtIndexIndex.assertValues([1, 1])
 
       await self.vm.waitForBadgeUpdate()
-      await self.scheduler.advance()
+      await self.vm.waitForBadgePresentation()
 
       XCTAssertEqual(AppEnvironment.current.currentUser?.unseenActivityCount, 0)
       XCTAssertEqual(self.updateUserInEnvironment.values.map { $0.id }, [user.id])
