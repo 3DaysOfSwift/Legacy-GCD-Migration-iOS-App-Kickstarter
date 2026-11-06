@@ -82,6 +82,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private var totalRewards: [Reward]?
   private var totalQuantities: SelectedRewardQuantities?
   private var totalBonus: Double?
+  private var analyticsTotal: Double?
   private var ctaCount: Int?
   private var ctaValid: Bool?
   private var ctaHasAddOns: Bool?
@@ -261,39 +262,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       )
     }
 
-    // Send updated checkout data with add-ons continue event
-    Signal.combineLatest(
-      project,
-      baseReward,
-      selectedRewards,
-      selectedQuantities,
-      additionalPledgeAmount,
-      pledgeTotal,
-      refTag
-    ).takeWhen(self.continueButtonTappedProperty.signal)
-      .observeValues {
-        project, baseReward, selectedRewards, selectedQuantities, additionalPledgeAmount,
-        pledgeTotal, refTag in
-
-        let checkoutData = checkoutProperties(
-          from: project,
-          baseReward: baseReward,
-          addOnRewards: selectedRewards,
-          selectedQuantities: selectedQuantities,
-          additionalPledgeAmount: additionalPledgeAmount,
-          pledgeTotal: pledgeTotal,
-          shippingTotal: 0,
-          isApplePay: nil
-        )
-
-        AppEnvironment.current.ksrAnalytics.trackAddOnsContinueButtonClicked(
-          project: project,
-          reward: baseReward,
-          checkoutData: checkoutData,
-          refTag: refTag
-        )
-      }
-
     _ = project.observeValues { [weak self] value in
       self?.validationProject = value
       self?.publishValidity()
@@ -320,6 +288,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
         self?.pledgeTotalEvents.input.send(value: amount)
       }
     }
+    _ = pledgeTotal.observeValues { [weak self] value in self?.analyticsTotal = value }
     _ = selectedRewards.observeValues { [weak self] rewards in
       self?.totalRewards = rewards
       self?.publishPledgeTotal()
@@ -494,7 +463,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     self.configureWithDataProperty.value = data
   }
 
-  private let continueButtonTappedProperty = MutableProperty(())
   public func continueButtonTapped() {
     if let config = self.checkoutConfiguration, let rewards = self.checkoutRewards,
        let bonus = self.checkoutBonus, let quantities = self.checkoutQuantities,
@@ -505,7 +473,21 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
         selectedLocationId: self.checkoutLocationID, refTag: config.refTag, context: config.context
       ))
     }
-    self.continueButtonTappedProperty.value = ()
+    self.trackContinue()
+  }
+
+  private func trackContinue() {
+    guard let config = self.checkoutConfiguration, let reward = self.currentBaseReward,
+          let rewards = self.checkoutRewards, let quantities = self.checkoutQuantities,
+          let bonus = self.checkoutBonus, let total = self.analyticsTotal else { return }
+    let data = checkoutProperties(
+      from: config.project, baseReward: reward, addOnRewards: rewards,
+      selectedQuantities: quantities, additionalPledgeAmount: bonus,
+      pledgeTotal: total, shippingTotal: 0, isApplePay: nil
+    )
+    AppEnvironment.current.ksrAnalytics.trackAddOnsContinueButtonClicked(
+      project: config.project, reward: reward, checkoutData: data, refTag: config.refTag
+    )
   }
 
   private let (pledgeAmountDataSignal, pledgeAmountObserver) = Signal<PledgeAmountData, Never>
