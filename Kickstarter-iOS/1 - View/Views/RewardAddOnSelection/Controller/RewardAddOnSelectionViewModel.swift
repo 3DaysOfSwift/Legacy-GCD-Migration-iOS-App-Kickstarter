@@ -74,12 +74,9 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private var baseQuantities: SelectedRewardQuantities?
   private var latestCardData: ([Reward], Project, Reward, PledgeViewContext, ShippingRule?)?
   private var latestCardQuantities: SelectedRewardQuantities?
-  private let selectedRewardsEvents = Signal<[Reward], Never>.pipe()
-  private let selectedAddOnCountEvents = Signal<Int, Never>.pipe()
   private var currentBaseReward: Reward?
   private var currentAddOnRewards: [Reward]?
   private var currentRewardQuantities: SelectedRewardQuantities?
-  private let pledgeTotalEvents = Signal<Double, Never>.pipe()
   private var totalRewards: [Reward]?
   private var totalQuantities: SelectedRewardQuantities?
   private var totalBonus: Double?
@@ -107,7 +104,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private var checkoutQuantities: SelectedRewardQuantities?
   private var checkoutLocationID: Int?
   private var hasCheckoutLocation = false
-  private let validityEvents = Signal<Bool, Never>.pipe()
   private var validationProject: Project?
   private var validationInitialBonus: Double?
   private var validationAmount: PledgeAmountData?
@@ -172,18 +168,10 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       self.pledgeAmountDataSignal.map { $0.amount }
     )
 
-    let totalSelectedAddOnsQuantity = self.selectedAddOnCountEvents.output
-
-    let enableContinueButton = self.validityEvents.output
-
-    let selectedRewards = self.selectedRewardsEvents.output
-
     let selectedLocationId = Signal.merge(
       initialLocationId,
       shippingRule.map { $0?.location.id }
     )
-
-    let pledgeTotal = self.pledgeTotalEvents.output
 
     _ = project.observeValues { [weak self] value in
       guard let self, !self.trackedPage else { return }
@@ -195,11 +183,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       if self.initialTrackingReward == nil { self.initialTrackingReward = value }
       self.trackPageIfReady()
     }
-    _ = selectedRewards.observeValues { [weak self] value in
-      guard let self, !self.trackedPage else { return }
-      if self.initialTrackingRewards == nil { self.initialTrackingRewards = value }
-      self.trackPageIfReady()
-    }
     _ = configData.observeValues { [weak self] value in
       guard let self, !self.trackedPage else { return }
       if self.initialTrackingConfiguration == nil { self.initialTrackingConfiguration = value }
@@ -208,11 +191,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     _ = additionalPledgeAmount.observeValues { [weak self] value in
       guard let self, !self.trackedPage else { return }
       if self.initialTrackingBonus == nil { self.initialTrackingBonus = value }
-      self.trackPageIfReady()
-    }
-    _ = pledgeTotal.observeValues { [weak self] value in
-      guard let self, !self.trackedPage else { return }
-      if self.initialTrackingTotal == nil { self.initialTrackingTotal = value }
       self.trackPageIfReady()
     }
 
@@ -241,13 +219,8 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     }
     _ = project.observeValues { [weak self] project in
       if let amount = project.personalization.backing?.amount {
-        self?.pledgeTotalEvents.input.send(value: amount)
+        self?.receivePledgeTotal(amount)
       }
-    }
-    _ = pledgeTotal.observeValues { [weak self] value in self?.analyticsTotal = value }
-    _ = selectedRewards.observeValues { [weak self] rewards in
-      self?.totalRewards = rewards
-      self?.publishPledgeTotal()
     }
     _ = selectedQuantities.observeValues { [weak self] quantities in
       self?.totalQuantities = quantities
@@ -277,7 +250,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       self?.publishCards(reload: false)
     }
     _ = configData.observeValues { [weak self] in self?.checkoutConfiguration = $0 }
-    _ = selectedRewards.observeValues { [weak self] in self?.checkoutRewards = $0 }
     _ = additionalPledgeAmount.observeValues { [weak self] in self?.checkoutBonus = $0 }
     _ = shippingRule.observeValues { [weak self] value in
       self?.checkoutShipping = value
@@ -288,24 +260,12 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       self?.checkoutLocationID = value
       self?.hasCheckoutLocation = true
     }
-    _ = totalSelectedAddOnsQuantity.observeValues { [weak self] value in
-      self?.ctaCount = value
-      self?.publishUpdatedCTA()
-    }
-    _ = enableContinueButton.observeValues { [weak self] value in
-      self?.ctaValid = value
-      self?.publishUpdatedCTA()
-    }
     _ = hasAddOns.observeValues { [weak self] value in
       self?.ctaHasAddOns = value
       self?.publishInitialCTA()
     }
     _ = project.observeValues { [weak self] value in
       self?.currencyProject = value
-      self?.publishCurrencyTotal()
-    }
-    _ = pledgeTotal.observeValues { [weak self] value in
-      self?.currencyTotal = value
       self?.publishCurrencyTotal()
     }
     _ = project.observeValues { [weak self] project in
@@ -370,18 +330,29 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     guard let project = self.validationProject, let initialBonus = self.validationInitialBonus,
           let amount = self.validationAmount, let quantities = self.validationQuantities,
           self.hasValidationShipping else { return }
-    self.validityEvents.input.send(value: isValid(
+    self.ctaValid = isValid(
       project: project, initialAdditionalPledgeAmount: initialBonus,
       pledgeAmountData: amount, latestSelectedQuantities: quantities,
       selectedShippingRule: self.validationShipping
-    ))
+    )
+    self.publishUpdatedCTA()
+  }
+
+  private func receivePledgeTotal(_ value: Double) {
+    if !self.trackedPage, self.initialTrackingTotal == nil {
+      self.initialTrackingTotal = value
+      self.trackPageIfReady()
+    }
+    self.analyticsTotal = value
+    self.currencyTotal = value
+    self.publishCurrencyTotal()
   }
 
   private func publishPledgeTotal() {
     guard let rewards = self.totalRewards, let quantities = self.totalQuantities,
           let bonus = self.totalBonus else { return }
     let rewardTotal = calculateAllRewardsTotal(addOnRewards: rewards, selectedQuantities: quantities)
-    self.pledgeTotalEvents.input.send(value: calculatePledgeTotal(
+    self.receivePledgeTotal(calculatePledgeTotal(
       pledgeAmount: bonus, shippingCost: 0, addOnRewardsTotal: rewardTotal
     ))
   }
@@ -394,8 +365,15 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       total + (entry.key != base.id && ids.contains(entry.key) ? entry.value : 0)
     }
     let selected = [base] + addOns.filter { (quantities[$0.id] ?? 0) > 0 }
-    self.selectedRewardsEvents.input.send(value: selected)
-    self.selectedAddOnCountEvents.input.send(value: count)
+    if !self.trackedPage, self.initialTrackingRewards == nil {
+      self.initialTrackingRewards = selected
+      self.trackPageIfReady()
+    }
+    self.totalRewards = selected
+    self.publishPledgeTotal()
+    self.checkoutRewards = selected
+    self.ctaCount = count
+    self.publishUpdatedCTA()
   }
 
   private func receiveCardItems(_ items: [RewardAddOnSelectionDataSourceItem]) {
