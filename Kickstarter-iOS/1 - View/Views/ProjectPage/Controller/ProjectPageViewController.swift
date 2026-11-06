@@ -421,17 +421,13 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
       }
     }
 
-    self.viewModel.outputs.configureDataSource
-      .observeForUI()
-      .observeValues { [weak self] navSection, project, refTag in
-        self?.dataSource.load(
-          navigationSection: navSection,
-          project: project,
-          refTag: refTag
-        )
-
+    self.viewModel.outputs.onConfigureDataSource = { [weak self] data in
+      let (navSection, project, refTag) = data
+      DispatchQueue.main.async { [weak self] in
+        self?.dataSource.load(navigationSection: navSection, project: project, refTag: refTag)
         self?.tableView.reloadData()
       }
+    }
 
     self.viewModel.outputs.onConfigurePledgeCTA = { [weak self] value in
       DispatchQueue.main.async { [weak self] in

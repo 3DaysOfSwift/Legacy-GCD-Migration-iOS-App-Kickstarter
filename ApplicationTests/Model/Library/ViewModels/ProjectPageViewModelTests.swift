@@ -95,10 +95,10 @@ final class ProjectPageViewModelTests: TestCase {
     MainActor.assumeIsolated {
       self.vm = ProjectPageViewModel(projectDetailsFeature: ProjectPageViewModelTests.isolatedFeature())
 
-      self.vm.outputs.configureDataSource.map(first)
-        .observe(self.configureDataSourceNavigationSection.observer)
-      self.vm.outputs.configureDataSource.map(second)
-        .observe(self.configureDataSourceProject.observer)
+      self.vm.outputs.onConfigureDataSource = { [weak self] data in
+        self?.configureDataSourceNavigationSection.observer.send(value: data.0)
+        self?.configureDataSourceProject.observer.send(value: data.1)
+      }
       self.vm.outputs.onConfigureProject = { [weak self] data in
         self?.configureChildViewControllersWithProject.observer.send(value: data.0)
         self?.configureChildViewControllersWithRefTag.observer.send(value: data.1)

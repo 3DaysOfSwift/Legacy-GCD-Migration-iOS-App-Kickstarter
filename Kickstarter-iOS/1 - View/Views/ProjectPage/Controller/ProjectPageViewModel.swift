@@ -132,12 +132,7 @@ public protocol ProjectPageViewModelInputs {
 @MainActor
 public protocol ProjectPageViewModelOutputs: AnyObject {
   /// Emits a tuple of a `NavigationSection`, `Project` and `RefTag?` to configure the data source
-  var configureDataSource: Signal<
-    (NavigationSection, Either<Project, any ProjectPageParam>, RefTag?),
-    Never
-  > {
-    get
-  }
+  var onConfigureDataSource: (((NavigationSection, Either<Project, any ProjectPageParam>, RefTag?)) -> Void)? { get set }
 
   /// Emits a project that should be used to configure all children view controllers.
   var onConfigureProject: (((Project, RefTag?)) -> Void)? { get set }
@@ -306,6 +301,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   private var projectDetailsObservation: MainActorObservation?
   private let projectRoute = UUID()
   private var latestProject: Project?
+  private var hasLoadedView = false
   private var latestBackedProject: (Project, Backing)?
   private var latestProjectRefTag: RefTag?
   private var latestImageElements: [ImageViewElement]?
@@ -331,31 +327,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
     let freshProject = freshProjectAndRefTag
       .map(first)
-
-    // Project data that is passed when the ProjectPageViewController is initialized.
-    // Used to show the Project overview page while we re-fetch the rest of the project data.
-    let staleProjectData = self.configDataProperty.signal
-      .takeWhen(self.viewDidLoadProperty.signal)
-      .skipNil()
-      .filter { projectOrParam, _, _ -> Bool in
-        projectOrParam.canDisplayProjectPreview
-      }
-
-    let staleProjectDataSource = staleProjectData
-      .map { projectOrParam, refInfo, _ in
-        (NavigationSection.overview, projectOrParam, refInfo?.refTag)
-      }
-
-    // The first tab we render by default is overview.
-    self.configureDataSource = freshProjectAndRefTag
-      .combineLatest(with: self.viewDidLoadProperty.signal)
-      .map { projectAndRefTag, _ in
-        let (project, refTag) = projectAndRefTag
-        return (.overview, .left(project), refTag)
-      }
-      .merge(with: staleProjectDataSource)
-
-
 
     let cookieRefTag: Signal<RefTag?, Never> = freshProjectAndRefTag
       .map { project, refTag -> RefTag? in
@@ -580,6 +551,9 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
           self.onProjectFlagged?(project.flagging ?? false)
           self.onConfigurePledgeCTA?(.project(project))
           self.onConfigureProject?((project, self.requestRefTag))
+          if self.hasLoadedView {
+            self.onConfigureDataSource?((.overview, .left(project), self.requestRefTag))
+          }
           completion.input.send(value: .value((project, self.requestRefTag)))
           self.updateFAQsIfReady()
           if let elements = project.extendedProjectProperties?.story.htmlViewElements {
@@ -796,7 +770,14 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
   fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
+    self.hasLoadedView = true
     self.viewDidLoadProperty.value = ()
+    if let (projectOrParam, refInfo, _) = self.configDataProperty.value, projectOrParam.canDisplayProjectPreview {
+      self.onConfigureDataSource?((.overview, projectOrParam, refInfo?.refTag))
+    }
+    if let project = self.latestProject {
+      self.onConfigureDataSource?((.overview, .left(project), self.latestProjectRefTag))
+    }
     self.loadProject(force: false)
   }
 
@@ -811,10 +792,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.onReloadCampaignData?()
   }
 
-  public let configureDataSource: Signal<
-    (NavigationSection, Either<Project, any ProjectPageParam>, RefTag?),
-    Never
-  >
+  public var onConfigureDataSource: (((NavigationSection, Either<Project, any ProjectPageParam>, RefTag?)) -> Void)?
   public var onConfigureProject: (((Project, RefTag?)) -> Void)?
   public var onConfigurePledgeCTA: ((PledgeCTAContainerViewData) -> Void)?
   public var onManagePledgeFinishedWithMessage: ((String) -> Void)?
