@@ -334,10 +334,8 @@ public final class ManagePledgeViewModel:
       }
       .map(pledgeViewData)
 
-    let notifyDelegateManagePledgeViewControllerFinishedWithMessage = Signal.merge(
-      self.cancelPledgeDidFinishWithMessageProperty.signal,
-      backing.skip(first: 1).mapConst(nil)
-    )
+    let notifyDelegateManagePledgeViewControllerFinishedWithMessage = backing.skip(first: 1)
+      .mapConst(nil as String?)
 
     let rewardReceivedViewControllerViewIsHidden: Signal<Bool, Never> = latestRewardDeliveryDate
       .map { $0 == 0 }
@@ -354,8 +352,6 @@ public final class ManagePledgeViewModel:
         rewardReceivedViewControllerViewIsHidden: $0.3
       )
     }
-
-    let showSuccessBannerWithMessage = self.pledgeViewControllerDidUpdatePledgeWithMessageSignal
 
     let cancelBackingDisallowed = backing
       .map { $0.cancelable }
@@ -417,7 +413,6 @@ public final class ManagePledgeViewModel:
       .filterWhenLatestFrom(pledgeOverTimeEnabled, satisfies: { $0 })
       .map { $0.paymentIncrements }
 
-    let showWebHelp = self.termsOfUseTappedSignal
     _ = endRefreshing.observeValues { [weak self] _ in self?.onEndRefreshing?() }
     _ = goToCancelPledge.observeValues { [weak self] value in self?.onCancelPledge?(value) }
     _ = goToChangePaymentMethod.observeValues { [weak self] value in self?.onChangePaymentMethod?(value) }
@@ -430,8 +425,6 @@ public final class ManagePledgeViewModel:
     _ = notifyDelegateManagePledgeViewControllerFinishedWithMessage.observeValues { [weak self] value in self?.onFinish?(value) }
     _ = showActionSheetMenuWithOptions.observeValues { [weak self] value in self?.onShowMenu?(value) }
     _ = showErrorBannerWithMessage.observeValues { [weak self] value in self?.onShowError?(value) }
-    _ = showSuccessBannerWithMessage.observeValues { [weak self] value in self?.onShowSuccess?(value) }
-    _ = showWebHelp.observeValues { [weak self] value in self?.onShowHelp?(value) }
     _ = startRefreshing.observeValues { [weak self] _ in self?.onStartRefreshing?() }
     _ = title.observeValues { [weak self] in self?.onTitle?($0) }
     _ = configurePaymentMethodView.observeValues { [weak self] in self?.onPaymentMethod?($0) }
@@ -507,9 +500,8 @@ public final class ManagePledgeViewModel:
     self.configureWithProjectOrParamObserver.send(value: params)
   }
 
-  private let cancelPledgeDidFinishWithMessageProperty = MutableProperty<String?>(nil)
   public func cancelPledgeDidFinish(with message: String) {
-    self.cancelPledgeDidFinishWithMessageProperty.value = message
+    self.onFinish?(message)
   }
 
   private let (fixButtonTappedSignal, fixButtonTappedObserver) = Signal<Void, Never>.pipe()
@@ -528,9 +520,8 @@ public final class ManagePledgeViewModel:
     self.menuOptionSelectedObserver.send(value: action)
   }
 
-  private let (termsOfUseTappedSignal, termsOfUseTappedObserver) = Signal<HelpType, Never>.pipe()
   public func termsOfUseTapped(with helpType: HelpType) {
-    self.termsOfUseTappedObserver.send(value: helpType)
+    self.onShowHelp?(helpType)
   }
 
   private let (
@@ -539,6 +530,7 @@ public final class ManagePledgeViewModel:
   ) = Signal<String, Never>.pipe()
   public func pledgeViewControllerDidUpdatePledgeWithMessage(_ message: String) {
     self.pledgeViewControllerDidUpdatePledgeWithMessageObserver.send(value: message)
+    self.onShowSuccess?(message)
   }
 
   private let (viewDidLoadSignal, viewDidLoadObserver) = Signal<(), Never>.pipe()
