@@ -38,6 +38,28 @@ public struct PostCampaignPaymentAuthorizationData: Equatable {
   public let paymentIntent: String
 }
 
+@MainActor
+private final class PostCampaignOpeningState {
+  var onOpen: ((KsApi.CreateCheckoutInput) -> Void)?
+  private var data: PledgeViewData?
+  private var loggedIn = false
+
+  func configure(_ data: PledgeViewData) { self.data = data; openIfReady() }
+  func setLoggedIn(_ value: Bool) { loggedIn = value; openIfReady() }
+
+  private func openIfReady() {
+    guard loggedIn, let data else { return }
+    let rewardIDs = data.rewards.first?.isNoReward == true ? [] : data.rewards.flatMap { reward in
+      [String](repeating: reward.graphID, count: data.selectedQuantities[reward.id] ?? 0)
+    }
+    onOpen?(KsApi.CreateCheckoutInput(
+      projectId: data.project.graphID, amount: String(format: "%.2f", PostCampaignAmounts(data).total),
+      locationId: data.selectedShippingRule.map { String($0.location.id) }, rewardIds: rewardIDs,
+      refParam: data.refTag?.stringTag
+    ))
+  }
+}
+
 private struct PostCampaignAmounts {
   let rewards: Double
   let shipping: Double
@@ -116,10 +138,17 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     self.loginSignupUseCase = LoginSignupUseCase(withLoginIntent: .backProject)
     let login = self.loginSignupUseCase
     let loginState = self.loginStatePipe
+    let openingState = PostCampaignOpeningState()
     let loginSession = self.loginSessionPipe
-    login.onLoginState = { loginState.input.send(value: $0) }
+    login.onLoginState = { value in
+      loginState.input.send(value: value)
+      openingState.setLoggedIn(value)
+    }
     login.onSessionChanged = { loginSession.input.send(value: ()) }
-    initialData.observeValues { _ in login.initialDataAvailable() }
+    initialData.observeValues { data in
+      openingState.configure(data)
+      login.initialDataAvailable()
+    }
 
     self.paymentMethodsUseCase = PaymentMethodsUseCase()
     let paymentMethods = self.paymentMethodsUseCase
@@ -138,52 +167,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     let pledgeTotal = amounts.map(\.total)
 
     // MARK: Create checkout
-
-    let pledgeDetailsData = Signal.combineLatest(
-      project,
-      rewards,
-      bonusAmount,
-      selectedQuantities,
-      selectedShippingRule,
-      pledgeTotal,
-      refTag
-    )
-
-    let createCheckoutInput = Signal.combineLatest(
-      self.loginStatePipe.output,
-      pledgeDetailsData
-    )
-    .filter { isLoggedIn, _ in isLoggedIn }
-    .map { _, data in
-      let (
-        project,
-        rewards,
-        _,
-        selectedQuantities,
-        selectedShippingRule,
-        pledgeTotal,
-        refTag
-      ) = data
-      let rewardsIDs: [String] = rewards.first?.isNoReward == true
-        ? []
-        : rewards.flatMap { reward -> [String] in
-          guard let count = selectedQuantities[reward.id] else {
-            return []
-          }
-          return [String](repeating: reward.graphID, count: count)
-        }
-
-      let locationId = selectedShippingRule.flatMap { String($0.location.id) }
-
-      return CreateCheckoutInput(
-        projectId: project.graphID,
-        amount: String(format: "%.2f", pledgeTotal),
-        locationId: locationId,
-        rewardIds: rewardsIDs,
-        refParam: refTag?.stringTag
-      )
-    }
-
 
     let checkoutIdentity = self.checkoutIdentity
     let createCheckoutEvents = self.checkoutEvents.output
@@ -509,7 +492,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
           refTag: data.refTag
         )
       }
-    self.checkoutObservation = createCheckoutInput.observeValues { [weak self] input in
+    openingState.onOpen = { [weak self] input in
       guard let self else { return }
       self.checkoutTask?.cancel()
       let userID = feature.sessionFeature.currentUser?.id
@@ -754,7 +737,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private let loginSignupUseCase: LoginSignupUseCase
   private let checkoutEvents = Signal<(Signal<CreateCheckoutEnvelope, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
   private let checkoutIdentity = CheckoutRequestIdentity()
-  private var checkoutObservation: (any Disposable)?
   private var checkoutTask: Task<Void, Never>?
   private let completionEvents = Signal<(Signal<Void, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
   private let completionIdentity = CheckoutRequestIdentity()
@@ -769,7 +751,6 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private var paymentIntentTask: Task<Void, Never>?
 
   deinit {
-    self.checkoutObservation?.dispose()
     self.checkoutTask?.cancel()
     self.completionObservation?.dispose()
     self.completionTask?.cancel()
