@@ -166,16 +166,13 @@ final class PledgeViewModelTests: TestCase {
 
       self.vm.outputs.onTitle = { [weak self] in self?.title.observer.send(value: $0) }
 
-      self.vm.outputs.showPledgeOverTimeUI.observe(self.showPledgeOverTimeUI.observer)
+      self.vm.outputs.onShowPledgeOverTime = { [weak self] in self?.showPledgeOverTimeUI.observer.send(value: $0) }
 
-      self.vm.outputs.pledgeOverTimeConfigData
-        .skipNil()
-        .map { $0.selectedPlan }
-        .observe(self.plotSelectedPlan.observer)
-
-      self.vm.outputs.pledgeOverTimeConfigData
-        .skipNil()
-        .observe(self.pledgeOverTimeConfigData.observer)
+      self.vm.outputs.onPledgeOverTimeConfig = { [weak self] data in
+        guard let data else { return }
+        self?.plotSelectedPlan.observer.send(value: data.selectedPlan)
+        self?.pledgeOverTimeConfigData.observer.send(value: data)
+      }
     }
   }
 

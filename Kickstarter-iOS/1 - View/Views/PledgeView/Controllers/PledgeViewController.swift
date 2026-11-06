@@ -287,17 +287,12 @@ final class PledgeViewController: UIViewController,
           .configureWith(rewardsData: rewardsData, bonusAmount: bonusAmount, pledgeData: pledgeData)
       }
 
-    self.paymentPlansView.rac.hidden = self.viewModel.outputs.showPledgeOverTimeUI.negate()
+    self.viewModel.outputs.onShowPledgeOverTime = { [weak self] isVisible in
+      self?.paymentPlansView.isHidden = !isVisible
+      self?.configurePledgeOverTimeUI(isVisible)
+    }
 
-    self.viewModel.outputs.showPledgeOverTimeUI
-      .observeForUI()
-      .observeValues { [weak self] isVisible in
-        self?.configurePledgeOverTimeUI(isVisible)
-      }
-
-    self.viewModel.outputs.pledgeOverTimeConfigData
-      .observeForUI()
-      .observeValues { [weak self] data in
+    self.viewModel.outputs.onPledgeOverTimeConfig = { [weak self] data in
         if let data = data {
           self?.paymentPlansViewController.configure(with: data)
         }

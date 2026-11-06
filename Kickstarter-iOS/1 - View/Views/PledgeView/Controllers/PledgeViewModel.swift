@@ -101,8 +101,8 @@ public protocol PledgeViewModelOutputs: AnyObject {
   var onShowError: ((String) -> Void)? { get set }
   var onShowWebHelp: ((HelpType) -> Void)? { get set }
   var onTitle: ((String) -> Void)? { get set }
-  var showPledgeOverTimeUI: Signal<Bool, Never> { get }
-  var pledgeOverTimeConfigData: Signal<PledgePaymentPlansAndSelectionData?, Never> { get }
+  var onShowPledgeOverTime: ((Bool) -> Void)? { get set }
+  var onPledgeOverTimeConfig: ((PledgePaymentPlansAndSelectionData?) -> Void)? { get set }
 }
 
 @MainActor
@@ -394,11 +394,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
     self.pledgeOverTimeUseCase = PledgeOverTimeUseCase(feature: feature)
     let planUseCase = self.pledgeOverTimeUseCase
-    let planShow = self.planShowPipe
-    let planConfig = self.planConfigPipe
     let planLoading = self.planLoadingPipe
-    planUseCase.onShow = { planShow.input.send(value: $0) }
-    planUseCase.onConfig = { planConfig.input.send(value: $0) }
     planUseCase.onLoading = { planLoading.input.send(value: $0) }
     project.observeValues { planUseCase.updateProject($0) }
     pledgeTotal.observeValues { planUseCase.updateTotal($0) }
@@ -963,6 +959,11 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     _ = beginSCAFlowWithClientSecret.observeValues { [weak self] in self?.onBeginSCA?($0) }
     _ = goToThanks.observeValues { [weak self] in self?.onGoToThanks?($0) }
     _ = title.observeValues { [weak self] in self?.onTitle?($0) }
+    planUseCase.onShow = { [weak self] in self?.onShowPledgeOverTime?($0) }
+    planUseCase.onConfig = { [weak self] data in
+      self?.planConfigPipe.input.send(value: data)
+      self?.onPledgeOverTimeConfig?(data)
+    }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
     paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
@@ -1076,13 +1077,8 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   public var onShowWebHelp: ((HelpType) -> Void)?
   public var onTitle: ((String) -> Void)?
 
-  public var showPledgeOverTimeUI: Signal<Bool, Never> {
-    return self.planShowPipe.output
-  }
-
-  public var pledgeOverTimeConfigData: Signal<PledgePaymentPlansAndSelectionData?, Never> {
-    return self.planConfigPipe.output
-  }
+  public var onShowPledgeOverTime: ((Bool) -> Void)?
+  public var onPledgeOverTimeConfig: ((PledgePaymentPlansAndSelectionData?) -> Void)?
 
   public var inputs: PledgeViewModelInputs { return self }
   public var outputs: PledgeViewModelOutputs { return self }
@@ -1107,7 +1103,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   }
 
   private let pledgeOverTimeUseCase: PledgeOverTimeUseCase
-  private let planShowPipe = Signal<Bool, Never>.pipe()
   private let planLoadingPipe = Signal<Bool, Never>.pipe()
   private let planConfigPipe = Signal<PledgePaymentPlansAndSelectionData?, Never>.pipe()
   private let loginSignupUseCase: LoginSignupUseCase
