@@ -62,6 +62,9 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   RewardAddOnSelectionViewModelOutputs
 {
   private let feature: RewardsFeature
+  private let configEvents = Signal<PledgeViewData, Never>.pipe()
+  private var pendingConfiguration: PledgeViewData?
+  private var isLoaded = false
   private let addOnsRoute = UUID()
   private let addOnsEvents = Signal<Signal<([Reward]?, PledgeViewData), ErrorEnvelope>.Event, Never>.pipe()
   private var addOnsTask: Task<Void, Never>?
@@ -120,11 +123,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   }
   public init(feature: RewardsFeature = AppModel.shared.rewardsFeature) {
     self.feature = feature
-    let configData = Signal.combineLatest(
-      self.configureWithDataProperty.signal.skipNil(),
-      self.viewDidLoadProperty.signal
-    )
-    .map(first)
+    let configData = self.configEvents.output
 
     let project = configData.map(\.project)
     let baseReward = configData.map(\.rewards).map(\.first).skipNil()
@@ -135,10 +134,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 
     let hasAddOns = baseReward.map(\.hasAddOns)
 
-    let refreshAddons = Signal.merge(
-      configData,
-      configData.takeWhen(self.beginRefreshSignal)
-    )
 
     let headerTitle = hasAddOns.map { (hasAddons: Bool) -> String in
       hasAddons
@@ -159,7 +154,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 
     let addOnsEvent = self.addOnsEvents.output
 
-    let startRefreshing = self.beginRefreshSignal
     let endRefreshing = addOnsEvent.filter { $0.isTerminating }.ignoreValues()
 
     let requestErrored = addOnsEvent.map(\.error).map(isNotNil)
@@ -316,7 +310,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     }
     _ = headerTitle.observeValues { [weak self] value in self?.onHeaderTitle?(value) }
     _ = pageTitle.observeValues { [weak self] value in self?.onPageTitle?(value) }
-    _ = startRefreshing.observeValues { [weak self] _ in self?.onStartRefreshing?() }
     _ = endRefreshing.observeValues { [weak self] _ in self?.onEndRefreshing?() }
     _ = rewardAddOnCardsViewData.observeValues { [weak self] data in
       self?.latestCardData = data
@@ -374,7 +367,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       self?.displayedChanges = [:]
       self?.publishSelectedQuantities()
     }
-    _ = refreshAddons.observeValues { [weak self] data in
+    _ = configData.observeValues { [weak self] data in
       self?.loadAddOns(for: data)
     }
   }
@@ -470,14 +463,14 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 
   // MARK: - Inputs
 
-  private let (beginRefreshSignal, beginRefreshObserver) = Signal<Void, Never>.pipe()
   public func beginRefresh() {
-    self.beginRefreshObserver.send(value: ())
+    self.onStartRefreshing?()
+    if self.isLoaded, let data = self.pendingConfiguration { self.loadAddOns(for: data) }
   }
 
-  private let configureWithDataProperty = MutableProperty<PledgeViewData?>(nil)
   public func configure(with data: PledgeViewData) {
-    self.configureWithDataProperty.value = data
+    self.pendingConfiguration = data
+    if self.isLoaded { self.configEvents.input.send(value: data) }
   }
 
   public func continueButtonTapped() {
@@ -513,9 +506,9 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     self.pledgeAmountObserver.send(value: data)
   }
 
-  private let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
-    self.viewDidLoadProperty.value = ()
+    self.isLoaded = true
+    if let data = self.pendingConfiguration { self.configEvents.input.send(value: data) }
   }
 
   public func rewardAddOnCardViewDidSelectQuantity(
