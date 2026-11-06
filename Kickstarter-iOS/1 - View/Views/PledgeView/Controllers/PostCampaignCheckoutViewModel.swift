@@ -64,7 +64,7 @@ public protocol PostCampaignCheckoutViewModelOutputs: AnyObject {
   var onConfigureStripe: ((String, String) -> Void)? { get set }
   var onEstimatedShippingHidden: ((Bool) -> Void)? { get set }
   var onPaymentMethodsHidden: ((Bool) -> Void)? { get set }
-  var processingViewIsHidden: Signal<Bool, Never> { get }
+  var onProcessingHidden: ((Bool) -> Void)? { get set }
   var onGoToLoginSignup: ((LoginIntent) -> Void)? { get set }
   var showErrorBannerWithMessage: Signal<String, Never> { get }
   var onShowWebHelp: ((HelpType) -> Void)? { get set }
@@ -493,7 +493,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       )
     }
 
-    self.processingViewIsHidden = Signal.merge(
+    let processingViewIsHidden = Signal.merge(
       // Processing view starts hidden, so show at the start of a pledge flow.
       self.submitButtonTappedProperty.signal.mapConst(false),
       startApplePayFlow.mapConst(false),
@@ -621,6 +621,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
     }
     _ = pledgeRewardsSummary.observeValues { [weak self] in self?.onPledgeRewardsSummary?($0.0, $0.1, $0.2) }
     _ = pledgeCTA.observeValues { [weak self] in self?.onPledgeCTA?($0) }
+    _ = processingViewIsHidden.observeValues { [weak self] in self?.onProcessingHidden?($0) }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
     paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
@@ -737,7 +738,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   public var onEstimatedShippingHidden: ((Bool) -> Void)?
   public var onGoToLoginSignup: ((LoginIntent) -> Void)?
 
-  public let processingViewIsHidden: Signal<Bool, Never>
+  public var onProcessingHidden: ((Bool) -> Void)?
   public let showErrorBannerWithMessage: Signal<String, Never>
   public var onShowWebHelp: ((HelpType) -> Void)?
   public var onPaymentMethodsHidden: ((Bool) -> Void)?

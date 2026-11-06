@@ -86,7 +86,7 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
       self.vm.goToApplePayPaymentAuthorization.observe(
         self.goToApplePayPaymentAuthorization.observer)
       self.vm.checkoutComplete.observe(self.checkoutComplete.observer)
-      self.vm.processingViewIsHidden.observe(self.processingViewIsHidden.observer)
+      self.vm.outputs.onProcessingHidden = { [weak self] in self?.processingViewIsHidden.observer.send(value: $0) }
       self.vm.validateCheckoutSuccess.observe(self.validateCheckoutSuccess.observer)
       self.vm.checkoutError.observe(self.checkoutError.observer)
       self.vm.outputs.onGoToLoginSignup = { [weak self] in self?.goToLoginSignup.observer.send(value: $0) }

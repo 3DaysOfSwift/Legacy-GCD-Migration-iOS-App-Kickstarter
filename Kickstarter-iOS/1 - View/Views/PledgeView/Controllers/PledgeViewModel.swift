@@ -98,7 +98,7 @@ public protocol PledgeViewModelOutputs: AnyObject {
   var onPaymentMethodsHidden: ((Bool) -> Void)? { get set }
   var onPledgeAmountSummaryHidden: ((Bool) -> Void)? { get set }
   var popToRootViewController: Signal<(), Never> { get }
-  var processingViewIsHidden: Signal<Bool, Never> { get }
+  var onProcessingHidden: ((Bool) -> Void)? { get set }
   var showErrorBannerWithMessage: Signal<String, Never> { get }
   var onShowWebHelp: ((HelpType) -> Void)? { get set }
   var title: Signal<String, Never> { get }
@@ -564,7 +564,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       updateBackingEvents
     )
 
-    self.processingViewIsHidden = processingViewIsHidden.signal
 
     // MARK: - Form Validation
 
@@ -889,6 +888,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     }
     _ = pledgeRewardsSummary.observeValues { [weak self] in self?.onPledgeRewardsSummary?($0.0, $0.1, $0.2) }
     _ = pledgeCTA.observeValues { [weak self] in self?.onPledgeCTA?($0) }
+    _ = processingViewIsHidden.signal.observeValues { [weak self] in self?.onProcessingHidden?($0) }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
     paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
@@ -998,7 +998,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
 
   public var onPledgeAmountSummaryHidden: ((Bool) -> Void)?
   public let popToRootViewController: Signal<(), Never>
-  public let processingViewIsHidden: Signal<Bool, Never>
+  public var onProcessingHidden: ((Bool) -> Void)?
   public let showErrorBannerWithMessage: Signal<String, Never>
   public var onShowWebHelp: ((HelpType) -> Void)?
   public let title: Signal<String, Never>

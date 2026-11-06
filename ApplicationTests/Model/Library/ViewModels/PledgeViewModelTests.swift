@@ -156,7 +156,7 @@ final class PledgeViewModelTests: TestCase {
       self.vm.outputs.onPaymentMethodsHidden = { [weak self] in self?.paymentMethodsViewHidden.observer.send(value: $0) }
       self.vm.outputs.onPledgeAmountSummaryHidden = { [weak self] in self?.pledgeAmountSummaryViewHidden.observer.send(value: $0) }
       self.vm.outputs.popToRootViewController.observe(self.popToRootViewController.observer)
-      self.vm.outputs.processingViewIsHidden.observe(self.processingViewIsHidden.observer)
+      self.vm.outputs.onProcessingHidden = { [weak self] in self?.processingViewIsHidden.observer.send(value: $0) }
 
       self.vm.outputs.onShowWebHelp = { [weak self] in self?.showWebHelp.observer.send(value: $0) }
       self.vm.outputs.showErrorBannerWithMessage.observe(self.showErrorBannerWithMessage.observer)

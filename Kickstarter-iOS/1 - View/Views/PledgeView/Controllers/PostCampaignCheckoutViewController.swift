@@ -237,9 +237,7 @@ final class PostCampaignCheckoutViewController: UIViewController,
         self?.pledgeCTAContainerView.configureWith(value: value)
       }
 
-    self.viewModel.outputs.processingViewIsHidden
-      .observeForUI()
-      .observeValues { [weak self] isHidden in
+    self.viewModel.outputs.onProcessingHidden = { [weak self] isHidden in
         if isHidden {
           self?.hideProcessingView()
         } else {
