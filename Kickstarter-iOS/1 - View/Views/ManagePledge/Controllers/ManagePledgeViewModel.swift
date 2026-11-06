@@ -74,6 +74,10 @@ public final class ManagePledgeViewModel:
   ManagePledgeViewModelType, ManagePledgeViewModelInputs, ManagePledgeViewModelOutputs {
   private let feature: PledgeFeature
   private var currentMenuOptions: [ManagePledgeAlertAction]?
+  private var currentProject: Project?
+  private var currentCancellation: (Project, Backing)?
+  private var currentChangePaymentMethodData: PledgeViewData?
+  private var hasSeenDisallowedCancellation = false
   private var currentFixPaymentMethodData: PledgeViewData?
   private let projectRoute = UUID()
   private let projectReadEvents = Signal<(Signal<Project, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
@@ -300,27 +304,8 @@ public final class ManagePledgeViewModel:
 
     let backedRewards = loadProjectAndRewardsIntoDataSource.map(second)
 
-    let goToRewards = project
-      .takeWhen(self.menuOptionSelectedSignal.filter { $0 == .chooseAnotherReward || $0 == .viewRewards })
-
-    let goToEditPledgeOverTime = project
-      .takeWhen(self.menuOptionSelectedSignal.filter { $0 == .editPledgeOverTimePledge })
-
-    let cancelPledgeSelected = self.menuOptionSelectedSignal
-      .filter { $0 == .cancelPledge }
-      .ignoreValues()
-
-    let goToCancelPledge = Signal.combineLatest(project, backing)
-      .takeWhen(cancelPledgeSelected)
-      .filter { _, backing in backing.cancelable }
-      .map(cancelPledgeViewData(with:backing:))
-
-    let goToContactCreator = project
-      .takeWhen(self.menuOptionSelectedSignal.filter { $0 == .contactCreator })
-      .map { project in (MessageSubject.project(id: project.id, name: project.name), KSRAnalytics.MessageDialogContext.backerModal) }
-
-    let goToChangePaymentMethod = Signal.combineLatest(project, backing, backedRewards)
-      .takeWhen(self.menuOptionSelectedSignal.filter { $0 == .changePaymentMethod })
+    let cancellationData = Signal.combineLatest(project, backing)
+    let changePaymentMethodData = Signal.combineLatest(project, backing, backedRewards)
       .map { project, backing, rewards in
         (project, backing, rewards, .changePaymentMethod)
       }
@@ -351,28 +336,11 @@ public final class ManagePledgeViewModel:
       )
     }
 
-    let cancelBackingDisallowed = backing
-      .map { $0.cancelable }
-      .filter(isFalse)
-
-    let attemptedDisallowedCancelBackingMessage = cancelBackingDisallowed
-      .takeWhen(cancelPledgeSelected)
-      .map { _ in
-        // swiftformat:disable wrap
-        Strings.We_dont_allow_cancelations_that_will_cause_a_project_to_fall_short_of_its_goal_within_the_last_24_hours()
-        // swiftformat:enable wrap
-      }
-
     let networkErrorMessage = Signal.merge(
       fetchProjectEvent.errors().ignoreValues(),
       graphBackingEvent.errors().ignoreValues()
     )
     .map { _ in Strings.Something_went_wrong_please_try_again() }
-
-    let showErrorBannerWithMessage = Signal.merge(
-      attemptedDisallowedCancelBackingMessage,
-      networkErrorMessage
-    )
 
     // Tracking
 
@@ -412,17 +380,20 @@ public final class ManagePledgeViewModel:
       .map { $0.paymentIncrements }
 
     _ = endRefreshing.observeValues { [weak self] _ in self?.onEndRefreshing?() }
-    _ = goToCancelPledge.observeValues { [weak self] value in self?.onCancelPledge?(value) }
-    _ = goToChangePaymentMethod.observeValues { [weak self] value in self?.onChangePaymentMethod?(value) }
-    _ = goToContactCreator.observeValues { [weak self] first, second in self?.onContactCreator?(first, second) }
     _ = fixPaymentMethodData.observeValues { [weak self] value in self?.currentFixPaymentMethodData = value }
-    _ = goToRewards.observeValues { [weak self] value in self?.onRewards?(value) }
-    _ = goToEditPledgeOverTime.observeValues { [weak self] value in self?.onEditPledgeOverTime?(value) }
     _ = loadProjectAndRewardsIntoDataSource.observeValues { [weak self] first, second in self?.onLoadProjectAndRewards?(first, second) }
     _ = loadPullToRefreshHeaderView.observeValues { [weak self] _ in self?.onLoadRefreshHeader?() }
     _ = notifyDelegateManagePledgeViewControllerFinishedWithMessage.observeValues { [weak self] value in self?.onFinish?(value) }
     _ = menuOptions.observeValues { [weak self] value in self?.currentMenuOptions = value }
-    _ = showErrorBannerWithMessage.observeValues { [weak self] value in self?.onShowError?(value) }
+    _ = project.observeValues { [weak self] value in self?.currentProject = value }
+    _ = backing.observeValues { [weak self] value in
+      if !value.cancelable { self?.hasSeenDisallowedCancellation = true }
+    }
+    _ = cancellationData.observeValues { [weak self] project, backing in
+      self?.currentCancellation = (project, backing)
+    }
+    _ = changePaymentMethodData.observeValues { [weak self] value in self?.currentChangePaymentMethodData = value }
+    _ = networkErrorMessage.observeValues { [weak self] value in self?.onShowError?(value) }
     _ = startRefreshing.observeValues { [weak self] _ in self?.onStartRefreshing?() }
     _ = title.observeValues { [weak self] in self?.onTitle?($0) }
     _ = configurePaymentMethodView.observeValues { [weak self] in self?.onPaymentMethod?($0) }
@@ -512,10 +483,26 @@ public final class ManagePledgeViewModel:
     self.onShowMenu?(options)
   }
 
-  private let (menuOptionSelectedSignal, menuOptionSelectedObserver) = Signal<ManagePledgeAlertAction, Never>
-    .pipe()
   public func menuOptionSelected(with action: ManagePledgeAlertAction) {
-    self.menuOptionSelectedObserver.send(value: action)
+    switch action {
+    case .chooseAnotherReward, .viewRewards:
+      if let project = self.currentProject { self.onRewards?(project) }
+    case .editPledgeOverTimePledge:
+      if let project = self.currentProject { self.onEditPledgeOverTime?(project) }
+    case .contactCreator:
+      if let project = self.currentProject {
+        self.onContactCreator?(.project(id: project.id, name: project.name), .backerModal)
+      }
+    case .changePaymentMethod:
+      if let data = self.currentChangePaymentMethodData { self.onChangePaymentMethod?(data) }
+    case .cancelPledge:
+      if let (project, backing) = self.currentCancellation, backing.cancelable {
+        self.onCancelPledge?(cancelPledgeViewData(with: project, backing: backing))
+      }
+      if self.hasSeenDisallowedCancellation {
+        self.onShowError?(Strings.We_dont_allow_cancelations_that_will_cause_a_project_to_fall_short_of_its_goal_within_the_last_24_hours())
+      }
+    }
   }
 
   public func termsOfUseTapped(with helpType: HelpType) {
