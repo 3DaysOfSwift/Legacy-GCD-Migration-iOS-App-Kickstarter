@@ -198,15 +198,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       $0.personalization.backing?.bonusAmount ?? 0.0
     }
 
-    let configurePledgeAmountViewWithData = Signal.combineLatest(
-      project,
-      baseReward,
-      initialAdditionalPledgeAmount
-    )
-    .map { project, reward, initialPledgeAmount in
-      (project, reward, initialPledgeAmount)
-    }
-
     /// Called when pledge or bonus is updated by backer
     let additionalPledgeAmount = Signal.merge(
       initialAdditionalPledgeAmount,
@@ -260,10 +251,12 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     _ = project.observeValues { [weak self] value in
       self?.validationProject = value
       self?.publishValidity()
+      self?.publishAmountConfiguration()
     }
     _ = initialAdditionalPledgeAmount.observeValues { [weak self] value in
       self?.validationInitialBonus = value
       self?.publishValidity()
+      self?.publishAmountConfiguration()
     }
     _ = self.pledgeAmountDataSignal.observeValues { [weak self] value in
       self?.validationAmount = value
@@ -299,6 +292,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     _ = baseReward.observeValues { [weak self] reward in
       self?.currentBaseReward = reward
       self?.publishRewardSelection()
+      self?.publishAmountConfiguration()
     }
     _ = allAddOnRewards.observeValues { [weak self] rewards in
       self?.currentAddOnRewards = rewards
@@ -324,7 +318,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       self?.cardItems.input.send(value: items)
       self?.onLoadAndReloadRewards?(items)
     }
-    _ = configurePledgeAmountViewWithData.observeValues { [weak self] value in self?.onConfigureAmount?(value) }
     _ = configData.observeValues { [weak self] in self?.checkoutConfiguration = $0 }
     _ = selectedRewards.observeValues { [weak self] in self?.checkoutRewards = $0 }
     _ = additionalPledgeAmount.observeValues { [weak self] in self?.checkoutBonus = $0 }
@@ -407,6 +400,12 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private func publishUpdatedCTA() {
     guard self.hasCTATotal, let count = self.ctaCount, let valid = self.ctaValid else { return }
     self.onConfigureContinue?((count, valid, false, self.ctaTotal))
+  }
+
+  private func publishAmountConfiguration() {
+    guard let project = self.validationProject, let reward = self.currentBaseReward,
+          let initialBonus = self.validationInitialBonus else { return }
+    self.onConfigureAmount?((project, reward, initialBonus))
   }
 
   private func publishValidity() {
