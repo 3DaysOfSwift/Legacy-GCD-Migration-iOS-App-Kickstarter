@@ -112,16 +112,13 @@ final class PledgeViewModelTests: TestCase {
         self?.configurePaymentMethodsViewControllerWithContext.observer.send(value: value.4)
       }
 
-      self.vm.outputs.configurePledgeRewardsSummaryViewWithData.map(\.0.rewards)
-        .observe(self.configurePledgeRewardsSummaryViewRewards.observer)
-      self.vm.outputs.configurePledgeRewardsSummaryViewWithData.map(\.0.selectedQuantities)
-        .observe(self.configurePledgeRewardsSummaryViewSelectedQuantities.observer)
-      self.vm.outputs.configurePledgeRewardsSummaryViewWithData.map(\.0.currencyCode)
-        .observe(self.configurePledgeRewardsSummaryViewProjectCurrency.observer)
-      self.vm.outputs.configurePledgeRewardsSummaryViewWithData.map(\.0.omitCurrencyCode)
-        .observe(self.configurePledgeRewardsSummaryViewOmitCurrencyCode.observer)
-      self.vm.outputs.configurePledgeRewardsSummaryViewWithData.map(\.0.shipping)
-        .observe(self.configurePledgeRewardsSummaryViewShipping.observer)
+      self.vm.outputs.onPledgeRewardsSummary = { [weak self] data, _, _ in
+        self?.configurePledgeRewardsSummaryViewRewards.observer.send(value: data.rewards)
+        self?.configurePledgeRewardsSummaryViewSelectedQuantities.observer.send(value: data.selectedQuantities)
+        self?.configurePledgeRewardsSummaryViewProjectCurrency.observer.send(value: data.currencyCode)
+        self?.configurePledgeRewardsSummaryViewOmitCurrencyCode.observer.send(value: data.omitCurrencyCode)
+        self?.configurePledgeRewardsSummaryViewShipping.observer.send(value: data.shipping)
+      }
 
       self.vm.outputs.configurePledgeViewCTAContainerView.map { $0.2 }
         .observe(self.configurePledgeViewCTAContainerViewIsLoggedIn.observer)

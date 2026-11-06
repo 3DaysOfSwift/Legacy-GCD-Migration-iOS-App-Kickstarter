@@ -289,9 +289,7 @@ final class PledgeViewController: UIViewController,
         STPAPIClient.shared.configuration.appleMerchantIdentifier = merchantIdentifier
       }
 
-    self.viewModel.outputs.configurePledgeRewardsSummaryViewWithData
-      .observeForUI()
-      .observeValues { [weak self] rewardsData, bonusAmount, pledgeData in
+    self.viewModel.outputs.onPledgeRewardsSummary = { [weak self] rewardsData, bonusAmount, pledgeData in
         self?.pledgeRewardsSummaryViewController
           .configureWith(rewardsData: rewardsData, bonusAmount: bonusAmount, pledgeData: pledgeData)
       }

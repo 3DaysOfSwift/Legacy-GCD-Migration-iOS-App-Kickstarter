@@ -86,10 +86,7 @@ public protocol PledgeViewModelOutputs: AnyObject {
   var configureLocalPickupViewWithData: Signal<PledgeLocalPickupViewData, Never> { get }
   var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)? { get set }
   var configurePledgeAmountSummaryViewControllerWithData: Signal<PledgeAmountSummaryViewData, Never> { get }
-  var configurePledgeRewardsSummaryViewWithData: Signal<
-    (PostCampaignRewardsSummaryViewData, Double?, PledgeSummaryViewData),
-    Never
-  > { get }
+  var onPledgeRewardsSummary: ((PostCampaignRewardsSummaryViewData, Double?, PledgeSummaryViewData) -> Void)? { get set }
   var configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never> { get }
   var onConfigureStripe: ((String, String) -> Void)? { get set }
   var onEstimatedShippingHidden: ((Bool) -> Void)? { get set }
@@ -299,7 +296,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       shippingLocation.filter(isNil).mapConst(nil)
     )
 
-    self.configurePledgeRewardsSummaryViewWithData = Signal.combineLatest(
+    let pledgeRewardsSummary = Signal.combineLatest(
       initialData,
       pledgeTotal,
       additionalPledgeAmount,
@@ -890,6 +887,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         AppEnvironment.current.environmentType.stripePublishableKey
       )
     }
+    _ = pledgeRewardsSummary.observeValues { [weak self] in self?.onPledgeRewardsSummary?($0.0, $0.1, $0.2) }
     login.onLogin = { [weak self] in self?.onGoToLoginSignup?($0) }
     paymentMethods.onHidden = { [weak self] in self?.onPaymentMethodsHidden?($0) }
     paymentMethods.onConfiguration = { [weak self] in self?.onConfigurePaymentMethods?($0) }
@@ -985,10 +983,7 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   public var onConfigurePaymentMethods: ((PledgePaymentMethodsValue) -> Void)?
 
   public let configurePledgeAmountSummaryViewControllerWithData: Signal<PledgeAmountSummaryViewData, Never>
-  public let configurePledgeRewardsSummaryViewWithData: Signal<
-    (PostCampaignRewardsSummaryViewData, Double?, PledgeSummaryViewData),
-    Never
-  >
+  public var onPledgeRewardsSummary: ((PostCampaignRewardsSummaryViewData, Double?, PledgeSummaryViewData) -> Void)?
   public let configurePledgeViewCTAContainerView: Signal<PledgeViewCTAContainerViewData, Never>
   public var onConfigureStripe: ((String, String) -> Void)?
   public var onEstimatedShippingHidden: ((Bool) -> Void)?
