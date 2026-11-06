@@ -298,35 +298,31 @@ final class PledgeFeatureTests: TestCase {
     _ = try await changed.value
   }
 
-  func testCheckoutCompletionSurvivesDisposedObserverAndSharesPendingSubmission() async throws {
+  func testCheckoutCompletionSurvivesCancelledWaiterAndSharesPendingSubmission() async throws {
     let input = GraphAPI.CompleteOnSessionCheckoutInput(
       checkoutId: "c", paymentIntentClientSecret: "fixture",
       paymentSourceId: .some("card"), paymentSourceReusable: .some(true))
-    var delivered = 0
-    let first = self.feature.completeCheckoutResult(input).startWithResult { _ in
-      XCTFail("Disposed observer")
-    }
-    let second = self.feature.completeCheckoutResult(input).startWithResult {
-      if case .success = $0 { delivered += 1 } else { XCTFail("Expected completion") }
-    }
-    first.dispose()
-    defer { second.dispose() }
+    let first = self.feature.startCompleteCheckout(input)
+    let second = self.feature.startCompleteCheckout(input)
+    first.cancel()
     await self.provider.completions.waitFor(1)
     XCTAssertEqual(self.provider.completionInputs, [input])
     try self.provider.completions.finish(0, .success(()))
-    await self.feature.waitForOperations()
-    XCTAssertEqual(delivered, 1)
+    try await second.value
+    do {
+      try await first.value
+      XCTFail("The cancelled waiter should not receive completion")
+    } catch is CancellationError {} catch {
+      XCTFail("Unexpected completion error: \(error)")
+    }
     XCTAssertEqual(self.provider.completions.count, 1)
   }
 
   func testSessionChangeSuppressesCheckoutAndRejectsQueuedCompletion() async throws {
-    var completionDelivered = false
     let checkout = self.feature.startOpenCheckout(
       .init(projectId: "p", amount: "10", locationId: nil, rewardIds: [], refParam: nil))
-    let completion = self.feature.completeCheckoutResult(
-      .init(checkoutId: "c", paymentIntentClientSecret: "fixture")
-    ).startWithResult { _ in completionDelivered = true }
-    defer { completion.dispose() }
+    let completion = self.feature.startCompleteCheckout(
+      .init(checkoutId: "c", paymentIntentClientSecret: "fixture"))
     await self.provider.checkouts.waitFor(1)
     self.session.sessionChanged()
     self.feature.reset()
@@ -337,8 +333,13 @@ final class PledgeFeatureTests: TestCase {
     } catch is CancellationError {} catch {
       XCTFail("Expected cancellation after session change: \(error)")
     }
+    do {
+      try await completion.value
+      XCTFail("A replaced session must not complete checkout")
+    } catch is CancellationError {} catch {
+      XCTFail("Expected cancellation after session change: \(error)")
+    }
     await self.feature.waitForOperations()
-    XCTAssertFalse(completionDelivered)
     XCTAssertEqual(self.provider.completions.count, 0)
   }
 
@@ -572,18 +573,16 @@ final class PledgeFeatureTests: TestCase {
 
   func testCheckoutCompletionFailureIsDeliveredWithoutAutomaticRetry() async throws {
     let failure = ErrorEnvelope(errorMessages: ["Declined"], ksrCode: nil, httpCode: 400, exception: nil)
-    var errors: [[String]] = []
-    let observer = self.feature.completeCheckoutResult(
-      .init(checkoutId: "c", paymentIntentClientSecret: "fixture")
-    ).startWithResult {
-      if case let .failure(error) = $0 { errors.append(error.errorMessages) }
-      else { XCTFail("Failed completion acknowledged") }
-    }
-    defer { observer.dispose() }
+    let completion = self.feature.startCompleteCheckout(
+      .init(checkoutId: "c", paymentIntentClientSecret: "fixture"))
     await self.provider.completions.waitFor(1)
     try self.provider.completions.finish(0, .failure(failure))
-    await self.feature.waitForOperations()
-    XCTAssertEqual(errors, [["Declined"]])
+    do {
+      try await completion.value
+      XCTFail("Failed completion acknowledged")
+    } catch let error as ErrorEnvelope {
+      XCTAssertEqual(error.errorMessages, ["Declined"])
+    }
     XCTAssertEqual(self.provider.completions.count, 1)
   }
 

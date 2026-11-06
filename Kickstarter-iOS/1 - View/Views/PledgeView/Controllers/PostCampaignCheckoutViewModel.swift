@@ -420,14 +420,15 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
           )
       }
 
-    let checkoutCompleteSignal = Signal
-      .merge(
-        completeCheckoutWithCreditCardInput,
-        completeCheckoutWithApplePayInput
-      )
-      .switchMap { input in
-        feature.completeCheckoutResult(input).materialize()
+    let completeCheckoutRequests = Signal.merge(
+      completeCheckoutWithCreditCardInput, completeCheckoutWithApplePayInput
+    )
+    let completionIdentity = self.completionIdentity
+    let checkoutCompleteSignal = self.completionEvents.output
+      .filter { [feature, completionIdentity] _, userID, generation, id in
+        completionIdentity.id == id && feature.sessionFeature.isCurrent(userID: userID, generation: generation)
       }
+      .map { event, _, _, _ in event }
 
     let thanksPageData = Signal.combineLatest(project, baseReward, pledgeTotal)
       .compactMap { project, baseReward, pledgeTotal -> ThanksPageData in
@@ -435,10 +436,10 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       }
 
     self.checkoutComplete = thanksPageData
-      .takeWhen(checkoutCompleteSignal.signal.values())
+      .takeWhen(checkoutCompleteSignal.values())
       .map { $0 }
 
-    let checkoutErrors = checkoutCompleteSignal.signal.errors()
+    let checkoutErrors = checkoutCompleteSignal.errors()
 
     // MARK: - Error handling
 
@@ -489,7 +490,7 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
       paymentIntentErrors.mapConst(true),
       validateCheckoutError.mapConst(true),
       self.checkoutTerminatedProperty.signal.mapConst(true),
-      checkoutCompleteSignal.signal.mapConst(true)
+      checkoutCompleteSignal.mapConst(true)
     )
 
     // MARK: - Tracking
@@ -583,6 +584,26 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
         } catch {
           guard !Task.isCancelled, !(error is CancellationError) else { return }
           self?.checkoutEvents.input.send(value: (.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), userID, generation, id))
+        }
+      }
+    }
+    self.completionObservation = completeCheckoutRequests.observeValues { [weak self] input in
+      guard let self else { return }
+      self.completionTask?.cancel()
+      let userID = feature.sessionFeature.currentUser?.id
+      let generation = feature.sessionFeature.generation
+      let id = UUID()
+      self.completionIdentity.id = id
+      let request = feature.startCompleteCheckout(input)
+      self.completionTask = Task { [weak self] in
+        do {
+          try await request.value
+          guard !Task.isCancelled else { return }
+          self?.completionEvents.input.send(value: (.value(()), userID, generation, id))
+          self?.completionEvents.input.send(value: (.completed, userID, generation, id))
+        } catch {
+          guard !Task.isCancelled, !(error is CancellationError) else { return }
+          self?.completionEvents.input.send(value: (.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), userID, generation, id))
         }
       }
     }
@@ -777,6 +798,10 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   private let checkoutIdentity = CheckoutRequestIdentity()
   private var checkoutObservation: (any Disposable)?
   private var checkoutTask: Task<Void, Never>?
+  private let completionEvents = Signal<(Signal<Void, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
+  private let completionIdentity = CheckoutRequestIdentity()
+  private var completionObservation: (any Disposable)?
+  private var completionTask: Task<Void, Never>?
   private let cardValidation = CheckoutValidationLane()
   private let applePayValidation = CheckoutValidationLane()
   private var cardValidationObservation: (any Disposable)?
@@ -788,6 +813,8 @@ public class PostCampaignCheckoutViewModel: PostCampaignCheckoutViewModelType,
   deinit {
     self.checkoutObservation?.dispose()
     self.checkoutTask?.cancel()
+    self.completionObservation?.dispose()
+    self.completionTask?.cancel()
     self.cardValidationObservation?.dispose()
     self.applePayValidationObservation?.dispose()
     self.paymentIntentObservation?.dispose()

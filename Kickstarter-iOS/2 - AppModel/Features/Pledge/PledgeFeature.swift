@@ -292,14 +292,19 @@ public final class PledgeFeature {
     }
   }
 
+  func startCompleteCheckout(_ input: GraphAPI.CompleteOnSessionCheckoutInput) -> Task<Void, Error> {
+    let session = self.session
+    let command = self.request(.completeCheckout(input))
+    return Task {
+      let value = try await command.value
+      try self.requireCurrent(session)
+      try Self.completed(value)
+    }
+  }
+
   public func completeCheckout(_ input: GraphAPI.CompleteOnSessionCheckoutInput) async throws
   {
     try Self.completed(await self.execute(.completeCheckout(input)))
-  }
-  public func completeCheckoutResult(_ input: GraphAPI.CompleteOnSessionCheckoutInput)
-    -> SignalProducer<Void, ErrorEnvelope>
-  {
-    self.result(.completeCheckout(input), transform: Self.completed)
   }
   private static func checkout(_ value: Value) throws -> CreateCheckoutEnvelope {
     guard case .checkout(let envelope) = value else { throw ErrorEnvelope.couldNotParseJSON }
