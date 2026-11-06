@@ -218,7 +218,7 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   > { get }
 
   /// Emits a tuple of `Project`, `RefTag?` and `[Bool]` (isExpanded values) for the FAQs.
-  var updateFAQsInDataSource: Signal<(Project, RefTag?, [Bool]), Never> { get }
+  var onUpdateFAQs: (((Project, RefTag?, [Bool])) -> Void)? { get set }
 
   /// Emits a prelaunch save state that updates the navigation bar's watch project state.
   var onUpdateWatchProject: ((PledgeCTAPrelaunchState) -> Void)? { get set }
@@ -311,6 +311,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   private var latestProjectRefTag: RefTag?
   private var latestImageElements: [ImageViewElement]?
   private var latestImageIndexPath: IndexPath?
+  private var latestFAQSelection: (Int, [Bool])?
   private var requestRefTag: RefTag?
   internal private(set) var loadingTask: Task<Void, Never>?
 
@@ -532,18 +533,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
       return (navSection, project, refTag, initialIsExpandedArray, urls, similarProjects, contentView)
     }
 
-    self.updateFAQsInDataSource = freshProjectAndRefTag
-      .combineLatest(with: self.didSelectFAQsRowAtProperty.signal.skipNil())
-      .map { projectAndRefTag, indexAndDataSourceValues in
-        let (project, refTag) = projectAndRefTag
-        let (index, isExpandedValues) = indexAndDataSourceValues
-        var updatedValues = isExpandedValues
-        updatedValues[index] = !updatedValues[index]
-
-        return (project, refTag, updatedValues)
-      }
-
-
     // MARK: Project notice
 
 
@@ -609,6 +598,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
           self.latestProjectRefTag = self.requestRefTag
           self.onProjectFlagged?(project.flagging ?? false)
           completion.input.send(value: .value((project, self.requestRefTag)))
+          self.updateFAQsIfReady()
           if let elements = project.extendedProjectProperties?.story.htmlViewElements {
             self.latestImageElements = elements.compactMap { $0 as? ImageViewElement }
             self.prefetchImageRowIfNeeded()
@@ -715,9 +705,17 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.loadProject(force: true)
   }
 
-  fileprivate let didSelectFAQsRowAtProperty = MutableProperty<(Int, [Bool])?>(nil)
   public func didSelectFAQsRowAt(row: Int, values: [Bool]) {
-    self.didSelectFAQsRowAtProperty.value = (row, values)
+    self.latestFAQSelection = (row, values)
+    self.updateFAQsIfReady()
+  }
+
+  private func updateFAQsIfReady() {
+    guard let project = self.latestProject, let (index, values) = self.latestFAQSelection,
+          values.indices.contains(index) else { return }
+    var updatedValues = values
+    updatedValues[index].toggle()
+    self.onUpdateFAQs?((project, self.latestProjectRefTag, updatedValues))
   }
 
   public func didSelectCampaignImageLink(url: URL) {
@@ -865,7 +863,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     (NavigationSection, Project, RefTag?, [Bool], [URL], SimilarProjectsState, ProjectPageContentView),
     Never
   >
-  public let updateFAQsInDataSource: Signal<(Project, RefTag?, [Bool]), Never>
+  public var onUpdateFAQs: (((Project, RefTag?, [Bool])) -> Void)?
   public var onUpdateWatchProject: ((PledgeCTAPrelaunchState) -> Void)?
   public var onDidBlockUser: (() -> Void)?
   public var onDidBlockUserError: (() -> Void)?

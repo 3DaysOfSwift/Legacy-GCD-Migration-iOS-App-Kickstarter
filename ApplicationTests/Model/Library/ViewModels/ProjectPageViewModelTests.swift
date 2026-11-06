@@ -153,10 +153,10 @@ final class ProjectPageViewModelTests: TestCase {
         .observe(self.showProjectPageTabWithDataImageURLS.observer)
       self.vm.outputs.showProjectPageTabWithData.map { $0.6 }
         .observe(self.showProjectPageTabWithDataContentView.observer)
-      self.vm.outputs.updateFAQsInDataSource.map { $0.0 }
-        .observe(self.updateFAQsInDataSourceProject.observer)
-      self.vm.outputs.updateFAQsInDataSource.map { $0.2 }
-        .observe(self.updateFAQsInDataSourceIsExpandedValues.observer)
+      self.vm.outputs.onUpdateFAQs = { [weak self] data in
+        self?.updateFAQsInDataSourceProject.observer.send(value: data.0)
+        self?.updateFAQsInDataSourceIsExpandedValues.observer.send(value: data.2)
+      }
       self.vm.outputs.onUpdateWatchProject = { [weak self] in
         self?.updateWatchProjectWithPrelaunchProjectState.observer.send(value: $0)
       }

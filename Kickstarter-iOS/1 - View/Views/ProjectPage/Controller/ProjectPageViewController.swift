@@ -586,9 +586,9 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         self?.showContentView(contentView)
       }
 
-    self.viewModel.outputs.updateFAQsInDataSource
-      .observeForUI()
-      .observeValues { [weak self] project, refTag, isExpandedValues in
+    self.viewModel.outputs.onUpdateFAQs = { [weak self] data in
+      let (project, refTag, isExpandedValues) = data
+      DispatchQueue.main.async { [weak self] in
         self?.dataSource.load(
           navigationSection: .faq,
           project: .left(project),
@@ -597,6 +597,7 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         )
         self?.tableView.reloadData()
       }
+    }
 
     self.viewModel.outputs.onNavigateBackToProjectPage = { [weak self] in
         guard let self = self else { return }
