@@ -112,8 +112,8 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.outputs.notificationSettingsUpdated.observe(self.notificationSettingsUpdated.observer)
 
     self.vm.outputs.applicationIconBadgeNumber.observe(self.applicationIconBadgeNumber.observer)
-    self.vm.outputs.configureFirebase.observe(self.configureFirebase.observer)
-    self.vm.outputs.configureSegmentWithBraze.observe(self.configureSegmentWithBraze.observer)
+    self.vm.outputs.onConfigureFirebase = { [weak self] in self?.configureFirebase.observer.send(value: ()) }
+    self.vm.outputs.onConfigureSegmentWithBraze = { [weak self] in self?.configureSegmentWithBraze.observer.send(value: $0) }
     self.vm.outputs.emailVerificationCompleted.map(first)
       .observe(self.emailVerificationCompletedMessage.observer)
     self.vm.outputs.emailVerificationCompleted.map(second)
@@ -135,7 +135,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.outputs.requestATTrackingAuthorizationStatus
       .observe(self.requestATTrackingAuthorizationStatus.observer)
     self.vm.outputs.setApplicationShortcutItems.observe(self.setApplicationShortcutItems.observer)
-    self.vm.outputs.showAlert.observe(self.showAlert.observer)
+    self.vm.outputs.onShowAlert = { [weak self] in self?.showAlert.observer.send(value: $0) }
     self.vm.outputs.segmentIsEnabled.observe(self.segmentIsEnabled.observer)
     self.disposables
       .append(self.vm.outputs.trackingAuthorizationStatus.start(self.trackingAuthorizationStatus.observer))

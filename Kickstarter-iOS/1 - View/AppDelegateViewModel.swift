@@ -100,13 +100,13 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var applicationIconBadgeNumber: Signal<Int, Never> { get }
 
   /// Emits when the application should configure Firebase
-  var configureFirebase: Signal<(), Never> { get }
+  var onConfigureFirebase: (() -> Void)? { get set }
 
   /// Emits when the application should configure Segment with an instance of Braze.
-  var configureSegmentWithBraze: Signal<String, Never> { get }
+  var onConfigureSegmentWithBraze: ((String) -> Void)? { get set }
 
   /// Emits when the application should configure Statsig
-  var configureStatsig: Signal<StatsigClientSDKKey, Never> { get }
+  var onConfigureStatsig: ((StatsigClientSDKKey) -> Void)? { get set }
 
   /// Return this value in the delegate method.
   var continueUserActivityReturnValue: Bool { get }
@@ -167,10 +167,10 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var setApplicationShortcutItems: Signal<[ShortcutItem], Never> { get }
 
   /// Emits when an alert should be shown.
-  var showAlert: Signal<Notification, Never> { get }
+  var onShowAlert: ((Notification) -> Void)? { get set }
 
   /// Emits to synchronize iCloud on app launch.
-  var synchronizeUbiquitousStore: Signal<(), Never> { get }
+  var onSynchronizeUbiquitousStore: (() -> Void)? { get set }
 
   /// Emits immediately and when the user's authorization status changes
   var trackingAuthorizationStatus: SignalProducer<AppTrackingAuthorization, Never> { get }
@@ -278,7 +278,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
     // iCloud
 
-    self.synchronizeUbiquitousStore = self.applicationLaunchOptionsProperty.signal.ignoreValues()
 
     // Push notifications
 
@@ -301,14 +300,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.pushTokenRegistrationStarted = pushTokenRegistrationStartedValues
       .ignoreValues()
 
-    self.showAlert = self.showNotificationDialogProperty.signal.skipNil()
-      .filter {
-        if let context = $0.userInfo?[UserInfoKeys.context] as? PushNotificationDialog.Context {
-          return PushNotificationDialog.canShowDialog(for: context)
-        }
-
-        return false
-      }
 
     self.unregisterForRemoteNotifications = self.userSessionEndedProperty.signal
 
@@ -498,12 +489,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       pledgeManagerLink
     ).map { $0 as UIViewController }
 
-    self.configureFirebase = self.applicationLaunchOptionsProperty.signal.ignoreValues()
 
-    self.configureStatsig = self.applicationLaunchOptionsProperty.signal.ignoreValues()
-      .map { _ in
-        statsigSDKKey()
-      }
 
     self.setApplicationShortcutItems = currentUserEvent
       .values()
@@ -518,13 +504,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     .filter(isTrue)
     .mapConst(0)
 
-    self.configureSegmentWithBraze = self.applicationLaunchOptionsProperty.signal
-      .skipNil()
-      .map { _ in
-        AppEnvironment.current.mainBundle.isRelease
-          ? Secrets.Segment.production
-          : Secrets.Segment.staging
-      }
 
     self.segmentIsEnabled = Signal.merge(
       self.didUpdateConfigProperty.signal.skipNil().ignoreValues(),
@@ -627,6 +606,12 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   ) {
     self.applicationDidFinishLaunchingReturnValue = launchOptions?[UIApplication.LaunchOptionsKey.shortcutItem] == nil
     self.applicationLaunchOptionsProperty.value = (application, launchOptions)
+    self.onSynchronizeUbiquitousStore?()
+    self.onConfigureFirebase?()
+    self.onConfigureStatsig?(statsigSDKKey())
+    self.onConfigureSegmentWithBraze?(
+      AppEnvironment.current.mainBundle.isRelease ? Secrets.Segment.production : Secrets.Segment.staging
+    )
   }
 
   fileprivate let applicationWillEnterForegroundProperty = MutableProperty(())
@@ -716,9 +701,10 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     return true
   }
 
-  fileprivate let showNotificationDialogProperty = MutableProperty<Notification?>(nil)
   public func showNotificationDialog(notification: Notification) {
-    self.showNotificationDialogProperty.value = notification
+    guard let context = notification.userInfo?[UserInfoKeys.context] as? PushNotificationDialog.Context,
+          PushNotificationDialog.canShowDialog(for: context) else { return }
+    self.onShowAlert?(notification)
   }
 
   fileprivate let userSessionEndedProperty = MutableProperty(())
@@ -743,9 +729,9 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   }
 
   public let applicationIconBadgeNumber: Signal<Int, Never>
-  public let configureFirebase: Signal<(), Never>
-  public let configureSegmentWithBraze: Signal<String, Never>
-  public let configureStatsig: Signal<StatsigClientSDKKey, Never>
+  public var onConfigureFirebase: (() -> Void)?
+  public var onConfigureSegmentWithBraze: ((String) -> Void)?
+  public var onConfigureStatsig: ((StatsigClientSDKKey) -> Void)?
   public private(set) var continueUserActivityReturnValue = false
   public let emailVerificationCompleted: Signal<(String, Bool), Never>
   public let findRedirectUrl: Signal<URL, Never>
@@ -766,8 +752,8 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public let requestATTrackingAuthorizationStatus: Signal<Void, Never>
   public let segmentIsEnabled: Signal<Bool, Never>
   public let setApplicationShortcutItems: Signal<[ShortcutItem], Never>
-  public let showAlert: Signal<Notification, Never>
-  public let synchronizeUbiquitousStore: Signal<(), Never>
+  public var onShowAlert: ((Notification) -> Void)?
+  public var onSynchronizeUbiquitousStore: (() -> Void)?
   public let trackingAuthorizationStatus: SignalProducer<AppTrackingAuthorization, Never>
   public let triggerOnboardingFlow: Signal<(), Never>
   public let unregisterForRemoteNotifications: Signal<(), Never>

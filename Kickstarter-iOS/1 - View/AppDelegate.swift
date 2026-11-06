@@ -247,37 +247,33 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
         }
       }
 
-    self.viewModel.outputs.showAlert
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.presentContextualPermissionAlert($0)
-      }
+    self.viewModel.outputs.onShowAlert = { [weak self] notification in
+      DispatchQueue.main.async { [weak self] in self?.presentContextualPermissionAlert(notification) }
+    }
 
     self.viewModel.outputs.unregisterForRemoteNotifications
       .observeForUI()
       .observeValues(UIApplication.shared.unregisterForRemoteNotifications)
 
     #if RELEASE || INTERNAL_BUILD
-      self.viewModel.outputs.configureFirebase
-        .observeForUI()
-        .observeValues { [weak self] in
-          guard let strongSelf = self else { return }
-
+      self.viewModel.outputs.onConfigureFirebase = { [weak self] in
+        DispatchQueue.main.async { [weak self] in
+          guard let self else { return }
           FirebaseApp.configure()
           AppEnvironment.current.ksrAnalytics.logEventCallback = { event, _ in
             Crashlytics.crashlytics().log(format: "%@", arguments: getVaList([event]))
           }
-
-          strongSelf.configureRemoteConfig()
+          self.configureRemoteConfig()
         }
+      }
     #endif
 
-    self.viewModel.outputs.configureStatsig
-      .observeForUI()
-      .observeValues { [weak self] key in
+    self.viewModel.outputs.onConfigureStatsig = { [weak self] key in
+      DispatchQueue.main.async { [weak self] in
         guard self?.isPublicDemo == false else { return }
         self?.configureStatsig(with: key)
       }
+    }
 
     self.disposables.append(
       self.viewModel.outputs.trackingAuthorizationStatus
@@ -287,12 +283,12 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
         }
     )
 
-    self.viewModel.outputs.synchronizeUbiquitousStore
-      .observeForUI()
-      .observeValues { [weak self] in
+    self.viewModel.outputs.onSynchronizeUbiquitousStore = { [weak self] in
+      DispatchQueue.main.async { [weak self] in
         guard self?.isPublicDemo == false else { return }
         _ = AppEnvironment.current.ubiquitousStore.synchronize()
       }
+    }
 
     self.viewModel.outputs.setApplicationShortcutItems
       .observeForUI()
@@ -326,8 +322,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       }
     ]
 
-    self.viewModel.outputs.configureSegmentWithBraze
-      .observeValues { [weak self] writeKey in
+    self.viewModel.outputs.onConfigureSegmentWithBraze = { [weak self] writeKey in
         guard let self, !self.isPublicDemo else { return }
 
         let configuration = Analytics.configuredClient(withWriteKey: writeKey)
