@@ -493,9 +493,8 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         self?.prefetchImageDataAndUpdateWith(indexPath, imageUrls: urls)
       }
 
-    self.viewModel.outputs.prefetchImageURLsOnFirstLoad
-      .observeForUI()
-      .observeValues { [weak self] imageViewElements in
+    self.viewModel.outputs.onPrefetchImages = { [weak self] imageViewElements in
+      DispatchQueue.main.async { [weak self] in
         imageViewElements.enumerated().forEach { index, element in
           guard let url = URL(string: element.src) else { return }
 
@@ -504,9 +503,9 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
           }
         }
       }
+    }
 
-    self.viewModel.outputs.precreateAudioVideoURLsOnFirstLoad
-      .observeValues { [weak self] elements in
+    self.viewModel.outputs.onPreloadAudioVideo = { [weak self] elements in
         self?.viewModel.cancelMediaPreparation()
         elements.enumerated().forEach { index, element in
           guard let url = URL(string: element.sourceURLString) else { return }

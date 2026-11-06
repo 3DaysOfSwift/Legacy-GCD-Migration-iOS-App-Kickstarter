@@ -193,13 +193,13 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var onPrepareAudioVideo: (((AudioVideoViewElement, IndexPath)) -> Void)? { get set }
 
   /// Emits `[AudioVideoViewElement]` to preload the data source with `AVPlayer` objects for video player cells.
-  var precreateAudioVideoURLsOnFirstLoad: Signal<[AudioVideoViewElement], Never> { get }
+  var onPreloadAudioVideo: (([AudioVideoViewElement]) -> Void)? { get set }
 
   /// Emits `[URL]` and `IndexPath` when the project has campaign data to download for a row
   var prefetchImageURLs: Signal<([URL], IndexPath), Never> { get }
 
   /// Emits `[ImageViewElement]` when the project has campaign data to download for an image row as soon as the urls are available.
-  var prefetchImageURLsOnFirstLoad: Signal<[ImageViewElement], Never> { get }
+  var onPrefetchImages: (([ImageViewElement]) -> Void)? { get set }
 
   /// Emits a `Bool` when a project is flagged.
   var onProjectFlagged: ((Bool) -> Void)? { get set }
@@ -352,25 +352,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         return SignalProducer(value: nil)
       }
       .skipNil()
-
-    self.prefetchImageURLsOnFirstLoad = freshProject.signal
-      .compactMap { $0.extendedProjectProperties }
-      .switchMap { properties -> SignalProducer<[ImageViewElement], Never> in
-        let imageViewElements = properties.story.htmlViewElements
-          .compactMap { $0 as? ImageViewElement }
-
-        return SignalProducer(value: imageViewElements)
-      }
-
-    self.precreateAudioVideoURLsOnFirstLoad = freshProject.signal
-      .compactMap { $0.extendedProjectProperties }
-      .switchMap { properties -> SignalProducer<[AudioVideoViewElement], Never> in
-        let audioVideoViewElements = properties.story.htmlViewElements
-          .compactMap { $0 as? AudioVideoViewElement }
-
-        return SignalProducer(value: audioVideoViewElements)
-      }
-
 
     // Project data that is passed when the ProjectPageViewController is initialized.
     // Used to show the Project overview page while we re-fetch the rest of the project data.
@@ -648,6 +629,10 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
           self.latestProjectRefTag = self.requestRefTag
           self.onProjectFlagged?(project.flagging ?? false)
           completion.input.send(value: .value((project, self.requestRefTag)))
+          if let elements = project.extendedProjectProperties?.story.htmlViewElements {
+            self.onPrefetchImages?(elements.compactMap { $0 as? ImageViewElement })
+            self.onPreloadAudioVideo?(elements.compactMap { $0 as? AudioVideoViewElement })
+          }
         case let .failure(error): completion.input.send(value: .failed(error))
         }
       default: break
@@ -880,9 +865,9 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   public var onNavigateBackToProjectPage: (() -> Void)?
   public var onPresentMessageDialog: ((Project) -> Void)?
   public var onPrepareAudioVideo: (((AudioVideoViewElement, IndexPath)) -> Void)?
-  public let precreateAudioVideoURLsOnFirstLoad: Signal<[AudioVideoViewElement], Never>
+  public var onPreloadAudioVideo: (([AudioVideoViewElement]) -> Void)?
   public let prefetchImageURLs: Signal<([URL], IndexPath), Never>
-  public let prefetchImageURLsOnFirstLoad: Signal<[ImageViewElement], Never>
+  public var onPrefetchImages: (([ImageViewElement]) -> Void)?
   public var onProjectFlagged: ((Bool) -> Void)?
   public var onReloadCampaignData: (() -> Void)?
   public var onShowHelp: ((HelpType) -> Void)?

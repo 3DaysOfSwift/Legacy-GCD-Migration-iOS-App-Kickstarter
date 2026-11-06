@@ -137,10 +137,11 @@ final class ProjectPageViewModelTests: TestCase {
       self.vm.outputs.onNavigateBackToProjectPage = { [weak self] in self?.navigateBackToProjectPage.observer.send(value: ()) }
       self.vm.outputs.onPresentMessageDialog = { [weak self] in self?.presentMessageDialog.observer.send(value: $0) }
       self.vm.outputs.onPrepareAudioVideo = { [weak self] in self?.precreateAudioVideoURLs.observer.send(value: $0) }
-      self.vm.outputs.precreateAudioVideoURLsOnFirstLoad
-        .observe(self.precreateAudioVideoURLsFirstLoad.observer)
+      self.vm.outputs.onPreloadAudioVideo = { [weak self] in
+        self?.precreateAudioVideoURLsFirstLoad.observer.send(value: $0)
+      }
       self.vm.outputs.prefetchImageURLs.observe(self.prefetchImageURLs.observer)
-      self.vm.outputs.prefetchImageURLsOnFirstLoad.observe(self.prefetchImageURLsFirstLoad.observer)
+      self.vm.outputs.onPrefetchImages = { [weak self] in self?.prefetchImageURLsFirstLoad.observer.send(value: $0) }
       self.vm.outputs.onProjectFlagged = { [weak self] in self?.projectFlagged.observer.send(value: $0) }
       self.vm.outputs.onReloadCampaignData = { [weak self] in self?.reloadCampaignData.observer.send(value: ()) }
       self.vm.outputs.onShowHelp = { [weak self] in self?.showHelpWebViewController.observer.send(value: $0) }
@@ -1903,7 +1904,7 @@ final class ProjectPageViewModelTests: TestCase {
       )
 
     let prefetchImageElementsOnFirstLoad = TestObserver<[ImageViewElement], Never>()
-    self.vm.outputs.prefetchImageURLsOnFirstLoad.observe(prefetchImageElementsOnFirstLoad.observer)
+    self.vm.outputs.onPrefetchImages = { prefetchImageElementsOnFirstLoad.observer.send(value: $0) }
 
     await ProjectPageViewModelTests.mockNetworkRequests(project: projectWithImageElement) {
       // When we configure with a project ID parameter and load the view
