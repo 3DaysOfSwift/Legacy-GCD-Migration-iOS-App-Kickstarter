@@ -62,11 +62,10 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
       self?.viewModel.inputs.voiceOverStatusDidChange()
     }
 
-    self.viewModel.outputs.updateUserInEnvironment
-      .observeValues { _ in
-        // SessionFeature already committed; never replay a delayed whole-user payload.
-        NotificationCenter.default.post(.init(name: .ksr_userUpdated))
-      }
+    self.viewModel.outputs.onUserUpdated = { _ in
+      // SessionFeature already committed; never replay a delayed whole-user payload.
+      NotificationCenter.default.post(.init(name: .ksr_userUpdated))
+    }
 
     self.userLocalePreferencesChangedObserver = MainActorNotificationObservation(name: .ksr_userLocalePreferencesChanged) { [weak self] _ in
       self?.viewModel.inputs.userLocalePreferencesChanged()

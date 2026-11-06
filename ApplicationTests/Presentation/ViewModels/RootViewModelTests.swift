@@ -76,7 +76,7 @@ final class RootViewModelTests: TestCase {
       self.vm.outputs.selectedIndex.observe(self.selectedIndex.observer)
       self.vm.outputs.setBadgeValueAtIndex.map { $0.0 }.observe(self.setBadgeValueAtIndexValue.observer)
       self.vm.outputs.setBadgeValueAtIndex.map { $0.1 }.observe(self.setBadgeValueAtIndexIndex.observer)
-      self.vm.outputs.updateUserInEnvironment.observe(self.updateUserInEnvironment.observer)
+      self.vm.outputs.onUserUpdated = { [weak self] in self?.updateUserInEnvironment.observer.send(value: $0) }
 
       let viewControllers = self.vm.outputs.setViewControllers
         .map { $0.map(RootTabBarViewController.viewController(from:)).compact() }

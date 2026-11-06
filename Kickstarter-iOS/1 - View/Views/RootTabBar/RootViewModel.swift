@@ -131,7 +131,7 @@ public protocol RootViewModelOutputs: AnyObject {
   var tabBarItemsData: Signal<TabBarItemsData, Never> { get }
 
   /// Emits an already committed User for the existing user-updated notification.
-  var updateUserInEnvironment: Signal<User, Never> { get }
+  var onUserUpdated: ((User) -> Void)? { get set }
 
   /// Emits when the floating tab bar feature is enabled or disabled.
   var floatingTabBarEnabled: Signal<Bool, Never> { get }
@@ -153,12 +153,10 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   public var onAvatarImage: ((Data, URL, Int) -> Void)?
   private var badgeTask: Task<Void, Never>?
   private var badgeIdentity: (userID: Int, generation: Int, token: UUID)?
-  private let badgePipe = Signal<(User, Int), Never>.pipe()
 
   public init(profileFeature: ProfileFeature? = nil) {
     let profileFeature = profileFeature ?? AppModel.shared.profileFeature
     self.profileFeature = profileFeature
-    let sessionFeature = profileFeature.sessionFeature
     let currentUser = Signal.merge(
       self.viewDidLoadProperty.signal,
       self.userSessionStartedProperty.signal,
@@ -325,12 +323,6 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
 
     currentBadgeValue <~ self.setBadgeValueAtIndex.map { $0.0 }
 
-    self.updateUserInEnvironment = self.badgePipe.output
-      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-      .filter { user, generation in
-        sessionFeature.isCurrent(userID: user.id, generation: generation)
-      }
-      .map(first)
 
     let shouldSelectIndex = self.shouldSelectIndexProperty.signal
       .skipNil()
@@ -428,7 +420,30 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
         let user = try await request.value
         try Task.checkCancellation()
         guard sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
-        self?.badgePipe.input.send(value: (user, generation))
+        let scheduler = AppEnvironment.current.scheduler
+        let delay: TimeInterval
+        switch AppEnvironment.current.apiDelayInterval {
+        case let .seconds(value): delay = TimeInterval(value)
+        case let .milliseconds(value): delay = TimeInterval(value) / 1_000
+        case let .microseconds(value): delay = TimeInterval(value) / 1_000_000
+        case let .nanoseconds(value): delay = TimeInterval(value) / 1_000_000_000
+        case .never: return
+        @unknown default: return
+        }
+        let date = scheduler.currentDate.addingTimeInterval(delay)
+        scheduler.schedule(after: date) { [weak self] in
+          if Thread.isMainThread {
+            MainActor.assumeIsolated {
+              guard sessionFeature.isCurrent(userID: user.id, generation: generation) else { return }
+              self?.onUserUpdated?(user)
+            }
+          } else {
+            Task { @MainActor [weak self] in
+              guard sessionFeature.isCurrent(userID: user.id, generation: generation) else { return }
+              self?.onUserUpdated?(user)
+            }
+          }
+        }
       } catch {
         // Preserve silent badge-save failure; the shared throwing command is tested separately.
       }
@@ -545,7 +560,7 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   public let setBadgeValueAtIndex: Signal<RootTabBarItemBadgeValueData, Never>
   public let setViewControllers: Signal<[RootViewControllerData], Never>
   public let tabBarItemsData: Signal<TabBarItemsData, Never>
-  public let updateUserInEnvironment: Signal<User, Never>
+  public var onUserUpdated: ((User) -> Void)?
   public let floatingTabBarEnabled: Signal<Bool, Never>
 
   public var inputs: RootViewModelInputs { return self }
