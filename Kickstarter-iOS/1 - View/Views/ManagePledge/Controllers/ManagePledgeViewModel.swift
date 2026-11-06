@@ -65,12 +65,21 @@ public protocol ManagePledgeViewModelType {
 }
 
 @MainActor
+private final class ManagePledgeReadIdentity {
+  var id: UUID?
+}
+
+@MainActor
 public final class ManagePledgeViewModel:
   ManagePledgeViewModelType, ManagePledgeViewModelInputs, ManagePledgeViewModelOutputs {
   private let feature: PledgeFeature
   private let projectRoute = UUID()
+  private let projectReadEvents = Signal<(Signal<Project, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
+  private var projectReadTask: Task<Void, Never>?
+  private let projectReadIdentity = ManagePledgeReadIdentity()
   private let backingRoute = UUID()
   deinit {
+    self.projectReadTask?.cancel()
     let feature = self.feature, projectRoute = self.projectRoute, backingRoute = self.backingRoute
     Task { @MainActor in
       feature.releaseRead(route: projectRoute)
@@ -79,7 +88,8 @@ public final class ManagePledgeViewModel:
   }
   public init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
     self.feature = feature
-    let projectRoute = self.projectRoute, backingRoute = self.backingRoute
+    let backingRoute = self.backingRoute
+    let projectReadIdentity = self.projectReadIdentity
     let params = Signal.combineLatest(
       self.configureWithProjectOrParamSignal,
       self.viewDidLoadSignal
@@ -101,13 +111,12 @@ public final class ManagePledgeViewModel:
       projectParam.takeWhen(shouldBeginRefresh)
     )
 
-    let fetchProjectEvent = shouldFetchProjectWithParam
-      // Only fetch the project if it hasn't yet succeeded, to avoid this call occurring with each refresh.
-      .filter { [projectLoaded] _ in projectLoaded.value == false }
-      .switchMap { param in
-        feature.delayedResult(feature.projectResult(route: projectRoute, param: param))
-          .materialize()
+    let fetchProjectEvent = self.projectReadEvents.output
+      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+      .filter { [projectReadIdentity, feature] _, userID, generation, id in
+        projectReadIdentity.id == id && feature.sessionFeature.isCurrent(userID: userID, generation: generation)
       }
+      .map { event, _, _, _ in event }
 
     let initialProject = fetchProjectEvent.values()
       // Once we know we have a project value, keep track of that.
@@ -406,6 +415,33 @@ public final class ManagePledgeViewModel:
       .map { $0.paymentIncrements }
 
     self.showWebHelp = self.termsOfUseTappedSignal
+    _ = shouldFetchProjectWithParam
+      .filter { [projectLoaded] _ in !projectLoaded.value }
+      .observeValues { [weak self] param in self?.loadProject(param) }
+  }
+
+  private func loadProject(_ param: Param) {
+    self.projectReadTask?.cancel()
+    let feature = self.feature
+    let route = self.projectRoute
+    let userID = feature.sessionFeature.currentUser?.id
+    let generation = feature.sessionFeature.generation
+    let id = UUID()
+    self.projectReadIdentity.id = id
+    self.projectReadTask = Task { [weak self] in
+      do {
+        let project = try await feature.project(route: route, param: param)
+        try Task.checkCancellation()
+        guard feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+        self?.projectReadEvents.input.send(value: (.value(project), userID, generation, id))
+        self?.projectReadEvents.input.send(value: (.completed, userID, generation, id))
+      } catch is CancellationError {
+        return
+      } catch {
+        guard !Task.isCancelled, feature.sessionFeature.isCurrent(userID: userID, generation: generation) else { return }
+        self?.projectReadEvents.input.send(value: (.failed((error as? ErrorEnvelope) ?? .couldNotParseJSON), userID, generation, id))
+      }
+    }
   }
 
   private let (beginRefreshSignal, beginRefreshObserver) = Signal<Void, Never>.pipe()
