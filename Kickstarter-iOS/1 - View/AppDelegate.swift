@@ -112,9 +112,8 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       }
     #endif
 
-    self.viewModel.outputs.updateCurrentUserInEnvironment
-      .observeForUI()
-      .observeValues { [weak self] _ in
+    self.viewModel.outputs.onUpdateCurrentUser = { [weak self] _ in
+      DispatchQueue.main.async { [weak self] in
         // The Feature committed already; never replay a delayed whole-user snapshot.
         guard let user = AppEnvironment.current.currentUser else { return }
         // Update user in Braze.
@@ -125,6 +124,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
 
         self?.viewModel.inputs.currentUserUpdatedInEnvironment()
       }
+    }
 
     self.viewModel.outputs.notificationSettingsUpdated
       .observeForUI()
@@ -137,12 +137,12 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
         self?.viewModel.inputs.currentUserUpdatedInEnvironment()
       }
 
-    self.viewModel.outputs.forceLogout
-      .observeForUI()
-      .observeValues {
+    self.viewModel.outputs.onForceLogout = {
+      DispatchQueue.main.async {
         AppEnvironment.logout()
         NotificationCenter.default.post(.init(name: .ksr_sessionEnded, object: nil))
       }
+    }
 
     self.viewModel.outputs.onUpdateConfig = { [weak self] config in
       DispatchQueue.main.async { [weak self] in

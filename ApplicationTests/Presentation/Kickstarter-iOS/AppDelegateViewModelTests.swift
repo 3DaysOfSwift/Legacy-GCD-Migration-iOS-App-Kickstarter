@@ -108,7 +108,7 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   private func bindOutputs() {
-    self.vm = AppDelegateViewModel(lifecycleFeature: self.lifecycleFeature, pushDebounce: { try Task.checkCancellation() })
+    self.vm = AppDelegateViewModel(lifecycleFeature: self.lifecycleFeature, pushDebounce: { try Task.checkCancellation() }, userDebounce: { try Task.checkCancellation() })
     self.vm.outputs.notificationSettingsUpdated.observe(self.notificationSettingsUpdated.observer)
 
     self.vm.outputs.applicationIconBadgeNumber.observe(self.applicationIconBadgeNumber.observer)
@@ -119,7 +119,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.outputs.emailVerificationCompleted.map(second)
       .observe(self.emailVerificationCompletedSuccess.observer)
     self.vm.outputs.findRedirectUrl.observe(self.findRedirectUrl.observer)
-    self.vm.outputs.forceLogout.observe(self.forceLogout.observer)
+    self.vm.outputs.onForceLogout = { [weak self] in self?.forceLogout.observer.send(value: ()) }
     self.vm.outputs.goToActivity.observe(self.goToActivity.observer)
     self.vm.outputs.goToDiscovery.observe(self.goToDiscovery.observer)
     self.vm.outputs.goToLoginWithIntent.observe(self.goToLoginWithIntent.observer)
@@ -141,7 +141,7 @@ final class AppDelegateViewModelTests: TestCase {
       .append(self.vm.outputs.trackingAuthorizationStatus.start(self.trackingAuthorizationStatus.observer))
     self.vm.outputs.triggerOnboardingFlow.observe(self.triggerOnboardingFlow.observer)
     self.vm.outputs.onUnregisterForRemoteNotifications = { [weak self] in self?.unregisterForRemoteNotifications.observer.send(value: ()) }
-    self.vm.outputs.updateCurrentUserInEnvironment.observe(self.updateCurrentUserInEnvironment.observer)
+    self.vm.outputs.onUpdateCurrentUser = { [weak self] in self?.updateCurrentUserInEnvironment.observer.send(value: $0) }
     self.vm.outputs.onUpdateConfig = { [weak self] in self?.updateConfigInEnvironment.observer.send(value: $0) }
   }
 
@@ -220,6 +220,7 @@ final class AppDelegateViewModelTests: TestCase {
     )
 
     await self.scheduler.advance(by: .seconds(5))
+    await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
     await self.settingsFeature.waitForOperations()
 
     self.updateCurrentUserInEnvironment.assertValues([env.user])
@@ -232,6 +233,7 @@ final class AppDelegateViewModelTests: TestCase {
 
     self.vm.inputs.applicationWillEnterForeground()
     await self.scheduler.advance(by: .seconds(5))
+    await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
     await self.settingsFeature.waitForOperations()
 
     self.updateCurrentUserInEnvironment.assertValues([env.user, env.user])
@@ -255,12 +257,14 @@ final class AppDelegateViewModelTests: TestCase {
     )
 
     await self.scheduler.advance(by: .seconds(5))
+    await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
     await self.settingsFeature.waitForOperations()
 
     self.postNotificationName.assertDidNotEmitValue()
 
     self.vm.inputs.applicationDidEnterBackground()
     await self.scheduler.advance(by: .seconds(5))
+    await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
     await self.settingsFeature.waitForOperations()
 
     self.postNotificationName.assertValues(
@@ -278,6 +282,7 @@ final class AppDelegateViewModelTests: TestCase {
       )
 
       await self.scheduler.advance(by: .seconds(5))
+      await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
       self.updateCurrentUserInEnvironment.assertValues([.template])
@@ -306,6 +311,7 @@ final class AppDelegateViewModelTests: TestCase {
         launchOptions: [:]
       )
       await self.scheduler.advance(by: .seconds(5))
+      await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
       self.updateCurrentUserInEnvironment.assertDidNotEmitValue()
@@ -1037,6 +1043,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.didRegisterForRemoteNotifications(withDeviceTokenData: "token".data(using: .utf8)!)
 
       await self.scheduler.advance(by: .seconds(5))
+      await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
       await (self.vm as? AppDelegateViewModel)?.waitForPushRegistration()
@@ -1070,6 +1077,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.didRegisterForRemoteNotifications(withDeviceTokenData: "token".data(using: .utf8)!)
 
       await self.scheduler.advance(by: .seconds(5))
+      await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
       await (self.vm as? AppDelegateViewModel)?.waitForPushRegistration()
@@ -1102,6 +1110,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.didRegisterForRemoteNotifications(withDeviceTokenData: "token".data(using: .utf8)!)
 
       await self.scheduler.advance(by: .seconds(5))
+      await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
       await (self.vm as? AppDelegateViewModel)?.waitForPushRegistration()
@@ -1140,6 +1149,7 @@ final class AppDelegateViewModelTests: TestCase {
       )
       self.vm.inputs.didRegisterForRemoteNotifications(withDeviceTokenData: "deadbeef".data(using: .utf8)!)
       await self.scheduler.advance(by: .seconds(5))
+      await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
       await (self.vm as? AppDelegateViewModel)?.waitForPushRegistration()
@@ -1428,6 +1438,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.setApplicationShortcutItems.assertValues([])
 
     await self.scheduler.advance(by: .seconds(5))
+    await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
     await self.settingsFeature.waitForOperations()
 
     await self.lifecycleFeature.waitForOperations()
@@ -1437,6 +1448,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.inputs.applicationDidEnterBackground()
     self.vm.inputs.applicationWillEnterForeground()
     await self.scheduler.advance(by: .seconds(5))
+    await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
     await self.settingsFeature.waitForOperations()
 
     await self.lifecycleFeature.waitForOperations()
@@ -1464,6 +1476,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.setApplicationShortcutItems.assertValues([])
 
       await self.scheduler.advance(by: .seconds(5))
+      await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
       await self.lifecycleFeature.waitForOperations()
@@ -1489,6 +1502,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.setApplicationShortcutItems.assertValues([])
 
       await self.scheduler.advance(by: .seconds(5))
+      await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
       await self.lifecycleFeature.waitForOperations()
@@ -2414,6 +2428,7 @@ final class AppDelegateViewModelTests: TestCase {
       )
 
       await self.scheduler.advance(by: .seconds(5))
+      await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
       self.updateCurrentUserInEnvironment.assertValues([user])
@@ -2571,6 +2586,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: true)
 
       await self.scheduler.advance(by: .seconds(5))
+      await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
       self.pushRegistrationStarted.assertValueCount(0)
@@ -2601,6 +2617,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: true)
 
       await self.scheduler.advance(by: .seconds(5))
+      await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
       self.triggerOnboardingFlow.assertValueCount(0)
@@ -2627,6 +2644,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: true)
 
       await self.scheduler.advance(by: .seconds(5))
+      await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
       self.triggerOnboardingFlow.assertValueCount(0)
@@ -2652,6 +2670,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: true)
 
       await self.scheduler.advance(by: .seconds(5))
+      await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
       self.triggerOnboardingFlow.assertValueCount(0)
@@ -2684,6 +2703,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: true)
 
       await self.scheduler.advance(by: .seconds(5))
+      await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
       self.pushRegistrationStarted.assertValueCount(0)
@@ -2718,6 +2738,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: true)
 
       await self.scheduler.advance(by: .seconds(5))
+      await (self.vm as? AppDelegateViewModel)?.waitForUserRefresh()
       await self.settingsFeature.waitForOperations()
 
       self.pushRegistrationStarted.assertValueCount(0)

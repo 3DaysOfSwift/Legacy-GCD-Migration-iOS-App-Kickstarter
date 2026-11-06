@@ -119,7 +119,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var findRedirectUrl: Signal<URL, Never> { get }
 
   /// Emits when opening the app with an invalid access token.
-  var forceLogout: Signal<(), Never> { get }
+  var onForceLogout: (() -> Void)? { get set }
 
   /// Emits when the root view controller should navigate to activity.
   var goToActivity: Signal<(), Never> { get }
@@ -182,7 +182,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var onUnregisterForRemoteNotifications: (() -> Void)? { get set }
 
   /// Emits a fresh user to be updated in the app environment.
-  var updateCurrentUserInEnvironment: Signal<User, Never> { get }
+  var onUpdateCurrentUser: ((User) -> Void)? { get set }
 
   /// A preference command has already persisted; observers must not re-save its snapshot.
   var notificationSettingsUpdated: Signal<Void, Never> { get }
@@ -210,6 +210,10 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   }
   private let redirectObservation = RedirectObservation()
   private let pushDebounce: @MainActor () async throws -> Void
+  private let userDebounce: @MainActor () async throws -> Void
+  private var userDebounceTask: Task<Void, Never>?
+  private var userReadTask: Task<Void, Never>?
+  private var userRequest: Task<User, Error>?
   private var pushDebounceTask: Task<Void, Never>?
   private var pushPresentationTask: Task<Void, Never>?
   private var configurationTask: Task<Void, Never>?
@@ -220,35 +224,16 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
   public init(
     lifecycleFeature: AppLifecycleFeature? = nil,
-    pushDebounce: @escaping @MainActor () async throws -> Void = { try await Task.sleep(for: .seconds(5)) }
+    pushDebounce: @escaping @MainActor () async throws -> Void = { try await Task.sleep(for: .seconds(5)) },
+    userDebounce: @escaping @MainActor () async throws -> Void = { try await Task.sleep(for: .seconds(5)) }
   ) {
     self.pushDebounce = pushDebounce
+    self.userDebounce = userDebounce
     let lifecycleFeature = lifecycleFeature ?? AppModel.shared.appLifecycleFeature
     self.lifecycleFeature = lifecycleFeature
     let route = self.navigationRoute
     let redirectObservation = self.redirectObservation
     let settingsFeature = lifecycleFeature.settingsFeature
-    let currentUserEvent = Signal
-      .merge(
-        self.applicationWillEnterForegroundProperty.signal,
-        self.applicationLaunchOptionsProperty.signal.ignoreValues(),
-        self.userSessionEndedProperty.signal,
-        self.userSessionStartedProperty.signal
-      )
-      .ksr_debounce(.seconds(5), on: AppEnvironment.current.scheduler)
-      .switchMap { _ -> SignalProducer<Signal<User?, ErrorEnvelope>.Event, Never> in
-        guard AppEnvironment.current.apiService.isAuthenticated || AppEnvironment.current.currentUser != nil else {
-          return SignalProducer(value: .value(nil))
-        }
-        let request = settingsFeature.requestRefresh(allowSessionRestore: AppEnvironment.current.apiService.isAuthenticated)
-        return lifecycleReadResult(request).wrapInOptional().materialize()
-      }
-
-    self.forceLogout = currentUserEvent
-      .errors()
-      .filter { $0.ksrCode == .AccessTokenInvalid }
-      .ignoreValues()
-
     let openUrl = self.applicationOpenUrlProperty.signal.skipNil()
 
     // iCloud
@@ -361,7 +346,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
         .demoteErrors()
     }
 
-    self.updateCurrentUserInEnvironment = currentUserEvent.values().skipNil()
     self.notificationSettingsUpdated = updatedUserNotificationSettings.ignoreValues()
 
     let emailVerificationEvent = deepLinkUrl
@@ -511,14 +495,14 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
         }
       }
 
-    currentUserEvent.values().observeValues { [weak self] user in
-      self?.refreshShortcutItems(for: user)
-    }
   }
 
   deinit {
     self.pushDebounceTask?.cancel()
     self.pushPresentationTask?.cancel()
+    self.userDebounceTask?.cancel()
+    self.userReadTask?.cancel()
+    self.userRequest?.cancel()
     self.configurationTask?.cancel()
     self.shortcutTask?.cancel()
     self.setupObservation?.cancel()
@@ -534,6 +518,47 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
   public var inputs: AppDelegateViewModelInputs { return self }
   public var outputs: AppDelegateViewModelOutputs { return self }
+
+  private func scheduleUserRefresh() {
+    self.userDebounceTask?.cancel()
+    let debounce = self.userDebounce
+    self.userDebounceTask = Task { [weak self] in
+      do {
+        try await debounce()
+        try Task.checkCancellation()
+        self?.beginUserRefresh()
+      } catch { /* A newer lifecycle event superseded this debounce. */ }
+    }
+  }
+
+  private func beginUserRefresh() {
+    self.userReadTask?.cancel()
+    self.userRequest?.cancel()
+    guard AppEnvironment.current.apiService.isAuthenticated || AppEnvironment.current.currentUser != nil else {
+      self.refreshShortcutItems(for: nil)
+      return
+    }
+    let request = self.lifecycleFeature.settingsFeature.requestRefresh(
+      allowSessionRestore: AppEnvironment.current.apiService.isAuthenticated
+    )
+    self.userRequest = request
+    self.userReadTask = Task { [weak self] in
+      do {
+        let user = try await request.value
+        try Task.checkCancellation()
+        self?.onUpdateCurrentUser?(user)
+        self?.refreshShortcutItems(for: user)
+      } catch {
+        guard !Task.isCancelled, !(error is CancellationError) else { return }
+        if (error as? ErrorEnvelope)?.ksrCode == .AccessTokenInvalid { self?.onForceLogout?() }
+      }
+    }
+  }
+
+  func waitForUserRefresh() async {
+    await self.userDebounceTask?.value
+    await self.userReadTask?.value
+  }
 
   private func refreshShortcutItems(for user: User?) {
     self.shortcutTask?.cancel()
@@ -619,6 +644,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   ) {
     self.applicationDidFinishLaunchingReturnValue = launchOptions?[UIApplication.LaunchOptionsKey.shortcutItem] == nil
     self.applicationLaunchOptionsProperty.value = (application, launchOptions)
+    self.scheduleUserRefresh()
     self.refreshUserSetup()
     self.refreshConfiguration()
     self.onSynchronizeUbiquitousStore?()
@@ -632,6 +658,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   fileprivate let applicationWillEnterForegroundProperty = MutableProperty(())
   public func applicationWillEnterForeground() {
     self.applicationWillEnterForegroundProperty.value = ()
+    self.scheduleUserRefresh()
     self.refreshUserSetup()
     self.refreshConfiguration()
   }
@@ -755,6 +782,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   fileprivate let userSessionEndedProperty = MutableProperty(())
   public func userSessionEnded() {
     self.userSessionEndedProperty.value = ()
+    self.scheduleUserRefresh()
     self.refreshConfiguration()
     self.onUnregisterForRemoteNotifications?()
   }
@@ -762,6 +790,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
     self.userSessionStartedProperty.value = ()
+    self.scheduleUserRefresh()
     self.refreshUserSetup()
     self.refreshConfiguration()
   }
@@ -784,7 +813,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public private(set) var continueUserActivityReturnValue = false
   public let emailVerificationCompleted: Signal<(String, Bool), Never>
   public let findRedirectUrl: Signal<URL, Never>
-  public let forceLogout: Signal<(), Never>
+  public var onForceLogout: (() -> Void)?
   public let goToActivity: Signal<(), Never>
   public let goToDiscovery: Signal<DiscoveryParams?, Never>
   public let goToLoginWithIntent: Signal<LoginIntent, Never>
@@ -805,7 +834,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public let trackingAuthorizationStatus: SignalProducer<AppTrackingAuthorization, Never>
   public let triggerOnboardingFlow: Signal<(), Never>
   public var onUnregisterForRemoteNotifications: (() -> Void)?
-  public let updateCurrentUserInEnvironment: Signal<User, Never>
+  public var onUpdateCurrentUser: ((User) -> Void)?
   public let notificationSettingsUpdated: Signal<Void, Never>
   public var onUpdateConfig: ((Config) -> Void)?
 }
@@ -931,25 +960,6 @@ private func navigation(fromShortcutItem shortcutItem: ShortcutItem) -> SignalPr
 
   case .search:
     return SignalProducer(value: .tab(.search))
-  }
-}
-
-// The settings owner checks its own session, including permitted token restoration.
-@MainActor
-private func lifecycleReadResult<Value>(_ request: Task<Value, Error>) -> SignalProducer<Value, ErrorEnvelope> {
-  SignalProducer { observer, lifetime in
-    let waiter = Task { @MainActor in
-      do {
-        let value = try await request.value
-        try Task.checkCancellation()
-        observer.send(value: value)
-        observer.sendCompleted()
-      } catch {
-        if Task.isCancelled || error is CancellationError { observer.sendInterrupted() }
-        else { observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON) }
-      }
-    }
-    lifetime.observeEnded { waiter.cancel(); request.cancel() }
   }
 }
 
