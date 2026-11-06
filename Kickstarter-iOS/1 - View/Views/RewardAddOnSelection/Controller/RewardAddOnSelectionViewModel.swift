@@ -67,14 +67,17 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 {
   private let feature: RewardsFeature
   private let addOnsRoute = UUID()
+  private let addOnsEvents = Signal<Signal<([Reward]?, PledgeViewData), ErrorEnvelope>.Event, Never>.pipe()
+  private var addOnsTask: Task<Void, Never>?
+  private var addOnsRequestID: UUID?
   deinit {
+    self.addOnsTask?.cancel()
     let feature = self.feature
     let route = self.addOnsRoute
     Task { @MainActor in feature.releaseAddOns(route: route) }
   }
   public init(feature: RewardsFeature = AppModel.shared.rewardsFeature) {
     self.feature = feature
-    let route = self.addOnsRoute
     let configData = Signal.combineLatest(
       self.configureWithDataProperty.signal.skipNil(),
       self.viewDidLoadProperty.signal
@@ -113,28 +116,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       baseReward.filter { reward in !reward.shipping.enabled }.mapConst(nil)
     )
 
-    let addOnsEvent = refreshAddons.switchMap { data in
-      let slug = data.project.slug
-      let baseReward = data.rewards.first
-      let shippingRule = data.selectedShippingRule
-
-      // Bridge the remaining presentation graph to the Feature's native request task.
-      let request = SignalProducer<([Reward]?, PledgeViewData), ErrorEnvelope> { observer, lifetime in
-        let task = MainActor.assumeIsolated {
-          feature.startAddOns(route: route, slug: slug, baseReward: baseReward, shippingRule: shippingRule) { result in
-            switch result {
-            case let .success(rewards):
-              observer.send(value: (rewards, data))
-              observer.sendCompleted()
-            case let .failure(error):
-              observer.send(error: (error as? ErrorEnvelope) ?? .couldNotParseJSON)
-            }
-          }
-        }
-        lifetime.observeEnded { task.cancel() }
-      }
-      return request.materialize()
-    }
+    let addOnsEvent = self.addOnsEvents.output
 
     self.startRefreshing = self.beginRefreshSignal
     self.endRefreshing = addOnsEvent.filter { $0.isTerminating }.ignoreValues()
@@ -409,6 +391,29 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
           refTag: refTag
         )
       }
+
+    _ = refreshAddons.observeValues { [weak self] data in
+      self?.loadAddOns(for: data)
+    }
+  }
+
+  private func loadAddOns(for data: PledgeViewData) {
+    self.addOnsTask?.cancel()
+    let id = UUID()
+    self.addOnsRequestID = id
+    self.addOnsTask = self.feature.startAddOns(
+      route: self.addOnsRoute, slug: data.project.slug,
+      baseReward: data.rewards.first, shippingRule: data.selectedShippingRule
+    ) { [weak self] result in
+      guard let self, self.addOnsRequestID == id else { return }
+      switch result {
+      case let .success(rewards):
+        self.addOnsEvents.input.send(value: .value((rewards, data)))
+        self.addOnsEvents.input.send(value: .completed)
+      case let .failure(error):
+        self.addOnsEvents.input.send(value: .failed((error as? ErrorEnvelope) ?? .couldNotParseJSON))
+      }
+    }
   }
 
   // MARK: - Inputs
