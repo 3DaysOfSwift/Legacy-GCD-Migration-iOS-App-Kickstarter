@@ -1,25 +1,53 @@
 @testable import Kickstarter_iOS
 import Foundation
 import Prelude
-import ReactiveSwift // Virtual scheduler used by the remaining delayed presentation pipeline.
 import XCTest
 
 @testable import KsApi
 
 
 @MainActor
+private final class ManagePledgeTestClock {
+  private var now: TimeInterval = 0
+  private var actions: [(TimeInterval, @MainActor () -> Void)] = []
+
+  func schedule(_ delay: TimeInterval, action: @escaping @MainActor () -> Void) {
+    guard !delay.isInfinite else { return }
+    actions.append((now + max(0, delay), action))
+  }
+
+  func advance(by interval: TimeInterval) {
+    let target = now + interval
+    while let index = actions.indices.filter({ actions[$0].0 <= target }).min(by: { actions[$0].0 < actions[$1].0 }) {
+      let (time, action) = actions.remove(at: index)
+      now = time
+      action()
+    }
+    now = target
+  }
+
+  func run() {
+    while let next = actions.map(\.0).min() { advance(by: max(0, next - now)) }
+  }
+}
+
+@MainActor
 internal final class ManagePledgeViewModelTests: TestCase {
   private func advancePledges(by interval: DispatchTimeInterval = .seconds(0)) async {
     await self.pledgeFeature.waitForOperations()
-    await self.scheduler.advance(by: interval)
+    await (self.vm as? ManagePledgeViewModel)?.waitForReads()
+    self.clock.advance(by: interval.searchDelaySeconds)
     await self.pledgeFeature.waitForOperations()
-    await self.scheduler.advance()
+    await (self.vm as? ManagePledgeViewModel)?.waitForReads()
+    self.clock.advance(by: 0)
   }
   private func runPledges() async {
     await self.pledgeFeature.waitForOperations()
-    await self.scheduler.run()
+    await (self.vm as? ManagePledgeViewModel)?.waitForReads()
+    self.clock.run()
     await self.pledgeFeature.waitForOperations()
-    await self.scheduler.run()
+    await (self.vm as? ManagePledgeViewModel)?.waitForReads()
+    self.clock.run()
   }
   override var requiresSnapshotReferenceSimulator: Bool { false }
   private let pledgeFeature = PledgeFeature(
@@ -29,6 +57,7 @@ internal final class ManagePledgeViewModelTests: TestCase {
       return AsyncPledgeProvider(service: AppEnvironment.current.apiService)
     })
   private var vm: ManagePledgeViewModelType!
+  private let clock = ManagePledgeTestClock()
 
   private let configurePaymentMethodView = ManagePledgeRecorder<ManagePledgePaymentMethodViewData>()
   private let configurePledgeSummaryView = ManagePledgeRecorder<ManagePledgeSummaryViewData>()
@@ -58,7 +87,9 @@ internal final class ManagePledgeViewModelTests: TestCase {
     try await super.setUp()
     MainActor.assumeIsolated {
 
-      self.vm = ManagePledgeViewModel(feature: self.pledgeFeature)
+      self.vm = ManagePledgeViewModel(feature: self.pledgeFeature, schedule: { [clock] delay, action in
+        clock.schedule(delay, action: action)
+      })
 
       self.vm.outputs.onContactCreator = { [weak self] a, b in self?.goToContactCreatorSubject.record(a); self?.goToContactCreatorContext.record(b) }
       self.vm.outputs.onLoadProjectAndRewards = { [weak self] a, b in self?.loadProjectAndRewardsIntoDataSourceProject.record(a); self?.loadProjectAndRewardsIntoDataSourceReward.record(b) }

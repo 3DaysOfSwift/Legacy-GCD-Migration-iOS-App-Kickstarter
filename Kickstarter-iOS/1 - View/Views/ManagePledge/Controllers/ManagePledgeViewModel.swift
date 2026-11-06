@@ -71,6 +71,7 @@ private final class ManagePledgeReadIdentity {
 public final class ManagePledgeViewModel:
   ManagePledgeViewModelType, ManagePledgeViewModelInputs, ManagePledgeViewModelOutputs {
   private let feature: PledgeFeature
+  private let schedule: @MainActor (TimeInterval, @escaping @MainActor () -> Void) -> Void
   private var projectHasLoaded = false
   private var configuredParams: ManagePledgeViewParamConfigData?
   private var hasLoadedView = false
@@ -103,8 +104,19 @@ public final class ManagePledgeViewModel:
       feature.releaseRead(route: backingRoute)
     }
   }
-  public init(feature: PledgeFeature = AppModel.shared.pledgeFeature) {
+  public init(
+    feature: PledgeFeature = AppModel.shared.pledgeFeature,
+    schedule: @escaping @MainActor (TimeInterval, @escaping @MainActor () -> Void) -> Void = { delay, action in
+      Task { @MainActor in
+        if delay.isInfinite { return }
+        if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
+        guard !Task.isCancelled else { return }
+        action()
+      }
+    }
+  ) {
     self.feature = feature
+    self.schedule = schedule
   }
 
   private func presentCombined() {
@@ -162,20 +174,17 @@ public final class ManagePledgeViewModel:
     if enabled { self.onPlotSchedule?(backing.paymentIncrements) }
   }
 
+  func waitForReads() async {
+    await self.projectReadTask?.value
+    await self.backingReadTask?.value
+  }
+
   private func scheduleReadResult(_ action: @escaping @MainActor () -> Void) {
-    let scheduler = AppEnvironment.current.scheduler
-    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
-    guard !delay.isInfinite else { return }
-    _ = scheduler.schedule(after: scheduler.currentDate.addingTimeInterval(max(0, delay))) {
-      MainActor.assumeIsolated { action() }
-    }
+    self.schedule(AppEnvironment.current.apiDelayInterval.searchDelaySeconds, action)
   }
 
   private func scheduleRefreshEnd() {
-    let scheduler = AppEnvironment.current.scheduler
-    _ = scheduler.schedule(after: scheduler.currentDate.addingTimeInterval(0.3)) { [weak self] in
-      MainActor.assumeIsolated { self?.onEndRefreshing?() }
-    }
+    self.schedule(0.3) { [weak self] in self?.onEndRefreshing?() }
   }
 
   private func loadBacking(_ backingID: Int) {
