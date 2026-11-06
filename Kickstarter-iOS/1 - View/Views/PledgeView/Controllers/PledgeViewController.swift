@@ -382,7 +382,9 @@ final class PledgeViewController: UIViewController,
         self?.rootScrollView.handleKeyboardVisibilityDidChange(change)
       }
 
-    self.localPickupLocationView.rac.hidden = self.viewModel.outputs.localPickupViewHidden
+    self.viewModel.outputs.onLocalPickupHidden = { [weak self] hidden in
+      self?.localPickupLocationView.isHidden = hidden
+    }
     self.viewModel.outputs.onPaymentMethodsHidden = { [weak self] hidden in
       self?.paymentMethodsViewController.view.isHidden = hidden
       self?.paymentSectionLabel.isHidden = hidden

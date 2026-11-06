@@ -97,10 +97,10 @@ public protocol PledgeViewModelOutputs: AnyObject {
   var goToApplePayPaymentAuthorization: Signal<PaymentAuthorizationData, Never> { get }
   var goToThanks: Signal<ThanksPageData, Never> { get }
   var onGoToLoginSignup: ((LoginIntent) -> Void)? { get set }
-  var localPickupViewHidden: Signal<Bool, Never> { get }
+  var onLocalPickupHidden: ((Bool) -> Void)? { get set }
   var notifyDelegateUpdatePledgeDidSucceedWithMessage: Signal<String, Never> { get }
   var onPaymentMethodsHidden: ((Bool) -> Void)? { get set }
-  var pledgeAmountSummaryViewHidden: Signal<Bool, Never> { get }
+  var onPledgeAmountSummaryHidden: ((Bool) -> Void)? { get set }
   var popToRootViewController: Signal<(), Never> { get }
   var processingViewIsHidden: Signal<Bool, Never> { get }
   var showErrorBannerWithMessage: Signal<String, Never> { get }
@@ -134,8 +134,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     let initialDataUnpacked = Signal.zip(project, baseReward, refTag, context)
 
     let backing = project.map { $0.personalization.backing }.skipNil()
-
-    self.pledgeAmountSummaryViewHidden = context.map { $0.pledgeAmountSummaryViewHidden }
 
     self.loginSignupUseCase = LoginSignupUseCase(withLoginIntent: .backProject)
     let login = self.loginSignupUseCase
@@ -240,8 +238,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         let r = a && b
         return r
       }
-
-    self.localPickupViewHidden = baseReward.map(isRewardLocalPickup).negate()
 
     self.configureLocalPickupViewWithData = projectAndReward
       .switchMap { projectAndReward -> SignalProducer<PledgeLocalPickupViewData?, Never> in
@@ -912,6 +908,8 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         )
       }
     _ = initialData.observeValues { [weak self] data in
+      self?.onPledgeAmountSummaryHidden?(data.context.pledgeAmountSummaryViewHidden)
+      if let reward = data.rewards.first { self?.onLocalPickupHidden?(!isRewardLocalPickup(reward)) }
       guard !data.context.paymentMethodsViewHidden else { return }
       self?.onConfigureStripe?(
         Secrets.ApplePay.merchantIdentifier,
@@ -1025,11 +1023,11 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
   public let goToThanks: Signal<ThanksPageData, Never>
   public var onGoToLoginSignup: ((LoginIntent) -> Void)?
 
-  public let localPickupViewHidden: Signal<Bool, Never>
+  public var onLocalPickupHidden: ((Bool) -> Void)?
   public let notifyDelegateUpdatePledgeDidSucceedWithMessage: Signal<String, Never>
   public var onPaymentMethodsHidden: ((Bool) -> Void)?
 
-  public let pledgeAmountSummaryViewHidden: Signal<Bool, Never>
+  public var onPledgeAmountSummaryHidden: ((Bool) -> Void)?
   public let popToRootViewController: Signal<(), Never>
   public let processingViewIsHidden: Signal<Bool, Never>
   public let showErrorBannerWithMessage: Signal<String, Never>

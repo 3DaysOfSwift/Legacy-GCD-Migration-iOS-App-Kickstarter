@@ -153,13 +153,13 @@ final class PledgeViewModelTests: TestCase {
       self.vm.outputs.goToThanks.map { $0.project }.observe(self.goToThanksProject.observer)
       self.vm.outputs.goToThanks.map { $0.reward }.observe(self.goToThanksReward.observer)
       self.vm.outputs.goToThanks.map { $0.checkoutData }.observe(self.goToThanksCheckoutData.observer)
-      self.vm.outputs.localPickupViewHidden.observe(self.localPickupViewHidden.observer)
+      self.vm.outputs.onLocalPickupHidden = { [weak self] in self?.localPickupViewHidden.observer.send(value: $0) }
 
       self.vm.outputs.notifyDelegateUpdatePledgeDidSucceedWithMessage
         .observe(self.notifyDelegateUpdatePledgeDidSucceedWithMessage.observer)
 
       self.vm.outputs.onPaymentMethodsHidden = { [weak self] in self?.paymentMethodsViewHidden.observer.send(value: $0) }
-      self.vm.outputs.pledgeAmountSummaryViewHidden.observe(self.pledgeAmountSummaryViewHidden.observer)
+      self.vm.outputs.onPledgeAmountSummaryHidden = { [weak self] in self?.pledgeAmountSummaryViewHidden.observer.send(value: $0) }
       self.vm.outputs.popToRootViewController.observe(self.popToRootViewController.observer)
       self.vm.outputs.processingViewIsHidden.observe(self.processingViewIsHidden.observer)
 
