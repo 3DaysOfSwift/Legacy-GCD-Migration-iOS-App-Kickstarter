@@ -88,6 +88,14 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private var ctaTotal: NSAttributedString?
   private var hasCTATotal = false
   private var sentInitialCTA = false
+  private var checkoutConfiguration: PledgeViewData?
+  private var checkoutRewards: [Reward]?
+  private var checkoutBonus: Double?
+  private var checkoutShipping: ShippingRule?
+  private var hasCheckoutShipping = false
+  private var checkoutQuantities: SelectedRewardQuantities?
+  private var checkoutLocationID: Int?
+  private var hasCheckoutLocation = false
   private let validityEvents = Signal<Bool, Never>.pipe()
   private var validationProject: Project?
   private var validationInitialBonus: Double?
@@ -212,19 +220,6 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       initialLocationId,
       shippingRule.map { $0?.location.id }
     )
-
-    let goToPledge = Signal.combineLatest(
-      project,
-      selectedRewards,
-      additionalPledgeAmount,
-      shippingRule,
-      selectedQuantities,
-      selectedLocationId,
-      refTag,
-      context
-    )
-    .map(PledgeViewData.init)
-    .takeWhen(self.continueButtonTappedProperty.signal)
 
     let pledgeTotal = self.pledgeTotalEvents.output
 
@@ -367,7 +362,18 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
       self?.onLoadAndReloadRewards?(items)
     }
     _ = configurePledgeAmountViewWithData.observeValues { [weak self] value in self?.onConfigureAmount?(value) }
-    _ = goToPledge.observeValues { [weak self] value in self?.onGoToPledge?(value) }
+    _ = configData.observeValues { [weak self] in self?.checkoutConfiguration = $0 }
+    _ = selectedRewards.observeValues { [weak self] in self?.checkoutRewards = $0 }
+    _ = additionalPledgeAmount.observeValues { [weak self] in self?.checkoutBonus = $0 }
+    _ = shippingRule.observeValues { [weak self] value in
+      self?.checkoutShipping = value
+      self?.hasCheckoutShipping = true
+    }
+    _ = selectedQuantities.observeValues { [weak self] in self?.checkoutQuantities = $0 }
+    _ = selectedLocationId.observeValues { [weak self] value in
+      self?.checkoutLocationID = value
+      self?.hasCheckoutLocation = true
+    }
     _ = totalSelectedAddOnsQuantity.observeValues { [weak self] value in
       self?.ctaCount = value
       self?.publishUpdatedCTA()
@@ -490,6 +496,15 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 
   private let continueButtonTappedProperty = MutableProperty(())
   public func continueButtonTapped() {
+    if let config = self.checkoutConfiguration, let rewards = self.checkoutRewards,
+       let bonus = self.checkoutBonus, let quantities = self.checkoutQuantities,
+       self.hasCheckoutShipping, self.hasCheckoutLocation {
+      self.onGoToPledge?(PledgeViewData(
+        project: config.project, rewards: rewards, bonusSupport: bonus,
+        selectedShippingRule: self.checkoutShipping, selectedQuantities: quantities,
+        selectedLocationId: self.checkoutLocationID, refTag: config.refTag, context: config.context
+      ))
+    }
     self.continueButtonTappedProperty.value = ()
   }
 
