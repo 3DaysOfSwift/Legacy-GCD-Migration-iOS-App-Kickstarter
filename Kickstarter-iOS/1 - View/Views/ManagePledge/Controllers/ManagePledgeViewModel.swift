@@ -196,8 +196,6 @@ public final class ManagePledgeViewModel:
     let title = project.combineLatest(with: userIsCreatorOfProject)
       .map(navigationBarTitle(with:userIsCreatorOfProject:))
 
-    let configurePaymentMethodView = backing.map(managePledgePaymentMethodViewData)
-
     let projectOrBackingFailedToLoad = Signal.merge(
       fetchProjectEvent.map { $0.error as Error? },
       graphBackingEvent.map { $0.error as Error? }
@@ -367,18 +365,6 @@ public final class ManagePledgeViewModel:
         )
       }
 
-    // Pledge Over Time
-
-    let pledgeOverTimeEnabled = backing.map {
-      isPledgeOverTime(with: $0)
-    }
-
-    let plotPaymentScheduleViewHidden = pledgeOverTimeEnabled.negate()
-
-    let configurePlotPaymentScheduleView = backing
-      .filterWhenLatestFrom(pledgeOverTimeEnabled, satisfies: { $0 })
-      .map { $0.paymentIncrements }
-
     _ = endRefreshing.observeValues { [weak self] _ in self?.onEndRefreshing?() }
     _ = fixPaymentMethodData.observeValues { [weak self] value in self?.currentFixPaymentMethodData = value }
     _ = loadProjectAndRewardsIntoDataSource.observeValues { [weak self] first, second in self?.onLoadProjectAndRewards?(first, second) }
@@ -396,12 +382,17 @@ public final class ManagePledgeViewModel:
     _ = networkErrorMessage.observeValues { [weak self] value in self?.onShowError?(value) }
     _ = startRefreshing.observeValues { [weak self] _ in self?.onStartRefreshing?() }
     _ = title.observeValues { [weak self] in self?.onTitle?($0) }
-    _ = configurePaymentMethodView.observeValues { [weak self] in self?.onPaymentMethod?($0) }
+    _ = backing.observeValues { [weak self] backing in
+      self?.onPaymentMethod?(managePledgePaymentMethodViewData(with: backing))
+    }
     _ = configurePledgeSummaryView.observeValues { [weak self] in self?.onPledgeSummary?($0) }
     _ = paymentMethodViewHidden.observeValues { [weak self] in self?.onPaymentMethodHidden?($0) }
     _ = pledgeDetailsSectionLabelText.observeValues { [weak self] in self?.onPledgeDetailsLabel?($0) }
-    _ = plotPaymentScheduleViewHidden.observeValues { [weak self] in self?.onPlotScheduleHidden?($0) }
-    _ = configurePlotPaymentScheduleView.observeValues { [weak self] in self?.onPlotSchedule?($0) }
+    _ = backing.observeValues { [weak self] backing in
+      let enabled = isPledgeOverTime(with: backing)
+      self?.onPlotScheduleHidden?(!enabled)
+      if enabled { self?.onPlotSchedule?(backing.paymentIncrements) }
+    }
     _ = rightBarButtonItemHidden.observeValues { [weak self] in self?.onRightBarButtonHidden?($0) }
     _ = shouldFetchProjectWithParam
       .filter { [projectLoaded] _ in !projectLoaded.value }
