@@ -117,6 +117,32 @@ final class PostCampaignCheckoutViewModelTests: TestCase {
 
   // MARK: - Web Help
 
+  func testShippingShowsTheSelectedRuleEstimate() async {
+    await withEnvironment(apiService: MockService()) {
+      var hidden: [Bool] = []
+      var shipping: [String?] = []
+      self.vm.outputs.onEstimatedShippingHidden = { hidden.append($0) }
+      self.vm.outputs.onEstimatedShipping = { value, _ in shipping.append(value) }
+      let rule = ShippingRule.template
+        |> ShippingRule.lens.estimatedMin .~ Money(amount: 2)
+        |> ShippingRule.lens.estimatedMax .~ Money(amount: 7)
+      let reward = Reward.template
+        |> Reward.lens.shipping .~ (.template |> Reward.Shipping.lens.enabled .~ true)
+        |> Reward.lens.shippingRulesExpanded .~ [rule]
+      let data = PledgeViewData(
+        project: .template, rewards: [reward], bonusSupport: nil,
+        selectedShippingRule: rule, selectedQuantities: [reward.id: 1],
+        selectedLocationId: nil, refTag: nil, context: .latePledge
+      )
+      self.vm.inputs.configure(with: data)
+      self.vm.inputs.viewDidLoad()
+      XCTAssertEqual(shipping, ["$2-$7"])
+      XCTAssertEqual(hidden, [false])
+      await self.pledgeFeature.waitForOperations()
+      await self.mockStripeIntentService.paymentsFeature.waitForOperations()
+    }
+  }
+
   func testShippingIsHiddenWithoutAShippingRule() async {
     await withEnvironment(apiService: MockService()) {
       var hidden: [Bool] = []
