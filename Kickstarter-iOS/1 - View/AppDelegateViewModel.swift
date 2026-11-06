@@ -158,7 +158,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var onRegisterPushTokenInBraze: ((Data) -> Void)? { get set }
 
   /// Emits when application didFinishLaunchingWithOptions.
-  var requestATTrackingAuthorizationStatus: Signal<Void, Never> { get }
+  var onRequestTrackingAuthorization: (() -> Void)? { get set }
 
   /// Emits when our config updates with the enabled state for Semgent Analytics.
   var onSegmentEnabled: ((Bool) -> Void)? { get set }
@@ -211,6 +211,11 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   private let redirectObservation = RedirectObservation()
   private let pushDebounce: @MainActor () async throws -> Void
   private let userDebounce: @MainActor () async throws -> Void
+  private let trackingDelay: @MainActor () async throws -> Void
+  private var trackingDelayTasks: [UUID: Task<Void, Never>] = [:]
+  private var hasLaunchEvent = false
+  private var latestActiveState: Bool?
+  private var lastScheduledActiveState: Bool?
   private var userDebounceTask: Task<Void, Never>?
   private var userReadTask: Task<Void, Never>?
   private var userRequest: Task<User, Error>?
@@ -226,10 +231,12 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public init(
     lifecycleFeature: AppLifecycleFeature? = nil,
     pushDebounce: @escaping @MainActor () async throws -> Void = { try await Task.sleep(for: .seconds(5)) },
-    userDebounce: @escaping @MainActor () async throws -> Void = { try await Task.sleep(for: .seconds(5)) }
+    userDebounce: @escaping @MainActor () async throws -> Void = { try await Task.sleep(for: .seconds(5)) },
+    trackingDelay: @escaping @MainActor () async throws -> Void = { try await Task.sleep(for: .seconds(1)) }
   ) {
     self.pushDebounce = pushDebounce
     self.userDebounce = userDebounce
+    self.trackingDelay = trackingDelay
     let lifecycleFeature = lifecycleFeature ?? AppModel.shared.appLifecycleFeature
     self.lifecycleFeature = lifecycleFeature
     let route = self.navigationRoute
@@ -455,32 +462,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
 
 
-    /// Request AppTransparencyTracking outside of onboarding.
-    self.requestATTrackingAuthorizationStatus = Signal
-      .combineLatest(
-        self.applicationLaunchOptionsProperty.signal.ignoreValues(),
-        self.applicationActiveProperty.signal
-      )
-      .map(second)
-      .skipRepeats()
-      .ksr_delay(.seconds(1), on: AppEnvironment.current.scheduler)
-      .filter { applicationIsActive in
-        /// Only attempt to request authorization outside of onboarding if the application is active and the user has seen the onboarding flow.
-        /// We don't want to request authorzation in the onboarding flow unless they've tapped the "all tracking" CTA.
-        let hasSeenOnboarding = AppEnvironment.current.userDefaults.hasSeenOnboarding == true
-
-        return applicationIsActive && hasSeenOnboarding
-      }
-      .map { _ in AppEnvironment.current.appTrackingTransparency }
-      .map { appTrackingTransparency in
-        if
-          appTrackingTransparency.advertisingIdentifier == nil &&
-          appTrackingTransparency.shouldRequestAuthorizationStatus() {
-          appTrackingTransparency.requestAndSetAuthorizationStatus(nil)
-        }
-        return ()
-      }
-
 
   }
 
@@ -490,6 +471,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.userDebounceTask?.cancel()
     self.userReadTask?.cancel()
     self.userRequest?.cancel()
+    self.trackingDelayTasks.values.forEach { $0.cancel() }
     self.configurationTask?.cancel()
     self.shortcutTask?.cancel()
     self.setupObservation?.cancel()
@@ -507,6 +489,31 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
   public var inputs: AppDelegateViewModelInputs { return self }
   public var outputs: AppDelegateViewModelOutputs { return self }
+
+  private func scheduleTrackingRequestIfNeeded() {
+    guard self.hasLaunchEvent, let active = self.latestActiveState,
+          self.lastScheduledActiveState != active else { return }
+    self.lastScheduledActiveState = active
+    let id = UUID()
+    let delay = self.trackingDelay
+    self.trackingDelayTasks[id] = Task { [weak self] in
+      defer { self?.trackingDelayTasks[id] = nil }
+      do {
+        try await delay()
+        try Task.checkCancellation()
+        guard active, AppEnvironment.current.userDefaults.hasSeenOnboarding else { return }
+        let tracking = AppEnvironment.current.appTrackingTransparency
+        if tracking.advertisingIdentifier == nil, tracking.shouldRequestAuthorizationStatus() {
+          tracking.requestAndSetAuthorizationStatus(nil)
+        }
+        self?.onRequestTrackingAuthorization?()
+      } catch { /* Cancellation ends pending presentation. */ }
+    }
+  }
+
+  func waitForTrackingRequests() async {
+    for task in self.trackingDelayTasks.values { await task.value }
+  }
 
   private func observeTrackingAuthorization() {
     let tracking = AppEnvironment.current.appTrackingTransparency
@@ -645,6 +652,8 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   ) {
     self.applicationDidFinishLaunchingReturnValue = launchOptions?[UIApplication.LaunchOptionsKey.shortcutItem] == nil
     self.applicationLaunchOptionsProperty.value = (application, launchOptions)
+    self.hasLaunchEvent = true
+    self.scheduleTrackingRequestIfNeeded()
     self.observeTrackingAuthorization()
     self.scheduleUserRefresh()
     self.refreshUserSetup()
@@ -665,9 +674,9 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.refreshConfiguration()
   }
 
-  fileprivate let applicationActiveProperty = MutableProperty<Bool>(false)
   public func applicationActive(state: Bool) {
-    self.applicationActiveProperty.value = state
+    self.latestActiveState = state
+    self.scheduleTrackingRequestIfNeeded()
     self.observeTrackingAuthorization()
   }
 
@@ -829,7 +838,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public let pushTokenRegistrationStarted: Signal<(), Never>
   public var onPushTokenSuccessfullyRegistered: ((String) -> Void)?
   public var onRegisterPushTokenInBraze: ((Data) -> Void)?
-  public let requestATTrackingAuthorizationStatus: Signal<Void, Never>
+  public var onRequestTrackingAuthorization: (() -> Void)?
   public var onSegmentEnabled: ((Bool) -> Void)?
   public var onSetApplicationShortcutItems: (([ShortcutItem]) -> Void)?
   public var onShowAlert: ((Notification) -> Void)?

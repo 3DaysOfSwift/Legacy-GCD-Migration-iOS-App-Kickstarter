@@ -107,7 +107,7 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   private func bindOutputs() {
-    self.vm = AppDelegateViewModel(lifecycleFeature: self.lifecycleFeature, pushDebounce: { try Task.checkCancellation() }, userDebounce: { try Task.checkCancellation() })
+    self.vm = AppDelegateViewModel(lifecycleFeature: self.lifecycleFeature, pushDebounce: { try Task.checkCancellation() }, userDebounce: { try Task.checkCancellation() }, trackingDelay: { try Task.checkCancellation() })
     self.vm.outputs.notificationSettingsUpdated.observe(self.notificationSettingsUpdated.observer)
 
     self.vm.outputs.applicationIconBadgeNumber.observe(self.applicationIconBadgeNumber.observer)
@@ -131,8 +131,9 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.outputs.pushTokenRegistrationStarted.observe(self.pushRegistrationStarted.observer)
     self.vm.outputs.onPushTokenSuccessfullyRegistered = { [weak self] in self?.pushTokenSuccessfullyRegistered.observer.send(value: $0) }
     self.vm.outputs.onRegisterPushTokenInBraze = { [weak self] in self?.registerPushTokenInBraze.observer.send(value: $0) }
-    self.vm.outputs.requestATTrackingAuthorizationStatus
-      .observe(self.requestATTrackingAuthorizationStatus.observer)
+    self.vm.outputs.onRequestTrackingAuthorization = { [weak self] in
+      self?.requestATTrackingAuthorizationStatus.observer.send(value: ())
+    }
     self.vm.outputs.onSetApplicationShortcutItems = { [weak self] in self?.setApplicationShortcutItems.observer.send(value: $0) }
     self.vm.outputs.onShowAlert = { [weak self] in self?.showAlert.observer.send(value: $0) }
     self.vm.outputs.onSegmentEnabled = { [weak self] in self?.segmentIsEnabled.observer.send(value: $0) }
@@ -2478,6 +2479,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: true)
 
       await self.scheduler.advance(by: .seconds(1))
+      await (self.vm as? AppDelegateViewModel)?.waitForTrackingRequests()
       await self.settingsFeature.waitForOperations()
 
       XCTAssertEqual(appTrackingTransparency.advertisingIdentifier, "advertisingIdentifier")
@@ -2503,6 +2505,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: true)
 
       await self.scheduler.advance(by: .seconds(1))
+      await (self.vm as? AppDelegateViewModel)?.waitForTrackingRequests()
       await self.settingsFeature.waitForOperations()
 
       XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
@@ -2528,6 +2531,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: true)
 
       await self.scheduler.advance(by: .seconds(1))
+      await (self.vm as? AppDelegateViewModel)?.waitForTrackingRequests()
       await self.settingsFeature.waitForOperations()
 
       XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
@@ -2555,6 +2559,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: true)
 
       await self.scheduler.advance(by: .seconds(1))
+      await (self.vm as? AppDelegateViewModel)?.waitForTrackingRequests()
       await self.settingsFeature.waitForOperations()
 
       XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
@@ -2769,6 +2774,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.vm.inputs.applicationActive(state: true)
 
       await self.scheduler.advance(by: .seconds(1))
+      await (self.vm as? AppDelegateViewModel)?.waitForTrackingRequests()
       await self.settingsFeature.waitForOperations()
 
       XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
