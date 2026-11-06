@@ -79,7 +79,7 @@ public final class ManagePledgeViewModel:
   private var hasLoadedView = false
   private var configuredBackingWasProvided = false
   private var currentBackingParam: Param?
-  private let paramsEvents = Signal<ManagePledgeViewParamConfigData, Never>.pipe()
+  private var rightBarHidden: Bool?
   private var currentProject: Project?
   private var currentCancellation: (Project, Backing)?
   private var currentChangePaymentMethodData: PledgeViewData?
@@ -106,10 +106,6 @@ public final class ManagePledgeViewModel:
     self.feature = feature
     let projectReadIdentity = self.projectReadIdentity
     let backingReadIdentity = self.backingReadIdentity
-    let params = self.paramsEvents.output
-
-    let shouldBeginRefresh = self.beginRefreshSignal
-
     let fetchProjectEvent = self.projectReadEvents.output
       .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
       .filter { [projectReadIdentity, feature] _, userID, generation, id in
@@ -204,13 +200,6 @@ public final class ManagePledgeViewModel:
         (project, distinctRewards([reward] + (backing.addOns ?? [])))
       }
 
-    let rightBarButtonItemHidden = Signal.merge(
-      params.mapConst(true),
-      loadPullToRefreshHeaderView.mapConst(true),
-      loadProjectAndRewardsIntoDataSource.mapConst(false)
-    )
-    .skipRepeats()
-
     let pledgeDisclaimerViewHidden = Signal.combineLatest(
       loadProjectAndRewardsIntoDataSource,
       userIsCreatorOfProject
@@ -223,11 +212,6 @@ public final class ManagePledgeViewModel:
     let pledgeDetailsSectionLabelText = userIsCreatorOfProject.map {
       $0 ? Strings.Pledge_details() : Strings.Your_pledge_details()
     }
-
-    let startRefreshing = Signal.merge(
-      params.ignoreValues(),
-      shouldBeginRefresh.ignoreValues()
-    )
 
     // MARK: - ManageViewPledgeRewardReceivedViewData
 
@@ -345,8 +329,14 @@ public final class ManagePledgeViewModel:
 
     _ = endRefreshing.observeValues { [weak self] _ in self?.onEndRefreshing?() }
     _ = fixPaymentMethodData.observeValues { [weak self] value in self?.currentFixPaymentMethodData = value }
-    _ = loadProjectAndRewardsIntoDataSource.observeValues { [weak self] first, second in self?.onLoadProjectAndRewards?(first, second) }
-    _ = loadPullToRefreshHeaderView.observeValues { [weak self] _ in self?.onLoadRefreshHeader?() }
+    _ = loadProjectAndRewardsIntoDataSource.observeValues { [weak self] first, second in
+      self?.onLoadProjectAndRewards?(first, second)
+      self?.setRightBarHidden(false)
+    }
+    _ = loadPullToRefreshHeaderView.observeValues { [weak self] _ in
+      self?.onLoadRefreshHeader?()
+      self?.setRightBarHidden(true)
+    }
     _ = notifyDelegateManagePledgeViewControllerFinishedWithMessage.observeValues { [weak self] value in self?.onFinish?(value) }
     _ = menuOptions.observeValues { [weak self] value in self?.currentMenuOptions = value }
     _ = project.observeValues { [weak self] value in self?.currentProject = value }
@@ -358,7 +348,6 @@ public final class ManagePledgeViewModel:
     }
     _ = changePaymentMethodData.observeValues { [weak self] value in self?.currentChangePaymentMethodData = value }
     _ = networkErrorMessage.observeValues { [weak self] value in self?.onShowError?(value) }
-    _ = startRefreshing.observeValues { [weak self] _ in self?.onStartRefreshing?() }
     _ = title.observeValues { [weak self] in self?.onTitle?($0) }
     _ = backing.observeValues { [weak self] backing in
       self?.onPaymentMethod?(managePledgePaymentMethodViewData(with: backing))
@@ -371,7 +360,6 @@ public final class ManagePledgeViewModel:
       self?.onPlotScheduleHidden?(!enabled)
       if enabled { self?.onPlotSchedule?(backing.paymentIncrements) }
     }
-    _ = rightBarButtonItemHidden.observeValues { [weak self] in self?.onRightBarButtonHidden?($0) }
   }
 
   private func loadBacking(_ backingID: Int) {
@@ -422,9 +410,8 @@ public final class ManagePledgeViewModel:
     }
   }
 
-  private let (beginRefreshSignal, beginRefreshObserver) = Signal<Void, Never>.pipe()
   public func beginRefresh() {
-    self.beginRefreshObserver.send(value: ())
+    self.onStartRefreshing?()
     self.fetchProjectIfNeeded()
     if let id = self.currentBackingParam?.id { self.loadBacking(id) }
   }
@@ -441,8 +428,15 @@ public final class ManagePledgeViewModel:
       self.currentBackingParam = backing
       if let id = backing.id { self.loadBacking(id) }
     }
-    self.paramsEvents.input.send(value: params)
+    self.setRightBarHidden(true)
+    self.onStartRefreshing?()
     self.fetchProjectIfNeeded()
+  }
+
+  private func setRightBarHidden(_ hidden: Bool) {
+    guard self.rightBarHidden != hidden else { return }
+    self.rightBarHidden = hidden
+    self.onRightBarButtonHidden?(hidden)
   }
 
   private func fetchProjectIfNeeded() {
