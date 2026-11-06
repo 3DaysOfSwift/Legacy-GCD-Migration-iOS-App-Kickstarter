@@ -173,9 +173,11 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     let planUseCase = self.pledgeOverTimeUseCase
     let planLoading = self.planLoadingPipe
     planUseCase.onLoading = { planLoading.input.send(value: $0) }
-    project.observeValues { planUseCase.updateProject($0) }
-    pledgeTotal.observeValues { planUseCase.updateTotal($0) }
-    context.observeValues { planUseCase.updateContext($0) }
+    initialData.observeValues { data in
+      planUseCase.updateProject(data.project)
+      if let total = PledgeAmounts(data).total { planUseCase.updateTotal(total) }
+      planUseCase.updateContext(data.context)
+    }
 
     // MARK: - Create Backing
 
@@ -479,10 +481,9 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     )
     .map { $0 as PledgeViewCTAContainerViewData }
 
-    let title: Signal<String, Never> = context.map { $0.title }
-
     _ = createBackingData.observeValues { [weak self] in self?.latestCreateBackingData = $0 }
     _ = initialData.observeValues { [weak self] data in
+      self?.onTitle?(data.context.title)
       let amounts = PledgeAmounts(data)
       let rewardsTotal = amounts.rewards
       let shippingTotal = amounts.shipping
@@ -596,7 +597,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
     _ = errorMessages.observeValues { [weak self] in self?.onShowError?($0) }
     _ = beginSCAFlowWithClientSecret.observeValues { [weak self] in self?.onBeginSCA?($0) }
     _ = goToThanks.observeValues { [weak self] in self?.onGoToThanks?($0) }
-    _ = title.observeValues { [weak self] in self?.onTitle?($0) }
     planUseCase.onShow = { [weak self] in self?.onShowPledgeOverTime?($0) }
     planUseCase.onConfig = { [weak self] data in
       requestState.selectPlan(data?.selectedPlan ?? .pledgeInFull)
