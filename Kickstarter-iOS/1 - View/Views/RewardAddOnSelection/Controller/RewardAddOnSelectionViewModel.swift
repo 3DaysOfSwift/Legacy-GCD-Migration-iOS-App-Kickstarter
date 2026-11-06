@@ -78,6 +78,10 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private var currentBaseReward: Reward?
   private var currentAddOnRewards: [Reward]?
   private var currentRewardQuantities: SelectedRewardQuantities?
+  private let pledgeTotalEvents = Signal<Double, Never>.pipe()
+  private var totalRewards: [Reward]?
+  private var totalQuantities: SelectedRewardQuantities?
+  private var totalBonus: Double?
   private var addOnsRequestID: UUID?
   deinit {
     self.addOnsTask?.cancel()
@@ -216,23 +220,7 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     .map(PledgeViewData.init)
     .takeWhen(self.continueButtonTappedProperty.signal)
 
-    let allRewardsTotal = Signal.combineLatest(
-      selectedRewards,
-      selectedQuantities
-    )
-    .map(calculateAllRewardsTotal)
-
-    let combinedPledgeTotal = Signal.combineLatest(
-      additionalPledgeAmount,
-      additionalPledgeAmount.mapConst(0),
-      allRewardsTotal
-    )
-    .map(calculatePledgeTotal)
-
-    let pledgeTotal = Signal.merge(
-      project.map { $0.personalization.backing }.skipNil().map(\.amount),
-      combinedPledgeTotal
-    )
+    let pledgeTotal = self.pledgeTotalEvents.output
 
     let attibutedPledgeTotal = Signal.combineLatest(project, pledgeTotal).map(attributedCurrency)
 
@@ -315,6 +303,23 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
         )
       }
 
+    _ = project.observeValues { [weak self] project in
+      if let amount = project.personalization.backing?.amount {
+        self?.pledgeTotalEvents.input.send(value: amount)
+      }
+    }
+    _ = selectedRewards.observeValues { [weak self] rewards in
+      self?.totalRewards = rewards
+      self?.publishPledgeTotal()
+    }
+    _ = selectedQuantities.observeValues { [weak self] quantities in
+      self?.totalQuantities = quantities
+      self?.publishPledgeTotal()
+    }
+    _ = additionalPledgeAmount.observeValues { [weak self] amount in
+      self?.totalBonus = amount
+      self?.publishPledgeTotal()
+    }
     _ = baseReward.observeValues { [weak self] reward in
       self?.currentBaseReward = reward
       self?.publishRewardSelection()
@@ -362,6 +367,15 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     _ = refreshAddons.observeValues { [weak self] data in
       self?.loadAddOns(for: data)
     }
+  }
+
+  private func publishPledgeTotal() {
+    guard let rewards = self.totalRewards, let quantities = self.totalQuantities,
+          let bonus = self.totalBonus else { return }
+    let rewardTotal = calculateAllRewardsTotal(addOnRewards: rewards, selectedQuantities: quantities)
+    self.pledgeTotalEvents.input.send(value: calculatePledgeTotal(
+      pledgeAmount: bonus, shippingCost: 0, addOnRewardsTotal: rewardTotal
+    ))
   }
 
   private func publishRewardSelection() {
