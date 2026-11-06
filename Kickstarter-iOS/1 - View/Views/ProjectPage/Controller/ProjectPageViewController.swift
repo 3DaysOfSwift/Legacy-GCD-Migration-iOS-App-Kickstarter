@@ -487,11 +487,12 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
       DispatchQueue.main.async { UIApplication.shared.open(url) }
     }
 
-    self.viewModel.outputs.prefetchImageURLs
-      .observeForUI()
-      .observeValues { [weak self] urls, indexPath in
+    self.viewModel.outputs.onPrefetchImageRow = { [weak self] data in
+      let (urls, indexPath) = data
+      DispatchQueue.main.async { [weak self] in
         self?.prefetchImageDataAndUpdateWith(indexPath, imageUrls: urls)
       }
+    }
 
     self.viewModel.outputs.onPrefetchImages = { [weak self] imageViewElements in
       DispatchQueue.main.async { [weak self] in

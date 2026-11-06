@@ -196,7 +196,7 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var onPreloadAudioVideo: (([AudioVideoViewElement]) -> Void)? { get set }
 
   /// Emits `[URL]` and `IndexPath` when the project has campaign data to download for a row
-  var prefetchImageURLs: Signal<([URL], IndexPath), Never> { get }
+  var onPrefetchImageRow: ((([URL], IndexPath)) -> Void)? { get set }
 
   /// Emits `[ImageViewElement]` when the project has campaign data to download for an image row as soon as the urls are available.
   var onPrefetchImages: (([ImageViewElement]) -> Void)? { get set }
@@ -309,6 +309,8 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   private var latestProject: Project?
   private var latestBackedProject: (Project, Backing)?
   private var latestProjectRefTag: RefTag?
+  private var latestImageElements: [ImageViewElement]?
+  private var latestImageIndexPath: IndexPath?
   private var requestRefTag: RefTag?
   internal private(set) var loadingTask: Task<Void, Never>?
 
@@ -330,28 +332,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
     let freshProject = freshProjectAndRefTag
       .map(first)
-
-    self.prefetchImageURLs = freshProject.signal
-      .compactMap { $0.extendedProjectProperties }
-      .combineLatest(with: self.prepareImageAtProperty.signal.skipNil())
-      .filterWhenLatestFrom(
-        self.projectNavigationSelectorViewDidSelectProperty.signal.skipNil(),
-        satisfies: { NavigationSection(rawValue: $0) == .campaign }
-      )
-      .switchMap { properties, indexPath -> SignalProducer<([URL], IndexPath)?, Never> in
-        let imageViewElements = properties.story.htmlViewElements
-          .compactMap { $0 as? ImageViewElement }
-
-        if imageViewElements.count > 0 {
-          let urlStrings = imageViewElements.map { $0.src }
-          let urls = urlStrings.compactMap { URL(string: $0) }
-
-          return SignalProducer(value: (urls, indexPath))
-        }
-
-        return SignalProducer(value: nil)
-      }
-      .skipNil()
 
     // Project data that is passed when the ProjectPageViewController is initialized.
     // Used to show the Project overview page while we re-fetch the rest of the project data.
@@ -630,6 +610,8 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
           self.onProjectFlagged?(project.flagging ?? false)
           completion.input.send(value: .value((project, self.requestRefTag)))
           if let elements = project.extendedProjectProperties?.story.htmlViewElements {
+            self.latestImageElements = elements.compactMap { $0 as? ImageViewElement }
+            self.prefetchImageRowIfNeeded()
             self.onPrefetchImages?(elements.compactMap { $0 as? ImageViewElement })
             self.onPreloadAudioVideo?(elements.compactMap { $0 as? AudioVideoViewElement })
           }
@@ -775,9 +757,17 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     self.loadProject(force: false)
   }
 
-  private let prepareImageAtProperty = MutableProperty<IndexPath?>(nil)
   public func prepareImageAt(_ indexPath: IndexPath) {
-    self.prepareImageAtProperty.value = indexPath
+    self.latestImageIndexPath = indexPath
+    self.prefetchImageRowIfNeeded()
+  }
+
+  private func prefetchImageRowIfNeeded() {
+    guard let section = self.projectNavigationSelectorViewDidSelectProperty.value,
+          NavigationSection(rawValue: section) == .campaign,
+          let indexPath = self.latestImageIndexPath,
+          let elements = self.latestImageElements, !elements.isEmpty else { return }
+    self.onPrefetchImageRow?((elements.compactMap { URL(string: $0.src) }, indexPath))
   }
 
   public func prepareAudioVideoAt(_ indexPath: IndexPath, with audioVideoViewElement: AudioVideoViewElement) {
@@ -866,7 +856,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   public var onPresentMessageDialog: ((Project) -> Void)?
   public var onPrepareAudioVideo: (((AudioVideoViewElement, IndexPath)) -> Void)?
   public var onPreloadAudioVideo: (([AudioVideoViewElement]) -> Void)?
-  public let prefetchImageURLs: Signal<([URL], IndexPath), Never>
+  public var onPrefetchImageRow: ((([URL], IndexPath)) -> Void)?
   public var onPrefetchImages: (([ImageViewElement]) -> Void)?
   public var onProjectFlagged: ((Bool) -> Void)?
   public var onReloadCampaignData: (() -> Void)?
