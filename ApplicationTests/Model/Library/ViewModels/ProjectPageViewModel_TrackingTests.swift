@@ -529,7 +529,7 @@ final class ProjectPageViewModel_TrackingTests: TestCase {
 
       self.vm.inputs.blockUser(id: 111)
 
-      await self.vm.loadingTask?.value
+      await self.vm.waitForBlocking()
 
       await self.scheduler.advance()
 

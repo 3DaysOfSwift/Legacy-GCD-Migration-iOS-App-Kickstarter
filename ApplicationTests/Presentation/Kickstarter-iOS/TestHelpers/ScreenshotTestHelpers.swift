@@ -145,7 +145,7 @@ internal func assertSnapshot(
 
     controller.overrideUserInterfaceStyle = type.style
 
-    if let testScheduler = AppEnvironment.current.scheduler as? TestScheduler {
+    if let testScheduler = TestSchedulerContext.current as? TestScheduler {
       testScheduler.run()
     }
 
@@ -252,7 +252,7 @@ internal func assertSnapshot(
     parent.view.frame.size = targetSize
     containerController.view.frame.size = targetSize
 
-    if let testScheduler = AppEnvironment.current.scheduler as? TestScheduler {
+    if let testScheduler = TestSchedulerContext.current as? TestScheduler {
       testScheduler.run()
     }
     parent.view.setNeedsLayout()

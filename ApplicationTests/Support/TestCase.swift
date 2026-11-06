@@ -57,6 +57,7 @@ class TestCase: XCTestCase {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: "GMT")!
 
+    TestSchedulerContext.current = self.scheduler
     AppEnvironment.pushEnvironment(
       apiService: self.apiService,
       apiDelayInterval: .seconds(0),
@@ -87,7 +88,6 @@ class TestCase: XCTestCase {
       pushRegistrationType: MockPushRegistration.self,
       reachability: self.reachability,
       remoteConfigClient: self.remoteConfigClient,
-      scheduler: self.scheduler,
       ubiquitousStore: self.ubiquitousStore,
       userDefaults: self.userDefaults,
       uuidType: self.uuidType
@@ -100,6 +100,7 @@ class TestCase: XCTestCase {
 
   override func tearDown() async throws {
     AppEnvironment.popEnvironment()
+    TestSchedulerContext.current = QueueScheduler.main
     try await super.tearDown()
   }
 

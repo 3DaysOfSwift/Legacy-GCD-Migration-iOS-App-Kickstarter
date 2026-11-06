@@ -4,7 +4,6 @@ import Experimentation
 import FacebookCore
 import Foundation
 import KsApi
-import ReactiveSwift
 
 /**
  A collection of **all** global variables and singletons that the app wants access to.
@@ -109,10 +108,6 @@ public struct Environment {
   /// The remote config client
   public let remoteConfigClient: RemoteConfigClientType?
 
-  /// A scheduler to use for all time-based RAC operators. Default value is
-  /// `QueueScheduler.mainQueueScheduler`.
-  public let scheduler: DateScheduler
-
   public let statsigClient: StatsigClientType?
 
   /// A ubiquitous key-value store. Default value is `NSUbiquitousKeyValueStore.default`.
@@ -157,7 +152,6 @@ public struct Environment {
     pushRegistrationType: PushRegistrationType.Type = PushRegistration.self,
     reachability: ConnectivityState = AppModel.shared.appLifecycleFeature.connectivitySource,
     remoteConfigClient: RemoteConfigClientType? = nil,
-    scheduler: DateScheduler = QueueScheduler.main,
     statsigClient: StatsigClientType? = nil,
     ubiquitousStore: KeyValueStoreType = NSUbiquitousKeyValueStore.default,
     userDefaults: KeyValueStoreType = UserDefaults.standard,
@@ -194,7 +188,6 @@ public struct Environment {
     self.pushRegistrationType = pushRegistrationType
     self.reachability = reachability
     self.remoteConfigClient = remoteConfigClient
-    self.scheduler = scheduler
     self.statsigClient = statsigClient
     self.ubiquitousStore = ubiquitousStore
     self.userDefaults = userDefaults

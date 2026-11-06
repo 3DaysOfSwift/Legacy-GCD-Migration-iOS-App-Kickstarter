@@ -7,6 +7,11 @@ import ReactiveSwift
 import XCTest
 
 @MainActor
+internal enum TestSchedulerContext {
+  static var current: DateScheduler = QueueScheduler.main
+}
+
+@MainActor
 extension XCTestCase {
   // Pushes an environment onto the stack, executes a closure, and then pops the environment from the stack.
   func withEnvironment(_ env: Environment, body: () -> Void) {
@@ -44,13 +49,16 @@ extension XCTestCase {
     mainBundle: NSBundleType = AppEnvironment.current.mainBundle,
     pushRegistrationType: PushRegistrationType.Type = AppEnvironment.current.pushRegistrationType,
     remoteConfigClient: RemoteConfigClientType? = AppEnvironment.current.remoteConfigClient,
-    scheduler: DateScheduler = AppEnvironment.current.scheduler,
+    scheduler: DateScheduler = TestSchedulerContext.current,
     statsigClient: StatsigClientType? = AppEnvironment.current.statsigClient,
     ubiquitousStore: KeyValueStoreType = AppEnvironment.current.ubiquitousStore,
     userDefaults: KeyValueStoreType = AppEnvironment.current.userDefaults,
     uuidType: UUIDType.Type = AppEnvironment.current.uuidType,
     body: () -> Void
   ) {
+    let previousScheduler = TestSchedulerContext.current
+    TestSchedulerContext.current = scheduler
+    defer { TestSchedulerContext.current = previousScheduler }
     self.withEnvironment(
       Environment(
         apiService: apiService,
@@ -80,7 +88,6 @@ extension XCTestCase {
         mainBundle: mainBundle,
         pushRegistrationType: pushRegistrationType,
         remoteConfigClient: remoteConfigClient,
-        scheduler: scheduler,
         statsigClient: statsigClient,
         ubiquitousStore: ubiquitousStore,
         userDefaults: userDefaults,
@@ -132,13 +139,16 @@ extension XCTestCase {
     mainBundle: NSBundleType = AppEnvironment.current.mainBundle,
     pushRegistrationType: PushRegistrationType.Type = AppEnvironment.current.pushRegistrationType,
     remoteConfigClient: RemoteConfigClientType? = AppEnvironment.current.remoteConfigClient,
-    scheduler: DateScheduler = AppEnvironment.current.scheduler,
+    scheduler: DateScheduler = TestSchedulerContext.current,
     statsigClient: StatsigClientType? = AppEnvironment.current.statsigClient,
     ubiquitousStore: KeyValueStoreType = AppEnvironment.current.ubiquitousStore,
     userDefaults: KeyValueStoreType = AppEnvironment.current.userDefaults,
     uuidType: UUIDType.Type = AppEnvironment.current.uuidType,
     body: @MainActor () async -> Void
   ) async {
+    let previousScheduler = TestSchedulerContext.current
+    TestSchedulerContext.current = scheduler
+    defer { TestSchedulerContext.current = previousScheduler }
     await self.withEnvironment(
       Environment(
         apiService: apiService,
@@ -168,7 +178,6 @@ extension XCTestCase {
         mainBundle: mainBundle,
         pushRegistrationType: pushRegistrationType,
         remoteConfigClient: remoteConfigClient,
-        scheduler: scheduler,
         statsigClient: statsigClient,
         ubiquitousStore: ubiquitousStore,
         userDefaults: userDefaults,

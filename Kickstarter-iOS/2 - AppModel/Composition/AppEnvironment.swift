@@ -4,7 +4,6 @@ import FirebaseCrashlytics
 import Foundation
 import KsApi
 import Prelude
-import ReactiveSwift
 
 /**
  A global stack that captures the current state of global objects that the app wants access to.
@@ -232,7 +231,6 @@ public struct AppEnvironment: AppEnvironmentType {
     pushRegistrationType: PushRegistrationType.Type = AppEnvironment.current.pushRegistrationType,
     reachability: ConnectivityState = AppEnvironment.current.reachability,
     remoteConfigClient: RemoteConfigClientType? = AppEnvironment.current.remoteConfigClient,
-    scheduler: DateScheduler = AppEnvironment.current.scheduler,
     statsigClient: StatsigClientType? = AppEnvironment.current.statsigClient,
     ubiquitousStore: KeyValueStoreType = AppEnvironment.current.ubiquitousStore,
     userDefaults: KeyValueStoreType = AppEnvironment.current.userDefaults,
@@ -267,7 +265,6 @@ public struct AppEnvironment: AppEnvironmentType {
         pushRegistrationType: pushRegistrationType,
         reachability: reachability,
         remoteConfigClient: remoteConfigClient,
-        scheduler: scheduler,
         statsigClient: statsigClient,
         ubiquitousStore: ubiquitousStore,
         userDefaults: userDefaults,
@@ -309,7 +306,6 @@ public struct AppEnvironment: AppEnvironmentType {
     pushRegistrationType: PushRegistrationType.Type = AppEnvironment.current.pushRegistrationType,
     reachability: ConnectivityState = AppEnvironment.current.reachability,
     remoteConfigClient: RemoteConfigClientType? = AppEnvironment.current.remoteConfigClient,
-    scheduler: DateScheduler = AppEnvironment.current.scheduler,
     statsigClient: StatsigClientType? = AppEnvironment.current.statsigClient,
     ubiquitousStore: KeyValueStoreType = AppEnvironment.current.ubiquitousStore,
     userDefaults: KeyValueStoreType = AppEnvironment.current.userDefaults,
@@ -347,7 +343,6 @@ public struct AppEnvironment: AppEnvironmentType {
         pushRegistrationType: pushRegistrationType,
         reachability: reachability,
         remoteConfigClient: remoteConfigClient,
-        scheduler: scheduler,
         statsigClient: statsigClient,
         ubiquitousStore: ubiquitousStore,
         userDefaults: userDefaults,
