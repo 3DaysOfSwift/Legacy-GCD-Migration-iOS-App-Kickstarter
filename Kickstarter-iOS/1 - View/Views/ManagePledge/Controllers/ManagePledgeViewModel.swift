@@ -77,6 +77,8 @@ public final class ManagePledgeViewModel:
   private var projectHasLoaded = false
   private var configuredParams: ManagePledgeViewParamConfigData?
   private var hasLoadedView = false
+  private var configuredBackingWasProvided = false
+  private var currentBackingParam: Param?
   private let paramsEvents = Signal<ManagePledgeViewParamConfigData, Never>.pipe()
   private var currentProject: Project?
   private var currentCancellation: (Project, Backing)?
@@ -116,24 +118,14 @@ public final class ManagePledgeViewModel:
       .map { event, _, _, _ in event }
 
     let initialProject = fetchProjectEvent.values()
-      .on(value: { [weak self] _ in self?.projectHasLoaded = true })
-
-    let backingParamFromConfigData = params.map(second)
-      .skipNil()
-    let backingParamFromProject = initialProject.map { $0.personalization.backing?.id }
-      .skipNil()
-      .map(Param.id)
-
-    let backingParam = Signal.merge(
-      backingParamFromConfigData,
-      backingParamFromProject
-        .take(until: backingParamFromConfigData.ignoreValues())
-    )
-
-    let shouldFetchGraphBackingWithParam = Signal.merge(
-      backingParam,
-      backingParam.takeWhen(shouldBeginRefresh)
-    )
+      .on(value: { [weak self] project in
+        guard let self else { return }
+        self.projectHasLoaded = true
+        if !self.configuredBackingWasProvided, let id = project.personalization.backing?.id {
+          self.currentBackingParam = .id(id)
+          self.loadBacking(id)
+        }
+      })
 
     let graphBackingEvent = self.backingReadEvents.output
       .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
@@ -380,8 +372,6 @@ public final class ManagePledgeViewModel:
       if enabled { self?.onPlotSchedule?(backing.paymentIncrements) }
     }
     _ = rightBarButtonItemHidden.observeValues { [weak self] in self?.onRightBarButtonHidden?($0) }
-    _ = shouldFetchGraphBackingWithParam.map(\.id).skipNil()
-      .observeValues { [weak self] id in self?.loadBacking(id) }
   }
 
   private func loadBacking(_ backingID: Int) {
@@ -436,6 +426,7 @@ public final class ManagePledgeViewModel:
   public func beginRefresh() {
     self.beginRefreshObserver.send(value: ())
     self.fetchProjectIfNeeded()
+    if let id = self.currentBackingParam?.id { self.loadBacking(id) }
   }
 
   public func configureWith(_ params: ManagePledgeViewParamConfigData) {
@@ -445,6 +436,11 @@ public final class ManagePledgeViewModel:
 
   private func publishParamsWhenReady() {
     guard self.hasLoadedView, let params = self.configuredParams else { return }
+    if let backing = params.backingParam {
+      self.configuredBackingWasProvided = true
+      self.currentBackingParam = backing
+      if let id = backing.id { self.loadBacking(id) }
+    }
     self.paramsEvents.input.send(value: params)
     self.fetchProjectIfNeeded()
   }
