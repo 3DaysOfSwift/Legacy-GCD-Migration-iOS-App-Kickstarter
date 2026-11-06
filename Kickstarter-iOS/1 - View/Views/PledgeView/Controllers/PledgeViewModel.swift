@@ -220,65 +220,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       context.map { $0.confirmationLabelHidden }
     )
 
-    // The selected shipping rule, if present, is always the most up-to-date shipping information.
-    // If not present, get shipping location from the backing instead.
-    let shippingLocation: Signal<String?, Never> = Signal.combineLatest(project, selectedShippingRule)
-      .map { project, shippingRule in
-        if let shippingRule {
-          return shippingRule.location.localizedName
-        }
-        if let backing = project.personalization.backing {
-          return backing.locationName
-        }
-        return nil
-      }
-
-    let shippingSummaryViewDataNonnil = Signal.combineLatest(
-      shippingLocation.skipNil(),
-      project.map { $0.stats.omitUSCurrencyCode },
-      project.map { $0.stats.projectCurrency },
-      allRewardsShippingTotal
-    )
-    .map(PledgeShippingSummaryViewData.init)
-
-    let shippingSummaryViewData = Signal.merge(
-      shippingSummaryViewDataNonnil.wrapInOptional(),
-      shippingLocation.filter(isNil).mapConst(nil)
-    )
-
-    let pledgeRewardsSummary = Signal.combineLatest(
-      initialData,
-      pledgeTotal,
-      additionalPledgeAmount,
-      shippingSummaryViewData,
-      rewards
-    )
-    .compactMap { data, pledgeTotal, additionalPledgeAmount, shipping, rewards in
-      // This view controller isn't currently used for late pledges and fix payment method should
-      // only happen for crowdfunding pledges, but calculating this just in case.
-      let isLatePledge = data.context == .latePledge ||
-        (
-          data.context == .fixPaymentMethod &&
-            data.project.personalization.backing?.isLatePledge == true
-        )
-
-      let rewardsData = PostCampaignRewardsSummaryViewData(
-        rewards: data.rewards,
-        selectedQuantities: data.selectedQuantities,
-        currencyCode: data.project.statsCurrency,
-        omitCurrencyCode: data.project.stats.omitUSCurrencyCode,
-        shipping: shipping,
-        useLatePledgeCosts: isLatePledge
-      )
-      let pledgeData = PledgeSummaryViewData(
-        project: data.project,
-        total: pledgeTotal,
-        confirmationLabelHidden: false,
-        pledgeHasNoReward: pledgeHasNoRewards(rewards: rewards)
-      )
-      return (rewardsData, additionalPledgeAmount, pledgeData)
-    }
-
     let configurePaymentMethodsViewController = Signal.merge(
       initialDataUnpacked,
       initialDataUnpacked.takeWhen(self.loginSessionPipe.output)
@@ -817,6 +758,34 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
         )
       }
     _ = initialData.observeValues { [weak self] data in
+      let rewardsTotal = data.context == .fixPaymentMethod
+        ? (data.project.personalization.backing?.rewardsAmount ?? calculateAllRewardsTotal(
+          addOnRewards: data.rewards, selectedQuantities: data.selectedQuantities
+        ))
+        : calculateAllRewardsTotal(addOnRewards: data.rewards, selectedQuantities: data.selectedQuantities)
+      let shippingTotal = data.selectedShippingRule.map {
+        calculateShippingTotal(shippingRule: $0, addOnRewards: data.rewards, quantities: data.selectedQuantities)
+      } ?? data.project.personalization.backing?.shippingAmount ?? 0
+      let bonusAmount = data.bonusSupport ?? data.project.personalization.backing?.bonusAmount ?? 0
+      let total: Double? = data.context == .fixPaymentMethod
+        ? data.project.personalization.backing?.amount
+        : calculatePledgeTotal(pledgeAmount: bonusAmount, shippingCost: shippingTotal, addOnRewardsTotal: rewardsTotal)
+      let locationName = data.selectedShippingRule?.location.localizedName ?? data.project.personalization.backing?.locationName
+      let shippingSummary = locationName.map {
+        PledgeShippingSummaryViewData(locationName: $0, omitUSCurrencyCode: data.project.stats.omitUSCurrencyCode,
+                                      currencyCode: data.project.stats.projectCurrency, total: shippingTotal)
+      }
+      if let total {
+        let rewardsData = PostCampaignRewardsSummaryViewData(
+          rewards: data.rewards, selectedQuantities: data.selectedQuantities, currencyCode: data.project.statsCurrency,
+          omitCurrencyCode: data.project.stats.omitUSCurrencyCode, shipping: shippingSummary,
+          useLatePledgeCosts: data.context == .latePledge ||
+            (data.context == .fixPaymentMethod && data.project.personalization.backing?.isLatePledge == true)
+        )
+        let pledgeData = PledgeSummaryViewData(project: data.project, total: total, confirmationLabelHidden: false,
+                                               pledgeHasNoReward: pledgeHasNoRewards(rewards: data.rewards))
+        self?.onPledgeRewardsSummary?(rewardsData, bonusAmount, pledgeData)
+      }
       if let reward = data.rewards.first {
         let locationHidden = data.context.shippingLocationViewHidden || !reward.shipping.enabled || data.rewards.count > 1
         let summaryHidden = data.context.isAny(of: .changePaymentMethod, .fixPaymentMethod) ||
@@ -861,7 +830,6 @@ public class PledgeViewModel: PledgeViewModelType, PledgeViewModelInputs,
       )
     }
     _ = applePayAuthorization.observeValues { [weak self] in self?.onApplePayAuthorization?($0) }
-    _ = pledgeRewardsSummary.observeValues { [weak self] in self?.onPledgeRewardsSummary?($0.0, $0.1, $0.2) }
     _ = pledgeCTA.observeValues { [weak self] in self?.onPledgeCTA?($0) }
     processingState.onChange = { [weak self] in self?.onProcessingHidden?($0) }
     self.createObservation = createBackingRequests.observeValues { [weak self] input in
