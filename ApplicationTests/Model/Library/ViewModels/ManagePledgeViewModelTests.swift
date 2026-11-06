@@ -112,6 +112,24 @@ internal final class ManagePledgeViewModelTests: TestCase {
     await self.pledgeFeature.waitForOperations()
   }
 
+  func testLoadsWhenConfiguredAfterViewDidLoad() async {
+    let mockService = MockService(
+      fetchManagePledgeViewBackingResult: .success(.template),
+      fetchProjectResult: .success(.template),
+      fetchProjectRewardsAndPledgeOverTimeDataResult: .success(self.rewardsAndPledgeOverTimeEnvelope())
+    )
+
+    await withEnvironment(apiService: mockService) {
+      self.vm.inputs.viewDidLoad()
+      self.title.assertDidNotEmitValue()
+      self.vm.inputs.configureWith((Param.slug("project-slug"), Param.id(1)))
+      await self.advancePledges()
+      self.title.assertValues(["Manage your pledge"])
+      await self.pledgeFeature.waitForOperations()
+    }
+    await self.pledgeFeature.waitForOperations()
+  }
+
   func testNavigationBarTitle_FinishedProject() async {
     self.title.assertDidNotEmitValue()
 

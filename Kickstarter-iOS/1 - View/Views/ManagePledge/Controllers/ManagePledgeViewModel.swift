@@ -75,6 +75,9 @@ public final class ManagePledgeViewModel:
   private let feature: PledgeFeature
   private var currentMenuOptions: [ManagePledgeAlertAction]?
   private var projectHasLoaded = false
+  private var configuredParams: ManagePledgeViewParamConfigData?
+  private var hasLoadedView = false
+  private let paramsEvents = Signal<ManagePledgeViewParamConfigData, Never>.pipe()
   private var currentProject: Project?
   private var currentCancellation: (Project, Backing)?
   private var currentChangePaymentMethodData: PledgeViewData?
@@ -101,11 +104,7 @@ public final class ManagePledgeViewModel:
     self.feature = feature
     let projectReadIdentity = self.projectReadIdentity
     let backingReadIdentity = self.backingReadIdentity
-    let params = Signal.combineLatest(
-      self.configureWithProjectOrParamSignal,
-      self.viewDidLoadSignal
-    )
-    .map(first)
+    let params = self.paramsEvents.output
 
     let projectParam = params.map(first)
 
@@ -449,10 +448,14 @@ public final class ManagePledgeViewModel:
     self.beginRefreshObserver.send(value: ())
   }
 
-  private let (configureWithProjectOrParamSignal, configureWithProjectOrParamObserver)
-    = Signal<ManagePledgeViewParamConfigData, Never>.pipe()
   public func configureWith(_ params: ManagePledgeViewParamConfigData) {
-    self.configureWithProjectOrParamObserver.send(value: params)
+    self.configuredParams = params
+    self.publishParamsWhenReady()
+  }
+
+  private func publishParamsWhenReady() {
+    guard self.hasLoadedView, let params = self.configuredParams else { return }
+    self.paramsEvents.input.send(value: params)
   }
 
   public func cancelPledgeDidFinish(with message: String) {
@@ -500,9 +503,9 @@ public final class ManagePledgeViewModel:
     self.onShowSuccess?(message)
   }
 
-  private let (viewDidLoadSignal, viewDidLoadObserver) = Signal<(), Never>.pipe()
   public func viewDidLoad() {
-    self.viewDidLoadObserver.send(value: ())
+    self.hasLoadedView = true
+    self.publishParamsWhenReady()
   }
 
   public var onPaymentMethod: ((ManagePledgePaymentMethodViewData) -> Void)?
