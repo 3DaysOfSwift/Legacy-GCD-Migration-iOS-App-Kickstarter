@@ -133,7 +133,7 @@ final class ProjectPageViewModelTests: TestCase {
         .observe(self.precreateAudioVideoURLsFirstLoad.observer)
       self.vm.outputs.prefetchImageURLs.observe(self.prefetchImageURLs.observer)
       self.vm.outputs.prefetchImageURLsOnFirstLoad.observe(self.prefetchImageURLsFirstLoad.observer)
-      self.vm.outputs.projectFlagged.observe(self.projectFlagged.observer)
+      self.vm.outputs.onProjectFlagged = { [weak self] in self?.projectFlagged.observer.send(value: $0) }
       self.vm.outputs.onReloadCampaignData = { [weak self] in self?.reloadCampaignData.observer.send(value: ()) }
       self.vm.outputs.onShowHelp = { [weak self] in self?.showHelpWebViewController.observer.send(value: $0) }
       self.vm.outputs.showProjectPageTabWithData.map { $0.0 }

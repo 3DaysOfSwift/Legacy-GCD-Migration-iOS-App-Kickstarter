@@ -202,7 +202,7 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var prefetchImageURLsOnFirstLoad: Signal<[ImageViewElement], Never> { get }
 
   /// Emits a `Bool` when a project is flagged.
-  var projectFlagged: Signal<Bool, Never> { get }
+  var onProjectFlagged: ((Bool) -> Void)? { get set }
 
   /// Emits a signal when an orientation change happens if the currently selected tab is campaign.
   var onReloadCampaignData: (() -> Void)? { get set }
@@ -333,9 +333,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
     let freshProject = freshProjectAndRefTag
       .map(first)
-
-    self.projectFlagged = freshProject.signal
-      .map { $0.flagging ?? false }
 
     self.prefetchImageURLs = freshProject.signal
       .compactMap { $0.extendedProjectProperties }
@@ -732,6 +729,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         switch result {
         case let .success(project):
           self.latestProject = project
+          self.onProjectFlagged?(project.flagging ?? false)
           completion.input.send(value: .value((project, requestRefTag)))
         case let .failure(error): completion.input.send(value: .failed(error))
         }
@@ -959,7 +957,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   public let precreateAudioVideoURLsOnFirstLoad: Signal<[AudioVideoViewElement], Never>
   public let prefetchImageURLs: Signal<([URL], IndexPath), Never>
   public let prefetchImageURLsOnFirstLoad: Signal<[ImageViewElement], Never>
-  public let projectFlagged: Signal<Bool, Never>
+  public var onProjectFlagged: ((Bool) -> Void)?
   public var onReloadCampaignData: (() -> Void)?
   public var onShowHelp: ((HelpType) -> Void)?
   public let showProjectPageTabWithData: Signal<
