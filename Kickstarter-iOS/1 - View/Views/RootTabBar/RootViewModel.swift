@@ -121,7 +121,7 @@ public protocol RootViewModelOutputs: AnyObject {
   var onSelectedIndex: ((RootViewControllerIndex) -> Void)? { get set }
 
   /// Emits the badge value to be set at a particular tab index
-  var setBadgeValueAtIndex: Signal<RootTabBarItemBadgeValueData, Never> { get }
+  var onSetBadgeValue: ((RootTabBarItemBadgeValueData) -> Void)? { get set }
 
   /// Emits the array of view controllers that should be set on the tab bar.
   var setViewControllers: Signal<[RootViewControllerData], Never> { get }
@@ -149,6 +149,9 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   private var sessionFeature: SessionFeature { self.profileFeature.sessionFeature }
   private var latestSelectedIndex: RootViewControllerIndex?
   private var discoveryIndex: RootViewControllerIndex?
+  private var activityIndex: RootViewControllerIndex?
+  private var currentBadgeValue: String?
+  private var lastBadgeInput: (Int?, RootViewControllerIndex)?
   private var avatarTask: Task<Void, Never>?
   private var avatarID: UUID?
   private var avatarInput: (URL, Int, Int)?
@@ -174,10 +177,6 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
       }
       .skipRepeats(==)
 
-    let lifecycleEvents = Signal.merge(
-      self.viewDidLoadProperty.signal,
-      self.applicationWillEnterForegroundSignal
-    )
 
     /// This flag allows us to control the refresh of the tab bar when toggling on the Remote Config floating tab bar FF.
     /// On first launch we intentionally default to the standard tab bar.
@@ -256,72 +255,6 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
     )
     .map { idx, vcs, _ in clamp(0, vcs.count - 1)(idx) }
 
-    let activityViewControllerIndex = self.setViewControllers
-      .map { $0.firstIndex(where: \.isActivity) }
-      .skipNil()
-      .map { $0 as RootViewControllerIndex }
-
-    let updateBadgeValueOnLifecycleEvents = activityViewControllerIndex
-      .takeWhen(lifecycleEvents)
-      .map { index -> (Int?, RootViewControllerIndex) in
-        (AppEnvironment.current.application.applicationIconBadgeNumber, index)
-      }
-
-    let selectedIndexAndActivityViewControllerIndex = Signal.combineLatest(
-      selectedIndex,
-      activityViewControllerIndex
-    )
-
-    let badgeValueOnUserUpdated = self.currentUserUpdatedProperty.signal
-      .map { _ in currentUserActivitiesAndErroredPledgeCount() }
-      .wrapInOptional()
-
-    let updateBadgeValueFromNotification = selectedIndexAndActivityViewControllerIndex
-      .takePairWhen(self.didReceiveBadgeValueSignal)
-
-    let updateBadgeValueOnUserUpdated = selectedIndexAndActivityViewControllerIndex
-      .takePairWhen(badgeValueOnUserUpdated)
-
-    let updateBadgeValueOnUserUpdatedOrFromNotification = Signal.merge(
-      updateBadgeValueOnUserUpdated,
-      updateBadgeValueFromNotification
-    )
-    .map(unpack)
-    .map { _, index, value in (value, index) }
-
-    let clearBadgeValueOnUserSessionEnded = activityViewControllerIndex
-      .takePairWhen(self.userSessionEndedProperty.signal)
-      .map { index, _ -> (Int?, RootViewControllerIndex) in (nil, index) }
-
-    let currentBadgeValue = MutableProperty<String?>(nil)
-
-    let clearBadgeValueOnActivitiesTabSelected = selectedIndexAndActivityViewControllerIndex.filter(==)
-      .flatMap { _, index in currentBadgeValue.producer.map { ($0, index) }.take(first: 1) }
-      .filter { value, _ in value != nil }
-      .map { _, index -> (Int?, RootViewControllerIndex) in
-        (AppEnvironment.current.currentUser?.erroredBackingsCount, index)
-      }
-
-    let integerBadgeValueAndIndex = Signal.merge(
-      updateBadgeValueOnLifecycleEvents,
-      updateBadgeValueOnUserUpdatedOrFromNotification,
-      clearBadgeValueOnUserSessionEnded,
-      clearBadgeValueOnActivitiesTabSelected
-    )
-
-    self.setBadgeValueAtIndex = Signal.merge(
-      integerBadgeValueAndIndex,
-      integerBadgeValueAndIndex.takeWhen(self.voiceOverStatusDidChangeProperty.signal)
-    )
-    .map { value, index in
-      let hasPPOAction = AppEnvironment.current.currentUserPPOSettings?.hasAction ?? false
-      return (activitiesBadgeValue(with: value, hasPPOAction: hasPPOAction), index)
-    }
-
-    currentBadgeValue <~ self.setBadgeValueAtIndex.map { $0.0 }
-
-
-
     // FIXME: This signal always needs to happen when setViewControllers happens.
     // Should they be combined into one signal with a tuple? Explicitly made dependent on one another?
     // See https://kickstarter.atlassian.net/browse/MBL-2053
@@ -386,15 +319,33 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
       }
 
     self.setViewControllers.observeValues { [weak self] controllers in
-      if let index = controllers.firstIndex(of: .discovery) { self?.discoveryIndex = index }
+      guard let self else { return }
+      if let index = controllers.firstIndex(of: .discovery) { self.discoveryIndex = index }
+      if let index = controllers.firstIndex(where: \.isActivity) {
+        self.activityIndex = index
+        self.clearBadgeIfActivitySelected()
+      }
     }
     selectedIndex.observeValues { [weak self] index in
       self?.latestSelectedIndex = index
       self?.onSelectedIndex?(index)
+      self?.clearBadgeIfActivitySelected()
     }
-    clearBadgeValueOnActivitiesTabSelected.observeValues { [weak self] _ in
-      self?.clearActivityBadge()
-    }
+  }
+
+  private func updateBadge(_ value: Int?, index: RootViewControllerIndex) {
+    self.lastBadgeInput = (value, index)
+    let hasPPOAction = AppEnvironment.current.currentUserPPOSettings?.hasAction ?? false
+    let displayed = activitiesBadgeValue(with: value, hasPPOAction: hasPPOAction)
+    self.currentBadgeValue = displayed
+    self.onSetBadgeValue?((displayed, index))
+  }
+
+  private func clearBadgeIfActivitySelected() {
+    guard let activityIndex = self.activityIndex, self.latestSelectedIndex == activityIndex,
+          self.currentBadgeValue != nil else { return }
+    self.updateBadge(AppEnvironment.current.currentUser?.erroredBackingsCount, index: activityIndex)
+    self.clearActivityBadge()
   }
 
   private func clearActivityBadge() {
@@ -477,17 +428,24 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   private let (applicationWillEnterForegroundSignal, applicationWillEnterForegroundObserver)
     = Signal<(), Never>.pipe()
   public func applicationWillEnterForeground() {
+    let previousIndex = self.activityIndex
     self.applicationWillEnterForegroundObserver.send(value: ())
+    if let index = previousIndex {
+      self.updateBadge(AppEnvironment.current.application.applicationIconBadgeNumber, index: index)
+    }
   }
 
   fileprivate let currentUserUpdatedProperty = MutableProperty(())
   public func currentUserUpdated() {
     self.currentUserUpdatedProperty.value = ()
+    if self.latestSelectedIndex != nil, let index = self.activityIndex {
+      self.updateBadge(currentUserActivitiesAndErroredPledgeCount(), index: index)
+    }
   }
 
-  private let (didReceiveBadgeValueSignal, didReceiveBadgeValueObserver) = Signal<Int?, Never>.pipe()
   public func didReceiveBadgeValue(_ value: Int?) {
-    self.didReceiveBadgeValueObserver.send(value: value)
+    guard self.latestSelectedIndex != nil, let index = self.activityIndex else { return }
+    self.updateBadge(value, index: index)
   }
 
   fileprivate let didSelectIndexProperty = MutableProperty(0)
@@ -539,22 +497,26 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   fileprivate let userSessionEndedProperty = MutableProperty(())
   public func userSessionEnded() {
     self.userSessionEndedProperty.value = ()
+    if let index = self.activityIndex { self.updateBadge(nil, index: index) }
   }
 
   fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
+    let previousIndex = self.activityIndex
     self.viewDidLoadProperty.value = ()
+    if let index = previousIndex {
+      self.updateBadge(AppEnvironment.current.application.applicationIconBadgeNumber, index: index)
+    }
   }
 
-  fileprivate let voiceOverStatusDidChangeProperty = MutableProperty(())
   public func voiceOverStatusDidChange() {
-    self.voiceOverStatusDidChangeProperty.value = ()
+    if let (value, index) = self.lastBadgeInput { self.updateBadge(value, index: index) }
   }
 
   public var onFilterDiscovery: (((RootViewControllerIndex, DiscoveryParams)) -> Void)?
   public var onScrollToTop: ((RootViewControllerIndex) -> Void)?
   public var onSelectedIndex: ((RootViewControllerIndex) -> Void)?
-  public let setBadgeValueAtIndex: Signal<RootTabBarItemBadgeValueData, Never>
+  public var onSetBadgeValue: ((RootTabBarItemBadgeValueData) -> Void)?
   public let setViewControllers: Signal<[RootViewControllerData], Never>
   public let tabBarItemsData: Signal<TabBarItemsData, Never>
   public var onUserUpdated: ((User) -> Void)?

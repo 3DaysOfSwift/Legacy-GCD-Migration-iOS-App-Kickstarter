@@ -146,11 +146,10 @@ public final class RootTabBarViewController: UITabBarController, MessageBannerVi
       }
     }
 
-    self.viewModel.outputs.setBadgeValueAtIndex
-      .observeForUI()
-      .observeValues { [weak self] value, index in
-        self?.tabBarItem(atIndex: index)?.badgeValue = value
-      }
+    self.viewModel.outputs.onSetBadgeValue = { [weak self] data in
+      let (value, index) = data
+      DispatchQueue.main.async { [weak self] in self?.tabBarItem(atIndex: index)?.badgeValue = value }
+    }
   }
 
   public func switchToActivities() {
