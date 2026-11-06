@@ -25,49 +25,31 @@ final class PledgeFeatureTests: TestCase {
   }
 
   func testEquivalentCreateSharesPendingWriteAndPreservesSCACheckout() async throws {
-    var values: [String?] = []
     let input = self.createInput()
-    let first = self.feature.createResult(input).startWithResult {
-      if case .success(let value) = $0 {
-        values.append(value.createBacking.checkout.backing.clientSecret)
-      } else {
-        XCTFail("Unexpected create error")
-      }
-    }
-    let duplicate = self.feature.createResult(input).startWithResult {
-      if case .success(let value) = $0 {
-        values.append(value.createBacking.checkout.backing.clientSecret)
-      } else {
-        XCTFail("Unexpected create error")
-      }
-    }
-    defer {
-      first.dispose()
-      duplicate.dispose()
-    }
+    let first = Task { try await self.feature.create(input) }
     await self.provider.creates.waitFor(1)
+    let duplicate = Task { try await self.feature.create(input) }
+    await Task.yield()
     XCTAssertEqual(self.provider.createInputs, [input])
     try self.provider.creates.finish(0, .success(self.created()))
-    await self.feature.waitForOperations()
+    let values = try await [first.value, duplicate.value]
     XCTAssertEqual(self.provider.creates.count, 1)
-    XCTAssertEqual(values, ["fixture-secret", "fixture-secret"])
+    XCTAssertEqual(values.map { $0.createBacking.checkout.backing.clientSecret }, ["fixture-secret", "fixture-secret"])
   }
 
   func testDistinctCreateInputsQueueRatherThanShare() async throws {
     let firstInput = self.createInput(amount: "10.00")
     let secondInput = self.createInput(amount: "20.00")
-    let first = self.feature.createResult(firstInput).start()
-    let second = self.feature.createResult(secondInput).start()
-    defer {
-      first.dispose()
-      second.dispose()
-    }
+    let first = Task { try await self.feature.create(firstInput) }
     await self.provider.creates.waitFor(1)
+    let second = Task { try await self.feature.create(secondInput) }
+    await Task.yield()
     try self.provider.creates.finish(0, .success(self.created()))
     await self.provider.creates.waitFor(2)
     XCTAssertEqual(self.provider.createInputs, [firstInput, secondInput])
     try self.provider.creates.finish(1, .success(self.created()))
-    await self.feature.waitForOperations()
+    _ = try await first.value
+    _ = try await second.value
   }
 
   func testUpdateThenCancelKeepsOrderEvenWhenUpdateFails() async throws {
