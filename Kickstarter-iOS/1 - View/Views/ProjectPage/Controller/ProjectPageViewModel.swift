@@ -158,12 +158,12 @@ public protocol ProjectPageViewModelOutputs: AnyObject {
   var onGoToLoginWithIntent: ((LoginIntent) -> Void)? { get set }
 
   /// Emits `ManagePledgeViewParamConfigData` to take the user to the `ManagePledgeViewController`
-  var goToManagePledge: Signal<ManagePledgeViewParamConfigData, Never> { get }
+  var onGoToManagePledge: ((ManagePledgeViewParamConfigData) -> Void)? { get set }
 
   /// Emits `URL` to take the user to the `PledgeManagementDetailsWebViewController`
-  var goToPledgeManagementPledgeView: Signal<String, Never> { get }
+  var onGoToPledgeManagementPledgeView: ((String) -> Void)? { get set }
 
-  var goToPledgeManager: Signal<String, Never> { get }
+  var onGoToPledgeManager: ((String) -> Void)? { get set }
 
   /// Emits a `Project` when the updates are to be rendered.
   var onGoToUpdates: ((Project) -> Void)? { get set }
@@ -307,6 +307,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   private var projectDetailsObservation: MainActorObservation?
   private let projectRoute = UUID()
   private var latestProject: Project?
+  private var latestBackedProject: (Project, Backing)?
   private var latestProjectRefTag: RefTag?
   private var requestRefTag: RefTag?
   internal private(set) var loadingTask: Task<Void, Never>?
@@ -394,16 +395,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         return (.overview, .left(project), refTag)
       }
       .merge(with: staleProjectDataSource)
-
-    let projectAndBacking = freshProject
-      .filter { $0.personalization.isBacking ?? false }
-      .compactMap { project -> (Project, Backing)? in
-        guard let backing = project.personalization.backing else {
-          return nil
-        }
-
-        return (project, backing)
-      }
 
     let ctaButtonTappedWithType = self.pledgeCTAButtonTappedProperty.signal
       .skipNil()
@@ -648,28 +639,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
     // MARK: - Pledge View
 
-    let shouldGoToPledgeManager = ctaButtonTappedWithType
-      .filter { $0 == .pledgeManager }
-
-    self.goToPledgeManager = freshProject
-      .takeWhen(shouldGoToPledgeManager)
-      .compactMap { project -> String in
-        AppEnvironment.current.apiService.serverConfig.webBaseUrl.absoluteString + project
-          .redemptionPageUrl
-      }
-
-    let pledgeDestinationEvents = projectAndBacking
-      .takeWhen(ctaButtonTappedWithType.filter(shouldGoToManagePledge(with:)))
-      .map { pledgeDestination(project: $0.0, backing: $0.1) }
-    self.goToManagePledge = pledgeDestinationEvents.compactMap {
-      if case let .native(params) = $0 { return params }
-      return nil
-    }
-    self.goToPledgeManagementPledgeView = pledgeDestinationEvents.compactMap {
-      if case let .web(url) = $0 { return url }
-      return nil
-    }
-
     // MARK: Similar Projects
 
     freshProjectAndRefTag
@@ -698,6 +667,9 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         switch result {
         case let .success(project):
           self.latestProject = project
+          if project.personalization.isBacking ?? false, let backing = project.personalization.backing {
+            self.latestBackedProject = (project, backing)
+          }
           self.latestProjectRefTag = self.requestRefTag
           self.onProjectFlagged?(project.flagging ?? false)
           completion.input.send(value: .value((project, self.requestRefTag)))
@@ -821,6 +793,17 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     switch state {
     case .pledge, .viewRewards, .viewYourRewards:
       self.rewardsUseCase.goToRewardsTapped()
+    case .pledgeManager:
+      guard let project = self.latestProject else { return }
+      self.onGoToPledgeManager?(
+        AppEnvironment.current.apiService.serverConfig.webBaseUrl.absoluteString + project.redemptionPageUrl
+      )
+    case .fix, .viewBacking, .manage:
+      guard let (project, backing) = self.latestBackedProject else { return }
+      switch pledgeDestination(project: project, backing: backing) {
+      case let .native(params): self.onGoToManagePledge?(params)
+      case let .web(url): self.onGoToPledgeManagementPledgeView?(url)
+      }
     default:
       break
     }
@@ -906,11 +889,11 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
 
   public var onGoToLoginWithIntent: ((LoginIntent) -> Void)?
 
-  public let goToManagePledge: Signal<ManagePledgeViewParamConfigData, Never>
+  public var onGoToManagePledge: ((ManagePledgeViewParamConfigData) -> Void)?
 
-  public let goToPledgeManager: Signal<String, Never>
+  public var onGoToPledgeManager: ((String) -> Void)?
 
-  public let goToPledgeManagementPledgeView: Signal<String, Never>
+  public var onGoToPledgeManagementPledgeView: ((String) -> Void)?
 
   public var onGoToRestrictedCreator: ((String) -> Void)?
   public var onGoToRewards: (((Project, RefTag?, String?)) -> Void)?
@@ -955,15 +938,6 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   private let rewardsUseCase: RewardsUseCase
 }
 
-
-private func shouldGoToManagePledge(with ctaType: PledgeStateCTAType) -> Bool {
-  switch ctaType {
-  case .fix, .viewBacking, .manage:
-    return true
-  default:
-    return false
-  }
-}
 
 private extension Either where A == Project, B == ProjectPageParam {
   var param: Param {

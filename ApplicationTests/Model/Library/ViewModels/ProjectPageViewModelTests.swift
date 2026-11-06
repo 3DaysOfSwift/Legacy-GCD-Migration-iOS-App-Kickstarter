@@ -117,10 +117,14 @@ final class ProjectPageViewModelTests: TestCase {
       }
       self.vm.outputs.onGoToComments = { [weak self] in self?.goToComments.observer.send(value: $0) }
       self.vm.outputs.onGoToLoginWithIntent = { [weak self] in self?.goToLoginWithIntent.observer.send(value: $0) }
-      self.vm.outputs.goToManagePledge.map(first).observe(self.goToManagePledgeProjectParam.observer)
-      self.vm.outputs.goToManagePledge.map(second).observe(self.goToManagePledgeBackingParam.observer)
-      self.vm.outputs.goToPledgeManagementPledgeView.observe(self.goToPledgeManagementViewPledge.observer)
-      self.vm.outputs.goToPledgeManager.observe(self.goToPledgeManager.observer)
+      self.vm.outputs.onGoToManagePledge = { [weak self] params in
+        self?.goToManagePledgeProjectParam.observer.send(value: params.0)
+        self?.goToManagePledgeBackingParam.observer.send(value: params.1)
+      }
+      self.vm.outputs.onGoToPledgeManagementPledgeView = { [weak self] in
+        self?.goToPledgeManagementViewPledge.observer.send(value: $0)
+      }
+      self.vm.outputs.onGoToPledgeManager = { [weak self] in self?.goToPledgeManager.observer.send(value: $0) }
       self.vm.outputs.onGoToReportProject = { [weak self] in self?.goToReportProject.observer.send(value: $0) }
       self.vm.outputs.onGoToRewards = { [weak self] params in
         let (project, refTag, _) = params

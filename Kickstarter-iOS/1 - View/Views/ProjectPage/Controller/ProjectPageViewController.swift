@@ -399,23 +399,17 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
       }
     }
 
-    self.viewModel.outputs.goToManagePledge
-      .observeForControllerAction()
-      .observeValues { [weak self] params in
-        self?.goToManagePledge(params: params)
-      }
+    self.viewModel.outputs.onGoToManagePledge = { [weak self] value in
+      DispatchQueue.main.async { [weak self] in self?.goToManagePledge(params: value) }
+    }
 
-    self.viewModel.outputs.goToPledgeManagementPledgeView
-      .observeForControllerAction()
-      .observeValues { [weak self] url in
-        self?.goToPledgeManagementWebViewController(with: url)
-      }
+    self.viewModel.outputs.onGoToPledgeManagementPledgeView = { [weak self] value in
+      DispatchQueue.main.async { [weak self] in self?.goToPledgeManagementWebViewController(with: value) }
+    }
 
-    self.viewModel.outputs.goToPledgeManager
-      .observeForControllerAction()
-      .observeValues { [weak self] url in
-        self?.goToPledgeManagementWebViewController(with: url)
-      }
+    self.viewModel.outputs.onGoToPledgeManager = { [weak self] value in
+      DispatchQueue.main.async { [weak self] in self?.goToPledgeManagementWebViewController(with: value) }
+    }
 
     self.viewModel.outputs.configureChildViewControllersWithProject
       .observeForUI()
