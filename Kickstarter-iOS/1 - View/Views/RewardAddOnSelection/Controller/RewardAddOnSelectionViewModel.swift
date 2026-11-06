@@ -65,6 +65,8 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
   private let addOnsRoute = UUID()
   private let addOnsEvents = Signal<Signal<([Reward]?, PledgeViewData), ErrorEnvelope>.Event, Never>.pipe()
   private var addOnsTask: Task<Void, Never>?
+  private let selectedQuantitiesEvents = Signal<SelectedRewardQuantities, Never>.pipe()
+  private var changedQuantities: SelectedRewardQuantities = [:]
   private var addOnsRequestID: UUID?
   deinit {
     self.addOnsTask?.cancel()
@@ -119,18 +121,8 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
 
     let requestErrored = addOnsEvent.map(\.error).map(isNotNil)
 
-    // Quantities updated as the user selects them, merged with an empty initial value.
-    let updatedSelectedQuantities = Signal.merge(
-      self.rewardAddOnCardViewDidSelectQuantityProperty.signal
-        .skipNil()
-        .scan([:]) { current, new -> SelectedRewardQuantities in
-          let (quantity, rewardId) = new
-          var mutableCurrent = current
-          mutableCurrent[rewardId] = quantity
-          return mutableCurrent
-        },
-      configData.mapConst([:])
-    )
+    // Configuration resets the displayed selection; individual changes are owned directly.
+    let updatedSelectedQuantities = self.selectedQuantitiesEvents.output
 
     let backedQuantities = project.map { project -> SelectedRewardQuantities in
       guard let backing = project.personalization.backing else { return [:] }
@@ -397,6 +389,9 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     _ = configurePledgeAmountViewWithData.observeValues { [weak self] value in self?.onConfigureAmount?(value) }
     _ = goToPledge.observeValues { [weak self] value in self?.onGoToPledge?(value) }
     _ = configureContinueCTAViewWithData.observeValues { [weak self] value in self?.onConfigureContinue?(value) }
+    _ = configData.observeValues { [weak self] _ in
+      self?.selectedQuantitiesEvents.input.send(value: [:])
+    }
     _ = refreshAddons.observeValues { [weak self] data in
       self?.loadAddOns(for: data)
     }
@@ -449,14 +444,12 @@ public final class RewardAddOnSelectionViewModel: RewardAddOnSelectionViewModelT
     self.viewDidLoadProperty.value = ()
   }
 
-  private let rewardAddOnCardViewDidSelectQuantityProperty = MutableProperty<
-    (SelectedRewardQuantity, SelectedRewardId)?
-  >(nil)
   public func rewardAddOnCardViewDidSelectQuantity(
     quantity: SelectedRewardQuantity,
     rewardId: SelectedRewardId
   ) {
-    self.rewardAddOnCardViewDidSelectQuantityProperty.value = (quantity, rewardId)
+    self.changedQuantities[rewardId] = quantity
+    self.selectedQuantitiesEvents.input.send(value: self.changedQuantities)
   }
 
   // MARK: - Outputs
