@@ -108,15 +108,15 @@ final class AppDelegateViewModelTests: TestCase {
 
   private func bindOutputs() {
     self.vm = AppDelegateViewModel(lifecycleFeature: self.lifecycleFeature, pushDebounce: { try Task.checkCancellation() }, userDebounce: { try Task.checkCancellation() }, trackingDelay: { try Task.checkCancellation() })
-    self.vm.outputs.notificationSettingsUpdated.observe(self.notificationSettingsUpdated.observer)
+    self.vm.outputs.onNotificationSettingsUpdated = { [weak self] in self?.notificationSettingsUpdated.observer.send(value: ()) }
 
     self.vm.outputs.onApplicationIconBadgeNumber = { [weak self] in self?.applicationIconBadgeNumber.observer.send(value: $0) }
     self.vm.outputs.onConfigureFirebase = { [weak self] in self?.configureFirebase.observer.send(value: ()) }
     self.vm.outputs.onConfigureSegmentWithBraze = { [weak self] in self?.configureSegmentWithBraze.observer.send(value: $0) }
-    self.vm.outputs.emailVerificationCompleted.map(first)
-      .observe(self.emailVerificationCompletedMessage.observer)
-    self.vm.outputs.emailVerificationCompleted.map(second)
-      .observe(self.emailVerificationCompletedSuccess.observer)
+    self.vm.outputs.onEmailVerificationCompleted = { [weak self] message, success in
+      self?.emailVerificationCompletedMessage.observer.send(value: message)
+      self?.emailVerificationCompletedSuccess.observer.send(value: success)
+    }
     self.vm.outputs.onFindRedirectUrl = { [weak self] in self?.findRedirectUrl.observer.send(value: $0) }
     self.vm.outputs.onForceLogout = { [weak self] in self?.forceLogout.observer.send(value: ()) }
     self.vm.outputs.onGoToActivity = { [weak self] in self?.goToActivity.observer.send(value: ()) }

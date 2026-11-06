@@ -125,9 +125,8 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       }
     }
 
-    self.viewModel.outputs.notificationSettingsUpdated
-      .observeForUI()
-      .observeValues { [weak self] in
+    self.viewModel.outputs.onNotificationSettingsUpdated = { [weak self] in
+      DispatchQueue.main.async { [weak self] in
         // The Feature committed the edit. Read the latest session rather than
         // restoring an older command snapshot after presentation scheduling.
         guard let user = AppEnvironment.current.currentUser else { return }
@@ -135,6 +134,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
         AppEnvironment.current.identify(user: user)
         self?.viewModel.inputs.currentUserUpdatedInEnvironment()
       }
+    }
 
     self.viewModel.outputs.onForceLogout = {
       DispatchQueue.main.async {
@@ -288,13 +288,13 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       DispatchQueue.main.async { [weak self] in self?.viewModel.inputs.resolveEmailRedirect(url) }
     }
 
-    self.viewModel.outputs.emailVerificationCompleted
-      .observeForUI()
-      .observeValues { [weak self] message, success in
+    self.viewModel.outputs.onEmailVerificationCompleted = { [weak self] message, success in
+      DispatchQueue.main.async { [weak self] in
         self?.rootTabBarController?.dismiss(animated: false, completion: nil)
         self?.rootTabBarController?
           .messageBannerViewController?.showBanner(with: success ? .success : .error, message: message)
       }
+    }
 
     self.appNotificationObservers = [
       MainActorNotificationObservation(name: .ksr_sessionStarted) { [weak self] _ in

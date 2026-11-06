@@ -112,7 +112,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var continueUserActivityReturnValue: Bool { get }
 
   /// Emits the response from email verification with a message and success/failure.
-  var emailVerificationCompleted: Signal<(String, Bool), Never> { get }
+  var onEmailVerificationCompleted: ((String, Bool) -> Void)? { get set }
 
   /// Emits when the view needs to figure out the redirect URL for the emitted URL.
   /// Required in order to handle email links.
@@ -185,7 +185,7 @@ public protocol AppDelegateViewModelOutputs: AnyObject {
   var onUpdateCurrentUser: ((User) -> Void)? { get set }
 
   /// A preference command has already persisted; observers must not re-save its snapshot.
-  var notificationSettingsUpdated: Signal<Void, Never> { get }
+  var onNotificationSettingsUpdated: (() -> Void)? { get set }
 
   /// Emits a config value that should be updated in the environment.
   var onUpdateConfig: ((Config) -> Void)? { get set }
@@ -303,7 +303,9 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
         .demoteErrors()
     }
 
-    self.notificationSettingsUpdated = updatedUserNotificationSettings.ignoreValues()
+    updatedUserNotificationSettings.observeValues { [weak self] _ in
+      self?.onNotificationSettingsUpdated?()
+    }
 
     let emailVerificationEvent = deepLinkUrl
       .filter { Navigation.match($0) == .profile(.verifyEmail) }
@@ -316,9 +318,12 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
           .materialize()
       }
 
-    self.emailVerificationCompleted = emailVerificationEvent
+    emailVerificationEvent
       .map(emailVerificationCompletionData)
       .skipNil()
+      .observeValues { [weak self] message, success in
+        self?.onEmailVerificationCompleted?(message, success)
+      }
 
     deepLinkUrl.observeValues { [weak self] url in
       if Navigation.match(url) == .emailClick { self?.onFindRedirectUrl?(url) }
@@ -628,9 +633,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     )
   }
 
-  fileprivate let applicationWillEnterForegroundProperty = MutableProperty(())
   public func applicationWillEnterForeground() {
-    self.applicationWillEnterForegroundProperty.value = ()
     self.checkPushAuthorizationForBadge()
     self.scheduleUserRefresh()
     self.refreshUserSetup()
@@ -647,9 +650,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.onPostNotification?(Notification(name: .ksr_applicationDidEnterBackground, object: nil))
   }
 
-  fileprivate let applicationDidReceiveMemoryWarningProperty = MutableProperty(())
   public func applicationDidReceiveMemoryWarning() {
-    self.applicationDidReceiveMemoryWarningProperty.value = ()
   }
 
   fileprivate let performActionForShortcutItemProperty = MutableProperty<UIApplicationShortcutItem?>(nil)
@@ -752,17 +753,13 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.onShowAlert?(notification)
   }
 
-  fileprivate let userSessionEndedProperty = MutableProperty(())
   public func userSessionEnded() {
-    self.userSessionEndedProperty.value = ()
     self.scheduleUserRefresh()
     self.refreshConfiguration()
     self.onUnregisterForRemoteNotifications?()
   }
 
-  fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
-    self.userSessionStartedProperty.value = ()
     self.scheduleUserRefresh()
     self.refreshUserSetup()
     self.refreshConfiguration()
@@ -784,7 +781,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public var onConfigureSegmentWithBraze: ((String) -> Void)?
   public var onConfigureStatsig: ((StatsigClientSDKKey) -> Void)?
   public private(set) var continueUserActivityReturnValue = false
-  public let emailVerificationCompleted: Signal<(String, Bool), Never>
+  public var onEmailVerificationCompleted: ((String, Bool) -> Void)?
   public var onFindRedirectUrl: ((URL) -> Void)?
   public var onForceLogout: (() -> Void)?
   public var onGoToActivity: (() -> Void)?
@@ -808,7 +805,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public var onTriggerOnboardingFlow: (() -> Void)?
   public var onUnregisterForRemoteNotifications: (() -> Void)?
   public var onUpdateCurrentUser: ((User) -> Void)?
-  public let notificationSettingsUpdated: Signal<Void, Never>
+  public var onNotificationSettingsUpdated: (() -> Void)?
   public var onUpdateConfig: ((Config) -> Void)?
 }
 
