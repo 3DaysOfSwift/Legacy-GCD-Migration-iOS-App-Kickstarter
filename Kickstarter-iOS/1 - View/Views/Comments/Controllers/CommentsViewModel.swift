@@ -1,8 +1,6 @@
 import Foundation
 import KsApi
 import Prelude
-import ReactiveExtensions
-import ReactiveSwift
 
 @MainActor
 public protocol CommentsViewModelInputs {
@@ -87,15 +85,18 @@ public final class CommentsViewModel: CommentsViewModelType,
   // MARK: Initializers
 
   private let feature: DiscussionFeature
-  private let loadingPipe = Signal<(UUID, Bool), Never>.pipe()
-  private let errorPipe = Signal<(UUID, ErrorEnvelope), Never>.pipe()
-  private let displayPipe = Signal<Void, Never>.pipe()
   private var pageObservation: MainActorObservation?
   private let route = UUID()
-  private let disposables = ScopedDisposable(CompositeDisposable())
   private(set) var loadingTask: Task<Void, Never>?
   private(set) var contextTask: Task<Void, Never>?
   private var contextRevision = 0
+  private var configuration: (project: Project?, update: Update?)?
+  private var loaded = false
+  private var currentSource: DiscussionFeature.Source?
+  private var lastCloseToBottom: Bool?
+  private var hasReachedBottom = false
+  private var loading = false
+  private var footerState: CommentTableViewFooterViewState?
   private var retryTasks: [String: Task<Void, Never>] = [:]
   private var postTasks: [UUID: Task<Void, Never>] = [:]
   private var latestPostingProject: Project?
@@ -115,165 +116,11 @@ public final class CommentsViewModel: CommentsViewModelType,
     let feature = feature ?? AppModel.shared.discussionFeature
     self.feature = feature
     let route = self.route
-    let projectOrUpdate = Signal.combineLatest(
-      self.projectAndUpdateProperty.signal.skipNil(),
-      self.viewDidLoadProperty.signal
-    )
-    .map(first)
-    .flatMap { project, update in
-      SignalProducer(value: project.map(Either.left) ?? update.map(Either.right))
-        .skipNil()
-    }
-
-    let resolvedProject = Signal<Project, Never>.pipe()
-    let initialProject = Signal.merge(
-      projectOrUpdate.compactMap { value -> Project? in
-        value.ifLeft({ $0 }, ifRight: { _ in nil })
-      },
-      resolvedProject.output
-    )
-
-    let isCloseToBottom = self.willDisplayRowProperty.signal.skipNil()
-      .map { row, total -> Bool in
-        // TODO: ensure this does not page when cells are less than threshold.
-        // Prevent paging when only the empty state cell is shown.
-        guard total > 1 else { return false }
-        return row >= total - 3
-      }
-      .skipRepeats()
-      .filter(isTrue)
-      .ignoreValues()
-
-    let tappedToRetry = self.commentTableViewFooterViewDidTapRetryProperty.signal
-    // Retry the next page if we've paged before at least once and tapped to retry.
-    let retryNextPage = Signal.combineLatest(
-      isCloseToBottom.take(first: 1),
-      tappedToRetry
-    )
-
-    // Don't retry the first page if we've paged before.
-    let retryFirstPage = tappedToRetry
-      .take(until: isCloseToBottom)
-
-    let requestNextPage = Signal.merge(
-      isCloseToBottom.ignoreValues(),
-      retryNextPage.ignoreValues()
-    )
-
-    let pullToRefresh = self.refreshProperty.signal
-
-    let requestFirstPageWith = Signal.merge(
-      projectOrUpdate,
-      projectOrUpdate.takeWhen(retryFirstPage),
-      projectOrUpdate.takeWhen(pullToRefresh)
-        // Thread hop so that we can clear our comments buffer before newly paginated results.
-        .ksr_debounce(.nanoseconds(0), on: AppEnvironment.current.scheduler)
-    )
-    let hasRequestedNextPage = Signal.merge(
-      requestFirstPageWith.mapConst(false),
-      requestNextPage.mapConst(true)
-    )
-    let isLoading = self.loadingPipe.output.filter { $0.0 == route }.map { $0.1 }
-    let errors = self.errorPipe.output.filter { $0.0 == route }.map { $0.1 }
-
-    // get an id needed to post a comment to either a project or a project update
-    let commentableId = projectOrUpdate
-      .flatMap { projectOrUpdate in
-        projectOrUpdate.ifLeft { project in
-          SignalProducer.init(value: project.graphID)
-        } ifRight: { update in
-          SignalProducer.init(value: encodeToBase64("FreeformPost-\(update.id)"))
-        }
-      }
-
-    let footerViewActivityState = Signal
-      .combineLatest(isCloseToBottom, isLoading)
-      .filter(second >>> isTrue)
-
-    let initialLoadOrReload = Signal.merge(
-      projectOrUpdate.ignoreValues(),
-      self.displayPipe.output
-    )
-
-    // Footer view would be hidden if there is an error at
-    // initial loading stage or when comments are refreshed
-    let hideFooterView: Signal<CommentTableViewFooterViewState, Never> = Signal.merge(
-      initialLoadOrReload.mapConst(.hidden),
-      errors
-        .mapConst(.hidden)
-        .withLatestFrom(hasRequestedNextPage)
-        .filter(second >>> isFalse)
-        .map(first)
-    )
-
-    let footerState = Signal.merge(
-      hideFooterView,
-      footerViewActivityState.mapConst(.activity),
-      // Footer view would be only be visible if there is an error for pagination responses.
-      errors
-        .mapConst(.error)
-        .withLatestFrom(hasRequestedNextPage)
-        .filter(second >>> isTrue)
-        .map(first)
-    )
-    .skipRepeats()
-
-
-    // MARK: User Blocking Analytics
-
-    let blockAnalytics = self.blockAnalytics
-    blockAnalytics.onInitiate = { project, blockedUserId in
-        AppEnvironment.current.ksrAnalytics
-          .trackBlockedUser(
-            project,
-            page: .project,
-            sectionContext: .comments,
-            typeContext: .initiate,
-            targetUserId: "\(blockedUserId)"
-          )
-    }
-    _ = initialProject.observeValues { project in
-      blockAnalytics.receive(project: project)
-    }
-
-
-    self.disposables += footerState.observeValues { [weak self] state in
-      self?.onFooterState?(state)
-    }
-    self.disposables += initialProject.observeValues { [weak self] project in
-      self?.latestPostingProject = project
-      self?.publishCommentsIfAvailable()
-      self?.publishComposer(for: project)
-      self?.publishPendingNavigation()
-    }
-    self.disposables += commentableId.observeValues { [weak self] id in
-      self?.latestCommentableID = id
-    }
-
-    self.disposables += projectOrUpdate.observeValues { [weak self] value in
-      guard let self else { return }
-      self.contextRevision += 1
-      let revision = self.contextRevision
-      value.ifLeft({ _ in feature.cancelProject(route: route) }, ifRight: { update in
-        let request = feature.requestProject(route: route, param: .id(update.projectId))
-        self.contextTask = Task { [weak self] in
-          guard let project = await request.value, !Task.isCancelled,
-                self?.contextRevision == revision else { return }
-          resolvedProject.input.send(value: project)
-        }
-      })
-    }
-    self.disposables += requestFirstPageWith.observeValues { [weak self] value in
-      self?.hasRequestedPage = false
-      let source = value.ifLeft(
-        { DiscussionFeature.Source.project($0.slug) },
-        ifRight: { .update(String($0.id)) }
+    self.blockAnalytics.onInitiate = { project, blockedUserId in
+      AppEnvironment.current.ksrAnalytics.trackBlockedUser(
+        project, page: .project, sectionContext: .comments,
+        typeContext: .initiate, targetUserId: "\(blockedUserId)"
       )
-      self?.loadingTask = feature.requestFirstPage(route: route, source: source, refresh: true)
-    }
-    self.disposables += requestNextPage.observeValues { [weak self] in
-      self?.hasRequestedPage = true
-      self?.loadingTask = feature.requestNextPage(route: route)
     }
     self.pageObservation = feature.observePages { [weak self] update in
       guard let self else { return }
@@ -287,13 +134,16 @@ public final class CommentsViewModel: CommentsViewModelType,
         self.accumulatedComments += comments
         self.publishCommentsIfAvailable()
       case let .loading(route, loading):
-        self.loadingPipe.input.send(value: (route, loading))
-        if route == self.route { self.onRefreshing?(loading) }
-      case let .error(route, error):
-        self.errorPipe.input.send(value: (route, error))
-        if route == self.route, !self.hasRequestedPage, let project = self.latestPostingProject {
+        guard route == self.route else { return }
+        self.loading = loading
+        if loading && self.hasReachedBottom { self.publishFooter(.activity) }
+        self.onRefreshing?(loading)
+      case let .error(route, _):
+        guard route == self.route else { return }
+        self.publishFooter(self.hasRequestedPage ? .error : .hidden)
+        if !self.hasRequestedPage, let project = self.latestPostingProject {
           self.onLoadComments?([], project, true)
-          self.displayPipe.input.send(value: ())
+          self.publishFooter(.hidden)
         }
       }
     }
@@ -314,7 +164,7 @@ public final class CommentsViewModel: CommentsViewModelType,
     self.currentComments = self.accumulatedComments
     self.onSeparatorHidden?(self.accumulatedComments.isEmpty)
     self.onLoadComments?(self.accumulatedComments, project, false)
-    self.displayPipe.input.send(value: ())
+    self.publishFooter(.hidden)
   }
 
   private let blockPresentation = DiscussionBlockPresentation()
@@ -395,20 +245,19 @@ public final class CommentsViewModel: CommentsViewModelType,
     if let comment = self.lastReplyComment { self.publishNavigation(comment, firstResponder: true) }
   }
 
-  private let commentTableViewFooterViewDidTapRetryProperty = MutableProperty(())
   public func commentTableViewFooterViewDidTapRetry() {
-    self.commentTableViewFooterViewDidTapRetryProperty.value = ()
+    if self.hasReachedBottom { self.requestNextPage() }
+    else { self.requestFirstPage() }
   }
 
-  fileprivate let projectAndUpdateProperty = MutableProperty<(Project?, Update?)?>(nil)
   public func configureWith(project: Project?, update: Update?) {
-    self.projectAndUpdateProperty.value = (project, update)
+    self.configuration = (project, update)
+    if self.loaded { self.applyConfiguration() }
     self.latestNavigationUpdate = update
     self.hasNavigationConfiguration = true
     self.publishPendingNavigation()
   }
 
-  fileprivate let refreshProperty = MutableProperty(())
   public func refresh() {
     self.clearingForRefresh = true
     self.accumulatedComments = []
@@ -416,14 +265,71 @@ public final class CommentsViewModel: CommentsViewModelType,
       self.currentComments = []
       self.onSeparatorHidden?(true)
     }
-    self.refreshProperty.value = ()
+    guard let source = self.currentSource else { return }
+    self.hasRequestedPage = false
+    let feature = self.feature
+    let route = self.route
+    self.loadingTask = Task {
+      await Task.yield()
+      await feature.requestFirstPage(route: route, source: source, refresh: true).value
+    }
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
+    self.loaded = true
     self.postingUser = AppEnvironment.current.currentUser
     if let project = self.latestPostingProject { self.publishComposer(for: project) }
-    self.viewDidLoadProperty.value = ()
+    self.applyConfiguration()
+  }
+
+  private func applyConfiguration() {
+    guard let configuration = self.configuration else { return }
+    self.contextRevision += 1
+    let revision = self.contextRevision
+    if let project = configuration.project {
+      self.currentSource = .project(project.slug)
+      self.latestCommentableID = project.graphID
+      self.feature.cancelProject(route: self.route)
+      self.receiveProject(project)
+    } else if let update = configuration.update {
+      self.currentSource = .update(String(update.id))
+      self.latestCommentableID = encodeToBase64("FreeformPost-\(update.id)")
+      let request = self.feature.requestProject(route: self.route, param: .id(update.projectId))
+      self.contextTask = Task { [weak self] in
+        guard let project = await request.value, !Task.isCancelled,
+              let self, self.contextRevision == revision else { return }
+        self.receiveProject(project)
+      }
+    } else {
+      return
+    }
+    self.publishFooter(.hidden)
+    self.requestFirstPage()
+  }
+
+  private func receiveProject(_ project: Project) {
+    self.blockAnalytics.receive(project: project)
+    self.latestPostingProject = project
+    self.publishCommentsIfAvailable()
+    self.publishComposer(for: project)
+    self.publishPendingNavigation()
+  }
+
+  private func requestFirstPage() {
+    guard let source = self.currentSource else { return }
+    self.hasRequestedPage = false
+    self.loadingTask = self.feature.requestFirstPage(route: self.route, source: source, refresh: true)
+  }
+
+  private func requestNextPage() {
+    self.hasRequestedPage = true
+    self.loadingTask = self.feature.requestNextPage(route: self.route)
+  }
+
+  private func publishFooter(_ state: CommentTableViewFooterViewState) {
+    guard self.footerState != state else { return }
+    self.footerState = state
+    self.onFooterState?(state)
   }
 
   private func publishComposer(for project: Project) {
@@ -435,9 +341,14 @@ public final class CommentsViewModel: CommentsViewModelType,
     self.onConfigureComposer?((URL(string: user.avatar.medium), canPost, false, false))
   }
 
-  fileprivate let willDisplayRowProperty = MutableProperty<(row: Int, total: Int)?>(nil)
   public func willDisplayRow(_ row: Int, outOf totalRows: Int) {
-    self.willDisplayRowProperty.value = (row, totalRows)
+    let close = totalRows > 1 && row >= totalRows - 3
+    guard self.lastCloseToBottom != close else { return }
+    self.lastCloseToBottom = close
+    guard close else { return }
+    self.hasReachedBottom = true
+    if self.loading { self.publishFooter(.activity) }
+    self.requestNextPage()
   }
 
   public var onRefreshing: ((Bool) -> Void)?
