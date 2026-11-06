@@ -1215,6 +1215,37 @@ final class PledgeViewModelTests: TestCase {
     await self.feature.waitForOperations()
   }
 
+  func testDelayedCreateDoesNotPresentAfterSessionChange() async {
+    let checkout = Checkout(
+      id: "Q2hlY2tvdXQtMQ==", state: .successful,
+      backing: .init(clientSecret: nil, requiresAction: false))
+    let service = MockService(createBackingResult: .success(
+      CreateBackingEnvelope(createBacking: .init(checkout: checkout))))
+
+    await withEnvironment(apiService: service, apiDelayInterval: .seconds(1), currentUser: .template) {
+      let reward = Reward.template |> Reward.lens.minimum .~ 5
+      self.vm.inputs.configure(with: PledgeViewData(
+        project: .template, rewards: [reward], bonusSupport: 10,
+        selectedShippingRule: self.shippingRule, selectedQuantities: [reward.id: 1],
+        selectedLocationId: nil, refTag: .projectPage, context: .pledge))
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.applePayButtonTapped()
+      self.vm.inputs.paymentAuthorizationDidAuthorizePayment(
+        paymentData: (displayName: "Visa 123", network: "Visa", transactionIdentifier: "12345"))
+      XCTAssertEqual(self.vm.inputs.stripeTokenCreated(token: "stripe_token", error: nil), .success)
+      self.vm.inputs.paymentAuthorizationViewControllerDidFinish()
+      await self.feature.waitForOperations()
+      await Task.yield()
+      self.feature.sessionFeature.sessionChanged()
+      await self.scheduler.advance(by: 1)
+      await Task.yield()
+      self.goToThanksProject.assertDidNotEmitValue()
+      self.beginSCAFlowWithClientSecret.assertDidNotEmitValue()
+      self.showErrorBannerWithMessage.assertDidNotEmitValue()
+      self.processingViewIsHidden.assertLastValue(true)
+    }
+  }
+
   func testApplePay_GoToThanks() async {
     let createBacking = CreateBackingEnvelope.CreateBacking(
       checkout: Checkout(
