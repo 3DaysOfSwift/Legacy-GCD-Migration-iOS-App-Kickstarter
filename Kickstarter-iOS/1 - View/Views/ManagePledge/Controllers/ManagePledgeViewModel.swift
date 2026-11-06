@@ -85,10 +85,8 @@ public final class ManagePledgeViewModel:
   private var visibilityIsCreator: Bool?
   private var backingHasLoaded = false
   private var currentProject: Project?
-  private var currentCancellation: (Project, Backing)?
-  private var currentChangePaymentMethodData: PledgeViewData?
+  private var currentRewards: [Reward]?
   private var hasSeenDisallowedCancellation = false
-  private var currentFixPaymentMethodData: PledgeViewData?
   private let projectRoute = UUID()
   private let projectReadEvents = Signal<(Signal<Project, ErrorEnvelope>.Event, Int?, Int, UUID), Never>.pipe()
   private var projectReadTask: Task<Void, Never>?
@@ -248,21 +246,6 @@ public final class ManagePledgeViewModel:
     let menuOptions = Signal.combineLatest(project, backing, userIsCreatorOfProject)
       .map(actionSheetMenuOptionsFor(project:backing:userIsCreatorOfProject:))
 
-    let backedRewards = loadProjectAndRewardsIntoDataSource.map(second)
-
-    let cancellationData = Signal.combineLatest(project, backing)
-    let changePaymentMethodData = Signal.combineLatest(project, backing, backedRewards)
-      .map { project, backing, rewards in
-        (project, backing, rewards, .changePaymentMethod)
-      }
-      .map(pledgeViewData)
-
-    let fixPaymentMethodData = Signal.combineLatest(project, backing, backedRewards)
-      .map { project, backing, rewards in
-        (project, backing, rewards, .fixPaymentMethod)
-      }
-      .map(pledgeViewData)
-
     let rewardReceivedViewControllerViewIsHidden: Signal<Bool, Never> = latestRewardDeliveryDate
       .map { $0 == 0 }
 
@@ -311,8 +294,8 @@ public final class ManagePledgeViewModel:
       }
 
     _ = endRefreshing.observeValues { [weak self] _ in self?.onEndRefreshing?() }
-    _ = fixPaymentMethodData.observeValues { [weak self] value in self?.currentFixPaymentMethodData = value }
     _ = loadProjectAndRewardsIntoDataSource.observeValues { [weak self] first, second in
+      self?.currentRewards = second
       self?.onLoadProjectAndRewards?(first, second)
       self?.setRightBarHidden(false)
     }
@@ -328,10 +311,6 @@ public final class ManagePledgeViewModel:
       if self.backingHasLoaded { self.onFinish?(nil) }
       self.backingHasLoaded = true
     }
-    _ = cancellationData.observeValues { [weak self] project, backing in
-      self?.currentCancellation = (project, backing)
-    }
-    _ = changePaymentMethodData.observeValues { [weak self] value in self?.currentChangePaymentMethodData = value }
     _ = networkErrorMessage.observeValues { [weak self] value in self?.onShowError?(value) }
     _ = title.observeValues { [weak self] in self?.onTitle?($0) }
     _ = backing.observeValues { [weak self] backing in
@@ -425,6 +404,12 @@ public final class ManagePledgeViewModel:
     self.fetchProjectIfNeeded()
   }
 
+  private func paymentMethodData(context: PledgeViewContext) -> PledgeViewData? {
+    guard let project = self.currentProject, let backing = self.visibilityBacking,
+          let rewards = self.currentRewards else { return nil }
+    return pledgeViewData(project: project, backing: backing, rewards: rewards, context: context)
+  }
+
   private func updatePaymentMethodVisibility() {
     guard let backing = self.visibilityBacking, let isCreator = self.visibilityIsCreator else { return }
     let hidden = isCreator || (!shouldShowFixPaymentMethodButton(for: backing) && backing.paymentSource == nil)
@@ -449,7 +434,7 @@ public final class ManagePledgeViewModel:
   }
 
   public func fixButtonTapped() {
-    guard let data = self.currentFixPaymentMethodData else { return }
+    guard let data = self.paymentMethodData(context: .fixPaymentMethod) else { return }
     self.onFixPaymentMethod?(data)
   }
 
@@ -469,9 +454,9 @@ public final class ManagePledgeViewModel:
         self.onContactCreator?(.project(id: project.id, name: project.name), .backerModal)
       }
     case .changePaymentMethod:
-      if let data = self.currentChangePaymentMethodData { self.onChangePaymentMethod?(data) }
+      if let data = self.paymentMethodData(context: .changePaymentMethod) { self.onChangePaymentMethod?(data) }
     case .cancelPledge:
-      if let (project, backing) = self.currentCancellation, backing.cancelable {
+      if let project = self.currentProject, let backing = self.visibilityBacking, backing.cancelable {
         self.onCancelPledge?(cancelPledgeViewData(with: project, backing: backing))
       }
       if self.hasSeenDisallowedCancellation {
