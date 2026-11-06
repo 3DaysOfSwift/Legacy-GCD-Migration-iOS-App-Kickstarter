@@ -309,6 +309,7 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
   private let projectDetailsFeature: ProjectDetailsFeature
   private var projectDetailsObservation: MainActorObservation?
   private let projectRoute = UUID()
+  private var latestProject: Project?
   private let featureBindings = ScopedDisposable(CompositeDisposable())
   internal private(set) var loadingTask: Task<Void, Never>?
 
@@ -733,28 +734,18 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
         self?.similarProjectsUseCase.projectIDLoaded(projectID: projectID)
       }
 
-    self.featureBindings += freshProject
-      .takeWhen(self.tappedCommentsProperty.signal)
-      .observeValues { [weak self] in self?.onGoToComments?($0) }
-
-    self.featureBindings += freshProject
-      .takeWhen(self.tappedUpdatesProperty.signal)
-      .observeValues { [weak self] in self?.onGoToUpdates?($0) }
-
-    self.featureBindings += freshProject
-      .takeWhen(self.askAQuestionCellTappedProperty.signal)
-      .observeValues { [weak self] in self?.onPresentMessageDialog?($0) }
-
     let route = self.projectRoute
     var requestRefTag: RefTag?
     self.projectDetailsObservation = projectDetailsFeature.observe { [weak self] update in
-      guard self != nil else { return }
+      guard let self else { return }
       switch update {
       case let .loading(updateRoute, loading) where updateRoute == route:
         isLoading.value = loading
       case let .completion(updateRoute, result) where updateRoute == route:
         switch result {
-        case let .success(project): completion.input.send(value: .value((project, requestRefTag)))
+        case let .success(project):
+          self.latestProject = project
+          completion.input.send(value: .value((project, requestRefTag)))
         case let .failure(error): completion.input.send(value: .failed(error))
         }
       default: break
@@ -797,9 +788,9 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     }
   }
 
-  fileprivate let askAQuestionCellTappedProperty = MutableProperty(())
   public func askAQuestionCellTapped() {
-    self.askAQuestionCellTappedProperty.value = ()
+    guard let project = self.latestProject else { return }
+    self.onPresentMessageDialog?(project)
   }
 
   fileprivate let applicationDidEnterBackgroundProperty = MutableProperty(())
@@ -915,14 +906,14 @@ public final class ProjectPageViewModel: ProjectPageViewModelType, ProjectPageVi
     if let help = HelpType.helpType(from: url) { self.onShowHelp?(help) }
   }
 
-  fileprivate let tappedCommentsProperty = MutableProperty(())
   public func tappedComments() {
-    self.tappedCommentsProperty.value = ()
+    guard let project = self.latestProject else { return }
+    self.onGoToComments?(project)
   }
 
-  fileprivate let tappedUpdatesProperty = MutableProperty(())
   public func tappedUpdates() {
-    self.tappedUpdatesProperty.value = ()
+    guard let project = self.latestProject else { return }
+    self.onGoToUpdates?(project)
   }
 
   fileprivate let tappedReportProjectProperty = MutableProperty(())
