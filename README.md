@@ -18,12 +18,35 @@ The **`migration/cfa-swift-concurrency` branch contains the migrated app**. This
 ```sh
 git clone --branch migration/cfa-swift-concurrency --single-branch https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter.git
 cd Legacy-GCD-Migration-iOS-App-Kickstarter
-cp 'Kickstarter-iOS/3 - App Resources/Configuration/Secrets.swift.example' KsApi/Sources/KsApi/Secrets.swift
 ```
 
-In the copied `KsApi/Sources/KsApi/Secrets.swift`, set `isOSS` to `true`. Open `Kickstarter.xcodeproj`, let Xcode resolve the package dependencies, select the **Kickstarter iOS** scheme and a simulator, and run the Debug build. The migration was verified using Xcode 26.2 and an iPhone Air simulator running iOS 26.2. The local secrets file is ignored by Git; do not commit credentials.
+## Run the fictional-data demo
 
-The [public-demo guide](docs/PUBLIC-DEMO.md) explains the fictional catalogue, supported browsing flows and setup. It does not require Kickstarter API keys for those flows. Login, real payments and other live operations are not a complete offline demo; the project still resolves Swift packages and is not fully offline.
+The migrated app includes a **Debug-only demo** with fictional projects. It lets you explore discovery, search and project details without Kickstarter API keys for those flows.
+
+1. **Create your local configuration file** by copying the example from the repository root:
+
+   ```sh
+   cp 'Kickstarter-iOS/3 - App Resources/Configuration/Secrets.swift.example' KsApi/Sources/KsApi/Secrets.swift
+   ```
+
+   The copy is ignored by Git. Do not commit real credentials. If `Secrets.swift` already exists at the destination, this command overwrites it.
+
+2. **Enable the fictional-data demo.** Open the copied `KsApi/Sources/KsApi/Secrets.swift` and change:
+
+   ```swift
+   public static let isOSS = true
+   ```
+
+   `OSS` means **open-source software**. In this project, `isOSS` is the flag used to select the public demo configuration. Setting it to `true` enables the fictional-data demo in Debug builds, so supported browsing flows use demo content instead of requiring private Kickstarter API credentials. The example defaults to `false`, so this change is necessary to enable the demo.
+
+3. **Open `Kickstarter.xcodeproj`** and let Xcode resolve the Swift package dependencies.
+
+4. **Choose the Kickstarter iOS scheme**, select an iOS simulator and run the Debug build.
+
+The migration was verified with Xcode 26.2 and an iPhone Air simulator running iOS 26.2.
+
+See the [public-demo guide](docs/PUBLIC-DEMO.md) for supported flows and limitations. Login, real payments and other live operations are not complete offline demo workflows. Xcode must still download the project's Swift packages, and the app is not fully offline.
 
 ## Before and after
 
