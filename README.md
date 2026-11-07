@@ -5,7 +5,7 @@
   <a href="https://github.com/3DaysOfSwift/CFA-AI-Toolkit-for-iOS"><img src=".github/migration-branding/cfa-ai-toolkit.png" width="140" alt="CFA AI Toolkit for iOS"></a>
 </p>
 
-# Kickstarter Migrated to Swift Concurrency using AI
+# Kickstarter: Legacy GCD to Swift Concurrency using AI
 
 [Browse the migrated branch](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/tree/migration/cfa-swift-concurrency) · [Browse the original baseline](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/tree/main) · [Read the migration ledger](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/blob/migration/cfa-swift-concurrency/MIGRATION_LEDGER.md)
 
