@@ -13,6 +13,25 @@ This repository is an independent, AI-assisted migration of [Kickstarter's open-
 
 The **`migration/cfa-swift-concurrency` branch contains the migrated app**. This branch is the place to inspect, build and run the result. The repository's `main` branch preserves the upstream starting point, with an overview of the two versions.
 
+## Migration report
+
+| Phase | Work and status |
+| --- | --- |
+| 1. Autonomous migration | AI-assisted migration to CFA and Swift Concurrency, with human direction and verification; implementation handover recorded. |
+| 2. Structure and cleanup | Core app code moved into the CFA folders; redundant migrated files and application-library packaging removed. |
+| 3. ReactiveSwift removal | Reactive workflows and state replaced with async operations, Observation and direct presentation callbacks; ReactiveSwift and ReactiveExtensions removed from app and test targets. |
+| 4. Manual testing and refinement | Simulator build, regression tests and representative demo browsing checked; further validation remains open. |
+
+| Recorded milestone | Bangkok time | Elapsed from first record |
+| --- | --- | --- |
+| Earliest recorded preparation | 26 Oct 2026, 14:18 | Starting point |
+| CFA implementation handover | 3 Nov 2026, 21:44 | About 8 days 7 hours 26 minutes |
+| ReactiveSwift removal checkpoint | 7 Nov 2026, 03:27 | About 11 days 13 hours 9 minutes |
+
+These are **elapsed calendar times**, including interruptions, human input and review—not continuous AI work. Phases overlapped; exact start and finish times for each phase were not recorded. Screenshots identify GPT-6 Astra High for portions of the work, but not every model used.
+
+**Verification:** 2,929 selected tests passed at handover; later separate, overlapping runs passed 1,944 non-snapshot model tests, 183 non-snapshot presentation tests and 39 signed keychain tests. Reference snapshot comparisons, physical-device review and live account/payment operations remain unverified. See the [migration ledger](MIGRATION_LEDGER.md) for evidence and limitations.
+
 ## Clone the migration branch
 
 ```sh
@@ -69,7 +88,7 @@ The app no longer links ReactiveSwift or ReactiveExtensions. Local packages incl
 
 The work moved core app code out of the two application libraries and into the CFA folder structure, migrated feature workflows towards owned async tasks, and removed ReactiveSwift from app and test targets. A fictional-data demo supports discovery, search and project browsing without private API credentials.
 
-This was an **AI-assisted, substantially autonomous migration with human direction, review, testing and follow-up corrections**. The earliest recorded preparation was 26 October 2026 at 14:18 Bangkok time; the CFA implementation handover was recorded on 3 November at 21:44. Those checkpoints are approximately **8 days and 7 hours apart**, including interruptions and human involvement, not a measurement of active model time. ReactiveSwift removal and further review continued afterwards. GPT-6 Astra High is identifiable in screenshots for portions of the work; exact per-commit model and cost information was not recorded.
+The migration was AI-assisted and substantially autonomous, with human direction, review, testing and follow-up corrections. Exact per-commit model and cost information was not recorded.
 
 ## Verification and limits
 
