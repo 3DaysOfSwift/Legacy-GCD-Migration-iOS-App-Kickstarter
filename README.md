@@ -1,3 +1,34 @@
+# Kickstarter iOS: an AI-assisted CFA migration
+
+This repository is an independent educational migration of [Kickstarter's open-source iOS app](https://github.com/kickstarter/ios-oss), published by 3 Days of Swift Concurrency. It is not an official Kickstarter release. This `main` branch preserves the upstream starting point; the migrated app is on **`migration/cfa-swift-concurrency`**.
+
+[Browse the migrated branch](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/tree/migration/cfa-swift-concurrency) · [Download the migrated branch as a ZIP](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/archive/refs/heads/migration/cfa-swift-concurrency.zip) · [Read the migration and verification ledger](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/blob/migration/cfa-swift-concurrency/MIGRATION_LEDGER.md)
+
+To clone the migrated version directly:
+
+```sh
+git clone --branch migration/cfa-swift-concurrency --single-branch https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter.git
+cd Legacy-GCD-Migration-iOS-App-Kickstarter
+```
+
+Follow the [migrated branch's README](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/blob/migration/cfa-swift-concurrency/README.md) for Xcode setup and its fictional-data demo. The project still uses Swift packages, which Xcode must resolve.
+
+## Architecture and migration outcome
+
+The **starting app** uses UIKit and local Swift packages, including `Library` and `Kickstarter-Framework`, with ReactiveSwift signals connecting many view-model inputs, outputs and asynchronous workflows.
+
+The **migrated app** retains the UIKit screens and moves core app code into the Xcode application target under `1 - View`, `2 - AppModel`, `3 - App Resources` and `4 - Swift Extensions`. Cooperative Feature Architecture (CFA) gives features ownership of state and workflows, with view models/controllers handling presentation. The migrated code uses Swift Concurrency and Observation; selected services, generated APIs, design components and third-party SDKs remain in Swift packages. ReactiveSwift and ReactiveExtensions have been removed from the migrated app and test targets.
+
+The migration was **AI-assisted and substantially autonomous, with human direction, review, testing and later corrections**. The earliest recorded preparation on 26 October 2026 and the CFA implementation handover on 3 November are about **8 days and 7 hours apart**, including interruptions and human involvement. ReactiveSwift removal continued after that handover. Screenshots identify GPT-6 Astra High for parts of the work; exact model use and cost for every change were not recorded.
+
+At handover, selected existing cohorts reported **2,929 passing tests**. After ReactiveSwift removal, separate runs passed **1,944 non-snapshot model tests**, **183 non-snapshot presentation tests** and **39 signed keychain tests**. The simulator app built and a limited fictional-data discovery, project and search smoke test passed. These are separate, overlapping checkpoints. Reference snapshot comparisons, physical-device review and live payment/account operations remain unverified; this is not a production certification or a claim of race freedom. See the [migrated README](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/blob/migration/cfa-swift-concurrency/README.md) and [ledger](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/blob/migration/cfa-swift-concurrency/MIGRATION_LEDGER.md) for scope and limits.
+
+## Original upstream README
+
+The following material is retained from the original Kickstarter repository for attribution and historical context. Its first-person references describe Kickstarter's upstream project, and its setup instructions apply to the baseline rather than the migrated branch.
+
+---
+
 <a href="https://www.kickstarter.com"><img src=".github/ksr-wordmark.svg" width="36%" alt="Kickstarter for iOS"></a>
 
 [![Circle CI](https://circleci.com/gh/kickstarter/ios-oss.svg?style=svg)](https://circleci.com/gh/kickstarter/ios-oss)
