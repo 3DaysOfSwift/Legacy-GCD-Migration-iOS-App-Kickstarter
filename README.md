@@ -7,11 +7,11 @@
 
 # Kickstarter Migrated to Swift Concurrency using AI
 
+[Browse the migrated branch](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/tree/migration/cfa-swift-concurrency) · [Browse the original baseline](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/tree/main) · [Read the migration ledger](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/blob/migration/cfa-swift-concurrency/MIGRATION_LEDGER.md)
+
 This repository is an independent, AI-assisted migration of [Kickstarter's open-source iOS app](https://github.com/kickstarter/ios-oss). It is an educational case study by 3 Days of Swift Concurrency, not an official Kickstarter release. The original app and its authors retain their copyright and [Apache 2.0 licence](LICENSE).
 
 The **`migration/cfa-swift-concurrency` branch contains the migrated app**. This branch is the place to inspect, build and run the result. The repository's `main` branch preserves the upstream starting point, with an overview of the two versions.
-
-[Browse the migrated branch](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/tree/migration/cfa-swift-concurrency) · [Browse the original baseline](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/tree/main) · [Read the migration ledger](MIGRATION_LEDGER.md)
 
 ## Get the migrated app
 
