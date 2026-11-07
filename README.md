@@ -13,7 +13,7 @@ This repository is an independent, AI-assisted migration of [Kickstarter's open-
 
 The **`migration/cfa-swift-concurrency` branch contains the migrated app**. This branch is the place to inspect, build and run the result. The repository's `main` branch preserves the upstream starting point, with an overview of the two versions.
 
-## Get the migrated app
+## Clone the migration branch
 
 ```sh
 git clone --branch migration/cfa-swift-concurrency --single-branch https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter.git
