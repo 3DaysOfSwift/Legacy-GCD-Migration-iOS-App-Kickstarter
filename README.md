@@ -1,3 +1,10 @@
+<a href="https://www.kickstarter.com"><img src=".github/ksr-wordmark.svg" width="36%" alt="Kickstarter for iOS"></a>
+
+<p>
+  <a href="https://www.3daysofswiftconcurrency.com/"><img src=".github/migration-branding/3days-of-swift-concurrency.png" width="140" alt="3 Days of Swift Concurrency"></a>
+  <a href="https://github.com/3DaysOfSwift/CFA-AI-Toolkit-for-iOS"><img src=".github/migration-branding/cfa-ai-toolkit.png" width="140" alt="CFA AI Toolkit for iOS"></a>
+</p>
+
 # Kickstarter iOS: an AI-assisted CFA migration
 
 This repository is an independent educational migration of [Kickstarter's open-source iOS app](https://github.com/kickstarter/ios-oss), published by 3 Days of Swift Concurrency. It is not an official Kickstarter release. This `main` branch preserves the upstream starting point; the migrated app is on **`migration/cfa-swift-concurrency`**.
@@ -28,8 +35,6 @@ At handover, selected existing cohorts reported **2,929 passing tests**. After R
 The following material is retained from the original Kickstarter repository for attribution and historical context. Its first-person references describe Kickstarter's upstream project, and its setup instructions apply to the baseline rather than the migrated branch.
 
 ---
-
-<a href="https://www.kickstarter.com"><img src=".github/ksr-wordmark.svg" width="36%" alt="Kickstarter for iOS"></a>
 
 [![Circle CI](https://circleci.com/gh/kickstarter/ios-oss.svg?style=svg)](https://circleci.com/gh/kickstarter/ios-oss)
 
