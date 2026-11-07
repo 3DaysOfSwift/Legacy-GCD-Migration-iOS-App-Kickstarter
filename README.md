@@ -24,7 +24,14 @@ Follow the [migrated branch's README](https://github.com/3DaysOfSwift/Legacy-GCD
 
 The **starting app** uses UIKit and local Swift packages, including `Library` and `Kickstarter-Framework`, with ReactiveSwift signals connecting many view-model inputs, outputs and asynchronous workflows.
 
-The **migrated app** retains the UIKit screens and moves core app code into the Xcode application target under `1 - View`, `2 - AppModel`, `3 - App Resources` and `4 - Swift Extensions`. Cooperative Feature Architecture (CFA) gives features ownership of state and workflows, with view models/controllers handling presentation. The migrated code uses Swift Concurrency and Observation; selected services, generated APIs, design components and third-party SDKs remain in Swift packages. ReactiveSwift and ReactiveExtensions have been removed from the migrated app and test targets.
+The **migrated app** retains the UIKit screens and moves core app code into the Xcode application target, organised as:
+
+- **`1 - View`** — screens, controllers, view models and shared UI.
+- **`2 - AppModel`** — app composition, features, storage and service adapters.
+- **`3 - App Resources`** — configuration, localization and other app resources.
+- **`4 - Swift Extensions`** — shared application extensions.
+
+Cooperative Feature Architecture (CFA) gives features ownership of state and workflows, with view models and controllers handling presentation. The migrated code uses Swift Concurrency and Observation; selected services, generated APIs, design components and third-party SDKs remain in Swift packages. ReactiveSwift and ReactiveExtensions have been removed from the migrated app and test targets.
 
 The migration was **AI-assisted and substantially autonomous, with human direction, review, testing and later corrections**. The earliest recorded preparation on 26 October 2026 and the CFA implementation handover on 3 November are about **8 days and 7 hours apart**, including interruptions and human involvement. ReactiveSwift removal continued after that handover. Screenshots identify GPT-6 Astra High for parts of the work; exact model use and cost for every change were not recorded.
 
