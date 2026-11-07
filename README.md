@@ -1,126 +1,52 @@
-<a href="https://www.kickstarter.com"><img src=".github/ksr-wordmark.svg" width="36%" alt="Kickstarter for iOS"></a>
+# Kickstarter iOS: CFA and Swift Concurrency migration
 
-[![Circle CI](https://circleci.com/gh/kickstarter/ios-oss.svg?style=svg)](https://circleci.com/gh/kickstarter/ios-oss)
+This repository is an independent, AI-assisted migration of [Kickstarter's open-source iOS app](https://github.com/kickstarter/ios-oss). It is an educational case study by 3 Days of Swift Concurrency, not an official Kickstarter release. The original app and its authors retain their copyright and [Apache 2.0 licence](LICENSE).
 
-Welcome to Kickstarter’s open source iOS app! Come on in, take your shoes off,
-stay a while—explore how Kickstarter’s native squad has built and continues to
-build the app.
+The **`migration/cfa-swift-concurrency` branch contains the migrated app**. This branch is the place to inspect, build and run the result. The repository's `main` branch preserves the upstream starting point, with an overview of the two versions.
 
-We’ve also open sourced our [Android app](https://github.com/kickstarter/android-oss),
-and read more about our journey to open source [here](https://kickstarter.engineering/open-sourcing-our-android-and-ios-apps-6891be909fcd).
+[Browse the migrated branch](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/tree/migration/cfa-swift-concurrency) · [Browse the original baseline](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/tree/main) · [Read the migration ledger](MIGRATION_LEDGER.md)
 
-## Getting Started
+## Get the migrated app
 
-1. Install Xcode. This migration checkpoint is verified with Xcode 26.2; see the migration ledger for validation limits.
-2. Clone this repository.
-
-&#42; To provide a mock version that serves up hard-coded data immediately, set `KsApi.Secrets.isOSS` = `true`.
-
-## CFA application layout
-
-This migration checkout compiles core application code directly in the `Kickstarter iOS`
-application target. Open `Kickstarter.xcodeproj` and select that scheme to run the app.
-The existing UIKit screens and interactions are retained.
-
-- `Kickstarter-iOS/1 - View`: screens/controllers, adjacent ViewModels and shared presentation.
-- `Kickstarter-iOS/2 - AppModel`: composition, Features and app-owned storage/service adapters.
-- `Kickstarter-iOS/3 - App Resources`: storyboards, nibs, localization and app configuration.
-- `Kickstarter-iOS/4 - Swift Extensions`: shared application extensions.
-- `Kickstarter-iOS/Assets.xcassets`: application artwork.
-- `ApplicationTests`: app-hosted model, presentation and session tests plus test support.
-
-`Library` and `Kickstarter-Framework` are no longer application packages. `KsApi`,
-`GraphAPI`, `Experimentation`, `KDS` and `ServerDrivenUI` retain service contracts,
-generated API code, SDK integration and reusable rendering/design components. Checkout
-experiment decisions live with the application Features that use them.
-
-The generated API mock framework is test-only; it contains no application Features,
-ViewModels or screens. It links to the same generated API module as the host app so
-GraphQL runtime types are not duplicated. Hosted unit-test schemes set
-`CFA_UNIT_TEST_HOST=1` to prevent the live root screen from observing fixture notifications.
-Normal app launches do not set this flag; the branch is Debug-only.
-
-See [the structural plan](MIGRATION_STRUCTURE_PLAN.md),
-[remaining verification](MIGRATION_REMAINING_WORK.md) and
-[verified checkpoints](MIGRATION_LEDGER.md). Moving files does not by itself establish
-Swift 6 compliance or live-payment correctness.
-
-## Testing the project
-
-- Run all tests from the command line by running `make test-all`.
-- Run an individual scheme's tests by selecting that scheme in Xcode and hitting CMD+U.
-
-## Documentation
-
-While we’re at it, why not share our docs? Check out the
-[native docs](https://github.com/kickstarter/native-docs) we have written so far
-for more documentation.
-
-## Dependencies
-
-We make heavy use of the following projects, and so it can be helpful to be
-familiar with them:
-
-### 1st party
-
-* [![Circle CI](https://circleci.com/gh/kickstarter/Kickstarter-Prelude.svg?style=svg)](https://circleci.com/gh/kickstarter/Kickstarter-Prelude)
-[Prelude](https://github.com/kickstarter/Kickstarter-Prelude): Foundation of
-types and functions we feel are missing from the Swift standard library. 
-
-### 3rd party
-
-* [AlamofireImage](https://github.com/Alamofire/AlamofireImage)
-* [SnapshotTesting](https://github.com/pointfreeco/swift-snapshot-testing)
-* [Apollo](https://github.com/apollographql/apollo-ios)
-* [Stripe](https://github.com/stripe/stripe-ios)
-* [KingFisher](https://github.com/onevcat/Kingfisher)
-* [SwiftSoup](https://github.com/scinfu/SwiftSoup)
-* [Facebook](https://github.com/facebook/facebook-ios-sdk)
-* [Firebase](https://github.com/firebase/firebase-ios-sdk)
-* [Appboy](https://github.com/Appboy/Appboy-segment-ios)
-* [PerimeterX](https://github.com/PerimeterX/px-iOS-Framework)
-
-Notices for 3rd party libraries in this repository are contained in
-`NOTICE.md`.
-
-## Contributing
-
-We intend for this project to be an educational resource: we are excited to
-share our wins, mistakes, and methodology of iOS development as we work
-in the open. Our primary focus is to continue improving the app for our users in
-line with our roadmap.
-
-The best way to submit feedback and report bugs is to open a GitHub issue.
-Please be sure to include your operating system, device, version number, and
-steps to reproduce reported bugs. Keep in mind that all participants will be
-expected to follow our code of conduct.
-
-## Code of Conduct
-
-We aim to share our knowledge and findings as we work daily to improve our
-product, for our community, in a safe and open space. We work as we live, as
-kind and considerate human beings who learn and grow from giving and receiving
-positive, constructive feedback. We reserve the right to delete or ban any
-behavior violating this base foundation of respect.
-
-## Find this interesting?
-
-We do too, and we’re [hiring](https://www.kickstarter.com/jobs)!
-
-## License
-
+```sh
+git clone --branch migration/cfa-swift-concurrency --single-branch https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter.git
+cd Legacy-GCD-Migration-iOS-App-Kickstarter
+cp 'Kickstarter-iOS/3 - App Resources/Configuration/Secrets.swift.example' KsApi/Sources/KsApi/Secrets.swift
 ```
-Copyright 2021 Kickstarter, PBC.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+In the copied `KsApi/Sources/KsApi/Secrets.swift`, set `isOSS` to `true`. Open `Kickstarter.xcodeproj`, let Xcode resolve the package dependencies, select the **Kickstarter iOS** scheme and a simulator, and run the Debug build. The migration was verified using Xcode 26.2 and an iPhone Air simulator running iOS 26.2. The local secrets file is ignored by Git; do not commit credentials.
 
-   http://www.apache.org/licenses/LICENSE-2.0
+The [public-demo guide](docs/PUBLIC-DEMO.md) explains the fictional catalogue, supported browsing flows and setup. It does not require Kickstarter API keys for those flows. Login, real payments and other live operations are not a complete offline demo; the project still resolves Swift packages and is not fully offline.
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+## Before and after
+
+The upstream baseline uses a UIKit application with application code spread across local Swift packages, including `Library` and `Kickstarter-Framework`. Its view models use ReactiveSwift signals and producers to connect inputs, outputs and asynchronous work.
+
+The migrated branch keeps the existing UIKit screens and moves core app code into the application target using **Cooperative Feature Architecture (CFA)**. An AppModel composes features that own application state and workflows; view models and controllers handle presentation and invoke feature operations. Swift Concurrency provides the primary async task and cancellation model, and Observation is used for migrated observable state. Some Combine, platform callbacks and third-party SDKs remain where applicable.
+
+```text
+Kickstarter-iOS/
+  1 - View/              Screens, controllers, view models and shared UI
+  2 - AppModel/          Composition, features, storage and service adapters
+  3 - App Resources/     Configuration, localization and app resources
+  4 - Swift Extensions/  Shared extensions
+ApplicationTests/        App-hosted tests and support
 ```
+
+The app no longer links ReactiveSwift or ReactiveExtensions. Local packages including `KsApi`, `GraphAPI`, `Experimentation`, `KDS` and `ServerDrivenUI` remain for services, generated APIs, design and reusable rendering. See the [implementation handover](MIGRATION_COMPLETION_REPORT.md) for the structural migration and the newer [ledger](MIGRATION_LEDGER.md) for subsequent changes, including ReactiveSwift removal.
+
+## What the migration achieved
+
+The work moved core app code out of the two application libraries and into the CFA folder structure, migrated feature workflows towards owned async tasks, and removed ReactiveSwift from app and test targets. A fictional-data demo supports discovery, search and project browsing without private API credentials.
+
+This was an **AI-assisted, substantially autonomous migration with human direction, review, testing and follow-up corrections**. The earliest recorded preparation was 26 October 2026 at 14:18 Bangkok time; the CFA implementation handover was recorded on 3 November at 21:44. Those checkpoints are approximately **8 days and 7 hours apart**, including interruptions and human involvement, not a measurement of active model time. ReactiveSwift removal and further review continued afterwards. GPT-6 Astra High is identifiable in screenshots for portions of the work; exact per-commit model and cost information was not recorded.
+
+## Verification and limits
+
+At the 3 November handover, selected existing cohorts reported **2,929 passing tests**. Following ReactiveSwift removal, separate runs on iPhone Air / iOS 26.2 passed **1,944 non-snapshot model tests**, **183 non-snapshot presentation tests**, and **39 signed keychain tests**. These are separate checkpoints and overlapping cohorts, not additive totals. The simulator build succeeded, and a limited public-demo smoke check covered discovery sorting, opening a project and searching.
+
+The original snapshot references require an iPad mini (A17 Pro) with iOS 18.6; those comparisons were not rerun because that runtime was unavailable. Physical-device review, full visual/accessibility validation and live account/payment operations remain unverified. This case study is not a production certification, a claim of race freedom, or a warning-free Swift 6 build. See [remaining work](MIGRATION_REMAINING_WORK.md) and the [ledger](MIGRATION_LEDGER.md) for details and dated evidence.
+
+## Credits and licence
+
+The starting application, its assets and original documentation are from [kickstarter/ios-oss](https://github.com/kickstarter/ios-oss). Third-party notices are in [NOTICE.md](NOTICE.md). The project is available under the [Apache License 2.0](LICENSE).
