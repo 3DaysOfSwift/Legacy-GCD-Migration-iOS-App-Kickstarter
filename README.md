@@ -5,7 +5,7 @@
   <a href="https://github.com/3DaysOfSwift/CFA-AI-Toolkit-for-iOS"><img src=".github/migration-branding/cfa-ai-toolkit.png" width="140" alt="CFA AI Toolkit for iOS"></a>
 </p>
 
-# Kickstarter iOS: CFA and Swift Concurrency migration
+# Kickstarter Migrated to Swift Concurrency using AI
 
 This repository is an independent, AI-assisted migration of [Kickstarter's open-source iOS app](https://github.com/kickstarter/ios-oss). It is an educational case study by 3 Days of Swift Concurrency, not an official Kickstarter release. The original app and its authors retain their copyright and [Apache 2.0 licence](LICENSE).
 
