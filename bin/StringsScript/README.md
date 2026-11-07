@@ -8,7 +8,7 @@ Most of the fuctionality lives in StringsScriptCore. Any new functionality shoul
 
 * You can build this script from the command line by navigating to the root `bin/StringsScript` folder and running `swift build`
     * If you get the error `use of unresolved identifier 'Secrets'`, copy the file `Secrets.swift` located at `Frameworks/native-secrets/ios/Secrets.swift` to the  `bin/StringsScript/Sources/StringsScriptCore` folder. Make sure that the option `Copy items if needed` is unchecked and set its Target Membership to `StringsScriptCore`.
-    * you can run the debug binary from the command line using `./.build/debug/StringsScript "../../Kickstarter-iOS/4 - Swift Extensions/Strings.swift" "../../Kickstarter-iOS/3 - App Resources/Locales"` (from the root StringsScript folder). Where `"../../Kickstarter-iOS/4 - Swift Extensions/Strings.swift"` and  `Kickstarter-iOS/3 - App Resources/Locales`  are the paths where the files will be created.
+    * you can run the debug binary from the command line using `./.build/debug/StringsScript "../../Kickstarter-iOS/1 - View/Shared System Strings/Strings.swift" "../../Kickstarter-iOS/3 - App Resources/Locales"` (from the root StringsScript folder). Where `"../../Kickstarter-iOS/1 - View/Shared System Strings/Strings.swift"` and  `Kickstarter-iOS/3 - App Resources/Locales`  are the paths where the files will be created.
 	* any time you make changes to the script, you'll have to rebuild it in order to see your changes
 * You can run tests in the command line with `swift test`
 

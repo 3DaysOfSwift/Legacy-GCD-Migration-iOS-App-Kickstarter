@@ -3065,7 +3065,7 @@
 		};
 		"A531478DFB3E906D306967B8" = {
 			"name" = "UIApplicationType.swift";
-			"path" = "Kickstarter-iOS/2 - AppModel/Composition/Platform Adapters/UIApplicationType.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIApplicationType.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -9531,6 +9531,7 @@
 			"name" = "1 - View";
 			"sourceTree" = "<group>";
 			"children" = (
+				"338EDA095466913D5DD7B933",
 				"FE1425AC32710B679C026E9B",
 				"CB21813FF2A60FC467ED8ECB",
 				"D7FF5F67A342B5AAC0ED1924",
@@ -9595,7 +9596,6 @@
 			"children" = (
 				"6033935E0F1F9BF167F62970",
 				"B09639F672D0B3A463A5F6F5",
-				"7F656FE0660EEBD978C99775",
 				"5F931B7180121DA46915D76D",
 				"A850CCA69478B33F8539BB11",
 				"1CD857946CD7BDA5489687CD",
@@ -9632,7 +9632,6 @@
 				"EEC0538532FA36CD84E5390F",
 				"EB6D77A6915BDFACB45E3FD3",
 				"F069672A0753BF7A620D5C92",
-				"ADC480A4EDBB2BF4D4973613",
 				"EFF90F8B8A82D86E3A27FC6A",
 				"76A142EEC21CAA3A82C3E3FF",
 				"DA7F5FEED9F1A1A4D49F0321",
@@ -13878,7 +13877,7 @@
 		};
 		"7F656FE0660EEBD978C99775" = {
 			"name" = "Strings.swift";
-			"path" = "Kickstarter-iOS/1 - View/Shared Views/Strings.swift";
+			"path" = "Kickstarter-iOS/1 - View/Shared System Strings/Strings.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -16063,7 +16062,7 @@
 		};
 		"ADC480A4EDBB2BF4D4973613" = {
 			"name" = "LocalizedString.swift";
-			"path" = "Kickstarter-iOS/1 - View/Shared Views/LocalizedString.swift";
+			"path" = "Kickstarter-iOS/1 - View/Shared System Strings/LocalizedString.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -24470,6 +24469,7 @@
 			"name" = "UIKit Extensions";
 			"sourceTree" = "<group>";
 			"children" = (
+				"A531478DFB3E906D306967B8",
 				"33CD1CD4EF53BCF5FE7A1E0F",
 				"842244D4F9533F8AA839B58F",
 				"238DFD157A234D30A1CA0434",
@@ -24523,7 +24523,6 @@
 			"sourceTree" = "<group>";
 			"children" = (
 				"152A97C64D42FC1DF635D920",
-				"A531478DFB3E906D306967B8",
 				"6AC447356CCA333FE5F9639B",
 				"92D1E9479C6533B82956CE06",
 				"BB9000C4B9E3CF564732175F",
@@ -24544,6 +24543,15 @@
 			"children" = (
 				"96B85D99A0519207B4B8669F",
 				"90C0E302104138CFDEBF4C23",
+			);
+		};
+		"338EDA095466913D5DD7B933" = {
+			"isa" = "PBXGroup";
+			"name" = "Shared System Strings";
+			"sourceTree" = "<group>";
+			"children" = (
+				"7F656FE0660EEBD978C99775",
+				"ADC480A4EDBB2BF4D4973613",
 			);
 		};
 	};

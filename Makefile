@@ -153,7 +153,7 @@ cleanup:
 
 strings:
 	cp Frameworks/native-secrets/ios/Secrets.swift bin/StringsScript/Sources/StringsScriptCore
-	./bin/strings-script "./Kickstarter-iOS/1 - View/Shared Views/Strings.swift" "./Kickstarter-iOS/3 - App Resources/Locales"
+	./bin/strings-script "./Kickstarter-iOS/1 - View/Shared System Strings/Strings.swift" "./Kickstarter-iOS/3 - App Resources/Locales"
 
 secrets:
 	-@rm -rf Frameworks/native-secrets
