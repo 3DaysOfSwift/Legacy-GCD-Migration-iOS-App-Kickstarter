@@ -166,7 +166,7 @@
 		};
 		"9F655B42A0F8947328DACB95" = {
 			"name" = "Project+ProjectCellModel.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/Project+ProjectCellModel.swift";
+			"path" = "Kickstarter-iOS/1 - View/Views/BackerDashboardProjects/Datasource/Project+ProjectCellModel.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -369,7 +369,7 @@
 		};
 		"334A83113AB9CF814664C98A" = {
 			"name" = "BackerDashboardProjectCellFragment+ProjectCellModel.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/BackerDashboardProjectCellFragment+ProjectCellModel.swift";
+			"path" = "Kickstarter-iOS/1 - View/Views/BackerDashboardProjects/Datasource/BackerDashboardProjectCellFragment+ProjectCellModel.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -614,7 +614,7 @@
 		};
 		"45F280CA66285CB52DD23003" = {
 			"name" = "UIBarButtonItem.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIBarButtonItem.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIBarButtonItem.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -1443,7 +1443,7 @@
 		};
 		"DE0AE79254B4EBF2F15A650D" = {
 			"name" = "StatsigFeature+Helpers.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/StatsigFeature+Helpers.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Features/RemoteConfiguration/StatsigFeature+Helpers.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -1704,7 +1704,7 @@
 		};
 		"92D1E9479C6533B82956CE06" = {
 			"name" = "UIScreenType.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIScreenType.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Composition/Platform Adapters/UIScreenType.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -1734,74 +1734,12 @@
 			"name" = "4 - Swift Extensions";
 			"sourceTree" = "<group>";
 			"children" = (
-				"334A83113AB9CF814664C98A",
 				"6E1B9114E235E5B0BB90BDF5",
-				"73C67D762E5C37312F40037B",
-				"E0BFCA74FF6F54FDA612B4FD",
-				"E6784FC1C8D53B33C1A89E47",
-				"96B85D99A0519207B4B8669F",
-				"90C0E302104138CFDEBF4C23",
-				"E7C367FBFC1B9488D0D7F498",
 				"8A68DD1302636016BD8DB75A",
-				"B6A06FB25E9940333B72DDB6",
 				"D6A3E77A583AEF34BDAA64DE",
-				"6033935E0F1F9BF167F62970",
-				"274B63D192EEC81F4D99848B",
-				"A08A5E03F3831855CB0AC93B",
-				"B09639F672D0B3A463A5F6F5",
-				"152A97C64D42FC1DF635D920",
-				"5F2EBA09F812161689F8E3FF",
-				"7CAD0E5C29CB2201FF406A66",
-				"F370BD767E45A7F89D8B58CE",
-				"9F655B42A0F8947328DACB95",
-				"73ECF3D5D4C82A141A86773E",
-				"7C44B9E07F5F55915D659CE0",
-				"DB354B21864E02FF2E18959F",
-				"B69D96AD339FB1847D9C1164",
-				"216029B102FFD36E806755F0",
-				"DE0AE79254B4EBF2F15A650D",
-				"33CD1CD4EF53BCF5FE7A1E0F",
 				"BD570F8BD747AAB612E74854",
-				"842244D4F9533F8AA839B58F",
 				"2E15F9B0CF77C7FCE61BB3A9",
 				"451CEF8C906EFA616F20096F",
-				"7F656FE0660EEBD978C99775",
-				"03F51FEEFC00285C318BF490",
-				"238DFD157A234D30A1CA0434",
-				"6AAE5D897D18F65C5FF83211",
-				"A531478DFB3E906D306967B8",
-				"45F280CA66285CB52DD23003",
-				"989E16CA39EBF1481630E57F",
-				"E51B74986B34A6913AE2EC99",
-				"6AC447356CCA333FE5F9639B",
-				"6C86A7EA373F6594D21C3522",
-				"C2443ECE2DE449C88BA382DF",
-				"0ACFEC53108A8F3683E8BB37",
-				"79C4C97456DC2AB268E065DA",
-				"C6DD682E198E94BCAA26C0A9",
-				"872D7386A77D62F368D62FC4",
-				"7A67BB7D806A043A2B6FCCD0",
-				"A4C17BBEB143C77E6EF5A371",
-				"34BC06AF73650B28E90EC1D7",
-				"92D1E9479C6533B82956CE06",
-				"84BD2A5F2B063DABA57400AC",
-				"EBB976F87FF8044C32EECE3F",
-				"99958A3F833C8CE805FEFD7C",
-				"240A1007D41F49482B66DCD7",
-				"C20D18B6413801E884DEA84D",
-				"356BA7FBFFF9DBFE0F2AF1F5",
-				"51B5794EB7EC7FC67231258B",
-				"83FD9C5EA5190EF906A50D1E",
-				"9103B0822E91CF99D2F2A01D",
-				"3988D3D4F15A98BD74E1EC47",
-				"6340CDAE8D8FEEB4764DFC8E",
-				"ECC787E0908CD96933A3E264",
-				"1AC4A3DE51A48FBB1C084D49",
-				"65AA3A3A218D66003C495C0A",
-				"147ACDA107D41E6BE4B03557",
-				"3BAB8DBF2ABD1B52D40F9FA5",
-				"A47029FB51A416C944A71607",
-				"BB9000C4B9E3CF564732175F",
 			);
 		};
 		"A02F7817933E3511A9156B4E" = {
@@ -3086,7 +3024,7 @@
 		};
 		"ECC787E0908CD96933A3E264" = {
 			"name" = "UIViewController+Children.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIViewController+Children.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIViewController+Children.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -3127,7 +3065,7 @@
 		};
 		"A531478DFB3E906D306967B8" = {
 			"name" = "UIApplicationType.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIApplicationType.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Composition/Platform Adapters/UIApplicationType.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -3823,7 +3761,7 @@
 		};
 		"B6A06FB25E9940333B72DDB6" = {
 			"name" = "Environment+Identity.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/Environment+Identity.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Composition/Environment+Identity.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -3888,7 +3826,7 @@
 		};
 		"E7C367FBFC1B9488D0D7F498" = {
 			"name" = "DiscoveryParams+SearchFilters.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/DiscoveryParams+SearchFilters.swift";
+			"path" = "Kickstarter-iOS/1 - View/Views/Search/Extensions/DiscoveryParams+SearchFilters.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -3911,7 +3849,7 @@
 		};
 		"C2443ECE2DE449C88BA382DF" = {
 			"name" = "UIGestureRecognizer-Extensions.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIGestureRecognizer-Extensions.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIGestureRecognizer-Extensions.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -4023,7 +3961,7 @@
 		};
 		"274B63D192EEC81F4D99848B" = {
 			"name" = "ExperimentName+Helpers.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/ExperimentName+Helpers.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Features/RemoteConfiguration/ExperimentName+Helpers.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -4257,7 +4195,7 @@
 		};
 		"A4C17BBEB143C77E6EF5A371" = {
 			"name" = "UIPageViewController+ThreadSafety.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIPageViewController+ThreadSafety.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIPageViewController+ThreadSafety.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -4273,6 +4211,9 @@
 			"name" = "Composition";
 			"sourceTree" = "<group>";
 			"children" = (
+				"B6A06FB25E9940333B72DDB6",
+				"1923D3D5A768EABA46D88E89",
+				"5647FF2EC42A3ECB3D86C80C",
 				"E8EF95CE98A593EBC1F5E3E6",
 				"32F6C791F23236493AD513C0",
 				"DA0B247CB468F8E43F70D126",
@@ -4551,7 +4492,7 @@
 		};
 		"E51B74986B34A6913AE2EC99" = {
 			"name" = "UICollectionView-Extensions.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UICollectionView-Extensions.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UICollectionView-Extensions.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -4565,7 +4506,7 @@
 		};
 		"3988D3D4F15A98BD74E1EC47" = {
 			"name" = "UIView+Helper.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIView+Helper.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIView+Helper.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -5173,7 +5114,7 @@
 		};
 		"C20D18B6413801E884DEA84D" = {
 			"name" = "UITableView+AutoLayoutHeaderView.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UITableView+AutoLayoutHeaderView.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UITableView+AutoLayoutHeaderView.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -5601,7 +5542,7 @@
 		};
 		"03F51FEEFC00285C318BF490" = {
 			"name" = "Text+HTML.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/Text+HTML.swift";
+			"path" = "Kickstarter-iOS/1 - View/SwiftUI Extensions/Text+HTML.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -6109,7 +6050,7 @@
 		};
 		"356BA7FBFFF9DBFE0F2AF1F5" = {
 			"name" = "UITableView-Extensions.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UITableView-Extensions.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UITableView-Extensions.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -7267,7 +7208,7 @@
 		};
 		"E6784FC1C8D53B33C1A89E47" = {
 			"name" = "CreatePaymentSourceSetupIntentClientSecret+Constructor.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/CreatePaymentSourceSetupIntentClientSecret+Constructor.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Features/Payments/CreatePaymentSourceSetupIntentClientSecret+Constructor.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -7446,7 +7387,7 @@
 		};
 		"842244D4F9533F8AA839B58F" = {
 			"name" = "String+SimpleHTML.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/String+SimpleHTML.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/String+SimpleHTML.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -7608,7 +7549,7 @@
 		};
 		"989E16CA39EBF1481630E57F" = {
 			"name" = "UIButton+LocalizedKey.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIButton+LocalizedKey.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIButton+LocalizedKey.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -7664,7 +7605,7 @@
 		};
 		"EBB976F87FF8044C32EECE3F" = {
 			"name" = "UIStackView+BackgroundColor.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIStackView+BackgroundColor.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIStackView+BackgroundColor.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -8583,7 +8524,7 @@
 		};
 		"33CD1CD4EF53BCF5FE7A1E0F" = {
 			"name" = "String+Attributed.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/String+Attributed.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/String+Attributed.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -8956,7 +8897,7 @@
 		};
 		"216029B102FFD36E806755F0" = {
 			"name" = "StatsigExperiment+Helpers.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/StatsigExperiment+Helpers.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Features/RemoteConfiguration/StatsigExperiment+Helpers.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -9006,7 +8947,7 @@
 		};
 		"6C86A7EA373F6594D21C3522" = {
 			"name" = "UIFont.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIFont.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIFont.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -9430,7 +9371,7 @@
 		};
 		"51B5794EB7EC7FC67231258B" = {
 			"name" = "UITextField+LocalizedPlaceholderKey.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UITextField+LocalizedPlaceholderKey.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UITextField+LocalizedPlaceholderKey.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -9590,6 +9531,8 @@
 			"name" = "1 - View";
 			"sourceTree" = "<group>";
 			"children" = (
+				"FE1425AC32710B679C026E9B",
+				"CB21813FF2A60FC467ED8ECB",
 				"D7FF5F67A342B5AAC0ED1924",
 				"A756CEFA35E29F2A3896447A",
 				"86CBEC5E3EF7C94D8B921DAC",
@@ -9650,6 +9593,11 @@
 			"name" = "Shared Views";
 			"sourceTree" = "<group>";
 			"children" = (
+				"6033935E0F1F9BF167F62970",
+				"B09639F672D0B3A463A5F6F5",
+				"7F656FE0660EEBD978C99775",
+				"5F931B7180121DA46915D76D",
+				"A850CCA69478B33F8539BB11",
 				"1CD857946CD7BDA5489687CD",
 				"C5B515B579FEAA919257F1A5",
 				"5A759562951E02539B519D30",
@@ -9753,7 +9701,7 @@
 		};
 		"A08A5E03F3831855CB0AC93B" = {
 			"name" = "Feature+Helpers.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/Feature+Helpers.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Features/RemoteConfiguration/Feature+Helpers.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -10266,7 +10214,7 @@
 		};
 		"152A97C64D42FC1DF635D920" = {
 			"name" = "NSBundleType.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/NSBundleType.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Composition/Platform Adapters/NSBundleType.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -10413,7 +10361,7 @@
 		};
 		"7C44B9E07F5F55915D659CE0" = {
 			"name" = "Publisher+Helpers.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/Publisher+Helpers.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Composition/Combine Extensions/Publisher+Helpers.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -10509,7 +10457,7 @@
 		};
 		"6340CDAE8D8FEEB4764DFC8E" = {
 			"name" = "UIView-Extensions.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIView-Extensions.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIView-Extensions.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -11439,7 +11387,7 @@
 		};
 		"96B85D99A0519207B4B8669F" = {
 			"name" = "CreditCard+Utils.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/CreditCard+Utils.swift";
+			"path" = "Kickstarter-iOS/1 - View/Shared Views/Payment/CreditCard+Utils.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -11453,7 +11401,7 @@
 		};
 		"238DFD157A234D30A1CA0434" = {
 			"name" = "UIAlertController.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIAlertController.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIAlertController.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -11829,7 +11777,7 @@
 		};
 		"79C4C97456DC2AB268E065DA" = {
 			"name" = "UILabel+IBClear.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UILabel+IBClear.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UILabel+IBClear.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -12515,6 +12463,7 @@
 			"name" = "Platform";
 			"sourceTree" = "<group>";
 			"children" = (
+				"5F2EBA09F812161689F8E3FF",
 				"D4DB9EF898C958827C7F4747",
 				"90D0D7227D0D4EB51F20FED4",
 				"073357E40DCC327EDEE4CAFE",
@@ -12844,7 +12793,7 @@
 		};
 		"E0BFCA74FF6F54FDA612B4FD" = {
 			"name" = "CreatePaymentSourceInput+Constructor.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/CreatePaymentSourceInput+Constructor.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Features/Payments/CreatePaymentSourceInput+Constructor.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -12862,7 +12811,7 @@
 		};
 		"F370BD767E45A7F89D8B58CE" = {
 			"name" = "PledgePaymentPlansAndSelectionData+GraphAPI.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/PledgePaymentPlansAndSelectionData+GraphAPI.swift";
+			"path" = "Kickstarter-iOS/1 - View/Views/PledgeOverTime/Controller/PledgePaymentPlansAndSelectionData+GraphAPI.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -12990,7 +12939,7 @@
 		};
 		"7CAD0E5C29CB2201FF406A66" = {
 			"name" = "PKPaymentRequest+Helpers.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/PKPaymentRequest+Helpers.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Features/Payments/PKPaymentRequest+Helpers.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -13377,6 +13326,7 @@
 			"name" = "ProjectDetails";
 			"sourceTree" = "<group>";
 			"children" = (
+				"73ECF3D5D4C82A141A86773E",
 				"14FA9EA546FA47BC5131C336",
 				"C8B959CED5F3D3B2E3440BD6",
 				"2B129F7A207F0B6099C22124",
@@ -13880,6 +13830,8 @@
 			"name" = "Datasource";
 			"sourceTree" = "<group>";
 			"children" = (
+				"334A83113AB9CF814664C98A",
+				"9F655B42A0F8947328DACB95",
 				"2FDDC71E666B10FC68AADE78",
 				"D2C7F3E68C44C11DB0ACF20E",
 			);
@@ -13915,7 +13867,7 @@
 		};
 		"7A67BB7D806A043A2B6FCCD0" = {
 			"name" = "UINavigationItem+Localized.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UINavigationItem+Localized.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UINavigationItem+Localized.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -13926,7 +13878,7 @@
 		};
 		"7F656FE0660EEBD978C99775" = {
 			"name" = "Strings.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/Strings.swift";
+			"path" = "Kickstarter-iOS/1 - View/Shared Views/Strings.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -14008,6 +13960,7 @@
 			"name" = "Extensions";
 			"sourceTree" = "<group>";
 			"children" = (
+				"E7C367FBFC1B9488D0D7F498",
 				"794A69E17B3E468947D06F01",
 			);
 		};
@@ -14070,6 +14023,12 @@
 			"name" = "RemoteConfiguration";
 			"sourceTree" = "<group>";
 			"children" = (
+				"274B63D192EEC81F4D99848B",
+				"A08A5E03F3831855CB0AC93B",
+				"DB354B21864E02FF2E18959F",
+				"B69D96AD339FB1847D9C1164",
+				"216029B102FFD36E806755F0",
+				"DE0AE79254B4EBF2F15A650D",
 				"A5F4458A98595455A65DBE7D",
 				"97EAF895EFFBB9C4EF9227F5",
 				"5F6C69AAAEEFAAB87F2DFE57",
@@ -14083,7 +14042,7 @@
 		};
 		"5F2EBA09F812161689F8E3FF" = {
 			"name" = "NSHTTPCookieStorageType.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/NSHTTPCookieStorageType.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/User Data Storage/Platform/NSHTTPCookieStorageType.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -14947,7 +14906,7 @@
 		};
 		"0ACFEC53108A8F3683E8BB37" = {
 			"name" = "UIImage+Color.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIImage+Color.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIImage+Color.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -15446,7 +15405,7 @@
 		};
 		"99958A3F833C8CE805FEFD7C" = {
 			"name" = "UIStackView+Helper.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIStackView+Helper.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIStackView+Helper.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -15764,7 +15723,7 @@
 		};
 		"BB9000C4B9E3CF564732175F" = {
 			"name" = "ScopedPlatformObservation.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/ScopedPlatformObservation.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Composition/Platform Adapters/ScopedPlatformObservation.swift";
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "sourcecode.swift";
 			"sourceTree" = "SOURCE_ROOT";
@@ -16205,7 +16164,7 @@
 		};
 		"6033935E0F1F9BF167F62970" = {
 			"name" = "ErrorEnvelope+LocalizedDescription.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/ErrorEnvelope+LocalizedDescription.swift";
+			"path" = "Kickstarter-iOS/1 - View/Shared Views/ErrorEnvelope+LocalizedDescription.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -16274,7 +16233,7 @@
 		};
 		"B09639F672D0B3A463A5F6F5" = {
 			"name" = "GraphError+LocalizedDescription.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/GraphError+LocalizedDescription.swift";
+			"path" = "Kickstarter-iOS/1 - View/Shared Views/GraphError+LocalizedDescription.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -16523,7 +16482,7 @@
 		};
 		"90C0E302104138CFDEBF4C23" = {
 			"name" = "CreditCardType+ImageName.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/CreditCardType+ImageName.swift";
+			"path" = "Kickstarter-iOS/1 - View/Shared Views/Payment/CreditCardType+ImageName.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -17143,7 +17102,7 @@
 		};
 		"3BAB8DBF2ABD1B52D40F9FA5" = {
 			"name" = "VideoFeedItem+Constructor.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/VideoFeedItem+Constructor.swift";
+			"path" = "Kickstarter-iOS/1 - View/Views/VideoFeed/State/VideoFeedItem+Constructor.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -17620,6 +17579,7 @@
 			"name" = "Controller";
 			"sourceTree" = "<group>";
 			"children" = (
+				"F370BD767E45A7F89D8B58CE",
 				"5936C3C05D5C92876DBAA237",
 				"DC54D47F8119A4E2E8B05437",
 			);
@@ -19161,7 +19121,7 @@
 		};
 		"83FD9C5EA5190EF906A50D1E" = {
 			"name" = "UIUserInterfaceStyle+Description.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIUserInterfaceStyle+Description.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIUserInterfaceStyle+Description.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -19316,7 +19276,7 @@
 		};
 		"147ACDA107D41E6BE4B03557" = {
 			"name" = "UpdateBackingInput+Constructor.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UpdateBackingInput+Constructor.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Features/Pledge/UpdateBackingInput+Constructor.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -19662,7 +19622,7 @@
 		};
 		"65AA3A3A218D66003C495C0A" = {
 			"name" = "UIViewController-Preparation.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIViewController-Preparation.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIViewController-Preparation.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -19708,7 +19668,7 @@
 		};
 		"73ECF3D5D4C82A141A86773E" = {
 			"name" = "ProjectCardProperties+Parsing.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/ProjectCardProperties+Parsing.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Features/ProjectDetails/ProjectCardProperties+Parsing.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -19745,7 +19705,7 @@
 		};
 		"73C67D762E5C37312F40037B" = {
 			"name" = "CreateBackingInput+Constructor.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/CreateBackingInput+Constructor.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Features/Pledge/CreateBackingInput+Constructor.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -20108,6 +20068,8 @@
 			"name" = "Pledge";
 			"sourceTree" = "<group>";
 			"children" = (
+				"73C67D762E5C37312F40037B",
+				"147ACDA107D41E6BE4B03557",
 				"DFFE46519DFA46ADD1D2BA74",
 				"B48926EA368EC98819DA3837",
 				"7E585EC88EEA254C4E069285",
@@ -20471,7 +20433,7 @@
 		};
 		"9103B0822E91CF99D2F2A01D" = {
 			"name" = "UIView+AutoLayout.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIView+AutoLayout.swift";
+			"path" = "Kickstarter-iOS/1 - View/Shared Views/UIKit Helpers/UIView+AutoLayout.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -20515,7 +20477,7 @@
 		};
 		"C6DD682E198E94BCAA26C0A9" = {
 			"name" = "UILabel+LocalizedKey.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UILabel+LocalizedKey.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UILabel+LocalizedKey.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -20968,6 +20930,8 @@
 			"name" = "State";
 			"sourceTree" = "<group>";
 			"children" = (
+				"3BAB8DBF2ABD1B52D40F9FA5",
+				"A47029FB51A416C944A71607",
 				"2927FDB7638C895EE3528FFD",
 			);
 		};
@@ -20986,6 +20950,9 @@
 			"name" = "Payments";
 			"sourceTree" = "<group>";
 			"children" = (
+				"E0BFCA74FF6F54FDA612B4FD",
+				"E6784FC1C8D53B33C1A89E47",
+				"7CAD0E5C29CB2201FF406A66",
 				"85253C092905CA4D8040A6C4",
 				"6043D85A5B75F4C4C09CD37C",
 				"C374749FD04EA08C49438BBB",
@@ -20996,7 +20963,7 @@
 		};
 		"872D7386A77D62F368D62FC4" = {
 			"name" = "UILabel+SimpleHTML.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UILabel+SimpleHTML.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UILabel+SimpleHTML.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -21405,7 +21372,7 @@
 		};
 		"34BC06AF73650B28E90EC1D7" = {
 			"name" = "UIPress-Extensions.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIPress-Extensions.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIPress-Extensions.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -21828,7 +21795,7 @@
 		};
 		"240A1007D41F49482B66DCD7" = {
 			"name" = "UIStackView.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIStackView.swift";
+			"path" = "Kickstarter-iOS/1 - View/Shared Views/UIKit Helpers/UIStackView.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -22405,7 +22372,7 @@
 		};
 		"84BD2A5F2B063DABA57400AC" = {
 			"name" = "UIScrollView+Extensions.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIScrollView+Extensions.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIScrollView+Extensions.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -22660,7 +22627,7 @@
 		};
 		"6AC447356CCA333FE5F9639B" = {
 			"name" = "UIDeviceType.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIDeviceType.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Composition/Platform Adapters/UIDeviceType.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -23283,7 +23250,7 @@
 		};
 		"6AAE5D897D18F65C5FF83211" = {
 			"name" = "UIApplication.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIApplication.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIApplication.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -23702,7 +23669,7 @@
 		};
 		"DB354B21864E02FF2E18959F" = {
 			"name" = "RemoteConfigFeature+Helpers.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/RemoteConfigFeature+Helpers.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Features/RemoteConfiguration/RemoteConfigFeature+Helpers.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -23751,7 +23718,7 @@
 		};
 		"A47029FB51A416C944A71607" = {
 			"name" = "VideoFeedItem+ProjectCreatorConfiguration.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/VideoFeedItem+ProjectCreatorConfiguration.swift";
+			"path" = "Kickstarter-iOS/1 - View/Views/VideoFeed/State/VideoFeedItem+ProjectCreatorConfiguration.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -24307,7 +24274,7 @@
 		};
 		"B69D96AD339FB1847D9C1164" = {
 			"name" = "ServerFeature+Helpers.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/ServerFeature+Helpers.swift";
+			"path" = "Kickstarter-iOS/2 - AppModel/Features/RemoteConfiguration/ServerFeature+Helpers.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -24340,7 +24307,7 @@
 		};
 		"1AC4A3DE51A48FBB1C084D49" = {
 			"name" = "UIViewController+URL.swift";
-			"path" = "Kickstarter-iOS/4 - Swift Extensions/UIViewController+URL.swift";
+			"path" = "Kickstarter-iOS/1 - View/UIKit Extensions/UIViewController+URL.swift";
 			"isa" = "PBXFileReference";
 			"sourceTree" = "SOURCE_ROOT";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -24496,6 +24463,87 @@
 			"sourceTree" = "<group>";
 			"children" = (
 				"33B468BA50F0C4917864F060",
+			);
+		};
+		"FE1425AC32710B679C026E9B" = {
+			"isa" = "PBXGroup";
+			"name" = "UIKit Extensions";
+			"sourceTree" = "<group>";
+			"children" = (
+				"33CD1CD4EF53BCF5FE7A1E0F",
+				"842244D4F9533F8AA839B58F",
+				"238DFD157A234D30A1CA0434",
+				"6AAE5D897D18F65C5FF83211",
+				"45F280CA66285CB52DD23003",
+				"989E16CA39EBF1481630E57F",
+				"E51B74986B34A6913AE2EC99",
+				"6C86A7EA373F6594D21C3522",
+				"C2443ECE2DE449C88BA382DF",
+				"0ACFEC53108A8F3683E8BB37",
+				"79C4C97456DC2AB268E065DA",
+				"C6DD682E198E94BCAA26C0A9",
+				"872D7386A77D62F368D62FC4",
+				"7A67BB7D806A043A2B6FCCD0",
+				"A4C17BBEB143C77E6EF5A371",
+				"34BC06AF73650B28E90EC1D7",
+				"84BD2A5F2B063DABA57400AC",
+				"EBB976F87FF8044C32EECE3F",
+				"99958A3F833C8CE805FEFD7C",
+				"C20D18B6413801E884DEA84D",
+				"356BA7FBFFF9DBFE0F2AF1F5",
+				"51B5794EB7EC7FC67231258B",
+				"83FD9C5EA5190EF906A50D1E",
+				"3988D3D4F15A98BD74E1EC47",
+				"6340CDAE8D8FEEB4764DFC8E",
+				"ECC787E0908CD96933A3E264",
+				"1AC4A3DE51A48FBB1C084D49",
+				"65AA3A3A218D66003C495C0A",
+			);
+		};
+		"CB21813FF2A60FC467ED8ECB" = {
+			"isa" = "PBXGroup";
+			"name" = "SwiftUI Extensions";
+			"sourceTree" = "<group>";
+			"children" = (
+				"03F51FEEFC00285C318BF490",
+			);
+		};
+		"5F931B7180121DA46915D76D" = {
+			"isa" = "PBXGroup";
+			"name" = "UIKit Helpers";
+			"sourceTree" = "<group>";
+			"children" = (
+				"240A1007D41F49482B66DCD7",
+				"9103B0822E91CF99D2F2A01D",
+			);
+		};
+		"1923D3D5A768EABA46D88E89" = {
+			"isa" = "PBXGroup";
+			"name" = "Platform Adapters";
+			"sourceTree" = "<group>";
+			"children" = (
+				"152A97C64D42FC1DF635D920",
+				"A531478DFB3E906D306967B8",
+				"6AC447356CCA333FE5F9639B",
+				"92D1E9479C6533B82956CE06",
+				"BB9000C4B9E3CF564732175F",
+			);
+		};
+		"5647FF2EC42A3ECB3D86C80C" = {
+			"isa" = "PBXGroup";
+			"name" = "Combine Extensions";
+			"sourceTree" = "<group>";
+			"children" = (
+				"7C44B9E07F5F55915D659CE0",
+			);
+		};
+		"A850CCA69478B33F8539BB11" = {
+			"isa" = "PBXGroup";
+			"name" = "Shared Payment Presentation";
+			"sourceTree" = "<group>";
+			"children" = (
+				"96B85D99A0519207B4B8669F",
+				"90C0E302104138CFDEBF4C23",
 			);
 		};
 	};
