@@ -11,6 +11,25 @@ This repository is an independent educational migration of [Kickstarter's open-s
 
 [Browse the migrated branch](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/tree/migration/cfa-swift-concurrency) · [Download the migrated branch as a ZIP](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/archive/refs/heads/migration/cfa-swift-concurrency.zip) · [Read the migration and verification ledger](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/blob/migration/cfa-swift-concurrency/MIGRATION_LEDGER.md)
 
+## Migration report
+
+| Phase | Work and status |
+| --- | --- |
+| 1. Autonomous migration | AI-assisted migration to CFA and Swift Concurrency, with human direction and verification; implementation handover recorded. |
+| 2. Structure and cleanup | Core app code moved into the CFA folders; redundant migrated files and application-library packaging removed. |
+| 3. ReactiveSwift removal | Reactive workflows and state replaced with async operations, Observation and direct presentation callbacks; ReactiveSwift and ReactiveExtensions removed from app and test targets. |
+| 4. Manual testing and refinement | Simulator build, regression tests and representative demo browsing checked; further validation remains open. |
+
+| Recorded milestone | Bangkok time | Elapsed from first record |
+| --- | --- | --- |
+| Earliest recorded preparation | 26 Oct 2026, 14:18 | Starting point |
+| CFA implementation handover | 3 Nov 2026, 21:44 | About 8 days 7 hours 26 minutes |
+| ReactiveSwift removal checkpoint | 7 Nov 2026, 03:27 | About 11 days 13 hours 9 minutes |
+
+These are **elapsed calendar times**, including interruptions, human input and review—not continuous AI work. Phases overlapped; exact start and finish times for each phase were not recorded. Screenshots identify GPT-6 Astra High for portions of the work, but not every model used.
+
+**Verification:** 2,929 selected tests passed at handover; later separate, overlapping runs passed 1,944 non-snapshot model tests, 183 non-snapshot presentation tests and 39 signed keychain tests. Reference snapshot comparisons, physical-device review and live account/payment operations remain unverified. See the [migration ledger](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/blob/migration/cfa-swift-concurrency/MIGRATION_LEDGER.md) for evidence and limitations.
+
 To clone the migrated version directly:
 
 ```sh
@@ -33,9 +52,7 @@ The **migrated app** retains the UIKit screens and moves core app code into the 
 
 Cooperative Feature Architecture (CFA) gives features ownership of state and workflows, with view models and controllers handling presentation. The migrated code uses Swift Concurrency and Observation; selected services, generated APIs, design components and third-party SDKs remain in Swift packages. ReactiveSwift and ReactiveExtensions have been removed from the migrated app and test targets.
 
-The migration was **AI-assisted and substantially autonomous, with human direction, review, testing and later corrections**. The earliest recorded preparation on 26 October 2026 and the CFA implementation handover on 3 November are about **8 days and 7 hours apart**, including interruptions and human involvement. ReactiveSwift removal continued after that handover. Screenshots identify GPT-6 Astra High for parts of the work; exact model use and cost for every change were not recorded.
-
-At handover, selected existing cohorts reported **2,929 passing tests**. After ReactiveSwift removal, separate runs passed **1,944 non-snapshot model tests**, **183 non-snapshot presentation tests** and **39 signed keychain tests**. The simulator app built and a limited fictional-data discovery, project and search smoke test passed. These are separate, overlapping checkpoints. Reference snapshot comparisons, physical-device review and live payment/account operations remain unverified; this is not a production certification or a claim of race freedom. See the [migrated README](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/blob/migration/cfa-swift-concurrency/README.md) and [ledger](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/blob/migration/cfa-swift-concurrency/MIGRATION_LEDGER.md) for scope and limits.
+The simulator app built and a limited fictional-data discovery, project and search smoke test passed. This is not a production certification or a claim of race freedom. See the [migrated README](https://github.com/3DaysOfSwift/Legacy-GCD-Migration-iOS-App-Kickstarter/blob/migration/cfa-swift-concurrency/README.md) for setup and scope.
 
 ## Original upstream README
 
