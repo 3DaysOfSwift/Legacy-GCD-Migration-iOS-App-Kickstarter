@@ -5,7 +5,7 @@
   <a href="https://github.com/3DaysOfSwift/CFA-AI-Toolkit-for-iOS"><img src=".github/migration-branding/cfa-ai-toolkit.png" width="140" alt="CFA AI Toolkit for iOS"></a>
 </p>
 
-# Kickstarter iOS: an AI-assisted CFA migration
+# Kickstarter: Legacy GCD to Swift Concurrency using AI
 
 This repository is an independent educational migration of [Kickstarter's open-source iOS app](https://github.com/kickstarter/ios-oss), published by 3 Days of Swift Concurrency. It is not an official Kickstarter release. This `main` branch preserves the upstream starting point; the migrated app is on **`migration/cfa-swift-concurrency`**.
 
