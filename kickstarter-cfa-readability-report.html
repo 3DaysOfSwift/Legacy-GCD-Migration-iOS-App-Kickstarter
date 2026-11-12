@@ -1,0 +1,938 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CFA made Kickstarter's iOS app more readable: a measured review</title><style>
+:root{--ink:#14202e;--mut:#5b6b7c;--line:#dfe5ec;--bg:#f6f8fb;--card:#fff;--ok:#0f8a5f;--okbg:#e6f6ef;--warn:#a15c00;--warnbg:#fff4e0;--bef:#7a8796;--aft:#0f8a5f;--acc:#1b4fd8;--code:#0f1824}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--acc)}code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;background:#eef2f7;padding:1px 5px;border-radius:4px}
+.wrap{max-width:1160px;margin:0 auto;padding:0 24px}
+header.hero{background:linear-gradient(135deg,#0d1b2e 0%,#17325a 60%,#1b4fd8 140%);color:#fff;padding:56px 0 44px}
+.eyebrow{letter-spacing:.14em;text-transform:uppercase;font-size:12px;color:#9fc0ff;font-weight:600}
+h1{font-size:clamp(30px,4.6vw,48px);line-height:1.12;margin:10px 0 14px;font-weight:750;letter-spacing:-.02em}
+.lede{font-size:19px;max-width:860px;color:#dbe7ff}
+.meta{margin-top:22px;display:flex;flex-wrap:wrap;gap:8px 22px;font-size:13px;color:#b8cdf2}.meta b{color:#fff}.meta code{background:rgba(255,255,255,.16);color:#fff}
+nav.toc{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav.toc .wrap{display:flex;gap:4px 16px;overflow-x:auto;padding:10px 24px;font-size:13.5px;white-space:nowrap}
+nav.toc a{text-decoration:none;color:var(--mut);font-weight:550}nav.toc a:hover{color:var(--acc)}
+section{padding:46px 0 6px}
+section>.wrap>h2{font-size:28px;margin:0 0 8px;letter-spacing:-.015em}
+.kicker{color:var(--mut);max-width:880px;margin:0 0 22px;font-size:17px}
+h3{font-size:19px;margin:30px 0 8px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin:22px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 18px 16px;border-top:4px solid var(--ok)}
+.card .big{font-size:30px;font-weight:780;letter-spacing:-.02em;line-height:1.1}.card .lab{font-weight:650;margin-top:6px;font-size:14.5px}.card .det{color:var(--mut);font-size:13px;margin-top:4px}
+.card.info{border-top-color:var(--acc)}
+.callout{background:var(--okbg);border:1px solid #bfe6d4;border-left:5px solid var(--ok);border-radius:10px;padding:16px 20px;margin:22px 0}
+.callout.warn{background:var(--warnbg);border-color:#f0d9a8;border-left-color:#d58a00}.callout.blue{background:#eaf0ff;border-color:#c5d4fb;border-left-color:var(--acc)}
+.callout h4{margin:0 0 6px;font-size:16px}.callout p{margin:6px 0}.callout ul{margin:6px 0 2px 18px;padding:0}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+@media(max-width:900px){.pair,.two{grid-template-columns:1fr}}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+.code{background:var(--code);border-radius:12px;overflow:hidden;border:1px solid #1e2c3d;min-width:0;display:flex;flex-direction:column}
+.code-h{display:flex;gap:10px;align-items:center;padding:10px 14px;background:#142235}
+.chip{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:99px}
+.chip.before{background:#3a4658;color:#d3dbe6}.chip.after{background:#0f8a5f;color:#fff}
+.code-t{color:#e8eef7;font-size:13.5px;font-weight:600}
+.code-f{color:#7f93ab;font-size:11.5px;padding:6px 14px 0;font-family:ui-monospace,Menlo,monospace}
+.code pre{margin:0;padding:10px 14px 14px;overflow:auto;color:#d7e3f4;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;max-height:560px;flex:1}
+.code pre code{background:none;padding:0;font-size:inherit;color:inherit}
+.code-n{padding:10px 14px;background:#142235;color:#b8c8dc;font-size:12.5px;border-top:1px solid #1e2c3d}
+.tw{overflow-x:auto;margin:14px 0;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:14px}th{background:#eef2f7;text-align:left;padding:10px 12px;font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:#44566a;white-space:nowrap}
+td{padding:9px 12px;border-top:1px solid var(--line);vertical-align:top}td.num{text-align:right;font-variant-numeric:tabular-nums}
+tr:nth-child(even) td{background:#fbfcfe}
+.tree{margin:0;padding:16px 18px;border-radius:12px;font:12.5px/1.6 ui-monospace,Menlo,Consolas,monospace;overflow:auto;white-space:pre}
+.tree.before{background:#eef1f5;border:1px solid #d5dce5;color:#334155}.tree.after{background:#eaf7f1;border:1px solid #bfe6d4;color:#0b3b2b}
+.lbl{font-size:12px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:6px;color:var(--mut)}.lbl.a{color:var(--ok)}
+.fchips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.fchip{background:#fff;border:1px solid #bfe6d4;color:#0b5b40;padding:5px 12px;border-radius:99px;font-size:13px;font-weight:600}
+.layers{display:flex;flex-direction:column;gap:0;margin:18px 0;max-width:760px}
+.layer{background:#fff;border:1px solid var(--line);border-left:6px solid var(--acc);padding:12px 16px;border-radius:10px;margin-bottom:-1px}
+.layer b{display:block}.layer span{color:var(--mut);font-size:13.5px}
+.arrow{text-align:center;color:var(--mut);font-size:13px;margin:2px 0}
+.biz{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin:18px 0}
+.biz .b{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px}.biz h3{margin:0 0 6px;font-size:18px}.biz .tagl{font-size:12px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.08em}
+.biz p{margin:8px 0;color:#2b3a4a}
+.qa td:first-child{font-weight:600;width:22%}.qa td{font-size:13.5px}
+.small{font-size:13px;color:var(--mut)}
+footer{background:#0d1b2e;color:#b8cdf2;margin-top:56px;padding:34px 0;font-size:13.5px}footer a{color:#9fc0ff}
+.concl{background:linear-gradient(135deg,#0f8a5f,#0b6b78);color:#fff;border-radius:18px;padding:34px 36px;margin:26px 0}.concl h2{margin:0 0 10px;color:#fff;font-size:30px}.concl p{font-size:18px;margin:8px 0;color:#eafff6}
+
+.gap{background:#fff0d1;color:#8a5200;border:1px solid #f0d28a;border-radius:99px;padding:1px 8px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.bar{background:#e9eef4;border-radius:99px;height:10px;min-width:120px}.bar i{display:block;height:10px;border-radius:99px;background:var(--ok)}
+.wb{background:#fff;border:2px dashed #b9c6d6;border-radius:16px;padding:14px;margin:0}.wb.before{border-color:#cfd6df;background:#fafbfc}
+.wb-row{display:grid;grid-template-columns:1fr 150px;gap:10px;align-items:stretch}.wb-arr{text-align:center;color:#8aa0b8;font-size:18px;line-height:1.1}
+.wb-box{border:2px solid #1b4fd8;border-radius:12px;padding:10px 12px;background:#f3f7ff}.wb-box b{display:block;font-size:14.5px}.wb-box>span{font-size:12.5px;color:var(--mut)}
+.wb-box.vw{border-color:#7c5cd6;background:#f6f2ff}.wb-box.ft{border-color:#0f8a5f;background:#effaf5}.wb-box.sv{border-color:#6b7c90;background:#f2f5f8}
+.wb.before .wb-box{border-style:dashed}
+.wb-t{justify-content:flex-start!important;border:1px dashed #9fb0c3;border-radius:10px;padding:8px 10px;font-size:12px;color:#33475b;background:#fffdf4;display:flex;flex-direction:column;justify-content:center}.wb-t b{color:#14202e}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;margin-top:8px}
+.fb{background:#fff;border:1.5px solid #86d0b2;border-radius:8px;padding:5px 7px;font-size:11.5px;line-height:1.25}.fb b{display:block;font-size:11.5px}.fb .tst{color:#0b6b4a;font-weight:650}
+.fb.low,.fb.nogap{border-color:#e2b24d;background:#fff8e6}.fb.low .tst,.fb.nogap .tst{color:#8a5200}
+@media(max-width:700px){.wb-row{grid-template-columns:1fr}}
+@media print{nav.toc{display:none}.code pre{max-height:none}body{background:#fff}}
+</style></head><body><header class="hero"><div class="wrap">
+<div class="eyebrow">Architecture readability review</div>
+<h1>An app is a company asset. Readability makes it the best one.</h1>
+<p class="lede">Kickstarter's open-source iOS app, before and after migration to the Cooperative Feature Architecture (CFA). We measured what a developer sees when they first open the Xcode project: how many parts it has, where each lives, which vocabulary they need, and how much of it is plain Swift. CFA also gives the app a Model the team can draw on a whiteboard, and a test suite shaped like that drawing.</p>
+<div class="meta"><span><b>Reviewer</b> Grok</span><span><b>Migration by</b> 3DaysOfSwiftConcurrency.com</span><span><b>Original app</b> Kickstarter ios-oss (Apache 2.0)</span><span><b>Legacy</b> <code>5f5463c</code></span><span><b>CFA</b> <code>70bb085</code></span><span><b>Reviewed</b> 12 Nov 2026</span></div>
+</div></header>
+<nav class="toc"><div class="wrap"><a href="#asset">The asset</a><a href="#nav">Navigator</a><a href="#model">Model &amp; tests</a><a href="#showcase">Showcase</a><a href="#vocab">Vocabulary</a><a href="#vm">ViewModels</a><a href="#bind">View binding</a><a href="#wiring">Wiring</a><a href="#errors">Errors</a><a href="#tests">Tests</a><a href="#onboard">Onboarding</a><a href="#business">Business impact</a><a href="#next">What's next</a><a href="#method">Method</a></div></nav>
+<section id="asset"><div class="wrap"><h2>The headline</h2>
+<p class="kicker">A shipping app earns money for as long as people can change it with confidence. After the CFA migration, an engineer of any background can open the project and get a gentle, accurate picture of how many parts it has and where each one lives, using only standard Swift and Apple's own frameworks. The app now has an explicit Model (Features plus services) that fits on a whiteboard, and tests that are easy to find, catalogue and organise.</p>
+<div class="cards">
+<div class="card ok"><div class="big">222 → 0</div><div class="lab">files importing ReactiveSwift</div><div class="det">third-party reactive library removed from the app target</div></div>
+<div class="card ok"><div class="big">8,024 → 3</div><div class="lab">reactive-vocabulary occurrences</div><div class="det">across the 19 terms listed in the Vocabulary section; files containing any: 339 → 2</div></div>
+<div class="card ok"><div class="big">67 → 13</div><div class="lab">ViewModels calling the API directly</div><div class="det">of 165 before, 153 after</div></div>
+<div class="card ok"><div class="big">434 → 0</div><div class="lab"><code>.rac.</code> bindings in controllers</div><div class="det">in 112 files; replaced by plain closures</div></div>
+<div class="card info"><div class="big">142 → 87</div><div class="lab">median ViewModel file, lines</div><div class="det">logic that left now lives in 2 - AppModel/Features (14,546 lines)</div></div>
+<div class="card info"><div class="big">15 → 10</div><div class="lab">top-level groups in the Xcode navigator</div><div class="det">7 → 5 local Swift packages</div></div>
+<div class="card info"><div class="big">0 → 21</div><div class="lab">Features with their own Model test folder</div><div class="det">a mappable test suite: 25 Feature test files, 430 methods</div></div>
+<div class="card ok"><div class="big">2 → 1</div><div class="lab">code homes per feature</div><div class="det">two packages become one app target (Search, Login, Project page)</div></div>
+<div class="card info"><div class="big">1,243 → 2</div><div class="lab"><code>TestObserver</code> uses in tests</div><div class="det">1,084 → 0 <code>scheduler.advance/run</code> calls</div></div>
+</div>
+<div class="callout"><h4>How to read this report</h4><p>Every figure is counted or quoted from the two commits above. Where line counts appear they are shown as they are: some traced paths are slightly longer after migration, because plain sequential Swift spells out what an operator graph used to imply. The gain is not fewer lines. It is <b>clarity, idiom, predictability and standard vocabulary</b>: code that a new hire reads the way Apple's documentation reads.</p></div>
+</div></section>
+<section id="nav"><div class="wrap"><h2>1. The project navigator, as a newcomer sees it</h2>
+<p class="kicker">The first ten minutes with a codebase are spent in the navigator. Here is what the top level looks like before and after, and where one screen's code lives.</p>
+<div class="two"><div><div class="lbl">Before · legacy</div><pre class="tree before">Kickstarter.xcodeproj  (what the navigator shows)
+├─ Kickstarter-iOS          ← AppDelegate + plist only
+├─ Configs
+├─ KDS
+├─ GraphAPI
+├─ Kickstarter-Framework    ← package: screens
+├─ KsApi
+├─ Library                  ← package: ViewModels,
+│                             use cases, helpers, styles
+├─ ServerDrivenUI
+├─ Experimentation
+├─ LibraryTests
+├─ Library-Keychain-iOSTests
+├─ RichPushNotifications
+├─ graphql
+├─ Frameworks
+└─ Products
+
+15 top-level groups · 7 local Swift packages</pre></div><div><div class="lbl a">After · CFA</div><pre class="tree after">Kickstarter.xcodeproj  (what the navigator shows)
+├─ Kickstarter-iOS
+│   ├─ 1 - View          screens, each with its ViewModel
+│   ├─ 2 - AppModel      Features, composition, storage
+│   ├─ 3 - App Resources
+│   └─ 4 - Swift Extensions
+├─ KDS
+├─ GraphAPI
+├─ KsApi
+├─ ServerDrivenUI
+├─ Experimentation
+├─ RichPushNotifications
+├─ graphql
+├─ Products
+└─ Application tests
+
+10 top-level groups · 5 local Swift packages</pre></div></div>
+<div class="cards">
+<div class="card ok"><div class="big">15 → 10</div><div class="lab">top-level groups</div><div class="det">Library, Kickstarter-Framework, LibraryTests and the other split-out groups are gone from the top level</div></div>
+<div class="card ok"><div class="big">151 → 0</div><div class="lab">ViewModels in one flat folder</div><div class="det">legacy: 151 <code>*ViewModel.swift</code> files (170 Swift files) in one folder; CFA: each ViewModel sits beside its screen</div></div>
+<div class="card info"><div class="big">133 → 65</div><div class="lab">files in the largest flat folder</div><div class="det">legacy <code>Library/…/Library</code> holds 133 files directly; the largest CFA folder is Shared Views (65)</div></div>
+<div class="card info"><div class="big">0 → 4</div><div class="lab">numbered layers you can read in order</div><div class="det">1 - View, 2 - AppModel, 3 - App Resources, 4 - Swift Extensions</div></div>
+</div>
+<h3>One screen, every file it needs</h3>
+<div class="two"><div><div class="lbl">Before · legacy</div><pre class="tree before">Login, before: 5 files across 4 top-level folders
+Library/…/ViewModels/LoginViewModel.swift
+    (one of 151 *ViewModel.swift files in one folder)
+Kickstarter-Framework/…/Features/Login/Controller/
+    LoginViewController.swift
+Kickstarter-Framework/…/Resources/Login.storyboard
+LibraryTests/Library/ViewModels/LoginViewModelTests.swift
+Kickstarter-Framework-iOSTests/…/Login/Controller/
+    LoginViewControllerTests.swift</pre></div><div><div class="lbl a">After · CFA</div><pre class="tree after">Login, after: one screen folder + one Feature
+1 - View/Views/Login/Controller/
+    LoginViewController.swift
+    LoginViewModel.swift
+    Login.storyboard
+2 - AppModel/Features/Authentication/
+    AuthenticationFeature.swift   (the login logic)
+ApplicationTests/Model/FeatureTests/Authentication/
+    AuthenticationFeatureTests.swift
+ApplicationTests/Model/Library/ViewModels/
+    LoginViewModelTests.swift</pre></div></div>
+<div class="two"><div><div class="lbl">Before · legacy</div><pre class="tree before">Search, before (4 directories, 2 packages)
+Library/…/ViewModels/SearchViewModel.swift
+Library/…/ViewModels/SearchViewModel+GraphQL.swift
+Library/…/UseCases/SearchFilters/
+    SearchFiltersUseCase.swift, SearchFilters.swift,
+    SearchFilterPill.swift, SearchFiltersCategory.swift
+Library/…/Paginate.swift
+Kickstarter-Framework/…/Features/Search/
+    Controller/ Datasource/ Extensions/ Views/Cell/
+Kickstarter-Framework/…/Features/SortFilter/HeaderView/
+    SearchFiltersHeaderView.swift</pre></div><div><div class="lbl a">After · CFA</div><pre class="tree after">Search, after (2 directories, 1 target)
+1 - View/Views/Search/
+    Controller/ (SearchViewController, SearchViewModel,
+                 Search.storyboard)
+    Datasource/ Extensions/ Views/Cell/
+2 - AppModel/Features/Search/
+    SearchFeature.swift
+    SearchProjectsProvider.swift (protocol)
+    AsyncSearchProjectsProvider.swift
+    SearchFilters*.swift, SearchFilterSelection.swift,
+    SearchQuery+GraphQL.swift</pre></div></div>
+<h3>A map of the whole app on one screen</h3>
+<p>Open <code>2 - AppModel/AppModel.swift</code> and the app's parts are listed as plain properties: <b>21 Features</b>, each with its own folder in <code>2 - AppModel/Features</code>. Legacy has no equivalent index; the closest equivalent is browsing 71 screen folders and a separate ViewModels folder.</p>
+<div class="fchips"><span class="fchip">Developer Examples</span><span class="fchip">App Lifecycle</span><span class="fchip">Creator Drafts</span><span class="fchip">Recommendations</span><span class="fchip">Project Reporting</span><span class="fchip">Friends</span><span class="fchip">Pledged Projects</span><span class="fchip">Pledge</span><span class="fchip">Payments</span><span class="fchip">Messaging</span><span class="fchip">Session</span><span class="fchip">Authentication</span><span class="fchip">Settings</span><span class="fchip">Activity</span><span class="fchip">Profile</span><span class="fchip">Search</span><span class="fchip">Discovery</span><span class="fchip">Project Details</span><span class="fchip">Rewards</span><span class="fchip">Discussion</span><span class="fchip">Project Media</span></div>
+<div class="layers">
+<div class="layer"><b>View</b><span>UIKit / SwiftUI screens in <code>1 - View/Views/&lt;Screen&gt;</code>: layout and taps only</span></div><div class="arrow">↓ calls</div>
+<div class="layer"><b>ViewModel</b><span>Next to its screen: turns taps into Feature calls, exposes state to the view</span></div><div class="arrow">↓ calls</div>
+<div class="layer"><b>Feature</b><span><code>2 - AppModel/Features/&lt;Name&gt;</code>: owns the state and the multi-step work for one area</span></div><div class="arrow">↓ calls</div>
+<div class="layer"><b>Provider / service</b><span>A small protocol (e.g. <code>SearchProjectsProvider</code>) with a live adapter over the retained KsApi package</span></div>
+</div>
+<p class="small">Totals, so the comparison is fair: production Swift is about the same size before and after (730 files / 134,972 lines legacy; 753 files / 127,005 lines CFA, both including the same generated 31,261-line <code>Strings.swift</code>). The migration reorganised the code; it did not shrink it.</p>
+</div></section>
+<section id="model"><div class="wrap"><h2>3. A model you can draw on a whiteboard, and a test suite you can map</h2>
+<p class="kicker">CFA gives the app an explicit Model: named Features with the services beneath them, below the ViewModels. A team can sketch the whole app from that, and the same drawing tells them where every kind of test belongs. Before, the equivalent Model was spread inside 165 ViewModels, so there was nothing to draw and nothing to map tests against.</p>
+<h3>The whiteboard: the app as layers, with a test lane beside each</h3>
+<div class="two"><div><div class="lbl">Before · legacy</div><div class="wb before">
+<div class="wb-row"><div class="wb-box vw"><b>View</b><span>screens in Kickstarter-Framework</span></div><div class="wb-t">Snapshot and view tests<br><b>90 files · 390 tests</b></div></div>
+<div class="wb-arr">↓</div>
+<div class="wb-row"><div class="wb-box vmx"><b>ViewModel</b><span>Signals, plus the data access and rules (67 of 165 call the API directly)</span></div><div class="wb-t">The only place to test that logic<br><b>159 files · 1,719 tests</b></div></div>
+<div class="wb-arr">↓</div>
+<div class="wb-row"><div class="wb-box sv"><b>KsApi service, reached through AppEnvironment.current</b><span>no Feature layer: no named, drawable "Model" between ViewModels and services</span></div><div class="wb-t">KsApi package tests (125 files)</div></div>
+</div></div><div><div class="lbl a">After · CFA (<span class="gap">amber</span> = 11 or fewer Feature test methods: a next gap)</div><div class="wb">
+<div class="wb-row"><div class="wb-box vw"><b>View</b><span>UIKit / SwiftUI screens (77 folders)</span></div><div class="wb-t">Snapshot and view tests<br><b>91 files · 400 tests</b></div></div>
+<div class="wb-arr">↓</div>
+<div class="wb-row"><div class="wb-box vmx"><b>ViewModel</b><span>One per screen, beside its view; talks only to a Feature</span></div><div class="wb-t">"How does it use the Model?"<br><b>161 files · 1,585 tests</b></div></div>
+<div class="wb-arr">↓</div>
+<div class="wb-row"><div class="wb-box ft"><b>Model: Features</b><span>Each owns state and multi-step work for one area</span><div class="fgrid"><div class="fb low"><b>Activity</b><span class="tst">✓ 6 tests</span></div><div class="fb"><b>App Lifecycle</b><span class="tst">✓ 28 tests</span></div><div class="fb"><b>Authentication</b><span class="tst">✓ 21 tests</span></div><div class="fb low"><b>Creator Drafts</b><span class="tst">✓ 11 tests</span></div><div class="fb"><b>Developer Examples</b><span class="tst">✓ 13 tests</span></div><div class="fb"><b>Discovery</b><span class="tst">✓ 20 tests</span></div><div class="fb"><b>Discussion</b><span class="tst">✓ 28 tests</span></div><div class="fb"><b>Friends</b><span class="tst">✓ 19 tests</span></div><div class="fb"><b>Messaging</b><span class="tst">✓ 16 tests</span></div><div class="fb low"><b>Payments</b><span class="tst">✓ 10 tests</span></div><div class="fb"><b>Pledge</b><span class="tst">✓ 38 tests</span></div><div class="fb low"><b>Pledged Projects</b><span class="tst">✓ 7 tests</span></div><div class="fb"><b>Profile</b><span class="tst">✓ 14 tests</span></div><div class="fb"><b>Project Details</b><span class="tst">✓ 23 tests</span></div><div class="fb"><b>Project Media</b><span class="tst">✓ 29 tests</span></div><div class="fb low"><b>Project Reporting</b><span class="tst">✓ 11 tests</span></div><div class="fb"><b>Recommendations</b><span class="tst">✓ 12 tests</span></div><div class="fb"><b>Rewards</b><span class="tst">✓ 23 tests</span></div><div class="fb"><b>Search</b><span class="tst">✓ 49 tests</span></div><div class="fb"><b>Session</b><span class="tst">✓ 13 tests</span></div><div class="fb"><b>Settings</b><span class="tst">✓ 38 tests</span></div><div class="fb nogap"><b>Remote Configuration</b><span class="tst">– no Feature tests</span></div></div></div><div class="wb-t">"Does each part work?"<br><b>25 files · 430 tests</b><br><span class="small">one folder per Feature</span></div></div>
+<div class="wb-arr">↓</div>
+<div class="wb-row"><div class="wb-box sv"><b>Services</b><span>22 <code>*Provider</code> protocols → live adapters over KsApi · Keychain · cache · analytics</span></div><div class="wb-t">Fakes stand in here; KsApi package keeps its own tests (133 files)</div></div>
+</div></div></div>
+<div class="cards">
+<div class="card ok"><div class="big">0 → 21</div><div class="lab">Features, each with a Model test folder</div><div class="det">21 of 21 Features in AppModel.swift have their own folder in <code>ApplicationTests/Model/FeatureTests</code></div></div>
+<div class="card ok"><div class="big">0 → 25</div><div class="lab">Feature / Model test files</div><div class="det">0 → 430 test methods in a layer that did not exist before</div></div>
+<div class="card info"><div class="big">360 → 396</div><div class="lab">test files</div><div class="det">2,675 → 3,028 test methods (recounted now; the earlier review used a slightly different pattern: 2,664 → 3,017)</div></div>
+<div class="card info"><div class="big">21 → 38 + 49</div><div class="lab">Search tests: ViewModel layer + Feature layer</div><div class="det">one layer before; two after: 21 methods → 38 on the ViewModel plus 49 on the Feature</div></div>
+</div>
+<h3>Every test now has a home</h3>
+<p>Tests were classified by folder and file name into the layer they check. The test suite has the same shape as the app: Model tests ask <i>does each part work as intended?</i>; ViewModel tests ask <i>does each ViewModel use the Model correctly?</i></p>
+<div class="tw"><table class=""><thead><tr><th>Layer</th><th>What it answers</th><th>Before: files / methods</th><th>After: files / methods</th></tr></thead><tbody><tr><td>Feature / Model tests</td><td>Each Feature built with a fake provider: does the part work as intended?</td><td>0 / 0</td><td>25 / 430</td></tr><tr><td>ViewModel tests</td><td>Does each ViewModel use the Model correctly?</td><td>159 / 1,719</td><td>161 / 1,585</td></tr><tr><td>Use-case tests</td><td>Smaller shared units</td><td>11 / 81</td><td>9 / 77</td></tr><tr><td>View / snapshot tests</td><td>Controllers, cells, data sources</td><td>90 / 390</td><td>91 / 400</td></tr><tr><td>Session and keychain</td><td>Environment and storage</td><td>4 / 39</td><td>4 / 39</td></tr><tr><td>Other (analytics, formatting, utilities)</td><td>Cross-cutting helpers</td><td>70 / 446</td><td>80 / 497</td></tr><tr><td><b>All tests</b></td><td></td><td><b>360 / 2,675</b></td><td><b>396 / 3,028</b></td></tr></tbody></table></div>
+<p class="small">Test methods are counted with <code>func test…(</code> over all test files; layer assignment is by path and file name, so a few files may belong to more than one layer. The ViewModel layer's method count is lower after (1,719 → 1,585): part of what ViewModel tests used to cover is now asserted at the Feature level instead of through signals. Method counts are not line coverage; coverage was not measured.</p>
+<h3>The test tree mirrors the Feature folders</h3>
+<div class="two"><div><div class="lbl">Before · legacy</div><pre class="tree before">Tests, before (where do I put / find a test?)
+LibraryTests/Library/ViewModels/
+    153 files in one flat folder, one per ViewModel
+LibraryTests/Library/UseCases/ …
+LibraryTests/Library/*.swift   (formatting, analytics, utils)
+Kickstarter-Framework-iOSTests/…/Features/&lt;Screen&gt;/
+    controller and snapshot tests, by screen
+Library-Keychain-iOSTests/
+
+No folder is named after a unit of the Model,
+because the Model had no named units.</pre></div><div><div class="lbl a">After · CFA</div><pre class="tree after">Tests, after (mirrors the app)
+ApplicationTests/
+├─ Model/
+│   ├─ FeatureTests/       one folder per Feature, mirroring
+│   │   │                   2 - AppModel/Features/
+│   │   ├─ Activity
+│   │   ├─ AppLifecycle
+│   │   ├─ Authentication
+│   │   ├─ CreatorDrafts
+│   │   ├─ DeveloperExamples
+│   │   ├─ Discovery
+│   │   └─ … 15 more (21 folders in all)
+│   ├─ AppModelTests/      the composition root
+│   └─ Library/            ViewModel and utility tests
+├─ Presentation/           views and snapshot tests
+├─ Session/                keychain and environment
+└─ Support/                fakes and test base class</pre></div></div>
+<h3>A test catalogue, and the gaps it makes visible</h3>
+<p>Because each Feature has one folder of tests, the catalogue is a table you can read in a minute. Counted from <code>ApplicationTests/Model/FeatureTests</code> against <code>2 - AppModel/Features</code>:</p>
+<div class="tw"><table><thead><tr><th>Feature</th><th>Source files</th><th>Test files</th><th>Test methods</th><th>Relative</th></tr></thead><tbody><tr><td><b>Search</b></td><td class="num">12</td><td class="num">3</td><td class="num">49</td><td><div class="bar"><i style="width:100%"></i></div></td></tr><tr><td><b>Pledge</b></td><td class="num">12</td><td class="num">1</td><td class="num">38</td><td><div class="bar"><i style="width:77%"></i></div></td></tr><tr><td><b>Settings</b></td><td class="num">7</td><td class="num">2</td><td class="num">38</td><td><div class="bar"><i style="width:77%"></i></div></td></tr><tr><td><b>Project Media</b></td><td class="num">5</td><td class="num">1</td><td class="num">29</td><td><div class="bar"><i style="width:59%"></i></div></td></tr><tr><td><b>App Lifecycle</b></td><td class="num">8</td><td class="num">1</td><td class="num">28</td><td><div class="bar"><i style="width:57%"></i></div></td></tr><tr><td><b>Discussion</b></td><td class="num">1</td><td class="num">1</td><td class="num">28</td><td><div class="bar"><i style="width:57%"></i></div></td></tr><tr><td><b>Project Details</b></td><td class="num">9</td><td class="num">1</td><td class="num">23</td><td><div class="bar"><i style="width:46%"></i></div></td></tr><tr><td><b>Rewards</b></td><td class="num">6</td><td class="num">1</td><td class="num">23</td><td><div class="bar"><i style="width:46%"></i></div></td></tr><tr><td><b>Authentication</b></td><td class="num">11</td><td class="num">1</td><td class="num">21</td><td><div class="bar"><i style="width:42%"></i></div></td></tr><tr><td><b>Discovery</b></td><td class="num">1</td><td class="num">1</td><td class="num">20</td><td><div class="bar"><i style="width:40%"></i></div></td></tr><tr><td><b>Friends</b></td><td class="num">2</td><td class="num">1</td><td class="num">19</td><td><div class="bar"><i style="width:38%"></i></div></td></tr><tr><td><b>Messaging</b></td><td class="num">1</td><td class="num">1</td><td class="num">16</td><td><div class="bar"><i style="width:32%"></i></div></td></tr><tr><td><b>Profile</b></td><td class="num">2</td><td class="num">1</td><td class="num">14</td><td><div class="bar"><i style="width:28%"></i></div></td></tr><tr><td><b>Developer Examples</b></td><td class="num">2</td><td class="num">1</td><td class="num">13</td><td><div class="bar"><i style="width:26%"></i></div></td></tr><tr><td><b>Session</b></td><td class="num">1</td><td class="num">1</td><td class="num">13</td><td><div class="bar"><i style="width:26%"></i></div></td></tr><tr><td><b>Recommendations</b></td><td class="num">3</td><td class="num">1</td><td class="num">12</td><td><div class="bar"><i style="width:24%"></i></div></td></tr><tr><td><b>Creator Drafts</b></td><td class="num">1</td><td class="num">1</td><td class="num">11</td><td><div class="bar"><i style="width:22%"></i></div></td></tr><tr><td><b>Project Reporting</b></td><td class="num">1</td><td class="num">1</td><td class="num">11</td><td><div class="bar"><i style="width:22%"></i></div></td></tr><tr><td><b>Payments</b></td><td class="num">9</td><td class="num">1</td><td class="num">10</td><td><div class="bar"><i style="width:20%"></i></div></td></tr><tr><td><b>Pledged Projects</b></td><td class="num">6</td><td class="num">1</td><td class="num">7</td><td><div class="bar"><i style="width:14%"></i></div></td></tr><tr><td><b>Activity</b></td><td class="num">1</td><td class="num">1</td><td class="num">6</td><td><div class="bar"><i style="width:12%"></i></div></td></tr><tr><td><b>Remote Configuration</b> <span class="gap">no dedicated Feature tests yet</span></td><td class="num">11</td><td class="num">0</td><td class="num">0</td><td><div class="bar"><i style="width:0%"></i></div></td></tr></tbody></table></div>
+<div class="callout blue"><h4>The next gaps, now easy to see</h4><p>All 21 Features listed in <code>AppModel.swift</code> have Feature-level tests. The structure also shows where the suite is thinnest: Activity (6 test methods for 1 source file), Pledged Projects (7 test methods for 6 source files), Payments (10 test methods for 9 source files), Creator Drafts (11 test methods for 1 source file), Project Reporting (11 test methods for 1 source file). The <code>RemoteConfiguration</code> folder (11 source files, including <code>RemoteConfigFeature</code>) has no dedicated Feature test folder yet; some of its helpers are covered elsewhere (for example <code>ExperimentName+HelpersTests</code>). Before the migration these gaps could not be listed this way, because there was no per-Feature unit to count.</p></div>
+<h3>Before and after, in test code</h3>
+<p>Before, one ViewModel test had to check everything about search: data access, rules and presentation, through recorded signals and a virtual scheduler. After, the Feature is tested on its own with a fake provider, and the ViewModel test checks how it drives the Feature.</p>
+<div class="code before"><div class="code-h"><span class="chip before">Before · legacy</span><span class="code-t">Search ViewModel test: the only layer that could test search</span></div>
+<div class="code-f">LibraryTests/Library/ViewModels/SearchViewModelTests.swift · lines 14-27, 54-67</div><pre><code>internal final class SearchViewModelTests: TestCase {
+  fileprivate let vm: SearchViewModelType! = SearchViewModel()
+
+  fileprivate let changeSearchFieldFocusFocused = TestObserver&lt;Bool, Never&gt;()
+  fileprivate let changeSearchFieldFocusAnimated = TestObserver&lt;Bool, Never&gt;()
+  fileprivate let goToRefTag = TestObserver&lt;RefTag, Never&gt;()
+  private let hasAddedProjects = TestObserver&lt;Bool, Never&gt;()
+  fileprivate let hasProjects = TestObserver&lt;Bool, Never&gt;()
+  fileprivate let isPopularTitleVisible = TestObserver&lt;Bool, Never&gt;()
+  fileprivate var noProjects = TestObserver&lt;Bool, Never&gt;()
+  fileprivate let searchLoaderIndicatorIsAnimating = TestObserver&lt;Bool, Never&gt;()
+  fileprivate let showEmptyState = TestObserver&lt;Bool, Never&gt;()
+  fileprivate let showEmptyStateParams = TestObserver&lt;DiscoveryParams, Never&gt;()
+  fileprivate let showFilters = TestObserver&lt;SearchFilterModalType, Never&gt;()
+  // ... (lines 28-53 not shown)
+  func testSearchPopularFeatured_RefTag() {
+    let response = [(
+      GraphAPI.SearchQuery.self,
+      GraphAPI.SearchQuery.Data.fiveResults
+    )]
+
+    withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewWillAppear(animated: true)
+      self.scheduler.advance()
+      self.vm.inputs.tapped(projectAtIndex: 0)
+
+      self.goToRefTag.assertValues([RefTag.searchPopularFeatured])
+    }</code></pre></div>
+<div class="pair"><div class="code after"><div class="code-h"><span class="chip after">After · CFA</span><span class="code-t">Feature test: SearchFeature with a fake provider, no UI</span></div>
+<div class="code-f">ApplicationTests/Model/FeatureTests/Search/SearchFeatureTests.swift · lines 13-20, 22-34</div><pre><code>  func testConstructionDoesNotFetch() {
+    let provider = ControlledSearchProvider()
+    let searchFeature = SearchFeature(provider: provider)
+    XCTAssertTrue(provider.requests.isEmpty)
+    XCTAssertTrue(searchFeature.projects.isEmpty)
+    XCTAssertFalse(searchFeature.isLoading)
+    XCTAssertNil(searchFeature.searchError)
+  }
+  // ... (lines 21-21 not shown)
+  func testFilterSelectionBuildsQueryAndChangingTextRetainsSelection() {
+    let searchFeature = SearchFeature(provider: ControlledSearchProvider())
+    searchFeature.selectFilter(.sort(.newest))
+    searchFeature.selectFilter(.category(.rootCategory(.art)))
+    searchFeature.selectFilter(.projectsWeLove(true))
+    searchFeature.updateQuery(&quot;books&quot;)
+    let parameters = searchFeature.queryParameters(for: &quot;books&quot;)
+    XCTAssertEqual(parameters.query, &quot;books&quot;)
+    XCTAssertEqual(parameters.sort, .newest)
+    XCTAssertEqual(parameters.category?.id, Category.art.id)
+    XCTAssertEqual(parameters.staffPicks, true)
+  }
+</code></pre></div><div class="code after"><div class="code-h"><span class="chip after">After · CFA</span><span class="code-t">ViewModel test: how SearchViewModel uses the Feature</span></div>
+<div class="code-f">ApplicationTests/Model/Library/ViewModels/SearchViewModelTests.swift · lines 89-106</div><pre><code>  // Characterise lifecycle and analytics before changing their adapter.
+  func testEarlyQueryWaitsForInitialSelectionThenUsesCurrentFilters() async throws {
+    let response = [(GraphAPI.SearchQuery.self, try self.fixture(&quot;SearchQuery_FiveResults&quot;))]
+    await withEnvironment(apiService: MockService(fetchGraphQLResponses: response)) {
+      self.vm.inputs.searchTextChanged(&quot;ceramics&quot;)
+      self.searchFeature.selectFilter(.sort(.newest))
+      self.searchFeature.selectFilter(.category(.rootCategory(.art)))
+      XCTAssertNil(self.searchFeature.parameters)
+      XCTAssertNil(self.vm.searchTask)
+
+      self.vm.inputs.viewDidLoad()
+      XCTAssertEqual(self.searchFeature.parameters?.query, &quot;ceramics&quot;)
+      XCTAssertEqual(self.searchFeature.parameters?.sort, .newest)
+      XCTAssertEqual(self.searchFeature.parameters?.category, .art)
+      await self.advanceRequests()
+      XCTAssertEqual(self.searchFeature.projects.count, 5)
+      XCTAssertFalse(self.searchFeature.isLoading)
+    }</code></pre></div></div>
+<p class="small">Search tests: 21 methods in one layer before; after, 49 on the Feature (three files: <code>SearchFeatureTests</code>, <code>SearchLookupTests</code>, <code>SearchRequestCancellationTests</code>) and 38 on the ViewModel.</p>
+<div class="callout"><h4>What this means for the team</h4><p>Everyone can hold the same picture: View, ViewModel, Feature, service. A new engineer can ask "where is the test for X?" and find the answer by following the Feature name. A lead can print the table above, see which Features are lightly tested, and plan the next tests. Because each Feature is tested as a unit, a missing test shows up as a thin row, not as a hole nobody notices. (These are reasoned implications; this review did not measure defect rates.)</p></div>
+</div></section>
+<section id="showcase"><div class="wrap"><h2>2. Showcase: Search, Login and the project page</h2>
+<p class="kicker">Code is shown verbatim from the two commits, by line range. The reading is the point: the "after" column uses constructs every Swift developer already knows.</p>
+<div class="cards">
+<div class="card ok"><div class="big">20 → 0</div><div class="lab">reactive terms in the Search read set</div><div class="det">from the previous review: Signal, combineLatest, switchMap, skipRepeats and the rest</div></div>
+<div class="card ok"><div class="big">17 → 0</div><div class="lab">reactive terms in the Login read set</div><div class="det">quoted from the previous review</div></div>
+<div class="card ok"><div class="big">21 → 0</div><div class="lab">reactive terms in the project-page read set</div><div class="det">quoted from the previous review</div></div>
+<div class="card ok"><div class="big">4 dirs / 2 pkgs → 2 / 1</div><div class="lab">where Search lives</div><div class="det">also Login 2/2 → 2/1 and Project page 3/2 → 3/1 (directories / packages)</div></div>
+</div>
+<h3>Search</h3>
+<p>Before, nine signals are combined and handed to a shared pagination engine; the order of events is implied by the graph. After, the ViewModel asks the Feature, and the Feature's request method reads top to bottom: cancel the old request, clear, debounce, fetch. The hand-counted <code>== 8</code> in the ViewModel is one of the spots worth tidying (see What's next).</p>
+<div class="pair"><div class="code before"><div class="code-h"><span class="chip before">Before · legacy</span><span class="code-t">Search: filters and query, wired as a signal graph</span></div>
+<div class="code-f">Library/…/ViewModels/SearchViewModel.swift · lines 110-140</div><pre><code>    let queryText = Signal
+      .merge(
+        self.searchTextChangedProperty.signal,
+        viewWillAppearNotAnimated.mapConst(&quot;&quot;).take(first: 1)
+      )
+
+    // DiscoveryParams using the users currently selected query text, sort and filters.
+    let queryParams: Signal&lt;DiscoveryParams, Never&gt; = Signal.combineLatest(
+      queryText,
+      self.searchFiltersUseCase.dataOutputs.selectedSort,
+      self.searchFiltersUseCase.dataOutputs.selectedCategory,
+      self.searchFiltersUseCase.dataOutputs.selectedState,
+      self.searchFiltersUseCase.dataOutputs.selectedPercentRaisedBucket,
+      self.searchFiltersUseCase.dataOutputs.selectedLocation,
+      self.searchFiltersUseCase.dataOutputs.selectedAmountRaisedBucket,
+      self.searchFiltersUseCase.dataOutputs.selectedGoalBucket,
+      self.searchFiltersUseCase.dataOutputs.selectedToggles
+    )
+    .map { query, sort, category, state, percentRaised, location, amountRaised, goal, toggles in
+      DiscoveryParams.withQuery(
+        query,
+        sort: sort,
+        category: category.category,
+        state: state,
+        percentRaised: percentRaised,
+        location: location,
+        amountRaised: amountRaised,
+        goal: goal,
+        toggles: toggles
+      )
+    }</code></pre></div><div style="display:flex;flex-direction:column;gap:16px;min-width:0"><div class="code after"><div class="code-h"><span class="chip after">After · CFA</span><span class="code-t">Search: the ViewModel forwards, the Feature owns the request</span></div>
+<div class="code-f">Kickstarter-iOS/1 - View/Views/Search/Controller/SearchViewModel.swift · lines 109-115, 210-215</div><pre><code>    self.selectionObservation = searchFeature.filterSelection.observe { [weak self] change in
+      guard let self else { return }
+      self.selectionFieldsSeen.insert(change.field)
+      guard self.selectionFieldsSeen.count == 8 else { return }
+      self.hasReceivedFilterSelection = true
+      self.refreshSearchIfReady()
+    }
+  // ... (lines 116-209 not shown)
+  private func refreshSearchIfReady() {
+    guard self.hasReceivedFilterSelection, let query = self.queryText else { return }
+    let parameters = self.searchFeature.queryParameters(for: query)
+    self.latestQueryParameters = parameters
+    self.searchTask = self.searchFeature.requestSearch(parameters: parameters)
+  }</code></pre></div><div class="code after"><div class="code-h"><span class="chip after">After · CFA</span><span class="code-t">SearchFeature.requestSearch: cancel, clear, debounce, fetch</span></div>
+<div class="code-f">Kickstarter-iOS/2 - AppModel/Features/Search/SearchFeature.swift · lines 330-343</div><pre><code>  internal func requestSearch(parameters: DiscoveryParams) -&gt; Task&lt;Void, Never&gt; {
+    if self.parameters?.hasSameSearchInputs(as: parameters) == true,
+       let request = self.request, request.cursor == nil {
+      return request.task
+    }
+    self.cancelSearch()
+    self.parameters = parameters
+    self.nextCursor = nil
+    self.completedPageCount = 0
+    self.projects = []
+    self.emit(.results([]))
+    let debounce = self.hasRequested ? AppEnvironment.current.debounceInterval.searchDelaySeconds : 0
+    self.hasRequested = true
+    return self.requestPage(parameters: parameters, cursor: nil, debounce: debounce)</code></pre></div></div></div>
+<h3>Login</h3>
+<p>Before, a reader needs <code>takeWhen</code>, <code>switchMap</code>, <code>materialize</code>, <code>values()</code> and <code>errors()</code> to follow one tap. After, a tap becomes a <code>Task</code> that awaits <code>authenticate</code> and handles success or failure in a <code>do</code>/<code>catch</code>. Measured earlier: the Login ViewModel file went from 221 to 85 lines; the whole traced read set is 16% longer (440 to 511 lines), because the logic now sits in <code>AuthenticationFeature</code> as plain code.</p>
+<div class="pair"><div class="code before"><div class="code-h"><span class="chip before">Before · legacy</span><span class="code-t">Login: the whole pipeline, as operators</span></div>
+<div class="code-f">Library/…/ViewModels/LoginViewModel.swift · lines 91-130</div><pre><code>    let tryLogin = Signal.merge(
+      self.loginButtonPressedProperty.signal,
+      self.passwordTextFieldDoneEditingProperty.signal
+    )
+
+    let loginEvent = emailAndPassword
+      .takeWhen(tryLogin)
+      .switchMap { email, password in
+        AppEnvironment.current.apiService.login(email: email, password: password, code: nil)
+          .materialize()
+      }
+
+    self.logIntoEnvironment = loginEvent.values()
+
+    let tfaError = loginEvent.errors()
+      .filter { $0.ksrCode == .TfaRequired }
+      .ignoreValues()
+
+    self.tfaChallenge = emailAndPassword
+      .takeWhen(tfaError)
+      .map { (email: $0, password: $1) }
+
+    self.postNotification = self.environmentLoggedInProperty.signal
+      .mapConst(
+        (
+          Notification(name: .ksr_sessionStarted),
+          Notification(
+            name: .ksr_showNotificationsDialog,
+            userInfo: [UserInfoKeys.context: PushNotificationDialog.Context.login]
+          )
+        )
+      )
+
+    self.dismissKeyboard = self.passwordTextFieldDoneEditingProperty.signal
+    self.passwordTextFieldBecomeFirstResponder = self.emailTextFieldDoneEditingProperty.signal
+
+    self.showError = loginEvent.errors()
+      .filter { $0.ksrCode != .TfaRequired }
+      .map { env in
+        env.errorMessages.first ?? Strings.login_errors_unable_to_log_in()</code></pre></div><div class="code after"><div class="code-h"><span class="chip after">After · CFA</span><span class="code-t">Login: the same behaviour as ordinary Swift</span></div>
+<div class="code-f">Kickstarter-iOS/1 - View/Views/Login/Controller/LoginViewModel.swift · lines 49-74</div><pre><code>  private func submit() {
+    AppEnvironment.current.ksrAnalytics.trackLoginSubmitButtonClicked()
+    guard let email = self.email, let password = self.password else { return }
+    self.loginTask?.cancel()
+    let version = UUID()
+    self.loginVersion = version
+    let feature = self.authenticationFeature
+    self.loginTask = Task { [weak self] in
+      do {
+        let result = try await feature.authenticate(.email(email, password: password))
+        guard !Task.isCancelled, let self, self.loginVersion == version else { return }
+        self.onLogin?(result)
+      } catch {
+        guard !Task.isCancelled, let self, self.loginVersion == version else { return }
+        if let error = error as? ErrorEnvelope, error.ksrCode == .TfaRequired {
+          if let currentEmail = self.email, let currentPassword = self.password {
+            self.onTwoFactor?(currentEmail, currentPassword)
+          }
+        } else if let error = error as? ErrorEnvelope {
+          self.onError?(error.errorMessages.first ?? Strings.login_errors_unable_to_log_in())
+        } else {
+          self.onError?(Strings.login_errors_unable_to_log_in())
+        }
+      }
+    }
+  }</code></pre></div></div>
+<h3>Project page, the hardest screen</h3>
+<p>Before, five different events are merged into one trigger and piped through <code>switchMap</code>, <code>on(starting:terminated:)</code> and <code>materialize</code>. After, those same five events are five ordinary methods (<code>viewDidLoad</code>, <code>userSessionStarted</code>, <code>didBackProject</code>, <code>managePledgeViewControllerFinished</code>, <code>pledgeRetryButtonTapped</code>), each calling <code>loadProject</code>, which asks <code>ProjectDetailsFeature</code>. The list of triggers is now something you can read in the method names and set a breakpoint on.</p>
+<div class="pair"><div class="code before"><div class="code-h"><span class="chip before">Before · legacy</span><span class="code-t">Project page: five triggers merged, then switchMap and materialize</span></div>
+<div class="code-f">Library/…/ViewModels/ProjectPageViewModel.swift · lines 248-270</div><pre><code>    let freshProjectAndRefTagEvent = self.configDataProperty.signal
+      .skipNil()
+      .takeWhen(Signal.merge(
+        self.viewDidLoadProperty.signal.ignoreValues(),
+        self.userSessionStartedProperty.signal.ignoreValues(),
+        self.didBackProjectProperty.signal.ignoreValues(),
+        self.managePledgeViewControllerFinishedWithMessageProperty.signal.ignoreValues(),
+        self.pledgeRetryButtonTappedProperty.signal.ignoreValues()
+      ))
+      .switchMap { projectOrParam, refInfo, secretRewardToken in
+        fetchProject(
+          projectOrParam: projectOrParam,
+          afterAddingSecretRewardToken: secretRewardToken
+        )
+        .on(
+          starting: { isLoading.value = true },
+          terminated: { isLoading.value = false }
+        )
+        .map { project in
+          (project, refInfo?.refTag.map(cleanUp(refTag:)))
+        }
+        .materialize()
+      }</code></pre></div><div class="code after"><div class="code-h"><span class="chip after">After · CFA</span><span class="code-t">Project page: five named methods, each calling one function</span></div>
+<div class="code-f">Kickstarter-iOS/1 - View/Views/ProjectPage/Controller/ProjectPageViewModel.swift · lines 466-472</div><pre><code>  private func loadProject(force: Bool) {
+    guard let (projectOrParam, refInfo, token) = self.configData else { return }
+    self.requestRefTag = refInfo?.refTag.map(cleanUp(refTag:))
+    self.loadingTask = self.projectDetailsFeature.requestLoad(
+      route: self.projectRoute, param: projectOrParam.param.param, secretRewardToken: token, force: force
+    )
+  }</code></pre></div></div>
+<div class="tw"><table class=""><thead><tr><th>Traced action</th><th>Lines to read: before → after</th><th>Files: before → after</th><th>What changed in kind</th></tr></thead><tbody><tr><td>Search</td><td>1,473 → 1,788 (+21%)</td><td>5 → 8</td><td>Operator graph → sequential steps; reactive terms 20 → 0</td></tr><tr><td>Login</td><td>440 → 511 (+16%)</td><td>2 → 3</td><td>One 14-line pipeline → plain do/catch; reactive terms 17 → 0</td></tr><tr><td>Project page</td><td>2,957 → 3,010 (+2%)</td><td>3 → 4</td><td>Merged triggers → named methods; reactive terms 21 → 0</td></tr></tbody></table></div>
+<p class="small">These three rows are from the previous review (static counts of the read set listed there). Slightly more lines, but standard Swift that any iOS developer reads without learning a library first.</p>
+</div></section>
+<section id="vocab"><div class="wrap"><h2>4. The vocabulary a reader must know</h2>
+<p class="kicker">New hires do not only learn the product; they learn the vocabulary the code is written in. Counted over all production Swift in the app target (730 files legacy, 753 CFA).</p>
+<div class="tw"><table class=""><thead><tr><th>Term (ReactiveSwift and in-house reactive layer)</th><th>Legacy: occurrences</th><th>Legacy: files</th><th>CFA: occurrences</th><th>CFA: files</th></tr></thead><tbody><tr><td><code>Signal</code></td><td>3,190</td><td>170</td><td>0</td><td>0</td></tr><tr><td><code>SignalProducer</code></td><td>157</td><td>43</td><td>0</td><td>0</td></tr><tr><td><code>MutableProperty</code></td><td>700</td><td>154</td><td>0</td><td>0</td></tr><tr><td><code>Property&lt;…&gt;</code></td><td>4</td><td>2</td><td>0</td><td>0</td></tr><tr><td><code>flatMap(.latest / .concat / .merge)</code></td><td>1</td><td>1</td><td>0</td><td>0</td></tr><tr><td><code>switchMap</code></td><td>128</td><td>60</td><td>1</td><td>1</td></tr><tr><td><code>combineLatest</code></td><td>314</td><td>79</td><td>2</td><td>1</td></tr><tr><td><code>takeWhen / takePairWhen</code></td><td>269</td><td>84</td><td>0</td><td>0</td></tr><tr><td><code>skipRepeats</code></td><td>147</td><td>58</td><td>0</td><td>0</td></tr><tr><td><code>skipNil</code></td><td>574</td><td>168</td><td>0</td><td>0</td></tr><tr><td><code>observeForUI</code></td><td>504</td><td>140</td><td>0</td><td>0</td></tr><tr><td><code>observeForControllerAction</code></td><td>204</td><td>61</td><td>0</td><td>0</td></tr><tr><td><code>observeValues</code></td><td>775</td><td>181</td><td>0</td><td>0</td></tr><tr><td><code>mapConst</code></td><td>245</td><td>73</td><td>0</td><td>0</td></tr><tr><td><code>ignoreValues</code></td><td>221</td><td>58</td><td>0</td><td>0</td></tr><tr><td><code>materialize</code></td><td>80</td><td>47</td><td>0</td><td>0</td></tr><tr><td><code>demoteErrors</code></td><td>39</td><td>18</td><td>0</td><td>0</td></tr><tr><td><code>&lt;~ binding</code></td><td>38</td><td>25</td><td>0</td><td>0</td></tr><tr><td><code>.rac. binding</code></td><td>434</td><td>112</td><td>0</td><td>0</td></tr><tr><td><b>All 19 terms together</b></td><td><b>8,024</b></td><td><b>339 of 730 files</b></td><td><b>3</b></td><td><b>2 of 753 files</b></td></tr></tbody></table></div>
+<p class="small">The 3 remaining occurrences are Apple Combine's <code>combineLatest</code> in one file (<code>PagedContainerViewModel.swift</code>) and one code comment mentioning <code>switchMap</code>.</p>
+<div class="two"><div>
+<h3>What replaces it: Swift's own keywords</h3>
+<div class="tw"><table class=""><thead><tr><th>Construct (occurrences / files)</th><th>Legacy</th><th>CFA</th></tr></thead><tbody><tr><td><code>async</code></td><td>45 / 20</td><td>619 / 108</td></tr><tr><td><code>await</code></td><td>24 / 10</td><td>870 / 123</td></tr><tr><td><code>Task { }</code></td><td>6 / 5</td><td>361 / 132</td></tr><tr><td><code>@MainActor</code></td><td>4 / 3</td><td>1,248 / 386</td></tr><tr><td><code>@Observable</code></td><td>7 / 7</td><td>77 / 76</td></tr><tr><td><code>do / catch</code></td><td>21 / 14</td><td>229 / 91</td></tr><tr><td><code>Task.isCancelled / checkCancellation</code></td><td>0 / 0</td><td>403 / 105</td></tr></tbody></table></div>
+</div><div>
+<h3>Distinct terms needed to read one file</h3>
+<div class="tw"><table class=""><thead><tr><th>File</th><th>Reactive terms: before → after</th><th>Swift concurrency terms: before → after</th></tr></thead><tbody><tr><td>Login ViewModel</td><td>10 → 0</td><td>0 → 6</td></tr><tr><td>Login ViewController</td><td>4 → 0</td><td>0 → 0</td></tr><tr><td>ChangePassword ViewModel</td><td>8 → 0</td><td>0 → 7</td></tr><tr><td>Project page ViewModel</td><td>14 → 0</td><td>0 → 6</td></tr></tbody></table></div>
+<p class="small">Counted from fixed lists: the 19 reactive terms above, and 7 standard-Swift constructs (async, await, Task, @MainActor, @Observable, catch, Task cancellation checks).</p>
+</div></div>
+<div class="callout blue"><h4>Why this matters</h4><p>Before, 339 of 730 app files contained reactive vocabulary: about 46% of the codebase needs knowledge that is specific to one third-party library and an in-house extension layer. After, that knowledge is not required to read the app. What a reader needs instead is documented by Apple: <a href="https://developer.apple.com/documentation/swift/concurrency">Swift Concurrency</a> and the <a href="https://developer.apple.com/documentation/observation">Observation framework</a>. (ReactiveSwift is a community project: <a href="https://github.com/ReactiveCocoa/ReactiveSwift">github.com/ReactiveCocoa/ReactiveSwift</a>.)</p></div>
+</div></section>
+<section id="vm"><div class="wrap"><h2>5. A typical ViewModel's surface</h2>
+<p class="kicker">In the legacy app, every ViewModel is a class plus three protocols: an Inputs protocol of functions, an Outputs protocol of <code>Signal</code>s, and a Type protocol that exposes both. Each input also needs a hidden <code>MutableProperty</code> and a forwarding function. After, a ViewModel is one class with methods and callbacks.</p>
+<div class="pair"><div class="code before"><div class="code-h"><span class="chip before">Before · legacy</span><span class="code-t">LoginViewModel: three protocols, then the class (lines 7-78)</span></div>
+<div class="code-f">Library/…/ViewModels/LoginViewModel.swift · lines 7-78</div><pre><code>public protocol LoginViewModelInputs {
+  /// String value of email textfield text
+  func emailChanged(_ email: String?)
+
+  /// Call when email textfield keyboard returns.
+  func emailTextFieldDoneEditing()
+
+  /// Call when the environment has been logged into.
+  func environmentLoggedIn()
+
+  /// Call when login button is pressed.
+  func loginButtonPressed()
+
+  /// String value of password textfield text
+  func passwordChanged(_ password: String?)
+
+  /// Call when password textfield keyboard returns.
+  func passwordTextFieldDoneEditing()
+
+  /// Call when reset password button is pressed.
+  func resetPasswordButtonPressed()
+
+  /// Call when the show/hide password button is pressed.
+  func showHidePasswordButtonTapped()
+
+  /// Call when the view did load.
+  func viewDidLoad()
+
+  /// Call when the view will appear.
+  func viewWillAppear()
+
+  /// Call when the trait collection did change.
+  func traitCollectionDidChange()
+}
+
+public protocol LoginViewModelOutputs {
+  /// Emits when to dismiss a textfield keyboard
+  var dismissKeyboard: Signal&lt;(), Never&gt; { get }
+
+  /// Sets whether the email text field is the first responder.
+  var emailTextFieldBecomeFirstResponder: Signal&lt;(), Never&gt; { get }
+
+  /// Bool value whether form is valid
+  var isFormValid: Signal&lt;Bool, Never&gt; { get }
+
+  /// Emits an access token envelope that can be used to update the environment.
+  var logIntoEnvironment: Signal&lt;AccessTokenEnvelope, Never&gt; { get }
+
+  /// Emits when the password textfield should become the first responder
+  var passwordTextFieldBecomeFirstResponder: Signal&lt;(), Never&gt; { get }
+
+  /// Emits when a login success notification should be posted.
+  var postNotification: Signal&lt;(Notification, Notification), Never&gt; { get }
+
+  /// Emits when a login error has occurred and a message should be displayed.
+  var showError: Signal&lt;String, Never&gt; { get }
+
+  /// Emits when the reset password screen should be shown
+  var showResetPassword: Signal&lt;(), Never&gt; { get }
+
+  /// Emits when the show/hide password button is toggled
+  var showHidePasswordButtonToggled: Signal&lt;Bool, Never&gt; { get }
+
+  /// Emits when TFA is required for login.
+  var tfaChallenge: Signal&lt;(email: String, password: String), Never&gt; { get }
+}
+
+public protocol LoginViewModelType {
+  var inputs: LoginViewModelInputs { get }
+  var outputs: LoginViewModelOutputs { get }
+}
+</code></pre></div><div class="code after"><div class="code-h"><span class="chip after">After · CFA</span><span class="code-t">LoginViewModel: one class; outputs are closures, inputs are methods</span></div>
+<div class="code-f">Kickstarter-iOS/1 - View/Views/Login/Controller/LoginViewModel.swift · lines 4-47</div><pre><code>@MainActor
+public final class LoginViewModel {
+  var onDismissKeyboard: (() -&gt; Void)?
+  var onEmailFirstResponder: (() -&gt; Void)?
+  var onFormValid: ((Bool) -&gt; Void)?
+  var onLogin: ((AccessTokenEnvelope) -&gt; Void)?
+  var onPasswordFirstResponder: (() -&gt; Void)?
+  var onNotification: ((Notification, Notification) -&gt; Void)?
+  var onError: ((String) -&gt; Void)?
+  var onResetPassword: (() -&gt; Void)?
+  var onPasswordVisibility: ((Bool) -&gt; Void)?
+  var onTwoFactor: ((String, String) -&gt; Void)?
+
+  private let authenticationFeature: AuthenticationFeature
+  private var email: String?
+  private var password: String?
+  private var showPassword = false
+  private var hasVisibilityValue = false
+  private var appeared = false
+  private var loginTask: Task&lt;Void, Never&gt;?
+  private var loginVersion = UUID()
+
+  public init(authenticationFeature: AuthenticationFeature? = nil) {
+    self.authenticationFeature = authenticationFeature ?? AppModel.shared.authenticationFeature
+  }
+  deinit { self.loginTask?.cancel() }
+
+  func viewWillAppear() {
+    guard !self.appeared else { return }
+    self.appeared = true
+    self.onFormValid?(false)
+  }
+  func viewDidLoad() {
+    self.onEmailFirstResponder?()
+    AppEnvironment.current.ksrAnalytics.trackLoginPageViewed()
+  }
+  func emailChanged(_ email: String?) { guard let email else { return }; self.email = email; self.publishValidity() }
+  func passwordChanged(_ password: String?) { guard let password else { return }; self.password = password; self.publishValidity() }
+  private func publishValidity() {
+    guard let email = self.email, let password = self.password else { return }
+    self.onFormValid?(isValidEmail(email) &amp;&amp; !password.isEmpty)
+  }
+  func emailTextFieldDoneEditing() { self.onPasswordFirstResponder?() }
+  func passwordTextFieldDoneEditing() { self.submit(); self.onDismissKeyboard?() }</code></pre></div></div>
+<div class="cards">
+<div class="card ok"><div class="big">158 → 19</div><div class="lab">ViewModels declaring the Inputs/Outputs protocol pair</div><div class="det">of 165 before and 153 after (the remaining 19 are the larger screens)</div></div>
+<div class="card ok"><div class="big">142 → 87</div><div class="lab">median ViewModel file, lines</div><div class="det">mean 199.4 → 133.9; total 32,900 → 20,486 lines</div></div>
+<div class="card info"><div class="big">+14,546</div><div class="lab">lines now in 2 - AppModel/Features</div><div class="det">112 files: where the logic that left the ViewModels went. This is movement, not shrinkage.</div></div>
+</div>
+<h3>Eleven ViewModels, before and after</h3>
+<div class="tw"><table><thead><tr><th>ViewModel</th><th>Lines before</th><th>Lines after</th><th>Protocols before</th><th>Protocols after</th><th><code>MutableProperty</code> before</th></tr></thead><tbody><tr><td><code>LoginViewModel</code></td><td class="num">221</td><td class="num">85</td><td class="num">3</td><td class="num">0</td><td class="num">11</td></tr><tr><td><code>ResetPasswordViewModel</code></td><td class="num">106</td><td class="num">48</td><td class="num">3</td><td class="num">0</td><td class="num">4</td></tr><tr><td><code>SettingsViewModel</code></td><td class="num">138</td><td class="num">65</td><td class="num">3</td><td class="num">0</td><td class="num">7</td></tr><tr><td><code>CreatePasswordViewModel</code></td><td class="num">194</td><td class="num">97</td><td class="num">3</td><td class="num">0</td><td class="num">8</td></tr><tr><td><code>ChangePasswordViewModel</code></td><td class="num">195</td><td class="num">92</td><td class="num">3</td><td class="num">0</td><td class="num">8</td></tr><tr><td><code>ActivitiesViewModel</code></td><td class="num">363</td><td class="num">179</td><td class="num">3</td><td class="num">0</td><td class="num">14</td></tr><tr><td><code>MessagesViewModel</code></td><td class="num">321</td><td class="num">243</td><td class="num">3</td><td class="num">0</td><td class="num">7</td></tr><tr><td><code>SearchViewModel</code></td><td class="num">448</td><td class="num">405</td><td class="num">3</td><td class="num">3</td><td class="num">7</td></tr><tr><td><code>CommentsViewModel</code></td><td class="num">621</td><td class="num">469</td><td class="num">3</td><td class="num">3</td><td class="num">15</td></tr><tr><td><code>DiscoveryPageViewModel</code></td><td class="num">543</td><td class="num">513</td><td class="num">3</td><td class="num">3</td><td class="num">19</td></tr><tr><td><code>ProjectPageViewModel</code></td><td class="num">1000</td><td class="num">785</td><td class="num">4</td><td class="num">4</td><td class="num">24</td></tr></tbody></table></div>
+<p class="small">ViewModel file only. The logic moved into Feature files, so the whole feature is not shorter (see the earlier traced-action table). The larger screens (Search, Comments, Discovery page, Project page) shrink less than form-style screens such as Login, Reset password and Settings.</p>
+</div></section>
+<section id="bind"><div class="wrap"><h2>6. How a screen binds to its ViewModel</h2>
+<p class="kicker">In the legacy app, a view controller's <code>bindViewModel()</code> reads like a list of subscriptions with thread-hopping operators. After, it is a list of closures that say what happens when.</p>
+<div class="pair"><div class="code before"><div class="code-h"><span class="chip before">Before · legacy</span><span class="code-t">LoginViewController.bindViewModel()</span></div>
+<div class="code-f">Kickstarter-Framework/…/Kickstarter-iOS/Features/Login/Controller/LoginViewController.swift · lines 106-156</div><pre><code>  override func bindViewModel() {
+    super.bindViewModel()
+
+    self.emailTextField.rac.becomeFirstResponder = self.viewModel.outputs.emailTextFieldBecomeFirstResponder
+    self.loginButton.rac.enabled = self.viewModel.outputs.isFormValid
+    self.passwordTextField.rac.becomeFirstResponder =
+      self.viewModel.outputs.passwordTextFieldBecomeFirstResponder
+
+    self.viewModel.outputs.showHidePasswordButtonToggled
+      .observeForUI()
+      .observeValues { [weak self] shouldShow in
+        self?.updateShowHidePassword(shouldShow)
+      }
+
+    self.viewModel.outputs.dismissKeyboard
+      .observeForControllerAction()
+      .observeValues { [weak self] _ in
+        self?.dismissKeyboard()
+      }
+
+    self.viewModel.outputs.postNotification
+      .observeForUI()
+      .observeValues {
+        NotificationCenter.default.post($0.0)
+        NotificationCenter.default.post($0.1)
+      }
+
+    self.viewModel.outputs.logIntoEnvironment
+      .observeValues { [weak self] env in
+        AppEnvironment.login(env)
+        self?.viewModel.inputs.environmentLoggedIn()
+      }
+
+    self.viewModel.outputs.showResetPassword
+      .observeForControllerAction()
+      .observeValues { [weak self] in
+        self?.startResetPasswordViewController()
+      }
+
+    self.viewModel.outputs.showError
+      .observeForControllerAction()
+      .observeValues { [weak self] message in
+        self?.present(UIAlertController.genericError(message), animated: true, completion: nil)
+      }
+
+    self.viewModel.outputs.tfaChallenge
+      .observeForControllerAction()
+      .observeValues { [weak self] email, password in
+        self?.startTwoFactorViewController(email, password: password)
+      }
+  }</code></pre></div><div class="code after"><div class="code-h"><span class="chip after">After · CFA</span><span class="code-t">LoginViewController.bindViewModel()</span></div>
+<div class="code-f">Kickstarter-iOS/1 - View/Views/Login/Controller/LoginViewController.swift · lines 105-121</div><pre><code>  override func bindViewModel() {
+    super.bindViewModel()
+
+    self.viewModel.onEmailFirstResponder = { [weak self] in self?.emailTextField.becomeFirstResponder() }
+    self.viewModel.onFormValid = { [weak self] in self?.loginButton.isEnabled = $0 }
+    self.viewModel.onPasswordFirstResponder = { [weak self] in self?.passwordTextField.becomeFirstResponder() }
+    self.viewModel.onPasswordVisibility = { [weak self] in self?.updateShowHidePassword($0) }
+    self.viewModel.onDismissKeyboard = { [weak self] in self?.dismissKeyboard() }
+    self.viewModel.onNotification = { first, second in
+      NotificationCenter.default.post(first)
+      NotificationCenter.default.post(second)
+    }
+    self.viewModel.onLogin = { [weak self] _ in self?.viewModel.environmentLoggedIn() }
+    self.viewModel.onResetPassword = { [weak self] in self?.startResetPasswordViewController() }
+    self.viewModel.onError = { [weak self] in self?.present(UIAlertController.genericError($0), animated: true, completion: nil) }
+    self.viewModel.onTwoFactor = { [weak self] email, password in self?.startTwoFactorViewController(email, password: password) }
+  }</code></pre></div></div>
+<div class="cards">
+<div class="card ok"><div class="big">51 → 17</div><div class="lab">lines in Login bindViewModel()</div><div class="det">lines 106-156 before, 105-121 after</div></div>
+<div class="card ok"><div class="big">434 → 0</div><div class="lab"><code>.rac.</code> property bindings</div><div class="det">in 112 files</div></div>
+<div class="card ok"><div class="big">504 → 0</div><div class="lab"><code>observeForUI</code> calls</div><div class="det">in 140 files; also <code>observeForControllerAction</code> 204 → 0</div></div>
+</div>
+<p class="small">The old thread-hopping calls are replaced by <code>@MainActor</code> isolation on the ViewModel, so the compiler, not a convention, tells a reader which thread the closures run on.</p>
+</div></section>
+<section id="wiring"><div class="wrap"><h2>7. Dependency wiring: where services come from</h2>
+<p class="kicker">Before, a ViewModel reached for the global <code>AppEnvironment.current</code> to find the API service. After, the Features are assembled in one place, and a ViewModel is handed the Feature it needs.</p>
+<div class="pair"><div class="code before"><div class="code-h"><span class="chip before">Before · legacy</span><span class="code-t">LoginViewModel: reaches the global environment from inside the pipeline</span></div>
+<div class="code-f">Library/…/ViewModels/LoginViewModel.swift · lines 79-100</div><pre><code>public final class LoginViewModel: LoginViewModelType, LoginViewModelInputs, LoginViewModelOutputs {
+  public init() {
+    let emailAndPassword = Signal.combineLatest(
+      self.emailChangedProperty.signal.skipNil(),
+      self.passwordChangedProperty.signal.skipNil()
+    )
+
+    self.emailTextFieldBecomeFirstResponder = self.viewDidLoadProperty.signal
+
+    self.isFormValid = self.viewWillAppearProperty.signal.mapConst(false).take(first: 1)
+      .mergeWith(emailAndPassword.map(isValid))
+
+    let tryLogin = Signal.merge(
+      self.loginButtonPressedProperty.signal,
+      self.passwordTextFieldDoneEditingProperty.signal
+    )
+
+    let loginEvent = emailAndPassword
+      .takeWhen(tryLogin)
+      .switchMap { email, password in
+        AppEnvironment.current.apiService.login(email: email, password: password, code: nil)
+          .materialize()</code></pre></div><div class="code after"><div class="code-h"><span class="chip after">After · CFA</span><span class="code-t">AppModel.live(): one composition root builds every Feature</span></div>
+<div class="code-f">Kickstarter-iOS/2 - AppModel/AppModel.swift · lines 88-108</div><pre><code>  public static func live() -&gt; AppModel {
+    let searchProvider = AsyncSearchProjectsProvider()
+    let sessionFeature =
+      SessionFeature(makeProvider: { AsyncSessionProvider(service: AppEnvironment.current.apiService) })
+    let activityFeature = ActivityFeature(
+      sessionFeature: sessionFeature,
+      makeProvider: { AsyncActivityProvider(service: AppEnvironment.current.apiService) }
+    )
+    let profileFeature = ProfileFeature(
+      sessionFeature: sessionFeature,
+      makeProvider: { AsyncProfileProvider(service: AppEnvironment.current.apiService) }
+    )
+    let settingsFeature = SettingsFeature(sessionFeature: sessionFeature, makeProvider: {
+        AsyncAccountPreferencesProvider(service: AppEnvironment.current.apiService)
+      })
+    let messagingFeature = MessagingFeature(sessionFeature: sessionFeature, makeProvider: {
+      AsyncMessagingProvider(service: AppEnvironment.current.apiService)
+    })
+    let discussionFeature = DiscussionFeature(sessionFeature: sessionFeature, makeProvider: {
+      AsyncDiscussionProvider(service: AppEnvironment.current.apiService)
+    })</code></pre></div></div>
+<div class="cards">
+<div class="card ok"><div class="big">21</div><div class="lab">Features listed in AppModel.swift</div><div class="det">one file is a table of contents of the app's parts</div></div>
+<div class="card info"><div class="big">22</div><div class="lab"><code>*Provider</code> protocols in Features</div><div class="det">small seams where a fake can replace the network in a test</div></div>
+<div class="card ok"><div class="big">67 → 13</div><div class="lab">ViewModels calling the API service directly</div><div class="det">of 165 and 153 ViewModels</div></div>
+<div class="card info"><div class="big">579 → 263</div><div class="lab"><code>AppEnvironment.current</code> references in ViewModel files</div><div class="det">more than halved; the global remains in places (see What's next)</div></div>
+</div>
+<p class="small">App-wide, <code>AppEnvironment.current</code> is still referenced 838 → 603 times in 166 → 163 files, so the migration reduced the global rather than removing it.</p>
+</div></section>
+<section id="errors"><div class="wrap"><h2>8. Error-handling paths</h2>
+<p class="kicker">In the signal style, an error is a value that has to be materialised, split out with <code>values()</code> and <code>errors()</code>, and mapped to separate outputs. In Swift Concurrency, a failing call throws and the caller catches.</p>
+<div class="pair"><div class="code before"><div class="code-h"><span class="chip before">Before · legacy</span><span class="code-t">ChangePasswordViewModel: success and failure as two derived signals</span></div>
+<div class="code-f">Library/…/ViewModels/ChangePasswordViewModel.swift · lines 70-81</div><pre><code>    let passwordUpdateEvent = combinedInput
+      .takeWhen(triggerSaveAction)
+      .map(unpack)
+      .map { ChangePasswordInput(currentPassword: $0.0, newPassword: $0.1, newPasswordConfirmation: $0.2) }
+      .flatMap {
+        AppEnvironment.current.apiService.changePassword(input: $0)
+          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+          .materialize()
+      }
+
+    self.changePasswordSuccess = passwordUpdateEvent.values().ignoreValues()
+    self.changePasswordFailure = passwordUpdateEvent.errors().map { $0.localizedDescription }</code></pre></div><div class="code after"><div class="code-h"><span class="chip after">After · CFA</span><span class="code-t">ChangePasswordViewModel.submit(): do / catch</span></div>
+<div class="code-f">Kickstarter-iOS/1 - View/Views/ChangePassword/Controller/ChangePasswordViewModel.swift · lines 65-88</div><pre><code>  private func submit() {
+    let input = ChangePasswordInput(currentPassword: self.currentPassword, newPassword: self.newPassword,
+                                    newPasswordConfirmation: self.confirmation)
+    let delay = AppEnvironment.current.apiDelayInterval.searchDelaySeconds
+    let id = UUID()
+    self.isLoading = true
+    self.saveTasks[id] = Task { [weak self, settingsFeature, sleep] in
+      do {
+        _ = try await settingsFeature.updateAccount(.password(input))
+        try await sleep(delay)
+        try Task.checkCancellation()
+        guard let self else { return }
+        self.saveTasks[id] = nil
+        self.isLoading = !self.saveTasks.isEmpty
+        self.onSuccess?()
+      } catch {
+        guard let self else { return }
+        self.saveTasks[id] = nil
+        self.isLoading = !self.saveTasks.isEmpty
+        guard !Task.isCancelled, !(error is CancellationError) else { return }
+        self.onFailure?((error as? ErrorEnvelope)?.localizedDescription ?? error.localizedDescription)
+      }
+    }
+  }</code></pre></div></div>
+<div class="tw"><table class=""><thead><tr><th>Error plumbing (occurrences in app code)</th><th>Legacy</th><th>CFA</th></tr></thead><tbody><tr><td><code>materialize</code></td><td>80</td><td>0</td></tr><tr><td><code>values()</code></td><td>96</td><td>0</td></tr><tr><td><code>errors()</code></td><td>66</td><td>0</td></tr><tr><td><code>demoteErrors</code></td><td>39</td><td>0</td></tr><tr><td><code>on(failed/event/starting/terminated…)</code></td><td>54</td><td>0</td></tr><tr><td><code>do/catch (catch keyword)</code></td><td>21</td><td>229</td></tr><tr><td><code>try await</code></td><td>3</td><td>553</td></tr></tbody></table></div>
+<p class="small">ChangePassword ViewModel: 195 → 92 lines. The migrated code also handles cancellation explicitly (<code>Task.checkCancellation()</code>, <code>Task.isCancelled</code>: 2 → 0 occurrences app-wide): lifetime is written down rather than implied by signal disposal.</p>
+</div></section>
+<section id="tests"><div class="wrap"><h2>9. Test readability: how tests read</h2>
+<p class="kicker">Tests are documentation that runs. The legacy tests observe streams through a recording helper and advance a virtual clock; the migrated tests call, <code>await</code>, then assert.</p>
+<div class="cards">
+<div class="card ok"><div class="big">1,243 → 2</div><div class="lab"><code>TestObserver</code> uses</div><div class="det">in 162 test files before</div></div>
+<div class="card ok"><div class="big">1,084 → 0</div><div class="lab"><code>scheduler.advance/run</code> calls</div><div class="det">virtual-time scheduling is no longer something a reader must learn</div></div>
+<div class="card info"><div class="big">38 → 1409</div><div class="lab"><code>async</code> test methods</div><div class="det">tests await results directly</div></div>
+<div class="card info"><div class="big">2,675 → 3,028</div><div class="lab">test methods in total</div><div class="det">the suite grew: test code is 83,734 → 92,485 lines</div></div>
+<div class="card info"><div class="big">24</div><div class="lab">Feature test files</div><div class="det">9,833 lines, in folders that mirror <code>2 - AppModel/Features</code></div></div>
+</div>
+<div class="pair"><div class="code before"><div class="code-h"><span class="chip before">Before · legacy</span><span class="code-t">ChangePasswordViewModelTests.testChangePassword (virtual scheduler)</span></div>
+<div class="code-f">LibraryTests/Library/ViewModels/ChangePasswordViewModelTests.swift · lines 46-70</div><pre><code>  func testChangePassword() {
+    let service = MockService(changePasswordResult: .success(EmptyResponseEnvelope()))
+
+    withEnvironment(apiService: service) {
+      self.vm.inputs.viewDidAppear()
+
+      self.currentPasswordBecomeFirstResponder.assertValueCount(1)
+
+      self.vm.inputs.currentPasswordFieldDidReturn(currentPassword: &quot;password&quot;)
+      self.newPasswordBecomeFirstResponder.assertValueCount(1)
+
+      self.vm.inputs.newPasswordFieldDidReturn(newPassword: &quot;123456&quot;)
+      self.confirmNewPasswordBecomeFirstResponder.assertValueCount(1)
+
+      self.vm.inputs.newPasswordConfirmationFieldDidReturn(newPasswordConfirmed: &quot;123456&quot;)
+      self.saveButtonIsEnabled.assertValues([true])
+      self.dismissKeyboard.assertValueCount(1)
+      self.activityIndicatorShouldShow.assertValues([true])
+
+      self.scheduler.advance()
+
+      self.changePasswordSuccess.assertValueCount(1)
+      self.activityIndicatorShouldShow.assertValues([true, false])
+    }
+  }</code></pre></div><div class="code after"><div class="code-h"><span class="chip after">After · CFA</span><span class="code-t">ChangePasswordViewModelTests.testSaveSuccessAndFailure (await)</span></div>
+<div class="code-f">ApplicationTests/Model/Library/ViewModels/ChangePasswordViewModelTests.swift · lines 38-59</div><pre><code>  func testSaveSuccessAndFailure() async {
+    for succeeds in [true, false] {
+      let error = ErrorEnvelope(errorMessages: [&quot;Error&quot;], ksrCode: nil, httpCode: 1, exception: nil)
+      let service = MockService(changePasswordResult: succeeds ? .success(EmptyResponseEnvelope()) : .failure(error))
+      await withEnvironment(apiService: service, currentUser: .template) {
+        var success = false
+        var failure: String?
+        self.vm.onSuccess = { success = true }
+        self.vm.onFailure = { failure = $0 }
+        self.vm.currentPasswordFieldTextChanged(text: &quot;oldpassword&quot;)
+        self.vm.newPasswordFieldTextChanged(text: &quot;newpassword&quot;)
+        self.vm.newPasswordConfirmationFieldTextChanged(text: &quot;newpassword&quot;)
+        self.vm.saveButtonTapped()
+        XCTAssertTrue(self.vm.isLoading)
+        await self.vm.waitForSaves()
+        XCTAssertFalse(self.vm.isLoading)
+        XCTAssertEqual(success, succeeds)
+        XCTAssertEqual(failure != nil, !succeeds)
+        if !succeeds { XCTAssertEqual(failure, error.localizedDescription) }
+      }
+    }
+  }</code></pre></div></div>
+<p class="small">The ChangePassword ViewModel test file has 5 test methods before and 2 after; it is shown because the contrast in style is clear, not as a like-for-like size comparison.</p>
+<div class="code after"><div class="code-h"><span class="chip after">After · CFA</span><span class="code-t">AuthenticationFeatureTests: login logic tested with no UIKit at all</span></div>
+<div class="code-f">ApplicationTests/Model/FeatureTests/Authentication/AuthenticationFeatureTests.swift · lines 106-126</div><pre><code>  func testMalformedAppleUserIDFailsWithoutSessionCommit() async {
+    let fixture = AuthenticationFixture()
+    var envelope = SignInWithAppleEnvelope.template
+    envelope.signInWithApple.user.uid = &quot;not-an-id&quot;
+    let feature = AuthenticationFeature(sessionFeature: fixture.session, makeProvider: {
+      AsyncAuthenticationProvider(service: MockService(
+        fetchUserResult: .success(.template), signInWithAppleResult: .success(envelope)
+      ))
+    })
+    do {
+      _ = try await feature.authenticate(.apple(
+        appID: &quot;fixture&quot;,
+        firstName: nil,
+        lastName: nil,
+        token: &quot;fixture&quot;
+      ))
+      XCTFail(&quot;Malformed user ID accepted&quot;)
+    } catch { XCTAssertTrue(error is ErrorEnvelope) }
+    XCTAssertEqual(fixture.logins, 0)
+  }
+</code></pre></div>
+<p class="small">The Feature is constructed with a fake provider and exercised directly. No view controller, no ViewModel, no scheduler. This is the layer that did not exist in the legacy app.</p>
+</div></section>
+<section id="onboard"><div class="wrap"><h2>10. Onboarding walkthrough: "where does X live?"</h2>
+<p class="kicker">Seven questions a new hire asks in week one. The answers were found by walking both trees.</p>
+<div class="tw"><table class="qa"><thead><tr><th>Question</th><th>Before · legacy</th><th>After · CFA</th></tr></thead><tbody><tr><td>How many parts does the app have, and where is the list?</td><td>No single index. You browse 71 screen folders in <code>Kickstarter-Framework/…/Features</code> and 151 ViewModels in a different package.</td><td>Open <code>2 - AppModel/AppModel.swift</code>: 21 Features listed as properties; matching folders in <code>2 - AppModel/Features</code>.</td></tr><tr><td>Where is the Login code?</td><td><code>LoginViewModel</code> in <code>Library/…/ViewModels</code>, the controller in <code>Kickstarter-Framework/…/Features/Login</code>, the storyboard in <code>Kickstarter-Framework/…/Resources</code>, tests in two more places.</td><td><code>1 - View/Views/Login/Controller/</code> holds controller, ViewModel and storyboard. Logic: <code>2 - AppModel/Features/Authentication/AuthenticationFeature.swift</code>.</td></tr><tr><td>Where does Search get its data?</td><td><code>SearchViewModel</code> feeds the shared <code>Library/…/Paginate.swift</code> engine, whose request closure calls <code>AppEnvironment.current.apiService</code>.</td><td><code>2 - AppModel/Features/Search/</code>: <code>SearchFeature</code> asks a <code>SearchProjectsProvider</code>; the live adapter is <code>AsyncSearchProjectsProvider.swift</code>.</td></tr><tr><td>Where do services come from?</td><td>The global <code>AppEnvironment.current</code> (838 references), read from inside ViewModels (67 of 165 call the API directly).</td><td><code>AppModel.live()</code> builds each Feature with its provider; ViewModels take a Feature in <code>init</code>. The global still exists (603 references) and is on the roadmap.</td></tr><tr><td>Where are the tests for Login?</td><td><code>LibraryTests/Library/ViewModels/LoginViewModelTests.swift</code> and a controller test in <code>Kickstarter-Framework-iOSTests</code>.</td><td><code>ApplicationTests/Model/FeatureTests/Authentication/</code> for the logic; <code>ApplicationTests/Model/Library/ViewModels/LoginViewModelTests.swift</code> for the screen. (The folder is still named Library, a naming leftover.)</td></tr><tr><td>How does a screen stop its work?</td><td>Implicit: signals end when disposed; read the graph to find out.</td><td>Explicit: <code>deinit { self.loginTask?.cancel() }</code> in <code>LoginViewModel</code>; a <code>Task</code> property per piece of work.</td></tr><tr><td>Where do shared UI pieces live?</td><td><code>Library/…/Library</code> (133 files in one folder), plus <code>SharedViews</code> and <code>Library</code> folders in Kickstarter-Framework.</td><td><code>1 - View/Shared Views</code>, <code>Shared Components</code> and <code>UIKit Extensions</code>; plain Swift helpers in <code>4 - Swift Extensions</code>.</td></tr></tbody></table></div>
+</div></section>
+<section id="business"><div class="wrap"><h2>11. What this means for the company</h2>
+<p class="kicker">The measurements above are facts about the code. The points below are what they imply for hiring and risk. They are reasoned consequences, not measured outcomes.</p>
+<div class="biz">
+<div class="b"><div class="tagl">Hiring</div><h3>A wider pool of candidates can contribute sooner</h3><p>Swift Concurrency and Observation are part of Apple's own SDK, documented by Apple and taught to every iOS developer. ReactiveSwift is a niche, third-party skill. A codebase written in the standard vocabulary means a hire does not have to arrive already fluent in reactive programming, or spend their first months learning an in-house operator dialect.</p></div>
+<div class="b"><div class="tagl">Beyond reactive specialists</div><h3>No longer limited to one kind of developer</h3><p>Before the migration, reactive vocabulary appeared in about 46% of the app's files. A reviewer who has never used ReactiveSwift could not fully follow the project page, login or search. After, an engineer from any background (UIKit, SwiftUI, or a different platform) can read the same screens, because the screens are built from constructs they already know.</p></div>
+<div class="b"><div class="tagl">Longevity</div><h3>Less key-person risk</h3><p>An architecture chosen years ago because one developer preferred it becomes hard to understand for everyone who follows. CFA replaces a personal style with a documented, predictable layout: numbered layers, one folder per Feature, one composition root. The structure explains itself, so knowledge does not have to live in one person's head.</p></div>
+<div class="b"><div class="tagl">Peace of mind</div><h3>For heads of department and owners</h3><p>A formatted, readable, predictable layout makes the product easier to hand over, easier to review, and easier to staff. If the team changes, the next group opens the project, finds the map in <code>AppModel.swift</code>, and can see where to start. That is what keeps the company able to hire for this product for as long as it earns revenue.</p></div>
+<div class="b"><div class="tagl">Cost of adoption</div><h3>Free, forever, and changeable</h3><p>The CFA architecture and toolkit are published under the MIT licence. The README says: "You may use, copy, change and share the CFA architecture and CFA Toolkit, including in commercial work." There are no fees and no lock-in: a team can adopt it permanently and adapt it whenever its needs change.</p><p class="small"><a href="https://github.com/3DaysOfSwift/cooperative-feature-architecture">github.com/3DaysOfSwift/cooperative-feature-architecture</a></p></div>
+<div class="b"><div class="tagl">One shared mental model</div><h3>A model you can sketch, tests you can map</h3><p>Because the Model is explicit (Features over services, under the ViewModels), a team can draw the app on a whiteboard and agree on it. The same drawing gives testing a format: ViewModel tests check how each ViewModel uses the Model, Feature tests check each part works as intended. Tests become easy to find, catalogue and organise, and a Feature without enough tests stands out as a thin row in the catalogue instead of an unnoticed gap.</p></div>
+<div class="b"><div class="tagl">Compounding value</div><h3>Readable code is cheaper to change</h3><p>Clear seams (a Feature behind a provider protocol, tests that await results) make it easier to review a change, to test it without the UI, and to hand it to a new colleague or an AI assistant with a precise place to start. This report did not time feature delivery; the point is that the conditions for faster, safer change are now in the code.</p></div>
+</div></div></section>
+<section id="next"><div class="wrap"><h2>12. What's next: making it even more readable</h2>
+<div class="callout blue"><h4>The migration is a strong foundation. These remaining steps would finish the story:</h4>
+<ul>
+<li><b>More Features on <code>@Observable</code>.</b> Today 3 of the 21 Features use it, and 42 ViewModel files do; moving the rest gives one standard way to expose state.</li>
+<li><b>Consolidate state notification.</b> ViewModel-to-view signalling currently uses closures (96 of 153 ViewModels) and Observation side by side; choosing one pattern per layer makes the codebase uniform.</li>
+<li><b>Swift 6 language mode.</b> The Xcode project still builds in Swift 5 mode; turning on Swift 6 lets the compiler enforce the isolation the code already documents.</li>
+<li><b>Trim the remaining <code>DispatchQueue</code> calls.</b> They went from 41 to 63 lines; the project-page controller alone has 23 call sites that re-dispatch to main, a leftover of the old <code>observeForUI</code> habit.</li>
+<li><b>Tidy a few hand-written spots,</b> such as the field count of 8 in <code>SearchViewModel</code>, and rename leftovers (test folders still called Library).</li>
+</ul></div>
+<h3>For fairness: other things we measured</h3>
+<p>So that readers can trust the conclusion, here is what else the earlier counts showed. Hops to trace one action are unchanged (Search 10 → 10, Login 7 → 8). The biggest files barely moved (ProjectPageViewController 1,362 → 1,270 lines; KSRAnalytics 2,227 → 2,248). Prelude, the in-house functional helper library, is still imported by 306 files. The global <code>AppEnvironment.current</code> remains. None of this changes the central finding: the vocabulary, the layout and the idiom are now standard, and that is what makes the code easier to read.</p>
+</div></section>
+<section id="method"><div class="wrap"><h2>Method and scope</h2>
+<div class="tw"><table><tbody>
+<tr><td><b>Legacy</b></td><td><code>5f5463cfb830413d253efed45bfcec0322c9f152</code> (upstream kickstarter/ios-oss)</td></tr>
+<tr><td><b>CFA</b></td><td><code>70bb08590e47b2b5242b4412fed6270eb36ef027</code> on branch <code>migration/cfa-swift-concurrency</code> of github.com/3DaysOfSwiftConcurrency/Legacy-GCD-Migration-iOS-App-Kickstarter</td></tr>
+<tr><td><b>Counted</b></td><td>Production Swift in the app target (legacy: Library, Kickstarter-Framework and the app folder; CFA: Kickstarter-iOS): 730 and 753 files. Tests counted separately (360 and 396 files); test methods are counted with a <code>func test…(</code> pattern, and test layers are assigned by path and file name. Local packages kept by both versions (KsApi, GraphAPI, KDS, Experimentation, ServerDrivenUI) are excluded. Counts use regular expressions over source text, so they include occurrences in comments.</td></tr>
+<tr><td><b>Reused</b></td><td>The Search, Login and project-page read-set figures (lines, files, terms) and the +21% / +16% / +2% line changes come from the previous review of these same two commits.</td></tr>
+<tr><td><b>Not done</b></td><td>Static review only: nothing was built, run or timed. Hop counts were not re-traced. Swift 6 mode was not verified. No hiring or job-market data is cited. Pass counts quoted by the repository were not re-run.</td></tr>
+<tr><td><b>Review criteria</b></td><td>Standard criteria applied in this review, and recommended for future ones: <b>model clarity</b> (is there a named, drawable Model between the ViewModels and the services?), <b>test discoverability</b> (can you find the test for a unit from its name and folder?), <b>per-layer test structure</b> (do ViewModel tests and Model/Feature tests have separate, mirrored homes, and are gaps visible?), plus vocabulary, layout predictability, wiring, error paths and binding as shown above.</td></tr>
+<tr><td><b>Data</b></td><td>Every figure is written to <code>kickstarter-cfa-readability-measurements.json</code> next to this file by the script that generated the page.</td></tr>
+</tbody></table></div>
+<div class="concl"><h2>Conclusion: readability improved, and CFA adds value.</h2>
+<p>The same app, with the same screens and behaviour, now has an Xcode project whose parts are listed, whose layers are numbered, whose screens sit next to their ViewModels, and whose code is written in the vocabulary Apple publishes. It has a Model the team can draw on a whiteboard, and a test suite that mirrors it, so tests are easy to find and gaps are easy to see. That is an easier project to open, to learn, to test, to hand over and to staff.</p>
+<p>Readability is not a luxury on a revenue-earning app. It is what lets the next team keep it alive. With CFA, the asset is easier to read, and that is the decision.</p></div>
+</div></section>
+<footer><div class="wrap">Credit: the app is <a href="https://github.com/kickstarter/ios-oss">Kickstarter's open-source iOS app</a> (Apache 2.0), which is the original work. The migration is by 3DaysOfSwiftConcurrency.com. The review is by Grok, from static analysis of the two commits above; no builds, tests or AI tools were run.</div></footer></body></html>
